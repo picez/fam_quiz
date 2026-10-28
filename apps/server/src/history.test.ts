@@ -524,8 +524,8 @@ describe('host history: board', () => {
       { nickname: 'Віра', points: -200 },
     ]);
     expect(detail.questions[0].responses).toEqual([
-      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null },
-      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null },
+      { nickname: 'Богдан', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null },
+      { nickname: 'Анна', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
     ]);
   });
 
@@ -629,8 +629,8 @@ describe('host history: answers', () => {
     const result = await detail();
     expect(result.questions[0].question.type).toBe('match');
     expect(result.questions[0].responses).toEqual([
-      { nickname: 'Олена', answer: right, accepted: true, buff: null, spare: null },
-      { nickname: 'Тарас', answer: swapped, accepted: false, buff: null, spare: null },
+      { nickname: 'Олена', answer: right, accepted: true, buff: null, spare: null, awayMs: null },
+      { nickname: 'Тарас', answer: swapped, accepted: false, buff: null, spare: null, awayMs: null },
     ]);
     await local.app.close();
   });
@@ -748,7 +748,7 @@ describe('host history: answers', () => {
     scheduler.advance(5000);
     expect(room.state.phase).toBe('locked');
     const result = await detail();
-    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false, buff: null, spare: null }]);
+    expect(result.questions[0].responses).toEqual([{ nickname: 'Олена', answer: null, accepted: false, buff: null, spare: null, awayMs: null }]);
     await local.app.close();
   });
   it('history shows final wagers and silence is not an answer', async () => {
@@ -778,8 +778,8 @@ describe('host history: answers', () => {
     expect(detail.questions[1].final).toEqual({
       mode: 'classic',
       entries: [
-        { nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, wager: 300, points: 300, accepted: true },
-        { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false },
+        { nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, wager: 300, points: 300, accepted: true, awayMs: null },
+        { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
       ],
     });
     expect(detail.questions[1].answered).toBe(1);

@@ -29,6 +29,7 @@ const game: GameCard = {
   buffs: 2,
   debuffs: { sent: 1, got: 3 },
   bluff: { fooled: 2, fooledBy: 1 },
+  away: 0,
 };
 
 describe('fact texts', () => {

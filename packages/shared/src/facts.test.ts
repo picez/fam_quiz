@@ -42,7 +42,7 @@ function row(playerId: string, questionIndex: number, accepted: boolean, timeMs:
 
 /** Штучний FactInput: типово одне запитання q(0, 0) і учасники Оля, Петро, Іра, Марко з місцями 1–4. */
 function input(rows: FactRow[], extra: Partial<FactInput> = {}): FactInput {
-  return { players: PLAYERS, questions: [q(0, 0)], rows, debuffs: [], ...extra };
+  return { players: PLAYERS, questions: [q(0, 0)], rows, debuffs: [], away: [], ...extra };
 }
 
 /** Картка виду з набору або null. */
@@ -377,7 +377,10 @@ describe('in-game facts (12d)', () => {
       row('o', 3, false, 4000, { roundIndex: 1, buff: 'time' }),
     ];
     const plain = input(rows, { questions: qs, players: RISERS, debuffs: [{ by: 'o', target: 'p' }, { by: 'i', target: null }] });
-    expect(gameCard(plain, 'o')).toEqual({ rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null });
+    const away = input(rows, { questions: qs, players: RISERS, away: [{ playerId: 'o', questionIndex: 0 }, { playerId: 'o', questionIndex: 0 }, { playerId: 'o', questionIndex: 2 }] });
+    expect(gameCard(away, 'o')?.away).toBe(2);
+    expect(gameCard(away, 'p')?.away).toBe(0);
+    expect(gameCard(plain, 'o')).toEqual({ rounds: [400, 400], correct: 3, answered: 4, bestStreak: 3, fastestMs: 2000, buffs: 2, debuffs: { sent: 1, got: 0 }, bluff: null, away: 0 });
     expect(gameCard(plain, 'p')).toMatchObject({ debuffs: { sent: 0, got: 1 }, correct: 0, answered: 0, fastestMs: null });
     expect(gameCard(plain, 'x')).toBeNull();
     const bluffed = input([...rows, row('o', 4, false, 3000, { roundIndex: 1, bluff: lie(2) }), row('o', 5, false, 3000, { roundIndex: 1, bluff: lie(1) })], {

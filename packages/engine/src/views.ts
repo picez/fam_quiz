@@ -1962,6 +1962,7 @@ export function stageView(state: GameState): StageView {
     pinMarks: pinMarks(state, false),
     cloud: stageCloud(state),
     cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], voterList(state)),
+    away: [],
   };
 }
 
@@ -2028,6 +2029,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     table: null,
     myBreakdown: null,
     own: null,
+    away: null,
     team,
     author: authorView(state, member.id),
   };
@@ -2169,6 +2171,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
     myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
     own: state.phase === 'lobby' ? null : ownFacts(state, playerId, sharedFacts(state)),
+    away: null,
   };
 }
 
@@ -2255,6 +2258,7 @@ export function hostView(state: GameState): HostView {
         buff: record.buff ?? null,
         spare: spareOf(state, record.spare),
         clue: responseClue(state, player.id, record.timeMs),
+        away: [],
       },
     ];
   });

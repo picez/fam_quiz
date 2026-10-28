@@ -84,6 +84,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   table: null,
   myBreakdown: null,
   own: null,
+  away: null,
   team: null,
   ...over,
 });
@@ -3322,7 +3323,7 @@ describe('PlayerScreen: facts (12d)', () => {
     { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2 },
   ];
   const roundCard = { correct: 4, answered: 6, avgMs: 5300, fastestMs: 2000, streak: 3, place: { before: 5, now: 3 }, fooledBy: 1 };
-  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null };
+  const gameCard = { rank: 2, rounds: [300, -100, 500], correct: 4, answered: 6, bestStreak: 3, fastestMs: 1800, buffs: 1, debuffs: { sent: 0, got: 1 }, bluff: null, away: 0 };
   const cards = [
     { kind: 'lightning' as const, names: ['Оля'], timeMs: 2100, question: { roundIndex: 0, number: 2, text: 'Найвища гора Карпат?' } },
     { kind: 'streak' as const, names: ['Петро'], length: 3 },

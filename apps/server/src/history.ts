@@ -204,6 +204,7 @@ function factInputOf(
     debuffs: adjustments
       .filter((a) => a.source === 'debuff')
       .map((a) => ({ by: a.participantId, target: a.targetNickname === null ? null : (idOf.get(a.targetNickname) ?? null) })),
+    away: [],
   };
 }
 
@@ -223,7 +224,7 @@ function responsesOf(
       // Штрафний рядок бліц-клітинки не є відповіддю.
       .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
       .sort((a, b) => a.attempt - b.attempt)
-      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null })),
+      .map((a) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: null })),
   );
 }
 
@@ -241,7 +242,7 @@ function finalResult(
       // Старі ігри не зберігали ставку: у класиці бали фіналу завжди «плюс» або «мінус» ставка.
       return row === undefined
         ? []
-        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: row.wager ?? Math.abs(row.points), points: row.points, accepted: row.accepted }];
+        : [{ nickname, answer: row.attempt === PENALTY_ATTEMPT ? null : row.payload, wager: row.wager ?? Math.abs(row.points), points: row.points, accepted: row.accepted, awayMs: null }];
     }),
   };
 }

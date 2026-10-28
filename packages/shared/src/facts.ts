@@ -78,6 +78,8 @@ export interface FactInput {
   rows: FactRow[];
   /** Куплені дебафи: хто купив і на кого (null — ціль вилучено). */
   debuffs: { by: string; target: string | null }[];
+  /** Позначки «відволікався» (12e): учасник рушія × запитання. */
+  away: { playerId: string; questionIndex: number }[];
 }
 
 /** Запитання в картці: раунд, номер у раунді, текст. */
@@ -141,6 +143,8 @@ export interface GameCard {
   debuffs: { sent: number; got: number };
   /** null — у грі не було блефу. */
   bluff: { fooled: number; fooledBy: number } | null;
+  /** На скількох запитаннях учасник відволікався (12e). */
+  away: number;
 }
 
 /** Рядок таблиці учасників в історії (12d). */
@@ -577,6 +581,7 @@ export function gameCard(input: FactInput, playerId: string): GameCard | null {
     buffs: t.own.filter((a) => a.buff !== null).length,
     debuffs: { sent: input.debuffs.filter((d) => d.by === playerId).length, got: input.debuffs.filter((d) => d.target === playerId).length },
     bluff: hasBluff(input, null) ? { fooled: t.own.reduce((s, a) => s + (a.bluff?.fooled ?? 0), 0), fooledBy: t.own.filter(pickedLie).length } : null,
+    away: new Set(input.away.filter((a) => a.playerId === playerId).map((a) => a.questionIndex)).size,
   };
 }
 

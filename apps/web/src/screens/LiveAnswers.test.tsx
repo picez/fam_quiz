@@ -35,6 +35,7 @@ const row = (over: Partial<LiveRow> = {}): LiveRow => ({
   actor: null,
   progress: null,
   wager: null,
+  away: [],
   ...over,
 });
 

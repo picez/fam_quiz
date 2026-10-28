@@ -111,6 +111,7 @@ describe('while a question is open', () => {
         buff: null,
         spare: null,
         clue: null,
+        away: [],
       },
     ]);
   });
