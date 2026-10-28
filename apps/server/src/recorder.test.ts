@@ -4,6 +4,8 @@ import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalR
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
+import { addAdjustment } from '@quiz/engine';
+import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -255,6 +257,37 @@ describe('recorder', () => {
       expect(p.score).toBe(sum(answers) + sum(rows));
     }
     expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 50]]);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a penalty decided at the end is undone after the finish: scores, ranks and history standings follow (12e)', async () => {
+    const ctx = await setup();
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx); // Олена +1000, Тарас 0
+    ctx.host('end');
+    // Штраф за вихід, дописаний на переході до кінця гри (awayStep у commit — задача 7).
+    ctx.room.state = addAdjustment(ctx.room.state, ctx.olena, -1000, 0, 'away', { roundIndex: 0 });
+    ctx.manager.connect(ctx.room, { role: 'stage', playerId: null });
+    let { participants } = await ctx.saved();
+    expect(participants.map((p) => [p.nickname, p.score])).toEqual([['Олена', 0], ['Тарас', 0]]);
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { question: 0, playerId: ctx.olena } })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { seq: 1 } })).toEqual({ ok: true });
+    const saved = await ctx.saved();
+    participants = saved.participants;
+    const rows = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(rows.map((r) => [r.participantId, r.seq, r.source, r.points, r.undoesSeq])).toEqual([
+      [ctx.olena, 1, 'away', -1000, null],
+      [ctx.olena, 2, 'undo', 1000, 1],
+    ]);
+    expect(participants.map((p) => [p.nickname, p.score, p.rank])).toEqual([['Олена', 1000, 1], ['Тарас', 0, 2]]);
+    for (const p of participants) {
+      const sum = (list: { participantId: string; points: number }[]) => list.filter((r) => r.participantId === p.id).reduce((total, r) => total + r.points, 0);
+      expect(p.score).toBe(sum(saved.answers) + sum(rows));
+    }
+    expect(saved.games[0].status).toBe('finished');
+    const standings = (await hostGame(ctx.db, HOST, ctx.room.id))?.standings ?? [];
+    expect(standings.map((r) => [r.nickname, r.score, r.rank])).toEqual([['Олена', 1000, 1], ['Тарас', 0, 2]]);
     expect(ctx.errors).toEqual([]);
   });
 
