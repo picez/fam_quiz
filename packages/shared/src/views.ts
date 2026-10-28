@@ -3,6 +3,7 @@ import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
 import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
+import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { RoundBrief } from './round-brief';
@@ -1113,6 +1114,22 @@ interface BaseView {
   teams: TeamsView | null;
   /** Гру веде автопілот (11g): сцена покаже «Гру веде бот» (11h). */
   autopilot: boolean;
+  /** Цікавинки (12d): на reveal, round_end і finished; інакше null. Сцена, телефони й пульт — однакові. */
+  facts: GameFacts | null;
+}
+
+/** Спільні цікавинки (12d): reveal — рядок під правильною відповіддю, round — картки на round_end, awards — нагороди на finished. */
+export interface GameFacts {
+  reveal: RevealFacts | null;
+  round: FactCard[] | null;
+  awards: FactCard[] | null;
+}
+
+/** Свої цікавинки телефона (12d): лише свій учасник рушія (у командній грі — команда). */
+export interface OwnFacts {
+  reveal: OwnRevealFact | null;
+  round: RoundCard | null;
+  game: GameCard | null;
 }
 
 /** «Як грати»: поточна сторінка й усі сторінки цієї вікторини. */
@@ -1261,6 +1278,8 @@ export interface PlayerView extends BaseView {
   table: PlayerTable | null;
   /** Своя розбивка «+ / −» (11f): свій учасник рушія (у командній грі — команда), без балів, яких ще не видно в таблиці; null у лобі. Чужих розбивок телефон не отримує. */
   myBreakdown: ScoreBreakdown | null;
+  /** Свої цікавинки (12d): «Твоя відповідь — 2-а за швидкістю», «Твій раунд», «Твоя гра»; null у лобі й поза reveal, round_end, finished. Чужих телефон не отримує. */
+  own: OwnFacts | null;
   /** Лише автор кімнати-автопілота (і в лобі); інакше null. */
   author: AuthorView | null;
   /** Командна гра: про себе (10j); null у соло-грі. */
@@ -1395,6 +1414,8 @@ export interface HostView extends BaseView {
   live: HostLive | null;
   /** Аркуш «Скасування балів» (12a); null у лобі, після кінця гри й без ведучого. */
   undo: UndoPanel | null;
+  /** Запитання раунду з часткою правильних (12d): лише round_end; інакше null. Лише пульт. */
+  roundQuestions: RoundShare[] | null;
 }
 
 export type GameView = StageView | PlayerView | HostView;

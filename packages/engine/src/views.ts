@@ -85,6 +85,7 @@ import {
   type RevealStats,
   type Spotlight,
   type Standing,
+  type GameFacts,
   type SplashKind,
   type SplashView,
   type StageView,
@@ -94,7 +95,6 @@ import {
   guidePages,
   isUnscored,
   breakdownOf,
-  roundTotals,
   type ScoreBreakdown,
   LIMITS,
   pinDistance,
@@ -141,7 +141,8 @@ import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
-import { groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, type PlayerScoreLine } from './breakdown';
+import { gameFacts, ownFacts, roundQuestionShares } from './facts';
+import { groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -1636,6 +1637,7 @@ function base(state: GameState, forHost: boolean) {
   const play = state.plays[state.questionIndex];
   return {
     autopilot: state.autopilot !== undefined,
+    facts: sharedFacts(state),
     phase: state.phase,
     paused: state.paused,
     round: roundInfo(state),
@@ -1868,6 +1870,12 @@ function isRevealed(state: GameState): boolean {
   return state.questionIndex >= 0 && inQuestion(state) && REVEALED.includes(state.phase);
 }
 
+/** Цікавинки (12d) для всіх ролей: рядок розкриття — лише коли правду блефу й дошку «100 до 1» відкрито і не в «Мільйонері». */
+function sharedFacts(state: GameState): GameFacts | null {
+  const revealOpen = state.phase === 'reveal' && isRevealed(state) && !spoilerHeld(state) && currentRound(state)?.type !== 'ladder';
+  return gameFacts(state, revealOpen);
+}
+
 /** Спільна таблиця на стан: одна на всі зрізи (сцена й кожен телефон). */
 const standingsCache = new WeakMap<GameState, Standing[] | null>();
 
@@ -1882,11 +1890,6 @@ function publicStandings(state: GameState): Standing[] | null {
 }
 
 type LinesByPlayer = ReadonlyMap<string, readonly PlayerScoreLine[]>;
-
-/** Колонки раундів (11f) до рядків таблиці з рядків балів, згрупованих за гравцем. */
-function withRounds(rows: Standing[], byPlayer: LinesByPlayer, count: number): Standing[] {
-  return rows.map((row) => ({ ...row, rounds: roundTotals(byPlayer.get(row.participantId) ?? [], count) }));
-}
 
 function breakdownFor(byPlayer: LinesByPlayer, playerId: string): ScoreBreakdown {
   return breakdownOf(byPlayer.get(playerId) ?? []);
@@ -2024,6 +2027,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     standings: null,
     table: null,
     myBreakdown: null,
+    own: null,
     team,
     author: authorView(state, member.id),
   };
@@ -2164,6 +2168,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
     myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
+    own: state.phase === 'lobby' ? null : ownFacts(state, playerId, sharedFacts(state)),
   };
 }
 
@@ -2283,5 +2288,6 @@ export function hostView(state: GameState): HostView {
     pace: hostPace(state),
     live: hostLive(state),
     undo: undoPanel(state),
+    roundQuestions: roundQuestionShares(state),
   };
 }

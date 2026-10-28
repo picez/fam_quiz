@@ -37,6 +37,8 @@ import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
+import { FactCards, RevealFactsLine } from './FactCards';
+import { useGuardedSend } from '../live/useGuardedSend';
 import { ScoreTable } from './ScoreTable';
 import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
@@ -320,6 +322,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const act = async (event: HostEvent, payload?: unknown) => {
     const result = await send(event, payload);
     setError(result.ok || result.error === 'too_soon' ? null : errorText(result.error));
+  };
+  // «Нагороди на сцені» (12d): дотик лише гортає карусель сцени; подвійний дотик не перескакує слайд.
+  const awardsGuard = useGuardedSend(send, setError);
+  // Після першого вдалого дотику кнопка гортає далі; лише в пам'яті пульта.
+  const [awardsStarted, setAwardsStarted] = useState(false);
+  const showAwards = async () => {
+    if (await awardsGuard.run('host:awards', undefined)) setAwardsStarted(true);
   };
 
   const blink = useVerdictBlink(view.spotlight);
@@ -1138,6 +1147,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               ))}
             </ul>
           )}
+          {phase === 'reveal' && view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} />}
         </section>
       )}
 
@@ -1147,6 +1157,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
           <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} />
+          {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
+          {view.roundQuestions !== null && view.roundQuestions.length > 0 && (
+            <ol className="round-shares" aria-label={t('roundSharesLabel')}>
+              {view.roundQuestions.map((q) => (
+                <li key={q.number}>
+                  <span className="name" title={q.text}>
+                    {t('roundShareItem', { number: q.number, text: q.text })}
+                  </span>
+                  <span className="score">{t('roundShareValue', { accepted: q.accepted, answered: q.answered })}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
       )}
 
@@ -1154,6 +1177,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} />
+          {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
+          {(view.facts?.awards?.length ?? 0) > 0 && (
+            <>
+              <button type="button" className="btn awards-show" disabled={!stageOnline || awardsGuard.busy} onClick={() => void showAwards()}>
+                {t(awardsStarted ? 'awardsNext' : 'awardsShow')}
+              </button>
+              {stageGone && <p className="meta">{t('awardsNoStage')}</p>}
+            </>
+          )}
           <MenuLinks role="host" />
         </section>
       ) : teamLobby && view.teams !== null ? (

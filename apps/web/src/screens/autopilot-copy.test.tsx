@@ -33,6 +33,7 @@ const fullQuestion: Question = { id: 'q1', type: 'single', text: publicQuestion.
 const stageBase = (over: Partial<StageView> = {}): StageView => ({
   role: 'stage',
   autopilot: true,
+  facts: null,
   phase: 'lobby',
   paused: false,
   blitz: null,

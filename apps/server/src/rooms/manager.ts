@@ -87,6 +87,7 @@ import {
   skipGuide,
   startDice,
   startTeamDice,
+  gameFacts,
   stageView,
   start,
   suspend,
@@ -165,6 +166,8 @@ export interface Room {
   tilts: Map<string, Tilt>;
   /** Лічильник команд звуку; лише в пам'яті, у збережену кімнату не потрапляє; стартує з Date.now(), щоб після перезапуску клієнт не проґавив команду. */
   audioSeq: number;
+  /** Номер слайда каруселі «Нагороди гри» (12d): у пам'яті кімнати, у знімок не йде. */
+  awardsSeq: number;
 }
 
 /** Живий вибір (10j, 12b): на якому запитанні (trial — питання на виживання після нього), хто, коли й що в полі. */
@@ -204,6 +207,7 @@ export type RoomEvent =
   | { type: 'closed' }
   | { type: 'moved' }
   | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
+  | { type: 'awards'; seq: number }
   /** Чернетка змінилася: стан гри той самий; товаришам (teammates) — свіжий зріз, пульту — пакет host:drafts (socket.ts). */
   | { type: 'draft'; id: string; by: string; teammates: boolean }
   /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
@@ -448,6 +452,7 @@ export class RoomManager {
       draftRate: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
+      awardsSeq: Date.now(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -499,6 +504,7 @@ export class RoomManager {
       draftRate: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
+      awardsSeq: Date.now(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -614,6 +620,16 @@ export class RoomManager {
     if (audioOf(room.state) === null) return { ok: false, error: 'wrong_phase' };
     const seq = ++room.audioSeq;
     this.emit(room, { type: 'audio', action, seq });
+    return { ok: true };
+  }
+
+  /** «Нагороди гри» (12d): наступний слайд каруселі на сцені; стан гри не змінюється. */
+  awards(room: Room): AckResult {
+    if (!this.alive(room)) return this.gone();
+    // Після фінішу рядка розкриття немає: revealOpen false — той самий кешований запис, що й у зрізах.
+    if (room.state.phase !== 'finished' || (gameFacts(room.state, false)?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
+    const seq = ++room.awardsSeq;
+    this.emit(room, { type: 'awards', seq });
     return { ok: true };
   }
 

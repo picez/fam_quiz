@@ -58,6 +58,7 @@ export const playerTeam = (over: Partial<PlayerTeam> = {}): PlayerTeam => ({
 export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<PlayerTeam> = {}): PlayerView => ({
   role: 'player',
   autopilot: false,
+  facts: null,
   author: null,
   phase: 'lobby',
   paused: false,
@@ -99,6 +100,7 @@ export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<Pla
   standings: null,
   table: null,
   myBreakdown: null,
+  own: null,
   team: playerTeam(team),
   ...over,
 });

@@ -23,6 +23,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
+import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -1105,6 +1106,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               <Result view={view} />
             </>
           )}
+          {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
         </>
       )}
 
@@ -1189,6 +1191,8 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
           <Standings standings={view.standings} highlightId={me.id} limit={5} />
+          {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
+          {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>
       )}
 
@@ -1198,6 +1202,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
           <MenuLinks role="player" />
         </>

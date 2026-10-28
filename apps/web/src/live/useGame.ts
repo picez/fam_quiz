@@ -25,6 +25,8 @@ export function useGame(auth: SocketAuth | null) {
   const [hostOnline, setHostOnline] = useState(true);
   const [stageOnline, setStageOnline] = useState(true);
   const [audioCommand, setAudioCommand] = useState<AudioCommand | null>(null);
+  // Останній дотик «Нагороди на сцені» (12d), лише для сцени; у стан не потрапляє.
+  const [awardsSeq, setAwardsSeq] = useState<number | null>(null);
   const [offsetMs, setOffsetMs] = useState(0);
   const [closed, setClosed] = useState<CloseReason | null>(null);
   // Останній нахил картки сортування за тим, хто сортує (11d); тимчасовий, у зріз стану не потрапляє.
@@ -44,6 +46,7 @@ export function useGame(auth: SocketAuth | null) {
     setStatus('connecting');
     setClosed(null);
     setAudioCommand(null);
+    setAwardsSeq(null);
     setTilts({});
     setDrafts(null);
     if (code === undefined || role === undefined || token === undefined) return;
@@ -77,6 +80,7 @@ export function useGame(auth: SocketAuth | null) {
       setStatus('live');
     });
     socket.on('audio', (command) => setAudioCommand(command));
+    socket.on('awards', (step) => setAwardsSeq(step.seq));
     socket.on('sort:tilt', (tilt) => setTilts((prev) => ({ ...prev, [tilt.sorterId]: tilt })));
     socket.on('host:drafts', (batch) => setDrafts(batch));
     socket.on('closed', (reason) => {
@@ -137,5 +141,5 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
   }, []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, offsetMs, closed, tilts, drafts, forgetLive, send };
+  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, offsetMs, closed, tilts, drafts, forgetLive, send };
 }

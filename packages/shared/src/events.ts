@@ -250,6 +250,8 @@ export interface ClientToServerEvents {
   'host:captain': (payload: z.infer<typeof captainSchema>, ack: Ack) => void;
   /** Звук поточного запитання: програти ще раз або зупинити (сцена, а без сцени — пульт). Годинник не змінюється. */
   'host:audio': (payload: z.infer<typeof audioCommandSchema>, ack: Ack) => void;
+  /** «Нагороди гри» (12d): наступний слайд каруселі на сцені; лише finished і з нагородами. */
+  'host:awards': (ack: Ack) => void;
 }
 
 export interface StateMeta {
@@ -265,6 +267,8 @@ export interface ServerToClientEvents {
   state: (view: GameView, meta: StateMeta) => void;
   /** Команда звуку від ведучого; seq зростає в межах кімнати. Отримують лише сцена й пульт. */
   audio: (command: { action: 'replay' | 'stop'; seq: number }) => void;
+  /** Дотик ведучого «Нагороди на сцені» (12d); seq зростає в межах кімнати. Отримують лише сцени. */
+  awards: (step: { seq: number }) => void;
   /** Нахил картки того, хто сортує (11d): лише там, де показ дозволено. */
   'sort:tilt': (tilt: SortTilt) => void;
   /** Живі вибори до «Надіслати» (12b): лише пультам з увімкненим «наживо», не частіше ніж раз на HOST_DRAFTS_MS. */

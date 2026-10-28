@@ -845,6 +845,53 @@ describe('«Як грати» over sockets', () => {
   });
 });
 
+describe('award carousel over sockets (12d)', () => {
+  type Step = { seq: number };
+  const listen = (tracked: Tracked) => {
+    const received: Step[] = [];
+    (tracked.socket as unknown as { on(event: string, listener: (step: Step) => void): void }).on('awards', (step) => received.push(step));
+    return received;
+  };
+  const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  /** Гра до кінця: Олена відповідає правильно й першою, Тарас — хибно; нагороди є. */
+  const finished = async () => {
+    const setup = await lobby((await startGame(ctx.app, makeQuiz([single, withId(single, 'second')]))).game);
+    const room = ctx.manager.get(setup.game.code)!;
+    await send(setup.host, 'host:start');
+    for (let guard = 0; guard < 40 && room.state.phase !== 'finished'; guard++) {
+      if (room.state.phase === 'question') {
+        ctx.manager.answer(room, setup.olenaJoin.playerId, correct as never);
+        ctx.manager.answer(room, setup.tarasJoin.playerId, wrong as never);
+        await send(setup.host, 'host:lock');
+      } else await send(setup.host, 'host:next');
+    }
+    await until(setup.stage, inPhase('finished'));
+    return setup;
+  };
+
+  it('host:awards reaches the stage alone: not the phones, not the host', async () => {
+    const { host, stage, olena, taras } = await finished();
+    const heard = { host: listen(host), stage: listen(stage), olena: listen(olena), taras: listen(taras) };
+    expect(await send(host, 'host:awards')).toEqual({ ok: true });
+    expect(await send(host, 'host:awards')).toEqual({ ok: true });
+    await pause(200);
+    expect(heard.stage).toHaveLength(2);
+    expect(heard.stage[1]!.seq).toBeGreaterThan(heard.stage[0]!.seq);
+    expect(heard.host).toEqual([]);
+    expect(heard.olena).toEqual([]);
+    expect(heard.taras).toEqual([]);
+  });
+
+  it('a player or the stage cannot send it; outside the finish it is wrong_phase', async () => {
+    const { host, stage, olena } = await finished();
+    expect(await send(olena, 'host:awards')).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:awards')).toEqual({ ok: false, error: 'forbidden' });
+    const early = await lobby();
+    expect(await send(early.host, 'host:awards')).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:awards')).toEqual({ ok: true });
+  });
+});
+
 describe('clues over sockets', () => {
   const filler = (prefix: string) => [1, 2, 3].map((n) => ({ ...withId(single, `${prefix}${n}`), points: 100 * n }));
   const voiceBoard = () =>
@@ -1564,6 +1611,7 @@ describe('autopilot sockets (11g)', () => {
     expect(await send(author, 'host:adjust', { playerId: other.playerId, points: 50 })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:undo', { target: { seq: 1 } })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:awards')).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:time', { seconds: 15 })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:kick', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(taras, 'host:kick', { playerId: other.playerId })).toEqual({ ok: false, error: 'not_allowed' });

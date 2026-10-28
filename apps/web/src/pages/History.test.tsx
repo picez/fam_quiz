@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
@@ -66,7 +66,7 @@ const detail: GameDetail = {
   questions: [
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
     { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
-  ],  adjustments: [],
+  ],  adjustments: [], facts: { awards: [], table: [] },
   teams: false,
 };
 
@@ -886,5 +886,60 @@ describe('GameHistory: undo', () => {
     const { container } = open('/history/g1');
     await screen.findByText('Столиця України?');
     expect(container.querySelector('.history-adjustments s')?.textContent).toBe('Тарас +50');
+  });
+});
+
+describe('GameHistory: facts (12d)', () => {
+  const withFacts: GameDetail = {
+    ...detail,
+    facts: {
+      awards: [
+        { kind: 'sniper', names: ['Олена'], correct: 3, answered: 3 },
+        { kind: 'streak', names: ['Тарас'], length: 4 },
+      ],
+      table: [
+        { playerId: 'p1', nickname: 'Олена', correct: 2, answered: 3, avgMs: 2100, bestStreak: 2 },
+        { playerId: 'p2', nickname: 'Тарас', correct: 0, answered: 0, avgMs: null, bestStreak: 0 },
+        // Відповіді є, але без справжнього часу (відео, усна клітинка); майже всі правильні — не «100 %».
+        { playerId: 'p3', nickname: 'Іра', correct: 199, answered: 200, avgMs: null, bestStreak: 150 },
+      ],
+    },
+  };
+
+  it('shows the game awards and the participant table', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: withFacts });
+    const { container } = open('/history/g1');
+    await screen.findByText('Географія');
+    expect(screen.getByRole('heading', { name: 'Нагороди гри' })).toBeTruthy();
+    expect(container.querySelectorAll('.fact-card')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'Учасники' })).toBeTruthy();
+    const head = [...container.querySelectorAll('.fact-table thead th')].map((th) => th.textContent);
+    expect(head).toEqual(['Учасник', 'Точність', 'Середній час', 'Найкраща серія']);
+    const rows = [...container.querySelectorAll('.fact-table tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((cell) => cell.textContent));
+    expect(rows[0]).toEqual(['Олена', '67 % (2 з 3)', '2,1 с', '2']);
+    expect(rows[1]).toEqual(['Тарас', '—', '—', '0']);
+    expect(rows[2]).toEqual(['Іра', '99 % (199 з 200)', '—', '150']);
+    expect(container.querySelector('.fact-table-wrap .fact-table')).toBeTruthy();
+  });
+
+  it('the participant table is a named table: column and row headers, a focusable scroll region', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: withFacts });
+    open('/history/g1');
+    const table = await screen.findByRole('table', { name: 'Учасники' });
+    expect([...table.querySelectorAll('thead th')].every((th) => th.getAttribute('scope') === 'col')).toBe(true);
+    expect(within(table).getByRole('rowheader', { name: 'Олена' }).getAttribute('scope')).toBe('row');
+    expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Учасник', 'Точність', 'Середній час', 'Найкраща серія']);
+    const region = screen.getByRole('region', { name: 'Учасники' });
+    expect(region.contains(table)).toBe(true);
+    expect(region.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('shows no facts sections for an old game without data', async () => {
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: detail });
+    const { container } = open('/history/g1');
+    await screen.findByText('Географія');
+    expect(screen.queryByRole('heading', { name: 'Нагороди гри' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Учасники' })).toBeNull();
+    expect(container.querySelector('.fact-table')).toBeNull();
   });
 });

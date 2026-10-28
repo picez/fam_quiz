@@ -45,6 +45,8 @@ import { PollBars } from './PollBars';
 import { WordCloud } from './WordCloud';
 import { BluffBoard } from './BluffBoard';
 import { SurveyBoard } from './SurveyBoard';
+import { FactCards, RevealFactsLine } from './FactCards';
+import { AwardsCarousel } from './AwardsCarousel';
 
 interface Props {
   view: StageView;
@@ -55,6 +57,8 @@ interface Props {
   hostOnline: boolean;
   /** Остання команда звуку від ведучого. */
   audioCommand?: AudioCommand | null;
+  /** Дотик ведучого «Нагороди на сцені» (12d): лише в пам'яті сцени, не в стані. */
+  awardsSeq?: number | null;
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
 }
@@ -337,6 +341,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
             <>
               {view.bluff.stage === 'choice' && <p className="lead">{t('bluffChoiceHint')}</p>}
               <BluffBoard info={view.bluff} big autopilot={view.autopilot} />
+              {view.phase === 'reveal' && view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
               {view.bluff.stage === 'choice' && <p className="meta">{t('bluffPickedCount', { n: view.bluff.picked, total: view.playerCount })}</p>}
             </>
           )}
@@ -432,7 +437,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>}
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && (
+        <>
+          <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
+          {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
+        </>
+      )}
       {view.wipeout !== null && <WipeoutSide info={view.wipeout} reveal={view.phase === 'reveal'} />}
     </div>
   );
@@ -733,16 +743,81 @@ function BoardStage({ board }: { board: BoardInfo }) {
 /** Скільки рядків таблиці й подіуму вміщає сцена 1280 × 720 у два стовпчики; більше — 15 і «…і ще N». */
 const STAGE_ROWS_MAX = 16;
 
-export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS }: Props) {
+/** Таблиця між запитаннями, підсумки раунду (12d: з картками — дві колонки) і п'єдестал з каруселлю «Нагороди гри». */
+function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: StageView; standings: NonNullable<StageView['standings']>; awardsSeq: number | null; splashing: boolean }) {
+  const { phase } = view;
+  // Підсумки раунду (11f): з рядком «найкращий / ривок» показуємо 7 рядків, щоб сцена 1280 × 720 не прокручувалась.
+  const roundEndIndex = phase === 'round_end' && view.round !== null ? view.round.index : null;
+  const highlights = roundEndIndex !== null ? roundHighlights(standings, roundEndIndex) : null;
+  const highlighted = highlights !== null && (highlights.best !== null || highlights.climb !== null);
+  const heading = (
+    <h1 className="question">
+      {phase === 'finished'
+        ? t('podium')
+        : phase === 'round_end' && view.round !== null
+          ? t('roundResults', { index: view.round.index + 1 })
+          : t('leaderboard')}
+    </h1>
+  );
+  const table = (
+    <Standings
+      standings={standings}
+      limit={phase === 'finished' || phase === 'leaderboard' ? (standings.length > STAGE_ROWS_MAX ? STAGE_ROWS_MAX - 1 : undefined) : highlighted ? 7 : 8}
+      more={(phase === 'finished' || phase === 'leaderboard') && standings.length > STAGE_ROWS_MAX ? standings.length - (STAGE_ROWS_MAX - 1) : undefined}
+      streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
+      teams={view.teams}
+      gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
+    />
+  );
+  const best = roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />;
+  if (phase === 'finished')
+    return (
+      // Поки йде заставка «Підсумки», карусель стоїть на п'єдесталі.
+      <AwardsCarousel awards={view.facts?.awards ?? []} withRound={(view.round?.total ?? 1) > 1} autopilot={view.autopilot} seq={awardsSeq} hold={splashing}>
+        <div className="stage-board is-final">
+          {heading}
+          {table}
+        </div>
+      </AwardsCarousel>
+    );
+  if (roundEndIndex === null)
+    return (
+      <div className="stage-board">
+        {heading}
+        {table}
+      </div>
+    );
+  // Підсумки раунду (12d): з картками — дві колонки, ліворуч таблиця й рядок 11f без змін, праворуч «Цікавинки раунду».
+  const cards = view.facts?.round ?? [];
+  const board = `stage-board is-round-end${highlighted ? ' has-highlights' : ''}`;
+  if (cards.length === 0)
+    return (
+      <div className={board}>
+        {heading}
+        {table}
+        {best}
+      </div>
+    );
+  return (
+    <div className={`${board} has-facts`}>
+      <div className="round-end-main">
+        {heading}
+        {table}
+        {best}
+      </div>
+      <aside className="round-facts">
+        <FactCards cards={cards} withRound={false} big title={t('roundFactsTitle')} />
+      </aside>
+    </div>
+  );
+}
+
+export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null }: Props) {
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
-  // Підсумки раунду (11f): з рядком «найкращий / ривок» показуємо 7 рядків, щоб сцена 1280 × 720 не прокручувалась.
-  const roundEndIndex = phase === 'round_end' && view.round !== null ? view.round.index : null;
-  const highlights = roundEndIndex !== null && standings !== null ? roundHighlights(standings, roundEndIndex) : null;
-  const highlighted = highlights !== null && (highlights.best !== null || highlights.climb !== null);
   return (
     <main className="app stage">
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
@@ -775,24 +850,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
-        <div className={phase === 'finished' ? 'stage-board is-final' : roundEndIndex !== null ? `stage-board is-round-end${highlighted ? ' has-highlights' : ''}` : 'stage-board'}>
-          <h1 className="question">
-            {phase === 'finished'
-              ? t('podium')
-              : phase === 'round_end' && view.round !== null
-                ? t('roundResults', { index: view.round.index + 1 })
-                : t('leaderboard')}
-          </h1>
-          <Standings
-            standings={standings}
-            limit={phase === 'finished' || phase === 'leaderboard' ? (standings.length > STAGE_ROWS_MAX ? STAGE_ROWS_MAX - 1 : undefined) : highlighted ? 7 : 8}
-            more={(phase === 'finished' || phase === 'leaderboard') && standings.length > STAGE_ROWS_MAX ? standings.length - (STAGE_ROWS_MAX - 1) : undefined}
-            streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
-            teams={view.teams}
-            gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
-          />
-          {roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />}
-        </div>
+        <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
       {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}
