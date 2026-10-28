@@ -75,7 +75,8 @@ export function presentMembers(state: GameState): TeamMember[] {
   return state.teams?.members.filter((m) => m.connected || state.awaiting.includes(m.id)) ?? [];
 }
 
-const withTeams = (state: TeamGame, teams: Partial<TeamsState>): GameState => ({ ...state, teams: { ...state.teams, ...teams } });
+/** Командна гра з частиною teams, заміненою полями teams. */
+export const withTeams = (state: TeamGame, teams: Partial<TeamsState>): GameState => ({ ...state, teams: { ...state.teams, ...teams } });
 
 const teamLobby = (state: GameState): state is TeamGame => teamsOn(state) && state.phase === 'lobby';
 

@@ -35,6 +35,7 @@ export * from './duel';
 export * from './splash';
 export * from './teams';
 export * from './team-act';
+export * from './answerer';
 export * from './pacing';
 export * from './restore';
 export * from './autopilot';

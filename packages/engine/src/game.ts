@@ -6,6 +6,7 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type AnswererScope,
   type AppealOutcome,
   type AppealReason,
   type BuffKind,
@@ -232,6 +233,30 @@ export interface TeamsState {
   dice: DiceState | null;
   /** Дуелянт команди в поточній дуелі; немає ключа — капітан. Очищується, коли дуелі немає. */
   duelists: Record<string, string>;
+  /** Вибір капітана (12g): хто відповідає за команду з запитання fromQuestion; немає ключа — капітан чи черга. */
+  answerers?: Record<string, AnswererPick>;
+  /** Черга «по черзі» (12g): кому черга дала останнє запитання; немає ключа — черга ще не почалася. */
+  turns?: Record<string, AnswererTurn>;
+}
+
+/** Вибір капітана (12g): хто відповідає за команду. */
+export interface AnswererPick {
+  /** Людина з команди (TeamMember.id). */
+  memberId: string;
+  /** 'question' — одне запитання; 'round' — до кінця раунду. */
+  scope: AnswererScope;
+  /** Індекс у plays, з якого діє: plays.length у мить вибору (наступне запитання). */
+  fromQuestion: number;
+  /** Раунд запитання fromQuestion; null — те запитання ще не відкрито. */
+  roundIndex: number | null;
+}
+
+/** Лічильник черги «по черзі» (12g). */
+export interface AnswererTurn {
+  /** Запитання (індекс у plays), на якому черга дала відповідь цій людині. */
+  questionIndex: number;
+  /** Наступна черга — після неї в порядку команди. */
+  memberId: string;
 }
 
 /** «Мільйонер»: учасник драбини поточного раунду. */
