@@ -29,6 +29,7 @@ const players = [
 const view = (over: Partial<HostView> = {}): HostView => ({
   role: 'host',
   autopilot: false,
+  facts: null,
   phase: 'lobby',
   paused: false,
   blitz: null,
@@ -73,7 +74,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sliderMarks: null,
   pinMarks: null,
   wall: null,
-  cloud: null, survey: null, bluff: null, surveySkipped: [], undo: null,
+  cloud: null, survey: null, bluff: null, surveySkipped: [], undo: null, roundQuestions: null,
   ...over,
 });
 

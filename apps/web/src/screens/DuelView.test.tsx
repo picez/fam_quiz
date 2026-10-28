@@ -45,6 +45,7 @@ const me = { id: 'p1', nickname: 'Оля', score: 0, rank: null, answer: null, r
 const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): PlayerView => ({
   role: 'player',
   autopilot: false,
+  facts: null,
   author: null,
   phase: 'duel',
   paused: false,
@@ -86,6 +87,7 @@ const view = (duel: DuelInfo, mine: Partial<PlayerDuel> = {}, id = 'p1'): Player
   standings: null,
   table: null,
   myBreakdown: null,
+  own: null,
   team: null,
 });
 

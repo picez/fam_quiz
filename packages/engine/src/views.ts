@@ -1636,6 +1636,7 @@ function base(state: GameState, forHost: boolean) {
   const play = state.plays[state.questionIndex];
   return {
     autopilot: state.autopilot !== undefined,
+    facts: null,
     phase: state.phase,
     paused: state.paused,
     round: roundInfo(state),
@@ -2024,6 +2025,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     standings: null,
     table: null,
     myBreakdown: null,
+    own: null,
     team,
     author: authorView(state, member.id),
   };
@@ -2164,6 +2166,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
     myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
+    own: null,
   };
 }
 
@@ -2283,5 +2286,6 @@ export function hostView(state: GameState): HostView {
     pace: hostPace(state),
     live: hostLive(state),
     undo: undoPanel(state),
+    roundQuestions: null,
   };
 }

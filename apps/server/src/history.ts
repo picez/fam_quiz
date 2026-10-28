@@ -490,6 +490,9 @@ export async function hostGame(db: Db, hostId: string, id: string): Promise<Game
       ...(source === 'undo' && undoesQuestion !== null ? { undoes: { question: undoesQuestion } } : {}),
       ...(source === 'undo' && undoesQuestion === null && undoesSeq !== null ? { undoes: { seq: undoesSeq } } : {}),
     })),
+
+    // До задачі 4: цікавинки з рядків answer.
+    facts: { awards: [], table: [] },
   };
 }
 

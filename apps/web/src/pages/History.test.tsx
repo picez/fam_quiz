@@ -66,7 +66,7 @@ const detail: GameDetail = {
   questions: [
     { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
     { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
-  ],  adjustments: [],
+  ],  adjustments: [], facts: { awards: [], table: [] },
   teams: false,
 };
 

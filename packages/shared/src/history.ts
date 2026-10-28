@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { ScoreBreakdown } from './breakdown';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
+import type { FactCard, FactTableRow } from './facts';
 import type { LadderOutcomeKind } from './ladder';
 import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
 import type { UndoTarget } from './undo';
@@ -144,6 +145,8 @@ export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   questions: GameQuestionResult[];
   /** Коригування рахунку за seq; [] у старих іграх. */
   adjustments: GameAdjustment[];
+  /** Цікавинки гри (12d): нагороди й таблиця учасників з рядків answer і коригувань; для старих ігор — те, що можна порахувати. */
+  facts: { awards: FactCard[]; table: FactTableRow[] };
 }
 
 /** Коригування рахунку учасника поза відповідями в історії гри. */
