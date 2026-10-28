@@ -1,5 +1,6 @@
 // Антигугл (12e): годинник виходів людей із гри. Цей файл views.ts не імпортує; game.ts цей файл не імпортує (без циклу).
-import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, type Phase } from '@quiz/shared';
+// live.ts імпортує цей файл, а цей — hostLive: цикл лише між функціями (на верхньому рівні жоден не викликає іншого).
+import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, type AwayMark, type OwnAway, type Phase } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 import { recordOf, type AwayEntry, type GameState } from './game';
 import { limitMsOf } from './timing';
@@ -198,4 +199,57 @@ export function awayCloseAll(state: GameState, at: number): GameState {
     if (entry.since !== null) s = closeEntry(s, state.questionIndex, personId, at).state;
   }
   return s;
+}
+
+/** Нікнейм людини: учасник команди чи соло-гравець; немає — null. */
+function personNickname(state: GameState, personId: string): string | null {
+  if (teamsOn(state)) return memberOf(state, personId)?.nickname ?? null;
+  return state.players.find((p) => p.id === personId)?.nickname ?? null;
+}
+
+/** Позначка людини на поточному запитанні: від AWAY_MS.mark або зараз поза грою; інакше null. ms — закритий час (без відкритого інтервалу). */
+export function awayMarkOf(state: GameState, personId: string): AwayMark | null {
+  const entry = state.plays[state.questionIndex]?.away?.[personId];
+  if (entry === undefined) return null;
+  const out = entry.since !== null;
+  if (!out && entry.ms < AWAY_MS.mark) return null;
+  const nickname = personNickname(state, personId);
+  return nickname === null ? null : { personId, nickname, ms: entry.ms, count: entry.count, out };
+}
+
+/** Люди учасника рушія: соло — гравець; команда — її люди в порядку teams.members; людина (голос у командній грі) — сама. */
+function peopleOf(state: GameState, participantId: string): string[] {
+  if (!teamsOn(state) || memberOf(state, participantId) !== undefined) return [participantId];
+  return teamMembers(state, participantId).map((m) => m.id);
+}
+
+/** Позначки людей учасника рушія (соло — гравець; команда — її люди в порядку teams.members). */
+export function awayPeople(state: GameState, participantId: string): AwayMark[] {
+  // Без записів — швидкий вихід: рядки пульта будуються часто.
+  if (state.plays[state.questionIndex]?.away === undefined) return [];
+  return peopleOf(state, participantId).flatMap((id) => awayMarkOf(state, id) ?? []);
+}
+
+/** Нікнейми з позначкою (ms ≥ mark) для сцени: question, locked, reveal; інакше []. Лише імена, без секунд; порядок — гравці (у командній — їхні люди). */
+export function stageAway(state: GameState): string[] {
+  const away = state.plays[state.questionIndex]?.away;
+  if (away === undefined || !OPEN_PHASES.includes(state.phase)) return [];
+  return state.players
+    .flatMap((p) => peopleOf(state, p.id))
+    .filter((id) => (away[id]?.ms ?? 0) >= AWAY_MS.mark)
+    .flatMap((id) => personNickname(state, id) ?? []);
+}
+
+/**
+ * Свій вихід людини на поточному запитанні; null — запису немає чи етап не question / locked / reveal.
+ * penalty — штраф діє на цьому запитанні й поріг пройдено людиною чи її командою (закритий час), а запис учасника, якщо є, не від'ємний.
+ */
+export function ownAway(state: GameState, personId: string): OwnAway | null {
+  const q = state.questionIndex;
+  const entry = state.plays[q]?.away?.[personId];
+  if (entry === undefined || !OPEN_PHASES.includes(state.phase)) return null;
+  const participant = awayParticipant(state, personId);
+  const points = participant === null ? undefined : recordOf(state, q, participant)?.points;
+  const penalty = participant !== null && (points === undefined || points >= 0) && awayPenalized(state, q).includes(participant);
+  return { play: q, ms: entry.ms, count: entry.count, out: entry.since !== null, penalty };
 }

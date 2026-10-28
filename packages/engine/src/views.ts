@@ -139,6 +139,7 @@ import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turn
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
+import { awayPeople, ownAway, stageAway } from './away';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
@@ -1962,7 +1963,8 @@ export function stageView(state: GameState): StageView {
     pinMarks: pinMarks(state, false),
     cloud: stageCloud(state),
     cloudVoters: stageCloud(state) === null ? null : cloudVoters(state.plays[state.questionIndex], voterList(state)),
-    away: [],
+    // Лише імена, без секунд (анти-ціль 12e).
+    away: stageAway(state),
   };
 }
 
@@ -1980,7 +1982,7 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
 export function playerView(state: GameState, playerId: string): PlayerView | null {
   if (!teamsOn(state)) {
     const view = ownView(state, playerId);
-    return view === null ? null : { ...view, team: null, author: authorView(state, playerId) };
+    return view === null ? null : { ...view, away: ownAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -1989,7 +1991,14 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   if (view === null) return lobbyView(state, member, team);
   // Опитування й «хмару» кожен проходить сам: власний голос, а не запис команди (його немає).
   const vote = unscoredNow(state) ? publicAnswer(recordOf(state, state.questionIndex, member.id)?.answer ?? null, isRevealed(state)) : view.me.answer;
-  return { ...view, me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) }, team, author: authorView(state, member.id) };
+  // Свій вихід — людини, а не команди: зріз команди спільний, тож away додається тут, як vote.
+  return {
+    ...view,
+    me: { ...view.me, answer: vote, vote: votePrompt(state, member.id) },
+    away: ownAway(state, member.id),
+    team,
+    author: authorView(state, member.id),
+  };
 }
 
 /** Учасник без команди (лобі): спільна частина й порожній me. */
@@ -2258,7 +2267,8 @@ export function hostView(state: GameState): HostView {
         buff: record.buff ?? null,
         spare: spareOf(state, record.spare),
         clue: responseClue(state, player.id, record.timeMs),
-        away: [],
+        // Голос людини в командній грі — позначка самої людини; рядок команди — її люди.
+        away: awayPeople(state, player.id),
       },
     ];
   });

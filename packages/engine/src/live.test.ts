@@ -1,5 +1,6 @@
 import type { Answer, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
+import { awayEnd, awayStart } from './away';
 import { buzz } from './blitz';
 import { pickBluff, writeLie } from './bluff';
 import { pickCell } from './board';
@@ -499,6 +500,15 @@ describe('live answers: blitz', () => {
     expect(row(s, 'p3')).toMatchObject({ answered: false });
     s = must(judge(s, 'p2', false, 2000));
     expect(row(s, 'p2')).toMatchObject({ answered: true, answer: right, verdict: 'wrong', awaiting: false });
+  });
+
+  it('a blitz row carries the away mark of its player (12e)', () => {
+    let s = blitzGame('manual');
+    s = awayEnd(awayStart(s, 'p3', 1000), 'p3', 3500);
+    s = awayStart(s, 'p1', 4000);
+    expect(row(s, 'p3').away).toEqual([{ personId: 'p3', nickname: 'Іра', ms: 2500, count: 1, out: false }]);
+    expect(row(s, 'p1').away).toEqual([{ personId: 'p1', nickname: 'Оля', ms: 0, count: 0, out: true }]);
+    expect(row(s, 'p2').away).toEqual([]);
   });
 
   it('a voice blitz cell: the head awaits the host without an answer', () => {
