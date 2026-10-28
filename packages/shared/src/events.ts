@@ -6,6 +6,7 @@ import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
+import { RESUME_POINTS_MAX } from './resume';
 import { TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -28,6 +29,17 @@ export type SocketAuth = z.infer<typeof socketAuthSchema>;
 
 const playerId = z.string().min(1).max(64);
 export const overrideSchema = z.object({ playerId, grade: z.enum(['correct', 'partial', 'wrong']) });
+/** Продовжити гру (12r): стартовий раунд і бали учасників. */
+export const resumeSchema = z
+  .object({
+    roundIndex: z.number().int().min(0).max(LIMITS.maxRounds - 1),
+    points: z
+      .record(playerId, z.number().int().min(-RESUME_POINTS_MAX).max(RESUME_POINTS_MAX))
+      .refine((points) => Object.keys(points).length <= LIMITS.maxPlayers),
+  })
+  .strict();
+/** host:start: без даних — звичайний старт; resume — продовжити гру (12r). */
+export const startSchema = z.object({ resume: resumeSchema.optional() }).strict();
 export const kickSchema = z.object({ playerId });
 export const judgeSchema = z.object({ playerId, correct: z.boolean() });
 /** «Прийняти» й «Перевибрати» називають гравця, чия відповідь чекає: інакше подвійний дотик зачепить наступну. */
@@ -203,7 +215,8 @@ export interface ClientToServerEvents {
   'player:appeal': (payload: z.infer<typeof appealSchema>, ack: Ack) => void;
   /** Апеляція (12f): голос людини «так» / «ні»; імена голосів не бачить ніхто. */
   'player:appeal-vote': (payload: z.infer<typeof appealVoteSchema>, ack: Ack) => void;
-  'host:start': (ack: Ack) => void;
+  /** «Почати гру»; з даними — продовжити попередню гру (12r). */
+  'host:start': (...args: [ack: Ack] | [payload: z.infer<typeof startSchema>, ack: Ack]) => void;
   'host:lock': (ack: Ack) => void;
   'host:next': (ack: Ack) => void;
   'host:pause': (ack: Ack) => void;

@@ -2,7 +2,7 @@ import type { AdjustmentSource } from './game';
 import type { Round } from './quiz';
 
 /** Джерела балів у порядку розбивки (11f). */
-export const SCORE_SOURCES = ['answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder'] as const;
+export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder'] as const;
 export type ScoreSource = (typeof SCORE_SOURCES)[number];
 
 /** Один рядок балів (11f): відповідь, спроба бліцу, штраф чи коригування. */
@@ -34,6 +34,7 @@ export function answerSource(type: Round['type'] | undefined): ScoreSource {
 }
 
 const ADJUSTMENT_SOURCES: Record<AdjustmentSource, ScoreSource> = {
+  carry: 'carry',
   host: 'host',
   undo: 'undo',
   away: 'away',
@@ -49,10 +50,11 @@ export function adjustmentSource(source: AdjustmentSource): ScoreSource {
   return ADJUSTMENT_SOURCES[source];
 }
 
-/** Суми рядків за раундами 0…count−1; рядки поза межами не враховано. */
+/** Суми рядків за раундами 0…count−1; рядки поза межами не враховано; перенесене (12r) — не бали раунду. */
 export function roundTotals(lines: readonly ScoreLine[], count: number): number[] {
   const totals = Array.from({ length: Math.max(0, count) }, () => 0);
   for (const line of lines) {
+    if (line.source === 'carry') continue;
     if (line.roundIndex >= 0 && line.roundIndex < totals.length) totals[line.roundIndex] += line.points;
   }
   return totals;

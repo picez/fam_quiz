@@ -1075,7 +1075,7 @@ function authorPeople(state: GameState, personId: string): AuthorPerson[] {
 /** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
 function authorView(state: GameState, personId: string): AuthorView | null {
   if (!isAuthor(state, personId)) return null;
-  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId) };
+  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId), resume: null };
 }
 
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */
@@ -2317,6 +2317,7 @@ export function hostView(state: GameState): HostView {
     pace: hostPace(state),
     live: hostLive(state),
     undo: undoPanel(state),
+    resume: null,
     roundQuestions: roundQuestionShares(state),
   };
 }

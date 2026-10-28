@@ -8,6 +8,7 @@ import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPena
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
+import type { ResumeLobby } from './resume';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
@@ -1049,6 +1050,8 @@ export interface AuthorView {
   bluff: AuthorBluffOption[] | null;
   /** Люди кімнати, крім автора, у порядку входу (соло — players, команди — teams.members); для «Вилучити гравця». */
   people: AuthorPerson[];
+  /** Лобі «Продовжити гру» (12r): раунди й учасники; поза лобі null. */
+  resume: ResumeLobby | null;
 }
 
 interface BaseView {
@@ -1480,6 +1483,8 @@ export interface HostView extends BaseView {
   live: HostLive | null;
   /** Аркуш «Скасування балів» (12a); null у лобі, після кінця гри й без ведучого. */
   undo: UndoPanel | null;
+  /** Лобі «Продовжити гру» (12r): раунди й учасники; поза лобі null. */
+  resume: ResumeLobby | null;
   /** Запитання раунду з часткою правильних (12d): лише round_end; інакше null. Лише пульт. */
   roundQuestions: RoundShare[] | null;
 }

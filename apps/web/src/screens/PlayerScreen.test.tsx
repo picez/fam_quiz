@@ -267,7 +267,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
-    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456', stageUrl: null });
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }), { code: '123456', stageUrl: null });
     expect(screen.getByText('123 456')).toBeTruthy();
     expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
@@ -275,7 +275,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author header has «⋯»; another player header does not', () => {
-    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456' });
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }), { code: '123456' });
     expect(document.querySelector('header.bar')!.querySelector('button.author-menu-btn')).not.toBeNull();
     cleanup();
     show(view({ autopilot: true, author: null }), { code: '123456' });
@@ -283,7 +283,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author pause banner has «Продовжити» that resumes; other players only see «Пауза»', () => {
-    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [] }, paused: true, endsAt: null, remainingMs: 12_000 }));
+    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null }, paused: true, endsAt: null, remainingMs: 12_000 }));
     const banner = document.querySelector('.banner')!;
     fireEvent.click(within(banner as HTMLElement).getByRole('button', { name: 'Продовжити' }));
     expect(send).toHaveBeenCalledWith('host:resume', undefined);

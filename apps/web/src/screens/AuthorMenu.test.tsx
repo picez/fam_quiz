@@ -23,6 +23,7 @@ const author = (over: Partial<AuthorView> = {}): AuthorView => ({
     { id: 'p2', nickname: 'Оля', connected: true },
     { id: 'p3', nickname: 'Петро', connected: false },
   ],
+  resume: null,
   ...over,
 });
 
