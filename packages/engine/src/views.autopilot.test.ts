@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, LIMITS, type Answer, type Question } from '@quiz/shared';
 import { createAutopilotGame } from './autopilot';
+import { resumeLobby } from './carry';
 import { pickBluff, removeBluffOption, writeLie } from './bluff';
 import { addPlayer, end, next, removePlayer, setConnected, start, submitAnswer, type GameState, type Rng } from './game';
 import { assignTeam } from './teams';
@@ -63,7 +64,7 @@ describe('autopilot flag in views', () => {
 describe('author view', () => {
   it('only the author gets an object, in the lobby too; a hosted game gives null to all', () => {
     const s = pilotLobby([single]);
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array), resume: resumeLobby(s) });
     expect(playerView(s, 'p2')!.author).toBeNull();
     const hosted = lobbyWith(quizOf([single]), 'Оля', 'Петро');
     expect(playerView(hosted, 'p1')!.author).toBeNull();
@@ -131,14 +132,14 @@ describe('author view', () => {
     const quiz = teamQuiz([classicRound('r1', [single])]);
     let s = must(createAutopilotGame(quiz, { id: 'm1', nickname: 'Оля' }));
     for (const [id, nickname] of [['m2', 'Петро'], ['m3', 'Віра'], ['m4', 'Іван']]) s = must(addPlayer(s, { id, nickname }));
-    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
+    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array), resume: resumeLobby(s) });
     expect(playerView(s, 'm2')!.author).toBeNull();
     s = must(assignTeam(s, 'm1', 't1'));
     s = must(assignTeam(s, 'm2', 't1'));
     s = must(assignTeam(s, 'm3', 't2'));
     s = must(assignTeam(s, 'm4', 't2'));
     s = must(start(s));
-    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
+    expect(playerView(s, 'm1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array), resume: null });
     expect(playerView(s, 'm2')!.author).toBeNull();
     expect(playerView(s, 'm1')!.autopilot).toBe(true);
   });
@@ -171,7 +172,7 @@ describe('author view gaps (11g task 6 review)', () => {
     let s = pilotOpen([single]);
     s = must(setConnected(s, 'p1', false, T + 1000));
     s = must(setConnected(s, 'p1', true, T + 2000));
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array), resume: null });
     const lobby = must(removePlayer(pilotLobby([single]), 'p1'));
     expect(playerView(lobby, 'p1')).toBeNull();
     for (const id of ['p2', 'p3']) expect(playerView(lobby, id)!.author).toBeNull();
@@ -185,7 +186,7 @@ describe('author view gaps (11g task 6 review)', () => {
     expect(playerView(s, 'p1')!.author!.cloud).toBeNull();
     s = must(end(s, T + 6000));
     expect(s.phase).toBe('finished');
-    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array) });
+    expect(playerView(s, 'p1')!.author).toEqual({ cloud: null, bluff: null, people: expect.any(Array), resume: null });
   });
 
   it('a hidden word stays in the author list whether it was inside or outside the stage cap; hiding inside pulls the next one in', () => {

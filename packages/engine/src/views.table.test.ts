@@ -13,7 +13,7 @@ const names = (rows: { nickname: string; score: number }[] | undefined) => rows?
 describe('the table at any time', () => {
   it('everybody sees all places during a question with leaderboard each', () => {
     const s = startRound(lobbyWith(makeQuiz([single, withId(single, 'q2')], { leaderboard: 'each' }), 'Оля', 'Петро'), T0, rng0);
-    expect(playerView(s, 'p2')?.table).toEqual({ full: true, rows: expect.any(Array) });
+    expect(playerView(s, 'p2')?.table).toEqual({ full: true, rows: expect.any(Array), firstRound: 0 });
     expect(playerView(s, 'p2')?.table?.rows).toHaveLength(2);
     expect(playerView(lobbyWith(makeQuiz([single]), 'Оля'), 'p1')?.table).toBeNull();
   });
@@ -33,7 +33,7 @@ describe('the table at any time', () => {
   it('with leaderboard end a player sees only their own place and score, all of them at round end', () => {
     let s = startRound(lobbyWith(makeQuiz([single], { leaderboard: 'end' }), 'Оля', 'Петро'), T0, rng0);
     s = must(next(must(lock(must(submitAnswer(s, 'p2', kyiv, T0 + 1000)))), T0 + 30_000, rng0)); // reveal
-    expect(playerView(s, 'p2')?.table).toEqual({ full: false, rows: [expect.objectContaining({ nickname: 'Петро', rank: 1 })] });
+    expect(playerView(s, 'p2')?.table).toEqual({ full: false, rows: [expect.objectContaining({ nickname: 'Петро', rank: 1 })], firstRound: 0 });
     expect(playerView(s, 'p1')?.table?.rows).toEqual([expect.objectContaining({ nickname: 'Оля', rank: 2 })]);
     s = must(next(s, T0 + 31_000, rng0)); // round_end / finished
     expect(['round_end', 'finished']).toContain(s.phase);

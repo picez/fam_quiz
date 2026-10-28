@@ -1,9 +1,10 @@
-import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type TeamForm } from '@quiz/shared';
+import { AUTOPILOT_MAX_RETRIES, AUTOPILOT_MS, autopilotIntroMs, autopilotQuiz, boardCells, type ErrorCode, type Quiz, type ResumeSetup, type TeamForm } from '@quiz/shared';
 import { appealOpen, appealPossible, lastAppeal } from './appeal';
 import { pickCell, skipTurn } from './board';
 import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
 import { bluffOrder, bluffPlayOf, removeBluffOption } from './bluff';
+import { resumeError } from './carry';
 import { checkAnswer } from './check';
 import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
@@ -66,49 +67,57 @@ function running(pilot: AutopilotState): AutopilotState {
   return rest;
 }
 
-/** Автопілот без starting. */
+/** Автопілот без starting і без його resume (12r). */
 function notStarting(state: GameState): GameState {
   return withPilot(state, (pilot) => {
-    const { starting: _starting, ...rest } = pilot;
+    const { starting: _starting, resume: _resume, ...rest } = pilot;
     return rest;
   });
 }
 
-/** start із прибраним starting (гра вже йде). */
-function startNow(state: GameState, now: number): Result {
-  const started = start(state, now);
+/** start із прибраним starting (гра вже йде); resume — «Продовжити гру» (12r). */
+function startNow(state: GameState, now: number, resume?: ResumeSetup): Result {
+  const started = start(state, now, resume);
   if (!started.ok) return started;
   return ok(notStarting(started.state));
 }
 
-/** Старт після туру кубиків команд: не вдався (teams_few після вилучення тощо) — starting геть, гра лишається в лобі. */
+/** Старт після туру кубиків команд з відкладеним resume: не вдався (teams_few після вилучення тощо) — starting геть, гра лишається в лобі. */
 function startAfterTour(state: GameState, now: number): Result {
-  const started = startNow(state, now);
+  const started = startNow(state, now, state.autopilot?.resume);
   return started.ok ? started : ok(notStarting(state));
 }
 
-/** «Почати гру» від автора (правила — план 11g, «Автор»); не автопілот → not_allowed; поза лобі → wrong_phase. */
-export function autopilotStart(state: GameState, now: number, rng: Rng): Result {
+/**
+ * «Почати гру» від автора (правила — план 11g, «Автор»); не автопілот → not_allowed; поза лобі → wrong_phase.
+ * resume — «Продовжити гру» (12r): хибні дані → помилка ще до туру кубиків; тур зберігає їх до старту після нього.
+ */
+export function autopilotStart(state: GameState, now: number, rng: Rng, resume?: ResumeSetup): Result {
   if (state.autopilot === undefined) return fail('not_allowed');
   if (state.phase !== 'lobby') return fail('wrong_phase');
-  if (!teamsOn(state)) return startNow(state, now);
+  if (resume !== undefined) {
+    const error = resumeError(state, resume);
+    if (error !== null) return fail(error);
+  }
+  if (!teamsOn(state)) return startNow(state, now, resume);
   const { form, members, dice } = state.teams;
   if (form === 'host' || form === 'random') {
     // Розподілу ведучого немає: склад роздає жереб у мить старту, спосіб лишається тим, що вибрав автор.
     const dealt = dealTeams({ ...state, teams: { ...state.teams, form: 'random' } }, rng);
     if (!dealt.ok) return dealt;
-    return startNow({ ...dealt.state, teams: { ...dealt.state.teams!, form } }, now);
+    return startNow({ ...dealt.state, teams: { ...dealt.state.teams!, form } }, now, resume);
   }
   if (form === 'dice' && dice === null && members.some((m) => m.teamId === null)) {
     // Спершу тур кубиків; гра стартує сама, щойно він закриється (крок автопілота). Менше двох учасників → teams_few.
     const tour = startTeamDice(state);
     if (!tour.ok) return tour;
-    return ok(withPilot(tour.state, (pilot) => ({ ...pilot, starting: true })));
+    return ok(withPilot(tour.state, (pilot) => ({ ...pilot, starting: true, ...(resume === undefined ? {} : { resume }) })));
   }
-  return startNow(state, now);
+  // Тур кубиків уже закрито: дані, збережені на його час, не губляться, якщо автор тисне «Почати гру» ще раз.
+  return startNow(state, now, resume ?? state.autopilot.resume);
 }
 
-/** Спосіб формування команд від автора: setTeamForm і starting геть (незакритий тур скасовано, тож старт після нього теж). */
+/** Спосіб формування команд від автора: setTeamForm, starting і resume геть (незакритий тур скасовано, тож старт після нього теж). */
 export function authorTeamForm(state: GameState, form: TeamForm): Result {
   if (state.autopilot === undefined) return fail('not_allowed');
   const changed = setTeamForm(state, form);

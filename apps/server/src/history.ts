@@ -17,6 +17,7 @@ import {
   findCell,
   roundQuestions,
   quizSchema,
+  RESUME_OPTIONS,
   roundSchema,
   survivorsAfter,
   upgradeQuiz,
@@ -38,6 +39,7 @@ import {
   type FinalRound,
   type Question,
   type Quiz,
+  type ResumeOption,
   type Round,
   type ScoreLine,
 } from '@quiz/shared';
@@ -156,7 +158,7 @@ function factInputOf(
   played: { roundIndex: number; question: Question | undefined; ref: PlayRef | undefined }[],
   standings: { participantId: string; nickname: string; rank: number | null; score: number; rounds: number[] }[],
   answers: { participantId: string; questionIndex: number; roundIndex: number; attempt: number; payload: Answer | null; timeMs: number; accepted: boolean; wager: number | null; buff: BuffKind | null; spareId: string | null; awayMs: number | null }[],
-  adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null }[],
+  adjustments: { participantId: string; source: AdjustmentSource; targetNickname: string | null; points: number }[],
   appeals: { participantId: string; outcome: AppealOutcome }[],
 ): FactInput {
   const questions: FactQuestion[] = [];
@@ -188,7 +190,15 @@ function factInputOf(
   const idOf = new Map(standings.map((s) => [s.nickname, s.participantId]));
   return {
     // Командна гра: таблиця — рядки команд; рядки людей (голоси) сюди не потрапляють.
-    players: standings.map(({ participantId, nickname, rank, score, rounds }) => ({ id: participantId, nickname, rank, score, rounds })),
+    // Перенесені бали (12r) — сума рядків 'carry' учасника, як у рушія.
+    players: standings.map(({ participantId, nickname, rank, score, rounds }) => ({
+      id: participantId,
+      nickname,
+      rank,
+      score,
+      rounds,
+      carry: adjustments.filter((a) => a.source === 'carry' && a.participantId === participantId).reduce((s, a) => s + a.points, 0),
+    })),
     questions,
     rows: answers
       // Від'ємні спроби — штрафи бліц-клітинки, мовчання у фіналі й голоси: не відповіді.
@@ -440,6 +450,58 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
   }));
 }
 
+/**
+ * Раунд, з якого продовжити гру (12r): план 12r, «resumeOptions і resumeRound».
+ * Останній закритий раунд завершено (зіграно всі його запитання) → наступний, інакше він сам; не далі за останній раунд знімка.
+ */
+export function resumeRound(quiz: Quiz | null, plays: PlayRef[], questionsPlayed: number): number {
+  const refs = plays.slice(0, questionsPlayed);
+  const last = refs.at(-1)?.roundIndex;
+  if (last === undefined) return 0;
+  if (quiz === null) return last;
+  const round = quiz.rounds[last];
+  if (round === undefined) return Math.min(last, quiz.rounds.length - 1);
+  const done = refs.filter((ref) => ref.roundIndex === last).length >= roundQuestions(round).length;
+  return Math.min(done ? last + 1 : last, quiz.rounds.length - 1);
+}
+
+/** Свої ігри цієї вікторини з хоч одним закритим запитанням, без поточної; найновіша перша; не більше RESUME_OPTIONS. */
+export async function resumeOptions(db: Db, hostId: string, quizId: string, excludeId: string): Promise<ResumeOption[]> {
+  const games = await db
+    .select()
+    .from(game)
+    .where(and(eq(game.hostId, hostId), eq(game.quizId, quizId), ne(game.id, excludeId), sql`${game.questionsPlayed} > 0`))
+    .orderBy(desc(game.startedAt))
+    .limit(RESUME_OPTIONS);
+  if (games.length === 0) return [];
+  // Рядки таблиці: соло-гравці й команди (люди команд — копії командних, team_id не null).
+  const rows = await db
+    .select({ gameId: participant.gameId, nickname: participant.nickname, score: participant.score, rank: participant.rank })
+    .from(participant)
+    .where(
+      and(
+        inArray(
+          participant.gameId,
+          games.map((row) => row.id),
+        ),
+        isNull(participant.teamId),
+      ),
+    );
+  const byGame = groupBy(rows, (row) => row.gameId);
+  return games.map((row) => ({
+    gameId: row.id,
+    startedAt: row.startedAt.toISOString(),
+    status: row.status,
+    questionsPlayed: row.questionsPlayed,
+    questionCount: questionCountOf(row.quizSnapshot),
+    autopilot: row.autopilot,
+    roundIndex: resumeRound(snapshotOf(row.quizSnapshot), row.plays, row.questionsPlayed),
+    scores: (byGame.get(row.id) ?? [])
+      .sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || b.score - a.score)
+      .map(({ nickname, score }) => ({ nickname, score })),
+  }));
+}
+
 export async function hostGame(db: Db, hostId: string, id: string): Promise<GameDetail | null> {
   return (await hostGameWithFacts(db, hostId, id))?.detail ?? null;
 }
@@ -521,6 +583,9 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
   ];
   const roundCount =
     Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)) + 1;
+  // Продовжена гра (12r): пропущені раунди колонок не мають — колонки від раунду рядків 'carry'; без них від 0, як у рушія.
+  const carryRounds = adjustments.filter((a) => a.source === 'carry').map((a) => a.roundIndex);
+  const firstRound = carryRounds.length === 0 ? 0 : Math.max(0, Math.min(...carryRounds));
   const standings = participants
     .filter((p) => p.teamId === null)
     .map((p) => {
@@ -587,6 +652,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     autopilot: row.autopilot,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
+    firstRound,
     questions,
     teams,
     adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({

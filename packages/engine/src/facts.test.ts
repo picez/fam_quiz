@@ -5,11 +5,12 @@ import { pickBluff, writeLie } from './bluff';
 import { buyDebuff } from './debuffs';
 import { factInput } from './facts';
 import { placeWager } from './final';
-import { judge, lock, next, submitAnswer, type GameState } from './game';
+import { judge, lock, next, start, submitAnswer, type GameState } from './game';
 import { blitzRound, bluff, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, withId } from './testing/fixtures';
 import { rich, T0 as DEBUFF_T0 } from './testing/debuffs';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
+import { undoQuiz } from './testing/undo';
 
 const rng = () => 0;
 const kyiv: Answer = { type: 'single', optionId: 'b' };
@@ -45,8 +46,8 @@ describe('fact rows from the state (12d)', () => {
       expect.objectContaining({ playerId: 'p2', questionIndex: 0, attempt: 0, timeMs: 3000, accepted: false }),
     ]);
     expect(input.players).toEqual([
-      { id: 'p1', nickname: 'Оля', rank: 1, score: 1000, rounds: [1000] },
-      { id: 'p2', nickname: 'Петро', rank: 2, score: 0, rounds: [0] },
+      { id: 'p1', nickname: 'Оля', rank: 1, score: 1000, rounds: [1000], carry: 0 },
+      { id: 'p2', nickname: 'Петро', rank: 2, score: 0, rounds: [0], carry: 0 },
     ]);
     expect(input.debuffs).toEqual([]);
   });
@@ -168,5 +169,20 @@ describe('fact rows from the state (12d)', () => {
       { playerId: 'p1', outcome: 'tie' },
     ]);
     expect(factInput(base).appeals).toEqual([]);
+  });
+});
+
+describe('carried points in the fact input (12r)', () => {
+  it('each player has the sum of carry rows; the round columns leave it out', () => {
+    const s = must(start(lobbyWith(undoQuiz, 'Оля', 'Петро'), 1000, { roundIndex: 1, points: { p1: 500 } }));
+    expect(factInput(s).players).toEqual([
+      expect.objectContaining({ id: 'p1', score: 500, rounds: [0, 0], carry: 500 }),
+      expect.objectContaining({ id: 'p2', score: 0, rounds: [0, 0], carry: 0 }),
+    ]);
+  });
+
+  it('a game without carried points has carry 0 for everyone', () => {
+    const s = startRound(lobbyWith(makeRoundsQuiz([classicRound('r1', [single], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    expect(factInput(s).players.map((p) => p.carry)).toEqual([0, 0]);
   });
 });

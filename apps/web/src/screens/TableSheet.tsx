@@ -45,7 +45,7 @@ export function TableButton({ table, meId, teams, breakdown }: { table: PlayerTa
           <div className="table-sheet" role="dialog" aria-modal="true" aria-label={t('tableTitle')} tabIndex={-1} onClick={() => setOpen(false)} onKeyDown={onKeyDown}>
             <div className="table-card">
               <h2>{t('tableTitle')}</h2>
-              <ScoreTable size="phone" rows={table.rows} highlightId={meId} teams={teams} breakdowns={breakdown === null ? {} : { [meId]: breakdown }} />
+              <ScoreTable size="phone" rows={table.rows} firstRound={table.firstRound} highlightId={meId} teams={teams} breakdowns={breakdown === null ? {} : { [meId]: breakdown }} />
               {!table.full && <p className="meta">{t('tableOwnOnly')}</p>}
               <button ref={closeRef} type="button" className="btn btn-small">
                 {t('buffHelpClose')}

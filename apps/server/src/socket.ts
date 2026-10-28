@@ -47,6 +47,7 @@ import {
   teamAssignSchema,
   captainSchema,
   liveWatchSchema,
+  startSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -77,7 +78,7 @@ const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
-const SIMPLE_HOST_ACTIONS = ['start', 'lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all', 'team-deal', 'team-dice', 'team-roll'] as const;
+const SIMPLE_HOST_ACTIONS = ['lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all', 'team-deal', 'team-dice', 'team-roll'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -506,6 +507,16 @@ export function attachSockets(
         for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
       }
       return { ok: true };
+    });
+
+    // Без даних (чи null: undefined у масиві аргументів доходить як null) — звичайний старт; resume — продовжити гру (12r).
+    on('host:start', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const raw = payloadOf(args);
+      if (raw === undefined || raw === null) return run({ type: 'start' });
+      const payload = startSchema.safeParse(raw);
+      if (!payload.success) return INVALID;
+      return run(payload.data.resume === undefined ? { type: 'start' } : { type: 'start', resume: payload.data.resume });
     });
 
     for (const type of SIMPLE_HOST_ACTIONS) {

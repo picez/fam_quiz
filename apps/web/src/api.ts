@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, Versus } from '@quiz/shared';
+import type { AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -108,6 +108,8 @@ export const createAutopilotGame = (quizId: string, nickname: string) =>
     body: { quizId, autopilot: true, nickname },
   });
 export const hostAccess = (code: string) => request<HostTokens>(`${gameUrl(code)}/host-access`);
+/** Недавні власні ігри цієї вікторини для «Підставити з попередньої гри» (12r), найновіша перша. */
+export const resumeOptions = (code: string) => fetchData<ResumeOption[]>(`${gameUrl(code)}/resume`);
 export const checkCode = (code: string) => request<{ phase: Phase; title: string }>(gameUrl(code));
 export const joinGame = (code: string, nickname: string) =>
   request<{ token: string; playerId: string }>(`${gameUrl(code)}/join`, { body: { nickname } });

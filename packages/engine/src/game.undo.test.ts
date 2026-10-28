@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type AdjustmentSource, type Answer } from '@quiz/shared'
 import { adjustScore } from './adjust';
 import { scoreLines } from './breakdown';
 import { placeWager } from './final';
-import { end, lock, next, recordOf, removePlayer, submitAnswer, type GameState } from './game';
+import { end, lock, next, recordOf, removePlayer, start, submitAnswer, type GameState } from './game';
 import { undoPanel, undoScore } from './undo';
 import { blitzRound, classicRound, finalRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
 import { toDuelQuestion } from './testing/duel';
@@ -92,6 +92,25 @@ describe('host undo', () => {
       const s = must(adjustScore(after1(), 'p1', 300, T0, source));
       expect(undoScore(s, { seq: 1 }, T0 + 3000)).toEqual({ ok: false, error: 'not_allowed' });
     }
+  });
+
+  it('carried points (12r) are not undone: not by seq, not with their round, not on the panel', () => {
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Петро', 'Іра'), T0, { roundIndex: 0, points: { p1: 42_434, p2: -150 } }));
+    s = answerAll(must(next(s, T0, rng)), { p1: right, p2: wrong, p3: right }, T0 + 1000);
+    s = must(next(s, T0 + 2000, rng));
+    expect(s.adjustments.map((a) => [a.seq, a.source])).toEqual([
+      [1, 'carry'],
+      [2, 'carry'],
+    ]);
+    expect(undoScore(s, { seq: 1 }, T0 + 3000)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(undoScore(s, { seq: 2 }, T0 + 3000)).toEqual({ ok: false, error: 'not_allowed' });
+    const panel = undoPanel(s)!;
+    expect(panel.rounds.flatMap((r) => r.loose)).toEqual([]);
+    expect(s.phase).toBe('leaderboard');
+    const undone = must(undoScore(s, { round: 0 }, T0 + 3000));
+    expect(undone.adjustments.filter((a) => a.source === 'undo').every((a) => a.undoes !== undefined && 'question' in a.undoes && a.undoes.question === 0)).toBe(true);
+    expect([score(undone, 'p1'), score(undone, 'p2'), score(undone, 'p3')]).toEqual([42_434, -150, 0]);
+    expectLinesMatch(undone);
   });
 
   it('refusals: unknown targets, the lobby and the end, the question still being revealed, an empty round, the autopilot', () => {

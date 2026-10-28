@@ -16,6 +16,7 @@ import {
   type Phase,
   type Question,
   type Quiz,
+  type ResumeSetup,
   type SurveyRow,
   type BoardRound,
   type FinalRound,
@@ -35,6 +36,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
+import { resumeError, withCarry } from './carry';
 import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
 import {
   answerLimitMs,
@@ -662,6 +664,8 @@ export interface AutopilotState {
   hold?: 'nobody' | 'author';
   /** Автор натиснув «Почати гру» з кубиками команд: старт, щойно тур закриється. */
   starting?: true;
+  /** Лише зі starting: «Продовжити гру» (12r), з яким автор натиснув «Почати гру»; старт після туру бере його. */
+  resume?: ResumeSetup;
   /** Поле: скільки ходів поспіль автопілот пропустив без вибору клітинки (дійсне, поки plays.length === skipPlays). */
   skips?: number;
   /** Поле: plays.length у мить останнього пропуску; нова клітинка (новий запис у plays) скидає лічильник. */
@@ -1439,10 +1443,15 @@ function enterFirstRound(state: GameState, now?: number): GameState {
 /**
  * «Почати гру»: з поясненнями для новачків — етап guide (сторінка 0, без заставки), інакше intro із заставкою, як і раніше.
  * Перший раунд готується одразу, тож вихід із «Як грати» — рівно колишній start. Без now (старі тести) — без заставки.
- * Перше запитання відкриває `next`.
+ * Перше запитання відкриває `next`. З resume — стартовий раунд замість першого й перенесені бали (12r).
  */
-export function start(state: GameState, now?: number): Result {
+export function start(state: GameState, now?: number, resume?: ResumeSetup): Result {
   if (state.phase !== 'lobby') return fail('wrong_phase');
+  // «Продовжити гру» (12r): перевірка до формування команд — ключі командної гри є id команд з налаштувань.
+  if (resume !== undefined) {
+    const error = resumeError(state, resume);
+    if (error !== null) return fail(error);
+  }
   // Командна гра: склад команд стає гравцями рушія (або teams_few).
   let formed = state;
   if (teamsOn(state)) {
@@ -1451,8 +1460,9 @@ export function start(state: GameState, now?: number): Result {
     formed = teamed.state;
   }
   if (formed.players.length === 0) return fail('no_players');
-  const ready = enterRound({ ...formed, roundIndex: 0 });
-  return ok(newcomersOn(state.quiz) ? { ...ready, phase: 'guide', guidePage: 0 } : enterFirstRound(ready, now));
+  const ready = enterRound({ ...formed, roundIndex: resume?.roundIndex ?? 0 });
+  const carried = resume === undefined ? ready : withCarry(ready, resume, now ?? 0);
+  return ok(newcomersOn(state.quiz) ? { ...carried, phase: 'guide', guidePage: 0 } : enterFirstRound(carried, now));
 }
 
 /** «До гри»: з будь-якої сторінки «Як грати» — у перший раунд, із заставкою раунду. */

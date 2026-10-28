@@ -267,7 +267,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
-    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456', stageUrl: null });
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }), { code: '123456', stageUrl: null });
     expect(screen.getByText('123 456')).toBeTruthy();
     expect(screen.queryByText('Ви в грі. Чекаємо на старт.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
@@ -275,7 +275,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author header has «⋯»; another player header does not', () => {
-    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [] } }), { code: '123456' });
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }), { code: '123456' });
     expect(document.querySelector('header.bar')!.querySelector('button.author-menu-btn')).not.toBeNull();
     cleanup();
     show(view({ autopilot: true, author: null }), { code: '123456' });
@@ -283,7 +283,7 @@ describe('PlayerScreen', () => {
   });
 
   it('the author pause banner has «Продовжити» that resumes; other players only see «Пауза»', () => {
-    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [] }, paused: true, endsAt: null, remainingMs: 12_000 }));
+    const send = show(onQuestion({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null }, paused: true, endsAt: null, remainingMs: 12_000 }));
     const banner = document.querySelector('.banner')!;
     fireEvent.click(within(banner as HTMLElement).getByRole('button', { name: 'Продовжити' }));
     expect(send).toHaveBeenCalledWith('host:resume', undefined);
@@ -2006,7 +2006,7 @@ describe('PlayerScreen: explanations for newcomers', () => {
 describe('PlayerScreen: table and menu', () => {
   const rows = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
   it('the header has «Таблиця» during a question, none in the lobby; «До меню» after the game', () => {
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(document.querySelector('header.bar')?.contains(screen.getByRole('button', { name: 'Таблиця' }))).toBe(true);
     expect(screen.queryByRole('link', { name: 'До меню' })).toBeNull();
     cleanup();
@@ -2019,7 +2019,7 @@ describe('PlayerScreen: table and menu', () => {
 
   it('the own breakdown reaches the «Таблиця» sheet', () => {
     const myBreakdown = { parts: [{ source: 'answers' as const, plus: 700, minus: 0 }], plus: 700, minus: 0 };
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, myBreakdown }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, myBreakdown }));
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     fireEvent.click(screen.getByRole('dialog').querySelector('button.score-row-toggle')!);
     expect(screen.getByText('Відповіді')).toBeTruthy();
@@ -2027,12 +2027,12 @@ describe('PlayerScreen: table and menu', () => {
   });
 
   it('the header has «Дебафи» only when the view has a shop, between «Дуель» and «Таблиця»; purchases toast on the phone', () => {
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
     cleanup();
     const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false }], block: null };
     const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, debuffNotice, me: { ...me, shop } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, debuffNotice, me: { ...me, shop } }));
     const header = document.querySelector('header.bar')!;
     const shopButton = screen.getByRole('button', { name: 'Дебафи' });
     expect(header.contains(shopButton)).toBe(true);
@@ -3577,5 +3577,41 @@ describe('PlayerScreen appeal edge cases (12f)', () => {
     };
     show(view({ phase: 'reveal', questionIndex: 0, question: publicQuestion, reveal: fullQuestion, appeal: cancelled }));
     expect(document.querySelector('.appeal-card, .appeal-sheet')).toBeNull();
+  });
+});
+
+describe('PlayerScreen: the author resumes a game (12r)', () => {
+  const resume = {
+    rounds: [
+      { title: 'Розминка', type: 'classic' as const },
+      { title: 'Річки', type: 'classic' as const },
+    ],
+    participants: [{ id: 'p1', nickname: 'Олена' }],
+  };
+
+  it('the author sees the panel in the lobby, and «Почати гру» sends the values', async () => {
+    const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume } }), { code: '123456', stageUrl: null });
+    const panel = document.querySelector('details.resume-panel') as HTMLDetailsElement;
+    expect(panel.open).toBe(false);
+    panel.open = true;
+    fireEvent(panel, new Event('toggle'));
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Почати з раунду' }), { target: { value: '1' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '−150' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:start', { resume: { roundIndex: 1, points: { p1: -150 } } }));
+  });
+
+  it('a bad field disables the author «Почати гру»', () => {
+    show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume } }), { code: '123456', stageUrl: null });
+    const panel = document.querySelector('details.resume-panel') as HTMLDetailsElement;
+    panel.open = true;
+    fireEvent(panel, new Event('toggle'));
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '10000000' } });
+    expect((screen.getByRole('button', { name: 'Почати гру' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('another player sees no panel', () => {
+    show(view({ autopilot: true, author: null }), { code: '123456' });
+    expect(document.querySelector('details.resume-panel')).toBeNull();
   });
 });

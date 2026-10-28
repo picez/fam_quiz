@@ -156,6 +156,8 @@ export interface GameQuestionResult {
 export interface GameDetail extends Omit<GameSummary, 'playerCount'> {
   rounds: { title: string; type: Round['type'] }[];
   standings: GameStanding[];
+  /** Перший раунд колонок таблиці (12r): найменший roundIndex рядків 'carry'; без них 0 — звичайна гра показує всі раунди. */
+  firstRound: number;
   questions: GameQuestionResult[];
   /** Коригування рахунку за seq; [] у старих іграх. */
   adjustments: GameAdjustment[];

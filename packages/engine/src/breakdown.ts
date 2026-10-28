@@ -68,6 +68,15 @@ function cached(state: GameState): { lines: PlayerScoreLine[]; byPlayer: Map<str
   return entry;
 }
 
+/**
+ * Перший раунд колонок таблиці (12r): раунд рядків 'carry' продовженої гри, інакше 0 — звичайна гра (і продовжена з нулями)
+ * показує всі раунди, навіть порожні. Те саме правило, що в історії. Лише для вигляду — у стані поля немає.
+ */
+export function firstRound(state: GameState): number {
+  const carry = state.adjustments.find((adjustment) => adjustment.source === 'carry');
+  return Math.max(0, carry?.roundIndex ?? 0);
+}
+
 /** Колонки раундів: у лобі й до першого раунду 0, інакше min(rounds.length, roundIndex + 1). */
 export function roundCount(state: GameState): number {
   if (state.phase === 'lobby' || state.phase === 'guide' || state.roundIndex < 0) return 0;

@@ -108,6 +108,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
+import { resumeLobby } from './carry';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
@@ -144,7 +145,7 @@ import { awayPenalized, awayPeople, lastAway, ownAway, stageAway } from './away'
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
-import { groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
+import { firstRound, groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -1075,7 +1076,7 @@ function authorPeople(state: GameState, personId: string): AuthorPerson[] {
 /** Те, що бачить лише автор автопілота; null — глядач не автор чи гра з ведучим. */
 function authorView(state: GameState, personId: string): AuthorView | null {
   if (!isAuthor(state, personId)) return null;
-  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId) };
+  return { cloud: authorCloud(state), bluff: authorBluff(state), people: authorPeople(state, personId), resume: resumeLobby(state) };
 }
 
 /** Уся хмара для пульта: зі схованими словами й нікнеймами авторів. */
@@ -2222,7 +2223,7 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
   const rows = withRounds(rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hidden(p.id) }))), seen, roundCount(state));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
   const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state) || inLadderRound(state))));
-  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
+  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full, firstRound: firstRound(state) };
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */
@@ -2309,6 +2310,7 @@ export function hostView(state: GameState): HostView {
     allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
     standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
+    firstRound: firstRound(state),
     breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLinesByPlayer(state), p.id)])),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
@@ -2317,6 +2319,7 @@ export function hostView(state: GameState): HostView {
     pace: hostPace(state),
     live: hostLive(state),
     undo: undoPanel(state),
+    resume: resumeLobby(state),
     roundQuestions: roundQuestionShares(state),
   };
 }

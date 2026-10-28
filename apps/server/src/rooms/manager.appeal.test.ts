@@ -162,7 +162,6 @@ describe('player:appeal and player:appeal-vote in a room (12f)', () => {
     const saved = viaJson(manager.snapshot(room));
     manager.freeze();
     expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
-    expect(GAME_STATE_VERSION).toBe(18);
     expect(isSavedRoom(saved)).toBe(true);
     scheduler.advance(60 * 60_000);
     const next = new RoomManager(scheduler, () => 0.5);

@@ -58,6 +58,7 @@ const detail: GameDetail = {
   questionsPlayed: 2,
   questionCount: 2,
   autopilot: false,
+  firstRound: 0,
   rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
     { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
@@ -624,6 +625,52 @@ describe('GameHistory: adjustments', () => {
     const { container } = open('/history/g1');
     expect(await screen.findByText('Столиця України?')).toBeTruthy();
     expect(container.querySelector('.history-adjustments')).toBeNull();
+  });
+});
+
+describe('GameHistory: carried points (12r)', () => {
+  it('lists the carried points under the first played round; the skipped round is not shown; the breakdown names them', async () => {
+    vi.mocked(getGame).mockResolvedValue({
+      ok: true,
+      data: {
+        ...detail,
+        firstRound: 1,
+        rounds: [
+          { title: '', type: 'classic' },
+          { title: '', type: 'classic' },
+        ],
+        standings: [
+          {
+            participantId: 'p1',
+            nickname: 'Оля',
+            score: 43_434,
+            rank: 1,
+            correct: 1,
+            rounds: [0, 1000],
+            breakdown: { parts: [{ source: 'carry', plus: 42_434, minus: 0 }, { source: 'answers', plus: 1000, minus: 0 }], plus: 43_434, minus: 0 },
+          },
+          { participantId: 'p2', nickname: 'Петро', score: 1200, rank: 2, correct: 0, rounds: [0, 0], breakdown: { parts: [{ source: 'carry', plus: 1200, minus: 0 }], plus: 1200, minus: 0 } },
+        ],
+        questions: detail.questions.map((question) => ({ ...question, roundIndex: 1 })),
+        adjustments: [
+          { seq: 1, roundIndex: 1, afterQuestion: 0, nickname: 'Оля', points: 42_434, source: 'carry' },
+          { seq: 2, roundIndex: 1, afterQuestion: 0, nickname: 'Петро', points: 1200, source: 'carry' },
+        ],
+      },
+    });
+    const { container } = open('/history/g1');
+    expect(await screen.findByText('Перенесено з попередньої гри: Оля +42434, Петро +1200')).toBeTruthy();
+    const groups = [...container.querySelectorAll('.round-group')];
+    expect(groups).toHaveLength(1);
+    expect(groups[0].querySelector('.round-title')?.textContent).toBe('Раунд 2');
+    expect(groups[0].querySelector('.history-carry')?.textContent).toBe('Перенесено з попередньої гри: Оля +42434, Петро +1200');
+    expect(groups[0].querySelector('.history-adjustments')).toBeNull();
+    // Пропущений раунд колонки не має: таблиця «#, Учасник, Р2, Σ».
+    const table = document.querySelector('section.history-scores table')!;
+    expect([...table.querySelectorAll('thead th.round')].map((th) => [th.textContent, th.getAttribute('aria-label')])).toEqual([['Р2', 'Р2, Раунд 2']]);
+    expect([...table.querySelectorAll('tbody tr.score-row')][0].querySelectorAll('td.round')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: '«+ / −» для Оля' }));
+    expect(document.querySelector('section.history-scores .score-breakdown')!.textContent).toContain('Перенесено з попередньої гри +42434');
   });
 });
 

@@ -3,7 +3,7 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder']);
+    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder']);
   });
 
   it('classifies answer rows by round type', () => {
@@ -14,7 +14,7 @@ describe('score sources', () => {
   });
 
   it('maps adjustment sources to themselves', () => {
-    for (const source of ['host', 'undo', 'away', 'appeal', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
+    for (const source of ['carry', 'host', 'undo', 'away', 'appeal', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
   });
 });
 
@@ -29,6 +29,17 @@ describe('roundTotals', () => {
     expect(roundTotals(lines, 2)).toEqual([1050, -1000]);
     expect(roundTotals(lines, 0)).toEqual([]);
     expect(roundTotals([], 3)).toEqual([0, 0, 0]);
+  });
+});
+
+describe('carried points (12r)', () => {
+  it('are not round points but count in the breakdown', () => {
+    const lines = [
+      { roundIndex: 2, source: 'carry' as const, points: 42_434 },
+      { roundIndex: 2, source: 'answers' as const, points: 200 },
+    ];
+    expect(roundTotals(lines, 3)).toEqual([0, 0, 200]);
+    expect(breakdownOf(lines)).toEqual({ parts: [{ source: 'carry', plus: 42_434, minus: 0 }, { source: 'answers', plus: 200, minus: 0 }], plus: 42_634, minus: 0 });
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wipeoutLines } from './GameHistory';
+import { carryLine, debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wipeoutLines } from './GameHistory';
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {
@@ -165,5 +165,18 @@ describe('ladderPrizeLines', () => {
         { seq: 2, roundIndex: 0, afterQuestion: 4, nickname: 'Оля', points: 1000, source: 'ladder' },
       ]).map((line) => line.replace(/\s/g, ' ')),
     ).toEqual(['Виграш драбини: Оля +1000']);
+  });
+});
+
+describe('carryLine', () => {
+  it('lists the carried points of a round, null without them', () => {
+    expect(
+      carryLine([
+        { seq: 1, roundIndex: 1, afterQuestion: 0, nickname: 'Оля', points: 42_434, source: 'carry' },
+        { seq: 2, roundIndex: 1, afterQuestion: 0, nickname: 'Петро', points: -1200, source: 'carry' },
+        { seq: 3, roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' },
+      ]),
+    ).toBe('Перенесено з попередньої гри: Оля +42434, Петро −1200');
+    expect(carryLine([{ seq: 3, roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' }])).toBeNull();
   });
 });

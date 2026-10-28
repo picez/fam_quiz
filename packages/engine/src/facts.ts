@@ -85,6 +85,8 @@ export function factInput(state: GameState): FactInput {
     rank: row.rank,
     score: row.score,
     rounds: row.rounds ?? [],
+    // Перенесені бали (12r): у колонки раундів не входять (roundTotals), цікавинки рахують їх окремо.
+    carry: state.adjustments.filter((a) => a.source === 'carry' && a.playerId === row.participantId).reduce((s, a) => s + a.points, 0),
   }));
   const debuffs = state.adjustments.filter((a) => a.source === 'debuff').map((a) => ({ by: a.playerId, target: a.target ?? null }));
   const input = { players, questions, rows, debuffs, away: awayFacts(state, closedCount), appeals: appealFacts(state) };

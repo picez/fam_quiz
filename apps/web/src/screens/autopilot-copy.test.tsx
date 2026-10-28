@@ -83,7 +83,7 @@ const stageBase = (over: Partial<StageView> = {}): StageView => ({
   ...over,
 });
 
-const author = { cloud: null, bluff: null, people: [] };
+const author = { cloud: null, bluff: null, people: [], resume: null };
 /** Зріз учасника без команди; autopilot: true; isAuthor — автор чи ні. */
 const phoneBase = (isAuthor: boolean, over: Partial<PlayerView> = {}): PlayerView =>
   teamPlayerView({ autopilot: true, author: isAuthor ? author : null, teams: null, team: null, me: { ...baseMe, id: 'p1', nickname: 'Олена' }, ...over });

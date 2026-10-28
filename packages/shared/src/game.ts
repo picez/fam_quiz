@@ -15,7 +15,9 @@ export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
   /** Штраф за вихід із гри (12e): мінус бали запитання; запитання — afterQuestion − 1. */
   | 'away'
   /** Рішення залу за апеляцією (12f): бали «правильно» мінус бали запису (чи зняття вже дописаного штрафу); запитання — afterQuestion − 1. */
-  | 'appeal';
+  | 'appeal'
+  /** Перенесено з попередньої гри (12r): стартові бали учасника; раунд — стартовий, afterQuestion 0; не скасовується й не є балами раунду. */
+  | 'carry';
 
 /** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
 export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
@@ -120,6 +122,8 @@ export type ErrorCode =
   | 'hint_late'
   | 'dice_pending'
   | 'points_invalid'
+  /** Продовжити гру (12r): раунд поза вікториною чи бали не цілі або поза межами. */
+  | 'resume_invalid'
   | 'debuff_busy'
   | 'points_short'
   | 'debuff_bought'

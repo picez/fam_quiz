@@ -1,4 +1,4 @@
-import type { Quiz } from '@quiz/shared';
+import type { Quiz, ResumeSetup } from '@quiz/shared';
 import type { Db } from '../db/client';
 import { user } from '../db/schema';
 import { attachRecorder, type Recorder } from '../recorder';
@@ -10,7 +10,7 @@ import { createTestDb } from './test-db';
  * Кімната командної гри: join людей (у порядку layout), спосіб 'host', assign за layout, start.
  * layout — нікнейми людей кожної команди в порядку команд; перший у команді — капітан.
  * users — акаунти людей за нікнеймом; hostUserId — ведучий з акаунтом (без нього гра не пишеться в історію).
- * Повертає id людей за нікнеймом і id команд за порядком.
+ * resume — «Продовжити гру» (12r) за id команд. Повертає id людей за нікнеймом і id команд за порядком.
  */
 export function startTeamGame(
   manager: RoomManager,
@@ -18,6 +18,7 @@ export function startTeamGame(
   layout: string[][],
   users: Record<string, string> = {},
   hostUserId: string | null = null,
+  resume?: (teams: string[]) => ResumeSetup,
 ): { room: Room; members: Record<string, string>; teams: string[] } {
   const room = manager.create(quiz, hostUserId, null);
   const teams = (room.state.teams?.list ?? []).map((team) => team.id);
@@ -36,7 +37,7 @@ export function startTeamGame(
   layout.forEach((names, index) => {
     for (const nickname of names) must(manager.host(room, { type: 'team-assign', memberId: members[nickname], teamId: teams[index] }), `assign ${nickname}`);
   });
-  must(manager.host(room, { type: 'start' }), 'start');
+  must(manager.host(room, resume === undefined ? { type: 'start' } : { type: 'start', resume: resume(teams.slice(0, layout.length)) }), 'start');
   return { room, members, teams: teams.slice(0, layout.length) };
 }
 
@@ -53,6 +54,7 @@ export const TEAM_USERS = { Оля: 'olya-user', Віра: 'vira-user' } as cons
 export async function recordedTeamGame(
   quiz: Quiz,
   database?: Db,
+  resume?: (teams: string[]) => ResumeSetup,
 ): Promise<{ db: Db; scheduler: FakeScheduler; manager: RoomManager; recorder: Recorder; room: Room; members: Record<string, string>; teams: string[]; errors: unknown[] }> {
   const db = database ?? (await createTestDb());
   if (database === undefined) {
@@ -75,6 +77,7 @@ export async function recordedTeamGame(
     ],
     TEAM_USERS,
     TEAM_HOST,
+    resume,
   );
   return { db, scheduler, manager, recorder, errors, ...started };
 }
