@@ -49,6 +49,9 @@
   --team-5: #ff9a3d;
   --guide-accent: #8fe3b0;
   --guide-accent-soft: rgb(143 227 176 / 0.14);
+  --appeal-accent: #ffc94d;
+  --appeal-yes: var(--correct);
+  --appeal-no: var(--signal);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
   --splash-bg: rgb(14 16 32);
   --splash-accent: var(--amber);
@@ -11332,4 +11335,137 @@ button.wall-tile:disabled {
 
 .responses-who {
   flex-wrap: wrap;
+}
+
+/* 12f: апеляція. Кнопка «⚖️ Оскаржити (лишилось 2)» — на всю ширину під результатом розкриття. */
+.appeal-button {
+  width: 100%;
+  border-color: var(--appeal-accent);
+  color: var(--appeal-accent);
+}
+
+.appeal-block {
+  margin: 0;
+  text-align: center;
+}
+
+/* Картка апеляції: у потоці під результатом (телефон); сцена й пульт задають свої розміри поверх. */
+.appeal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 2px solid var(--appeal-accent);
+  border-radius: 0.875rem;
+  background: var(--panel);
+}
+
+.appeal-card .appeal-title,
+.appeal-sheet .appeal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.appeal-ask,
+.appeal-hall {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.appeal-meta {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.appeal-count {
+  min-width: 0;
+  margin: 0;
+  color: var(--dim);
+}
+
+.appeal-time {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.appeal-bar {
+  display: flex;
+  height: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.appeal-bar-yes {
+  background: var(--appeal-yes);
+}
+
+.appeal-bar-no {
+  background: var(--appeal-no);
+}
+
+.appeal-result {
+  margin: 0;
+  color: var(--appeal-accent);
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+/* Аркуш голосу — як .vote-sheet: position: fixed унизу, нічого не зсуває. Над іншими аркушами (таблиця 75, дуель 80),
+   під смугою «немає зв'язку» (90) і тривогою виходу 12e (95). */
+.appeal-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  max-height: 60dvh;
+  overflow-y: auto;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--appeal-accent);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.appeal-votes {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.appeal-votes .btn {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.appeal-votes .appeal-yes[aria-pressed='true'] {
+  border-color: var(--appeal-yes);
+  background: var(--appeal-yes);
+  color: var(--stage);
+}
+
+.appeal-votes .appeal-no[aria-pressed='true'] {
+  border-color: var(--appeal-no);
+  background: var(--appeal-no);
+  color: var(--stage);
+}
+
+.appeal-mine {
+  margin: 0;
+}
+
+/* Під аркушем розкриття можна докрутити до кінця: аркуш не ховає результат і кнопок. */
+.app.player:has(> .appeal-sheet) {
+  padding-bottom: calc(18rem + env(safe-area-inset-bottom));
 }

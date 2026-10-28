@@ -5,7 +5,7 @@ import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, HintRequest, Overt
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { choiceLabel, signed, sliderValueText } from '../format';
 import { errorText, hasText, t, type TextKey } from '../i18n';
-import { useTimeOver } from '../live/Timer';
+import { clockText, useLeftMs, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
 
@@ -331,27 +331,6 @@ export function RetryPrompt({
       </div>
     </section>
   );
-}
-
-/** 24 000 мс → «0:24», 65 000 → «1:05»; секунди вгору, як на табло. */
-function clockText(ms: number): string {
-  const total = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
-/** Залишок до кінця голосування за годинником сервера; на паузі — сталий залишок. Оновлюється, поки йде. */
-function useLeftMs(clock: { endsAt: number | null; remainingMs: number | null }, offsetMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  const running = clock.remainingMs === null && clock.endsAt !== null;
-  useEffect(() => {
-    if (!running) return;
-    setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(id);
-  }, [running, clock.endsAt]);
-  if (clock.remainingMs !== null) return clock.remainingMs;
-  if (clock.endsAt === null) return 0;
-  return Math.max(0, clock.endsAt - (now + offsetMs));
 }
 
 /** Рядки варіантів для відсотків: single/multi — варіанти запитання, boolean — «Так»/«Ні». */
