@@ -1,4 +1,5 @@
 import { suspendAutopilot } from './autopilot';
+import { awayCloseAll } from './away';
 import { pause, setConnected, tick, type GameState } from './game';
 
 /** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
@@ -70,6 +71,8 @@ export function suspend(state: GameState, at: number): GameState {
     const paused = pause(s, at);
     if (paused.ok) s = paused.state;
   }
+  // Антигугл (12e): відкриті виходи закриваються на мить збереження (на паузі — на pausedAt); телефон, що досі прихований, звітує знову.
+  s = awayCloseAll(s, at);
   // Спершу пауза, потім розрив: на паузі відлік відсутності не стартує, а autoLock нічого не закриває.
   // Кого розрив забрав, того чекають, доки не повернеться: «усі відповіли» без них не закриває запитання.
   const awaiting = [...s.awaiting, ...s.players.filter((p) => p.connected && !s.awaiting.includes(p.id)).map((p) => p.id)];

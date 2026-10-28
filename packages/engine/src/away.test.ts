@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer } from '@quiz/shared';
 import { awayEnd, awayParticipant, awayStart, awayStep, awayTracked } from './away';
+import { buzz } from './blitz';
 import { pickBluff, writeLie } from './bluff';
+import { takeBuff } from './buffs';
 import { pickCell } from './board';
-import { lock, next, pause, removePlayer, resume, setConnected, start, submitAnswer, type GameState } from './game';
+import { judge, lock, next, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
 import { actAnswer } from './team-act';
 import {
+  blitzRound,
   bluff,
   boardRound,
   classicRound,
@@ -21,6 +24,7 @@ import {
 } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, openAt, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
+import { T0 as BUFF_T0, toBuffQuestion } from './testing/buffs';
 
 const rng = () => 0;
 const kyiv: Answer = { type: 'single', optionId: 'b' };
@@ -112,9 +116,77 @@ describe('the server clock for leaving the game (12e)', () => {
     while (must(next(prev, 20_000, rng)).phase !== 'question') prev = must(next(prev, 15_000, rng));
     const nextQuestion = must(next(prev, 20_000, rng));
     expect(nextQuestion.questionIndex).toBe(1);
-    const stepped = awayStep(prev, nextQuestion, 19_000, new Set(['p2']));
+    const stepped = awayStep(prev, nextQuestion, 20_000, new Set(['p2']));
     expect(entry(stepped, 'p2', 1)).toEqual({ ms: 0, count: 0, since: 20_000 });
     expect(entry(stepped, 'p1', 1)).toBeUndefined();
+  });
+
+  it('a phone hidden before a question with a splash counts from the end of the splash', () => {
+    let prev = startRound(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    prev = must(lock(prev));
+    while (must(next(prev, 30_000, rng)).phase !== 'question') prev = must(next(prev, 25_000, rng));
+    const nextQuestion = must(next(prev, 30_000, rng));
+    const until = nextQuestion.splash?.until ?? 0;
+    expect(until).toBeGreaterThan(30_000);
+    expect(entry(awayStep(prev, nextQuestion, 30_000, new Set(['p2'])), 'p2', 1)).toEqual({ ms: 0, count: 0, since: until });
+  });
+
+  it('bluff: a leave from the lies into the choice counts in full', () => {
+    const quiz = makeQuiz([bluff, single], { leaderboard: 'end', speedBonus: false, rules: { ...DEFAULT_RULES }, buffs: [] });
+    let s = startRound(lobbyWith(quiz, 'Оля', 'Петро', 'Віра'), 10_000, rng);
+    s = must(writeLie(s, 'p1', 'Рим', 11_000));
+    s = awayStart(s, 'p3', 12_000);
+    const due = s.endsAt ?? 0;
+    s = tick(s, due + 1);
+    expect(s.plays[0].bluff?.stage).toBe('choice');
+    expect(awayTracked(s, 'p3')).toBe(true);
+    expect(entry(awayEnd(s, 'p3', due + 3001), 'p3')).toEqual({ ms: due + 3001 - 12_000, count: 1, since: null });
+  });
+
+  it('blitz: a hold does not stop the clock, a pause in a hold does', () => {
+    let s = openAt(lobbyWith(makeRoundsQuiz([blitzRound('b1', [single], { check: 'manual' })]), 'Оля', 'Петро'), 1000, rng);
+    s = awayStart(s, 'p2', 2000);
+    s = must(submitAnswer(must(buzz(s, 'p1', 3000)), 'p1', kyiv, 3000));
+    expect(s.heldAt).not.toBeNull();
+    const thawed = must(judge(s, 'p1', false, 8000));
+    expect(thawed.heldAt).toBeNull();
+    expect(awayTracked(thawed, 'p2')).toBe(true);
+    expect(entry(awayEnd(thawed, 'p2', 9000), 'p2')).toEqual({ ms: 7000, count: 1, since: null });
+    // пауза під час утримання: 4000…14 000 не рахується
+    const resumed = must(resume(must(pause(s, 4000)), 14_000));
+    expect(entry(resumed, 'p2')?.since).toBe(12_000);
+    expect(entry(awayEnd(must(judge(resumed, 'p1', false, 15_000)), 'p2', 16_000), 'p2')).toEqual({ ms: 4000, count: 1, since: null });
+  });
+
+  it('a pause during the splash of a timed question never counts the splash', () => {
+    const splashed = startRound(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single], PLAIN)]), 'Оля', 'Петро'), 1000, rng);
+    const until = splashed.splash?.until ?? 0;
+    expect(until).toBeGreaterThan(2000);
+    // вийшла під час заставки, пауза теж під час заставки
+    const resumed = must(resume(must(pause(awayStart(splashed, 'p1', 1500), 2000)), 10_000));
+    expect(entry(resumed, 'p1')?.since).toBe(until + 8000);
+    expect(resumed.splash?.until).toBe(until + 8000);
+    expect(entry(awayEnd(resumed, 'p1', until + 11_000), 'p1')).toEqual({ ms: 3000, count: 1, since: null });
+    // вийшла на паузі під час заставки
+    const late = must(resume(awayStart(must(pause(splashed, 2000)), 'p1', 3000), 10_000));
+    expect(entry(late, 'p1')?.since).toBe(until + 8000);
+    // повернулася до кінця заставки — 0
+    expect(entry(awayEnd(late, 'p1', until + 7000), 'p1')).toEqual({ ms: 0, count: 0, since: null });
+  });
+
+  it('a gap reported during a pause on a timed question is capped by the answer time so far', () => {
+    const paused = must(pause(s0, 6000));
+    expect(paused.startedAt).toBeNull();
+    expect(entry(awayEnd(paused, 'p2', 9000, 10_000), 'p2')).toEqual({ ms: 5000, count: 1, since: null });
+  });
+
+  it('a second try keeps the watch', () => {
+    let s = must(takeBuff(toBuffQuestion(), 'p1', 'retry', BUFF_T0, () => 0));
+    s = must(submitAnswer(s, 'p1', { type: 'single', optionId: 'a' }, BUFF_T0 + 1000));
+    expect(s.plays[0].buffs?.p1.retry).toBe('again');
+    expect(awayTracked(s, 'p1')).toBe(true);
+    s = must(submitAnswer(s, 'p1', { type: 'single', optionId: 'c' }, BUFF_T0 + 2000));
+    expect(awayTracked(s, 'p1')).toBe(false);
   });
 
   it('a disconnect stops the watch and awayStep closes the interval at the drop', () => {

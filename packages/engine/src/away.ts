@@ -2,6 +2,7 @@
 import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, type Phase } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 import { recordOf, type AwayEntry, type GameState } from './game';
+import { limitMsOf } from './timing';
 import { hostLive } from './live';
 import { memberOf, teamMembers, teamsOn } from './teams';
 
@@ -23,7 +24,9 @@ function trackedPeople(state: GameState): ReadonlySet<string> {
   // Лише рядки, що мають відповідати (answers / blitz); привиди й зал (aside), випробування й дуель — ні.
   if (live !== null && (live.kind === 'answers' || live.kind === 'blitz')) {
     for (const row of live.rows) {
-      if (row.answered) continue;
+      // Друга спроба (again / choice): перша відповідь у рядку є, але людина ще відповідає.
+      const retry = play?.buffs?.[row.id]?.retry;
+      if (row.answered && retry !== 'again' && retry !== 'choice') continue;
       // Рядок команди — її люди на зв'язку; рядок людини (опитування, хмара) чи соло-гравця — сам id, якщо на зв'язку.
       if (teamsOn(state) && memberOf(state, row.id) === undefined) {
         for (const m of teamMembers(state, row.id)) if (m.connected) people.add(m.id);
@@ -54,34 +57,52 @@ function closeEntry(state: GameState, index: number, personId: string, now: numb
   const entry = state.plays[index]?.away?.[personId];
   if (entry === undefined || entry.since === null) return { state, added: 0 };
   const end = state.paused ? (state.pausedAt ?? now) : now;
-  // Заставка безкоштовна: на запитанні, що йде, відлік — не раніше справжнього старту.
-  const running = index === state.questionIndex && state.phase === 'question' && !state.paused && state.startedAt !== null;
-  const from = running ? Math.max(entry.since, state.startedAt ?? entry.since) : entry.since;
-  const added = Math.max(0, end - from);
+  // Заставку відсікає since (awayStart), паузу — зсув since у resumeClock; startedAt тут ні до чого (блеф і утримання його рухають).
+  const added = Math.max(0, end - entry.since);
   const closed: AwayEntry = { ms: entry.ms + added, count: entry.count + (added >= 1 ? 1 : 0), since: null };
   return { state: withEntry(state, index, personId, closed), added };
 }
 
-/** Людина пішла: відкриває інтервал (since — не раніше startedAt; на паузі — pausedAt). Не під наглядом чи вже поза грою — той самий об'єкт. */
-export function awayStart(state: GameState, personId: string, now: number): GameState {
-  if (!awayTracked(state, personId)) return state;
+/** Кінець заставки перед запитанням (question / cell), що ще йде на мить at; інакше at. Пауза зсуває заставку й since разом. */
+function splashEnd(state: GameState, at: number): number {
+  const splash = state.splash;
+  return splash !== null && (splash.kind === 'question' || splash.kind === 'cell') && splash.until > at ? splash.until : at;
+}
+
+/** Відкриває інтервал людини, яка вже під наглядом (перевіряє той, хто кличе); вже поза грою — той самий об'єкт. */
+function openEntry(state: GameState, personId: string, now: number): GameState {
   const index = state.questionIndex;
   const entry = state.plays[index].away?.[personId];
   if (entry !== undefined && entry.since !== null) return state;
   const at = state.paused ? (state.pausedAt ?? now) : now;
-  const since = Math.max(at, state.startedAt ?? at);
-  return withEntry(state, index, personId, { ms: entry?.ms ?? 0, count: entry?.count ?? 0, since });
+  return withEntry(state, index, personId, { ms: entry?.ms ?? 0, count: entry?.count ?? 0, since: splashEnd(state, at) });
 }
 
-/** Людина повернулася: закриває інтервал (на паузі — до pausedAt) і додає gapMs, якщо людина під наглядом (не більше now − startedAt). Без змін — той самий об'єкт. */
+/** Людина пішла: відкриває інтервал (since — не раніше кінця заставки; на паузі — pausedAt). Не під наглядом чи вже поза грою — той самий об'єкт. */
+export function awayStart(state: GameState, personId: string, now: number): GameState {
+  return awayTracked(state, personId) ? openEntry(state, personId, now) : state;
+}
+
+/**
+ * Скільки йде відповідь на поточне запитання на мить end — межа розриву в awayEnd. На паузі з таймером startedAt немає:
+ * ліміт мінус залишок (залишок заставки не включає). Межа наближена: вибір блефу й утримання рухають startedAt уперед, тож вона менша за справжню.
+ */
+function answeringMs(state: GameState, end: number): number {
+  const play = state.plays[state.questionIndex];
+  if (state.paused && state.startedAt === null && state.remainingMs !== null && play !== undefined) {
+    return Math.max(0, (limitMsOf(play) ?? 0) - state.remainingMs);
+  }
+  return state.startedAt === null ? 0 : Math.max(0, end - state.startedAt);
+}
+
+/** Людина повернулася: закриває інтервал (на паузі — до pausedAt) і додає gapMs, якщо людина під наглядом (не більше за answeringMs). Без змін — той самий об'єкт. */
 export function awayEnd(state: GameState, personId: string, now: number, gapMs = 0): GameState {
   const index = state.questionIndex;
   const tracked = gapMs > 0 && awayTracked(state, personId);
   const closed = closeEntry(state, index, personId, now);
   if (!tracked) return closed.state;
   const end = state.paused ? (state.pausedAt ?? now) : now;
-  const cap = state.startedAt === null ? 0 : Math.max(0, end - state.startedAt);
-  const gap = Math.min(gapMs, cap);
+  const gap = Math.min(gapMs, answeringMs(state, end));
   if (gap <= 0) return closed.state;
   const entry = closed.state.plays[index].away?.[personId] ?? { ms: 0, count: 0, since: null };
   // Розрив — частина того самого виходу: окремо рахується, лише якщо інтервалу (≥ 1 мс) не було.
@@ -97,18 +118,21 @@ export function awayEnd(state: GameState, personId: string, now: number, gapMs =
  */
 export function awayStep(prev: GameState, next: GameState, at: number, hidden: ReadonlySet<string>): GameState {
   let s = next;
-  // 1) Відкриті інтервали запитання prev (і поточного запитання next, якщо інше).
-  for (const index of new Set([prev.questionIndex, next.questionIndex])) {
-    const away = next.plays[index]?.away;
-    if (away === undefined) continue;
-    for (const [personId, entry] of Object.entries(away)) {
-      if (entry.since === null) continue;
-      const watched = index === next.questionIndex && awayTracked(next, personId);
-      if (!watched) s = closeEntry(s, index, personId, at).state;
+  const indexes = [...new Set([prev.questionIndex, next.questionIndex])];
+  const open = indexes.some((index) => Object.values(next.plays[index]?.away ?? {}).some((e) => e.since !== null));
+  if (open || hidden.size > 0) {
+    // Нагляд — один раз зі стану next (зміни away на нього не впливають).
+    const watched = trackedPeople(next);
+    // 1) Відкриті інтервали запитання prev (і поточного запитання next, якщо інше).
+    for (const index of open ? indexes : []) {
+      for (const [personId, entry] of Object.entries(next.plays[index]?.away ?? {})) {
+        if (entry.since === null) continue;
+        if (index !== next.questionIndex || !watched.has(personId)) s = closeEntry(s, index, personId, at).state;
+      }
     }
+    // 2) Приховані телефони, що щойно стали під наглядом (без змін, якщо інтервал уже відкритий).
+    for (const personId of hidden) if (watched.has(personId)) s = openEntry(s, personId, at);
   }
-  // 2) Приховані телефони, що щойно стали під наглядом (awayStart без змін, якщо інтервал уже відкритий чи нагляду немає).
-  for (const personId of hidden) s = awayStart(s, personId, at);
   // 3) Штрафи запитання prev, бали якого щойно стали остаточними.
   const q = penaltyDue(prev, next);
   return q === null ? s : withPenalties(s, q, at);
@@ -163,6 +187,15 @@ function withPenalties(state: GameState, q: number, at: number): GameState {
     // Раз на учасника: скасований ведучим штраф не повертається.
     if (s.adjustments.some((a) => a.source === 'away' && a.playerId === participant && a.afterQuestion - 1 === q)) continue;
     s = addAdjustment(s, participant, -points, at, 'away', { roundIndex });
+  }
+  return s;
+}
+
+/** Перезапуск сервера (suspend): відкриті інтервали поточного запитання закриваються на мить at (на паузі — на pausedAt). */
+export function awayCloseAll(state: GameState, at: number): GameState {
+  let s = state;
+  for (const [personId, entry] of Object.entries(state.plays[state.questionIndex]?.away ?? {})) {
+    if (entry.since !== null) s = closeEntry(s, state.questionIndex, personId, at).state;
   }
   return s;
 }

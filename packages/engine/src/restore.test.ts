@@ -1280,7 +1280,7 @@ describe('the saved state', () => {
     expect(restored.paused).toBe(true);
   });
 
-  it('a version 16 state (no away) restores; an open leave survives the round trip and closes at pausedAt on the first step', () => {
+  it('a version 16 state (no away) restores; an open leave closes at the save and the restored game goes on', () => {
     const plain = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
     const old = roundTrip(suspend(roundTrip(plain), T0 + 1000));
     expect('away' in old.plays[0]).toBe(false);
@@ -1288,8 +1288,12 @@ describe('the saved state', () => {
     expect(READABLE_STATE_VERSIONS).toContain(16);
     const left = awayStart(plain, 'p2', T0 + 2000);
     const suspended = roundTrip(suspend(left, T0 + 6000));
-    expect(suspended.plays[0].away?.p2).toEqual({ ms: 0, count: 0, since: T0 + 2000 });
-    expect(awayStep(suspended, suspended, T0 + 9000, new Set()).plays[0].away?.p2).toEqual({ ms: 4000, count: 1, since: null });
+    expect(suspended.plays[0].away?.p2).toEqual({ ms: 4000, count: 1, since: null });
+    // Петро повертається, гра продовжується: крок нічого не змінює, новий вихід додається
+    const back = must(resume(must(setConnected(suspended, 'p2', true, T0 + HOUR)), T0 + HOUR));
+    expect(awayStep(suspended, back, T0 + HOUR, new Set())).toBe(back);
+    const again = awayEnd(awayStart(back, 'p2', T0 + HOUR + 1000), 'p2', T0 + HOUR + 2000);
+    expect(again.plays[0].away?.p2).toEqual({ ms: 5000, count: 2, since: null });
   });
 
   it('the state format is pinned to GAME_STATE_VERSION', () => {

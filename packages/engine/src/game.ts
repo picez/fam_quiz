@@ -1902,7 +1902,9 @@ function resumeClock(state: GameState, now: number): Result {
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
   if (state.phase === 'question' && state.heldAt !== null) {
     // Якщо утримання знялося, а відповідати вже нікому, запитання закривається одразу.
-    return ok(autoLock(settleQueue(releaseStaleHold({ ...state, paused: false, pausedAt: null }, now), now), now));
+    // Годинник виходів (12e) стоїть лише на паузі, не на утриманні: поки ведучий оцінює, решта може гуглити.
+    const unpaused = shiftAwayClocks({ ...state, paused: false, pausedAt: null }, now - (state.pausedAt ?? now));
+    return ok(autoLock(settleQueue(releaseStaleHold(unpaused, now), now), now));
   }
   // Заставка, що не скінчилася до паузи, дограє першою, і лише потім рушає таймер.
   const lead = splashLead(state, state.pausedAt ?? now);
