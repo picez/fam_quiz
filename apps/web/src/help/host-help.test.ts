@@ -345,6 +345,17 @@ describe('host help', () => {
     expect(searchHelp('кубик')).toContain('team.dice');
   });
 
+  it('12g answerer entry follows «captain» and lists what the answerer and the captain do', () => {
+    const answerer = text('team.answerer');
+    for (const word of ['вибирає капітан', 'по черзі', 'на весь раунд', 'з наступного запитання', 'Ти відповідаєш за команду', 'відповідає: Оля', 'бафи', 'ставка фіналу', 'дебафи', 'апеляція', 'без ведучого', '🎤', 'не на зв’язку']) expect(answerer, word).toContain(word);
+    expect(answerer).not.toMatch(/росі|срср/i);
+    expect(answerer).not.toMatch(/відповів |відповіла|вибрав |вибрала/);
+    expect(searchHelp('відповідає')).toContain('team.answerer');
+    expect(text('team.play')).toContain('Хто відповідає');
+    expect(text('team.captain')).toContain('«по черзі»');
+    expect(text('team.formats')).toContain('Хто відповідає');
+  });
+
   it('format, buff, debuff and setting entries have a team line', () => {
     const ids: HelpId[] = ['round.classic', 'round.blitz', 'round.board', 'round.final', 'round.wipeout', 'round.survival', 'round.ladder', 'question.bluff', 'question.poll', 'question.wordcloud', 'buff.audience', 'buff.hint', 'buff.retry', 'setting.duels', 'setting.debuffShop'];
     for (const kind of DEBUFF_KINDS) ids.push(`debuff.${kind}`);
