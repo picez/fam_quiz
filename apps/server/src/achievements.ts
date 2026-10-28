@@ -1,12 +1,12 @@
 import { ACHIEVEMENTS, isWin, type Achievement, type AchievementId, type PlayedGame } from '@quiz/shared';
-import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, AWAY_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
 import type { AnswerMark, GameTable, TablePlayer } from './history';
 
 /** Скільки запитань з відповіддю потрібно для ідеальної гри. */
 const PERFECT_MIN_QUESTIONS = 5;
 
 /** Рядки-відповіді: штрафний рядок бліц-клітинки і голос в опитуванні чи хмарі не є відповіддю. */
-const answersOf = (marks: AnswerMark[]) => marks.filter((mark) => mark.attempt !== PENALTY_ATTEMPT && mark.attempt !== VOTE_ATTEMPT);
+const answersOf = (marks: AnswerMark[]) => marks.filter((mark) => mark.attempt !== PENALTY_ATTEMPT && mark.attempt !== VOTE_ATTEMPT && mark.attempt !== AWAY_ATTEMPT);
 
 /**
  * Найдовша серія зарахованих запитань у грі: запитання зараховане, якщо прийнято хоч одну спробу;

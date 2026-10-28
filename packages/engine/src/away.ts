@@ -1,6 +1,6 @@
 // Антигугл (12e): годинник виходів людей із гри. Цей файл views.ts не імпортує; game.ts цей файл не імпортує (без циклу).
 // live.ts імпортує цей файл, а цей — hostLive: цикл лише між функціями (на верхньому рівні жоден не викликає іншого).
-import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, type AwayMark, type OwnAway, type Phase } from '@quiz/shared';
+import { AWAY_MS, AWAY_PENALTY_ROUNDS, isUnscored, undoLedger, type AwayMark, type OwnAway, type Phase } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 import { recordOf, type AwayEntry, type GameState } from './game';
 import { limitMsOf } from './timing';
@@ -278,14 +278,24 @@ export function stageAway(state: GameState): string[] {
  * Свій вихід людини на запитанні plays[q]; null — запису немає.
  * penalty — штраф діє на цьому запитанні й поріг пройдено людиною чи її командою (закритий час), а запис учасника, якщо є, не від'ємний.
  * penalty буває й при 0 балах (неправильна відповідь): «0 балів за це запитання» тоді теж правда — так і має бути.
+ * Штраф учасника за q, який ведучий скасував, знімає penalty: бали повернулися, а штраф не дописується вдруге.
  */
 function ownAwayAt(state: GameState, personId: string, q: number): OwnAway | null {
   const entry = state.plays[q]?.away?.[personId];
   if (entry === undefined) return null;
   const participant = awayParticipant(state, personId);
   const points = participant === null ? undefined : recordOf(state, q, participant)?.points;
-  const penalty = participant !== null && (points === undefined || points >= 0) && awayPenalized(state, q).includes(participant);
+  const penalty =
+    participant !== null && (points === undefined || points >= 0) && awayPenalized(state, q).includes(participant) && !penaltyUndone(state, participant, q);
   return { play: q, ms: entry.ms, count: entry.count, out: entry.since !== null, penalty };
+}
+
+/** Штраф 'away' учасника за запитання q є, і кожен такий рядок зараз скасовано (з урахуванням «Повернути»). */
+function penaltyUndone(state: GameState, participant: string, q: number): boolean {
+  const own = state.adjustments.filter((a) => a.source === 'away' && a.playerId === participant && a.afterQuestion - 1 === q);
+  if (own.length === 0) return false;
+  const ledger = undoLedger(state.adjustments.map((a) => ({ seq: a.seq, who: a.playerId, source: a.source, undoes: a.undoes })));
+  return own.every((a) => ledger.adjustments.has(a.seq));
 }
 
 /**

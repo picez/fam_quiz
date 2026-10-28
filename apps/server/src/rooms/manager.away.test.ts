@@ -267,6 +267,24 @@ describe('player:away in a room (12e)', () => {
     expect(manager.away(room, olena.playerId, false, { ms: 0 })).toEqual({ ok: false, error: 'too_soon' });
   });
 
+  it('one free return per accepted leave: further returns count against the rate, a disconnect keeps the free one', () => {
+    const { scheduler, manager, room, olena } = playing();
+    expect(manager.away(room, olena.playerId, true)).toEqual({ ok: true });
+    // Перше повернення — у рахунок виходу; далі кожне рахується: разом із виходом 4 за секунду.
+    expect(manager.away(room, olena.playerId, false, { ms: 0 })).toEqual({ ok: true });
+    for (let i = 1; i < AWAY_EVENTS_PER_SECOND; i++) expect(manager.away(room, olena.playerId, false, { ms: 0 })).toEqual({ ok: true });
+    expect(manager.away(room, olena.playerId, false, { ms: 0 })).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.awayCredit.has(olena.playerId)).toBe(false);
+    // Новий вихід (нова секунда), розрив, повернення без зв'язку — повернення після перепідключення однаково вільне.
+    scheduler.advance(1000);
+    for (let i = 0; i < AWAY_EVENTS_PER_SECOND; i++) expect(manager.away(room, olena.playerId, true)).toEqual({ ok: true });
+    manager.disconnect(room, olena.identity);
+    expect(room.hidden.has(olena.playerId)).toBe(false);
+    manager.connect(room, olena.identity);
+    expect(manager.away(room, olena.playerId, false, { ms: 500 })).toEqual({ ok: true });
+    expect(manager.away(room, olena.playerId, false, { ms: 0 })).toEqual({ ok: false, error: 'too_soon' });
+  });
+
   it('a gap across a question change counts only the offline part inside the new question (phone re-sends away: true)', () => {
     const { scheduler, manager, room, olena, taras } = playing();
     manager.away(room, olena.playerId, true);

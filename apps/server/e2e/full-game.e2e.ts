@@ -14405,7 +14405,7 @@ async function away12e() {
   const penaltySwitch = host.getByLabel('Штраф за вихід із гри', exact);
   await penaltySwitch.waitFor();
   expect(await penaltySwitch.isChecked()).toBe(true);
-  await host.getByText(/Хто виходить із гри під час запитання від 3/).waitFor();
+  await host.getByText(/Якщо гравець пробув поза грою від 3/).waitFor();
   await penaltySwitch.scrollIntoViewIfNeeded();
   await expectNoSideScroll(host, 'p12e-editor');
   // На кадрі всієї сторінки прапорець ховається під липкими панелями: окремий кадр екрана з прапорцем посередині.
@@ -14547,6 +14547,8 @@ async function away12e() {
   expect(given.height, 'the away mark squeezes the answer').toBeLessThan(given.line * 1.5);
   await expectStageLine('p12e-stage-reveal', 'Оля');
   await expect.poll(() => rowScore('Оля'), POLL).toBe('200');
+  // Пульт уже на розкритті знає, що штраф зніме ці бали.
+  await host.locator('.rows > li:has(.response-away) .response-penalty', { hasText: '→ 0 (вихід із гри)' }).waitFor();
   await expectMarksFit('p12e-host-reveal');
   await expectNoSideScroll(host, 'p12e-host-reveal');
   await shot(stage, 'p12e-stage-reveal');

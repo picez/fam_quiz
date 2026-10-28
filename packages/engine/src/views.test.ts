@@ -112,6 +112,7 @@ describe('while a question is open', () => {
         spare: null,
         clue: null,
         away: [],
+        awayPenalty: false,
       },
     ]);
   });

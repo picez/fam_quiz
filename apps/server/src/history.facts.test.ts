@@ -6,7 +6,7 @@ import { blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, make
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
-import { answer, game, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
+import { answer, AWAY_ATTEMPT, game, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
@@ -160,6 +160,80 @@ describe('history facts (12d)', () => {
 
     expect(detail?.facts.awards).toEqual(gameAwards(live));
     expect(detail?.facts.table).toEqual(factTable(live));
+    await local.app.close();
+  });
+
+  it('a marked player who never answered: a classic silence and a blitz non-presser without a penalty give the same away facts live and in the history', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const [account] = await localDb.select().from(user).where(eq(user.email, host.email));
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [single, poll], { speedBonus: false }),
+      blitzRound('b1', [withId(single, 'bq')], { attempts: 1, check: 'manual' }),
+    ]);
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const { Оля: olya, Петро: petro } = ids;
+    const right = { type: 'single', optionId: 'b' } as const;
+    expect(local.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    const done = new Set<number>();
+    for (let guard = 0; guard < 40 && room.state.phase !== 'finished'; guard++) {
+      const { phase, questionIndex } = room.state;
+      const play = room.state.plays[questionIndex];
+      if (phase === 'question' && !done.has(questionIndex)) {
+        done.add(questionIndex);
+        // Оля поза грою на кожному запитанні й ніде не відповідає; на опитуванні її позначка не рахується ніде.
+        const plays = [...room.state.plays];
+        plays[questionIndex] = { ...play, away: { [olya]: { ms: 3500, count: 1, since: null } } };
+        room.state = { ...room.state, plays };
+        if (play.question.type === 'poll') local.manager.answer(room, petro, { type: 'poll', optionId: 'a' });
+        else if (play.blitz !== undefined) {
+          expect(local.manager.buzz(room, petro)).toEqual({ ok: true });
+          expect(local.manager.answer(room, petro, right)).toEqual({ ok: true });
+          expect(local.manager.host(room, { type: 'judge', playerId: petro, correct: true })).toEqual({ ok: true });
+        } else local.manager.answer(room, petro, right);
+        if (room.state.phase === 'question') local.manager.host(room, { type: 'lock' });
+      } else local.manager.host(room, { type: 'next' });
+    }
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const live = factInput(room.state);
+    expect(live.away).toEqual([
+      { playerId: olya, questionIndex: 0 },
+      { playerId: olya, questionIndex: 2 },
+    ]);
+    const found = await hostGameWithFacts(localDb, account.id, created.gameId);
+    expect(found?.factInput.away).toEqual(live.away);
+    expect(found?.factInput.rows).toEqual(expect.not.arrayContaining([expect.objectContaining({ playerId: olya })]));
+    expect(found?.detail.facts.table).toEqual(factTable(live));
+    // Рядок лише з позначкою: 0 балів, без відповіді; не відповідь у деталях; рахунок — сума рядків.
+    const stored = await localDb.select().from(answer).where(eq(answer.participantId, olya));
+    expect(stored.map((a) => [a.questionIndex, a.attempt, a.points, a.payload, a.accepted, a.awayMs])).toEqual(
+      expect.arrayContaining([
+        [0, AWAY_ATTEMPT, 0, null, false, 3500],
+        [2, AWAY_ATTEMPT, 0, null, false, 3500],
+      ]),
+    );
+    expect(stored).toHaveLength(2);
+    const olyaRow = found?.detail.standings.find((s) => s.nickname === 'Оля');
+    expect(olyaRow?.score).toBe(stored.reduce((sum, a) => sum + a.points, 0));
+    expect(olyaRow?.correct).toBe(0);
+    for (const q of found?.detail.questions ?? []) {
+      expect(q.responses.map((r) => r.nickname)).not.toContain('Оля');
+      expect(q.answered).toBe(1);
+    }
     await local.app.close();
   });
 

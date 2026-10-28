@@ -1915,6 +1915,18 @@ describe('StageScreen: bluff (10f)', () => {
       expect(screen.getByText('за жеребом')).toBeTruthy();
     });
 
+    it('question: «🙈 Оля» in the ladder header without seconds, gone without anyone away', () => {
+      show(view({ phase: 'question', round: lRound, questionIndex: 2, question, ladder: ladderInfo(), away: ['Оля'] }));
+      const line = document.querySelector('.stage-ladder header.bar .away-line') as HTMLElement;
+      expect(line.textContent).toBe('🙈 Оля');
+      expect(line.title).toBe('Оля');
+      expect(within(line).queryByText(/\d+ с/)).toBeNull();
+      cleanup();
+      show(view({ phase: 'question', round: lRound, questionIndex: 2, question, ladder: ladderInfo() }));
+      expect(document.querySelector('.stage-ladder')).not.toBeNull();
+      expect(document.querySelector('.away-line')).toBeNull();
+    });
+
     it('question: the question beside the ladder, the removed options dimmed in place, the hall voting', () => {
       show(
         view({

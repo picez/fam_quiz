@@ -388,7 +388,7 @@ export function GameHistory() {
                               {question.final.entries.map((entry, at) => (
                                 <li key={at} className={`${entry.accepted ? 'is-correct' : 'is-wrong'}${ledger.answers.has(undoAnswerKey(entry.nickname, question.index)) ? ' is-undone' : ''}`}>
                                   {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
-                                  {entry.awayMs !== null && <span className="meta history-away">{` ${t('historyAway', { seconds: awaySeconds(entry.awayMs) })}`}</span>}
+                                  {entry.awayMs != null && <span className="meta history-away">{` ${t('historyAway', { seconds: awaySeconds(entry.awayMs) })}`}</span>}
                                 </li>
                               ))}
                             </ul>
@@ -473,7 +473,7 @@ export function GameHistory() {
                                     <span className="responses-name">{response.nickname}</span>
                                     {response.buff !== null && <BuffBadge kind={response.buff} />}
                                     {response.spare !== null && <SpareMark spare={response.spare} />}
-                                    {response.awayMs !== null && <span className="meta history-away">{t('historyAway', { seconds: awaySeconds(response.awayMs) })}</span>}
+                                    {response.awayMs != null && <span className="meta history-away">{t('historyAway', { seconds: awaySeconds(response.awayMs) })}</span>}
                                   </span>
                                   {response.spare !== null && <span className="spare-text">{t('spareText', { text: response.spare.text })}</span>}
                                   {response.answer?.type === 'match' ? (

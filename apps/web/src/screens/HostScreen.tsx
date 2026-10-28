@@ -1128,6 +1128,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                         {response.overridden && `, ${t('changedByHost')}`}
                       </span>
                       <span className="score">{num(response.points)}</span>
+                      {response.awayPenalty && <span className="meta response-penalty">{t('awayPenaltyComing')}</span>}
                     </>
                   )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}

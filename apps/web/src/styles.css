@@ -2769,6 +2769,12 @@ a.banner {
   border-color: var(--signal);
 }
 
+/* 12e: телефон без Wake Lock у грі зі штрафом — один рядок над екраном гравця. */
+.banner.is-wake {
+  margin: 0.5rem 1rem 0;
+  font-size: 0.9rem;
+}
+
 /* Пари */
 .match-hint {
   margin: 0;
@@ -11295,6 +11301,12 @@ button.wall-tile:disabled {
   color: var(--signal);
 }
 
+/* «→ 0 (вихід із гри)» біля балів на пульті: штраф зніме їх, щойно бали стануть остаточними. */
+.response-penalty {
+  color: var(--signal);
+  white-space: nowrap;
+}
+
 /* У таблиці відповідей позначка йде окремим рядком під відповіддю: інакше на 375 px вона стискає відповідь до «Дніп / ро». */
 .rows > li > .response-away {
   order: 1;
@@ -11304,6 +11316,13 @@ button.wall-tile:disabled {
 .live-chip .live-away {
   margin-left: 0.3rem;
   font-size: 0.8em;
+  white-space: nowrap;
+}
+
+/* Фішка з позначкою на 375 px може стати двома рядками (ім'я, під ним «🙈 …»): не довга «пігулка», а заокруглена картка. */
+.live-chip:has(.live-away) {
+  max-width: 100%;
+  border-radius: 0.75rem;
 }
 
 /* 12e: «🙈 4 с» біля відповіді з виходом із гри; не рветься посеред позначки на 375 px. */

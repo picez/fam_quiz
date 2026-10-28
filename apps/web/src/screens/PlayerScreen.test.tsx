@@ -86,6 +86,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   own: null,
   away: null,
   lastAway: null,
+  awayPenalty: false,
   team: null,
   ...over,
 });

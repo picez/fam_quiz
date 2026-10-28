@@ -7,6 +7,7 @@ import { actAnswer } from './team-act';
 import { classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
+import { undoScore } from './undo';
 import { hostView, playerView, stageView } from './views';
 
 const rng = () => 0;
@@ -211,6 +212,35 @@ describe('the last leave stays on the own phone after the question (12e)', () =>
     expect(s.adjustments.filter((a) => a.source === 'away')).toEqual([expect.objectContaining({ playerId: 'p1', points: -100 })]);
     expect(playerView(s, 'p1')?.away).toBeNull();
     expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 3500, penalty: true });
+  });
+
+  it('the host answer table knows the coming penalty on the reveal: positive points only, gone once the penalty row exists', () => {
+    let s = leave(leave(open({ awayPenalty: true, leaderboard: 'each' }), 'p1', 2000, 5500), 'p2', 2000, 5500);
+    s = must(submitAnswer(s, 'p1', right, 6000));
+    s = othersToReveal(s, 6000, wrong);
+    const penalty = (id: string) => hostView(s).responses.find((r) => r.playerId === id)?.awayPenalty;
+    // Оля: правильна й поза грою від 3 с; Петро: поза грою, але 0 балів; Іра: без виходу.
+    expect([penalty('p1'), penalty('p2'), penalty('p3')]).toEqual([true, false, false]);
+    const plain = toReveal(leave(open({ leaderboard: 'each' }), 'p1', 2000, 5500));
+    expect(hostView(plain).responses.find((r) => r.playerId === 'p1')?.awayPenalty).toBe(false);
+    s = step(s, must(next(s, 8000, rng)), 8000);
+    expect(s.adjustments.some((a) => a.source === 'away' && a.playerId === 'p1')).toBe(true);
+    expect(hostView(s).responses.every((r) => !r.awayPenalty)).toBe(true);
+  });
+
+  it('a penalty the host undid is no longer shown as coming; «Повернути» brings it back', () => {
+    let s = leave(open({ awayPenalty: true, leaderboard: 'each' }), 'p1', 2000, 5500);
+    s = must(submitAnswer(s, 'p1', right, 6000));
+    s = othersToReveal(s, 6000);
+    s = step(s, must(next(s, 8000, rng)), 8000);
+    const penalty = s.adjustments.find((a) => a.source === 'away');
+    if (penalty === undefined) throw new Error('no penalty');
+    s = must(undoScore(s, { seq: penalty.seq }, 9000));
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, ms: 3500, penalty: false });
+    const undo = s.adjustments.at(-1);
+    expect(undo?.source).toBe('undo');
+    s = must(undoScore(s, { seq: undo?.seq ?? -1 }, 9500));
+    expect(playerView(s, 'p1')?.lastAway).toMatchObject({ play: 0, penalty: true });
   });
 
   it('teams: a teammate has no lastAway of the one who left', () => {

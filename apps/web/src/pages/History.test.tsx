@@ -423,6 +423,20 @@ describe('GameHistory: answers', () => {
     expect(rows[1].querySelector('.history-away')).toBeNull();
   });
 
+  it('an older server without awayMs on answers and final entries shows no 🙈 and no «NaN»', async () => {
+    const { awayMs: _a, ...plain } = { nickname: 'Віра', answer: { type: 'single' as const, optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: null };
+    const old = {
+      ...answered,
+      questions: [{ ...answered.questions[1], answered: 1, responses: [plain] }],
+    } as unknown as GameDetail;
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: old });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (1)'));
+    expect(container.querySelector('details.responses li')).not.toBeNull();
+    expect(container.querySelector('.history-away')).toBeNull();
+    expect(container.textContent).not.toContain('NaN');
+  });
+
   it('history shows the spare text and reads the answer against it', async () => {
     const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
     const swapped: GameDetail = {

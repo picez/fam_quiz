@@ -78,7 +78,7 @@ export function Play() {
   // Сирена тривоги (12e) розблоковується першим жестом: iOS не дає звуку контексту, створеному поза жестом.
   useSirenUnlock();
   // Екран не гасне від входу до кінця гри: заблокований телефон на столі не має виглядати виходом.
-  useWakeLock(game.view !== null && game.view.role === 'player' && game.view.phase !== 'finished');
+  const screenUnguarded = useWakeLock(game.view !== null && game.view.role === 'player' && game.view.phase !== 'finished');
 
   // Токен більше не діє: гру закрито або гравця вилучено. Повертаємо форму входу.
   const wasAutopilot = useRef(false);
@@ -124,6 +124,12 @@ export function Play() {
       {(game.status === 'offline' || game.status === 'restarting') && (
         <p className="banner is-offline" role="status">
           {t(statusTextKey(game.status))}
+        </p>
+      )}
+      {/* Без Wake Lock (немає чи відмовлено) і зі штрафом: блокування екрана теж рахується виходом — попереджаємо. */}
+      {screenUnguarded && game.view.awayPenalty && game.view.phase !== 'lobby' && (
+        <p className="banner is-wake" role="note">
+          {t('awayWakeWarning')}
         </p>
       )}
       <PlayerScreen

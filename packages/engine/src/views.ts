@@ -139,7 +139,7 @@ import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turn
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
 import { hostLive, responseClue, spareOf } from './live';
-import { awayPeople, lastAway, ownAway, stageAway } from './away';
+import { awayPenalized, awayPeople, lastAway, ownAway, stageAway } from './away';
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
@@ -2041,6 +2041,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     own: null,
     away: null,
     lastAway: null,
+    awayPenalty: state.quiz.settings.awayPenalty === true,
     team,
     author: authorView(state, member.id),
   };
@@ -2184,6 +2185,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     own: state.phase === 'lobby' ? null : ownFacts(state, playerId, sharedFacts(state)),
     away: null,
     lastAway: null,
+    awayPenalty: state.quiz.settings.awayPenalty === true,
   };
 }
 
@@ -2252,6 +2254,9 @@ export function hostView(state: GameState): HostView {
   const unscored = current !== undefined && isUnscored(current);
   // Голоси без балів у командній грі лежать під id людей (voterList; у соло-грі — гравці).
   const responders = unscored ? voterList(state) : state.players;
+  // Штраф за вихід (12e), який ще не дописано: учасники з порогом на цьому запитанні без рядка 'away' під ним.
+  const q = state.questionIndex;
+  const penalized = unscored || q < 0 ? [] : awayPenalized(state, q).filter((id) => !state.adjustments.some((a) => a.source === 'away' && a.playerId === id && a.afterQuestion - 1 === q));
   const responses = responders.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
@@ -2272,6 +2277,7 @@ export function hostView(state: GameState): HostView {
         clue: responseClue(state, player.id, record.timeMs),
         // Голос людини в командній грі — позначка самої людини; рядок команди — її люди.
         away: awayPeople(state, player.id),
+        awayPenalty: record.points > 0 && penalized.includes(player.id),
       },
     ];
   });

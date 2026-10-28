@@ -5,12 +5,12 @@ import { AWAY_MS, type OwnAway } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
-import { playSiren, unlockSiren } from '../siren';
+import { playSiren, sirenReady, unlockSiren } from '../siren';
 import { loadAlarmSeen } from '../storage';
 import { alarmKey, AwayAlarm, AwayNote } from './AwayAlarm';
 
 const { stop } = vi.hoisted(() => ({ stop: vi.fn() }));
-vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop), unlockSiren: vi.fn() }));
+vi.mock('../siren', () => ({ playSiren: vi.fn(() => stop), unlockSiren: vi.fn(), sirenReady: vi.fn(() => true) }));
 
 let visibility: 'visible' | 'hidden' = 'visible';
 let vibrate: ReturnType<typeof vi.fn>;
@@ -26,6 +26,7 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'vibrate', { configurable: true, value: vibrate });
   vi.mocked(playSiren).mockClear();
   vi.mocked(unlockSiren).mockClear();
+  vi.mocked(sirenReady).mockReset().mockReturnValue(true);
   stop.mockClear();
 });
 
@@ -37,19 +38,18 @@ afterEach(() => {
 });
 
 describe('alarmKey', () => {
-  it('a closed leave from the mark that was not shown yet gives its key, with the person', () => {
-    expect(alarmKey('123456', 'p1', away(), null)).toBe('123456:p1:3:1');
-    expect(alarmKey('123456', 'm2', away({ ms: AWAY_MS.mark }), '123456:m2:3:0')).toBe('123456:m2:3:1');
-    // Той самий код і запитання в давній грі (інша людина) не заважає.
-    expect(alarmKey('123456', 'p9', away(), '123456:p1:3:1')).toBe('123456:p9:3:1');
+  it('a closed leave from the mark gives its key, with the person', () => {
+    expect(alarmKey('123456', 'p1', away())).toBe('123456:p1:3:1');
+    expect(alarmKey('123456', 'm2', away({ ms: AWAY_MS.mark }))).toBe('123456:m2:3:1');
+    // Той самий код і запитання в давній грі (інша людина) — інший ключ.
+    expect(alarmKey('123456', 'p9', away())).toBe('123456:p9:3:1');
   });
 
-  it('nothing for no leave, a leave still open, a short one or one already shown', () => {
-    expect(alarmKey('123456', 'p1', null, null)).toBeNull();
-    expect(alarmKey('123456', 'p1', away({ out: true }), null)).toBeNull();
-    expect(alarmKey('123456', 'p1', away({ ms: AWAY_MS.mark - 1 }), null)).toBeNull();
-    expect(alarmKey('123456', 'p1', away({ count: 0 }), null)).toBeNull();
-    expect(alarmKey('123456', 'p1', away(), '123456:p1:3:1')).toBeNull();
+  it('nothing for no leave, a leave still open or a short one', () => {
+    expect(alarmKey('123456', 'p1', null)).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ out: true }))).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ ms: AWAY_MS.mark - 1 }))).toBeNull();
+    expect(alarmKey('123456', 'p1', away({ count: 0 }))).toBeNull();
   });
 });
 
@@ -104,6 +104,58 @@ describe('AwayAlarm', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(stop).toHaveBeenCalled();
     expect(unlockSiren).toHaveBeenCalled();
+  });
+
+  it('a silent siren (sound not unlocked when it fired): the first tap unlocks and plays it again and keeps the alarm, the second tap closes', () => {
+    vi.mocked(sirenReady).mockReturnValue(false);
+    render(<Alarm value={away()} />);
+    expect(playSiren).toHaveBeenCalledTimes(1);
+    // Капчер-слухач сторінки міг уже розбудити звук до onClick шару: рішення — за станом у мить спрацювання.
+    vi.mocked(sirenReady).mockReturnValue(true);
+    fireEvent.click(screen.getByRole('alert'));
+    expect(unlockSiren).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).not.toBeNull();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(playSiren).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(playSiren).mock.calls[1]).toEqual([AWAY_MS.alarm]);
+    expect(vi.mocked(unlockSiren).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(playSiren).mock.invocationCallOrder[1]);
+    fireEvent.click(screen.getByRole('alert'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(playSiren).toHaveBeenCalledTimes(2);
+    expect(stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('a silent siren replayed by a tap closes after its own time or by Escape', () => {
+    vi.mocked(sirenReady).mockReturnValue(false);
+    render(<Alarm value={away()} />);
+    act(() => vi.advanceTimersByTime(AWAY_MS.alarm - 500));
+    fireEvent.click(screen.getByRole('alert'));
+    // Час шару починається знову разом із новою сиреною.
+    act(() => vi.advanceTimersByTime(AWAY_MS.alarm - 1));
+    expect(screen.queryByRole('alert')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.queryByRole('alert')).toBeNull();
+    cleanup();
+    localStorage.clear();
+    render(<Alarm value={away({ count: 2 })} />);
+    fireEvent.click(screen.getByRole('alert'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a silent siren that times out without a tap just closes', () => {
+    vi.mocked(sirenReady).mockReturnValue(false);
+    render(<Alarm value={away()} />);
+    act(() => vi.advanceTimersByTime(AWAY_MS.alarm));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(playSiren).toHaveBeenCalledTimes(1);
+  });
+
+  it('a siren that was ready: one tap closes, no replay', () => {
+    render(<Alarm value={away()} />);
+    fireEvent.click(screen.getByRole('alert'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(playSiren).toHaveBeenCalledTimes(1);
   });
 
   it('Escape closes it', () => {

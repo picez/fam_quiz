@@ -19,6 +19,14 @@ describe('away helpers (12e)', () => {
     // Повернувся ще до розриву — 0.
     expect(awayGapMs({ dropAt: 4000, backAt: 9000 }, 1000, 3000)).toBe(0);
   });
+  it('a gap longer than the claim counts only the claim; a gap that began after the return counts nothing', () => {
+    // Розрив 0…20000 довший за вихід 5000…8000 → лише 3000 (заявлене телефоном).
+    expect(awayGapMs({ dropAt: 0, backAt: 20_000 }, 3000, 8000)).toBe(3000);
+    // Розрив почався вже після повернення (8000) — 0.
+    expect(awayGapMs({ dropAt: 9000, backAt: 12_000 }, 3000, 8000)).toBe(0);
+    // Розрив почався посеред виходу й тягнеться після повернення — до повернення.
+    expect(awayGapMs({ dropAt: 6000, backAt: 12_000 }, 3000, 8000)).toBe(2000);
+  });
   it('the report: away, ms and sinceReturnMs are bounded whole numbers', () => {
     expect(awaySchema.safeParse({ away: true }).success).toBe(true);
     expect(awaySchema.safeParse({ away: false, ms: 4000, sinceReturnMs: 1500 }).success).toBe(true);
@@ -27,6 +35,12 @@ describe('away helpers (12e)', () => {
     expect(awaySchema.safeParse({ away: false, sinceReturnMs: 1.5 }).success).toBe(false);
     expect(awaySchema.safeParse({ away: false, ms: AWAY_REPORT_MAX_MS + 1 }).success).toBe(false);
     expect(awaySchema.safeParse({ away: 'x' }).success).toBe(false);
+    expect(awaySchema.safeParse({ away: false, ms: -1 }).success).toBe(false);
+    expect(awaySchema.safeParse({ away: false, ms: 1.5 }).success).toBe(false);
+    expect(awaySchema.safeParse({ away: false, ms: 3_600_001 }).success).toBe(false);
+    expect(awaySchema.safeParse({ away: false, ms: AWAY_REPORT_MAX_MS }).success).toBe(true);
+    expect(awaySchema.safeParse({ away: false, ms: 0, sinceReturnMs: AWAY_REPORT_MAX_MS }).success).toBe(true);
+    expect(AWAY_REPORT_MAX_MS).toBe(3_600_000);
   });
   it('whole seconds and the thresholds', () => {
     expect(awaySeconds(4999)).toBe(4);
