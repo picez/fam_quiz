@@ -2916,3 +2916,33 @@ describe('HostScreen: facts (12d)', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
   });
 });
+
+describe('away marks (12e)', () => {
+  const olena = (over: Partial<HostView['responses'][number]> = {}): HostView['responses'][number] => ({
+    playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct', streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null,
+    away: [{ personId: 'p1', nickname: 'Олена', ms: 4200, count: 1, out: false }],
+    ...over,
+  });
+
+  it('the answer table names how long a player was away on the reveal', () => {
+    show(during('reveal', single, { responses: [olena()] }));
+    const row = screen.getByText('Київ').closest('li') as HTMLElement;
+    expect(row.querySelector('.response-away')?.textContent).toBe('🙈 відволікався 4 с (1 раз)');
+  });
+
+  it('a team row names the person who left; nobody away — no mark', () => {
+    show(during('reveal', single, { teams: teamsView(), responses: [olena({ playerId: 't1', nickname: 'Сови', away: [{ personId: 'p1', nickname: 'Оля', ms: 0, count: 0, out: true }] })] }));
+    expect(document.querySelector('.response-away')?.textContent).toBe('🙈 Оля: зараз поза грою');
+    cleanup();
+    show(during('reveal', single, { responses: [olena({ away: [] })] }));
+    expect(document.querySelector('.response-away')).toBeNull();
+  });
+
+  it('after the end, «↶ Бали» stays in the header while a penalty can still be undone', () => {
+    const undo = { rounds: [{ index: 0, title: 'Розминка', type: 'classic' as const, loose: [], questions: [{ index: 0, number: 1, text: 'Столиця?', rows: [{ kind: 'away' as const, playerId: 'p1', nickname: 'Олена', points: -900, target: { seq: 3 }, undoneBy: null }] }] }] };
+    show(view({ phase: 'finished', questionIndex: 1, standings: [], undo }));
+    const bar = document.querySelector('header.bar') as HTMLElement;
+    fireEvent.click(within(bar).getByRole('button', { name: '↶ Бали' }));
+    expect(within(screen.getByRole('dialog', { name: 'Скасування балів' })).getByText('Олена −900 (вихід із гри)')).toBeTruthy();
+  });
+});

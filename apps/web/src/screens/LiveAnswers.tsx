@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { HostLive, HostView, LiveDraft, LiveRow, Question, SortTilt } from '@quiz/shared';
+import { awayRowTexts } from '../away-text';
 import { answerText, num, secondsText, sliderNumber } from '../format';
 import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
@@ -189,10 +190,20 @@ function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
       {draft !== undefined && <DraftLine row={row} view={view} draft={draft} now={now} />}
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
+      <AwayMarks row={row} view={view} />
       {row.verdict !== null && <span className={`tag is-${row.verdict}`}>{t(`liveVerdict_${row.verdict}` as TextKey)}</span>}
       {row.awaiting && <span className="tag is-pending">{t('liveAwaiting')}</span>}
     </li>
   );
+}
+
+/** Позначки «🙈» рядка (12e): ім'я людини — лише в рядку команди. */
+function AwayMarks({ row, view }: { row: LiveRow; view: HostView }) {
+  return awayRowTexts(row.id, row.away, view.teams !== null).map((text, index) => (
+    <span key={row.away[index]?.personId ?? index} className="meta live-away">
+      {text}
+    </span>
+  ));
 }
 
 /** Скільки рядків видно без прокрутки (див. .live-scroll у styles.css). */
@@ -263,6 +274,7 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
               <li key={row.id} className={row.connected ? 'live-chip' : 'live-chip is-offline'}>
                 {row.nickname}
                 {!row.connected && <span className="live-offline">{t('liveOffline')}</span>}
+                <AwayMarks row={row} view={view} />
               </li>
             ))}
           </ul>

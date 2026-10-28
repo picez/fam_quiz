@@ -2276,3 +2276,20 @@ describe('StageScreen: facts (12d)', () => {
     expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
   });
 });
+
+describe('StageScreen: away (12e)', () => {
+  it('names who left the game in the question header, never the seconds', () => {
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3, away: ['Оля', 'Петро'] }));
+    const line = document.querySelector('header.bar .away-line') as HTMLElement;
+    expect(line.textContent).toBe('🙈 Оля, Петро');
+    expect(within(line).queryByText(/\d+ с/)).toBeNull();
+  });
+
+  it('stays on the reveal and is gone without anyone away', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question, reveal: full, playerCount: 3, away: ['Оля'] }));
+    expect(document.querySelector('header.bar .away-line')?.textContent).toBe('🙈 Оля');
+    cleanup();
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, remainingMs: 20_000, playerCount: 3 }));
+    expect(document.querySelector('.away-line')).toBeNull();
+  });
+});

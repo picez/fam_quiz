@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
+import { awayRowTexts } from '../away-text';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -1113,6 +1114,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                     {response.spare !== null ? answerText(response.answer, response.spare) : answerText(response.answer, correct, view.question?.choices)}
                   </span>
                   {response.clue !== null && <span className="meta">{t('clueAt', { n: response.clue })}</span>}
+                  {awayRowTexts(response.playerId, response.away, view.teams !== null).map((text, index) => (
+                    <span key={response.away[index]?.personId ?? index} className="meta response-away">
+                      {text}
+                    </span>
+                  ))}
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
                   {!isFinal && response.grade !== null && (
                     <>
