@@ -3195,3 +3195,85 @@ describe('PlayerScreen: live choices for the host (12b)', () => {
       expect(send).toHaveBeenCalledWith('player:draft', { draft: { type: 'lie', text: 'Вигадка' } });
     }));
 });
+
+describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
+  const CLUES = ['Народився 1814 року', 'Був художником', 'Засланий у солдати', 'Автор «Заповіту»', 'Автор «Кобзаря»'];
+  const selfClues = (shown = 2, self = true) => ({
+    ...publicQuestion,
+    type: 'clues' as const,
+    text: 'Хто я?',
+    choices: [],
+    clues: { total: 5, shown: CLUES.slice(0, shown), nextAt: null, byHost: false, intervalSeconds: 8, self, opens: null },
+  });
+  const more = () => screen.queryByRole('button', { name: /^Ще підказка/ });
+
+  it('solo: «Ще підказка · ціна стане 60 %» under the share line sends player:clue', async () => {
+    const send = show(onQuestion({ question: selfClues() }));
+    expect(screen.getByText('Підказка 2 з 5: правильна відповідь зараз — 80 % ціни')).toBeTruthy();
+    const button = screen.getByRole('button', { name: 'Ще підказка · ціна стане 60 %' });
+    expect(button.matches(':disabled')).toBe(false);
+    // Власний темп: жодного відліку до наступної підказки.
+    expect(screen.queryByText(/ за \d+ с/)).toBeNull();
+    fireEvent.click(button);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:clue'));
+  });
+
+  it('a refusal shows the error copy', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'clues_done' as const }));
+    show(onQuestion({ question: selfClues() }), { send });
+    fireEvent.click(screen.getByRole('button', { name: 'Ще підказка · ціна стане 60 %' }));
+    expect(await screen.findByText('Усі підказки вже відкрито.')).toBeTruthy();
+  });
+
+  it('no button once every clue is open or after the answer; the clues stay', () => {
+    show(onQuestion({ question: selfClues(5) }));
+    expect(more()).toBeNull();
+    expect(screen.getByText('Підказка 5 з 5: правильна відповідь зараз — 20 % ціни')).toBeTruthy();
+    cleanup();
+    show(onQuestion({ question: selfClues(), me: { ...me, answer: { type: 'clues', value: 'Шевченко' } } }));
+    expect(more()).toBeNull();
+    expect(screen.getByText('Був художником')).toBeTruthy();
+  });
+
+  it('disabled on a pause, under the question splash and after the time', () => {
+    show(onQuestion({ question: selfClues(), paused: true, endsAt: null, remainingMs: 15_000 }));
+    expect(more()?.matches(':disabled')).toBe(true);
+    cleanup();
+    const now = Date.now();
+    show(onQuestion({ question: selfClues(), splash: { kind: 'question', at: now - 100, until: now + 3000 } }));
+    expect(more()?.matches(':disabled')).toBe(true);
+    cleanup();
+    show(onQuestion({ question: selfClues(), endsAt: Date.now() - 1000 }));
+    expect(more()?.matches(':disabled')).toBe(true);
+  });
+
+  it('teams: only whoever answers for the team gets the button; teammates see the clues', () => {
+    const asTeam = (canAct: boolean) =>
+      teamPlayerView({ phase: 'question', questionIndex: 0, question: selfClues(), endsAt: Date.now() + 20_000 }, canAct ? {} : { captain: false, canAct: false, memberId: 'u3' });
+    show(asTeam(false));
+    expect(more()).toBeNull();
+    expect(screen.getByText('Був художником')).toBeTruthy();
+    cleanup();
+    show(asTeam(true));
+    expect(more()).not.toBeNull();
+  });
+
+  it('a board watcher sees the chooser clues without the button', () => {
+    show(onQuestion({ question: selfClues(), board: { turn: { playerId: 'p2', nickname: 'Тарас' }, cell: null } as never }));
+    expect(more()).toBeNull();
+    expect(screen.getByText('Був художником')).toBeTruthy();
+  });
+
+  it('clues by the timer keep the 10c look: no button', () => {
+    show(onQuestion({ question: selfClues(2, false) }));
+    expect(more()).toBeNull();
+  });
+
+  it('the type tip names the own-pace button; the timer mode keeps the old tip', () => {
+    show(onQuestion({ question: selfClues(), me: { ...me, tip: 'clues' } }));
+    expect(screen.getByRole('note').textContent).toContain('Підказки відкриваєш сам кнопкою «Ще підказка» — кожна знижує ціну. Відповідай, щойно впізнаєш; спроба одна.');
+    cleanup();
+    show(onQuestion({ question: selfClues(2, false), me: { ...me, tip: 'clues' } }));
+    expect(screen.getByRole('note').textContent).toContain('Підказки відкриваються по одній — відповідай, щойно впізнаєш. Що раніше, то більше балів; спроба одна.');
+  });
+});

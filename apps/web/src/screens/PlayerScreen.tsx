@@ -79,13 +79,18 @@ function survivalStateLine(own: PlayerView['me']['survival']): string | null {
   return own.bonus === null || own.bonus <= 0 ? null : t('survivalBonusGot', { bonus: num(own.bonus) });
 }
 
-/** «Хто я?» на телефоні: відкриті підказки з відліком до наступної і частка ціни за правильну відповідь зараз. */
-function CluesNow({ clues, offsetMs }: { clues: PublicClues; offsetMs: number }) {
+/** «Хто я?» на телефоні: відкриті підказки, частка ціни зараз і (власний темп, 12c) кнопка наступної з ціною після натиску. */
+function CluesNow({ clues, offsetMs, more }: { clues: PublicClues; offsetMs: number; more?: { disabled: boolean; onOpen: () => void } }) {
   const k = Math.max(1, clues.shown.length);
   return (
     <>
       <CluesList clues={clues} offsetMs={offsetMs} />
       <p className="meta clues-now">{t('cluesNow', { k, n: clues.total, percent: Math.round(clueShare(clues.total, k) * 100) })}</p>
+      {more !== undefined && k < clues.total && (
+        <button type="button" className="btn clue-more" disabled={more.disabled} onClick={more.onOpen}>
+          {t('clueMore', { percent: Math.round(clueShare(clues.total, k + 1) * 100) })}
+        </button>
+      )}
     </>
   );
 }
@@ -652,7 +657,21 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
   const activeBuff = me.buffs?.active ?? null;
   const retryStage = activeBuff?.retry ?? null;
-  const tip = me.tip !== null && activeBuff?.spare !== true ? typeHow(me.tip, question?.orderLabels?.top ?? '') : null;
+  const tip =
+    me.tip !== null && activeBuff?.spare !== true
+      ? me.tip === 'clues' && question?.clues?.self === true
+        ? t('typeHowCluesSelf')
+        : typeHow(me.tip, question?.orderLabels?.top ?? '')
+      : null;
+  // «Хто я?» у власному темпі (12c): відкриває той, хто відповідає (у команді — хто діє за неї; на полі — хто вибрав), до відповіді.
+  const [clueBusy, setClueBusy] = useState(false);
+  const cluesMine = phase === 'question' && question?.clues?.self === true && acting && me.answer === null && (board === null || chooserIsMe) && !onSpare;
+  const openClue = async () => {
+    setClueBusy(true);
+    const result = await send('player:clue');
+    setClueBusy(false);
+    setError(result.ok ? null : errorText(result.error));
+  };
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
@@ -853,7 +872,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               </p>
             )}
             {/* Підказки й частка — і після відповіді, і глядачам на полі: підказки далі відкриваються. */}
-            {question.clues !== null && <CluesNow clues={question.clues} offsetMs={offsetMs} />}
+            {question.clues !== null && (
+              <CluesNow
+                clues={question.clues}
+                offsetMs={offsetMs}
+                more={cluesMine ? { disabled: locked || buffTimeOver || clueBusy, onOpen: () => void openClue() } : undefined}
+              />
+            )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
             {me.buffs !== null && captain && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
