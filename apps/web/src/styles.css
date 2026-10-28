@@ -11299,3 +11299,12 @@ button.wall-tile:disabled {
   margin-left: 0.3rem;
   font-size: 0.8em;
 }
+
+/* 12e: «🙈 4 с» біля відповіді з виходом із гри; не рветься посеред позначки на 375 px. */
+.history-away {
+  white-space: nowrap;
+}
+
+.responses-who {
+  flex-wrap: wrap;
+}

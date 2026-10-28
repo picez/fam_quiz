@@ -156,6 +156,19 @@ describe('host help', () => {
     expect(searchHelp('цікавинки')).toContain('setting.scores');
   });
 
+  it('12e away entry follows «undo» and tells what counts, who sees what, the penalty, the undo and the honest limits', () => {
+    const ids = helpIds('settings');
+    expect(ids.indexOf('setting.away')).toBe(ids.indexOf('setting.undo') + 1);
+    expect(ids.at(-1)).toBe('setting.autopilot');
+    filled('setting.away');
+    const body = text('setting.away').replace(/ /g, ' ');
+    for (const part of ['2 с', '3 с', 'лише значок', 'Розрив зв’язку не рахується', 'другий пристрій', 'червон', 'сирен', '↶ Бали', 'після кінця гри', 'не гасне', '5 с', 'YouTube', 'youtube.com', 'перезапуск', '2 рази', 'поза грою']) expect(body, part).toContain(part);
+    expect(body).not.toMatch(/відволік|виходив/);
+    expect(text('setting.undo')).toContain('(вихід із гри)');
+    expect(text('setting.autopilot')).toContain('Штраф за вихід діє й без ведучого');
+    expect(searchHelp('поза грою')).toContain('setting.away');
+  });
+
   it('12a undo entry follows «scores» and tells what is undone, what is not, «Повернути» and why the current question goes by grading', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.undo')).toBe(ids.indexOf('setting.scores') + 1);

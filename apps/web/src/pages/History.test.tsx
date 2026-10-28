@@ -399,6 +399,30 @@ describe('GameHistory: answers', () => {
     expect(rows[1].querySelector('.buff-tag')).toBeNull();
   });
 
+  it('shows «🙈 N с» beside an answer with an away and nothing without one; whole seconds', async () => {
+    const withAway: GameDetail = {
+      ...answered,
+      questions: [
+        {
+          ...answered.questions[1],
+          answered: 2,
+          responses: [
+            { nickname: 'Віра', answer: { type: 'single', optionId: 'b' }, accepted: true, buff: null, spare: null, awayMs: 4200 },
+            { nickname: 'Тарас', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null },
+          ],
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: withAway });
+    const { container } = open('/history/g1');
+    fireEvent.click(await screen.findByText('Відповіді (2)'));
+    const rows = [...container.querySelectorAll('details.responses li')];
+    const mark = rows[0].querySelector('.history-away');
+    expect(mark?.textContent?.replace(/\s/g, ' ')).toBe('🙈 4 с');
+    expect(rows[0].querySelector('.responses-who')?.contains(mark ?? null)).toBe(true);
+    expect(rows[1].querySelector('.history-away')).toBeNull();
+  });
+
   it('history shows the spare text and reads the answer against it', async () => {
     const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
     const swapped: GameDetail = {
@@ -586,6 +610,24 @@ describe('GameHistory: duels', () => {
 });
 
 describe('GameHistory final', () => {
+  it('final entries show the mark too', async () => {
+    const finalQuestion = {
+      ...detail.questions[0],
+      final: {
+        mode: 'classic' as const,
+        entries: [
+          { nickname: 'Анна', answer: null, wager: 300, points: 0, accepted: true, awayMs: 7900 },
+          { nickname: 'Богдан', answer: null, wager: 200, points: -200, accepted: false, awayMs: null },
+        ],
+      },
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: { ...detail, rounds: [{ title: 'Космос', type: 'final' }], questions: [finalQuestion] } });
+    const { container } = open('/history/g1');
+    await screen.findByText('Ставки фіналу');
+    const marks = [...container.querySelectorAll('.wager-list .history-away')];
+    expect(marks.map((m) => m.textContent?.replace(/\s/g, ' ').trim())).toEqual(['🙈 7 с']);
+  });
+
   it('shows final wagers and results', async () => {
     const finalQuestion = {
       ...detail.questions[0],

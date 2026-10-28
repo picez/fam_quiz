@@ -92,6 +92,7 @@ export function gameCardLines(card: GameCard, team: boolean): string[] {
   if (card.fastestMs !== null) lines.push(t('gameCardFastest', { time: secondsText(card.fastestMs) }));
   if (card.buffs > 0) lines.push(t('gameCardBuffs', { count: card.buffs }));
   if (card.debuffs.sent + card.debuffs.got > 0) lines.push(t(team ? 'gameCardDebuffsTeam' : 'gameCardDebuffs', { sent: card.debuffs.sent, got: card.debuffs.got }));
+  if (card.away > 0) lines.push(countText(team ? 'gameCardAwayTeam' : 'gameCardAway', card.away, { count: card.away }));
   if (card.bluff !== null) {
     const parts: string[] = [];
     if (card.bluff.fooled > 0) parts.push(countText(team ? 'gameCardBluffFooledTeam' : 'gameCardBluffFooled', card.bluff.fooled, { count: card.bluff.fooled }));
