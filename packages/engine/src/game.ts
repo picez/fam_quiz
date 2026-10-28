@@ -192,6 +192,15 @@ export interface Play {
   ladder?: LadderPlay;
   /** Бліц у командній грі: хто з учасників команди натиснув останнім; ключ — id команди (10j). */
   buzzers?: Record<string, string>;
+  /** Антигугл (12e): виходи людей (соло — гравець, командна гра — людина) на цьому запитанні; немає ключа — не виходив. */
+  away?: Record<string, AwayEntry>;
+}
+
+/** Вихід людини з гри на одному запитанні (12e): закритий час, скільки інтервалів закрито (≥ 1 мс), відколи поза грою зараз (час сервера) чи null. */
+export interface AwayEntry {
+  ms: number;
+  count: number;
+  since: number | null;
 }
 
 /** Учасник командної гри (людина); у state.players після старту — команди. */
@@ -1878,6 +1887,16 @@ export function resume(state: GameState, now: number): Result {
   return ok(settleTrial(settleDecision(settleAudience(shiftSplash(result.state, pausedAt, now - pausedAt)))));
 }
 
+/** Антигугл (12e): відкриті інтервали виходу поточного запитання зсуваються на тривалість паузи (пауза не рахується); без змін — той самий об'єкт. */
+function shiftAwayClocks(state: GameState, shift: number): GameState {
+  const play = state.plays[state.questionIndex];
+  if (play?.away === undefined || shift === 0 || Object.values(play.away).every((e) => e.since === null)) return state;
+  const away = Object.fromEntries(
+    Object.entries(play.away).map(([id, e]) => [id, e.since === null ? e : { ...e, since: e.since + shift }]),
+  );
+  return withCurrentPlay(state, { ...play, away });
+}
+
 function resumeClock(state: GameState, now: number): Result {
   if (!state.paused) return fail('wrong_phase');
   // Годинник стоїть і далі, доки ведучий не вирішить; якщо гравця вилучили на паузі, він рушає зараз.
@@ -1906,7 +1925,7 @@ function resumeClock(state: GameState, now: number): Result {
     // Підвисання в сортуванні зсувається разом із годинником.
     const resumed = shiftSortLocks({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - limitMs }, shift);
     // Чергу, яку не розглядали на паузі (наприклад, після вилучення голови), розглядаємо зараз.
-    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now));
+    return ok(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftAwayClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), shift), now), now));
   }
   if (state.phase === 'question' && !timedPlay(state.plays[state.questionIndex])) {
     // Без таймера зсуваються лише startedAt і вікна черги: пауза не входить у час відповіді.
@@ -1918,7 +1937,7 @@ function resumeClock(state: GameState, now: number): Result {
       startedAt: state.startedAt === null ? null : state.startedAt + shift,
     };
     // Відлік відсутності пауза скинула; гравець, якого досі немає, знову має повні 30 секунд.
-    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), now), now), now));
+    return ok(watchAway(autoLock(settleQueue(shiftQueue(shiftDebuffClocks(shiftAwayClocks(shiftBuffClocks(shiftLadderClocks(resumed, shift), shift), shift), shift), shift), now), now), now));
   }
   const resumed = { ...state, paused: false, pausedAt: null };
   // Після паузи відсутній гравець знову має повні 30 секунд.

@@ -392,7 +392,7 @@ describe('own-pace clues across a restart (12c)', () => {
     expect(manager.clue(room, olena.playerId)).toEqual({ ok: true });
     const saved = viaJson(manager.snapshot(room));
     manager.freeze();
-    expect(saved.stateVersion).toBe(16);
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
     const next = new RoomManager(scheduler, () => 0.5);
     const back = next.restore(saved) as Room;
     next.connect(back, identity);
