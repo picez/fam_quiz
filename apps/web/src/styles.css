@@ -10989,6 +10989,12 @@ button.wall-tile:disabled {
 
 .reveal-facts {
   margin: 0.25rem 0 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Сцена: один рядок; на телефоні й пульті рядок переноситься, щоб нічия не втратила час. */
+.stage .reveal-facts {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -11132,4 +11138,13 @@ button.wall-tile:disabled {
 
 .round-bar.is-minus .round-bar-fill {
   background: var(--signal);
+}
+
+/* Понад 8 раундів числа над стовпчиками не вміщаються на 375 px: лише стовпчики й підписи, числа — в aria-label. */
+.round-bars.is-many .round-bar-value {
+  display: none;
+}
+
+.round-bars.is-many .round-bar {
+  font-size: 0.625rem;
 }

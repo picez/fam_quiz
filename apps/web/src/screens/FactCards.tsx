@@ -1,5 +1,5 @@
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard } from '@quiz/shared';
-import { factBody, factTitle, gameCardLines, ownRevealText, revealFactsText, roundCardParts } from '../facts-text';
+import { factBody, factTitle, gameCardLines, ordinal, ownRevealText, revealFactsText, roundCardParts } from '../facts-text';
 import { num } from '../format';
 import { t } from '../i18n';
 
@@ -48,9 +48,9 @@ function RoundBars({ rounds }: { rounds: number[] }) {
   const up = Math.max(0, ...rounds);
   const down = Math.max(0, ...rounds.map((points) => -points));
   const span = up + down;
-  const label = `${t('gameCardRoundsLabel')}: ${rounds.map((points, i) => `${t('scoreRound', { n: i + 1 })} ${num(points)}`).join(', ')}`;
+  const label = `${t('gameCardRoundsLabel')}: ${rounds.map((points, i) => `${t('gameCardRoundName', { n: i + 1 })} ${num(points)}`).join(', ')}`;
   return (
-    <div className="round-bars" role="img" aria-label={label}>
+    <div className={rounds.length > 8 ? 'round-bars is-many' : 'round-bars'} role="img" aria-label={label}>
       {rounds.map((points, i) => {
         const minus = points < 0;
         const height = span === 0 ? 0 : Math.abs(points) / span;
@@ -74,7 +74,7 @@ export function GameCardView({ card, team }: { card: GameCard; team: boolean }) 
   return (
     <section className="own-card game-card">
       <h2>{t(team ? 'gameCardTitleTeam' : 'gameCardTitle')}</h2>
-      {card.rank !== null && <p className="lead">{t('gameCardRank', { rank: card.rank })}</p>}
+      {card.rank !== null && <p className="lead">{t('gameCardRank', { rank: ordinal(card.rank, 'n') })}</p>}
       {card.rounds.length > 0 && <RoundBars rounds={card.rounds} />}
       <ul>
         {gameCardLines(card, team).map((line) => (

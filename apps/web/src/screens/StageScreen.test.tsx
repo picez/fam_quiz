@@ -2163,7 +2163,7 @@ describe('StageScreen: facts (12d)', () => {
     const line = answer.nextElementSibling!;
     expect(line.classList.contains('reveal-facts')).toBe(true);
     expect(line.classList.contains('is-big')).toBe(true);
-    expect(line.textContent).toBe('Правильно 4 з 7 · найшвидша Оля, 2,1 с');
+    expect(line.textContent).toBe('Правильно 4 з 7 · найшвидше — Оля, 2,1 с');
     cleanup();
     show(view({ phase: 'reveal', questionIndex: 0, question, reveal: full, stats: { answered: 7, accepted: 4, counts: { a: 3, b: 4 } } }));
     expect(document.querySelector('.reveal-facts')).toBeNull();
@@ -2186,7 +2186,7 @@ describe('StageScreen: facts (12d)', () => {
     const bluff = { stage: 'reveal' as const, written: 1, picked: 3, options, shown: 2, total: 2, lastOpenedId: null, lies: null };
     show(view({ phase: 'reveal', questionIndex: 0, question: bluffQuestion, reveal: bluffFull, bluff, facts: facts({ reveal: { accepted: 0, answered: 3, fastest: null, bluff: { names: ['Петро'], votes: 3 } } }) }));
     const line = document.querySelector('.stage-bluff .reveal-facts');
-    expect(line?.textContent).toBe('Обдурила всіх: вигадка від Петро — 3 голоси');
+    expect(line?.textContent).toBe('Найбільше голосів: вигадка від Петро — 3 голоси');
     expect(line?.previousElementSibling?.classList.contains('bluff-board')).toBe(true);
   });
 

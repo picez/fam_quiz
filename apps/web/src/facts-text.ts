@@ -14,6 +14,12 @@ export function namesText(names: string[]): string {
   return t(short ? 'factNamesAndShort' : 'factNamesAnd', { rest, last });
 }
 
+/** Порядковий числівник цифрами за правописом 2019: f — «2-а», «3-я»; n — «2-е», «3-є» (але «13-а», «13-е»). */
+export function ordinal(n: number, gender: 'f' | 'n'): string {
+  const third = n % 10 === 3 && n % 100 !== 13;
+  return `${n}-${gender === 'f' ? (third ? 'я' : 'а') : third ? 'є' : 'е'}`;
+}
+
 const percentOf = (part: number, whole: number) => (whole <= 0 ? 0 : Math.round((part / whole) * 100));
 
 /** Заголовок картки: «⚡ Блискавка». */
@@ -37,7 +43,7 @@ export function factBody(card: FactCard, rounds: number): string {
     case 'streak':
       return t('factStreak', { names, count: card.length });
     case 'comeback':
-      return t('factComeback', { names, from: card.from, to: card.to });
+      return t('factComeback', { names, from: card.from, to: ordinal(card.to, 'n') });
     case 'bluffer':
       return countText('factBluffer', card.fooled, { names, count: card.fooled });
     case 'nerves':
@@ -51,19 +57,19 @@ export function factBody(card: FactCard, rounds: number): string {
   }
 }
 
-/** «Правильно 4 з 7 · найшвидша Оля, 2,1 с» чи «Обдурила всіх: вигадка від Петро — 3 голоси». */
+/** «Правильно 4 з 7 · найшвидше — Оля, 2,1 с» чи «Найбільше голосів: вигадка від Петро — 3 голоси». */
 export function revealFactsText(facts: RevealFacts): string {
   if (facts.bluff !== null) return countText('revealBluffTop', facts.bluff.votes, { names: namesText(facts.bluff.names), count: facts.bluff.votes });
   const head = t('revealCorrectOf', { accepted: facts.accepted, answered: facts.answered });
   if (facts.fastest === null) return head;
-  const fastest = t(facts.fastest.names.length === 1 ? 'revealFastest_one' : 'revealFastest_other', { names: namesText(facts.fastest.names), time: secondsText(facts.fastest.timeMs) });
+  const fastest = t('revealFastest', { names: namesText(facts.fastest.names), time: secondsText(facts.fastest.timeMs) });
   return `${head} · ${fastest}`;
 }
 
 /** «Твоя правильна відповідь — 2-а за швидкістю» / «Правильно відповіли 57 %». */
 export function ownRevealText(fact: OwnRevealFact): string {
   if (fact.kind === 'share') return t('ownShare', { percent: fact.percent });
-  return fact.place === 1 ? t('ownFastestFirst') : t('ownFastestPlace', { place: fact.place });
+  return fact.place === 1 ? t('ownFastestFirst') : t('ownFastestPlace', { place: ordinal(fact.place, 'f') });
 }
 
 /** Частини «Твого раунду» через « · »: правильно, середній час (є), найшвидша (є), серія, місце (є), обдурили (є блеф). team — «вас». */

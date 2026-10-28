@@ -33,7 +33,7 @@ describe('FactCards', () => {
     expect(items).toHaveLength(3);
     expect(items[0].classList.contains('fact-lightning')).toBe(true);
     expect([...container.querySelectorAll('.fact-title')].map((p) => p.textContent)).toEqual(['⚡ Блискавка', '🔥 Серія', '🧗 Найважче запитання']);
-    expect(items[0].querySelector('.fact-body')?.textContent).toBe('Оля — 2,1 с, запитання 2');
+    expect(items[0].querySelector('.fact-body')?.textContent).toBe('Оля — 2,1 с, запитання 2');
     expect(container.querySelector('.fact-cards.is-big')).toBeNull();
   });
 
@@ -53,14 +53,14 @@ describe('FactCards', () => {
       </>,
     );
     const line = container.querySelector('p.meta.reveal-facts.is-big');
-    expect(line?.textContent).toBe('Правильно 4 з 7 · найшвидша Оля, 2,1 с');
-    expect(screen.getByText('Правильно відповіли 57 %').className).toContain('reveal-facts');
+    expect(line?.textContent).toBe('Правильно 4 з 7 · найшвидше — Оля, 2,1 с');
+    expect(container.querySelectorAll('p.meta.reveal-facts')[1].textContent).toBe('Правильно відповіли 57 %');
   });
 
   it('round card: own and team title, parts joined by «·»', () => {
     const { container, rerender } = render(<RoundCardView card={round} team={false} />);
     expect(screen.getByRole('heading', { name: 'Твій раунд' })).toBeTruthy();
-    expect(container.querySelector('section.own-card.round-card p')?.textContent).toBe('правильно 4 з 6 · середній час 5,3 с · найшвидша 2,0 с · серія зараз 3 · місце: 5 → 3 · тебе обдурили 1 раз');
+    expect(container.querySelector('section.own-card.round-card p')?.textContent).toBe('правильно 4 з 6 · середній час 5,3 с · найшвидша 2,0 с · серія зараз 3 · місце: 5 → 3 · тебе обдурили 1 раз');
     rerender(<RoundCardView card={round} team />);
     expect(screen.getByRole('heading', { name: 'Раунд команди' })).toBeTruthy();
     expect(container.textContent).toContain('вас обдурили 1 раз');
@@ -74,9 +74,14 @@ describe('FactCards', () => {
     expect(bars).toHaveLength(3);
     expect([...bars].map((b) => b.classList.contains('is-minus'))).toEqual([false, true, false]);
     expect([...container.querySelectorAll('.round-bar-label')].map((l) => l.textContent)).toEqual(['Р1', 'Р2', 'Р3']);
-    expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Бали за раундами: Р1 300, Р2 −100, Р3 500');
+    expect(screen.getByRole('img').getAttribute('aria-label')).toBe('Бали за раундами: Раунд 1 300, Раунд 2 −100, Раунд 3 500');
     expect((bars[2].querySelector('.round-bar-fill') as HTMLElement).style.height).toBe('83.33%');
     expect(screen.getByText('Дебафи: від тебе 1 · на тобі 3')).toBeTruthy();
+    rerender(<GameCardView card={{ ...game, rank: 3 }} team={false} />);
+    expect(container.querySelector('.game-card .lead')?.textContent).toBe('3-є місце');
+    expect(container.querySelector('.round-bars.is-many')).toBeNull();
+    rerender(<GameCardView card={{ ...game, rounds: [1, 2, 3, 4, 5, 6, 7, 8, 9] }} team={false} />);
+    expect(container.querySelector('.round-bars.is-many')).not.toBeNull();
     rerender(<GameCardView card={{ ...game, rank: null, rounds: [] }} team />);
     expect(screen.getByRole('heading', { name: 'Гра команди' })).toBeTruthy();
     expect(container.querySelector('.game-card .lead')).toBeNull();
