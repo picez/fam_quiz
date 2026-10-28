@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResumeLobby, ResumeOption } from '@quiz/shared';
 import { resumeOptions } from '../api';
-import { emptyDraft, type ResumeDraft } from '../resume';
+import { emptyDraft, resumePayload, type ResumeDraft } from '../resume';
 import { ResumePanel } from './ResumePanel';
 
 vi.mock('../api', () => ({ resumeOptions: vi.fn() }));
@@ -43,13 +43,13 @@ const option = (over: Partial<ResumeOption> = {}): ResumeOption => ({
 
 let latest: ResumeDraft = emptyDraft();
 
-function Harness({ initial = emptyDraft() }: { initial?: ResumeDraft }) {
+function Harness({ initial = emptyDraft(), lobby = info }: { initial?: ResumeDraft; lobby?: ResumeLobby }) {
   const [draft, setDraft] = useState(initial);
   latest = draft;
   return (
     <ResumePanel
       code="123456"
-      info={info}
+      info={lobby}
       draft={draft}
       onChange={(next) => {
         latest = next;
@@ -66,7 +66,7 @@ function unfold() {
   fireEvent(panel(), new Event('toggle'));
 }
 
-const field = (name: string) => screen.getByRole('spinbutton', { name }) as HTMLInputElement;
+const field = (name: string) => screen.getByRole('textbox', { name }) as HTMLInputElement;
 
 describe('ResumePanel', () => {
   it('is folded by default; unfolding shows the round list and fields with 0', () => {
@@ -78,8 +78,11 @@ describe('ResumePanel', () => {
     const select = screen.getByRole('combobox', { name: 'Почати з раунду' }) as HTMLSelectElement;
     expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['Раунд 1 · Розминка', 'Раунд 2 · Річки', 'Раунд 3 · Гори']);
     expect(field('Оля').value).toBe('0');
-    expect(field('Тарас').type).toBe('number');
+    // Текстове поле без inputMode: «42 434» і «−500» не відкидає браузер.
+    expect(field('Тарас').type).toBe('text');
     expect(field('Тарас').getAttribute('inputmode')).toBeNull();
+    expect(field('Тарас').getAttribute('autocomplete')).toBe('off');
+    expect(field('Тарас').getAttribute('aria-label')).toBeNull();
     expect(screen.getByText('Старт: Раунд 1 · Розминка. Перенесені бали: 0 з 3.')).toBeTruthy();
     expect(screen.getByText('Хто зайде пізніше, почне з 0.')).toBeTruthy();
   });
@@ -92,12 +95,23 @@ describe('ResumePanel', () => {
     expect(screen.getByText('Старт: Раунд 3 · Гори. Перенесені бали: 1 з 3.')).toBeTruthy();
   });
 
+  it('takes «42 434» and «−500» as typed', () => {
+    render(<Harness initial={{ ...emptyDraft(), open: true }} />);
+    fireEvent.change(field('Оля'), { target: { value: '42 434' } });
+    fireEvent.change(field('Петро'), { target: { value: '−500' } });
+    expect(field('Оля').value).toBe('42 434');
+    expect(field('Оля').getAttribute('aria-invalid')).toBeNull();
+    expect(field('Петро').getAttribute('aria-invalid')).toBeNull();
+    expect(resumePayload(latest, info)).toEqual({ resume: { roundIndex: 0, points: { p1: 42_434, p2: -500 } } });
+    expect(screen.getByText('Старт: Раунд 1 · Розминка. Перенесені бали: 2 з 3.')).toBeTruthy();
+  });
+
   it('one previous game fills right away and names the unmatched', async () => {
     vi.mocked(resumeOptions).mockResolvedValue({ ok: true, data: [option()] });
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Підставити з попередньої гри' }));
     expect(resumeOptions).toHaveBeenCalledWith('123456');
-    expect(await screen.findByText(/^Підставлено гру від /)).toBeTruthy();
+    expect((await screen.findByText(/^Підставлено гру від /)).getAttribute('role')).toBe('status');
     expect(field('Оля').value).toBe('42434');
     expect(field('Петро').value).toBe('1200');
     expect(field('Тарас').value).toBe('0');
@@ -112,7 +126,7 @@ describe('ResumePanel', () => {
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     const fill = screen.getByRole('button', { name: 'Підставити з попередньої гри' }) as HTMLButtonElement;
     fireEvent.click(fill);
-    expect(screen.getByText('Шукаємо попередні ігри…')).toBeTruthy();
+    expect(screen.getByText('Шукаємо попередні ігри…').getAttribute('role')).toBe('status');
     expect(fill.disabled).toBe(true);
     resolve({ ok: true, data: [] });
     expect(await screen.findByText('Попередніх ігор цієї вікторини не знайдено.')).toBeTruthy();
@@ -120,15 +134,15 @@ describe('ResumePanel', () => {
   });
 
   it('several games: a pick newest first; a tap fills from that game and hides the pick', async () => {
-    const older = option({ gameId: 'g2', startedAt: '2026-10-20T17:40:00.000Z', roundIndex: 7, questionsPlayed: 2, scores: [{ nickname: 'Тарас', score: 300 }] });
+    const older = option({ gameId: 'g2', startedAt: '2026-10-20T17:40:00.000Z', status: 'finished', autopilot: true, roundIndex: 7, questionsPlayed: 2, scores: [{ nickname: 'Тарас', score: 300 }] });
     vi.mocked(resumeOptions).mockResolvedValue({ ok: true, data: [option(), older] });
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Підставити з попередньої гри' }));
     const pick = (await screen.findByText('Яку гру продовжити?')).closest('section.resume-pick') as HTMLElement;
     const buttons = within(pick).getAllByRole('button');
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].textContent).toMatch(/27 жовтня 2026.* · 4 з 9 запитань · далі Раунд 2 · Річки$/);
-    expect(buttons[1].textContent).toMatch(/20 жовтня 2026.* · 2 з 9 запитань · далі Раунд 3 · Гори$/);
+    expect(buttons[0].textContent).toMatch(/27 жовтня 2026.* · 4 з 9 запитань · перервано · далі Раунд 2 · Річки$/);
+    expect(buttons[1].textContent).toMatch(/20 жовтня 2026.* · 2 з 9 запитань · з ботом · далі Раунд 3 · Гори$/);
     fireEvent.click(buttons[1]);
     expect(document.querySelector('section.resume-pick')).toBeNull();
     expect(field('Тарас').value).toBe('300');
@@ -137,13 +151,27 @@ describe('ResumePanel', () => {
     expect(screen.getByText('Не знайдено в тій грі, лишається 0: Оля, Петро')).toBeTruthy();
   });
 
-  it('no games or an error say nothing was found, manual entry still works', async () => {
+  it('an error says the games could not be loaded, not that there are none; manual entry still works', async () => {
     vi.mocked(resumeOptions).mockResolvedValue({ ok: false, error: 'game_not_found' });
     render(<Harness initial={{ ...emptyDraft(), open: true }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Підставити з попередньої гри' }));
-    expect(await screen.findByText('Попередніх ігор цієї вікторини не знайдено.')).toBeTruthy();
+    expect((await screen.findByText('Не вдалося завантажити попередні ігри.')).getAttribute('role')).toBe('status');
+    expect(screen.queryByText('Попередніх ігор цієї вікторини не знайдено.')).toBeNull();
     fireEvent.change(field('Оля'), { target: { value: '5' } });
     expect(latest.points).toEqual({ p1: '5' });
+  });
+
+  it('the unmatched note follows players who join or leave after the fill', async () => {
+    vi.mocked(resumeOptions).mockResolvedValue({ ok: true, data: [option()] });
+    const { rerender } = render(<Harness initial={{ ...emptyDraft(), open: true }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підставити з попередньої гри' }));
+    expect(await screen.findByText('Не знайдено в тій грі, лишається 0: Тарас')).toBeTruthy();
+    // Тарас вийшов, зайшов Богдан, а Іра з тієї гри — пара є.
+    const later: ResumeLobby = { ...info, participants: [...info.participants.filter((p) => p.id !== 'p3'), { id: 'p4', nickname: 'Богдан' }, { id: 'p5', nickname: 'Іра' }] };
+    rerender(<Harness initial={{ ...emptyDraft(), open: true }} lobby={later} />);
+    expect(screen.getByText('Не знайдено в тій грі, лишається 0: Богдан')).toBeTruthy();
+    rerender(<Harness initial={{ ...emptyDraft(), open: true }} lobby={{ ...info, participants: info.participants.slice(0, 2) }} />);
+    expect(document.querySelector('.resume-unmatched')).toBeNull();
   });
 
   it('a bad field says what is allowed', async () => {
@@ -151,5 +179,8 @@ describe('ResumePanel', () => {
     fireEvent.change(field('Оля'), { target: { value: '10000000' } });
     await waitFor(() => expect(screen.getByText('Ціле число від −9 999 999 до 9 999 999')).toBeTruthy());
     expect(field('Оля').getAttribute('aria-invalid')).toBe('true');
+    const error = document.getElementById(field('Оля').getAttribute('aria-describedby')!);
+    expect(error?.textContent).toBe('Ціле число від −9 999 999 до 9 999 999');
+    expect(field('Петро').getAttribute('aria-describedby')).toBeNull();
   });
 });

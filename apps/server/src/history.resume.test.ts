@@ -2,15 +2,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { factInput } from '@quiz/engine';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import type { ResumeOption, ResumeSetup } from '@quiz/shared';
+import { defaultTeams, type ResumeOption, type ResumeSetup } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { answer, game, participant, scoreAdjustment, user } from './db/schema';
-import { hostGame, hostGameWithFacts, resumeRound } from './history';
+import { hostGame, hostGameWithFacts, resumeOptions, resumeRound } from './history';
 import type { PlayRef } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
-import { toQuestion } from './testing/team-game';
+import { TEAM_HOST, recordedTeamGame, toQuestion } from './testing/team-game';
 
 /** Три класичні раунди по два запитання. */
 const threeRounds = () =>
@@ -40,6 +40,16 @@ describe('resumeRound (12r)', () => {
     // Відкрите, але не закрите запитання раунду 1 не рахується: раунд 0 завершено.
     expect(resumeRound(quiz, [ref(0, 'q1'), ref(0, 'q2'), ref(1, 'q3')], 2)).toBe(1);
     expect(resumeRound(quiz, [ref(0, 'q1'), ref(0, 'q2')], 1)).toBe(0);
+  });
+
+  it('a round ended early stays the round to go on from; a round missing in the snapshot falls back to the last one', () => {
+    // Ведучий завершив раунд 0 після одного запитання з двох і зіграв одне запитання раунду 1: далі — раунд 1, він сам незавершений.
+    expect(resumeRound(quiz, [ref(0, 'q1'), ref(1, 'q3')], 2)).toBe(1);
+    // Завершений достроково останній закритий раунд — продовжуємо його ж.
+    expect(resumeRound(quiz, [ref(0, 'q1'), ref(0, 'q2'), ref(1, 'q3')], 3)).toBe(1);
+    // Раунду 5 у знімку немає: останній раунд знімка.
+    expect(resumeRound(quiz, [ref(5, 'q9')], 1)).toBe(2);
+    expect(resumeRound(quiz, [ref(0, 'q1'), ref(3, 'q9')], 2)).toBe(2);
   });
 });
 
@@ -177,6 +187,16 @@ describe('GET /api/games/by-code/:code/resume (12r)', () => {
     expect(response.statusCode).toBe(200);
     expect((response.json() as ResumeOption[]).map((o) => o.gameId)).toEqual([played.gameId]);
   });
+
+  it('resumeOptions leaves out the excluded game only', async () => {
+    const owner = await host();
+    const quizId = await saveQuiz(owner.cookie);
+    const older = await playGame(owner.cookie, quizId, { questions: 1, startedAt: new Date('2026-10-09T10:00:00Z') });
+    const newer = await playGame(owner.cookie, quizId, { questions: 1, startedAt: new Date('2026-10-10T10:00:00Z') });
+    expect((await resumeOptions(db, owner.id, quizId, '00000000-0000-4000-8000-000000000000')).map((o) => o.gameId)).toEqual([newer.gameId, older.gameId]);
+    expect((await resumeOptions(db, owner.id, quizId, newer.gameId)).map((o) => o.gameId)).toEqual([older.gameId]);
+    expect((await resumeOptions(db, owner.id, quizId, older.gameId)).map((o) => o.gameId)).toEqual([newer.gameId]);
+  });
 });
 
 describe('a resumed game in the history (12r)', () => {
@@ -225,12 +245,17 @@ describe('a resumed game in the history (12r)', () => {
     expect(found?.factInput.questions).toEqual(live.questions);
     expect(byKey(found?.factInput.rows ?? [])).toEqual(byKey(live.rows));
     expect(found?.factInput.debuffs).toEqual(live.debuffs);
+    expect(found?.factInput.away).toEqual(live.away);
+    expect(found?.factInput.appeals).toEqual(live.appeals);
+    // Колонки таблиці історії — від першого зіграного раунду.
+    expect(detail?.firstRound).toBe(1);
   });
 
   it('a chain: the game resumed from the first offers its scores with the carried points to the third', async () => {
     const owner = await host();
     const quizId = await saveQuiz(owner.cookie);
-    await playGame(owner.cookie, quizId, { questions: 2, startedAt: new Date('2026-10-07T10:00:00Z') });
+    const plain = await playGame(owner.cookie, quizId, { questions: 2, startedAt: new Date('2026-10-07T10:00:00Z') });
+    expect((await hostGame(db, owner.id, plain.gameId))?.firstRound).toBe(0);
     const current = await openRoom(owner.cookie, quizId);
     const [first] = (await call('GET', `/api/games/by-code/${current.code}/resume`, owner.cookie)).json() as ResumeOption[];
     expect(first.roundIndex).toBe(1);
@@ -252,6 +277,45 @@ describe('a resumed game in the history (12r)', () => {
     expect(options[0].scores).toEqual([
       { nickname: 'Оля', score: 3000 },
       { nickname: 'Петро', score: 0 },
+    ]);
+  });
+});
+
+describe('a resumed team game in the history (12r)', () => {
+  it('carries per team: carry rows on the team rows only, out of the rounds, columns from the first played round', async () => {
+    const quiz = makeRoundsQuiz(
+      [classicRound('r0', [single], { speedBonus: false }), classicRound('r1', [withId(single, 'q2')], { speedBonus: false })],
+      { teams: defaultTeams(2) },
+    );
+    const t = await recordedTeamGame(quiz, undefined, ([red, blue]) => ({ roundIndex: 1, points: { [red]: 42_434, [blue]: -50 } }));
+    const [red, blue] = t.teams;
+    expect(t.room.state.roundIndex).toBe(1);
+    toQuestion(t.manager, t.room);
+    expect(t.manager.answer(t.room, t.members['Оля'], right)).toEqual({ ok: true });
+    expect(t.manager.answer(t.room, t.members['Віра'], wrong)).toEqual({ ok: true });
+    if (t.room.state.phase === 'question') t.manager.host(t.room, { type: 'lock' });
+    t.manager.host(t.room, { type: 'next' });
+    t.manager.host(t.room, { type: 'end' });
+    await t.recorder.idle();
+    expect(t.errors).toEqual([]);
+
+    const carry = (await t.db.select().from(scoreAdjustment)).filter((a) => a.source === 'carry');
+    expect(carry.map((a) => [a.participantId, a.points, a.roundIndex])).toEqual([
+      [red, 42_434, 1],
+      [blue, -50, 1],
+    ]);
+    const [row] = await t.db.select().from(game);
+    const detail = await hostGame(t.db, TEAM_HOST, row.id);
+    expect(detail?.teams).toBe(true);
+    expect(detail?.firstRound).toBe(1);
+    expect(detail?.standings.map((s) => [s.nickname, s.score, s.rounds, s.members])).toEqual([
+      ['Червоні', 43_434, [0, 1000], ['Оля', 'Петро']],
+      ['Сині', -50, [0, 0], ['Віра', 'Ігор']],
+    ]);
+    expect(detail?.standings[0].breakdown.parts[0]).toEqual({ source: 'carry', plus: 42_434, minus: 0 });
+    expect(detail?.adjustments.filter((a) => a.source === 'carry').map((a) => [a.nickname, a.points])).toEqual([
+      ['Червоні', 42_434],
+      ['Сині', -50],
     ]);
   });
 });

@@ -58,6 +58,7 @@ const detail: GameDetail = {
   questionsPlayed: 2,
   questionCount: 2,
   autopilot: false,
+  firstRound: 0,
   rounds: [{ title: 'Раунд 1', type: 'classic' }],
   standings: [
     { participantId: 'p1', nickname: 'Олена', score: 2000, rank: 1, correct: 2, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
@@ -633,6 +634,7 @@ describe('GameHistory: carried points (12r)', () => {
       ok: true,
       data: {
         ...detail,
+        firstRound: 1,
         rounds: [
           { title: '', type: 'classic' },
           { title: '', type: 'classic' },
@@ -663,6 +665,10 @@ describe('GameHistory: carried points (12r)', () => {
     expect(groups[0].querySelector('.round-title')?.textContent).toBe('Раунд 2');
     expect(groups[0].querySelector('.history-carry')?.textContent).toBe('Перенесено з попередньої гри: Оля +42434, Петро +1200');
     expect(groups[0].querySelector('.history-adjustments')).toBeNull();
+    // Пропущений раунд колонки не має: таблиця «#, Учасник, Р2, Σ».
+    const table = document.querySelector('section.history-scores table')!;
+    expect([...table.querySelectorAll('thead th.round')].map((th) => [th.textContent, th.getAttribute('aria-label')])).toEqual([['Р2', 'Р2, Раунд 2']]);
+    expect([...table.querySelectorAll('tbody tr.score-row')][0].querySelectorAll('td.round')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: '«+ / −» для Оля' }));
     expect(document.querySelector('section.history-scores .score-breakdown')!.textContent).toContain('Перенесено з попередньої гри +42434');
   });

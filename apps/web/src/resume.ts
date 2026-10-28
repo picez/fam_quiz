@@ -11,8 +11,8 @@ export interface ResumeDraft {
 
 export const emptyDraft = (): ResumeDraft => ({ open: false, roundIndex: 0, points: {} });
 
-/** Звичайні, нерозривні й вузькі пробіли всередині числа. */
-const SPACES = /[\s   ]/g;
+/** Пробіли всередині числа: \s охоплює й нерозривні та вузькі (U+00A0, U+2009, U+202F). */
+const SPACES = /\s/g;
 
 /** Текст поля → ціле в межах ±RESUME_POINTS_MAX; порожньо — 0; пробіли геть, «−» = «-»; інакше null. */
 export function parsePoints(text: string): number | null {
@@ -43,21 +43,40 @@ export function resumePayload(draft: ResumeDraft, info: ResumeLobby): { resume: 
   return { resume: { roundIndex, points } };
 }
 
-/** Заповнює з гри: раунд (обмежений раундами info), бали за answerKey(nickname); unmatched — нікнейми учасників info без пари (у них «0»). */
-export function fillFromGame(draft: ResumeDraft, info: ResumeLobby, option: ResumeOption): { draft: ResumeDraft; unmatched: string[] } {
+/** Бали рядків гри за answerKey(nickname); з однаковим ключем — перший рядок. */
+function scoresOf(option: Pick<ResumeOption, 'scores'>): Map<string, number> {
   const scores = new Map<string, number>();
   for (const row of option.scores) {
     const key = answerKey(row.nickname);
     if (!scores.has(key)) scores.set(key, row.score);
   }
+  return scores;
+}
+
+/** Нікнейми учасників info без пари в рядках гри; рахується щоразу заново, тож пізній вхід і вихід учасника враховано. */
+export function unmatchedIn(info: ResumeLobby, option: Pick<ResumeOption, 'scores'>): string[] {
+  const scores = scoresOf(option);
+  return info.participants.filter((participant) => !scores.has(answerKey(participant.nickname))).map((participant) => participant.nickname);
+}
+
+/** Заповнює з гри: раунд (обмежений раундами info), бали за answerKey(nickname); unmatched — нікнейми учасників info без пари (у них «0»). */
+export function fillFromGame(draft: ResumeDraft, info: ResumeLobby, option: ResumeOption): { draft: ResumeDraft; unmatched: string[] } {
+  const scores = scoresOf(option);
   const points: Record<string, string> = {};
-  const unmatched: string[] = [];
-  for (const participant of info.participants) {
-    const score = scores.get(answerKey(participant.nickname));
-    if (score === undefined) unmatched.push(participant.nickname);
-    points[participant.id] = String(score ?? 0);
-  }
-  return { draft: { ...draft, roundIndex: clampRound(info, option.roundIndex), points }, unmatched };
+  for (const participant of info.participants) points[participant.id] = String(scores.get(answerKey(participant.nickname)) ?? 0);
+  return { draft: { ...draft, roundIndex: clampRound(info, option.roundIndex), points }, unmatched: unmatchedIn(info, option) };
+}
+
+/** Рядок вибору гри: дата, зіграні запитання, «перервано» / «триває» й «з ботом», раунд, з якого далі. */
+export function resumeOptionText(info: ResumeLobby, option: ResumeOption, date: string): string {
+  const extra = [option.status === 'finished' ? null : t(`status_${option.status}`), option.autopilot ? t('resumeOptionBot') : null].filter((part) => part !== null);
+  return t('resumeOption', {
+    date,
+    played: option.questionsPlayed,
+    total: option.questionCount,
+    extra: extra.map((part) => ` · ${part}`).join(''),
+    round: resumeRoundText(info, clampRound(info, option.roundIndex)),
+  });
 }
 
 /** «Раунд 3 · Гори»; порожня назва — roundLabel («Раунд 2», «Раунд 4 · Бліц»). */

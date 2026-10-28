@@ -1430,7 +1430,7 @@ describe('the saved state', () => {
     expect(opened.appeals).toEqual([expect.objectContaining({ id: 1, by: 'p1', outcome: null, endsAt: T0 + HOUR + 31_000 })]);
   });
 
-  it('a room saved at version 18 restores; a resumed game round-trips with its carry rows and the author resume', () => {
+  it('a pre-12r state (no carry rows, no author resume) restores and version 18 stays readable; a resumed game round-trips with its carry rows and the author resume', () => {
     // стан до 12r: гра без рядків 'carry' і автопілот без resume
     const plain = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0);
     const old = roundTrip(suspend(roundTrip(plain), T0 + 1000));

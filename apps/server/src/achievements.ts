@@ -105,7 +105,9 @@ export function isComeback(table: GameTable, participantId: string): boolean {
   const won = isWin({ status: table.status, rank: me.rank, score: me.score, playerCount: table.players.length, correct: 0, questionsPlayed: 0 });
   const played = table.players.flatMap((p) => p.rows.filter((row) => row.attempt !== ADJUSTMENT_ATTEMPT).map((row) => row.roundIndex));
   const last = Math.max(-1, ...played);
-  const first = Math.min(last, ...played);
+  // Без перенесених балів — як до 12r: раунди від нуля, навіть якщо в перших немає рядків-відповідей.
+  const carried = table.players.some((p) => p.rows.some((row) => row.source === 'carry'));
+  const first = carried ? Math.min(last, ...played) : 0;
   if (!won || last - first < 1) return false;
   const before = (p: TablePlayer) => p.rows.filter((row) => row.roundIndex < last || row.source === 'carry').reduce((sum, row) => sum + row.points, 0);
   const mine = before(me);

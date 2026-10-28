@@ -4,9 +4,10 @@ import { authorTeamForm, autopilotStart, createAutopilotGame, planAutopilot, pil
 import { resumeError, resumeLobby } from './carry';
 import { addPlayer, lock, next, start, submitAnswer, type GameState, type Rng } from './game';
 import { stamp } from './pacing';
-import { classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { boardRound, classicRound, finalRound, ladderRound, makeRoundsQuiz, single, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
 import { lobbyWith, lobbyWithGuide, lobbyWithSplash, must } from './testing/helpers';
 import { teamLobby, teamQuiz } from './testing/teams';
+import { pickContestant } from './ladder';
 import { assignTeam } from './teams';
 import { undoPanel, undoScore } from './undo';
 import { hostView, playerView } from './views';
@@ -54,6 +55,15 @@ describe('resume a game (12r): the engine start', () => {
     expect(must(start(lobby, T0, undefined))).toEqual(plain);
     expect(plain.adjustments).toEqual([]);
     expect(plain.roundIndex).toBe(0);
+    // Не лише «як без аргументу»: звичайний старт — раунд 1, нулі, без рядків і запитань, adjustmentSeq не зрушено.
+    expect(plain.phase).toBe('intro');
+    expect(plain.players.map((p) => [p.id, p.score])).toEqual([
+      ['p1', 0],
+      ['p2', 0],
+    ]);
+    expect(plain.plays).toEqual([]);
+    expect(plain.adjustmentSeq).toBe(lobby.adjustmentSeq);
+    expect(hostView(plain).round?.index).toBe(0);
   });
 
   it('resume starts at the chosen round with one carry row per non-zero participant', () => {
@@ -148,6 +158,46 @@ describe('resume a game (12r): the engine start', () => {
     expect(view.breakdowns.p1.parts[0]).toEqual({ source: 'carry', plus: 42_434, minus: 0 });
   });
 
+  it.each([
+    ['board', boardRound('g', [{ title: 'A', cells: [withId(single, 'c1')] }]), 'board'],
+    ['ladder', ladderRound('l'), 'question'],
+    ['survival', survivalRound('s', survivalQuestions, survivalTrials), 'question'],
+    ['wipeout', wipeoutRound('w', wipeoutLadder), 'question'],
+  ] as const)('starts at a %s round with the carried points', (_, round, phase) => {
+    const quiz = makeRoundsQuiz([classicRound('r0', [single], R), round]);
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Петро'), T0, { roundIndex: 1, points: { p1: 500, p2: -20 } }));
+    expect(s.phase).toBe('intro');
+    expect(s.roundIndex).toBe(1);
+    expect(s.adjustments).toEqual([carryRow(1, 'p1', 500, 1), carryRow(2, 'p2', -20, 1)]);
+    // «Мільйонер»: спершу ведучий вибирає гравця.
+    if (round.type === 'ladder') s = must(pickContestant(s, 'p2'));
+    s = must(next(s, T0 + 1000, rng));
+    expect(s.phase).toBe(phase);
+    expect(s.roundIndex).toBe(1);
+    expect(s.players.map((p) => p.score)).toEqual([500, -20]);
+    const view = hostView(s);
+    expect(view.firstRound).toBe(1);
+    expect(view.standings.map((st) => st.rounds)).toEqual([
+      [0, 0],
+      [0, 0],
+    ]);
+  });
+
+  it('the table views name the first played round; a plain game says 0', () => {
+    let s = must(next(resumed(), T0 + 1000, rng));
+    expect(hostView(s).firstRound).toBe(2);
+    expect(playerView(s, 'p2')!.table?.firstRound).toBe(2);
+    // Без перенесених балів — за першим запитанням, а до нього — за поточним раундом.
+    const bare = must(start(lobbyWith(three, 'Оля', 'Петро'), T0, { roundIndex: 1, points: {} }));
+    expect(bare.adjustments).toEqual([]);
+    expect(hostView(bare).firstRound).toBe(1);
+    expect(hostView(must(next(bare, T0 + 1000, rng))).firstRound).toBe(1);
+    const plain = must(start(lobbyWith(three, 'Оля', 'Петро'), T0));
+    expect(hostView(plain).firstRound).toBe(0);
+    expect(playerView(plain, 'p1')!.table?.firstRound).toBe(0);
+    expect(hostView(lobbyWith(three, 'Оля')).firstRound).toBe(0);
+  });
+
   it('the final round wagers from the carried score', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single], R), finalRound('f', withId(single, 'f1'))]);
     let s = must(start(lobbyWith(quiz, 'Оля', 'Петро'), T0, { roundIndex: 1, points: { p1: 500 } }));
@@ -215,6 +265,13 @@ describe('resume a game (12r): the engine start', () => {
     s = go(s, () => [0, 0.9][i++ % 2]);
     expect(s.phase).toBe('lobby');
     expect(s.autopilot?.resume).toEqual(resume);
+    // Автор тисне «Почати гру» сам, поки бот не стартував: збережені дані не губляться.
+    const pressed = must(autopilotStart(s, T0 + 14_000, rng));
+    expect(pressed.roundIndex).toBe(1);
+    expect(pressed.adjustments.map((a) => [a.playerId, a.points])).toEqual([
+      ['t1', 700],
+      ['t2', -20],
+    ]);
     s = go(s);
     expect(s.phase).toBe('intro');
     expect(s.roundIndex).toBe(1);

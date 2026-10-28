@@ -75,7 +75,7 @@ const view = (over: Partial<HostView> = {}): HostView => ({
   sliderMarks: null,
   pinMarks: null,
   wall: null,
-  cloud: null, survey: null, bluff: null, surveySkipped: [], undo: null, resume: null, roundQuestions: null,
+  cloud: null, survey: null, bluff: null, surveySkipped: [], undo: null, resume: null, roundQuestions: null, firstRound: 0,
   ...over,
 });
 
@@ -3083,7 +3083,7 @@ describe('HostScreen: resume a game (12r)', () => {
     const send = show(view({ resume }));
     const panel = unfold();
     fireEvent.change(within(panel).getByRole('combobox', { name: 'Почати з раунду' }), { target: { value: '2' } });
-    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Олена' }), { target: { value: '42434' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '42434' } });
     fireEvent.click(button('Почати гру'));
     expect(send).toHaveBeenCalledWith('host:start', { resume: { roundIndex: 2, points: { p1: 42434 } } });
   });
@@ -3098,11 +3098,33 @@ describe('HostScreen: resume a game (12r)', () => {
   it('a bad field disables «Почати гру» while the panel is open', () => {
     show(view({ resume }));
     const panel = unfold();
-    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Тарас' }), { target: { value: '1.5' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Тарас' }), { target: { value: '1.5' } });
     expect(button('Почати гру').disabled).toBe(true);
     panel.open = false;
     fireEvent(panel, new Event('toggle'));
     expect(button('Почати гру').disabled).toBe(false);
+  });
+
+  it('a player who joins or leaves keeps the typed values of the others and the round', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const props = { code: '123456', stageUrl: 'http://quiz.test/stage/123456#s', joinUrl: 'http://quiz.test/play/123456', send };
+    const { rerender } = render(<HostScreen view={view({ resume })} {...props} />);
+    const panel = unfold();
+    fireEvent.change(within(panel).getByRole('combobox', { name: 'Почати з раунду' }), { target: { value: '1' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '42 434' } });
+    // Зайшла Іра: її поле з 0, решта як була.
+    const joined = { ...resume, participants: [...resume.participants, { id: 'p3', nickname: 'Іра' }] };
+    rerender(<HostScreen view={view({ resume: joined })} {...props} />);
+    expect((within(panel).getByRole('textbox', { name: 'Іра' }) as HTMLInputElement).value).toBe('0');
+    expect((within(panel).getByRole('textbox', { name: 'Олена' }) as HTMLInputElement).value).toBe('42 434');
+    expect((within(panel).getByRole('combobox', { name: 'Почати з раунду' }) as HTMLSelectElement).value).toBe('1');
+    expect(within(panel).getByText('Старт: Раунд 2 · Річки. Перенесені бали: 1 з 3.')).toBeTruthy();
+    // Олена вийшла: її бали більше не надсилаються.
+    rerender(<HostScreen view={view({ resume: { ...joined, participants: joined.participants.slice(1) } })} {...props} />);
+    expect(within(panel).queryByRole('textbox', { name: 'Олена' })).toBeNull();
+    expect(within(panel).getByText('Старт: Раунд 2 · Річки. Перенесені бали: 0 з 2.')).toBeTruthy();
+    fireEvent.click(button('Почати гру'));
+    expect(send).toHaveBeenCalledWith('host:start', { resume: { roundIndex: 1, points: {} } });
   });
 
   it('there is no panel without resume', () => {

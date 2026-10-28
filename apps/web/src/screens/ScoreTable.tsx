@@ -32,7 +32,7 @@ export function BreakdownView({ breakdown }: { breakdown: ScoreBreakdown }) {
   );
 }
 
-/** Таблиця «#, Учасник, Р1…Рn, Σ» (11f); колонок — найдовший rounds; розбивку відкриває лише рядок, що є в breakdowns. */
+/** Таблиця «#, Учасник, Р1…Рn, Σ» (11f); колонки — від firstRound до найдовшого rounds; розбивку відкриває лише рядок, що є в breakdowns. */
 export function ScoreTable({
   rows,
   size,
@@ -41,6 +41,7 @@ export function ScoreTable({
   teams,
   streaks,
   roundTitles,
+  firstRound = 0,
 }: {
   rows: ScoreRow[];
   size: 'phone' | 'host' | 'history';
@@ -50,10 +51,13 @@ export function ScoreTable({
   streaks?: Record<string, number>;
   /** Назви раундів для заголовків колонок (title й aria-label «Р1, Назва»); немає — лише «Р1…». */
   roundTitles?: string[];
+  /** Перший зіграний раунд (12r): пропущені раунди продовженої гри колонок не мають; заголовки — справжні номери (Р3). */
+  firstRound?: number;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const count = rows.reduce((max, row) => Math.max(max, row.rounds?.length ?? 0), 0);
-  const columns = Array.from({ length: count }, (_, i) => i);
+  const from = Math.max(0, Math.min(firstRound, count));
+  const columns = Array.from({ length: count - from }, (_, i) => from + i);
   return (
     <div className={`score-table-wrap is-${size}`} role="region" aria-label={t('scoreTableLabel')} tabIndex={0}>
       <table className="score-table">
@@ -131,7 +135,7 @@ export function ScoreTable({
                 </tr>
                 {open && (
                   <tr className="score-breakdown-row" onClick={(event) => event.stopPropagation()}>
-                    <td colSpan={count + 3}>
+                    <td colSpan={columns.length + 3}>
                       <BreakdownView breakdown={breakdown} />
                     </td>
                   </tr>

@@ -8,6 +8,12 @@ describe('start payload (12r)', () => {
     expect(startSchema.safeParse({ resume: { roundIndex: 0, points: { p1: RESUME_POINTS_MAX, p2: -RESUME_POINTS_MAX } } }).success).toBe(true);
   });
 
+  it('accepts the edges: 50 participants, round 9 and an explicit undefined resume', () => {
+    expect(startSchema.safeParse({ resume: { roundIndex: 0, points: Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`p${i}`, 1])) } }).success).toBe(true);
+    expect(startSchema.safeParse({ resume: { roundIndex: 9, points: {} } }).success).toBe(true);
+    expect(startSchema.safeParse({ resume: undefined }).success).toBe(true);
+  });
+
   it('refuses fractions, values out of range, a negative round and extra keys', () => {
     for (const resume of [
       { roundIndex: 0, points: { p1: 1.5 } },

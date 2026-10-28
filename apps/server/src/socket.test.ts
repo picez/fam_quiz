@@ -256,6 +256,13 @@ describe('host:start with resume (12r)', () => {
     await until(host, inPhase('intro'));
   });
 
+  it('a null payload is a plain start', async () => {
+    const { host } = await lobby((await startGame(ctx.app, twoRounds())).game);
+    expect(await send(host, 'host:start', null)).toEqual({ ok: true });
+    const view = await until(host, inPhase('intro'));
+    expect(view.round?.index).toBe(0);
+  });
+
   it('starts at the chosen round with the carried points', async () => {
     const { host, olenaJoin } = await lobby((await startGame(ctx.app, twoRounds())).game);
     expect(await send(host, 'host:start', { resume: { roundIndex: 1, points: { [olenaJoin.playerId]: 42434 } } })).toEqual({ ok: true });
@@ -1782,6 +1789,18 @@ describe('autopilot sockets (11g)', () => {
     await until(taras, (view) => view.paused);
     expect(await send(taras, 'host:resume')).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(back, 'host:resume')).toEqual({ ok: true });
+  });
+
+  it('the author starts with resume (12r); another player may not', async () => {
+    const { game, author, taras, other } = await autopilotRoom(makeRoundsQuiz([classicRound('r0', [single]), classicRound('r1', [withId(single, 'q2')])]));
+    const resume = { roundIndex: 1, points: { [game.playerId]: 42434, [other.playerId]: -50 } };
+    expect(await send(taras, 'host:start', { resume })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'host:start', { resume: { roundIndex: 1, points: { [game.playerId]: 1.5 } } })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(author, 'host:start', { resume: { roundIndex: 7, points: {} } })).toEqual({ ok: false, error: 'resume_invalid' });
+    expect(await send(author, 'host:start', { resume })).toEqual({ ok: true });
+    const view = await until(taras, (v) => v.phase !== 'lobby');
+    expect(view.round?.index).toBe(1);
+    expect(view.role === 'player' && view.me.score).toBe(-50);
   });
 
   it('a team game: the author member starts it, a member of the other team may not', async () => {

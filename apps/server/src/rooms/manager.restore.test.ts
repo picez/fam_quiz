@@ -87,6 +87,8 @@ describe('a room restored after a restart', () => {
     expect(next.restore(saved)).not.toBeNull();
     expect(next.restore(saved)).toBeNull();
     expect(isSavedRoom({ ...saved, stateVersion: 15 })).toBe(true);
+    // 12r додала лише необов'язкові поля: кімнати версії 18 читаються.
+    expect(isSavedRoom({ ...saved, stateVersion: 18 })).toBe(true);
     expect(isSavedRoom({ ...saved, stateVersion: GAME_STATE_VERSION + 1 })).toBe(false);
     expect(isSavedRoom({ ...saved, stateVersion: 1 })).toBe(false);
     expect(isSavedRoom({ ...saved, v: 2 })).toBe(false);

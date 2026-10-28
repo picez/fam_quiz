@@ -1246,6 +1246,8 @@ export interface PlayerResult {
 export interface PlayerTable {
   rows: Standing[];
   full: boolean;
+  /** Перший зіграний раунд (12r): колонки таблиці від нього; у звичайній грі 0. */
+  firstRound: number;
 }
 
 export interface PlayerView extends BaseView {
@@ -1467,6 +1469,8 @@ export interface HostView extends BaseView {
   /** Запити підказки без відповіді на поточному запитанні (етап question), у порядку гравців. */
   hints: HintRequest[];
   standings: Standing[];
+  /** Перший зіграний раунд (12r): колонки таблиці від нього; у звичайній грі 0. */
+  firstRound: number;
   /** Розбивки «+ / −» усіх учасників рушія за id (11f); лише пульт; {} у лобі. */
   breakdowns: Record<string, ScoreBreakdown>;
   /** Як у сцени, але з етапу question (ведучий і так бачить відповіді). */

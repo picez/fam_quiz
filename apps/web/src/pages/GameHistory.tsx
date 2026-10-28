@@ -301,6 +301,7 @@ export function GameHistory() {
           <ScoreTable
             size="history"
             rows={game.standings}
+            firstRound={game.firstRound}
             breakdowns={Object.fromEntries(game.standings.map((row) => [row.participantId, row.breakdown]))}
             roundTitles={game.rounds.map((round, index) => roundLabel(round.title, index, round.type))}
           />

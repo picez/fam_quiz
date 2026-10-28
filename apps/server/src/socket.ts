@@ -509,11 +509,11 @@ export function attachSockets(
       return { ok: true };
     });
 
-    // Без даних — звичайний старт (старі клієнти й згорнута панель); resume — продовжити гру (12r).
+    // Без даних (чи null: undefined у масиві аргументів доходить як null) — звичайний старт; resume — продовжити гру (12r).
     on('host:start', (args) => {
       if (!hostSide) return FORBIDDEN;
       const raw = payloadOf(args);
-      if (raw === undefined) return run({ type: 'start' });
+      if (raw === undefined || raw === null) return run({ type: 'start' });
       const payload = startSchema.safeParse(raw);
       if (!payload.success) return INVALID;
       return run(payload.data.resume === undefined ? { type: 'start' } : { type: 'start', resume: payload.data.resume });

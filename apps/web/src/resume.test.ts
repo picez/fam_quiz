@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResumeLobby, ResumeOption } from '@quiz/shared';
-import { emptyDraft, fillFromGame, parsePoints, resumePayload, resumeRoundText } from './resume';
+import { emptyDraft, fillFromGame, parsePoints, resumeOptionText, resumePayload, resumeRoundText, unmatchedIn } from './resume';
 
 const info: ResumeLobby = {
   rounds: [
@@ -67,6 +67,19 @@ describe('resume helpers', () => {
       roundIndex: 1,
       points: { p1: '0', p2: '0', p3: '-40' },
     });
+  });
+
+  it('the unmatched are recounted from the current participants', () => {
+    const scores = [{ nickname: 'Оля', score: 1 }, { nickname: 'Тарас ', score: 2 }];
+    expect(unmatchedIn(info, { scores })).toEqual(['Петро']);
+    expect(unmatchedIn({ ...info, participants: [...info.participants, { id: 'p4', nickname: 'Іра' }] }, { scores })).toEqual(['Петро', 'Іра']);
+  });
+
+  it('a pick line names an interrupted or bot game', () => {
+    const option: ResumeOption = { gameId: 'g', startedAt: '', status: 'finished', questionsPlayed: 4, questionCount: 6, autopilot: false, roundIndex: 2, scores: [] };
+    expect(resumeOptionText(info, option, 'D')).toBe('D · 4 з 6 запитань · далі Раунд 3 · Гори');
+    expect(resumeOptionText(info, { ...option, status: 'aborted', autopilot: true }, 'D')).toBe('D · 4 з 6 запитань · перервано · з ботом · далі Раунд 3 · Гори');
+    expect(resumeOptionText(info, { ...option, status: 'running', roundIndex: 9 }, 'D')).toBe('D · 4 з 6 запитань · триває · далі Раунд 3 · Гори');
   });
 
   it('names rounds with the real number', () => {

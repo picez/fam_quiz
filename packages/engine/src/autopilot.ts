@@ -113,7 +113,8 @@ export function autopilotStart(state: GameState, now: number, rng: Rng, resume?:
     if (!tour.ok) return tour;
     return ok(withPilot(tour.state, (pilot) => ({ ...pilot, starting: true, ...(resume === undefined ? {} : { resume }) })));
   }
-  return startNow(state, now, resume);
+  // Тур кубиків уже закрито: дані, збережені на його час, не губляться, якщо автор тисне «Почати гру» ще раз.
+  return startNow(state, now, resume ?? state.autopilot.resume);
 }
 
 /** Спосіб формування команд від автора: setTeamForm, starting і resume геть (незакритий тур скасовано, тож старт після нього теж). */

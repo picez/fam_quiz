@@ -2006,7 +2006,7 @@ describe('PlayerScreen: explanations for newcomers', () => {
 describe('PlayerScreen: table and menu', () => {
   const rows = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 0, rank: 1 }];
   it('the header has «Таблиця» during a question, none in the lobby; «До меню» after the game', () => {
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(document.querySelector('header.bar')?.contains(screen.getByRole('button', { name: 'Таблиця' }))).toBe(true);
     expect(screen.queryByRole('link', { name: 'До меню' })).toBeNull();
     cleanup();
@@ -2019,7 +2019,7 @@ describe('PlayerScreen: table and menu', () => {
 
   it('the own breakdown reaches the «Таблиця» sheet', () => {
     const myBreakdown = { parts: [{ source: 'answers' as const, plus: 700, minus: 0 }], plus: 700, minus: 0 };
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, myBreakdown }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, myBreakdown }));
     fireEvent.click(screen.getByRole('button', { name: 'Таблиця' }));
     fireEvent.click(screen.getByRole('dialog').querySelector('button.score-row-toggle')!);
     expect(screen.getByText('Відповіді')).toBeTruthy();
@@ -2027,12 +2027,12 @@ describe('PlayerScreen: table and menu', () => {
   });
 
   it('the header has «Дебафи» only when the view has a shop, between «Дуель» and «Таблиця»; purchases toast on the phone', () => {
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
     cleanup();
     const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false }], block: null };
     const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
-    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true }, debuffNotice, me: { ...me, shop } }));
+    show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, debuffNotice, me: { ...me, shop } }));
     const header = document.querySelector('header.bar')!;
     const shopButton = screen.getByRole('button', { name: 'Дебафи' });
     expect(header.contains(shopButton)).toBe(true);
@@ -3596,7 +3596,7 @@ describe('PlayerScreen: the author resumes a game (12r)', () => {
     panel.open = true;
     fireEvent(panel, new Event('toggle'));
     fireEvent.change(within(panel).getByRole('combobox', { name: 'Почати з раунду' }), { target: { value: '1' } });
-    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Олена' }), { target: { value: '-150' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '−150' } });
     fireEvent.click(screen.getByRole('button', { name: 'Почати гру' }));
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:start', { resume: { roundIndex: 1, points: { p1: -150 } } }));
   });
@@ -3606,7 +3606,7 @@ describe('PlayerScreen: the author resumes a game (12r)', () => {
     const panel = document.querySelector('details.resume-panel') as HTMLDetailsElement;
     panel.open = true;
     fireEvent(panel, new Event('toggle'));
-    fireEvent.change(within(panel).getByRole('spinbutton', { name: 'Олена' }), { target: { value: '10000000' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Олена' }), { target: { value: '10000000' } });
     expect((screen.getByRole('button', { name: 'Почати гру' }) as HTMLButtonElement).disabled).toBe(true);
   });
 

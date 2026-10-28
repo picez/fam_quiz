@@ -238,6 +238,15 @@ describe('new achievements', () => {
     expect(isComeback(last, 'o')).toBe(false);
   });
 
+  it('a plain game (no carried points) counts rounds from the first, as before 12r', () => {
+    const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
+    const host = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'host' as const });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
+    // У раунді 1 відповідей немає (лише бали від ведучого Петру), у раунді 2 Оля обійшла Петра — камбек, як і до 12r.
+    const back = table(['classic', 'classic'], [p('o', 1, 300, [row(1, 300)]), p('p', 2, 250, [host(0, 200), row(1, 50)])]);
+    expect(isComeback(back, 'o')).toBe(true);
+  });
+
   it('friendsPlayedWith counts distinct friends other than the player', () => {
     const p = (userId: string | null) => ({ participantId: `${userId}-p`, userId, memberUserIds: [], rank: null, score: 0, rows: [] });
     const tables = [table(['classic'], [p('me'), p('f1'), p('f2'), p(null)]), table(['classic'], [p('me'), p('f1'), p('x')])];

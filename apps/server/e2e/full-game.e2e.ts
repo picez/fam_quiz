@@ -15064,6 +15064,25 @@ const RESUME_PANEL_FITS = `(() => {
   return out;
 })()`;
 
+/** Таблиця 11f на 375 px (12r): за scrollLeft = 0 остання колонка раунду не заходить під закріплену Σ (або таблиця не прокручується). */
+const SCORE_TABLE_FITS = `(() => {
+  const problems = [];
+  let rounds = [];
+  for (const wrap of document.querySelectorAll('.score-table-wrap')) {
+    if (wrap.getBoundingClientRect().height === 0) continue;
+    wrap.scrollLeft = 0;
+    const heads = [...wrap.querySelectorAll('thead th.round')];
+    rounds = heads.map((th) => th.textContent.trim());
+    const total = wrap.querySelector('thead th.total');
+    const last = heads.at(-1);
+    const fits = wrap.scrollWidth <= wrap.clientWidth || (last !== undefined && total !== null && last.getBoundingClientRect().right <= total.getBoundingClientRect().left + 0.5);
+    if (!fits) problems.push('scroll ' + wrap.scrollWidth + ' > ' + wrap.clientWidth + (last ? ', last round right ' + Math.round(last.getBoundingClientRect().right) + ' > Σ left ' + Math.round(total.getBoundingClientRect().left) : ''));
+    const box = wrap.getBoundingClientRect();
+    if (box.left < -1 || box.right > innerWidth + 1) problems.push('table out of the screen');
+  }
+  return { rounds, problems };
+})()`;
+
 async function resume12r() {
   const host = await open('host12r', 375, 812);
   await register(host, 'host', 'Ліна Ведуча', 'host12r@example.com');
@@ -15088,8 +15107,8 @@ async function resume12r() {
   const panel = (page: Page) => page.locator('details.resume-panel');
   // За підписом, а не за роллю: поле може бути й текстовим.
   const pointsField = (page: Page, nickname: string) => panel(page).getByLabel(nickname, exact);
-  // Список усередині підпису: доступне ім'я — «Почати з раунду» й вибраний варіант.
-  const roundSelect = (page: Page) => panel(page).getByRole('combobox', { name: 'Почати з раунду' });
+  // Підпис з htmlFor: доступне ім'я — рівно «Почати з раунду».
+  const roundSelect = (page: Page) => panel(page).getByRole('combobox', { name: 'Почати з раунду', ...exact });
   const selectedRound = (page: Page) => roundSelect(page).evaluate((el) => (el as unknown as { selectedOptions: { text: string }[] }).selectedOptions[0].text);
   const isOpen = (page: Page) => panel(page).evaluate((el) => (el as unknown as { open: boolean }).open);
   const startButton = host.getByRole('button', { name: 'Почати гру', ...exact });
@@ -15346,8 +15365,11 @@ async function resume12r() {
   const riversCarry = host.locator('.round-group', { hasText: 'Річки' }).locator('.history-carry');
   expect(await textOf(riversCarry)).toMatch(/^Перенесено з попередньої гри: оля \+200, Петро \+100, Тарас \+42\s?434$/);
   const scores = host.locator('section.history-scores');
+  // Пропущений раунд 1 колонки не має: лише «Р2» (гра скінчилася на заставці раунду 3).
+  expect((await scores.locator('thead th.round').allTextContents()).map(squash)).toEqual(['Р2']);
   const tarasCells = await scoreCells(scores, 'Тарас');
-  expect(tarasCells[0], 'Р1 of Тарас').toBe('0');
+  expect(tarasCells, 'Р2 and Σ of Тарас').toHaveLength(2);
+  expect(tarasCells[0], 'Р2 of Тарас').toBe('100');
   expect(tarasCells.at(-1)).toMatch(/^42\s?534$/);
   await scores.locator('button.score-row-toggle', { hasText: 'Тарас' }).click();
   await scores.locator('.score-breakdown').waitFor();
@@ -15371,6 +15393,97 @@ async function resume12r() {
   expect(stageFrames.join(NL), 'the stage got the resume panel').not.toContain('"resume":');
   expect(tarasFrames.join(NL), 'a phone got the resume panel').not.toContain('"resume":{');
   expect(hostFrames.join(NL), 'the host never got the resume panel').toContain('"resume":{');
+
+  // 11. Гра D: з «Раунд 1» з перенесеними 9 999 599 Олі — три зіграні раунди й семизначна Σ влазять у таблицю
+  // телефона 375 px і пульта 375 px без прокрутки: остання колонка раунду не ховається під закріплену Σ.
+  {
+    const codeD = await playQuiz();
+    const olyaD = await open('olya12r-d', 375, 812);
+    const petroD = await open('petro12r-d', 375, 812);
+    await join(olyaD, codeD, 'Оля', false);
+    await join(petroD, codeD, 'Петро', false);
+    await pointsField(host, 'Петро').waitFor({ state: 'attached' });
+    await panel(host).locator('summary').click();
+    await expect.poll(() => isOpen(host), POLL).toBe(true);
+    await pointsField(host, 'Оля').fill('9 999 599');
+    await expect.poll(() => textOf(panel(host).locator('p.resume-summary')), POLL).toBe('Старт: Раунд 1 · Розминка. Перенесені бали: 1 з 2.');
+    const allD = [host, olyaD, petroD];
+    await startButton.click();
+    await afterSplash(...allD);
+    const playRound = async (texts: string[], last: boolean) => {
+      await step('Почати раунд');
+      await afterSplash(...allD);
+      for (const [i, text] of texts.entries()) {
+        await olyaD.getByText(text, exact).waitFor();
+        await pickOption(olyaD, yes);
+        await pickOption(petroD, no);
+        await host.getByText('Запитання закрите').waitFor();
+        await step('Показати відповідь');
+        await step('Далі');
+        if (i < texts.length - 1) {
+          await step('Наступне запитання');
+          await afterSplash(...allD);
+        } else if (!last) {
+          await step('Наступний раунд');
+          await afterSplash(...allD);
+        }
+      }
+    };
+    await playRound(['Говерла — найвища гора України', 'Світязь — озеро на Волині'], false);
+    await playRound(['Дніпро тече через Київ'], false);
+    await playRound(['Дунай впадає в Чорне море'], true);
+
+    const tableD = olyaD.locator('.table-sheet');
+    await olyaD.locator('header.bar').getByRole('button', { name: 'Таблиця', ...exact }).click();
+    await tableD.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
+    await expect.poll(async () => (await scoreCells(tableD, 'Оля').catch(() => [] as string[])).at(-1) ?? null, POLL).toMatch(/^9\s?999\s?999$/);
+    expect(await scoreCells(tableD, 'Оля')).toEqual(['200', '100', '100', expect.stringMatching(/^9\s?999\s?999$/)]);
+    expect(await olyaD.evaluate(SCORE_TABLE_FITS), 'p12r-phone-table: the last round hides under Σ').toEqual({ rounds: ['Р1', 'Р2', 'Р3'], problems: [] });
+    await expectNoSideScroll(olyaD, 'p12r-phone-table');
+    await olyaD.keyboard.press('Escape');
+
+    const hostScores = host.locator('details.host-scores');
+    await hostScores.locator('summary').click();
+    await hostScores.locator('tr.score-row').first().waitFor();
+    expect(await host.evaluate(SCORE_TABLE_FITS), 'p12r-host-table: the last round hides under Σ').toEqual({ rounds: ['Р1', 'Р2', 'Р3'], problems: [] });
+    await hostScores.scrollIntoViewIfNeeded();
+    await expectNoSideScroll(host, 'p12r-host-table');
+    await hostScores.locator('summary').click();
+    for (const page of [olyaD, petroD]) await page.close();
+  }
+
+  // 12. Гра E: з «Раунд 3» з −9 999 999 у довгого нікнейма — таблиця сцени 1280 × 720 влазить.
+  {
+    const codeE = await playQuiz();
+    const stageE = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+    await stage.goto(stageE);
+    const longName = 'Максиміліана Шевчук';
+    const longE = await open('long12r-e', 375, 812);
+    const olyaE = await open('olya12r-e', 375, 812);
+    await join(longE, codeE, longName, false);
+    await join(olyaE, codeE, 'Оля', false);
+    await stage.getByText('Оля').waitFor();
+    await pointsField(host, 'Оля').waitFor({ state: 'attached' });
+    await panel(host).locator('summary').click();
+    await expect.poll(() => isOpen(host), POLL).toBe(true);
+    await roundSelect(host).selectOption('2');
+    await pointsField(host, longName).fill('−9 999 999');
+    await expect.poll(() => textOf(panel(host).locator('p.resume-summary')), POLL).toBe('Старт: Раунд 3 · Гори й моря. Перенесені бали: 1 з 2.');
+    const allE = [host, stage, longE, olyaE];
+    await startButton.click();
+    await afterSplash(...allE);
+    await step('Почати раунд');
+    await afterSplash(...allE);
+    await stage.getByText('Дунай впадає в Чорне море', exact).waitFor();
+    for (const page of [longE, olyaE]) await pickOption(page, yes);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    await step('Далі');
+    await expect.poll(() => textOf(standingRow(longName).locator('.score')), POLL).toMatch(/^−9\s?999\s?899$/);
+    await expectStageInView(stage, 'p12r-stage-long');
+    await shot(stage, 'p12r-stage-long');
+    for (const page of [longE, olyaE]) await page.close();
+  }
 
   expect(problems).toEqual([]);
 }

@@ -145,7 +145,7 @@ import { awayPenalized, awayPeople, lastAway, ownAway, stageAway } from './away'
 import { hostPace } from './pacing';
 import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
-import { groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
+import { firstRound, groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
@@ -2223,7 +2223,7 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
   const rows = withRounds(rankPlayers(state.players.map((p) => ({ ...p, score: p.score - hidden(p.id) }))), seen, roundCount(state));
   // У вікні рішення «Ва-банк» етап leaderboard — не підсумки: повна таблиця лише з leaderboard 'each'.
   const full = state.quiz.settings.leaderboard === 'each' || (WITH_STANDINGS.includes(state.phase) && !(state.phase === 'leaderboard' && (inWipeoutRound(state) || inSurvivalRound(state) || inLadderRound(state))));
-  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full };
+  return { rows: full ? rows : rows.filter((row) => row.participantId === playerId), full, firstRound: firstRound(state) };
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */
@@ -2310,6 +2310,7 @@ export function hostView(state: GameState): HostView {
     allowed: { debuffs: debuffsOff(state) ? [] : allowedDebuffs(state.quiz), buffs: allowedBuffs(state.quiz) },
     hints: hintRequests(state),
     standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
+    firstRound: firstRound(state),
     breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLinesByPlayer(state), p.id)])),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),

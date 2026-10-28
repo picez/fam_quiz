@@ -33,6 +33,23 @@ describe('ScoreTable', () => {
     expect(first.querySelector('td.total')!.textContent).toBe('50');
   });
 
+  it('a resumed game (12r) has columns from the first played round with the real numbers and titles', () => {
+    const resumed: ScoreRow[] = [
+      { participantId: 'a', nickname: 'Оля', rank: 1, score: 42_734, rounds: [0, 0, 200, 100] },
+      { participantId: 'b', nickname: 'Петро', rank: 2, score: 300, rounds: [0, 0, 300] },
+    ];
+    const titles = ['Розминка', 'Річки', 'Гори', 'Моря'];
+    const { container } = render(<ScoreTable rows={resumed} size="history" breakdowns={{ a: breakdown }} firstRound={2} roundTitles={titles} />);
+    const head = container.querySelector('thead tr')!;
+    expect(cells(head, 'th')).toEqual(['#', 'Учасник', 'Р3', 'Р4', 'Σ']);
+    expect(Array.from(head.querySelectorAll('th.round')).map((th) => th.getAttribute('aria-label'))).toEqual(['Р3, Гори', 'Р4, Моря']);
+    const [first, second] = Array.from(container.querySelectorAll('tr.score-row'));
+    expect(cells(first, 'td.round')).toEqual(['200', '100']);
+    expect(cells(second, 'td.round')).toEqual(['300', '–']);
+    fireEvent.click(screen.getByRole('button', { name: '«+ / −» для Оля' }));
+    expect(container.querySelector('tr.score-breakdown-row td')!.getAttribute('colspan')).toBe('5');
+  });
+
   it('a shorter rounds list leaves a dash', () => {
     const { container } = render(<ScoreTable rows={[rows[0], { ...rows[1], rounds: [5] }]} size="phone" breakdowns={{}} />);
     expect(cells(container.querySelectorAll('tr.score-row')[1], 'td.round')).toEqual(['5', '–']);

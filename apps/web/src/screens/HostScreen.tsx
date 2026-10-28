@@ -211,7 +211,7 @@ function HostScores({ view }: { view: HostView }) {
   return (
     <details className="panel host-scores" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t('hostScoresTitle')}</summary>
-      {open && <ScoreTable size="host" rows={view.standings} breakdowns={view.breakdowns} teams={view.teams} streaks={streaksOf(view.players)} />}
+      {open && <ScoreTable size="host" rows={view.standings} firstRound={view.firstRound} breakdowns={view.breakdowns} teams={view.teams} streaks={streaksOf(view.players)} />}
     </details>
   );
 }

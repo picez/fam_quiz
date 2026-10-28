@@ -583,6 +583,8 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
   ];
   const roundCount =
     Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)) + 1;
+  // Продовжена гра (12r): пропущені раунди колонок не мають.
+  const firstRound = Math.max(0, Math.min(roundCount, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)));
   const standings = participants
     .filter((p) => p.teamId === null)
     .map((p) => {
@@ -649,6 +651,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     autopilot: row.autopilot,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
+    firstRound,
     questions,
     teams,
     adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({

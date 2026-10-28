@@ -462,6 +462,14 @@ describe('carried points (12r)', () => {
       { id: 'p', nickname: 'Петро', rank: 2, score: 1000, rounds: [0, 0, 500, 500], carry: 0 },
     ]);
     expect(find(gameAwards(ahead), 'comeback')).toBeNull();
+    // Ті самі раунди без перенесеного: після раунду 2 Оля друга, наприкінці перша — камбек.
+    const rounds = (carry: number): Player[] => [
+      { id: 'o', nickname: 'Оля', rank: 1, score: carry + 1100, rounds: [0, 0, 100, 1000], carry },
+      { id: 'p', nickname: 'Петро', rank: 2, score: 1000, rounds: [0, 0, 500, 500], carry: 0 },
+    ];
+    expect(find(gameAwards(duo(rounds(0))), 'comeback')).toEqual({ kind: 'comeback', names: ['Оля'], from: 2, to: 1 });
+    // З перенесеними 40 000 Оля вела від початку: камбеку немає, хоч раунди ті самі.
+    expect(find(gameAwards(duo(rounds(40_000))), 'comeback')).toBeNull();
   });
 
   it('one played round makes no comeback', () => {
