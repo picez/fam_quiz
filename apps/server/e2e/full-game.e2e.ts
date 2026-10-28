@@ -15032,3 +15032,354 @@ it('part 12f: the player appeal — Оля appeals «Шевченко» from a 3
     throw error;
   }
 });
+
+function resumeQuestions12r() {
+  const common = { imageUrl: null, video: null, timeLimit: 30 };
+  const yes = (id: string, text: string) => ({ ...common, id, type: 'boolean' as const, text, points: 100, correct: true });
+  return {
+    r1: [yes('w1', 'Говерла — найвища гора України'), yes('w2', 'Світязь — озеро на Волині')],
+    r2: [yes('v1', 'Дніпро тече через Київ')],
+    r3: [yes('g1', 'Дунай впадає в Чорне море')],
+  };
+}
+
+/** Панель «Продовжити попередню гру» (12r) на 375 px: кожен її блок у межах панелі й екрана, поле балів не вужче за 8rem і не обрізає значення. */
+const RESUME_PANEL_FITS = `(() => {
+  const panel = document.querySelector('details.resume-panel');
+  if (panel === null) return ['no panel'];
+  const box = panel.getBoundingClientRect();
+  const out = [];
+  if (box.left < -1 || box.right > innerWidth + 1) out.push('panel out of the screen');
+  if (panel.scrollWidth > panel.clientWidth + 1) out.push('panel scrolls sideways');
+  for (const el of panel.querySelectorAll('summary, select, button, input, .resume-name, p')) {
+    const r = el.getBoundingClientRect();
+    if (r.height === 0) continue;
+    if (r.left < box.left - 1 || r.right > box.right + 1) out.push('out of the panel: ' + el.tagName + ' ' + (el.textContent || el.id).slice(0, 40));
+  }
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  for (const input of panel.querySelectorAll('input')) {
+    if (input.getBoundingClientRect().width < 8 * rem - 1) out.push('points field narrower than 8rem: ' + input.id);
+    if (input.scrollWidth > input.clientWidth + 1) out.push('points field clips its value: ' + input.value + ' ' + input.scrollWidth + ' > ' + input.clientWidth);
+  }
+  return out;
+})()`;
+
+async function resume12r() {
+  const host = await open('host12r', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12r@example.com');
+
+  const { r1, r2, r3 } = resumeQuestions12r();
+  const options = { speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', r1 as never, { ...options, title: 'Розминка' }),
+        classicRound('r2', r2 as never, { ...options, title: 'Річки' }),
+        classicRound('r3', r3 as never, { ...options, title: 'Гори й моря' }),
+      ],
+      { leaderboard: 'each', newcomers: false },
+    ),
+    title: 'Продовження 12r',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
+  const panel = (page: Page) => page.locator('details.resume-panel');
+  // За підписом, а не за роллю: поле може бути й текстовим.
+  const pointsField = (page: Page, nickname: string) => panel(page).getByLabel(nickname, exact);
+  // Список усередині підпису: доступне ім'я — «Почати з раунду» й вибраний варіант.
+  const roundSelect = (page: Page) => panel(page).getByRole('combobox', { name: 'Почати з раунду' });
+  const selectedRound = (page: Page) => roundSelect(page).evaluate((el) => (el as unknown as { selectedOptions: { text: string }[] }).selectedOptions[0].text);
+  const isOpen = (page: Page) => panel(page).evaluate((el) => (el as unknown as { open: boolean }).open);
+  const startButton = host.getByRole('button', { name: 'Почати гру', ...exact });
+  /** Головна кнопка пульта активна (11b тримає її кілька секунд) — і натиснута. */
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const yes = '(^|\\s)Так$';
+  const no = '(^|\\s)Ні$';
+  const expectPanelFits = async (page: Page, name: string) => {
+    expect(await page.evaluate(RESUME_PANEL_FITS), `${name}: the resume panel overflows`).toEqual([]);
+    await expectNoSideScroll(page, name);
+  };
+  const playQuiz = async () => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: 'Продовження 12r' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    return host.url().slice(-6);
+  };
+
+  // Гра A: обривається на заставці раунду 2. Оля 200, Петро 100, Іра 0.
+  {
+    const code = await playQuiz();
+    const olya = await open('olya12r-a', 375, 812);
+    const petro = await open('petro12r-a', 375, 812);
+    const ira = await open('ira12r-a', 375, 812);
+    await join(olya, code, 'Оля', false);
+    await join(petro, code, 'Петро', false);
+    await join(ira, code, 'Іра', false);
+    await host.getByText('Іра').first().waitFor();
+    // Згорнута панель нічого не змінює: звичайний старт.
+    expect(await isOpen(host)).toBe(false);
+    const all = [host, olya, petro, ira];
+    await step('Почати гру');
+    await afterSplash(...all);
+    await step('Почати раунд');
+    await afterSplash(...all);
+    await olya.getByText('Говерла — найвища гора України', exact).waitFor();
+    await pickOption(olya, yes);
+    await pickOption(petro, yes);
+    await pickOption(ira, no);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    await step('Далі');
+    await step('Наступне запитання');
+    await afterSplash(...all);
+    await olya.getByText('Світязь — озеро на Волині', exact).waitFor();
+    await pickOption(olya, yes);
+    await pickOption(petro, no);
+    await pickOption(ira, no);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    await step('Далі');
+    await step('Наступний раунд');
+    await afterSplash(...all);
+    await step('Завершити гру');
+    await olya.locator('section.game-card').waitFor();
+    for (const page of [olya, petro, ira]) await page.close();
+  }
+
+  // 1. Гра B: панель на пульті 375 px, згорнута.
+  const code = await playQuiz();
+  const hostFrames = socketFrames(host);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12r', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12r', 375, 812);
+  const petro = await open('petro12r', 375, 812);
+  const taras = await open('taras12r', 375, 812);
+  const tarasFrames = socketFrames(taras);
+  await join(olya, code, 'оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  await panel(host).waitFor();
+  expect(await isOpen(host), 'the panel is open by default').toBe(false);
+  expect(await startButton.isDisabled()).toBe(false);
+  for (const page of [olya, petro, taras]) expect(await panel(page).count(), 'a phone got the panel').toBe(0);
+  await panel(host).locator('summary').click();
+  await expect.poll(() => isOpen(host), POLL).toBe(true);
+  expect(squash(await panel(host).locator('summary').textContent())).toBe('Продовжити попередню гру');
+  expect(await selectedRound(host)).toBe('Раунд 1 · Розминка');
+  expect(await roundSelect(host).locator('option').allTextContents()).toEqual(['Раунд 1 · Розминка', 'Раунд 2 · Річки', 'Раунд 3 · Гори й моря']);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12r-host-panel-empty: the host header wraps').toBe(true);
+  await expectPanelFits(host, 'p12r-host-panel-empty');
+
+  // 2. «Підставити з попередньої гри»: одна гра — заповнює одразу.
+  await panel(host).locator('button.resume-fill').click();
+  await expect.poll(() => textOf(panel(host).locator('p.resume-unmatched')), POLL).toBe('Не знайдено в тій грі, лишається 0: Тарас');
+  expect(await textOf(panel(host).locator('p.resume-filled'))).toMatch(/^Підставлено гру від .+\. Усе можна змінити\.$/);
+  expect(await panel(host).locator('section.resume-pick').count(), 'one game asks which').toBe(0);
+  expect(await selectedRound(host)).toBe('Раунд 2 · Річки');
+  expect(await pointsField(host, 'оля').inputValue()).toBe('200');
+  expect(await pointsField(host, 'Петро').inputValue()).toBe('100');
+  expect(await pointsField(host, 'Тарас').inputValue()).toBe('0');
+  expect(await textOf(panel(host).locator('p.resume-summary'))).toBe('Старт: Раунд 2 · Річки. Перенесені бали: 2 з 3.');
+
+  // 3. Найширше дозволене значення влазить у поле; потім 42434 вручну, пізній вхід Іри, хибне значення.
+  await pointsField(host, 'Тарас').fill('-9999999');
+  expect(await host.evaluate(RESUME_PANEL_FITS), 'p12r: −9999999 does not fit').toEqual([]);
+  await pointsField(host, 'Тарас').fill('42434');
+  await expect.poll(() => textOf(panel(host).locator('p.resume-summary')), POLL).toBe('Старт: Раунд 2 · Річки. Перенесені бали: 3 з 3.');
+  const ira = await open('ira12r', 375, 812);
+  await join(ira, code, 'Іра', false);
+  await pointsField(host, 'Іра').waitFor();
+  expect(await pointsField(host, 'Іра').inputValue()).toBe('0');
+  expect(await pointsField(host, 'оля').inputValue()).toBe('200');
+  expect(await pointsField(host, 'Петро').inputValue()).toBe('100');
+  expect(await pointsField(host, 'Тарас').inputValue()).toBe('42434');
+  expect(await selectedRound(host)).toBe('Раунд 2 · Річки');
+  await expect.poll(() => textOf(panel(host).locator('p.resume-summary')), POLL).toBe('Старт: Раунд 2 · Річки. Перенесені бали: 3 з 4.');
+  expect(await textOf(panel(host).locator('p.resume-summary + p'))).toBe('Хто зайде пізніше, почне з 0.');
+  await pointsField(host, 'оля').fill('10000000');
+  await expect.poll(() => pointsField(host, 'оля').getAttribute('aria-invalid'), POLL).toBe('true');
+  expect(await textOf(panel(host).locator('p.error.resume-invalid'))).toBe('Ціле число від −9 999 999 до 9 999 999');
+  await expect.poll(() => startButton.isDisabled(), POLL).toBe(true);
+  await expectPanelFits(host, 'p12r-host-panel-invalid');
+  await pointsField(host, 'оля').fill('200');
+  await expect.poll(() => pointsField(host, 'оля').getAttribute('aria-invalid'), POLL).toBe(null);
+  expect(await panel(host).locator('p.error.resume-invalid').count()).toBe(0);
+  await expect.poll(() => startButton.isDisabled(), POLL).toBe(false);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12r-host-panel: the host header wraps').toBe(true);
+  await expectPanelFits(host, 'p12r-host-panel');
+
+  // 4. Старт: заставка «Раунд 2», перенесені бали ще до запитання.
+  const phones = [olya, petro, taras, ira];
+  const all = [host, stage, ...phones];
+  await startButton.click();
+  await splashOn(stage, 'round');
+  expect(squash(await stage.locator('.splash.is-round').textContent())).toContain('Раунд 2');
+  expect(squash(await stage.locator('.splash.is-round').textContent())).not.toContain('Раунд 1');
+  await shot(stage, 'p12r-stage-splash', { splash: true });
+  await afterSplash(...all);
+  await expect
+    .poll(() => stateViews(tarasFrames).some((view) => view.phase === 'intro' && view.round?.index === 1 && view.me.score === 42434), POLL)
+    .toBe(true);
+  expect(stateViews(tarasFrames).some((view) => view.round?.index === 0), 'Тарас got round 1').toBe(false);
+  await step('Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Дніпро тече через Київ', exact).waitFor();
+  for (const page of phones) await pickOption(page, yes);
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Далі');
+  const standingRow = (name: string) => stage.locator('.standings li', { has: stage.locator('.name', { hasText: new RegExp(`^${name}`) }) });
+  await expect.poll(() => textOf(standingRow('Тарас').locator('.score')), POLL).toMatch(/^42\s?534$/);
+  expect(await textOf(standingRow('оля').locator('.score'))).toBe('300');
+  expect(await textOf(standingRow('Петро').locator('.score'))).toBe('200');
+  expect(await textOf(standingRow('Іра').locator('.score'))).toBe('100');
+  expect(squash(await stage.locator('.standings li').first().textContent())).toContain('Тарас');
+  await expectStageInView(stage, 'p12r-stage-table');
+  await shot(stage, 'p12r-stage-table');
+
+  // 5. «↶ Бали»: лише відповіді v1, перенесених рядків немає.
+  const sheet = host.locator('.undo-sheet');
+  await host.locator('header.bar').getByRole('button', { name: '↶ Бали', ...exact }).click();
+  await sheet.getByRole('heading', { name: 'Скасування балів', ...exact }).waitFor();
+  await expect.poll(async () => (await undoRows(sheet)).length, POLL).toBe(4);
+  const rows = await undoRows(sheet);
+  expect(rows.slice().sort()).toEqual(['Іра +100', 'Петро +100', 'Тарас +100', 'оля +100'].sort());
+  expect(squash(await sheet.textContent())).not.toMatch(/42|Перенесено/);
+  expect(await sheet.locator('.undo-question').count(), 'the sheet lists more than v1').toBe(1);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12r-host-sheet: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12r-host-sheet');
+  await host.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
+
+  // 6. Кінець гри B на заставці раунду 3: раунд 2 зіграно повністю.
+  await step('Наступний раунд');
+  await afterSplash(...all);
+  await step('Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  for (const page of [petro, ira]) await page.close();
+
+  // 7. Гра C: бот, автор (той самий акаунт) на телефоні 375 px вибирає новішу з двох ігор.
+  const botCode = await launchBot11h(host, 'Продовження 12r', 'Ліна');
+  const authorFrames = socketFrames(host);
+  const olya3 = await open('olya12r-c', 375, 812);
+  const taras3 = await open('taras12r-c', 375, 812);
+  const olya3Frames = socketFrames(olya3);
+  await joinBy11h(olya3, botCode, 'Оля');
+  await joinBy11h(taras3, botCode, 'Тарас');
+  await panel(host).waitFor();
+  await pointsField(host, 'Тарас').waitFor({ state: 'attached' });
+  expect(await isOpen(host), 'the author panel is open by default').toBe(false);
+  await panel(host).locator('summary').click();
+  await expect.poll(() => isOpen(host), POLL).toBe(true);
+  await panel(host).locator('button.resume-fill').click();
+  const pick = panel(host).locator('section.resume-pick');
+  await pick.getByRole('heading', { name: 'Яку гру продовжити?', ...exact }).waitFor();
+  const picks = (await pick.locator('.btn').allTextContents()).map(squash);
+  expect(picks).toHaveLength(2);
+  expect(picks[0]).toMatch(/^.+ · 1 з 4 запитань · далі Раунд 3 · Гори й моря$/);
+  expect(picks[1]).toMatch(/^.+ · 2 з 4 запитань · далі Раунд 2 · Річки$/);
+  await expectPanelFits(host, 'p12r-author-pick');
+  await pick.locator('.btn').first().click();
+  await expect.poll(() => textOf(panel(host).locator('p.resume-unmatched')), POLL).toBe('Не знайдено в тій грі, лишається 0: Ліна');
+  expect(await selectedRound(host)).toBe('Раунд 3 · Гори й моря');
+  expect(await pointsField(host, 'Оля').inputValue()).toBe('300');
+  expect(await pointsField(host, 'Тарас').inputValue()).toBe('42534');
+  expect(await pointsField(host, 'Ліна').inputValue()).toBe('0');
+  expect(await textOf(panel(host).locator('p.resume-summary'))).toBe('Старт: Раунд 3 · Гори й моря. Перенесені бали: 2 з 3.');
+  await expectPanelFits(host, 'p12r-author-panel');
+  for (const page of [olya3, taras3]) expect(await panel(page).count(), 'a player phone got the panel').toBe(0);
+  for (const view of stateViews(olya3Frames)) expect(view.author ?? null, 'Оля got the author view').toBeNull();
+
+  // 8. Бот продовжує з «Раунд 3».
+  await host.locator('button.author-start').click();
+  await splashOn(olya3, 'round');
+  expect(squash(await olya3.locator('.splash.is-round').textContent())).toContain('Раунд 3');
+  await shot(olya3, 'p12r-bot-splash', { splash: true });
+  for (const page of [host, olya3, taras3]) await page.getByText('Дунай впадає в Чорне море', exact).waitFor({ timeout: 60_000 });
+  for (const page of [host, olya3, taras3]) await pickOption(page, yes);
+  const table = olya3.locator('.table-sheet');
+  await olya3.locator('header.bar').getByRole('button', { name: 'Таблиця', ...exact }).click();
+  await table.getByRole('heading', { name: 'Таблиця', ...exact }).waitFor();
+  const total = async (name: string) => (await scoreCells(table, name).catch(() => [] as string[])).at(-1) ?? null;
+  await expect.poll(() => total('Тарас'), { timeout: 30_000 }).toMatch(/^42\s?634$/);
+  expect(await total('Оля')).toBe('400');
+  expect(await total('Ліна')).toBe('100');
+  await expectNoSideScroll(olya3, 'p12r-bot-table');
+  await olya3.keyboard.press('Escape');
+  await expect.poll(() => stateViews(olya3Frames).some((view) => view.phase === 'finished'), { timeout: 90_000 }).toBe(true);
+  for (const view of stateViews(olya3Frames)) expect(view.round?.index ?? 2, 'Оля got a skipped round').toBe(2);
+  for (const view of stateViews(olya3Frames)) expect(view.author ?? null, 'Оля got the author view').toBeNull();
+  expect(stateViews(authorFrames).some((view) => view.author != null), 'the author never got the author view').toBe(true);
+
+  // 9. Історія: розділу пропущеного раунду немає, під стартовим — перенесені бали.
+  await host.goto(`${base}/history`);
+  const links = host.getByRole('link', { name: 'Продовження 12r', ...exact });
+  await expect.poll(() => links.count(), { timeout: 15_000 }).toBe(3);
+  const hrefs = await Promise.all((await links.all()).map((link) => link.getAttribute('href')));
+  const games: { href: string; bot: boolean; carry: string[] }[] = [];
+  for (const href of hrefs) {
+    await host.goto(`${base}${href}`);
+    await host.locator('section.history-scores').waitFor();
+    games.push({ href: href!, bot: (await host.locator('.autopilot-mark').count()) > 0, carry: (await host.locator('.history-carry').allTextContents()).map(squash) });
+  }
+  const gameB = games.find((game) => !game.bot && game.carry.length > 0);
+  const gameC = games.find((game) => game.bot);
+  expect(gameB, 'no game B in the history').toBeTruthy();
+  expect(gameC, 'no game C in the history').toBeTruthy();
+  expect(games.filter((game) => !game.bot && game.carry.length === 0), 'no game A in the history').toHaveLength(1);
+
+  await host.goto(`${base}${gameB!.href}`);
+  const groups = host.locator('.round-group');
+  await groups.first().waitFor();
+  const titlesB = (await host.locator('h3.round-title').allTextContents()).map(squash);
+  expect(titlesB.some((title) => title.includes('Розминка')), `game B shows the skipped round: ${titlesB.join(' | ')}`).toBe(false);
+  expect(titlesB.some((title) => title.includes('Річки')), `game B has no «Річки»: ${titlesB.join(' | ')}`).toBe(true);
+  const riversCarry = host.locator('.round-group', { hasText: 'Річки' }).locator('.history-carry');
+  expect(await textOf(riversCarry)).toMatch(/^Перенесено з попередньої гри: оля \+200, Петро \+100, Тарас \+42\s?434$/);
+  const scores = host.locator('section.history-scores');
+  const tarasCells = await scoreCells(scores, 'Тарас');
+  expect(tarasCells[0], 'Р1 of Тарас').toBe('0');
+  expect(tarasCells.at(-1)).toMatch(/^42\s?534$/);
+  await scores.locator('button.score-row-toggle', { hasText: 'Тарас' }).click();
+  await scores.locator('.score-breakdown').waitFor();
+  const breakdown = await breakdownTexts(scores);
+  expect(breakdown.some((line) => /^Перенесено з попередньої гри \+42\s?434$/.test(line)), breakdown.join(' | ')).toBe(true);
+  await expectNoSideScroll(host, 'p12r-history');
+
+  await host.goto(`${base}${gameC!.href}`);
+  await host.locator('.autopilot-mark').waitFor();
+  expect(await textOf(host.locator('.autopilot-mark'))).toBe('Провів бот');
+  const titlesC = (await host.locator('h3.round-title').allTextContents()).map(squash);
+  expect(titlesC.some((title) => /Розминка|Річки/.test(title)), `game C shows a skipped round: ${titlesC.join(' | ')}`).toBe(false);
+  const seaCarry = await textOf(host.locator('.round-group', { hasText: 'Гори й моря' }).locator('.history-carry'));
+  expect(seaCarry).toContain('Оля +300');
+  expect(seaCarry).toMatch(/Тарас \+42\s?534/);
+  expect(seaCarry).not.toContain('Ліна');
+  await expectNoSideScroll(host, 'p12r-history-bot');
+
+  // 10. Сцена й гравці не отримують панелі; пульт отримує.
+  expect(stageFrames.length).toBeGreaterThan(0);
+  expect(stageFrames.join(NL), 'the stage got the resume panel').not.toContain('"resume":');
+  expect(tarasFrames.join(NL), 'a phone got the resume panel').not.toContain('"resume":{');
+  expect(hostFrames.join(NL), 'the host never got the resume panel').toContain('"resume":{');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12r: resume a game — after a game stops in round 2 the 375 host opens «Продовжити попередню гру», «Підставити з попередньої гри» fills «Раунд 2» and the points by nickname, a new player gets 42434 by hand and a late joiner 0, the stage says «Раунд 2» and the table shows the carried points that the undo sheet never lists; then the author of a bot game picks the newer of two games on a 375 phone and the bot goes on from «Раунд 3»; the history hides the skipped rounds and lists «Перенесено з попередньої гри»', async () => {
+  try {
+    await resume12r();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 900_000);

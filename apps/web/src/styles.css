@@ -11620,6 +11620,15 @@ button.wall-tile:disabled {
   margin: 0;
 }
 
+/* gap панелі не діє всередині <details> (вміст не є flex-елементами): відступи між блоками — полями. */
+.resume-panel[open] > * + * {
+  margin-top: 0.75rem;
+}
+
+.resume-panel[open] > .meta + .meta {
+  margin-top: 0.25rem;
+}
+
 .resume-panel .field select {
   width: 100%;
   min-width: 0;
@@ -11655,7 +11664,7 @@ button.wall-tile:disabled {
 
 .resume-points li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 40%);
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 45%);
   align-items: center;
   gap: 0.25rem 0.75rem;
 }
