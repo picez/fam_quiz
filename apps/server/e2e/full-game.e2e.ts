@@ -14016,3 +14016,305 @@ it('part 12c: «Хто я?» at own pace — the editor switch on 375 px, each p
     throw error;
   }
 });
+
+function factsQuestions12d() {
+  const common = { imageUrl: null, video: null, timeLimit: 20 };
+  const f1 = {
+    ...common,
+    id: 'f1',
+    type: 'single' as const,
+    text: 'Яка найдовша річка України?',
+    points: 100,
+    options: [{ id: 'f1-a', text: 'Дніпро' }, { id: 'f1-b', text: 'Дністер' }, { id: 'f1-c', text: 'Південний Буг' }],
+    correctId: 'f1-a',
+  };
+  const f2 = { ...common, id: 'f2', type: 'boolean' as const, text: 'Кит — риба', points: 200, correct: false };
+  const f3 = {
+    ...common,
+    id: 'f3',
+    type: 'bluff' as const,
+    text: 'Яке озеро найглибше в Україні?',
+    points: 300,
+    accepted: ['Синевир'],
+    lies: ['Світязь', 'Ялпуг', 'Кугурлуй'],
+    choiceTime: 20,
+  };
+  const f4 = { ...common, id: 'f4', type: 'boolean' as const, text: 'Говерла — найвища гора України', points: 500, correct: true };
+  const f5 = { ...common, id: 'f5', type: 'boolean' as const, text: 'Бджоли бачать ультрафіолет', points: 100, correct: true };
+  return { f1, f2, f3, f4, f5 };
+}
+
+/** Рядок розкриття 12d на сторінці (сцена, телефон чи пульт); null — його немає. */
+const revealLine = async (page: Page) => (await page.locator('.reveal-facts').first().textContent({ timeout: 500 }).catch(() => null))?.trim() ?? null;
+
+async function stats12d() {
+  const host = await open('host12d', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12d@example.com');
+
+  const { f1, f2, f3, f4, f5 } = factsQuestions12d();
+  const options = { speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('r1', [f1, f2, f3] as never, { ...options, title: 'Розминка' }),
+        classicRound('r2', [f4] as never, { ...options, title: 'Ривок' }),
+        classicRound('r3', [f5] as never, { ...options, title: 'Фініш' }),
+      ],
+      { leaderboard: 'end' },
+    ),
+    title: 'Цікавинки 12d',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Цікавинки 12d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage12d', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya12d', 375, 812);
+  const petro = await open('petro12d', 375, 812);
+  const ira = await open('ira12d', 375, 812);
+  const marko = await open('marko12d', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await join(marko, code, 'Марко', false);
+  await stage.getByText('Марко').waitFor();
+  const phones = [olya, petro, ira, marko];
+  const all = [host, stage, ...phones];
+  const yes = '(^|\\s)Так$';
+  const no = '(^|\\s)Ні$';
+  const textOf = async (locator: Locator) => (await locator.textContent({ timeout: 500 }).catch(() => null))?.trim() ?? null;
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. f1 — рядок розкриття: Оля перша, далі Іра, Марко й Петро (помиляється).
+  await stage.getByText('Яка найдовша річка України?', exact).waitFor();
+  await pickOption(olya, 'Дніпро');
+  await sleep(1500);
+  await pickOption(ira, 'Дніпро');
+  await pickOption(marko, 'Дніпро');
+  await pickOption(petro, 'Дністер');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.locator('.stage .lead.answer').waitFor();
+  await expect.poll(() => revealLine(stage), POLL).toMatch(/^Правильно 3 з 4 · найшвидше — Оля, \d+,\d\u00a0с$/);
+  expect(await stage.locator('.reveal-facts.is-big').count()).toBe(1);
+  await expect.poll(() => revealLine(olya), POLL).toBe('Твоя правильна відповідь — найшвидша!');
+  await expect.poll(() => revealLine(ira), POLL).toMatch(/^Твоя правильна відповідь — (2-а|3-я) за швидкістю$/);
+  await expect.poll(() => revealLine(petro), POLL).toBe('Правильно відповіли 75\u00a0%');
+  await expect.poll(() => revealLine(host), POLL).toMatch(/^Правильно 3 з 4 · найшвидше — Оля/);
+  await expectStageInView(stage, 'p12d-stage-reveal');
+  await shot(stage, 'p12d-stage-reveal');
+  await expectNoSideScroll(ira, 'p12d-phone-reveal');
+  await shot(ira, 'p12d-phone-reveal');
+  await shot(host, 'p12d-host-reveal');
+
+  // 2. f2 — самотній геній: права лише Іра.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await stage.getByText('Кит — риба', exact).waitFor();
+  await sleep(1500);
+  await pickOption(ira, no);
+  for (const page of [olya, petro, marko]) await pickOption(page, yes);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await expect.poll(() => revealLine(stage), POLL).toMatch(/^Правильно 1 з 4/);
+
+  // 3. f3 — блеф: вигадку Петра обирають Оля й Марко; рядок — лише після правди.
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await stage.getByText('Вигадайте відповідь на телефоні', exact).waitFor();
+  await writeLie(petro, 'Ворскла');
+  await writeLie(olya, 'Тиса');
+  await writeLie(ira, 'Десна');
+  await writeLie(marko, 'Рось');
+  await stage.getByText('Що з цього правда?', exact).waitFor();
+  await expect.poll(() => olya.locator('.bluff-choice button').count(), POLL).toBe(5);
+  await sleep(1500);
+  await pickBluff(olya, 'ворскла');
+  await pickBluff(marko, 'ворскла');
+  await pickBluff(ira, 'синевир');
+  await pickBluff(petro, 'рось');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await host.getByRole('button', { name: 'Відкрити всі', ...exact }).waitFor();
+  await stage.waitForTimeout(500);
+  expect(await stage.locator('.reveal-facts').count(), 'the bluff line before the truth').toBe(0);
+  const beforeTruth = stageFrames.length;
+  await click(host, 'Відкрити всі');
+  await expect.poll(() => stage.locator('.bluff-row:not(.is-closed)').count(), POLL).toBe(5);
+  await expect.poll(() => revealLine(stage), POLL).toBe('Найбільше голосів: вигадка від Петро — 2 голоси');
+  expect(await stage.locator('.stage-bluff .reveal-facts').count()).toBe(1);
+  await expect.poll(() => stage.locator('.bluff-row.is-flipping').count(), POLL).toBe(0);
+  await expectStageInView(stage, 'p12d-stage-bluff');
+  await shot(stage, 'p12d-stage-bluff');
+
+  // 4. Підсумки раунду 1: три картки праворуч від таблиці, «Твій раунд», частки на пульті.
+  await click(host, 'Далі');
+  const roundFacts = stage.locator('aside.round-facts');
+  await roundFacts.waitFor();
+  await stage.locator('.stage-board.is-round-end.has-facts').waitFor();
+  await roundFacts.getByRole('heading', { name: 'Цікавинки раунду', ...exact }).waitFor();
+  expect(await roundFacts.locator('.fact-title').allTextContents()).toEqual(['⚡ Блискавка', '🎯 Снайпер', '🔥 Серія']);
+  expect(await roundFacts.locator('.fact-streak .fact-body').textContent()).toContain('Іра');
+  await stage.locator('.round-best').waitFor();
+  await afterSplash(stage);
+  await expectStageInView(stage, 'p12d-stage-round1');
+  await shot(stage, 'p12d-stage-round1');
+
+  const olyaRound = olya.locator('section.round-card');
+  await olyaRound.getByRole('heading', { name: 'Твій раунд', ...exact }).waitFor();
+  expect(await textOf(olyaRound.locator('p'))).toMatch(
+    /^правильно 1 з 3 · середній час \d+,\d\u00a0с · найшвидша \d+,\d\u00a0с · серія зараз 0 · місце: 4 · тебе обдурили 1 раз$/,
+  );
+  const olyaCards = olya.locator('section.fact-cards');
+  await olyaCards.getByRole('heading', { name: 'Цікавинки раунду', ...exact }).waitFor();
+  expect(await olyaCards.locator('.fact-card').count()).toBe(3);
+  await expectNoSideScroll(olya, 'p12d-phone-round1');
+  await shot(olya, 'p12d-phone-round1');
+
+  const shares = host.locator('ol.round-shares[aria-label="Запитання раунду"] li');
+  await expect.poll(() => shares.count(), POLL).toBe(3);
+  expect(await textOf(shares.first().locator('.name'))).toBe('1. Яка найдовша річка України?');
+  expect(await shares.first().locator('.name').getAttribute('title')).toBe('Яка найдовша річка України?');
+  expect(await shares.locator('.score').allTextContents()).toEqual(['3 з 4', '1 з 4', '1 з 4']);
+  expect(await host.locator('section.fact-cards .fact-card').count()).toBe(3);
+  await expectNoSideScroll(host, 'p12d-host-round1');
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps on the round end').toBe(true);
+  await shot(host, 'p12d-host-round1');
+
+  // 5. Раунд 2 — ривок Петра з другого місця.
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Говерла — найвища гора України', exact).waitFor();
+  await pickOption(petro, yes);
+  for (const page of [olya, ira, marko]) await pickOption(page, no);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  const petroRound = petro.locator('section.round-card');
+  await petroRound.waitFor();
+  // Після раунду 1: Іра 600, Петро 300 (дві обдурені), Марко 250, Оля 100.
+  expect(await textOf(petroRound.locator('p'))).toContain('місце: 2 → 1');
+  await expectNoSideScroll(petro, 'p12d-phone-round2');
+  await shot(petro, 'p12d-phone-round2');
+
+  // 6. Раунд 3 і кінець: п'єдестал чекає ведучого, далі «Нагороди гри».
+  await click(host, 'Наступний раунд');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText('Бджоли бачать ультрафіолет', exact).waitFor();
+  await sleep(500);
+  for (const page of phones) await pickOption(page, yes);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await stage.waitForTimeout(5000);
+  expect(await stage.locator('.is-award').count(), 'the awards started without the host').toBe(0);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  const hostAwards = host.locator('section.fact-cards');
+  await hostAwards.getByRole('heading', { name: 'Нагороди гри', ...exact }).waitFor();
+  const awardTitles = await hostAwards.locator('.fact-title').allTextContents();
+  expect(awardTitles).toEqual(['⚡ Блискавка', '🎯 Снайпер', '🔥 Серія', '📈 Камбек гри', '🎭 Майстер блефу', '🧠 Самотній геній']);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps on the podium').toBe(true);
+  await expectNoSideScroll(host, 'p12d-host-awards');
+  await shot(host, 'p12d-host-awards');
+  const awardTitle = stage.locator('.stage-board.is-award[aria-live="polite"] .award-title');
+  await click(host, 'Нагороди на сцені');
+  await expect.poll(() => textOf(awardTitle), POLL).toBe('⚡ Блискавка');
+  expect(await textOf(stage.locator('.is-award .meta'))).toBe(`Нагороди гри · 1 з ${awardTitles.length}`);
+  expect(await stage.locator('.is-award .award-body').textContent()).toMatch(/\d+,\d\u00a0с/);
+  await expectStageInView(stage, 'p12d-stage-awards');
+  await shot(stage, 'p12d-stage-awards');
+  await click(host, 'Наступна нагорода');
+  await expect.poll(() => textOf(awardTitle), POLL).toBe('🎯 Снайпер');
+  // Далі слайди йдуть самі по 4 с, після останнього — знову п'єдестал.
+  const shown = ['⚡ Блискавка', '🎯 Снайпер'];
+  const until = Date.now() + 40_000;
+  while (Date.now() < until) {
+    const now = await textOf(awardTitle);
+    if (now === null) break;
+    if (shown.at(-1) !== now) shown.push(now);
+    await stage.waitForTimeout(200);
+  }
+  expect(shown).toEqual(awardTitles);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await stage.waitForTimeout(4500);
+  expect(await stage.locator('.is-award').count(), 'the carousel went round again').toBe(0);
+
+  const gameCard = olya.locator('section.game-card');
+  await gameCard.getByRole('heading', { name: 'Твоя гра', ...exact }).waitFor();
+  expect(await textOf(gameCard.locator('.lead'))).toBe('4-е місце');
+  expect(await gameCard.locator('.round-bars[role="img"] .round-bar').count()).toBe(3);
+  const gameLines = (await gameCard.locator('li').allTextContents()).map((line) => line.trim());
+  expect(gameLines).toContain('Точність: 40\u00a0% (2 з 5)');
+  expect(gameLines).toContain('Блеф: твої вигадки обдурили 0 · тебе обдурили 1');
+  await expectNoSideScroll(olya, 'p12d-phone-game');
+  await shot(olya, 'p12d-phone-game');
+
+  // 7. Таємність у кадрах.
+  const olyaViews = stateViews(olyaFrames);
+  expect(olyaViews.some((view) => view.own?.round?.correct === 1 && view.own.round.answered === 3), 'Оля never got her round card').toBe(true);
+  const petroCards = new Set<string>();
+  for (const view of stateViews(petroFrames)) {
+    if (view.own?.round) petroCards.add(JSON.stringify(view.own.round));
+    if (view.own?.game) petroCards.add(JSON.stringify(view.own.game));
+  }
+  expect(petroCards.size, 'Петро never got his cards').toBeGreaterThan(1);
+  for (const view of olyaViews) {
+    if (view.own?.round) expect(petroCards.has(JSON.stringify(view.own.round)), 'Оля got the round card of Петро').toBe(false);
+    if (view.own?.game) expect(petroCards.has(JSON.stringify(view.own.game)), 'Оля got the game card of Петро').toBe(false);
+  }
+  const olyaText = olyaFrames.join(NL);
+  for (const card of petroCards) expect(olyaText.includes(card), 'a card of Петро reached Оля').toBe(false);
+  expect(stageFrames.length).toBeGreaterThan(0);
+  const stageText = stageFrames.join(NL);
+  expect(stageText, 'the stage got own facts').not.toContain('"own":{');
+  expect(stageText, 'the stage got the question shares').not.toContain('"roundQuestions":[');
+  expect(stageText, 'the stage never got the bluff line').toMatch(/"bluff":\{"names"/);
+  expect(stageFrames.slice(0, beforeTruth).join(NL), 'the stage got the bluff line before the truth').not.toMatch(/"bluff":\{"names"/);
+
+  // 8. Історія: ті самі нагороди й таблиця учасників.
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Цікавинки 12d/ }).click();
+  await host.getByRole('heading', { name: 'Нагороди гри', ...exact }).waitFor();
+  expect(await host.locator('.fact-card .fact-title').allTextContents()).toEqual(awardTitles);
+  await host.getByRole('heading', { name: 'Учасники', ...exact }).waitFor();
+  const table = host.locator('.fact-table-wrap .fact-table');
+  expect((await table.locator('thead th').allTextContents()).map((text) => text.trim())).toEqual(['Учасник', 'Точність', 'Середній час', 'Найкраща серія']);
+  const iraCells = (await table.locator('tbody tr', { hasText: 'Іра' }).locator('td').allTextContents()).map((text) => text.trim());
+  expect(iraCells).toHaveLength(4);
+  expect(iraCells[0]).toBe('Іра');
+  expect(iraCells[1]).toBe('80\u00a0% (4 з 5)');
+  expect(iraCells[2]).toMatch(/^\d+,\d\u00a0с$/);
+  expect(iraCells[3]).toBe('3');
+  await expectNoSideScroll(host, 'p12d-history');
+  await shot(host, 'p12d-history');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12d: in-game stats — «Правильно 3 з 4 · найшвидше — Оля» under the answer on the 1280 × 720 stage and the own speed place on a 375 phone, the best bluff after the truth, three «Цікавинки раунду» beside the round end table, «Твій раунд» with «місце: 2 → 1» on the phone, question shares on the host, «Нагороди гри» moved by the host after the podium, «Твоя гра» with round bars, the same awards in the history, and no other player card in phone frames', async () => {
+  try {
+    await stats12d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
