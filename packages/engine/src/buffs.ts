@@ -226,13 +226,15 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       // Без серій нічого берегти.
       return rulesOf(round).streak === null ? 'unfit_streak' : null;
     case 'letter':
-      return (LETTER_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
+      if (!(LETTER_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
+      // Написання без жодної літери чи цифри: показати нічого.
+      return letterOf(question) === null ? 'unfit_type' : null;
     case 'scope':
       return (SCOPE_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
     case 'peek':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
       // Поле: відповідає лише той, хто вибрав клітинку, тож підглянути нема в кого.
-      if (play.board !== undefined) return 'no_answers';
+      if (play.board !== undefined) return 'unfit_board';
       return peekTargets(state, play, playerId).length === 0 ? 'no_answers' : null;
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.

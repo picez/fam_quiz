@@ -1806,11 +1806,10 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
     const block = buffBlock(state, playerId, kind);
     return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
   });
-  // «Підглянути» (12h): кого можна вибрати — лише поки баф можна взяти.
-  const peekable =
-    allowed.includes('peek') && !used.includes('peek') && own === null && !hasAnswered(state, play, playerId)
-      ? peekTargets(state, play, playerId).flatMap((id) => peekPerson(state, id) ?? [])
-      : [];
+  // «Підглянути» (12h): кого можна вибрати — лише поки баф можна взяти (жодної причини buffBlock, зокрема паузи).
+  const peekable = slots.some((slot) => slot.kind === 'peek' && slot.state === 'ready')
+    ? peekTargets(state, play, playerId).flatMap((id) => peekPerson(state, id) ?? [])
+    : [];
   return { slots, active: own === null ? null : activeBuff(state, play, playerId, own), peekable };
 }
 
@@ -1981,8 +1980,10 @@ function revealStats(state: GameState, question: Question): RevealStats {
         ? ['true', 'false']
         : [],
   );
-  const board = state.plays[state.questionIndex]?.board !== undefined;
-  const records = Object.values(currentAnswers(state)).filter((record) => board || record.spare === undefined);
+  const play = state.plays[state.questionIndex];
+  const board = play?.board !== undefined;
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
+  const records = Object.values(currentAnswers(state)).filter((record) => (board || record.spare === undefined) && (play === undefined || !isSilentRisk(play, record)));
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     // У бліці гравець міг натиснути й не встигнути відповісти.
@@ -2345,6 +2346,7 @@ export function hostView(state: GameState): HostView {
   // Штраф за вихід (12e), який ще не дописано: учасники з порогом на цьому запитанні без рядка 'away' під ним.
   const q = state.questionIndex;
   const penalized = unscored || q < 0 ? [] : awayPenalized(state, q).filter((id) => !state.adjustments.some((a) => a.source === 'away' && a.playerId === id && a.afterQuestion - 1 === q));
+  const play = state.plays[state.questionIndex];
   const responses = responders.flatMap((player): HostResponse[] => {
     const record = currentRecord(state, player.id);
     if (record === undefined) return [];
@@ -2366,6 +2368,7 @@ export function hostView(state: GameState): HostView {
         // Голос людини в командній грі — позначка самої людини; рядок команди — її люди.
         away: awayPeople(state, player.id),
         awayPenalty: record.points > 0 && penalized.includes(player.id),
+        silent: play !== undefined && isSilentRisk(play, record),
       },
     ];
   });

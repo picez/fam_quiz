@@ -113,6 +113,7 @@ describe('while a question is open', () => {
         clue: null,
         away: [],
         awayPenalty: false,
+        silent: false,
       },
     ]);
   });

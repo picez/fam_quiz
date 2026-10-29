@@ -79,4 +79,23 @@ describe('power views (12h)', () => {
     s = must(next(s, T0 + 5000, rng0));
     expect(playerView(s, 'p1')?.me.result).toMatchObject({ grade: 'wrong', points: -1000 });
   });
+
+  it('the host row of a silent «Ризик» is silent and cannot be graded; the others are not silent', () => {
+    let s = must(takeBuff(toPowersQuestion(), 'p1', 'risk', T0 + 300, rng0));
+    s = answer(s, 'p3', B, T0 + 800);
+    s = must(lock(s));
+    const responses = hostView(s).responses;
+    expect(responses.find((r) => r.playerId === 'p1')).toMatchObject({ silent: true, answer: null, buff: 'risk', points: -1000 });
+    expect(responses.find((r) => r.playerId === 'p3')?.silent).toBe(false);
+    s = must(next(s, T0 + 5000, rng0));
+    expect(hostView(s).responses.find((r) => r.playerId === 'p1')?.silent).toBe(true);
+  });
+
+  it('the reveal counters do not count a silent «Ризик» as answered', () => {
+    let s = must(takeBuff(toPowersQuestion(), 'p1', 'risk', T0 + 300, rng0));
+    s = answer(s, 'p3', B, T0 + 800);
+    s = must(next(must(lock(s)), T0 + 5000, rng0));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).stats).toMatchObject({ answered: 1, counts: { b: 1 } });
+  });
 });

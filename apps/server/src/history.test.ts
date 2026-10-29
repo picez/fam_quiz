@@ -1945,3 +1945,39 @@ describe('games without a host in the history (11h)', () => {
     expect((await playerGames(db, 'author', null)).map((g) => [g.played.gameId, g.played.autopilot])).toEqual([[bot.gameId, true]]);
   });
 });
+
+describe('history: penalty rows in the responses (12h)', () => {
+  it('a blitz or final penalty row stays hidden; only a silent «Ризик» penalty row shows, with its buff and no answer', async () => {
+    const [account] = await db.insert(user).values({ id: 'penalty-rows-host', name: 'Ведуча', email: 'penalty-rows-host@example.com' }).returning();
+    const snapshot = makeRoundsQuiz([blitzRound('r1', [single]), classicRound('r2', [withId(single, 'q2')]), finalRound('r3', withId(single, 'f1'))]);
+    const { gameId } = await seedGame(db, {
+      hostId: account.id,
+      startedAt: new Date(),
+      snapshot,
+      questionsPlayed: 3,
+      players: [
+        {
+          userId: null,
+          nickname: 'Оля',
+          score: -1300,
+          rank: 2,
+          rows: [
+            { questionIndex: 0, roundIndex: 0, attempt: 0, accepted: false, points: 0 },
+            { questionIndex: 0, roundIndex: 0, attempt: PENALTY_ATTEMPT, accepted: false, points: -100 },
+            { questionIndex: 1, roundIndex: 1, attempt: PENALTY_ATTEMPT, accepted: false, points: -1000, buff: 'risk' },
+            { questionIndex: 2, roundIndex: 2, attempt: PENALTY_ATTEMPT, accepted: false, points: -200, wager: 200 },
+          ],
+        },
+        { userId: null, nickname: 'Тарас', score: 1000, rank: 1, rows: [{ questionIndex: 1, roundIndex: 1, accepted: true, points: 1000 }] },
+      ],
+    });
+    const detail = await hostGame(db, account.id, gameId);
+    const responses = (index: number) => detail?.questions[index]?.responses.map((r) => [r.nickname, r.answer, r.accepted, r.buff]);
+    expect(responses(0)).toEqual([['Оля', null, false, null]]);
+    expect(responses(1)).toEqual([
+      ['Тарас', null, true, null],
+      ['Оля', null, false, 'risk'],
+    ]);
+    expect(responses(2)).toEqual([]);
+  });
+});

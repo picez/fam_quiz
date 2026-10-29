@@ -186,4 +186,68 @@ describe('where the first letter and the binoculars go (12h)', () => {
     expect(buffBlock(s, 'p1', 'scope')).toBe('taken');
     expect(takeBuff(s, 'p1', 'letter', T0 + 1500, rng0)).toEqual({ ok: false, error: 'buff_busy' });
   });
+
+  it('a text answer with no letter or digit gives the first letter nothing to show: unfit', () => {
+    const dashes = { ...text, accepted: ['—'] };
+    expect(letterOf(dashes)).toBeNull();
+    expect(buffBlock(open(dashes), 'p1', 'letter')).toBe('unfit_type');
+    expect(takeBuff(open(dashes), 'p1', 'letter', T0 + 500, rng0)).toEqual({ ok: false, error: 'buff_unfit' });
+  });
+
+  it('a number range around zero has no negative zero; a slider range stays inside the scale', () => {
+    const zero = pickScope({ ...numeric, correct: 0 }, () => 1).range!;
+    expect(zero).toEqual({ min: -4, max: 0 });
+    expect(Object.is(zero.max, -0)).toBe(false);
+    const up = pickScope({ ...numeric, correct: 0 }, rng0).range!;
+    expect(Object.is(up.min, -0)).toBe(false);
+    expect(pickScope({ ...numeric, correct: -0.5 }, () => 0.875).range).toEqual({ min: -4, max: 0 });
+    expect(Object.is(pickScope({ ...numeric, correct: -0.5 }, () => 0.875).range!.max, -0)).toBe(false);
+    for (const rng of [0, 0.3, 0.999, 1]) {
+      const { min, max } = pickScope({ ...slider, min: -10, max: 10, step: 1, correct: -10 }, () => rng).range!;
+      expect(min).toBeGreaterThanOrEqual(-10);
+      expect(max).toBeLessThanOrEqual(10);
+      expect(Object.is(min, -0) || Object.is(max, -0)).toBe(false);
+    }
+  });
+});
+
+describe('power secrets (12h)', () => {
+  /** Зрізи всіх, крім власника: сцена, пульт, інші телефони. */
+  const others = (s: GameState, owner: string) => [stageView(s), hostView(s), ...['p1', 'p2', 'p3'].filter((id) => id !== owner).map((id) => playerView(s, id))];
+  /** Від запитання: закриття й розкриття о at. */
+  const toReveal = (s: GameState, at: number) => must(next(must(lock(s)), at, rng0));
+  const secretsOf = (view: unknown) => JSON.stringify(view);
+  const expectHidden = (s: GameState, owner: string, secrets: string[]) => {
+    for (const view of others(s, owner)) for (const secret of secrets) expect(secretsOf(view)).not.toContain(secret);
+  };
+
+  it('the first letter mask reaches nobody else at the question or at the reveal', () => {
+    const s = take(toPowers(2), 'p1', 'letter', at(2, 500));
+    expect(secretsOf(playerView(s, 'p1'))).toContain('О _ _ _ _');
+    expectHidden(s, 'p1', ['О _ _ _ _', '"letter":{']);
+    const revealed = toReveal(s, at(2, 5000));
+    expect(revealed.phase).toBe('reveal');
+    expectHidden(revealed, 'p1', ['О _ _ _ _', '"letter":{']);
+  });
+
+  it('the binoculars range and map window reach nobody else at the question or at the reveal', () => {
+    const slider = take(toPowers(3), 'p1', 'scope', at(3, 500), rngHalf);
+    expect(secretsOf(playerView(slider, 'p1'))).toContain('"scope":{');
+    expectHidden(slider, 'p1', ['"scope":{', '"range":{']);
+    expectHidden(toReveal(slider, at(3, 5000)), 'p1', ['"scope":{', '"range":{']);
+    const map = take(toPowers(5), 'p1', 'scope', at(5, 500), rngHalf);
+    expect(secretsOf(playerView(map, 'p1'))).toContain('"scope":{');
+    expectHidden(map, 'p1', ['"scope":{', '"zoom":{']);
+    expectHidden(toReveal(map, at(5, 5000)), 'p1', ['"scope":{', '"zoom":{']);
+  });
+
+  it('the peeked answer reaches nobody but the peeker at the question; at the reveal nobody holds a peek', () => {
+    let s = answer(toPowersQuestion(), 'p3', { type: 'single', optionId: 'b' }, T0 + 800);
+    s = must(takeBuff(s, 'p2', 'peek', T0 + 1000, rng0, 'p3'));
+    expect(secretsOf(playerView(s, 'p2'))).toContain('"peek":{');
+    expectHidden(s, 'p2', ['"peek":{']);
+    const revealed = toReveal(s, T0 + 5000);
+    expectHidden(revealed, 'p2', ['"peek":{']);
+    expect(secretsOf(playerView(revealed, 'p2'))).not.toContain('"peek":{');
+  });
 });

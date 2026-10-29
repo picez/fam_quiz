@@ -786,13 +786,13 @@ describe('recorder: blitz', () => {
 describe('recorder: board', () => {
   const cell = (id: string, points: number, timeLimit = 30) => ({ ...withId(single, id), points, timeLimit });
 
-  async function boardSetup(round: ReturnType<typeof boardRound>) {
+  async function boardSetup(round: ReturnType<typeof boardRound>, settings: Parameters<typeof makeRoundsQuiz>[1] = {}) {
     const db = await createTestDb();
     await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
     const scheduler = new FakeScheduler();
     const manager = new RoomManager(scheduler, () => 0.5);
     const recorder = attachRecorder(manager, db);
-    const room = manager.create(makeRoundsQuiz([round]), HOST, null);
+    const room = manager.create(makeRoundsQuiz([round], settings), HOST, null);
     const enter = (nickname: string) => {
       const joined = manager.join(room.code, nickname);
       if (!joined.ok) throw new Error(joined.error);
@@ -861,6 +861,36 @@ describe('recorder: board', () => {
       ]),
     );
     expect(answers).toHaveLength(3);
+  });
+
+  /** Рядок відповіді без службових полів: точне порівняння рядків «Ризику». */
+  const riskRow = (a: typeof answer.$inferSelect) => ({ questionIndex: a.questionIndex, attempt: a.attempt, payload: a.payload, accepted: a.accepted, points: a.points, buff: a.buff, overridden: a.overridden });
+
+  it('12h: risk on a phone cell that runs out of time is an answer row with no answer and minus the stake (not a silent-risk penalty row)', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [cell('c11', 100, 10), cell('c12', 200)] }]);
+    const { scheduler, manager, room, olena, saved } = await boardSetup(round, { buffs: ['risk'] });
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    expect(manager.buff(room, olena, 'risk')).toEqual({ ok: true });
+    scheduler.advance(10_000);
+    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    const { answers } = await saved();
+    expect(answers.map(riskRow)).toEqual([{ questionIndex: 0, attempt: 0, payload: null, accepted: false, points: -100, buff: 'risk', overridden: false }]);
+    expect(room.state.players.find((p) => p.id === olena)?.score).toBe(-100);
+  });
+
+  it('12h: risk on a voice cell graded right after the close is an answer row with the triple', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ question: cell('c11', 100), answerMode: 'voice' as const }, cell('c12', 200)] }]);
+    const { manager, room, olena, saved } = await boardSetup(round, { buffs: ['risk'] });
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    expect(manager.buff(room, olena, 'risk')).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'override', playerId: olena, grade: 'correct' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const { answers } = await saved();
+    expect(answers.map(riskRow)).toEqual([{ questionIndex: 0, attempt: 0, payload: null, accepted: true, points: 300, buff: 'risk', overridden: false }]);
+    expect(room.state.players.find((p) => p.id === olena)?.score).toBe(300);
   });
   it('a final answer is stored with its signed wager and silence as a points row', async () => {
     const db = await createTestDb();
@@ -1094,9 +1124,11 @@ describe('recorder: buffs', () => {
     expect(scoreOf(ctx.taras)).toBe(3000);
     let { answers } = await ctx.saved();
     const row = (id: string) => answers.find((a) => a.participantId === id && a.questionIndex === 0);
-    expect(row(ctx.olena)).toMatchObject({ attempt: PENALTY_ATTEMPT, payload: null, points: -1000, accepted: false, buff: 'risk' });
-    expect(row(ctx.taras)).toMatchObject({ attempt: 0, payload: correct, points: 3000, accepted: true, buff: 'risk' });
-    expect(row(ira)).toMatchObject({ attempt: 0, points: 1000, buff: null });
+    const exact = (a: (typeof answers)[number] | undefined) => a && { attempt: a.attempt, payload: a.payload, points: a.points, streakBonus: a.streakBonus, accepted: a.accepted, overridden: a.overridden, buff: a.buff, spareId: a.spareId };
+    expect(exact(row(ctx.olena))).toEqual({ attempt: PENALTY_ATTEMPT, payload: null, points: -1000, streakBonus: 0, accepted: false, overridden: false, buff: 'risk', spareId: null });
+    expect(exact(row(ctx.taras))).toEqual({ attempt: 0, payload: correct, points: 3000, streakBonus: 0, accepted: true, overridden: false, buff: 'risk', spareId: null });
+    expect(exact(row(ira))).toEqual({ attempt: 0, payload: correct, points: 1000, streakBonus: 0, accepted: true, overridden: false, buff: null, spareId: null });
+    expect(answers.filter((a) => a.questionIndex === 0)).toHaveLength(3);
 
     // Друге запитання: Іра бере «Ризик» і помиляється, Тарас помиляється без бафу, Олена відповідає правильно.
     while (ctx.room.state.phase !== 'question') ctx.host('next');
@@ -1106,7 +1138,7 @@ describe('recorder: buffs', () => {
     ctx.manager.answer(ctx.room, ctx.olena, correct);
     expect(ctx.room.state.phase).not.toBe('question');
     ({ answers } = await ctx.saved());
-    expect(answers.find((a) => a.participantId === ira && a.questionIndex === 1)).toMatchObject({ attempt: 0, payload: wrong, points: -1000, buff: 'risk' });
+    expect(exact(answers.find((a) => a.participantId === ira && a.questionIndex === 1))).toEqual({ attempt: 0, payload: wrong, points: -1000, streakBonus: 0, accepted: false, overridden: false, buff: 'risk', spareId: null });
 
     // Скасування 12a знімає мінус мовчання; сума рядків і коригувань — далі рахунок.
     ctx.host('next');

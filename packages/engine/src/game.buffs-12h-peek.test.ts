@@ -1,7 +1,7 @@
 import type { Answer, Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { buffBlock, buffOf, peekTargets, takeBuff } from './buffs';
-import { lock, next, removePlayer, submitAnswer, type GameState } from './game';
+import { lock, next, pause, removePlayer, submitAnswer, type GameState } from './game';
 import { actAnswer, actorOf } from './team-act';
 import { T0, toBuffCell, toOthersQuestion, toPowersQuestion } from './testing/buffs';
 import { bluff, classicRound, makeQuiz, order, single4 } from './testing/fixtures';
@@ -82,7 +82,8 @@ describe('peek (12h)', () => {
     expect(buffBlock(open(order), 'p1', 'peek')).toBe('unfit_type');
     expect(buffBlock(open(bluff), 'p1', 'peek')).toBe('unfit_bluff');
     const cell = toBuffCell({}, 'auto', ['peek']);
-    expect(buffBlock(cell, 'p1', 'peek')).toBe('no_answers');
+    // На полі відповідає лише той, хто вибрав клітинку: своя причина, а не «ще немає відповідей».
+    expect(buffBlock(cell, 'p1', 'peek')).toBe('unfit_board');
     expect(takeBuff(cell, 'p1', 'peek', T0 + 500, rng0, 'p2')).toEqual({ ok: false, error: 'buff_unfit' });
   });
 
@@ -131,5 +132,13 @@ describe('peek (12h)', () => {
     s = must(next(s, T0 + 5000, rng0));
     expect(s.phase).toBe('reveal');
     expect(playerView(s, 'p3')?.me.peekedBy).toMatchObject({ nickname: 'Петро' });
+  });
+
+  it('while peek is blocked, nobody is peekable', () => {
+    let s = must(submitAnswer(toPowersQuestion(), 'p3', { type: 'single', optionId: 'b' }, T0 + 800));
+    expect(playerView(s, 'p2')?.me.buffs?.peekable).toEqual([{ playerId: 'p3', nickname: 'Іра' }]);
+    s = must(pause(s, T0 + 900));
+    expect(buffBlock(s, 'p2', 'peek')).toBe('paused');
+    expect(playerView(s, 'p2')?.me.buffs?.peekable).toEqual([]);
   });
 });
