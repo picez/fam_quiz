@@ -3176,15 +3176,21 @@ button.match-item {
   list-style: none;
 }
 
-.achievements li {
-  padding: 0.375rem 0.75rem;
+.achievement-strip li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: 50%;
   background: var(--panel);
+  font-size: 1.75rem;
+  line-height: 1;
 }
 
-.achievements .locked {
-  opacity: 0.4;
+.achievement-strip-more {
+  margin: 0.5rem 0 0;
 }
 
 /* ---------- Фінал: ставки ---------- */

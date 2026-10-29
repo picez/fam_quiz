@@ -1518,7 +1518,6 @@ const uk = {
   achievementsAll: 'Усі ачівки →',
   achievementsNone: 'Ще жодної ачівки',
   achievementsEmptyPublic: 'Ще жодної ачівки. Усе попереду!',
-  achievementLocked: '{name} (ще не отримано)',
   avatarOf: 'Аватар {nickname}',
   emailHidden: 'email приховано',
   addFriend: 'Додати в друзі',

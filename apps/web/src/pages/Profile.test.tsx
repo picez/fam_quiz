@@ -59,6 +59,14 @@ const open = () =>
   );
 
 describe('Profile', () => {
+  it('shows a row of earned badges linking to the achievements page', async () => {
+    open();
+    expect(await screen.findByText('Олена')).toBeTruthy();
+    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/achievements');
+    expect(document.body.textContent).not.toContain('🔒');
+  });
+
   it('shows the podium numbers of the own profile', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,

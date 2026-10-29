@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
-import { AchievementList } from '../profile/AchievementList';
+import { AchievementStrip } from '../profile/AchievementStrip';
 import { Avatar } from '../profile/Avatar';
 import { StatsView } from '../profile/StatsView';
 import { VersusBlock } from '../profile/VersusBlock';
@@ -108,7 +108,7 @@ export function PublicProfile() {
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
-        <AchievementList achievements={profile.achievements} />
+        <AchievementStrip achievements={profile.achievements} to={`/profile/${profile.id}/achievements`} />
       </section>
     </main>
   );

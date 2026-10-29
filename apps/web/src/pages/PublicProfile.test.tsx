@@ -38,6 +38,13 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('shows a row of earned badges linking to another player achievements page', async () => {
+    open();
+    expect(await screen.findByText('Тарас')).toBeTruthy();
+    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/u2/achievements');
+  });
+
   it('shows the podium numbers of a public profile', async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ok: true,
