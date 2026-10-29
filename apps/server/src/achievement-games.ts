@@ -12,7 +12,7 @@ import {
   type Quiz,
   type RoundType,
 } from '@quiz/shared';
-import { and, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { answer, AWAY_ATTEMPT, game, participant, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { AchievementWho } from './game-achievements';
@@ -126,7 +126,7 @@ function questionsOf(rawSnapshot: unknown, plays: PlayRef[], questionsPlayed: nu
   });
 }
 
-/** Ігри за id для ачівок: чотири запити на всю пачку (ігри, учасники, відповіді, коригування) і розбір знімка в Node. Порядок — як у gameIds. */
+/** Завершені ігри за id для ачівок: чотири запити на всю пачку (ігри, учасники, відповіді, коригування) і розбір знімка в Node. Порядок — як у gameIds; незавершених немає. */
 export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<AchievementGame[]> {
   if (gameIds.length === 0) return [];
   const games = await db
@@ -140,7 +140,8 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
       quizSnapshot: game.quizSnapshot,
     })
     .from(game)
-    .where(inArray(game.id, gameIds));
+    // Ачівки дають лише завершені ігри.
+    .where(and(inArray(game.id, gameIds), eq(game.status, 'finished')));
   if (games.length === 0) return [];
 
   const participants = await db

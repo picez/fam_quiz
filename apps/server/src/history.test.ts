@@ -4,7 +4,7 @@ import { breakdownOf, DEFAULT_RULES, defaultTeams, type Answer, type Question } 
 import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { gameTables, hostGame, hostGames, playerGames } from './history';
+import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -1979,5 +1979,91 @@ describe('history: penalty rows in the responses (12h)', () => {
       ['Оля', null, false, 'risk'],
     ]);
     expect(responses(2)).toEqual([]);
+  });
+});
+
+describe('answeredTypes (12i)', () => {
+  const host = 'types-host';
+  const olya = 'types-olya';
+  const petro = 'types-petro';
+  const cell = withId(pin, 'types-pin');
+  const typesQuiz = makeRoundsQuiz([
+    classicRound('r1', [single, text, poll, bool]),
+    // Схема вимагає поля щонайменше 3 × 3.
+    boardRound(
+      'b1',
+      ['Дніпро', 'Чернівці', 'Буковина'].map((title, c) => ({
+        title,
+        cells: [0, 1, 2].map((i) => (c === 0 && i === 0 ? cell : withId(text, `types-${c}-${i}`))),
+      })),
+    ),
+  ]);
+  const typesPlays = [
+    { roundIndex: 0, questionId: single.id },
+    { roundIndex: 0, questionId: text.id },
+    { roundIndex: 0, questionId: poll.id },
+    { roundIndex: 0, questionId: bool.id },
+    { roundIndex: 1, questionId: cell.id, cell: { cellId: cell.id, chooserId: 'chooser' } },
+  ];
+
+  beforeAll(async () => {
+    await db.insert(user).values([
+      { id: host, name: 'Ведуча', email: 'types-host@example.com' },
+      { id: olya, name: 'Оля', email: 'types-olya@example.com' },
+      { id: petro, name: 'Петро', email: 'types-petro@example.com' },
+    ]);
+  });
+
+  it('counts main questions with own answers and own votes, not spares, and teams by answered_by', async () => {
+    await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-10-01T18:00:00Z'),
+      snapshot: typesQuiz,
+      questionsPlayed: 5,
+      plays: typesPlays,
+      players: [
+        {
+          userId: olya,
+          nickname: 'Оля',
+          score: 0,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, accepted: true, points: 0 },
+            { questionIndex: 1, accepted: false, points: 0 },
+            { questionIndex: 2, attempt: VOTE_ATTEMPT, accepted: false, points: 0 },
+            // Запасне замість bool: тип основного не рахується.
+            { questionIndex: 3, accepted: true, points: 0, spareId: 'spare-1' },
+            { questionIndex: 4, roundIndex: 1, accepted: true, points: 0 },
+          ],
+        },
+      ],
+    });
+    expect(await answeredTypes(db, olya)).toEqual(new Set(['single', 'text', 'poll', 'pin']));
+
+    // Командна гра: відповідь команди належить тому, хто відповідав.
+    await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-10-02T18:00:00Z'),
+      snapshot: typesQuiz,
+      questionsPlayed: 4,
+      plays: typesPlays,
+      players: [
+        { userId: null, nickname: 'Червоні', score: 0, rank: 1, isTeam: true, rows: [{ questionIndex: 3, accepted: true, points: 0, answeredBy: 2 }] },
+        { userId: olya, nickname: 'Оля', score: 0, rank: 1, teamOf: 0 },
+        { userId: petro, nickname: 'Петро', score: 0, rank: 1, teamOf: 0 },
+      ],
+    });
+    expect(await answeredTypes(db, petro)).toEqual(new Set(['boolean']));
+    expect(await answeredTypes(db, olya)).toEqual(new Set(['single', 'text', 'poll', 'pin']));
+  });
+
+  it('an old game without plays gives no types', async () => {
+    const [account] = await db.insert(user).values({ id: 'types-old', name: 'Віра', email: 'types-old@example.com' }).returning();
+    await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-01-01T18:00:00Z'),
+      players: [{ userId: account.id, nickname: 'Віра', score: 100, rank: 1, rows: [{ questionIndex: 0, accepted: true, points: 100 }] }],
+    });
+    expect(await answeredTypes(db, account.id)).toEqual(new Set());
   });
 });

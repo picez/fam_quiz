@@ -45,7 +45,8 @@ describe('own profile', () => {
     expect(body.nickname).toBe('Олена');
     expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина' }]);
     expect(body.friends).toEqual([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
-    expect(body.achievements).toHaveLength(16);
+    expect(body.achievements).toHaveLength(48);
+    expect(body.achievements[0]).toEqual({ id: 'first_game', earned: false, earnedAt: null });
     expect(body.stats.quizzes).toBe(1);
   });
 
@@ -221,5 +222,42 @@ describe('podium (11f)', () => {
     const expected = { podium: { first: 0, second: 1, third: 0 }, top3: 100, bestScore: 600, avgPlace: 2 };
     expect((await request('GET', `/api/profiles/${oksanaId}`)).json().stats).toMatchObject(expected);
     expect((await request('GET', '/api/me/profile', oksana.cookie)).json().stats).toMatchObject(expected);
+  });
+});
+
+describe('achievements pages (12i)', () => {
+  it('my page needs a session and has all 48; somebody else’s page has only the earned ones without progress', async () => {
+    const yarema = await signUp(ctx.app, 'Ярема');
+    const yaremaId = await idOf(yarema.cookie);
+    await seedGame(db, {
+      hostId: tarasId,
+      startedAt: new Date(Date.UTC(2026, 2, 1, 18)),
+      players: [
+        { userId: yaremaId, nickname: 'Ярема', score: 100, rank: 1 },
+        { userId: null, nickname: 'Гість', score: 0, rank: 2 },
+      ],
+    });
+
+    expect((await request('GET', '/api/me/achievements')).statusCode).toBe(401);
+    const own = await request('GET', '/api/me/achievements', yarema.cookie);
+    expect(own.statusCode).toBe(200);
+    const page = own.json();
+    expect(Object.keys(page).sort()).toEqual(['earned', 'items', 'own', 'profile', 'total']);
+    expect(page.own).toBe(true);
+    expect(page.items).toHaveLength(48);
+    expect(page.items.find((i: { id: string }) => i.id === 'games_10').progress).toEqual({ current: 1, goal: 10 });
+
+    for (const cookie of [undefined, olena.cookie, yarema.cookie]) {
+      const response = await request('GET', `/api/profiles/${yaremaId}/achievements`, cookie);
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.own).toBe(false);
+      expect(body.profile).toEqual({ id: yaremaId, nickname: 'Ярема', avatar: null });
+      expect(body.items.map((i: { id: string }) => i.id)).toEqual(['first_game', 'first_win']);
+      expect(body.items.every((i: { earned: boolean; progress: unknown }) => i.earned && i.progress === null)).toBe(true);
+      expect(response.body).not.toContain(yarema.email);
+    }
+    expect((await request('GET', '/api/profiles/nobody/achievements')).statusCode).toBe(404);
+    expect((await request('GET', `/api/profiles/${'x'.repeat(65)}/achievements`)).statusCode).toBe(404);
   });
 });

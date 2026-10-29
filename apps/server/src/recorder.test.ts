@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
-import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
+import * as store from './achievement-store';
+import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
 import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
@@ -14,6 +15,11 @@ import { TRIAL_WRONG, playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { createTestDb } from './testing/test-db';
 import { recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
+
+vi.mock('./achievement-store', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./achievement-store')>();
+  return { ...original, awardGame: vi.fn(original.awardGame) };
+});
 
 const HOST = 'host-user';
 const correct = { type: 'single', optionId: 'b' } as const;
@@ -1916,5 +1922,47 @@ describe('recorder: debuff, clue and answerer columns (12i)', () => {
     expect(votes).toHaveLength(4);
     for (const vote of votes) expect(vote[3]).toBeNull();
     expect(ctx.errors).toEqual([]);
+  });
+});
+
+describe('recorder: achievements (12i)', () => {
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  /** Дві відповіді Олени й кінець гри. */
+  const playToFinish = (ctx: Awaited<ReturnType<typeof setup>>) => {
+    ctx.host('start');
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    ctx.host('next');
+    ctx.host('end');
+  };
+  const earnedBy = (db: Db, userId: string) => db.select().from(userAchievement).where(eq(userAchievement.userId, userId));
+
+  it('a finished game awards its players with the game, once', async () => {
+    const ctx = await setup();
+    vi.mocked(store.awardGame).mockClear();
+    playToFinish(ctx);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toEqual([]);
+    const rows = await earnedBy(ctx.db, 'olena-user');
+    expect(rows.map((r) => r.achievementId)).toEqual(expect.arrayContaining(['first_game', 'first_win']));
+    expect(rows.every((r) => r.gameId === ctx.room.id)).toBe(true);
+    expect((await earnedBy(ctx.db, HOST)).map((r) => r.achievementId)).toEqual(['host']);
+    expect(vi.mocked(store.awardGame)).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed award is retried with the save and writes the achievements then', async () => {
+    const ctx = await setup(undefined, 10);
+    vi.mocked(store.awardGame).mockRejectedValueOnce(new Error('awarding failed'));
+    playToFinish(ctx);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toHaveLength(1);
+    // Сама гра вже записана.
+    expect((await ctx.saved()).games[0].status).toBe('finished');
+
+    await wait(80);
+    await ctx.recorder.idle();
+    const rows = await earnedBy(ctx.db, 'olena-user');
+    expect(rows.map((r) => r.achievementId)).toContain('first_game');
+    expect(rows.every((r) => r.gameId === ctx.room.id)).toBe(true);
   });
 });

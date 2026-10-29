@@ -199,4 +199,15 @@ describe('loadAchievementGames', () => {
     const loaded = await loadAchievementGames(db, ['00000000-0000-4000-8000-000000000000', id]);
     expect(loaded.map((g) => g.gameId)).toEqual([id]);
   });
+
+  it('reads only finished games, in the order of the ids', async () => {
+    const seed = (status: 'finished' | 'aborted' | 'running', day: number) =>
+      seedGame(db, { hostId: HOST, status, startedAt: new Date(Date.UTC(2026, 9, day, 18)), players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }] });
+    const first = await seed('finished', 1);
+    const aborted = await seed('aborted', 2);
+    const running = await seed('running', 3);
+    const last = await seed('finished', 4);
+    const loaded = await loadAchievementGames(db, [last.gameId, aborted.gameId, running.gameId, first.gameId]);
+    expect(loaded.map((g) => g.gameId)).toEqual([last.gameId, first.gameId]);
+  });
 });

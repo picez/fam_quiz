@@ -1,6 +1,7 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
+import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -416,10 +417,13 @@ export function attachRecorder(
   const closedRooms = new Set<string>();
   /** Дебафи, що спрацювали на запитаннях кімнати (12i): закриття запитання прибирає їх зі стану раніше, ніж рекордер його запише. */
   const debuffsSeen = new Map<string, DebuffsSeen>();
+  /** Кімнати, чию завершену гру вже нагороджено ачівками (12i). */
+  const awarded = new Set<string>();
 
   const forget = (roomId: string) => {
     for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen]) map.delete(roomId);
     closedRooms.delete(roomId);
+    awarded.delete(roomId);
   };
 
   /** Запам'ятати дебафи, що діють на відкритому запитанні: після закриття їх у стані вже немає. */
@@ -465,6 +469,11 @@ export function attachRecorder(
       const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
       await save(db, { ...snapshot, fromQuestion });
       savedQuestions.set(room.id, closed);
+      // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
+      if (state.phase === 'finished' && !awarded.has(room.id)) {
+        await awardGame(db, room.id);
+        awarded.add(room.id);
+      }
       failures.delete(room.id);
     };
 

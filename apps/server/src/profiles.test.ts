@@ -13,7 +13,7 @@ import { follow, game, participant, profile, user } from './db/schema';
 import { ensureProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
-import { defaultTeams, questionsOf } from '@quiz/shared';
+import { ACHIEVEMENTS, defaultTeams, questionsOf } from '@quiz/shared';
 import { seedGame } from './testing/history-rows';
 import { TEAM_HOST, TEAM_USERS, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 import { hostGames, playerGames } from './history';
@@ -169,8 +169,13 @@ describe('profile facts', () => {
     });
     expect(olena.wins).toEqual([{ gameId, title: 'Тестова вікторина', startedAt: expect.any(String), rank: 1 }]);
     expect(Date.parse(olena.wins[0].startedAt)).not.toBeNaN();
-    expect(earned(olena.achievements)).toEqual(['first_game', 'first_win']);
-    expect(olena.achievements).toHaveLength(16);
+    // 12i: відповіді в тесті миттєві, тож Олена має й «Швидкі пальці» (правильна швидше ніж за 2 с).
+    expect(earned(olena.achievements)).toEqual(['first_game', 'first_win', 'fast_answer']);
+    expect(olena.achievements).toHaveLength(48);
+    // 12i: дата — ISO-мить отримання (гра записана й нагороджена) чи null для неотриманих.
+    expect(olena.achievements.map((a) => a.id)).toEqual([...ACHIEVEMENTS]);
+    for (const a of olena.achievements) expect(a.earnedAt === null || !Number.isNaN(Date.parse(a.earnedAt))).toBe(true);
+    expect(olena.achievements.filter((a) => !a.earned).every((a) => a.earnedAt === null)).toBe(true);
 
     const host = await profileFacts(db, hostId);
     expect(host.stats).toEqual({
@@ -295,8 +300,9 @@ describe('profile facts', () => {
       title: `Гра ${i}`,
       quizSnapshot: {},
       questionsPlayed: 0,
-      startedAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
-      finishedAt: new Date(Date.UTC(2026, 0, 1, 1, i)),
+      // Удень за Києвом (12i): нічні ігри дали б ще й «Нічну сову».
+      startedAt: new Date(Date.UTC(2026, 0, 1, 10, i)),
+      finishedAt: new Date(Date.UTC(2026, 0, 1, 11, i)),
     }));
     await db.insert(game).values(games);
     await db.insert(participant).values(

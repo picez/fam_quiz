@@ -13,6 +13,7 @@ import {
   LIFELINES,
   isUnscored,
   questionPrice,
+  QUESTION_TYPES,
   questionsOf,
   findCell,
   roundQuestions,
@@ -38,13 +39,15 @@ import {
   type PlayedGame,
   type FinalRound,
   type Question,
+  type QuestionType,
   type Quiz,
   type ResumeOption,
   type Round,
   type ScoreLine,
 } from '@quiz/shared';
 import { orderBluffOptions } from '@quiz/engine';
-import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
@@ -830,6 +833,40 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
   });
+}
+
+const QUESTION_TYPE_SET: ReadonlySet<string> = new Set(QUESTION_TYPES);
+
+/**
+ * Різні типи основних запитань (без запасних), на які є відповідь користувача: свої рядки, голоси людини, рядки команди
+ * з answered_by = рядок людини; без AWAY_ATTEMPT. Тип — у SQL із game.plays і знімка (запитання раунду чи клітинки поля),
+ * без читання знімка в Node; старі ігри без plays типів не дають. exceptGameId — гра, якої не враховувати.
+ */
+export async function answeredTypes(db: Db, userId: string, exceptGameId: string | null = null): Promise<Set<QuestionType>> {
+  const person = alias(participant, 'person');
+  const ref = sql`${game.plays}->${answer.questionIndex}`;
+  const round = sql`${game.quizSnapshot}->'rounds'->((${ref}->>'roundIndex')::int)`;
+  const vars = sql`jsonb_build_object('id', ${ref}->'questionId')`;
+  const type = sql<string | null>`coalesce(
+    jsonb_path_query_first(${round}, '$.questions[*] ? (@.id == $id).type', ${vars}),
+    jsonb_path_query_first(${round}, '$.categories[*].cells[*].question ? (@.id == $id).type', ${vars})
+  ) #>> '{}'`;
+  const rows = await db
+    .selectDistinct({ type })
+    .from(person)
+    .innerJoin(game, eq(game.id, person.gameId))
+    // Свій рядок (відповідь соло чи голос людини) або рядок команди, де відповідала ця людина.
+    .innerJoin(answer, or(eq(answer.participantId, person.id), and(eq(answer.participantId, person.teamId), eq(answer.answeredBy, person.id))))
+    .where(
+      and(
+        eq(person.userId, userId),
+        isNull(answer.spareId),
+        ne(answer.attempt, AWAY_ATTEMPT),
+        sql`${answer.questionIndex} < ${game.questionsPlayed}`,
+        exceptGameId === null ? undefined : ne(game.id, exceptGameId),
+      ),
+    );
+  return new Set(rows.flatMap(({ type: found }) => (found !== null && QUESTION_TYPE_SET.has(found) ? [found as QuestionType] : [])));
 }
 
 export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {

@@ -1,6 +1,6 @@
 import type { PlayedGame } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { achievementsOf, bestStreak, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
+import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
 import type { GameTable, TableRow } from './history';
 import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
 
@@ -22,7 +22,7 @@ const played = (status: PlayedGame['status'] = 'finished'): PlayedGame => ({
   team: null,
 });
 
-const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0 };
+const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0, podium: 0, debuffsBought: 0, authorGames: 0, roundTypes: 0, questionTypes: 0 };
 const table = (roundTypes: GameTable['roundTypes'], players: GameTable['players']): GameTable => ({
   gameId: 'g',
   status: 'finished',
@@ -65,62 +65,59 @@ describe('isPerfect', () => {
   });
 });
 
-describe('achievementsOf', () => {
-  it('achievementsOf lists all sixteen in order with thresholds', () => {
-    expect(achievementsOf({ games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero }).map((a) => a.earned)).toEqual(
-      Array(16).fill(false),
-    );
-    expect(
-      achievementsOf({ games: 10, wins: 1, hosted: 1, bestStreak: 5, perfectGames: 1, ...zero })
-        .filter((a) => a.earned)
-        .map((a) => a.id),
-    ).toEqual(['first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host']);
-    expect(
-      achievementsOf({ games: 50, wins: 10, hosted: 0, bestStreak: 4, perfectGames: 0, ...zero })
-        .filter((a) => a.earned)
-        .map((a) => a.id),
-    ).toEqual(['first_game', 'first_win', 'games_10', 'games_50', 'wins_10']);
-    const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
-    expect(
-      achievementsOf({ ...base, games: 100, hosted: 10, bestStreak: 10, winStreak: 3, blitzWins: 1, finalHits: 1, comebacks: 1, friendsPlayedWith: 5 })
-        .filter((a) => a.earned)
-        .map((a) => a.id),
-    ).toEqual(['first_game', 'games_10', 'streak_5', 'host', 'games_50', 'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5']);
-  });
-
-  it('just below each threshold earns nothing', () => {
-    const earned = achievementsOf({ games: 9, wins: 0, hosted: 0, bestStreak: 4, perfectGames: 0, ...zero }).filter((a) => a.earned);
-    expect(earned.map((a) => a.id)).toEqual(['first_game']);
-    expect(achievementsOf({ games: 49, wins: 9, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero }).map((a) => a.id)).toEqual([
+describe('careerEarned', () => {
+  it('careerEarned lists the career ones in order with thresholds', () => {
+    expect(careerEarned({ games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero })).toEqual([]);
+    expect(careerEarned({ games: 10, wins: 1, hosted: 1, bestStreak: 5, perfectGames: 1, ...zero })).toEqual([
       'first_game',
       'first_win',
       'games_10',
       'streak_5',
       'perfect_game',
       'host',
-      'games_50',
-      'wins_10',
-      'games_100',
-      'host_10',
-      'streak_10',
-      'win_streak_3',
-      'blitz_win',
-      'final_hit',
-      'comeback',
-      'friends_5',
     ]);
+    expect(careerEarned({ games: 50, wins: 10, hosted: 0, bestStreak: 4, perfectGames: 0, ...zero })).toEqual(['first_game', 'first_win', 'games_10', 'games_50', 'wins_10']);
+    const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
     expect(
-      achievementsOf({ games: 49, wins: 9, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero })
-        .filter((a) => a.earned)
-        .map((a) => a.id),
-    ).toEqual(['first_game', 'first_win', 'games_10']);
+      careerEarned({ ...base, games: 100, hosted: 10, bestStreak: 10, winStreak: 3, blitzWins: 1, finalHits: 1, comebacks: 1, friendsPlayedWith: 5 }),
+    ).toEqual(['first_game', 'games_10', 'streak_5', 'host', 'games_50', 'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5']);
+  });
+
+  it('just below each threshold earns nothing', () => {
+    expect(careerEarned({ games: 9, wins: 0, hosted: 0, bestStreak: 4, perfectGames: 0, ...zero })).toEqual(['first_game']);
+    expect(careerEarned({ games: 49, wins: 9, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero })).toEqual(['first_game', 'first_win', 'games_10']);
+  });
+
+  it('the six new career ones earn on the threshold and not one below', () => {
+    const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
+    const at = { ...base, games: 250, podium: 10, debuffsBought: 10, authorGames: 10, roundTypes: 7, questionTypes: 17 };
+    expect(careerEarned(at).filter((id) => ['veteran', 'podium_10', 'prankster', 'author_hit', 'all_rounds', 'all_types'].includes(id))).toEqual([
+      'all_rounds',
+      'all_types',
+      'prankster',
+      'podium_10',
+      'author_hit',
+      'veteran',
+    ]);
+    const below = { ...base, games: 249, podium: 9, debuffsBought: 9, authorGames: 9, roundTypes: 6, questionTypes: 16 };
+    expect(careerEarned(below)).toEqual(['first_game', 'games_10', 'games_50', 'games_100']);
+  });
+});
+
+describe('careerProgress', () => {
+  it('counters get min(value, goal) and one-off ones have no key', () => {
+    const progress = careerProgress({ games: 37, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero });
+    expect(progress).toMatchObject({ games_10: 10, games_50: 37, games_100: 37, veteran: 37, wins_10: 0, all_types: 0 });
+    expect('first_game' in progress).toBe(false);
+    expect('fast_answer' in progress).toBe(false);
+    expect(Object.keys(progress)).toHaveLength(15);
   });
 });
 
 describe('new achievements', () => {
   it('just below the new thresholds earns nothing', () => {
-    const below = { games: 99, wins: 0, hosted: 9, bestStreak: 9, perfectGames: 0, winStreak: 2, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 4 };
-    expect(achievementsOf(below).filter((a) => a.earned).map((a) => a.id)).toEqual(['first_game', 'games_10', 'streak_5', 'host', 'games_50']);
+    const below = { ...zero, games: 99, wins: 0, hosted: 9, bestStreak: 9, perfectGames: 0, winStreak: 2, friendsPlayedWith: 4 };
+    expect(careerEarned(below)).toEqual(['first_game', 'games_10', 'streak_5', 'host', 'games_50']);
   });
 
   it('winStreak counts consecutive wins over finished games in start order and skips aborted ones', () => {
