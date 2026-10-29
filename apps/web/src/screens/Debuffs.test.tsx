@@ -23,6 +23,7 @@ import {
   rotateChoices,
   useDebuffQuestion,
 } from './Debuffs';
+import { SliderInput } from './SliderInput';
 import { SortPlay } from './SortView';
 
 beforeEach(() => {
@@ -547,6 +548,25 @@ describe('12h debuff styles', () => {
     expect(rule('.debuff-zone.is-flip:not(.is-calm) .debuff-content')).toContain('transition: rotate 0.4s ease;');
     // Набраний текст повертається назад, як під «Дзеркалом»: його можна прочитати.
     expect(css).toContain('.is-flip .debuff-content input,\n.is-flip .debuff-content textarea {\n  rotate: 180deg;');
+  });
+
+  it('the binoculars band on a slider turns back with the slider under mirror and flip, so it stays over the right values', () => {
+    const sliderQuestion = { ...single, type: 'slider' as const, choices: [], slider: { min: 0, max: 100, step: 1, unit: '' } };
+    for (const kind of ['mirror', 'flip'] as const) {
+      render(
+        <Old kind={kind}>
+          <SliderInput question={sliderQuestion} onSubmit={() => {}} band={{ min: 20, max: 40 }} />
+        </Old>,
+      );
+      const rail = document.querySelector('.debuff-content .slider-track .slider-band-rail');
+      expect(rail).not.toBeNull();
+      expect(rail?.parentElement?.querySelector('input[type="range"]')).not.toBeNull();
+      cleanup();
+    }
+    // Повзунок повертається назад (як усі поля введення) — смуга повертається так само.
+    expect(css).toContain('.is-mirror .debuff-content input,');
+    expect(rule('.is-mirror .debuff-content .slider-band-rail')).toContain('transform: scaleX(-1);');
+    expect(rule('.is-flip .debuff-content .slider-band-rail')).toContain('rotate: 180deg;');
   });
 
   it('the torch darkens everything but a circle of --torch-r and catches no taps', () => {

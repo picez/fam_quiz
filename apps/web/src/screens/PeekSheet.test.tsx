@@ -56,6 +56,17 @@ describe('PeekSheet', () => {
     expect(onError).toHaveBeenLastCalledWith('Цю відповідь зараз не підглянути.');
   });
 
+  it('a double tap while the first peek is on its way sends once', async () => {
+    const send = vi.fn(() => new Promise(() => {})) as unknown as Send;
+    sheet({ send });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Іра' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Іра' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Оля' }));
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('nobody to peek at — nothing', () => {
     sheet({ list: [] });
     expect(document.querySelector('.peek-sheet')).toBeNull();

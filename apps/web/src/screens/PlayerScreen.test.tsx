@@ -3817,6 +3817,71 @@ describe('PlayerScreen: 12h buffs', () => {
     expect(document.querySelector('.peek-sheet')).toBeNull();
   });
 
+  /** Відкрити аркуш «Підглянути» на view; повертає rerender і send. */
+  const openSheet = (first: PlayerView, send: Send = vi.fn(async () => ({ ok: true as const }))) => {
+    const result = render(<PlayerScreen view={first} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(document.querySelector('.peek-sheet')).not.toBeNull();
+    const again = (next: PlayerView) => result.rerender(<PlayerScreen view={next} hostOnline offsetMs={0} send={send} />);
+    return { again, send };
+  };
+
+  it('a pause closes the sheet and the resume does not bring it back', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, paused: true, endsAt: null, remainingMs: 15_000 });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('closing the question closes the sheet', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, phase: 'locked', endsAt: null });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('time running out closes the sheet', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, endsAt: Date.now() - 1000 });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('a peek slot that is no longer ready closes the sheet for good', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const slotsWith = (state: 'active' | 'blocked', block: 'answered' | null) => ({
+      ...peekReady,
+      slots: [peekReady.slots[0], { kind: 'peek' as const, state, block }],
+    });
+    const { again } = openSheet(first);
+    again({ ...first, me: { ...me, buffs: slotsWith('blocked', 'answered') as never } });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    cleanup();
+    const second = openSheet(first);
+    second.again({ ...first, me: { ...me, buffs: slotsWith('active', null) as never } });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    second.again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('a refused peek closes the sheet and says why', async () => {
+    const send = vi.fn(async () => ({ ok: false as const, error: 'peek_target' }));
+    openSheet(onQuestion({ me: { ...me, buffs: peekReady } }), send as unknown as Send);
+    await act(async () => {
+      fireEvent.click(within(document.querySelector('.peek-sheet') as HTMLElement).getByRole('button', { name: 'Іра' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:buff', { kind: 'peek', targetId: 'p3' });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    expect(screen.getByText('Цю відповідь зараз не підглянути.')).toBeTruthy();
+  });
+
   it('the letter mask stands under the buff row, the answer field stays', () => {
     const textQuestion = { ...publicQuestion, type: 'text' as const, text: 'Авторка «Лісової пісні»?', choices: [] };
     const buffs = { slots: [{ kind: 'letter' as const, state: 'active' as const, block: null }], active: activeOf({ letter: { first: 'Л', mask: 'Л _ _ _ · _ _ _ _ _ _ _ _', letters: 12 } }), peekable: [] };
@@ -3840,5 +3905,13 @@ describe('PlayerScreen: 12h buffs', () => {
   it('the peeked phone reads who peeked', () => {
     show(onQuestion({ me: { ...me, peekedBy: { seq: 1, at: Date.now(), nickname: 'Петро' } } }));
     expect(document.querySelector('.live-notices')?.textContent).toContain('👀 У вашу відповідь підглянули: Петро');
+  });
+
+  it('the peeked phone gets only «У вашу відповідь підглянули», not the stage-style peek toast', () => {
+    const buffNotice = { seq: 2, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, questionIndex: 0, target: { playerId: 'p1', nickname: 'Олена' } };
+    show(onQuestion({ buffNotice, me: { ...me, peekedBy: { seq: 1, at: Date.now(), nickname: 'Петро' } } }));
+    const notices = document.querySelector('.live-notices')?.textContent ?? '';
+    expect(notices).toContain('👀 У вашу відповідь підглянули: Петро');
+    expect(notices).not.toContain('Підгляд');
   });
 });

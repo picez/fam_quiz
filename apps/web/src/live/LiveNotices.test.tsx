@@ -178,6 +178,29 @@ describe('LiveNotices', () => {
     expect(screen.getByRole('status').textContent).toBe('Оля: Ризик');
   });
 
+  it('12h: whoever was peeked at gets only their own peek notice, not the buff toast; the peeker gets none; a lost target falls back to the buff name', () => {
+    const peek = { ...buffView().buffNotice!, playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, target: { playerId: 'p3', nickname: 'Іра' } };
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p3" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p2" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p1" />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Петро → Іра');
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: { ...peek, target: null } })} offsetMs={0} selfId="p3" />);
+    expect(screen.getByRole('status').textContent).toBe('Петро: Підглянути');
+    cleanup();
+    // Командна гра: selfId — id команди (me.id), ціль — команда.
+    const teamPeek = { ...peek, playerId: 'team-a', nickname: 'Червоні', target: { playerId: 'team-b', nickname: 'Сині' } };
+    render(<BuffToast view={buffView({ buffNotice: teamPeek })} offsetMs={0} selfId="team-b" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: teamPeek })} offsetMs={0} selfId="team-c" />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Червоні → Сині');
+  });
+
   it('buff toast shows «Оля: 50/50» for four seconds', () => {
     const { container } = render(<BuffToast view={buffView()} offsetMs={0} />);
     expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');

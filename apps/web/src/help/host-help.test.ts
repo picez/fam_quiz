@@ -128,6 +128,13 @@ describe('host help', () => {
     expect(searchHelp('ризик')).toContain('buff.risk');
   });
 
+  it('12h: the help quotes the phone texts as the phone says them; the whole team sees the letter and the range', () => {
+    expect(text('buff.peek')).toContain('«👀 У вашу відповідь підглянули: Оля»');
+    expect(text('buff.peek')).not.toContain('У твою відповідь підглянуто');
+    expect(text('buff.letter')).toContain('У командній грі літеру бачить уся команда.');
+    expect(text('buff.scope')).toContain('У командній грі проміжок бачить уся команда.');
+  });
+
   it('11b minimum-time entry follows «newcomers» and tells the minimum times', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.pacing')).toBe(ids.indexOf('setting.newcomers') + 1);

@@ -92,6 +92,8 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   const splash = useSplash(view.splash, view.paused, offsetMs);
   if (shown === null || splash !== null) return null;
   if (shown.questionIndex !== view.questionIndex || shown.playerId === selfId) return null;
+  // У кого підглянули (12h), той бачить своє «👀 У вашу відповідь підглянули» (PeekedToast), а не це.
+  if (selfId !== undefined && shown.target?.playerId === selfId) return null;
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
       {shown.kind === 'peek' && shown.target !== null

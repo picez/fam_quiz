@@ -415,7 +415,9 @@ function powerLine(active: PlayerActiveBuff, question: PublicQuestion) {
     return <p className="scope-hint">{scope.kind === 'range' ? rangeText(question, scope.min, scope.max) : t('scopeZoom')}</p>;
   }
   if (active.kind === 'peek' && active.peek !== null) {
-    const answer = pickedText(active.peek.answer, shownChoices(question), question.slider);
+    const peeked = active.peek.answer;
+    // Число — зі справжнім мінусом, як усі числа на телефоні.
+    const answer = peeked.type === 'numeric' ? num(peeked.value) : pickedText(peeked, shownChoices(question), question.slider);
     return <p className="peek-answer">{t('peekShown', { name: active.peek.target.nickname, answer })}</p>;
   }
   return null;

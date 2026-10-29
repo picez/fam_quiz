@@ -1126,7 +1126,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   {response.buff !== null && <BuffBadge kind={response.buff} />}
                   {response.spare !== null && <SpareMark spare={response.spare} />}
                   <span className="given">
-                    {response.spare !== null ? answerText(response.answer, response.spare) : answerText(response.answer, correct, view.question?.choices)}
+                    {/* Мовчання з «Ризиком» (12h) — рядок штрафу, а не відповідь. */}
+                    {response.silent
+                      ? t('hostRiskSilent')
+                      : response.spare !== null
+                        ? answerText(response.answer, response.spare)
+                        : answerText(response.answer, correct, view.question?.choices)}
                   </span>
                   {response.clue !== null && <span className="meta">{t('clueAt', { n: response.clue })}</span>}
                   {awayRowTexts(response.playerId, response.away, view.teams !== null).map((text, index) => (
@@ -1135,7 +1140,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                     </span>
                   ))}
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
-                  {!isFinal && response.grade !== null && (
+                  {!isFinal && response.grade !== null && response.silent && <span className="score">{num(response.points)}</span>}
+                  {!isFinal && response.grade !== null && !response.silent && (
                     <>
                       <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                         {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
@@ -1147,7 +1153,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
                   {canGrade && response.playerId === appealPassed && <span className="meta appeal-passed">{t('appealPassedHint')}</span>}
-                  {canGrade && response.playerId !== appealPassed && (
+                  {canGrade && response.playerId !== appealPassed && !response.silent && (
                     <>
                       {response.grade !== 'correct' && (
                         <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'correct')}>

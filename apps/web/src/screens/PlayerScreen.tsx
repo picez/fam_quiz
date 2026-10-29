@@ -597,8 +597,6 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
-  // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі).
-  const peekOpen = peekFor === view.questionIndex && phase === 'question' && !view.paused && peekSlot?.state === 'ready' && peekSlot.block === null;
   const decideGuard = useGuardedSend(send, setError);
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
@@ -670,6 +668,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі) і час не вийшов.
+  const peekAllowed = phase === 'question' && !view.paused && !buffTimeOver && peekSlot?.state === 'ready' && peekSlot.block === null;
+  const peekOpen = peekFor === view.questionIndex && peekAllowed;
+  // Пауза, закриття, сплив час чи баф уже не готовий закривають аркуш насовсім: після паузи він сам не вискакує.
+  useEffect(() => {
+    if (peekFor !== null && !peekAllowed) setPeekFor(null);
+  }, [peekFor, peekAllowed]);
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
   const clockTotal = usePersonalTotal(view, myClock);
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
@@ -949,7 +954,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
               question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
             ) : chainMine && me.chain !== null ? (
-              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} />
+              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} noClock={debuff?.kind === 'noclock'} />
             ) : instant && me.blitz !== null ? (
               <>
                 {me.blitz.canAnswer ? (

@@ -4181,6 +4181,15 @@ body:has(.debuff-banner) .live-notices {
   rotate: 180deg;
 }
 
+/* Смуга «Бінокля» (12h) повертається так само, як повзунок під нею: стоїть над тими самими значеннями. */
+.is-mirror .debuff-content .slider-band-rail {
+  transform: scaleX(-1);
+}
+
+.is-flip .debuff-content .slider-band-rail {
+  rotate: 180deg;
+}
+
 /* «Ліхтарик»: темрява з колом світла навколо пальця (--tx / --ty пише зона). До першого дотику — середина,
    але не нижче 40vh: у довгій зоні світло з'являється на видимому екрані. */
 .debuff-torch {
@@ -5916,7 +5925,7 @@ label.powers-price {
 .peek-sheet {
   position: fixed;
   inset: auto 0 0 0;
-  z-index: 70;
+  z-index: 71;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

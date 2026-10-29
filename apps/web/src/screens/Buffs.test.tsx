@@ -594,6 +594,11 @@ describe('StageBuffs', () => {
     expect(items).toEqual(['◉ Петро → Іра', '⚄ Оля']);
   });
 
+  it('a peek whose target left the game reads just «◉ Петро»', () => {
+    render(<StageBuffs buffs={[{ playerId: 'p2', nickname: 'Петро', kind: 'peek', target: null }]} />);
+    expect([...document.querySelectorAll('.stage-buffs li')].map((node) => node.textContent)).toEqual(['◉ Петро']);
+  });
+
   it('the swap tag on the stage uses the spare colour', () => {
     render(
       <StageBuffs
@@ -773,6 +778,12 @@ describe('12h buffs on the phone', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('peek on a board cell says nobody else answers there', () => {
+    render(<BuffRow buffs={all({ peek: { state: 'blocked', block: 'unfit_board' } })} paused={false} send={okSend()} onError={vi.fn()} onPeek={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('На полі підглянути нема в кого.');
+  });
+
   it('an active new buff explains itself in the line', () => {
     const cases: [BuffKind, string][] = [
       ['risk', '⚄ Ризик: правильно — ×3, помилка чи мовчання — мінус повна ціна'],
@@ -822,9 +833,21 @@ describe('12h buffs on the phone', () => {
     expect(container.querySelector('.correct, .is-right, .is-correct, .is-wrong')).toBeNull();
   });
 
+  it('a peeked number reads with a real minus', () => {
+    const numericQ: PublicQuestion = { ...single, type: 'numeric', choices: [] };
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'peek', peek: { target: { playerId: 'p3', nickname: 'Іра' }, answer: { type: 'numeric', value: -40 } } }} question={numericQ} offsetMs={0} />,
+    );
+    expect(container.querySelector('.peek-answer')?.textContent).toBe('👀 Іра: −40');
+  });
+
   it('the peek sheet looks like the vote sheet', () => {
     const sheet = rule('.peek-sheet');
     expect(sheet).toMatch(/position:\s*fixed/);
+    // Над аркушем голосування залу (обидва — position: fixed): вибір цілі не ховається під ним.
+    const z = (selector: string) => Number(/z-index:\s*(\d+)/.exec(rule(selector))?.[1]);
+    expect(z('.peek-sheet')).toBe(71);
+    expect(z('.peek-sheet')).toBeGreaterThan(z('.vote-sheet'));
     expect(rule('.peek-options')).toMatch(/flex-wrap:\s*wrap/);
   });
 });

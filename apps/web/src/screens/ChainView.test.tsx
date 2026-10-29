@@ -43,6 +43,14 @@ const play = (chain: PlayerChain, send: Send = vi.fn(async () => ({ ok: true as 
 };
 
 describe('ChainView', () => {
+  it('12h: under «Без годинника» the chain countdown hides too', () => {
+    const { container, rerender } = render(<ChainPlay chain={chainOf()} question={question} paused={false} offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(container.querySelector('.timer')).not.toBeNull();
+    rerender(<ChainPlay chain={chainOf()} question={question} paused={false} offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} noClock />);
+    expect(container.querySelector('.timer')).toBeNull();
+    expect(container.querySelector('.chain-form')).not.toBeNull();
+  });
+
   it('shows the first word and masked words with blanks and separators', () => {
     render(<ChainWords first="Форель" masks={[['Р', null, null, null], ['Н', null, null, '-', null, null, null, null]]} />);
     expect(screen.getByLabelText('Форель')).toBeTruthy();
