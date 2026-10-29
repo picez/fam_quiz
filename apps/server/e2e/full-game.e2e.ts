@@ -15891,3 +15891,420 @@ it('part 12g: the captain picks who answers — on a 375 phone Оля picks Пе
     throw error;
   }
 }, 600_000);
+
+function powersQuestions12h() {
+  const common = { imageUrl: null, video: null, timeLimit: 60, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'h1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Десна', 'Південний Буг'), correctId: 'a' },
+    { ...common, id: 'h2', type: 'text' as const, text: 'Хто написав «Лісову пісню»?', accepted: ['Леся Українка'] },
+    { ...common, id: 'h3', type: 'slider' as const, text: 'У якому році заснували Києво-Могилянську академію?', min: 1500, max: 1800, step: 1, correct: 1615, tolerance: 5 },
+    { ...common, id: 'h4', type: 'single' as const, text: 'Яке місто — столиця Буковини?', options: options('Чернівці', 'Ужгород', 'Луцьк', 'Рівне'), correctId: 'a' },
+  ];
+}
+
+/** Числа в тексті (пробіли-розділювачі тисяч не ріжуть число). */
+const numbersIn = (text: string) => [...text.matchAll(/\d[\d\s  ]*/g)].map((m) => Number(m[0].replace(/\D/g, '')));
+
+/** Сторінка «Як грати» без прокрутки вниз (12h: густі сторінки бафів і дебафів). */
+const GUIDE_FITS = 'document.scrollingElement.scrollHeight <= 720';
+
+/** Бульбашки (12h), що перетинають варіант text, — центри, px. */
+const BUBBLES_OVER = (text: string) => `(() => {
+  const button = [...document.querySelectorAll('.debuff-content button')].find((b) => b.textContent.includes(${JSON.stringify(text)}));
+  const r = button.getBoundingClientRect();
+  return [...document.querySelectorAll('button.debuff-bubble:not(.is-popped)')]
+    .map((b) => b.getBoundingClientRect())
+    .filter((b) => b.right > r.left && b.left < r.right && b.bottom > r.top && b.top < r.bottom)
+    .map((b) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 }));
+})()`;
+
+async function powers12h() {
+  const host = await open('host12h', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12h@example.com');
+
+  const questions = powersQuestions12h();
+  const [h1, h2, h3, h4] = questions;
+  const rules = { penalty: 'none' as const, partial: null, streak: { length: 2, bonus: { kind: 'fixed' as const, value: 50 } }, multiplier: 1 as const };
+  const round = () => classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules });
+  const allBuffs = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek'] as const;
+  const allDebuffs = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud', 'flip', 'torch', 'sticky', 'noclock', 'bubbles'] as const;
+  const quizzes = [
+    {
+      ...makeRoundsQuiz([round()], { leaderboard: 'each', buffs: ['risk', 'letter', 'scope', 'guard', 'peek'], debuffs: ['flip', 'torch', 'sticky', 'noclock', 'bubbles'] }),
+      title: 'Сили 12h',
+    },
+    { ...makeRoundsQuiz([round()], { leaderboard: 'each' }), title: 'Стара 12h' },
+    {
+      ...makeRoundsQuiz([classicRound('g1', [h1, h4] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules })], {
+        leaderboard: 'each',
+        newcomers: true,
+        buffs: [...allBuffs],
+        debuffs: [...allDebuffs],
+      }),
+      title: 'Гайд 12h',
+      // «Заміна запитання» потребує запасних.
+      spares: [{ ...h4!, id: 's1', text: 'Яка річка тече через Чернівці?', options: ['Прут', 'Дунай', 'Тиса', 'Сян'].map((text, i) => ({ id: 'abcd'[i]!, text })) }],
+    },
+  ];
+  for (const data of quizzes) {
+    const saved = await host.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+  }
+
+  const stage = await open('stage12h', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  const olya = await open('olya12h', 375, 812);
+  const petro = await open('petro12h', 375, 812);
+  const ira = await open('ira12h', 375, 812, { reducedMotion: 'reduce' });
+  const phones = [olya, petro, ira];
+  const all = [host, stage, ...phones];
+
+  /** Нова гра з вікторини title: сцена й телефони players. */
+  const launch = async (title: string, players: [Page, string][]) => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+    await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+    for (const [page, nickname] of players) await join(page, code, nickname, false);
+    for (const [, nickname] of players) await stage.getByText(nickname, exact).first().waitFor();
+  };
+
+  const zone = (page: Page) => page.locator('.debuff-zone');
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const tool = async (nickname: string) => {
+    const button = row(nickname).getByRole('button', { name: 'Дебаф', ...exact });
+    await button.waitFor();
+    if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+    await row(nickname).locator('.player-tools').waitFor();
+  };
+  const picks = async (nickname: string) => (await row(nickname).locator('.player-tools .debuff-picks button').allTextContents()).map(squash);
+  const cast = async (nickname: string, name: string) => {
+    await tool(nickname);
+    await row(nickname).locator('.player-tools').getByRole('button', { name: new RegExp(name) }).click();
+    await row(nickname).locator('.debuff-tag').waitFor();
+  };
+  const score = async (nickname: string) => Number((await row(nickname).locator('.score').first().textContent())!.replace('−', '-').replace(/[^\d-]/g, ''));
+  const scores = async () => ({ Оля: await score('Оля'), Петро: await score('Петро'), Іра: await score('Іра') });
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const accepted = (page: Page) => page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first();
+  const answerOption = async (page: Page, text: string) => {
+    await pickOption(page, text);
+    await accepted(page).waitFor();
+  };
+  const answerText = async (page: Page, text: string) => {
+    await numericAnswer(page, text);
+    await accepted(page).waitFor();
+  };
+  /** Усі відповіли: розкриття (onReveal — перевірки на ньому), таблиця. */
+  const toTable = async (onReveal?: () => Promise<void>) => {
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    await host.getByRole('button', { name: 'Далі', ...exact }).waitFor();
+    if (onReveal) await onReveal();
+    await step('Далі');
+    await host.getByRole('button', { name: /^(Наступне запитання|Далі)$/ }).waitFor();
+  };
+  const question = async (text: string) => {
+    await step('Наступне запитання');
+    await afterSplash(...all);
+    await stage.getByText(text, exact).waitFor();
+  };
+  const banner = (page: Page) => page.locator('.debuff-banner');
+  const buffIcons = async (page: Page) => (await page.locator('.buff-row button').allTextContents()).map(squash);
+  const stageBuffs = async () => (await stage.locator('.stage-buffs li').allTextContents()).map(squash).sort();
+
+  // ── Підготовка: «Сили 12h», ведучий на заставці раунду насилає Ірі «Догори дриґом». ──
+  await launch('Сили 12h', [
+    [olya, 'Оля'],
+    [petro, 'Петро'],
+    [ira, 'Іра'],
+  ]);
+  await step('Почати гру');
+  await afterSplash(...all);
+  await host.getByRole('button', { name: 'Почати раунд', ...exact }).waitFor();
+  await tool('Іра');
+  expect(await picks('Іра'), 'only the allowed debuffs on the host').toEqual(['🙃 Догори дриґом', '🔦 Ліхтарик', '🍯 Липкі кнопки', '⌛ Без годинника', '🫧 Бульбашки']);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12h-host-debuffs: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12h-host-debuffs');
+  await cast('Іра', 'Догори дриґом');
+
+  // ── 1. h1: «Ризик» і «Догори дриґом». ──
+  await step('Почати раунд');
+  await afterSplash(...all);
+  await stage.getByText(h1!.text, exact).waitFor();
+  for (const page of phones) {
+    await page.locator('.buff-row').waitFor();
+    expect(await buffIcons(page)).toEqual(['⚄', 'А…', '◎', '∞', '◉']);
+  }
+  await expectNoSideScroll(olya, 'p12h-buff-row');
+  await tapBuff(olya, 'Підглянути', 'Ще немає жодної відповіді.');
+  await tapBuff(olya, 'Перша літера', 'Перша літера діє лише на тексті й «Хто я?».');
+  expect(await buffButton(olya, 'Запобіжник').getAttribute('aria-disabled'), 'the safety catch is ready').not.toBe('true');
+  await takeBuff(olya, 'Ризик');
+  await takeBuff(petro, 'Ризик');
+  await olya.locator('.buff-why').getByText('⚄ Ризик: правильно — ×3, помилка чи мовчання — мінус повна ціна', exact).waitFor();
+  await shot(olya, 'p12h-risk');
+  await expect.poll(stageBuffs, POLL).toEqual(['⚄ Оля', '⚄ Петро'].sort());
+  await expectStageInView(stage, 'p12h-stage-risk');
+  await shot(stage, 'p12h-stage-risk');
+
+  // Іра: усе догори дриґом, без руху («Зменшити рух»).
+  await expect.poll(() => zone(ira).getAttribute('class'), POLL).toMatch(/is-flip/);
+  expect(await zone(ira).getAttribute('class')).toMatch(/is-calm/);
+  const flip = (await ira.evaluate(
+    `(() => { const s = getComputedStyle(document.querySelector('.debuff-content')); return { rotate: s.rotate, transition: s.transitionDuration }; })()`,
+  )) as { rotate: string; transition: string };
+  expect(flip.rotate).toBe('180deg');
+  expect(flip.transition).toBe('0s');
+  await banner(ira).getByText('Тримайтеся: усе догори дриґом').waitFor();
+  await expectNoSideScroll(ira, 'p12h-flip');
+  await answerOption(ira, 'Дніпро');
+  await answerOption(olya, 'Дніпро');
+  await answerOption(petro, 'Дністер');
+  await toTable();
+  expect(await scores()).toEqual({ Оля: 300, Петро: -100, Іра: 100 });
+
+  // ── 2. Між h1 і h2: крамниця Олі й «Ліхтарик» від ведучого. ──
+  const shop = olya.getByRole('dialog', { name: 'Дебафи для суперників' });
+  await olya.getByRole('button', { name: 'Дебафи', ...exact }).click();
+  await shop.waitFor();
+  const shopNames = (await shop.locator('.shop-item').allTextContents()).map(squash);
+  expect(shopNames).toHaveLength(5);
+  for (const [at, name] of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки'].entries()) expect(shopNames[at]).toContain(name);
+  expect(await shop.locator('.shop-item-price').allTextContents()).toEqual(['200', '200', '200', '200', '200']);
+  await shop.locator('.shop-item', { hasText: /Липкі кнопки/ }).click();
+  await shop.locator('.shop-target', { hasText: 'Петро' }).click();
+  await expectNoSideScroll(olya, 'p12h-shop');
+  await shop.getByRole('button', { name: 'Купити за 200', ...exact }).click();
+  await shop.waitFor({ state: 'detached' });
+  await expect.poll(() => score('Оля'), POLL).toBe(100);
+  await row('Петро').locator('.debuff-tag').waitFor();
+  await cast('Іра', 'Ліхтарик');
+  expect(await host.evaluate(HEADER_ONE_LINE), 'the host header wraps between questions').toBe(true);
+
+  // ── 3. h2: «Ліхтарик», «Перша літера», «Підглянути», «Липкі кнопки». ──
+  await question(h2!.text);
+  await expect.poll(() => zone(ira).getAttribute('class'), POLL).toMatch(/is-torch/);
+  await ira.locator('.debuff-torch').waitFor({ state: 'attached' });
+  expect(await ira.evaluate(COVERED('.debuff-torch')), 'the torch covers the zone').toBeGreaterThan(0.95);
+  await shot(ira, 'p12h-torch');
+  await answerText(ira, 'Леся Українка');
+
+  await takeBuff(olya, 'Перша літера');
+  await expect.poll(async () => squash(await olya.locator('.letter-hint').textContent()), POLL).toBe('Л _ _ _ · _ _ _ _ _ _ _ _ (12)');
+  {
+    const hint = (await olya.locator('.letter-hint').boundingBox())!;
+    expect(hint.x + hint.width, 'the letter mask is wider than the phone').toBeLessThanOrEqual(375);
+  }
+  await olya.locator('.buff-why').getByText('А… Перша літера: бали — 75 %', exact).waitFor();
+  await expectNoSideScroll(olya, 'p12h-letter');
+
+  await buffButton(petro, 'Підглянути').click();
+  await petro.locator('.buff-why').getByText('Ще раз — узяти «Підглянути»', exact).waitFor();
+  await buffButton(petro, 'Підглянути').click();
+  const peekSheet = petro.getByRole('dialog', { name: 'Чию відповідь підглянути?' });
+  await peekSheet.waitFor();
+  expect((await peekSheet.locator('button.peek-option').allTextContents()).map(squash)).toEqual(['Іра']);
+  await expectNoSideScroll(petro, 'p12h-peek-sheet');
+  await peekSheet.locator('button.peek-option', { hasText: 'Іра' }).click();
+  await peekSheet.waitFor({ state: 'detached' });
+  await expect.poll(async () => squash(await petro.locator('.peek-answer').textContent()), POLL).toBe('👀 Іра: Леся Українка');
+  expect(squash(await zone(petro).textContent()), 'a verdict next to the peek').not.toMatch(/правильн/i);
+  {
+    // Рядок підгляду не налазить на поле відповіді.
+    const line = (await petro.locator('.peek-answer').boundingBox())!;
+    const input = (await field(petro, 'Ваша відповідь').boundingBox())!;
+    expect(line.y + line.height <= input.y + 1 || line.y >= input.y + input.height - 1, 'the peek line covers the answer field').toBe(true);
+  }
+  await shot(petro, 'p12h-peek');
+  await ira.locator('.live-notices .live-notice.is-peek').getByText('👀 У вашу відповідь підглянули: Петро', exact).waitFor();
+  await shot(ira, 'p12h-peeked');
+  await stage.locator('.live-notice.is-buff').getByText('👀 Підгляд: Петро → Іра', exact).waitFor();
+  await olya.locator('.live-notice.is-buff').getByText('👀 Підгляд: Петро → Іра', exact).waitFor();
+  expect(await petro.locator('.live-notice.is-buff').count(), 'the taker gets the own notice').toBe(0);
+  await expect.poll(stageBuffs, POLL).toEqual(['А… Оля', '◉ Петро → Іра'].sort());
+  await stage.waitForTimeout(300); // сповіщення проявляється 0,25 с
+  await expectStageInView(stage, 'p12h-stage-peek');
+  await shot(stage, 'p12h-stage-peek');
+
+  // Петро під «Липкими кнопками»: перший дотик «Відповісти» лише липне, другий відповідає.
+  expect(await zone(petro).getAttribute('class')).toMatch(/is-sticky/);
+  await field(petro, 'Ваша відповідь').fill('Леся Українка');
+  await click(petro, 'Відповісти');
+  await expect.poll(async () => squash(await petro.locator('p.sticky-note').textContent()), POLL).toBe('Ой, липко!');
+  expect(await accepted(petro).count(), 'the first tap answered').toBe(0);
+  await shot(petro, 'p12h-sticky');
+  await click(petro, 'Відповісти');
+  await accepted(petro).waitFor();
+  await answerText(olya, 'Леся Українка');
+  await host.getByText('Запитання закрите').waitFor();
+  expect(stageFrames.join(NL), 'the stage received the peeked answer before the reveal').not.toContain('Леся Українка');
+  await toTable(async () => {
+    await host.locator('.buff-tag', { hasText: 'А…' }).first().waitFor();
+    await host.locator('.buff-tag', { hasText: '◉' }).first().waitFor();
+    await expectNoSideScroll(host, 'p12h-host-live');
+  });
+  expect(await scores()).toEqual({ Оля: 225, Петро: 0, Іра: 250 });
+
+  // ── 4. h3: «Без годинника», «Бінокль», «Запобіжник». ──
+  await cast('Оля', 'Без годинника');
+  await question(h3!.text);
+  await expect.poll(() => zone(olya).getAttribute('class'), POLL).toMatch(/is-noclock/);
+  expect(await olya.locator('.question-head [role="timer"]').count(), 'a timer under «Без годинника»').toBe(0);
+  await olya.getByRole('img', { name: /^Годинник сховано/ }).first().waitFor();
+  await shot(olya, 'p12h-noclock');
+  await takeBuff(olya, 'Бінокль');
+  await olya.locator('.scope-hint').waitFor();
+  const [from, to] = numbersIn(squash(await olya.locator('.scope-hint').textContent()));
+  expect(squash(await olya.locator('.scope-hint').textContent())).toMatch(/^Відповідь між /);
+  // Межі прилипають до кроку назовні: 60 років, або 61, коли межа випала посеред року.
+  expect(to! - from!, `range ${from}..${to}`).toBeGreaterThanOrEqual(60);
+  expect(to! - from!, `range ${from}..${to}`).toBeLessThanOrEqual(61);
+  expect(from!).toBeLessThanOrEqual(1615);
+  expect(to!).toBeGreaterThanOrEqual(1615);
+  await olya.locator('.slider-input .slider-track .slider-band').waitFor();
+  await expectNoSideScroll(olya, 'p12h-scope');
+  await olya.getByRole('slider', { name: 'Повзунок', ...exact }).fill('1615');
+  await click(olya, 'Відповісти');
+  await accepted(olya).waitFor();
+  await takeBuff(ira, 'Запобіжник');
+  await ira.locator('.buff-why').getByText('∞ Запобіжник: помилка не обірве серію', exact).waitFor();
+  await ira.getByRole('slider', { name: 'Повзунок', ...exact }).fill('1700');
+  await shot(ira, 'p12h-guard');
+  await click(ira, 'Відповісти');
+  await accepted(ira).waitFor();
+  await click(petro, 'Відповісти');
+  await accepted(petro).waitFor();
+  await toTable();
+  expect(await scores()).toEqual({ Оля: 375, Петро: 0, Іра: 250 });
+
+  // ── 5. h4: «Бульбашки». ──
+  await cast('Петро', 'Бульбашки');
+  await question(h4!.text);
+  await expect.poll(() => zone(petro).getAttribute('class'), POLL).toMatch(/is-bubbles/);
+  const bubbles = petro.locator('button.debuff-bubble:not(.is-popped)');
+  await expect.poll(() => bubbles.count(), POLL).toBe(12);
+  expect(await petro.getByRole('button', { name: 'Лопнути бульбашку', ...exact }).count()).toBe(12);
+  expect(await petro.locator('fieldset button.debuff-bubble').count(), 'bubbles inside the fieldset').toBe(0);
+  await shot(petro, 'p12h-bubbles');
+  // Дотик варіанта під бульбашкою лопає бульбашку, а не відповідає.
+  let over = (await petro.evaluate(BUBBLES_OVER('Чернівці'))) as { x: number; y: number }[];
+  for (const text of ['Ужгород', 'Луцьк', 'Рівне']) if (over.length === 0) over = (await petro.evaluate(BUBBLES_OVER(text))) as { x: number; y: number }[];
+  expect(over.length, 'no bubble over any option').toBeGreaterThan(0);
+  await petro.mouse.click(over[0]!.x, over[0]!.y);
+  await expect.poll(() => bubbles.count(), POLL).toBe(11);
+  expect(await accepted(petro).count(), 'a tap through a bubble answered').toBe(0);
+  for (let i = 0; i < 12; i++) {
+    const left = (await petro.evaluate(BUBBLES_OVER('Чернівці'))) as { x: number; y: number }[];
+    if (left.length === 0) break;
+    const before = await bubbles.count();
+    await petro.mouse.click(left[0]!.x, left[0]!.y);
+    await expect.poll(() => bubbles.count(), POLL).toBe(before - 1);
+  }
+  await shot(petro, 'p12h-bubbles-popped');
+  await answerOption(petro, 'Чернівці');
+  await answerOption(olya, 'Чернівці');
+  await answerOption(ira, 'Чернівці');
+  // Останнє запитання: «Далі» з розкриття веде одразу до кінця гри.
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await expect.poll(scores, POLL).toEqual({ Оля: 525, Петро: 100, Іра: 400 });
+  await step('Далі');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor({ timeout: 15_000 });
+  await expectStageFits(stage, 'p12h-stage-final');
+  await shot(stage, 'p12h-stage-final');
+
+  // ── 6. Редактор: 13 бафів і 11 дебафів; стара вікторина — шість старих. ──
+  const powersOf = async (title: string) => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('link', { name: 'Редагувати' }).click();
+    await host.locator('details.powers > summary').click();
+    const checked = async (group: number) => {
+      const items = host.locator('fieldset.powers-group').nth(group).locator('label.powers-item');
+      const on: string[] = [];
+      for (let i = 0; i < (await items.count()); i++) if (await items.nth(i).locator('input').isChecked()) on.push(squash(await items.nth(i).textContent()));
+      return { total: await items.count(), on };
+    };
+    return { debuffs: await checked(0), buffs: await checked(1) };
+  };
+  const fresh = await powersOf('Сили 12h');
+  expect(fresh.debuffs.total).toBe(11);
+  expect(fresh.buffs.total).toBe(13);
+  expect(fresh.debuffs.on.length).toBe(5);
+  for (const [at, name] of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки'].entries()) expect(fresh.debuffs.on[at]).toContain(name);
+  expect(fresh.buffs.on.length).toBe(5);
+  for (const [at, name] of ['Ризик', 'Перша літера', 'Бінокль', 'Запобіжник', 'Підглянути'].entries()) expect(fresh.buffs.on[at]).toContain(name);
+  await expectNoSideScroll(host, 'p12h-editor');
+  const old = await powersOf('Стара 12h');
+  expect(old.debuffs.total).toBe(11);
+  expect(old.debuffs.on.length, `old quiz debuffs: ${old.debuffs.on.join(', ')}`).toBe(6);
+  for (const name of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки']) expect(old.debuffs.on.join(' | ')).not.toContain(name);
+  expect(old.buffs.on).toEqual([]);
+  await expectNoSideScroll(host, 'p12h-editor-old');
+
+  // ── 7. Стара вікторина в грі: на пульті шість дебафів без нових. ──
+  await launch('Стара 12h', [[olya, 'Оля']]);
+  await step('Почати гру');
+  await afterSplash(host, stage, olya);
+  await tool('Оля');
+  const oldPicks = await picks('Оля');
+  expect(oldPicks).toHaveLength(6);
+  expect(oldPicks.join(' | ')).not.toMatch(/Бульбашки|Догори|Ліхтарик|Липкі|Без годинника/);
+
+  // ── 8. «Гайд 12h»: 13 бафів і 11 дебафів у «Як грати» на сцені 1280 × 720, на телефоні й на пульті 375. ──
+  await launch('Гайд 12h', [[olya, 'Оля']]);
+  await step('Почати гру');
+  const seen = new Set<string>();
+  for (let page = 0; page < 10 && seen.size < 2; page++) {
+    await stage.locator('.guide-title').first().waitFor();
+    const title = squash(await stage.locator('.guide-title').first().textContent());
+    const kind = title.startsWith('Бафи') ? 'buffs' : title.startsWith('Дебафи') ? 'debuffs' : null;
+    if (kind !== null) {
+      await expect.poll(() => stage.locator('.guide-items.is-many .guide-item').count(), POLL).toBe(kind === 'buffs' ? 13 : 11);
+      await shot(stage, `p12h-guide-${kind}`);
+      // GUIDE FIT: густа сторінка «Як грати» в 1280 × 720 без прокрутки.
+      const height = (await stage.evaluate('document.scrollingElement.scrollHeight')) as number;
+      expect(await stage.evaluate(GUIDE_FITS), `GUIDE FIT p12h-guide-${kind}: the stage scrolls (${height}px)`).toBe(true);
+      await olya.locator('.guide-items .guide-item').first().waitFor();
+      await expectNoSideScroll(olya, `p12h-guide-${kind}-phone`);
+      seen.add(kind);
+    }
+    if (seen.size < 2) {
+      await step('Далі');
+      await stage.locator('.guide-title', { hasNotText: title }).first().waitFor();
+    }
+  }
+  expect([...seen].sort()).toEqual(['buffs', 'debuffs']);
+  await step('До гри');
+  await afterSplash(host, stage, olya);
+  await step('Почати раунд');
+  await afterSplash(host, stage, olya);
+  await olya.locator('.buff-row').waitFor();
+  expect(await olya.locator('.buff-row button').count()).toBe(13);
+  const rightmost = (await olya.evaluate(`Math.max(...[...document.querySelectorAll('.buff-row button')].map((b) => b.getBoundingClientRect().right))`)) as number;
+  expect(rightmost, 'a buff button off the 375 phone').toBeLessThanOrEqual(375);
+  await expectNoSideScroll(olya, 'p12h-buff-row-13');
+  await tool('Оля');
+  expect(await picks('Оля')).toHaveLength(11);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12h-host-debuffs-11: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12h-host-debuffs-11');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12h: new buffs and debuffs — on 375 phones Оля risks and wins ×3 while Петро risks and loses 100 with no penalty round, Іра answers upside down with reduced motion, then under a torch, Петро peeks at Іра and sees «Леся Українка» with no verdict while Іра reads «👀 У вашу відповідь підглянули: Петро» and the 1280 × 720 stage says «👀 Підгляд: Петро → Іра», Оля gets «Л _ _ _ · _ _ _ _ _ _ _ _ (12)» and 75 %, sticky buttons say «Ой, липко!», the binoculars give a 60-year range with 1615 inside, the safety catch keeps Іра on a streak, the clock vanishes, twelve bubbles pop one by one, the editor shows thirteen buffs and eleven debuffs and an old quiz keeps six, the guide pages with thirteen and eleven items fit the stage, and thirteen buffs fit a 375 phone', async () => {
+  try {
+    await powers12h();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);

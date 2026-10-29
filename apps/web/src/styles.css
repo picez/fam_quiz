@@ -6831,16 +6831,21 @@ label.powers-price {
   gap: 1.2vh;
 }
 
+.guide.is-stage:has(.guide-items.is-many) .guide-title {
+  font-size: clamp(2rem, 2vw + 2vh, 4rem);
+}
+
 .guide.is-stage:has(.guide-items.is-many) .guide-lead {
   font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
 }
 
 .guide.is-stage .guide-items.is-many {
-  gap: 1.4vh 3vw;
+  gap: 0.8vh 3vw;
 }
 
 .guide.is-stage .guide-items.is-many .guide-item {
   font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
+  line-height: 1.2;
 }
 
 .guide.is-stage .guide-items.is-many .guide-icon {
