@@ -171,6 +171,10 @@ describe('formatDay', () => {
     expect(text).not.toContain(':');
   });
 
+  it('reads the day in Kyiv time', () => {
+    expect(formatDay('2026-10-28T22:30:00.000Z')).toBe('29 жовтня 2026');
+  });
+
   it('returns an empty string for something that is not a date', () => {
     expect(formatDay('нісенітниця')).toBe('');
   });

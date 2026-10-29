@@ -221,9 +221,20 @@ export function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? '' : dateFormat.format(date);
 }
 
-const dayFormat = new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+const dayOptions: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
 
-/** Дата без часу словами («29 жовтня 2026», без «р.», яке дописує uk-UA); порожній рядок, якщо значення не є датою. */
+/** Київський час; ICU без Europe/Kyiv знає лише давню назву Europe/Kiev. */
+function kyivDayFormat(): Intl.DateTimeFormat {
+  try {
+    return new Intl.DateTimeFormat('uk-UA', { ...dayOptions, timeZone: 'Europe/Kyiv' });
+  } catch {
+    return new Intl.DateTimeFormat('uk-UA', { ...dayOptions, timeZone: 'Europe/Kiev' });
+  }
+}
+
+const dayFormat = kyivDayFormat();
+
+/** Дата без часу словами за київським часом («29 жовтня 2026», без «р.», яке дописує uk-UA); порожній рядок, якщо значення не є датою. */
 export function formatDay(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : dayFormat.format(date).replace(/\s*р\.$/, '');

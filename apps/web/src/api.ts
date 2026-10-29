@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, Versus } from '@quiz/shared';
+import type { AchievementsPage, AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -142,6 +142,8 @@ export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
 export const getMyProfile = () => fetchData<OwnProfile>('/api/me/profile');
 export const saveMyProfile = (update: ProfileUpdate) => fetchData<ProfileCard>('/api/me/profile', { method: 'PUT', body: update });
 export const getProfile = (id: string) => fetchData<PublicProfile>(`/api/profiles/${encodeURIComponent(id)}`);
+export const getMyAchievements = () => fetchData<AchievementsPage>('/api/me/achievements');
+export const getAchievements = (id: string) => fetchData<AchievementsPage>(`/api/profiles/${encodeURIComponent(id)}/achievements`);
 export const getVersus = (id: string) => fetchData<Versus>(`/api/me/versus/${encodeURIComponent(id)}`);
 export const findProfile = (nickname: string) => fetchData<ProfileCard>(`/api/profiles?nickname=${encodeURIComponent(nickname)}`);
 export const follow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'PUT' });
