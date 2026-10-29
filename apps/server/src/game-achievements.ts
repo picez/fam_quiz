@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, cluesAt, FACT_LIMITS, isSelfPaced, isWin, surveyHitsOf, type AchievementId } from '@quiz/shared';
+import { ACHIEVEMENTS, bluffFact, cluesAt, FACT_LIMITS, isSelfPaced, isWin, surveyHitsOf, survivorsAfter, wipeoutStandings, type AchievementId } from '@quiz/shared';
 import { checkAnswer } from '@quiz/engine';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
 import { PENALTY_ATTEMPT } from './db/schema';
@@ -39,6 +39,17 @@ const answerRow = (row: AchievementRow) => row.attempt >= 0;
 
 /** Мовчання з «Ризиком»: штраф за невідповідь під бафом. */
 const silentRisk = (row: AchievementRow) => row.attempt === PENALTY_ATTEMPT && row.buff === 'risk';
+
+/** Зіграні запитання за раундами, у порядку гри. */
+function groupRounds(questions: AchievementQuestion[]): AchievementQuestion[][] {
+  const rounds = new Map<number, AchievementQuestion[]>();
+  for (const q of questions) {
+    const list = rounds.get(q.roundIndex);
+    if (list === undefined) rounds.set(q.roundIndex, [q]);
+    else list.push(q);
+  }
+  return [...rounds.values()];
+}
 
 let kyivFormat: Intl.DateTimeFormat | undefined;
 
@@ -140,6 +151,56 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
       break;
     }
   }
+
+  // Підсумки форматів: стіна, сортування й ланцюжок без жодної помилки чи підказки.
+  if (answers.some((r) => r.payload?.type === 'wall' && r.payload.mistakes === 0 && r.payload.found === r.payload.groups)) got.add('wall_clean');
+  if (answers.some((r) => r.payload?.type === 'sort' && r.payload.misses === 0 && r.payload.sorted === r.payload.total)) got.add('sort_clean');
+  if (
+    answers.some((r) => {
+      const question = onMain(r);
+      return question?.type === 'chain' && r.payload?.type === 'chain' && r.payload.hints === 0 && r.payload.solved === question.words.length - 1;
+    })
+  )
+    got.add('chain_full');
+  if (answers.some((r) => (bluffFact(r.payload)?.fooled ?? 0) >= L.bluffFooled)) got.add('bluff_master');
+  const bluffs = game.questions.filter((q) => q.question.type === 'bluff');
+  if (bluffs.length >= L.bluffsAll && bluffs.every((q) => answers.some((r) => r.questionIndex === q.index && bluffFact(r.payload)?.truth === true))) got.add('lie_detector');
+
+  // Поле: свої клітинки (не бліц) з прийнятою своєю відповіддю, запасне теж; «Подвійні бали» на ×2 чи ×3.
+  const ownCells = new Set(
+    accepted.flatMap((r) => {
+      const cell = questions.get(r.questionIndex)?.cell;
+      return cell != null && cell.chooserId === who.participantId && !cell.blitz ? [r.questionIndex] : [];
+    }),
+  );
+  if (ownCells.size >= L.boardCells) got.add('board_owner');
+  if (accepted.some((r) => r.buff === 'double' && (questions.get(r.questionIndex)?.cell?.mark ?? 1) >= 2)) got.add('double_jackpot');
+  if (new Set(own.filter((r) => (answerRow(r) || silentRisk(r)) && r.buff !== null).map((r) => r.buff)).size >= L.buffs) got.add('buff_gourmet');
+  if (new Set(accepted.filter((r) => r.debuff !== null).map((r) => r.questionIndex)).size >= L.debuffed) got.add('unbreakable');
+
+  // Результат учасника (уся команда): драбина, «Ва-банк», «Вибування», дуель.
+  if (game.questions.some((q) => q.ref.ladder?.contestant === who.participantId && q.ref.ladder.outcome?.kind === 'top')) got.add('ladder_top');
+  const roundQuestions = groupRounds(game.questions);
+  const participantAccepted = new Set(
+    game.rows.filter((r) => r.participantId === who.participantId && r.attempt === 0 && r.accepted).map((r) => r.questionIndex),
+  );
+  for (const round of roundQuestions) {
+    if (round[0].roundType !== 'wipeout' || !round.some((q) => q.ref.wipeout?.end === true)) continue;
+    const steps = round.map((q) => ({
+      price: q.question.points,
+      correct: participantAccepted.has(q.index) ? [who.participantId] : [],
+      took: q.ref.wipeout?.took ?? [],
+    }));
+    const standing = wipeoutStandings([who.participantId], steps, true)[who.participantId];
+    if (standing.status === 'survived' && standing.bank > 0) got.add('wipeout_bank');
+  }
+  for (const round of roundQuestions) {
+    if (round[0].roundType !== 'survival' || !round.some((q) => q.ref.survival?.end === true)) continue;
+    const outs = round.map((q) => q.ref.survival?.trial?.out ?? []);
+    // Хтось мусив вибути: раунд без вибулих нікого не робить останнім.
+    if (outs.some((out) => out.length > 0) && survivorsAfter(game.players.map((p) => p.participantId), outs).includes(who.participantId)) got.add('last_hero');
+  }
+  if (game.adjustments.some((a) => a.participantId === who.participantId && a.source === 'duel' && a.points > 0)) got.add('duelist');
 
   const player = game.players.find((p) => p.participantId === who.participantId);
   if (

@@ -1,9 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { boardRound, classicRound, makeRoundsQuiz, pin, single, text, withId } from '@quiz/engine/testing';
+import { boardRound, classicRound, makeRoundsQuiz, pin, single, text, wall, withId } from '@quiz/engine/testing';
 import { loadAchievementGames, whoIn } from './achievement-games';
 import type { Db } from './db/client';
 import { AWAY_ATTEMPT, game, user, VOTE_ATTEMPT } from './db/schema';
+import { gameAchievements } from './game-achievements';
 import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
 
@@ -165,6 +166,31 @@ describe('loadAchievementGames', () => {
     expect(loaded[1].rows).toHaveLength(1);
     expect(whoIn(loaded[1], OLYA)).toEqual({ participantId: old.participantIds[0], personId: null });
     expect(whoIn(loaded[1], VIRA)).toBeNull();
+  });
+
+  it('a clean wall and a won duel read from the database give wall_clean and duelist', async () => {
+    const { gameId } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-22T18:00:00Z'),
+      snapshot: makeRoundsQuiz([classicRound('r1', [wall])]),
+      questionsPlayed: 1,
+      plays: [{ roundIndex: 0, questionId: wall.id }],
+      players: [
+        {
+          userId: OLYA,
+          nickname: 'Оля',
+          score: 1200,
+          rank: 1,
+          rows: [{ questionIndex: 0, accepted: true, points: 1000, payload: { type: 'wall', found: 4, groups: 4, mistakes: 0, timeMs: 50_000 }, timeMs: 50_000 }],
+          adjustments: [{ seq: 1, points: 200, source: 'duel' }],
+        },
+        { userId: null, nickname: 'Петро', score: -200, rank: 2, adjustments: [{ seq: 1, points: -200, source: 'duel' }] },
+      ],
+    });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    const who = whoIn(loaded, OLYA);
+    expect(who).not.toBeNull();
+    expect(gameAchievements(loaded, who!)).toEqual(expect.arrayContaining(['wall_clean', 'duelist']));
   });
 
   it('no ids — no queries, and unknown ids are skipped', async () => {
