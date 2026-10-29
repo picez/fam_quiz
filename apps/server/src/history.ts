@@ -13,6 +13,7 @@ import {
   LIFELINES,
   isUnscored,
   questionPrice,
+  QUESTION_TYPES,
   questionsOf,
   findCell,
   roundQuestions,
@@ -38,13 +39,15 @@ import {
   type PlayedGame,
   type FinalRound,
   type Question,
+  type QuestionType,
   type Quiz,
   type ResumeOption,
   type Round,
   type ScoreLine,
 } from '@quiz/shared';
 import { orderBluffOptions } from '@quiz/engine';
-import { and, asc, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 
@@ -55,7 +58,7 @@ const LIMIT = 100;
  * Знімок вікторини гри: ігри, зіграні до появи раундів, зберегли його в старому форматі.
  * Знімки не змінюються, а схема змінюється, тож старий знімок може її не пройти: тоді null.
  */
-function snapshotOf(raw: unknown): Quiz | null {
+export function snapshotOf(raw: unknown): Quiz | null {
   const parsed = quizSchema.safeParse(upgradeQuiz(raw));
   return parsed.success ? parsed.data : null;
 }
@@ -90,7 +93,7 @@ function roundQuestionsAt(quiz: Quiz, roundIndex: number): Question[] {
 }
 
 /** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
-function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
+export function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
   // Старі ігри не мають журналу: вони йшли одним списком, тож зіграно перші questionsPlayed запитань.
   if (plays.length === 0) {
     return questionsOf(quiz)
@@ -830,6 +833,55 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
       marks: mine.filter((a) => isAnswerRow(a.attempt)).map(({ questionIndex, attempt, accepted }) => ({ questionIndex, attempt, accepted })),
     };
   });
+}
+
+const QUESTION_TYPE_SET: ReadonlySet<string> = new Set(QUESTION_TYPES);
+
+/**
+ * Різні типи основних запитань (без запасних), на які є відповідь користувача: свої рядки, голоси людини, рядки команди
+ * з answered_by = рядок людини; без AWAY_ATTEMPT і штрафів (PENALTY_ATTEMPT — не відповідь). Тип — у SQL із game.plays
+ * і знімка (запитання раунду чи клітинки поля), без читання знімка в Node; старі ігри без plays типів не дають.
+ * aroundGameId — гра, для якої кожен тип ще й знає, чи є він поза нею (elsewhere); exceptGameId — гра, якої не враховувати.
+ */
+async function answeredTypeRows(db: Db, userId: string, aroundGameId: string | null, exceptGameId: string | null): Promise<{ type: QuestionType; elsewhere: boolean }[]> {
+  const person = alias(participant, 'person');
+  const ref = sql`${game.plays}->${answer.questionIndex}`;
+  const round = sql`${game.quizSnapshot}->'rounds'->((${ref}->>'roundIndex')::int)`;
+  const vars = sql`jsonb_build_object('id', ${ref}->'questionId')`;
+  const type = sql<string | null>`coalesce(
+    jsonb_path_query_first(${round}, '$.questions[*] ? (@.id == $id).type', ${vars}),
+    jsonb_path_query_first(${round}, '$.categories[*].cells[*].question ? (@.id == $id).type', ${vars})
+  ) #>> '{}'`;
+  const elsewhere = aroundGameId === null ? sql<boolean>`true` : sql<boolean>`bool_or(${game.id} <> ${aroundGameId})`;
+  const rows = await db
+    .select({ type, elsewhere })
+    .from(person)
+    .innerJoin(game, eq(game.id, person.gameId))
+    // Свій рядок (відповідь соло чи голос людини) або рядок команди, де відповідала ця людина.
+    .innerJoin(answer, or(eq(answer.participantId, person.id), and(eq(answer.participantId, person.teamId), eq(answer.answeredBy, person.id))))
+    .where(
+      and(
+        eq(person.userId, userId),
+        isNull(answer.spareId),
+        ne(answer.attempt, AWAY_ATTEMPT),
+        ne(answer.attempt, PENALTY_ATTEMPT),
+        sql`${answer.questionIndex} < ${game.questionsPlayed}`,
+        exceptGameId === null ? undefined : ne(game.id, exceptGameId),
+      ),
+    )
+    .groupBy(type);
+  return rows.flatMap((row) => (row.type !== null && QUESTION_TYPE_SET.has(row.type) ? [{ type: row.type as QuestionType, elsewhere: row.elsewhere }] : []));
+}
+
+/** Типи запитань із відповіддю користувача (див. answeredTypeRows); exceptGameId — гра, якої не враховувати. */
+export async function answeredTypes(db: Db, userId: string, exceptGameId: string | null = null): Promise<Set<QuestionType>> {
+  return new Set((await answeredTypeRows(db, userId, null, exceptGameId)).map((row) => row.type));
+}
+
+/** Типи запитань із відповіддю користувача одним запитом: усі (all) і без гри gameId (without) — для фактів «до» неї. */
+export async function answeredTypesAround(db: Db, userId: string, gameId: string): Promise<{ all: Set<QuestionType>; without: Set<QuestionType> }> {
+  const rows = await answeredTypeRows(db, userId, gameId, null);
+  return { all: new Set(rows.map((row) => row.type)), without: new Set(rows.filter((row) => row.elsewhere).map((row) => row.type)) };
 }
 
 export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {

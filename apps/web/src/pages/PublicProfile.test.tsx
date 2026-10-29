@@ -13,7 +13,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   nickname: 'Тарас',
   avatar: null,
   stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
-  achievements: [{ id: 'first_game', earned: true }],
+  achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
   ...over,
 });
@@ -38,6 +38,20 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('shows a row of earned badges linking to another player achievements page', async () => {
+    open();
+    expect(await screen.findByText('Тарас')).toBeTruthy();
+    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/u2/achievements');
+  });
+
+  it('the achievements link encodes the profile id', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
+    open();
+    expect(await screen.findByText('Тарас')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
+  });
+
   it('shows the podium numbers of a public profile', async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ok: true,

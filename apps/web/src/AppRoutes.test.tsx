@@ -15,6 +15,7 @@ vi.mock('./pages/Host', () => ({ Host: () => <p>Host</p> }));
 vi.mock('./pages/Login', () => ({ Login: () => <p>Login</p> }));
 vi.mock('./pages/MyGames', () => ({ MyGames: () => <p>MyGames</p> }));
 vi.mock('./pages/Play', () => ({ Play: () => <p>Play</p> }));
+vi.mock('./pages/Achievements', () => ({ Achievements: () => <p>Achievements</p> }));
 vi.mock('./pages/Profile', () => ({ Profile: () => <p>Profile</p> }));
 vi.mock('./pages/Quizzes', () => ({ Quizzes: () => <p>Quizzes</p> }));
 vi.mock('./pages/Stage', () => ({ Stage: () => <p>Stage</p> }));
@@ -44,6 +45,13 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
     expect(await screen.findByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it.each(['/achievements', '/profile/u2/achievements'])('%s draws the achievements page with the menu', async (path) => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open(path);
+    expect(await screen.findByText('Achievements')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
   });
 
   it('the reference /help opens without an account', async () => {

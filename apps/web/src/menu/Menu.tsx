@@ -10,6 +10,7 @@ const under = (base: string) => (path: string) => path === base || path.startsWi
 const JOIN: Item = { label: 'menuJoin', icon: '🎮', to: '/', active: (path) => path === '/' };
 const QUIZZES: Item = { label: 'menuQuizzes', icon: '📝', to: '/quizzes', active: under('/quizzes') };
 const HISTORY: Item = { label: 'menuHistory', icon: '🕘', to: '/history', active: (path) => under('/history')(path) || path === '/me' };
+const ACHIEVEMENTS_ITEM: Item = { label: 'menuAchievements', icon: '🏅', to: '/achievements', active: under('/achievements') };
 const PROFILE: Item = { label: 'menuProfile', icon: '👤', to: '/profile', active: under('/profile') };
 
 export function Menu() {
@@ -23,7 +24,7 @@ export function Menu() {
     active: (path) => path === '/login',
   };
   const items =
-    account.status === 'signed-in' ? [JOIN, QUIZZES, HISTORY, PROFILE] : account.status === 'anonymous' ? [JOIN, signIn] : [JOIN];
+    account.status === 'signed-in' ? [JOIN, QUIZZES, HISTORY, ACHIEVEMENTS_ITEM, PROFILE] : account.status === 'anonymous' ? [JOIN, signIn] : [JOIN];
 
   return (
     <nav className="menu" aria-label={t('menuLabel')}>

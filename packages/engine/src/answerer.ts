@@ -75,6 +75,17 @@ export function answererOf(state: GameState, teamId: string): string | null {
   return present(state, teamId, candidate) ?? captain;
 }
 
+/**
+ * Людина команди teamId, що відповідала на запитання index (12i, для запису): бліц — хто натиснув (play.buzzers);
+ * поточне запитання — answererOf; давніше — null (рекордер уже записав його раніше).
+ */
+export function answeredByOf(state: GameState, index: number, teamId: string): string | null {
+  const play = state.plays[index];
+  if (play === undefined) return null;
+  if (play.blitz !== undefined) return play.buzzers?.[teamId] ?? null;
+  return index === state.questionIndex ? answererOf(state, teamId) : null;
+}
+
 /** Наступне запитання — бліц, опитування чи «хмара» (comingQuestion): відповідача немає, вибір капітана відкладено. */
 export function freeForAllNext(state: GameState): boolean {
   const coming = comingQuestion(state);

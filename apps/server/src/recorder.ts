@@ -1,6 +1,7 @@
-import { appealTally, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
-import { AWAY_MS, isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
+import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { Room, RoomManager } from './rooms/manager';
@@ -20,6 +21,16 @@ interface Snapshot {
   startedAt: Date;
   /** З якого запитання записувати відповіді: попередні вже збережено. */
   fromQuestion: number;
+  /** Дебафи, що спрацювали на запитаннях кімнати: закриття запитання прибирає їх зі стану раніше за запис. */
+  debuffs: DebuffsSeen;
+}
+
+/** Дебафи, побачені рекордером на відкритих запитаннях (12i): індекс запитання → гравець рушія → вид. */
+type DebuffsSeen = Map<number, Map<string, DebuffKind>>;
+
+/** Дебаф учасника на запитанні index: зі стану (запитання ще відкрите) чи побачений, поки воно було відкрите. */
+function debuffOf(state: GameState, seen: DebuffsSeen, index: number, playerId: string): DebuffKind | null {
+  return debuffOn(state, index, playerId) ?? seen.get(index)?.get(playerId) ?? null;
 }
 
 /** Скільки запитань журналу вже закрито: відкрите запитання завжди останнє. */
@@ -69,6 +80,12 @@ interface AnswerRow {
   spareId: string | null;
   /** Вихід із гри на запитанні, мс (від AWAY_MS.mark); null — без позначки. */
   awayMs: number | null;
+  /** Дебаф, що діяв на учасника в цьому запитанні (12i); null — без дебафу. */
+  debuff: DebuffKind | null;
+  /** «Хто я?»: на якій підказці дано відповідь (12i); null — інший тип чи запасне. */
+  clue: number | null;
+  /** Командна гра: людина, що відповідала чи натиснула за команду (12i); null — соло й рядки людей. */
+  answeredBy: string | null;
 }
 
 /** Вихід учасника на запитанні для away_ms (12e): соло — свій; команда — найбільший з людей; людина (голос) — свій; менше AWAY_MS.mark — null. */
@@ -86,15 +103,21 @@ function awayMsOf(state: GameState, index: number, participantId: string): numbe
  * один рядок AWAY_ATTEMPT з 0 балів, щоб цікавинки історії бачили ту саму позначку, що й гра. Опитування й хмара — без нього:
  * гра їх у «відволікався» не рахує.
  */
-function answerRows(state: GameState, index: number, playerId: string, engineParticipant: boolean): AnswerRow[] {
-  const rows = answerRowsOf(state, index, playerId);
+function answerRows(state: GameState, seen: DebuffsSeen, index: number, playerId: string, engineParticipant: boolean): AnswerRow[] {
+  // Рядки людей командної гри (голоси) — без дебафу, підказки й відповідача: дебаф діє на команду.
+  const debuff = engineParticipant ? debuffOf(state, seen, index, playerId) : null;
+  const team = engineParticipant && teamsOn(state);
+  const rows = answerRowsOf(state, index, playerId, engineParticipant, team);
   const awayMs = awayMsOf(state, index, playerId);
-  if (rows.length > 0) return rows.map((row) => ({ ...row, awayMs }));
+  if (rows.length > 0) return rows.map((row) => ({ ...row, awayMs, debuff }));
   if (!engineParticipant || awayMs === null || isUnscored(state.plays[index].question)) return [];
-  return [{ attempt: AWAY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: 0, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, awayMs }];
+  return [
+    { attempt: AWAY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: 0, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, awayMs, debuff, clue: null, answeredBy: null },
+  ];
 }
 
-function answerRowsOf(state: GameState, index: number, playerId: string): Omit<AnswerRow, 'awayMs'>[] {
+/** Рядки без away_ms і дебафу (їх дописує answerRows); team — рядок команди (відповідача пишемо лише їй). */
+function answerRowsOf(state: GameState, index: number, playerId: string, engineParticipant: boolean, team: boolean): Omit<AnswerRow, 'awayMs' | 'debuff'>[] {
   const record = recordOf(state, index, playerId);
   if (record === undefined) return [];
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
@@ -108,8 +131,27 @@ function answerRowsOf(state: GameState, index: number, playerId: string): Omit<A
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
     // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка.
     const vote = isUnscored(state.plays[index].question);
-    return [{ attempt: silent ? PENALTY_ATTEMPT : vote ? VOTE_ATTEMPT : 0, payload, timeMs, accepted, points, streakBonus, overridden, wager, buff: record.buff ?? null, spareId: record.spare ?? null }];
+    // Підказка — лише відповідь на основне «Хто я?» (стан тримає clueOpens назавжди); штраф мовчання — без підказки й відповідача.
+    const clue = engineParticipant && !silent && record.spare === undefined ? cluesAnswered(play, play.question, timeMs, playerId) : null;
+    const answeredBy = team && !silent ? answeredByOf(state, index, playerId) : null;
+    return [
+      {
+        attempt: silent ? PENALTY_ATTEMPT : vote ? VOTE_ATTEMPT : 0,
+        payload,
+        timeMs,
+        accepted,
+        points,
+        streakBonus,
+        overridden,
+        wager,
+        buff: record.buff ?? null,
+        spareId: record.spare ?? null,
+        clue,
+        answeredBy,
+      },
+    ];
   }
+  const buzzer = team ? (state.plays[index].buzzers?.[playerId] ?? null) : null;
   const rows = attempts.map((attempt, number) => {
     // Бонус серії належить виграшній спробі; бали спроби в журналі бліцу його не містять.
     const streakBonus = attempt.grade === 'correct' ? record.streakBonus : 0;
@@ -124,6 +166,8 @@ function answerRowsOf(state: GameState, index: number, playerId: string): Omit<A
       wager: null,
       buff: null,
       spareId: null,
+      clue: null,
+      answeredBy: buzzer,
     };
   });
   // Штраф бліц-клітинки не належить жодній спробі (його платить і той, хто не натискав):
@@ -132,7 +176,7 @@ function answerRowsOf(state: GameState, index: number, playerId: string): Omit<A
   if (penalty === 0) return rows;
   return [
     ...rows,
-    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null },
+    { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, clue: null, answeredBy: null },
   ];
 }
 
@@ -241,8 +285,8 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
 
     const saveAnswers = async (participantId: string, engineParticipant: boolean) => {
       for (let index = snapshot.fromQuestion; index < closed; index++) {
-        for (const row of answerRows(state, index, participantId, engineParticipant)) {
-          const { attempt, payload, timeMs, ...grade } = row;
+        for (const row of answerRows(state, snapshot.debuffs, index, participantId, engineParticipant)) {
+          const { attempt, payload, timeMs, debuff, clue, answeredBy, ...grade } = row;
           await tx
             .insert(answer)
             .values({
@@ -253,8 +297,16 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
               payload,
               timeMs,
               ...grade,
+              debuff,
+              clue,
+              answeredBy,
             })
-            .onConflictDoUpdate({ target: [answer.participantId, answer.questionIndex, answer.attempt], set: grade });
+            // Дебаф і відповідач видно, лише поки запитання поточне: повторний запис останнього закритого їх не затирає;
+            // відповідач — перший записаний (на розкритті той, хто відповідав, міг піти зі зв'язку, і answererOf дав би капітана).
+            .onConflictDoUpdate({
+              target: [answer.participantId, answer.questionIndex, answer.attempt],
+              set: { ...grade, debuff: sql`coalesce(excluded.debuff, ${answer.debuff})`, clue, answeredBy: sql`coalesce(${answer.answeredBy}, excluded.answered_by)` },
+            });
         }
       }
     };
@@ -364,16 +416,38 @@ export function attachRecorder(
   /** Скільки записів кімнати поспіль не вдалося. */
   const failures = new Map<string, number>();
   const closedRooms = new Set<string>();
+  /** Дебафи, що спрацювали на запитаннях кімнати (12i): закриття запитання прибирає їх зі стану раніше, ніж рекордер його запише. */
+  const debuffsSeen = new Map<string, DebuffsSeen>();
+  /** Кімнати, чию завершену гру вже нагороджено ачівками (12i). */
+  const awarded = new Set<string>();
 
   const forget = (roomId: string) => {
-    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures]) map.delete(roomId);
+    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen]) map.delete(roomId);
     closedRooms.delete(roomId);
+    awarded.delete(roomId);
+  };
+
+  /** Запам'ятати дебафи, що діють на відкритому запитанні: після закриття їх у стані вже немає. */
+  const seeDebuffs = (room: Room) => {
+    const { state } = room;
+    if (state.phase !== 'question') return;
+    const index = state.questionIndex;
+    for (const playerId of Object.keys(state.debuffs)) {
+      const kind = debuffOn(state, index, playerId);
+      if (kind === null) continue;
+      const seen = debuffsSeen.get(room.id) ?? new Map<number, Map<string, DebuffKind>>();
+      debuffsSeen.set(room.id, seen);
+      const atQuestion = seen.get(index) ?? new Map<string, DebuffKind>();
+      seen.set(index, atQuestion);
+      atQuestion.set(playerId, kind);
+    }
   };
 
   const record = (room: Room) => {
     const { state } = room;
     const hostId = room.hostUserId;
     if (hostId === null || state.phase === 'lobby') return;
+    seeDebuffs(room);
     const current = signature(state);
     if (lastSignature.get(room.id) === current) return;
     lastSignature.set(room.id, current);
@@ -388,6 +462,7 @@ export function attachRecorder(
       state,
       playerUsers: new Map(room.playerUsers),
       startedAt: startedAt.get(room.id) ?? new Date(),
+      debuffs: debuffsSeen.get(room.id) ?? new Map(),
     };
 
     const job = async () => {
@@ -395,6 +470,12 @@ export function attachRecorder(
       const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
       await save(db, { ...snapshot, fromQuestion });
       savedQuestions.set(room.id, closed);
+      // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
+      // Збій одного користувача awardGame сам віддає в журнал і йде далі; його ачівки наздожене наступне читання.
+      if (state.phase === 'finished' && !awarded.has(room.id)) {
+        await awardGame(db, room.id, onError);
+        awarded.add(room.id);
+      }
       failures.delete(room.id);
     };
 

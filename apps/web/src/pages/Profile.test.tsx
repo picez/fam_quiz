@@ -25,7 +25,7 @@ const mine: OwnProfile = {
   avatar: null,
   email: 'o@example.com',
   stats: { games: 3, wins: 1, accuracy: 68, quizzes: 1, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
-  achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game' })),
+  achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game', earnedAt: null })),
   quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null }],
@@ -59,6 +59,14 @@ const open = () =>
   );
 
 describe('Profile', () => {
+  it('shows a row of earned badges linking to the achievements page', async () => {
+    open();
+    expect(await screen.findByText('Олена')).toBeTruthy();
+    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/achievements');
+    expect(document.body.textContent).not.toContain('🔒');
+  });
+
   it('shows the podium numbers of the own profile', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,

@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, isWin, type Achievement, type AchievementId, type PlayedGame } from '@quiz/shared';
+import { ACHIEVEMENT_INFO, ACHIEVEMENTS, isWin, type AchievementId, type PlayedGame } from '@quiz/shared';
 import { ADJUSTMENT_ATTEMPT, AWAY_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
 import type { AnswerMark, GameTable, TablePlayer } from './history';
 
@@ -34,7 +34,8 @@ export function isPerfect(game: { played: PlayedGame; marks: AnswerMark[] }): bo
   );
 }
 
-export interface AchievementFacts {
+/** Кар'єрні факти (16 перших ачівок + 12i). */
+export interface CareerFacts {
   games: number;
   wins: number;
   hosted: number;
@@ -45,6 +46,16 @@ export interface AchievementFacts {
   finalHits: number;
   comebacks: number;
   friendsPlayedWith: number;
+  /** Разів у трійці (podiumStats). */
+  podium: number;
+  /** Куплених дебафів у соло-іграх. */
+  debuffsBought: number;
+  /** Завершених ігор за вікторинами користувача. */
+  authorGames: number;
+  /** Різних типів раундів, де є свій рядок. */
+  roundTypes: number;
+  /** Різних типів запитань, де є своя відповідь. */
+  questionTypes: number;
 }
 
 /** Найдовша серія перемог (isWin) серед завершених ігор за startedAt; незавершені пропускаються. */
@@ -125,26 +136,52 @@ export function friendsPlayedWith(tables: GameTable[], userId: string, friendIds
   return met.size;
 }
 
-const EARNED: Record<AchievementId, (facts: AchievementFacts) => boolean> = {
-  first_game: (f) => f.games >= 1,
-  first_win: (f) => f.wins >= 1,
-  games_10: (f) => f.games >= 10,
-  streak_5: (f) => f.bestStreak >= 5,
-  perfect_game: (f) => f.perfectGames >= 1,
-  host: (f) => f.hosted >= 1,
-  games_50: (f) => f.games >= 50,
-  wins_10: (f) => f.wins >= 10,
-  games_100: (f) => f.games >= 100,
-  host_10: (f) => f.hosted >= 10,
-  streak_10: (f) => f.bestStreak >= 10,
-  win_streak_3: (f) => f.winStreak >= 3,
-  blitz_win: (f) => f.blitzWins >= 1,
-  final_hit: (f) => f.finalHits >= 1,
-  comeback: (f) => f.comebacks >= 1,
-  friends_5: (f) => f.friendsPlayedWith >= 5,
-};
+/** Разові кар'єрні ачівки (без поступу). */
+const ONE_OFF = new Map<AchievementId, (facts: CareerFacts) => boolean>([
+  ['first_game', (f) => f.games >= 1],
+  ['first_win', (f) => f.wins >= 1],
+  ['perfect_game', (f) => f.perfectGames >= 1],
+  ['host', (f) => f.hosted >= 1],
+  ['blitz_win', (f) => f.blitzWins >= 1],
+  ['final_hit', (f) => f.finalHits >= 1],
+  ['comeback', (f) => f.comebacks >= 1],
+]);
 
-/** Усі ачівки в порядку ACHIEVEMENTS з позначкою, чи отримано. */
-export function achievementsOf(facts: AchievementFacts): Achievement[] {
-  return ACHIEVEMENTS.map((id) => ({ id, earned: EARNED[id](facts) }));
+/** Лічильні кар'єрні ачівки: значення, що доходить до goal з ACHIEVEMENT_INFO. */
+const COUNTERS = new Map<AchievementId, (facts: CareerFacts) => number>([
+  ['games_10', (f) => f.games],
+  ['games_50', (f) => f.games],
+  ['games_100', (f) => f.games],
+  ['veteran', (f) => f.games],
+  ['wins_10', (f) => f.wins],
+  ['host_10', (f) => f.hosted],
+  ['podium_10', (f) => f.podium],
+  ['prankster', (f) => f.debuffsBought],
+  ['author_hit', (f) => f.authorGames],
+  ['friends_5', (f) => f.friendsPlayedWith],
+  ['streak_5', (f) => f.bestStreak],
+  ['streak_10', (f) => f.bestStreak],
+  ['win_streak_3', (f) => f.winStreak],
+  ['all_rounds', (f) => f.roundTypes],
+  ['all_types', (f) => f.questionTypes],
+]);
+
+/** 22 кар'єрні ачівки, отримані за фактами, у порядку ACHIEVEMENTS. */
+export function careerEarned(facts: CareerFacts): AchievementId[] {
+  return ACHIEVEMENTS.filter((id) => {
+    const counter = COUNTERS.get(id);
+    const goal = ACHIEVEMENT_INFO[id].goal;
+    if (counter !== undefined) return goal !== null && counter(facts) >= goal;
+    return ONE_OFF.get(id)?.(facts) ?? false;
+  });
+}
+
+/** Поступ лічильних: min(значення, goal) з ACHIEVEMENT_INFO; разових тут немає. */
+export function careerProgress(facts: CareerFacts): Partial<Record<AchievementId, number>> {
+  const progress: Partial<Record<AchievementId, number>> = {};
+  for (const [id, value] of COUNTERS) {
+    const goal = ACHIEVEMENT_INFO[id].goal;
+    if (goal !== null) progress[id] = Math.min(value(facts), goal);
+  }
+  return progress;
 }

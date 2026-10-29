@@ -1,6 +1,7 @@
 import { profileUpdateSchema } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
+import { achievementsPage } from './achievement-store';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
 import { ensureProfile, findByNickname, friendsOf, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
@@ -45,6 +46,24 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       if (id.length > MAX_ID_LENGTH) return reply.code(404).send(NOT_FOUND);
       const viewer = await currentUser(request);
       const found = await publicProfile(db, id, viewer?.id ?? null);
+      return found ?? reply.code(404).send(NOT_FOUND);
+    },
+  );
+
+  app.get('/api/me/achievements', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    return achievementsPage(db, user.id, true);
+  });
+
+  // Чужа сторінка (і своя, відкрита як публічна): лише отримані, без поступу.
+  app.get<{ Params: { id: string } }>(
+    '/api/profiles/:id/achievements',
+    { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const { id } = request.params;
+      if (id.length > MAX_ID_LENGTH) return reply.code(404).send(NOT_FOUND);
+      const found = await achievementsPage(db, id, false);
       return found ?? reply.code(404).send(NOT_FOUND);
     },
   );

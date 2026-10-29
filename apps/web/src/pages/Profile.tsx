@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
 import { formatDate } from '../format';
 import { t } from '../i18n';
-import { AchievementList } from '../profile/AchievementList';
+import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
 import { ProfileEditor } from '../profile/ProfileEditor';
@@ -99,7 +99,7 @@ export function Profile() {
       </section>
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
-        <AchievementList achievements={profile.achievements} />
+        <AchievementStrip achievements={profile.achievements} to="/achievements" />
       </section>
       <section className="profile-section">
         <h2>{t('myQuizzesTitle')}</h2>

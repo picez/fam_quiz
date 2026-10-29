@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { WithMenu } from './menu/WithMenu';
+import { Achievements } from './pages/Achievements';
 import { EditQuiz } from './pages/EditQuiz';
 import { GameHistory } from './pages/GameHistory';
 import { History } from './pages/History';
@@ -26,8 +27,10 @@ export function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
         <Route path="/me" element={<MyGames />} />
+        <Route path="/achievements" element={<Achievements />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
+        <Route path="/profile/:id/achievements" element={<Achievements />} />
         <Route path="/help" element={<HostHelp />} />
         <Route path="/new" element={<Navigate to="/quizzes" replace />} />
       </Route>

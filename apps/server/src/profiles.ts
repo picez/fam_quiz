@@ -1,8 +1,6 @@
 import { normalizeText } from '@quiz/engine';
 import {
   LIMITS,
-  gameStats,
-  podiumStats,
   isWin,
   nicknameSchema,
   type Achievement,
@@ -15,10 +13,9 @@ import {
 } from '@quiz/shared';
 import { and, asc, count, eq } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
-import { achievementsOf, bestStreak, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
+import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
-import { follow, game, profile, quiz, user } from './db/schema';
-import { gameTables, playerGames } from './history';
+import { follow, profile, user } from './db/schema';
 import { listQuizzes } from './quizzes';
 
 export const DEFAULT_NICKNAME = 'Гравець';
@@ -109,48 +106,24 @@ function isUniqueViolation(error: unknown): boolean {
 
 export const WINS_SHOWN = 20;
 
-/** Статистика, ачівки й останні перемоги (не більше WINS_SHOWN, найновіші першими). */
+/**
+ * Статистика, ачівки (усі з позначками й датами) й останні перемоги (не більше WINS_SHOWN, найновіші першими).
+ * own — профіль власника; чужий профіль не читає типів запитань (поступу там немає).
+ */
 export async function profileFacts(
   db: Db,
   userId: string,
+  own = true,
 ): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[] }> {
-  const games = await playerGames(db, userId, null);
-  const [quizzes] = await db.select({ n: count() }).from(quiz).where(eq(quiz.ownerId, userId));
-  const [hosted] = await db
-    .select({ n: count() })
-    .from(game)
-    .where(and(eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
-
-  const played = games.map((g) => g.played);
-  const stats = { ...gameStats(played), ...podiumStats(played), quizzes: quizzes.n, hosted: hosted.n };
-  const tables = await gameTables(
-    db,
-    played.map((g) => g.gameId),
-  );
-  const friendRows = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
-  // Свій учасник у грі (сам гравець або команда, де він грав): з кількох береться той, що з кращим місцем, а без місця останній.
-  const mine = tables.flatMap((table) => {
-    const own = table.players.filter((p) => p.userId === userId || p.memberUserIds.includes(userId)).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
-    return own[0] === undefined ? [] : [{ table, id: own[0].participantId }];
-  });
-  const achievements = achievementsOf({
-    games: stats.games,
-    wins: stats.wins,
-    hosted: stats.hosted,
-    bestStreak: games.reduce((best, g) => Math.max(best, bestStreak(g.marks)), 0),
-    perfectGames: games.filter(isPerfect).length,
-    winStreak: winStreak(played),
-    blitzWins: mine.filter(({ table, id }) => wonBlitzRound(table, id)).length,
-    finalHits: mine.filter(({ table, id }) => hitFinal(table, id)).length,
-    comebacks: mine.filter(({ table, id }) => isComeback(table, id)).length,
-    friendsPlayedWith: friendsPlayedWith(tables, userId, new Set(friendRows.map((r) => r.id))),
-  });
-  const wins = played
+  const prepared = await careerInputs(db, userId);
+  const { earned } = await syncAchievements(db, userId, null, { prepared, types: own });
+  const wins = prepared.games
+    .map((g) => g.played)
     .filter(isWin)
     .slice(0, WINS_SHOWN)
     // isWin гарантує rank === 1.
     .map((g) => ({ gameId: g.gameId, title: g.title, startedAt: g.startedAt, rank: g.rank ?? 1 }));
-  return { stats, achievements, wins };
+  return { stats: prepared.stats, achievements: achievementList(earned), wins };
 }
 
 /** Друзі (на кого підписаний), за нікнеймом. */
@@ -216,7 +189,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
 export async function publicProfile(db: Db, id: string, viewerId: string | null): Promise<PublicProfile | null> {
   const base = await ensureProfile(db, id);
   if (!base) return null;
-  const { stats, achievements } = await profileFacts(db, id);
+  const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
   return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
 }

@@ -1,5 +1,5 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import type { AchievementId, AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -222,6 +222,12 @@ export const answer = pgTable(
     spareId: text('spare_id'),
     /** Вихід із гри на цьому запитанні від AWAY_MS.mark, мс (12e); null — без позначки (і в старих іграх). */
     awayMs: integer('away_ms'),
+    /** Дебаф, що діяв на учасника в цьому запитанні (12i); null — без дебафу (і в старих іграх). */
+    debuff: text('debuff').$type<DebuffKind>(),
+    /** «Хто я?»: на якій підказці дано відповідь (12i); null — інший тип, запасне чи старі ігри. */
+    clue: integer('clue'),
+    /** Командна гра: рядок людини, що відповідала чи натиснула (12i); без зовнішнього ключа — рядки команд пишуться раніше за рядки людей. null — соло, людина чи старі ігри. */
+    answeredBy: uuid('answered_by'),
   },
   (table) => [primaryKey({ columns: [table.participantId, table.questionIndex, table.attempt] })],
 );
@@ -289,6 +295,8 @@ export const profile = pgTable('profile', {
   nicknameKey: text('nickname_key').notNull().unique(),
   /** Шлях /uploads/<назва> або null. */
   avatar: text('avatar'),
+  /** Історію цього користувача вже доповнено ачівками (12i); null — ще ні. Далі — мітка: ігри, що закінчились пізніше й не дали жодного рядка user_achievement, читання наздоганяє. */
+  achievementsSyncedAt: at('achievements_synced_at'),
   ...stamps,
 });
 
@@ -305,6 +313,20 @@ export const follow = pgTable(
     createdAt: at('created_at').notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.followerId, table.followeeId] }), index('follow_followee_idx').on(table.followeeId)],
+);
+
+/** Отримана ачівка (12i): дата отримання й гра; earned_at null — отримано до 12i («давно»). */
+export const userAchievement = pgTable(
+  'user_achievement',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    achievementId: text('achievement_id').$type<AchievementId>().notNull(),
+    earnedAt: at('earned_at'),
+    gameId: uuid('game_id').references(() => game.id, { onDelete: 'set null' }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.achievementId] })],
 );
 
 /** Жива кімната (9b): серіалізований SavedRoom, щоб гра пережила перезапуск. Рядок видаляється, коли кімната закривається. */

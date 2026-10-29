@@ -53,14 +53,34 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
-  it('a signed-in person sees join, quizzes, history and profile with the current one marked', async () => {
+  it('a signed-in person sees join, quizzes, history, achievements and profile with the current one marked', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
+    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🏅Ачівки', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Профіль')]).toEqual(['/', '/quizzes', '/history', '/profile']);
+    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Ачівки'), href('Профіль')]).toEqual([
+      '/',
+      '/quizzes',
+      '/history',
+      '/achievements',
+      '/profile',
+    ]);
     expect(screen.getByRole('link', { name: 'Історія' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('achievements are marked on their page, and another player’s achievements belong to the profile', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/achievements');
+    await screen.findByRole('link', { name: 'Ачівки' });
+    expect(screen.getByRole('link', { name: 'Ачівки' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
+    cleanup();
+    show('/profile/u2/achievements');
+    await screen.findByRole('link', { name: 'Ачівки' });
+    expect(screen.getByRole('link', { name: 'Ачівки' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
   });
 
   it('while it is unknown who is here, only join is offered', async () => {
