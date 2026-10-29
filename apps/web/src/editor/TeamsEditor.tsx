@@ -1,17 +1,22 @@
-import { DEFAULT_TEAM_NAMES, LIMITS, defaultTeams, type TeamsSettings } from '@quiz/shared';
-import { t } from '../i18n';
+import { ANSWERER_MODES, DEFAULT_TEAM_NAMES, LIMITS, defaultTeams, type AnswererMode, type TeamsSettings } from '@quiz/shared';
+import { t, type TextKey } from '../i18n';
 import { HelpButton } from '../help/HelpButton';
 
 /**
  * «Командна гра»: перемикач з «ⓘ» (team.play); увімкнено — кількість 2–6 (кнопки − / +) і поле назви кожної команди з кольоровою позначкою;
  * вмикання — defaultTeams(2); зменшення відкидає останні назви, збільшення додає типові назви наступних позицій; вимикання прибирає поле.
+ * «Хто відповідає» (12g) з «ⓘ» (team.answerer): «капітан» прибирає поле answerer, тож старі вікторини лишаються як були.
  */
 export function TeamsEditor({ teams, onChange }: { teams: TeamsSettings | undefined; onChange: (teams: TeamsSettings | undefined) => void }) {
   const resize = (count: number) => {
     if (!teams || count < LIMITS.minTeams || count > LIMITS.maxTeams) return;
     const names = teams.names.slice(0, count);
     for (let i = names.length; i < count; i++) names.push(DEFAULT_TEAM_NAMES[i]!);
-    onChange({ count, names });
+    onChange({ ...teams, count, names });
+  };
+  const setAnswerer = (answerer: AnswererMode) => {
+    if (!teams) return;
+    onChange(answerer === 'captain' ? withoutAnswerer(teams) : { ...teams, answerer });
   };
   const rename = (index: number, name: string) => {
     if (!teams) return;
@@ -51,9 +56,27 @@ export function TeamsEditor({ teams, onChange }: { teams: TeamsSettings | undefi
               </label>
             ))}
           </div>
+          <div className="with-help">
+            <label className="field">
+              <span>{t('teamsAnswererLabel')}</span>
+              <select aria-label={t('teamsAnswererLabel')} value={teams.answerer ?? 'captain'} onChange={(event) => setAnswerer(event.target.value as AnswererMode)}>
+                {ANSWERER_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`teamsAnswerer_${mode}` as TextKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <HelpButton id="team.answerer" />
+          </div>
         </>
       )}
       <p className="meta">{t('teamsHint')}</p>
     </div>
   );
+}
+
+function withoutAnswerer(teams: TeamsSettings): TeamsSettings {
+  const { answerer: _answerer, ...rest } = teams;
+  return rest;
 }

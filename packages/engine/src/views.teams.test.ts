@@ -45,8 +45,8 @@ describe('team views: the lobby', () => {
     const teams = stageView(s).teams;
     expect(teams?.form).toBe('pick');
     expect(teams?.teams).toEqual([
-      { id: 't1', name: 'Червоні', color: 0, captainId: null, members: [] },
-      { id: 't2', name: 'Сині', color: 1, captainId: null, members: [] },
+      { id: 't1', name: 'Червоні', color: 0, captainId: null, answererId: null, members: [] },
+      { id: 't2', name: 'Сині', color: 1, captainId: null, answererId: null, members: [] },
     ]);
     expect(teams?.unassigned.map((m) => m.id)).toEqual(['m1', 'm2']);
     expect(teams?.dice).toBeNull();

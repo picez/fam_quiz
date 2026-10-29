@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BUFF_KINDS, DEBUFF_KINDS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
+import { ANSWERER_MODES } from './teams';
 
 export const LIMITS = {
   questionText: 300,
@@ -965,6 +966,8 @@ export type Duels = z.infer<typeof duelsSchema>;
 export const teamsSettingsSchema = z.object({
   count: z.number().int().min(LIMITS.minTeams).max(LIMITS.maxTeams),
   names: z.array(z.string().trim().min(1).max(LIMITS.teamName).refine(isStorable, UNSTORABLE)).min(LIMITS.minTeams).max(LIMITS.maxTeams),
+  /** Хто відповідає за команду (12g); немає поля — капітан. */
+  answerer: z.enum(ANSWERER_MODES).optional(),
 });
 
 export type TeamsSettings = z.infer<typeof teamsSettingsSchema>;

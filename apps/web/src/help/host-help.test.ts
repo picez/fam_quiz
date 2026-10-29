@@ -44,7 +44,7 @@ describe('host help', () => {
     expect(helpIds('rounds')).toEqual(ROUND_TYPES.map((type) => `round.${type}`));
     expect(helpIds('questions')).toEqual(QUESTION_TYPES.map((type) => `question.${type}`));
     expect(helpIds('cells')).toEqual(['cell.normal', 'cell.blitz', 'cell.voice', 'cell.marks']);
-    expect(helpIds('teams')).toEqual(['team.play', 'team.host', 'team.pick', 'team.random', 'team.dice', 'team.captain', 'team.formats']);
+    expect(helpIds('teams')).toEqual(['team.play', 'team.host', 'team.pick', 'team.random', 'team.dice', 'team.captain', 'team.answerer', 'team.formats']);
     const all = HELP_TOPICS.flatMap(helpIds);
     expect(new Set(all).size).toBe(all.length);
     for (const id of all) expect(helpIds(helpTopic(id))).toContain(id);
@@ -343,6 +343,19 @@ describe('host help', () => {
     for (const word of ['натиснув', 'інших команд', 'кожен окремо', 'капітан']) expect(text('team.formats'), word).toContain(word);
     expect(searchHelp('капітан')).toContain('team.captain');
     expect(searchHelp('кубик')).toContain('team.dice');
+  });
+
+  it('12g answerer entry follows «captain» and lists what the answerer and the captain do', () => {
+    const answerer = text('team.answerer');
+    for (const word of ['вибирає капітан', 'по черзі', 'на весь раунд', 'з наступного запитання', 'Ти відповідаєш за команду', 'відповідає: Оля', 'бафи', 'ставка фіналу', 'дебафи', 'апеляція', 'без ведучого', '🎤', 'не на зв’язку']) expect(answerer, word).toContain(word);
+    expect(answerer).not.toMatch(/росі|срср/i);
+    expect(answerer).not.toMatch(/відповів |відповіла|вибрав |вибрала/);
+    expect(searchHelp('відповідає')).toContain('team.answerer');
+    expect(helpEntry('team.answerer').limits?.join(' ')).toMatch(/Ставки, рішення .*, купівля й насилання дебафів лишаються за капітаном/);
+    expect(helpEntry('team.answerer').limits?.join(' ')).toContain('Перед ними смужки вибору немає');
+    expect(text('team.play')).toContain('Хто відповідає');
+    expect(text('team.captain')).toContain('«по черзі»');
+    expect(text('team.formats')).toContain('Хто відповідає');
   });
 
   it('format, buff, debuff and setting entries have a team line', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SPLASH_MS, type Quiz, type QuizSettings, type ResumeSetup } from '@quiz/shared';
+import { SPLASH_MS, type Quiz, type QuizSettings, type ResumeSetup, type TeamsSettings } from '@quiz/shared';
 import { takeBuff, type BuffPlay } from './buffs';
 import { chooserOf } from './board-turns';
 import { adjustScore } from './adjust';
@@ -22,6 +22,9 @@ import {
   submitAnswer,
   tick,
   type AnswerRecord,
+  type AnswererNow,
+  type AnswererPick,
+  type AnswererTurn,
   type Appeal,
   type Attempt,
   type AwayEntry,
@@ -104,6 +107,7 @@ import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
 import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { actAnswer, actBuzz } from './team-act';
+import { pickAnswerer, startAnswerers } from './answerer';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
@@ -316,7 +320,11 @@ const STATE_SHAPE: Record<string, string> = {
   ),
   TrialAnswer: keysOf<TrialAnswer>()(['answer', 'correct', 'timeMs', 'overridden'], true),
   LadderState: keysOf<LadderState>()(['contestantId', 'drawn'], true),
-  TeamsState: keysOf<TeamsState>()(['form', 'list', 'members', 'captains', 'dice', 'duelists'], true),
+  TeamsState: keysOf<TeamsState>()(['form', 'list', 'members', 'captains', 'dice', 'duelists', 'answerers', 'turns', 'current'], true),
+  AnswererPick: keysOf<AnswererPick>()(['memberId', 'scope', 'fromQuestion', 'roundIndex'], true),
+  AnswererTurn: keysOf<AnswererTurn>()(['questionIndex', 'memberId'], true),
+  AnswererNow: keysOf<AnswererNow>()(['questionIndex', 'memberId'], true),
+  TeamsSettings: keysOf<TeamsSettings>()(['count', 'names', 'answerer'], true),
   TeamMember: keysOf<TeamMember>()(['id', 'nickname', 'connected', 'teamId'], true),
   LadderPlay: keysOf<LadderPlay>()(['contestantId', 'step', 'level', 'timed', 'lifelines', 'decision', 'outcome'], true),
   LadderLifelines: keysOf<LadderLifelines>()(['fifty', 'audience', 'hint'], true),
@@ -1019,6 +1027,55 @@ const KEYS: Record<number, Record<string, string>> = {
     ResumeSetup: 'points,roundIndex',
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
+  20: {
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'answerers,captains,current,dice,duelists,form,list,members,turns',
+    AnswererPick: 'fromQuestion,memberId,roundIndex,scope',
+    AnswererTurn: 'memberId,questionIndex',
+    AnswererNow: 'memberId,questionIndex',
+    TeamsSettings: 'answerer,count,names',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,removed,retry,seq,spare,vote',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    Splash: 'at,kind,until',
+    AwayEntry: 'count,ms,since',
+    AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
+    ResumeSetup: 'points,roundIndex',
+    Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
+  },
 };
 
 /** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
@@ -1071,6 +1128,16 @@ function appealed(): GameState {
 function resumedCarry(): GameState {
   const quiz = makeRoundsQuiz([classicRound('r1', [single]), classicRound('r2', [withId(single, 'q2')])]);
   return must(start(lobbyWith(quiz, 'Оля', 'Петро'), T0, { roundIndex: 1, points: { p1: 42_434, p2: -150 } }));
+}
+
+/**
+ * 12g: командна гра «по черзі» на першому запитанні — капітан Оля вибрала Петра «на раунд» (раунд пришпилено),
+ * у Синіх черга дала запитання Вірі: TeamsState.answerers / turns / current, AnswererPick, AnswererTurn, AnswererNow, TeamsSettings.answerer.
+ */
+function answering(): GameState {
+  const quiz = teamQuiz([classicRound('r1', [single, withId(single, 'q2')])], 2, 'rotate');
+  const s = must(pickAnswerer(teamGame(quiz, [['Оля', 'Петро'], ['Віра']]), 'm1', 'm2', 'round'));
+  return startAnswerers(must(next(s, T0, () => 0)));
 }
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -1235,6 +1302,7 @@ function representative(): GameState[] {
     wandered,
     appealed(),
     resumedCarry(),
+    answering(),
   ];
 }
 
@@ -1466,6 +1534,26 @@ describe('the saved state', () => {
     expect(s.autopilot?.resume).toBeUndefined();
   });
 
+  it('a version 19 team state (no answerers, no turns, no answerer mode) restores; a pick and a turn survive the round trip and suspend', () => {
+    // стан до 12g: командна гра без вибору, черги й режиму
+    const plain = must(next(teamGame(teamQuiz([classicRound('r1', [single])]), [['Оля', 'Петро'], ['Віра']]), T0, () => 0));
+    expect(plain.teams?.answerers).toBeUndefined();
+    expect(plain.teams?.turns).toBeUndefined();
+    const old = roundTrip(suspend(roundTrip(plain), T0 + 1000));
+    expect(old.paused).toBe(true);
+    expect(READABLE_STATE_VERSIONS).toContain(19);
+    expect(must(actAnswer(must(resume(must(setConnected(old, 't1', true, T0 + HOUR)), T0 + HOUR)), 'm1', kyiv, T0 + HOUR)).phase).toBe('question');
+    // вибір і черга переживають JSON і suspend
+    const s = answering();
+    expect(s.teams?.answerers).toEqual({ t1: { memberId: 'm2', scope: 'round', fromQuestion: 0, roundIndex: 0 } });
+    expect(s.teams?.turns).toEqual({ t2: { questionIndex: 0, memberId: 'm3' } });
+    expect(roundTrip(s)).toEqual(s);
+    const saved = roundTrip(suspend(roundTrip(s), T0 + 1000));
+    expect(saved.teams?.answerers).toEqual(s.teams?.answerers);
+    expect(saved.teams?.turns).toEqual(s.teams?.turns);
+    expect(saved.quiz.settings.teams?.answerer).toBe('rotate');
+  });
+
   it('suspend decides an appeal whose vote ended before the save; one still running waits with its time left', () => {
     const s = appealed();
     expect(s.appeals?.at(-1)).toMatchObject({ outcome: null, endsAt: T0 + 36_000 });
@@ -1497,7 +1585,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -1522,6 +1610,10 @@ describe('the saved state', () => {
       add('DiceState', [s.board?.dice, s.teams?.dice]);
       add('TeamsState', [s.teams]);
       add('TeamMember', s.teams?.members ?? []);
+      add('TeamsSettings', [s.quiz.settings.teams]);
+      add('AnswererPick', Object.values(s.teams?.answerers ?? {}));
+      add('AnswererTurn', Object.values(s.teams?.turns ?? {}));
+      add('AnswererNow', Object.values(s.teams?.current ?? {}));
       add('BoardPlay', s.plays.map((p) => p.board));
       add('BlitzPlay', s.plays.map((p) => p.blitz));
       add('BuzzEntry', s.plays.flatMap((p) => [...(p.blitz?.queue ?? []), ...(p.blitz?.dropped ?? [])]));

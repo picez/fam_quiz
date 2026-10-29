@@ -12,7 +12,7 @@ import type { ResumeLobby } from './resume';
 import type { RoundBrief } from './round-brief';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
-import type { TeamForm } from './teams';
+import type { AnswererMode, AnswererScope, TeamForm } from './teams';
 import type { WipeoutStatus } from './wipeout';
 
 export interface Choice {
@@ -526,12 +526,20 @@ export interface TeamView {
   color: number;
   /** Ефективний капітан; null — команда порожня (лише лобі). */
   captainId: string | null;
+  /**
+   * Хто відповідає за команду (12g): на запитанні, закритому чи розкритому, й на випробуванні — зараз; між запитаннями — на наступному.
+   * null — команда порожня або на цьому запитанні не відповідає (поле — не її клітинка, «Ва-банк» — уже не в грі, бліц, опитування, хмара).
+   * Учасникам між запитаннями в чужих командах — капітан (вибір суперників не видно).
+   */
+  answererId: string | null;
   members: TeamMemberView[];
 }
 
 /** Командна гра для всіх ролей; null у соло-грі. */
 export interface TeamsView {
   form: TeamForm;
+  /** Режим «Хто відповідає» вікторини (12g). */
+  answerer: AnswererMode;
   /** У лобі — усі команди з налаштувань; після старту — ті, що грають (як players). */
   teams: TeamView[];
   /** Лобі: без команди; після старту []. */
@@ -548,7 +556,16 @@ export interface PlayerTeam {
   teamId: string | null;
   captainId: string | null;
   captain: boolean;
-  /** Може зараз діяти за команду: капітан; у бліці — натиснувший (або будь-хто, поки можна натиснути); у дуелі — дуелянт. */
+  /** Хто відповідає за мою команду (як TeamView.answererId); на запитанні, де моя команда не відповідає, — капітан, а не null. */
+  answererId: string | null;
+  /** Я відповідаю за команду. */
+  answerer: boolean;
+  answererMode: AnswererMode;
+  /** Я — капітан, режим не 'captain', етап між запитаннями, попереду є запитання й воно не бліц, не опитування й не хмара: можна вибрати відповідача. */
+  canPickAnswerer: boolean;
+  /** Вибір капітана, що ще діятиме; null — немає (відповідає капітан чи черга). */
+  answererPick: { memberId: string; scope: AnswererScope } | null;
+  /** Може зараз діяти за команду: на запитанні й випробуванні — той, хто відповідає (12g); поза ними — капітан; у бліці — натиснувший (або будь-хто, поки можна натиснути); у дуелі — дуелянт. */
   canAct: boolean;
   /** Бліц: хто з команди натиснув (відповідає він); null. */
   buzzerId: string | null;

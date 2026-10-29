@@ -13,6 +13,7 @@ const six: TeamView[] = ['Червоні', 'Сині', 'Зелені', 'Жовт
   name,
   color,
   captainId: null,
+  answererId: null,
   members: color === 1 ? [{ id: 'u2', nickname: 'Оля', connected: true }] : [],
 }));
 
@@ -82,6 +83,7 @@ describe('TeamLobby', () => {
       name: `К${color}`,
       color,
       captainId: null,
+      answererId: null,
       members: Array.from({ length: count }, (_, i) => ({ id: `m${color}${i}`, nickname: 'x', connected: true })),
     }));
     show(teamPlayerView({ teams: teamsView({ teams: many }) }, { teamId: null, canPick: true }));

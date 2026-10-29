@@ -200,11 +200,11 @@ export function DebuffZone({
   );
 }
 
-/** Команда: ефект дебафа лише на телефоні капітана; решта команди бачить смугу. */
-export function DebuffStrip({ debuff }: { debuff: NonNullable<Debuff> }) {
+/** Команда: ефект дебафа лише на телефоні того, хто відповідає; решта команди бачить смугу (answerer — відповідає не капітан, 12g). */
+export function DebuffStrip({ debuff, answerer = false }: { debuff: NonNullable<Debuff>; answerer?: boolean }) {
   return (
     <p className="team-debuff-strip" role="status">
-      {t('teamCaptainDebuff', { name: debuffName(debuff.kind) })}
+      {t(answerer ? 'teamAnswererDebuff' : 'teamCaptainDebuff', { name: debuffName(debuff.kind) })}
     </p>
   );
 }

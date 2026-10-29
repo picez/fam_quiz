@@ -1,12 +1,12 @@
-import { defaultTeams, type Quiz, type Round } from '@quiz/shared';
+import { defaultTeams, type AnswererMode, type Quiz, type Round } from '@quiz/shared';
 import { addPlayer, createGame, start, type GameState } from '../game';
 import { assignTeam } from '../teams';
 import { makeRoundsQuiz } from './fixtures';
 import { must } from './helpers';
 
-/** Вікторина з settings.teams { count, names: типові } і раундами. */
-export function teamQuiz(rounds: Round[], count = 2): Quiz {
-  return makeRoundsQuiz(rounds, { teams: defaultTeams(count) });
+/** Вікторина з settings.teams { count, names: типові, answerer — якщо задано } і раундами. */
+export function teamQuiz(rounds: Round[], count = 2, answerer?: AnswererMode): Quiz {
+  return makeRoundsQuiz(rounds, { teams: { ...defaultTeams(count), ...(answerer === undefined ? {} : { answerer }) } });
 }
 
 /** Лобі командної гри з учасниками m1, m2, … у порядку аргументів (команди t1…tN, спосіб 'pick'). */

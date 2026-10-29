@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DiceInfo, TeamsView } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { HostTeams } from './HostTeams';
+import { HostTeams, TeamPeople } from './HostTeams';
 import { teamsView } from './team-test-view';
 
 // Кнопку «ⓘ» підміняємо, щоб перевірити лише id записів довідки.
@@ -138,5 +138,32 @@ describe('HostTeams', () => {
     show(lobby());
     const none = document.querySelector('[data-team-id=""]') as HTMLElement;
     expect(within(none).getByText('Ігор')).toBeTruthy();
+  });
+});
+
+describe('TeamPeople: who answers (12g)', () => {
+  const people = (answererId: string) => {
+    const team = { ...teamsView().teams[1]!, answererId };
+    render(<TeamPeople team={team} onCaptain={vi.fn()} busy={false} />);
+  };
+
+  it('marks the answerer with 🎤 when it is not the captain', () => {
+    people('u3');
+    const marks = screen.getAllByRole('img', { name: 'відповідає' });
+    expect(marks).toHaveLength(1);
+    expect(marks[0]!.textContent).toBe('🎤');
+    expect(marks[0]!.getAttribute('title')).toBe('Відповідає за команду');
+    expect(marks[0]!.closest('li')!.textContent).toContain('Петро');
+  });
+
+  it('no mark for a team with no answerer on this question (null from the engine)', () => {
+    const team = { ...teamsView().teams[1]!, answererId: null };
+    render(<TeamPeople team={team} onCaptain={vi.fn()} busy={false} />);
+    expect(screen.queryByRole('img', { name: 'відповідає' })).toBeNull();
+  });
+
+  it('no mark while the captain answers', () => {
+    people('u2');
+    expect(screen.queryByRole('img', { name: 'відповідає' })).toBeNull();
   });
 });

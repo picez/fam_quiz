@@ -15496,3 +15496,398 @@ it('part 12r: resume a game — after a game stops in round 2 the 375 host opens
     throw error;
   }
 }, 900_000);
+
+function answererQuestions12g() {
+  const common = { imageUrl: null, video: null, timeLimit: 90, points: 100 };
+  const q = (id: string, text: string, accepted: string[]) => ({ ...common, id, type: 'text' as const, text, accepted });
+  return [
+    q('a1', 'Хто написав «Кобзар»?', ['Тарас Шевченко', 'Шевченко']),
+    q('a2', 'Яка гора найвища в Україні?', ['Говерла']),
+    q('a3', 'Яка річка тече через Київ?', ['Дніпро']),
+    q('a4', 'Яке місто на Поділлі славиться фортецею над каньйоном Смотрича?', ['Кам’янець-Подільський', 'Кам’янець']),
+  ];
+}
+
+/** Вибір капітана (12g) у кадрах стану телефона: memberId чи null. */
+function answererPicks(frames: string[]): (string | null)[] {
+  return stateViews(frames).map((view) => view.team?.answererPick?.memberId ?? null);
+}
+
+async function answerer12g() {
+  const host = await open('host12g', 375, 812);
+  await register(host, 'host', 'Ліна Ведуча', 'host12g@example.com');
+  const hostFrames = socketFrames(host);
+
+  const [a1, a2, a3, a4] = answererQuestions12g();
+  const options = { speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES };
+  const chosen = {
+    ...makeRoundsQuiz(
+      [classicRound('r1', [a1, a2, a3] as never, { ...options, title: 'Розминка' }), classicRound('r2', [a4] as never, { ...options, title: 'Другий' })],
+      { leaderboard: 'each', debuffs: [], teams: { count: 2, names: ['Червоні', 'Сині'], answerer: 'chosen' } },
+    ),
+    title: 'Відповідач 12g',
+  };
+  const rotate = {
+    ...makeRoundsQuiz([classicRound('r1', [a1, a2, a3, a4] as never, { ...options, title: 'Розминка' })], {
+      leaderboard: 'each',
+      debuffs: ['mirror'],
+      debuffPrices: { mirror: 100 },
+      teams: { count: 2, names: ['Червоні', 'Сині'], answerer: 'rotate' },
+    }),
+    title: 'По черзі 12g',
+  };
+  for (const data of [chosen, rotate]) {
+    const saved = await host.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+  }
+
+  const stage = await open('stage12g', 1280, 720);
+  const stageFrames = socketFrames(stage);
+  const olya = await open('olya12g', 375, 812);
+  const petro = await open('petro12g', 375, 812);
+  const ira = await open('ira12g', 375, 812);
+  const marko = await open('marko12g', 375, 812);
+  const nata = await open('nata12g', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const markoFrames = socketFrames(marko);
+  const nataFrames = socketFrames(nata);
+  const phones = [olya, petro, ira, marko, nata];
+  const all = [host, stage, ...phones];
+  const roster = [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Червоні'],
+    [marko, 'Марко', 'Сині'],
+    [nata, 'Ната', 'Сині'],
+  ] as const;
+
+  /** Нова гра з вікторини title: сцена й п'ять телефонів у командах (капітан — перший у команді). */
+  const launch = async (title: string) => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+    for (const [page, nickname, team] of roster) {
+      await join(page, code, nickname, false);
+      await page.locator('.team-pick-grid').waitFor();
+      await pickTeamOn(page, team);
+    }
+    await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро', 'Іра']);
+    await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Марко', 'Ната']);
+  };
+
+  const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
+  const picker = (page: Page) => page.locator('section.answerer-picker');
+  const option = (page: Page, name: string) => picker(page).getByRole('button', { name, ...exact });
+  /** Імена кнопок без позначки ✓ натиснутої. */
+  const optionNames = async (page: Page) => (await picker(page).locator('.answerer-options button.answerer-option').allTextContents()).map((name) => squash(name).replace(/^✓ /, ''));
+  const roundBox = (page: Page) => picker(page).getByRole('checkbox', { name: 'на весь раунд', ...exact });
+  const hint = (page: Page) => picker(page).locator('p.meta.answerer-hint');
+  const banner = (page: Page) => page.locator('p.lead.team-answerer-banner');
+  const barLine = (page: Page) => page.locator('.team-bar-line');
+  const watchLead = (page: Page) => page.locator('.team-watch-lead');
+  const answerField = (page: Page) => field(page, 'Ваша відповідь');
+  const stageLine = () => stage.locator('.stage-answerers');
+  const stageNames = async () => (await stage.locator('.stage-answerers .stage-answerer').allTextContents()).map(squash);
+  const mic = () => host.getByRole('img', { name: 'відповідає', ...exact });
+  /** Кадр одного блоку: у кадрі на всю сторінку липкий підвал пульта й редактора лягає посеред сторінки й закриває блок. */
+  const blockShot = async (block: Locator, name: string) => {
+    if (process.env.E2E_SHOTS !== '1') return;
+    mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+    // Висока сторінка на мить кадру: підвал іде вниз і блок не закриває.
+    const page = block.page();
+    const size = page.viewportSize()!;
+    await page.setViewportSize({ width: size.width, height: 3000 });
+    await block.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
+    await page.setViewportSize(size);
+  };
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  /** Обидві команди відповіли — ведучий розкриває. */
+  const reveal = async () => {
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    await stage.locator('.stage .lead.answer').waitFor();
+  };
+  const question = async (text: string) => {
+    await afterSplash(...all);
+    await stage.getByText(text, exact).waitFor();
+  };
+
+  // ── Гра A: «вибирає капітан». ──
+  await launch('Відповідач 12g');
+  await step('Почати гру');
+  await afterSplash(...all);
+
+  // 1. Смужка капітана на заставці раунду.
+  await picker(olya).waitFor();
+  expect(await textOf(picker(olya).locator('p.lead'))).toBe('Відповідає:');
+  expect(await optionNames(olya)).toEqual(['Я', 'Петро', 'Іра']);
+  expect(await option(olya, 'Я').getAttribute('aria-pressed')).toBe('true');
+  expect(await option(olya, 'Петро').getAttribute('aria-pressed')).toBe('false');
+  expect(await roundBox(olya).isChecked()).toBe(false);
+  expect(await hint(olya).count(), 'no hint before a pick').toBe(0);
+  await picker(marko).waitFor();
+  expect(await optionNames(marko)).toEqual(['Я', 'Ната']);
+  for (const page of [petro, ira, nata]) expect(await picker(page).count(), 'a strip on a teammate phone').toBe(0);
+  await expectNoSideScroll(olya, 'p12g-captain-strip');
+  await shot(olya, 'p12g-captain-strip');
+  await option(olya, 'Петро').click();
+  await expect.poll(() => option(olya, 'Петро').getAttribute('aria-pressed'), POLL).toBe('true');
+  expect(await option(olya, 'Я').getAttribute('aria-pressed')).toBe('false');
+  expect(await textOf(hint(olya))).toBe('Лише наступне запитання');
+  expect(await textOf(option(olya, 'Петро')), 'the pressed one carries a ✓').toBe('✓ Петро');
+  await expect.poll(() => textOf(barLine(petro)), POLL).toBe('Ти відповідаєш');
+  await expect.poll(() => textOf(barLine(ira)), POLL).toBe('Відповідає Петро');
+  await shot(olya, 'p12g-captain-picked');
+
+  // 2. a1: відповідає Петро, в Олі поля немає.
+  await step('Почати раунд');
+  await question(a1!.text);
+  await banner(petro).waitFor();
+  expect(await textOf(banner(petro))).toBe('Ти відповідаєш за команду');
+  await answerField(petro).waitFor();
+  {
+    // Банер — над запитанням і не налазить на поле.
+    const b = (await banner(petro).boundingBox())!;
+    const h1 = (await petro.locator('h1', { hasText: a1!.text }).boundingBox())!;
+    const input = (await answerField(petro).boundingBox())!;
+    expect(b.y + b.height, 'the banner is not above the question').toBeLessThanOrEqual(h1.y + 1);
+    expect(b.y + b.height, 'the banner covers the field').toBeLessThanOrEqual(input.y + 1);
+  }
+  expect(await textOf(barLine(petro))).toBe('Ти відповідаєш');
+  await expectNoSideScroll(petro, 'p12g-phone-answerer');
+  await shot(petro, 'p12g-phone-answerer');
+  await expect.poll(() => textOf(watchLead(olya)), POLL).toBe('Відповідає Петро — радьте вголос');
+  expect(await answerField(olya).count(), 'the captain has an answer field').toBe(0);
+  expect(await banner(olya).count()).toBe(0);
+  expect(await textOf(barLine(olya))).toBe('Відповідає Петро');
+  expect(await textOf(watchLead(ira))).toBe('Відповідає Петро — радьте вголос');
+  // У Синіх відповідає капітан Марко.
+  await banner(marko).waitFor();
+  expect(await textOf(watchLead(nata))).toBe('Відповідає капітан Марко — радьте вголос');
+
+  await answerField(petro).fill('Шевч');
+  for (const page of [olya, ira]) await page.locator('.team-draft', { hasText: 'Шевч' }).waitFor({ timeout: 3000 });
+  await expectNoSideScroll(olya, 'p12g-phone-teammate');
+  await shot(olya, 'p12g-phone-teammate');
+  await liveRow(host, 'Червоні').locator('.live-draft em', { hasText: 'Шевч' }).waitFor({ timeout: 3000 });
+  for (const [who, frames] of [['stage', stageFrames], ['marko', markoFrames], ['nata', nataFrames]] as const) {
+    expect(frames.join(NL), `${who} received the draft of Петро`).not.toContain('Шевч');
+  }
+
+  await stageLine().waitFor();
+  expect(await stageNames()).toEqual(['Червоні — відповідає: Петро', 'Сині — відповідає: Марко']);
+  {
+    // Рядок одразу під шапкою сцени, в один рядок.
+    const line = (await stageLine().boundingBox())!;
+    const bar = (await stage.locator('.stage-question > header.bar').boundingBox())!;
+    expect(line.y, 'the stage line is not under the header').toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+    expect(line.height, 'the stage line wraps').toBeLessThan(80);
+    expect(await stage.locator('.stage-question > header.bar + p.stage-answerers').count(), 'the line is not right after the header').toBe(1);
+  }
+  await expectStageInView(stage, 'p12g-stage-question');
+  await shot(stage, 'p12g-stage-question');
+
+  await liveRow(host, 'Червоні').getByText('діє: Петро', exact).waitFor();
+  await mic().waitFor();
+  expect(await mic().count()).toBe(1);
+  expect(await host.evaluate(HEADER_ONE_LINE), 'p12g-host-row: the host header wraps').toBe(true);
+  await expectNoSideScroll(host, 'p12g-host-row');
+  await shot(host, 'p12g-host-row');
+  await blockShot(host.locator('#live-answers'), 'p12g-host-live');
+  await blockShot(host.locator('.team-people').first(), 'p12g-host-mic');
+
+  await numericAnswer(petro, 'Тарас Шевченко');
+  await numericAnswer(marko, 'Франко');
+  await reveal();
+  await expect.poll(() => revealLine(stage), POLL).toMatch(/^Правильно 1 з 2/);
+  expect(await stageNames(), 'the stage line on the reveal').toEqual(['Червоні — відповідає: Петро', 'Сині — відповідає: Марко']);
+  await expectStageInView(stage, 'p12g-stage-reveal');
+  await shot(stage, 'p12g-stage-reveal');
+
+  // Апеляція капітана Синіх на тому самому розкритті: картка, рядок 12d і рядок 12g — у 1280 × 720.
+  const appealButton = marko.locator('button.appeal-button');
+  await appealButton.waitFor();
+  await appealButton.click();
+  await stage.locator('.appeal-card.is-stage').waitFor();
+  expect(await stage.evaluate(APPEAL_STAGE_OVERLAP), 'the stage card covers the reveal').toEqual([]);
+  await expectStageInView(stage, 'p12g-stage-reveal-appeal');
+  await shot(stage, 'p12g-stage-reveal-appeal');
+  for (const page of [olya, petro, ira]) await page.locator('section.appeal-sheet').getByRole('button', { name: 'Ні', ...exact }).click();
+  await stage.locator('p.appeal-result').waitFor();
+  await step('Далі');
+  await expect.poll(() => teamTotal(host, 'Червоні'), POLL).toBe(100);
+  expect(await teamTotal(host, 'Сині')).toBe(0);
+
+  // 3. a2: знову капітан.
+  await picker(olya).waitFor();
+  expect(await option(olya, 'Я').getAttribute('aria-pressed'), 'the one-question pick outlived the question').toBe('true');
+  await step('Наступне запитання');
+  await question(a2!.text);
+  await answerField(olya).waitFor();
+  expect(await textOf(banner(olya)), 'the captain who answers in chosen sees the banner').toBe('Ти відповідаєш за команду');
+  expect(await answerField(petro).count()).toBe(0);
+  expect(await banner(petro).count()).toBe(0);
+  await expect.poll(() => textOf(watchLead(petro)), POLL).toBe('Відповідає капітан Оля — радьте вголос');
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Оля', 'Сині — відповідає: Марко']);
+  expect(await mic().count(), '🎤 beside the captain').toBe(0);
+  await numericAnswer(olya, 'Говерла');
+  await numericAnswer(marko, 'Говерла');
+  await reveal();
+
+  // 4. «На весь раунд»: Іра до кінця раунду «Розминка».
+  await picker(olya).waitFor();
+  await roundBox(olya).check();
+  await option(olya, 'Іра').click();
+  await expect.poll(() => option(olya, 'Іра').getAttribute('aria-pressed'), POLL).toBe('true');
+  await expect.poll(() => textOf(hint(olya)), POLL).toMatch(/кінця раунду/);
+  expect(await roundBox(olya).isChecked()).toBe(true);
+  await expectNoSideScroll(olya, 'p12g-captain-round');
+  await shot(olya, 'p12g-captain-round');
+  await step('Далі');
+  await step('Наступне запитання');
+  await question(a3!.text);
+  await banner(ira).waitFor();
+  expect(await answerField(olya).count()).toBe(0);
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Іра', 'Сині — відповідає: Марко']);
+  await numericAnswer(ira, 'Дніпро');
+  await numericAnswer(marko, 'Дніпро');
+  await reveal();
+  // Після останнього запитання раунду вибору «на раунд» уже нічого не лишилось: наступне — знову капітан.
+  await expect.poll(() => option(olya, 'Я').getAttribute('aria-pressed'), POLL).toBe('true');
+  expect(await option(olya, 'Іра').getAttribute('aria-pressed'), 'the round pick outlived the round').toBe('false');
+  await step('Далі');
+  await step('Наступний раунд');
+  await afterSplash(...all);
+  await picker(olya).waitFor();
+  await expect.poll(() => option(olya, 'Я').getAttribute('aria-pressed'), POLL).toBe('true');
+  expect(await option(olya, 'Іра').getAttribute('aria-pressed')).toBe('false');
+  expect(await stageLine().count(), 'the stage line on the round intro').toBe(0);
+  await step('Почати раунд');
+  await question(a4!.text);
+  await answerField(olya).waitFor();
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Оля', 'Сині — відповідає: Марко']);
+  await numericAnswer(olya, 'Кам’янець');
+  await numericAnswer(marko, 'Кам’янець');
+  await reveal();
+  await step('Далі');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  expect(await stageLine().count(), 'the stage line on the podium').toBe(0);
+
+  // 5. Редактор: у «По черзі 12g» — «по черзі».
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'По черзі 12g' }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('main.editor').waitFor();
+  const teamsBlock = host.locator('details.teams');
+  await teamsBlock.locator('summary').click();
+  const mode = host.getByLabel('Хто відповідає', exact);
+  await mode.waitFor();
+  expect(await mode.inputValue()).toBe('rotate');
+  expect(await mode.evaluate((el) => (el as unknown as { selectedOptions: { text: string }[] }).selectedOptions[0]!.text)).toBe('по черзі');
+  await mode.scrollIntoViewIfNeeded();
+  await expectNoSideScroll(host, 'p12g-editor');
+  await shot(host, 'p12g-editor');
+  await blockShot(teamsBlock, 'p12g-editor-teams');
+
+  // ── Гра B: «по черзі». ──
+  await launch('По черзі 12g');
+  await step('Почати гру');
+  await afterSplash(...all);
+  await picker(olya).waitFor();
+  expect(await optionNames(olya)).toEqual(['Я', 'Петро', 'Іра', 'Черга']);
+  expect(await option(olya, 'Черга').getAttribute('aria-pressed'), 'the queue is not pressed without a pick').toBe('true');
+  expect(await option(olya, 'Я').getAttribute('aria-pressed')).toBe('false');
+  await expectNoSideScroll(olya, 'p12g-captain-rotate');
+  await shot(olya, 'p12g-captain-rotate');
+  await step('Почати раунд');
+
+  // a1: перший хід — капітани.
+  await question(a1!.text);
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Оля', 'Сині — відповідає: Марко']);
+  await numericAnswer(olya, 'Тарас Шевченко');
+  await numericAnswer(marko, 'Франко');
+  await reveal();
+  await step('Далі');
+  await expect.poll(() => teamTotal(host, 'Червоні'), POLL).toBe(100);
+
+  // Оля купує Синім «Дзеркало»: воно на телефоні того, хто відповідатиме (Ната), а не капітана Марка.
+  await olya.getByRole('button', { name: 'Дебафи', ...exact }).click();
+  const shop = olya.getByRole('dialog', { name: 'Дебафи для суперників' });
+  await shop.waitFor();
+  await shop.locator('.shop-item', { hasText: /Дзеркало/ }).click();
+  await shop.locator('.shop-target', { hasText: 'Сині' }).click();
+  await shop.getByRole('button', { name: 'Купити за 100', ...exact }).click();
+  await shop.waitFor({ state: 'detached' });
+
+  // a2: Петро й Ната.
+  await step('Наступне запитання');
+  await question(a2!.text);
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Петро', 'Сині — відповідає: Ната']);
+  await expectStageInView(stage, 'p12g-stage-rotate');
+  await shot(stage, 'p12g-stage-rotate');
+  await nata.locator('.debuff-zone[data-debuff="mirror"]').waitFor();
+  await banner(nata).waitFor();
+  await marko.locator('.team-debuff-strip').waitFor();
+  expect(await textOf(marko.locator('.team-debuff-strip'))).toContain('Дзеркало');
+  expect(await marko.locator('.debuff-zone[data-debuff="mirror"]').count(), 'the mirror on the captain phone').toBe(0);
+  expect(await answerField(marko).count(), 'the captain has an answer field in turns').toBe(0);
+  await expectNoSideScroll(nata, 'p12g-phone-debuff');
+  await shot(nata, 'p12g-phone-debuff');
+  await shot(marko, 'p12g-phone-debuff-strip');
+  await numericAnswer(petro, 'Говерла');
+  await numericAnswer(nata, 'Говерла');
+  await reveal();
+
+  // На розкритті a2 Оля бере наступне запитання собі.
+  await option(olya, 'Я').click();
+  await expect.poll(() => option(olya, 'Я').getAttribute('aria-pressed'), POLL).toBe('true');
+  expect(await option(olya, 'Черга').getAttribute('aria-pressed')).toBe('false');
+  await step('Далі');
+  await step('Наступне запитання');
+  await question(a3!.text);
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Оля', 'Сині — відповідає: Марко']);
+  await numericAnswer(olya, 'Дніпро');
+  await numericAnswer(marko, 'Дніпро');
+  await reveal();
+  await expect.poll(() => option(olya, 'Черга').getAttribute('aria-pressed'), POLL).toBe('true');
+  await step('Далі');
+  await step('Наступне запитання');
+  await question(a4!.text);
+  await expect.poll(() => stageNames(), POLL).toEqual(['Червоні — відповідає: Іра', 'Сині — відповідає: Ната']);
+  await numericAnswer(ira, 'Кам’янець');
+  await numericAnswer(nata, 'Кам’янець');
+  await reveal();
+  await step('Далі');
+  await afterSplash(...all);
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  // Таємність: вибір Олі приходить лише Червоним; Сині й сцена його не отримують.
+  const hostViews = stateViews(hostFrames) as unknown as { teams?: { teams: { name: string; members: { id: string; nickname: string }[] }[] } | null }[];
+  const redIds = new Set(hostViews.flatMap((view) => view.teams?.teams ?? []).filter((team) => team.name === 'Червоні').flatMap((team) => team.members.map((m) => m.id)));
+  expect(redIds.size, 'no ids of Червоні').toBeGreaterThanOrEqual(3);
+  const olyaPicks = answererPicks(olyaFrames).filter((id) => id !== null);
+  expect(olyaPicks.length, 'Оля never saw the own pick').toBeGreaterThan(0);
+  for (const [who, frames] of [['marko', markoFrames], ['nata', nataFrames]] as const) {
+    expect(stateViews(frames).length, `${who} got no frames`).toBeGreaterThan(0);
+    const leaks = answererPicks(frames).filter((id) => id !== null && redIds.has(id));
+    expect(leaks, `${who} received the pick of Червоні`).toEqual([]);
+  }
+  expect(stageFrames.join(NL), 'the stage received a pick').not.toContain('"answererPick"');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12g: the captain picks who answers — on a 375 phone Оля picks Петро for one question, Петро sees «Ти відповідаєш за команду» and answers while Оля cannot, teammates watch his draft that the other team never gets, the 1280 × 720 stage says «Червоні — відповідає: Петро», the 375 host row says «діє: Петро», the next question is the captain again, «на весь раунд» gives Іра the rest of the round and ends with it, the editor sets «по черзі», and in turns the stage goes Оля, Петро, Оля by the captain, Іра', async () => {
+  try {
+    await answerer12g();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);

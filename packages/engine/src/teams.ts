@@ -9,6 +9,7 @@ import {
   removePlayer,
   setConnected,
   shuffle,
+  type AnswererTurn,
   type DiceState,
   type GameState,
   type Play,
@@ -20,7 +21,7 @@ import {
 } from './game';
 import { settleAudience } from './ladder';
 import { normalizeText } from './normalize';
-import { settleTrial } from './survival';
+import { settleTrial, trialOpen } from './survival';
 import { settleDecision } from './wipeout';
 
 type TeamGame = GameState & { teams: TeamsState };
@@ -75,7 +76,8 @@ export function presentMembers(state: GameState): TeamMember[] {
   return state.teams?.members.filter((m) => m.connected || state.awaiting.includes(m.id)) ?? [];
 }
 
-const withTeams = (state: TeamGame, teams: Partial<TeamsState>): GameState => ({ ...state, teams: { ...state.teams, ...teams } });
+/** Командна гра з частиною teams, заміненою полями teams. */
+export const withTeams = (state: TeamGame, teams: Partial<TeamsState>): GameState => ({ ...state, teams: { ...state.teams, ...teams } });
 
 const teamLobby = (state: GameState): state is TeamGame => teamsOn(state) && state.phase === 'lobby';
 
@@ -84,6 +86,38 @@ const dicePending = (dice: DiceState | null): boolean => dice !== null && dice.t
 /** Без записів із цими значеннями (капітани, дуелянти після вилучення людини). */
 const withoutValues = (record: Record<string, string>, ids: string[]): Record<string, string> =>
   Object.fromEntries(Object.entries(record).filter(([, id]) => !ids.includes(id)));
+
+/** Вибори відповідачів (і чинні на запитанні) без цих людей; undefined лишається undefined (старі стани без ключа). */
+function withoutPicksOf<T extends { memberId: string }>(picks: Record<string, T> | undefined, ids: string[]): Record<string, T> | undefined {
+  return picks === undefined ? undefined : Object.fromEntries(Object.entries(picks).filter(([, pick]) => !ids.includes(pick.memberId)));
+}
+
+/**
+ * Черга без людини memberId: хто відповідав останнім і пішов — запис переходить на попереднього в порядку команди,
+ * тож наступним буде той, хто стояв після того, хто пішов. Інші записи без змін.
+ * Пішов той, хто відповідає на відкритому запитанні (чи випробуванні), — запис позначено попереднім запитанням:
+ * відкрите запитання повертається до капітана, а не до попереднього в команді; наступне відкриття рухає чергу як завжди.
+ */
+function turnsWithout(state: TeamGame, memberId: string): Record<string, AnswererTurn> | undefined {
+  const turns = state.teams.turns;
+  const team = teamOf(state, memberId);
+  const turn = team === null ? undefined : turns?.[team];
+  if (turns === undefined || team === null || turn === undefined || turn.memberId !== memberId) return turns;
+  const members = teamMembers(state, team);
+  const index = members.findIndex((m) => m.id === memberId);
+  const before = members[(index - 1 + members.length) % members.length];
+  if (members.length < 2 || before === undefined) return turns;
+  const open = state.phase === 'question' || state.phase === 'locked' || state.phase === 'reveal' || trialOpen(state);
+  const questionIndex = open && turn.questionIndex === state.questionIndex ? turn.questionIndex - 1 : turn.questionIndex;
+  return { ...turns, [team]: { questionIndex, memberId: before.id } };
+}
+
+/** Без ключа key; undefined лишається undefined (старі стани без ключа). */
+function withoutKey<T>(record: Record<string, T> | undefined, key: string): Record<string, T> | undefined {
+  if (record === undefined) return undefined;
+  const { [key]: _gone, ...rest } = record;
+  return rest;
+}
 
 /** Вибір ведучого лише для капітанів, що досі в тій самій команді (після переміщень, роздачі, кубиків, старту). */
 function keptCaptains(members: TeamMember[], captains: Record<string, string>): Record<string, string> {
@@ -222,6 +256,10 @@ export function withoutTeam(state: GameState, teamId: string): GameState {
       members: state.teams.members.filter((m) => m.teamId !== teamId),
       captains,
       duelists,
+      // Умовно: старий стан без ключа не дістає ключа undefined.
+      ...(state.teams.answerers !== undefined ? { answerers: withoutKey(state.teams.answerers, teamId) } : {}),
+      ...(state.teams.turns !== undefined ? { turns: withoutKey(state.teams.turns, teamId) } : {}),
+      ...(state.teams.current !== undefined ? { current: withoutKey(state.teams.current, teamId) } : {}),
     },
   );
 }
@@ -242,7 +280,14 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   const members = state.teams.members.filter((m) => m.id !== memberId);
   const left = withTeams(
     { ...state, plays: withoutPeople(state.plays, [memberId]), awaiting: state.awaiting.filter((id) => id !== memberId) },
-    { members, captains: withoutValues(state.teams.captains, [memberId]), duelists: withoutValues(state.teams.duelists, [memberId]) },
+    {
+      members,
+      captains: withoutValues(state.teams.captains, [memberId]),
+      duelists: withoutValues(state.teams.duelists, [memberId]),
+      ...(state.teams.answerers !== undefined ? { answerers: withoutPicksOf(state.teams.answerers, [memberId]) } : {}),
+      ...(state.teams.current !== undefined ? { current: withoutPicksOf(state.teams.current, [memberId]) } : {}),
+      ...(state.teams.turns !== undefined ? { turns: turnsWithout(state, memberId) } : {}),
+    },
   ) as TeamGame;
   if (state.phase === 'lobby') {
     const dice = left.teams.dice;

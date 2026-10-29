@@ -10,9 +10,9 @@ afterEach(cleanup);
 const threeTeams = () =>
   teamsView({
     teams: [
-      { id: 'a', name: 'Червоні', color: 0, captainId: 'u1', members: [{ id: 'u1', nickname: 'Іра', connected: true }] },
-      { id: 'b', name: 'Сині', color: 1, captainId: 'u2', members: [{ id: 'u2', nickname: 'Оля', connected: true }, { id: 'u3', nickname: 'Петро', connected: false }] },
-      { id: 'c', name: 'Зелені', color: 2, captainId: null, members: [] },
+      { id: 'a', name: 'Червоні', color: 0, captainId: 'u1', answererId: 'u1', members: [{ id: 'u1', nickname: 'Іра', connected: true }] },
+      { id: 'b', name: 'Сині', color: 1, captainId: 'u2', answererId: 'u2', members: [{ id: 'u2', nickname: 'Оля', connected: true }, { id: 'u3', nickname: 'Петро', connected: false }] },
+      { id: 'c', name: 'Зелені', color: 2, captainId: null, answererId: null, members: [] },
     ],
   });
 

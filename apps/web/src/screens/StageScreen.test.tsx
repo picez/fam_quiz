@@ -1904,6 +1904,21 @@ describe('StageScreen: bluff (10f)', () => {
     const lRound: RoundInfo = { index: 0, total: 1, title: '', type: 'ladder', partial: false, description: '', brief: emptyBrief('ladder'), times: null };
     const flat = (el: Element) => (el.textContent ?? '').replace(/\s/g, ' ');
 
+    it('a team ladder in chosen mode names only the contestant team, right under the ladder header (12g)', () => {
+      const teams = teamsView({ answerer: 'chosen' });
+      teams.teams[1]!.answererId = 'u3';
+      show(view({ phase: 'question', round: lRound, questionIndex: 0, question, teams, ladder: ladderInfo({ contestant: { playerId: 'team-b', nickname: 'Сині' } }) }));
+      const line = document.querySelector('.stage-ladder > .stage-answerers')!;
+      expect(document.querySelector('.stage-ladder > header.bar')!.nextElementSibling).toBe(line);
+      expect([...line.querySelectorAll('strong')].map((s) => s.textContent)).toEqual(['Сині']);
+      expect(line.textContent).toContain('відповідає: Петро');
+    });
+
+    it('a team ladder in captain mode has no answerer line (12g)', () => {
+      show(view({ phase: 'question', round: lRound, questionIndex: 0, question, teams: teamsView(), ladder: ladderInfo({ contestant: { playerId: 'team-b', nickname: 'Сині' } }) }));
+      expect(document.querySelector('.stage-answerers')).toBeNull();
+    });
+
     it('intro: the ladder beside the briefing; «Хто піде на драбину?» until picked, then the nickname and how', () => {
       show(view({ phase: 'intro', round: lRound, ladder: ladderInfo({ contestant: null, current: -1 }) }));
       expect(document.querySelector('.ladder-stage-intro > .ladder-board.is-stage')).not.toBeNull();
@@ -2058,6 +2073,18 @@ describe('StageScreen: bluff (10f)', () => {
       const first = document.querySelector('.standings li')!;
       expect(first.classList.contains('team-1')).toBe(true);
       expect(first.querySelector('.standing-members')!.textContent).toBe('Оля, Петро, Ната');
+    });
+
+    it('a rotate team question names who answers right under the header, above the question (12g)', () => {
+      const teams = teamsView({ answerer: 'rotate' });
+      teams.teams[1]!.answererId = 'u3';
+      show(view({ phase: 'question', round: lRound, questionIndex: 0, question, teams }));
+      const bar = document.querySelector('.stage-question > header.bar')!;
+      const line = document.querySelector('.stage-question > .stage-answerers')!;
+      expect(bar.nextElementSibling).toBe(line);
+      expect(line.compareDocumentPosition(document.querySelector('.stage-question h1')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(line.textContent).toContain('відповідає: Петро');
+      expect(line.textContent).toContain('відповідає: Іра');
     });
   });
 });

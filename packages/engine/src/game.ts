@@ -6,6 +6,7 @@ import {
   type CellKind,
   type CellPenalty,
   type AdjustmentSource,
+  type AnswererScope,
   type AppealOutcome,
   type AppealReason,
   type BuffKind,
@@ -36,6 +37,7 @@ import {
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
+import { startAnswerers } from './answerer';
 import { resumeError, withCarry } from './carry';
 import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
 import {
@@ -232,6 +234,40 @@ export interface TeamsState {
   dice: DiceState | null;
   /** Дуелянт команди в поточній дуелі; немає ключа — капітан. Очищується, коли дуелі немає. */
   duelists: Record<string, string>;
+  /** Вибір капітана (12g): хто відповідає за команду з запитання fromQuestion; немає ключа — капітан чи черга. */
+  answerers?: Record<string, AnswererPick>;
+  /** Черга «по черзі» (12g): кому черга дала останнє запитання; немає ключа — черга ще не почалася. */
+  turns?: Record<string, AnswererTurn>;
+  /** Вибір, що діяв на запитанні, коли воно відкрилося (12g): новий вибір чи прибраний вибір не змінюють того, хто відповідає на нього. */
+  current?: Record<string, AnswererNow>;
+}
+
+/** Вибір капітана (12g): хто відповідає за команду. */
+export interface AnswererPick {
+  /** Людина з команди (TeamMember.id). */
+  memberId: string;
+  /** 'question' — одне запитання; 'round' — до кінця раунду. */
+  scope: AnswererScope;
+  /** Індекс у plays, з якого діє: plays.length у мить вибору (наступне запитання). */
+  fromQuestion: number;
+  /** Раунд запитання fromQuestion; null — те запитання ще не відкрито. */
+  roundIndex: number | null;
+}
+
+/** Хто з вибору капітана відповідає на відкритому запитанні (12g). */
+export interface AnswererNow {
+  /** Запитання (індекс у plays). */
+  questionIndex: number;
+  /** Вибрана людина (TeamMember.id); поза зв'язком — капітан. */
+  memberId: string;
+}
+
+/** Лічильник черги «по черзі» (12g). */
+export interface AnswererTurn {
+  /** Запитання (індекс у plays), на якому черга дала відповідь цій людині. */
+  questionIndex: number;
+  /** Наступна черга — після неї в порядку команди. */
+  memberId: string;
 }
 
 /** «Мільйонер»: учасник драбини поточного раунду. */
@@ -1012,6 +1048,31 @@ function playable(state: GameState, question: Question): boolean {
 }
 
 /**
+ * Чи лишилися в поточному раунді запитання, які ще відкриються (поле — незіграні клітинки).
+ * Уживає й answerer.ts (upcomingPick: «на раунд» діє, поки раунд триває) — звідти без циклу на час імпорту, лише під час виклику.
+ */
+export function questionsLeft(state: GameState): boolean {
+  return currentRound(state)?.type === 'board' ? hasActiveCells(state) : nextQuestion(state) !== undefined;
+}
+
+/**
+ * Наступне запитання, яке відкриється (12g, щоб капітан не вибирав відповідача на бліц, опитування чи «хмару»):
+ * у раунді, де ще є запитання (і на заставці раунду), — nextQuestion чи перше; на round_end чи коли раунд вичерпано — перше запитання наступного раунду.
+ * blitz — запитання піде з чергою натискань (бліц-раунд, крім сортування); ladder — запитання «Мільйонера».
+ * Поле (клітинку ще не вибрано) і кінець гри — null.
+ */
+export function comingQuestion(state: GameState): { question: Question; blitz: boolean; ladder: boolean } | null {
+  // Заставка раунду: раунд ще попереду, навіть коли nextQuestion мовчить (учасника «Мільйонера» ще не вибрано).
+  const fresh = state.phase === 'intro' || state.phase === 'guide';
+  const inRound = state.phase !== 'round_end' && (fresh || questionsLeft(state));
+  const round = inRound ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
+  if (round === null || round.type === 'board') return null;
+  const first = () => round.questions.find((q) => playable(state, q));
+  const question = inRound ? (nextQuestion(state) ?? (fresh ? first() : undefined)) : first();
+  return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort', ladder: round.type === 'ladder' };
+}
+
+/**
  * Наступне запитання поточного раунду: перше за порядком, якого ще немає в журналі цього раунду й яке можна відкрити.
  * Пропущене «100 до 1» запису в журналі не має: ні балів, ні серій, ні зіграних запитань.
  */
@@ -1087,7 +1148,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     },
     now,
   );
-  return fireDebuffs(opened, at);
+  return fireDebuffs(startAnswerers(opened), at);
 }
 
 /** Новий LadderPlay для запитання «Мільйонера», що відкривається. */

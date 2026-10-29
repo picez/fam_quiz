@@ -1,12 +1,16 @@
 import { isUnscored, type Answer, type ErrorCode } from '@quiz/shared';
-// game.ts, buffs.ts і votes.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
+// game.ts, buffs.ts, votes.ts і answerer.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
+import { answererMode, answererOf } from './answerer';
 import { blitzRulesOf, buzz, isInstant, withPlay } from './blitz';
 import { buffOf, canVote } from './buffs';
 import { fail, ok, recordOf, submitAnswer, type GameState, type Play, type Result } from './game';
 import { captainOf, duelistOf, memberOf, teamsOn } from './teams';
 
-/** Що робить людина: від цього залежить, хто з команди має право (таблиця плану 10j). */
-export type TeamAct = 'captain' | 'answer' | 'buzz' | 'vote' | 'duel' | 'self';
+/**
+ * Що робить людина: від цього залежить, хто з команди має право (таблиця плану 10j).
+ * answerer — той, хто відповідає за команду на поточному запитанні (12g): бафи, блеф, ланцюжок, сортування, стіна, випробування, підказки драбини.
+ */
+export type TeamAct = 'captain' | 'answer' | 'buzz' | 'vote' | 'duel' | 'self' | 'answerer';
 
 export type Actor = { ok: true; id: string } | { ok: false; error: ErrorCode };
 
@@ -30,6 +34,12 @@ function blitzAnswerer(state: GameState, play: Play, memberId: string, team: str
   return captainOf(state, team) === memberId ? actor(team) : refuse('not_captain');
 }
 
+/** Відповідач команди (12g): answererOf === memberId → команда; інакше not_captain у режимі captain (як до 12g) чи not_answerer. */
+function answererActor(state: GameState, memberId: string, team: string): Actor {
+  if (answererOf(state, team) === memberId) return actor(team);
+  return refuse(answererMode(state) === 'captain' ? 'not_captain' : 'not_answerer');
+}
+
 /** Хто діє: соло — memberId; командна — за таблицею з плану. not_found — не учасник; учасник без команди після старту не буває. */
 export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor {
   if (!teamsOn(state)) return actor(memberId);
@@ -51,8 +61,10 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
       // Миттєвий бліц: відповідає будь-хто, поки команди немає в черзі; повтор відхилить рушій (already_answered).
       if (blitz !== null && blitz.instant) return actor(team);
       if (blitz !== null) return blitzAnswerer(state, blitz.play, memberId, team);
-      break;
+      return answererActor(state, memberId, team);
     }
+    case 'answerer':
+      return answererActor(state, memberId, team);
     case 'captain':
       break;
   }

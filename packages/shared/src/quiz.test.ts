@@ -3,6 +3,7 @@ import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
+  pickAnswererSchema,
   BUFF_KINDS,
   DEBUFF_KINDS,
   READY_BUFFS,
@@ -1912,5 +1913,16 @@ describe('team settings (10j)', () => {
   it('refuses a name count that differs from the team count and repeated names', () => {
     expect(issues(withTeams({ count: 3, names: ['А', 'Б'] }))).toContain('team_names');
     expect(issues(withTeams({ count: 2, names: ['Сині', ' сині '] }))).toContain('team_names');
+  });
+  it('an optional answerer mode (12g): a known mode passes, an unknown one fails, no field leaves no key', () => {
+    expect(valid(quizSchema, withTeams({ count: 2, names: ['Червоні', 'Сині'], answerer: 'chosen' }))).toBe(true);
+    expect(valid(quizSchema, withTeams({ count: 2, names: ['Червоні', 'Сині'], answerer: 'host' }))).toBe(false);
+    const parsed = quizSchema.safeParse(withTeams({ count: 2, names: ['Червоні', 'Сині'] }));
+    expect(parsed.success && 'answerer' in (parsed.data.settings.teams ?? {})).toBe(false);
+    expect(pickAnswererSchema.safeParse({ memberId: null, scope: 'round' }).success).toBe(true);
+    expect(pickAnswererSchema.safeParse({ memberId: 'x', scope: 'game' }).success).toBe(false);
+    expect(pickAnswererSchema.safeParse({ memberId: '', scope: 'question' }).success).toBe(false);
+    expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(64), scope: 'question' }).success).toBe(true);
+    expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(65), scope: 'question' }).success).toBe(false);
   });
 });

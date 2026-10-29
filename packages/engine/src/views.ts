@@ -147,6 +147,7 @@ import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
 import { firstRound, groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
+import { answererMode, answeringNow, answeringTeams, canPickNow, onQuestion, shownAnswerer, upcomingPick } from './answerer';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
@@ -1704,9 +1705,22 @@ function teamsView(state: GameState): TeamsView | null {
   if (!teamsOn(state)) return null;
   const { form, list, members, dice } = state.teams;
   const lobby = state.phase === 'lobby';
+  // На запитанні — лише ті, хто на ньому справді відповідає (поле — хто вибрав клітинку, «Ва-банк» — хто ще в грі, бліц — ніхто).
+  const play = onQuestion(state) ? state.plays[state.questionIndex] : undefined;
+  const answering = play === undefined ? null : answeringTeams(state, play);
   return {
     form,
-    teams: list.map((t) => ({ id: t.id, name: t.name, color: t.color, captainId: captainOf(state, t.id), members: teamMembers(state, t.id).map(memberView) })),
+    answerer: answererMode(state),
+    // Хто відповідає зараз чи відповідатиме далі; у лобі — капітан; хто на запитанні не відповідає — null.
+    // Учасникам чужий наступний вибір не видно (playerView, ownAnswerers).
+    teams: list.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      captainId: captainOf(state, t.id),
+      answererId: lobby ? captainOf(state, t.id) : answering !== null && !answering.includes(t.id) ? null : shownAnswerer(state, t.id),
+      members: teamMembers(state, t.id).map(memberView),
+    })),
     unassigned: lobby ? members.filter((m) => m.teamId === null).map(memberView) : [],
     // Рядки — ті, хто кидав або чекає кидка (хто прийшов після старту кидків — поза ними).
     dice:
@@ -1998,12 +2012,19 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   // Свій вихід — людини, а не команди: зріз команди спільний, тож away додається тут, як vote.
   return {
     ...view,
+    teams: ownAnswerers(state, view.teams, teamId),
     me: { ...view.me, answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
     author: authorView(state, member.id),
   };
+}
+
+/** Між запитаннями учасник бачить наступного відповідача лише своєї команди: чужі команди — капітан (вибір суперників не видно). */
+function ownAnswerers(state: GameState, teams: TeamsView | null, teamId: string): TeamsView | null {
+  if (teams === null || answeringNow(state)) return teams;
+  return { ...teams, teams: teams.teams.map((t) => (t.id === teamId ? t : { ...t, answererId: t.captainId })) };
 }
 
 /** Учасник без команди (лобі): спільна частина й порожній me. */
@@ -2061,12 +2082,24 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
   const duel = state.duel;
   const duelling = teamId !== null && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId);
   const play = inQuestion(state) ? state.plays[state.questionIndex] : undefined;
+  // На запитанні команда, що на ньому не відповідає (поле — не її клітинка, «Ва-банк» — уже не в грі, бліц), — капітан, як і в teamsView.
+  const sitsOut = teamId !== null && play !== undefined && onQuestion(state) && !answeringTeams(state, play).includes(teamId);
+  const answererId = teamId === null || lobby || sitsOut ? captainId : shownAnswerer(state, teamId);
+  const mode = answererMode(state);
+  // Лише вибір своєї команди: чужий не видно.
+  const pick = teamId === null ? null : upcomingPick(state, teamId);
   return {
     memberId: member.id,
     nickname: member.nickname,
     teamId,
     captainId,
     captain: captainId === member.id,
+    answererId,
+    answerer: answererId === member.id,
+    answererMode: mode,
+    // Перед бліцом, опитуванням і «хмарою» вибирати нічого (canPickNow).
+    canPickAnswerer: teamId !== null && captainId === member.id && canPickNow(state),
+    answererPick: pick === null ? null : { memberId: pick.memberId, scope: pick.scope },
     canAct: teamId !== null && !lobby && canActNow(state, member.id, teamId),
     // Натиснувший — лише поки команда в черзі: після оцінки спроби його вже немає.
     buzzerId: teamId !== null && play?.blitz?.queue.some((e) => e.playerId === teamId) ? (play.buzzers?.[teamId] ?? null) : null,
@@ -2078,12 +2111,14 @@ function playerTeam(state: GameState, member: TeamMember): PlayerTeam {
   };
 }
 
-/** Чи людина може зараз діяти за команду: дуель — дуелянт; поза запитанням — капітан; бліц без команди в черзі — будь-хто; інакше як actorOf(…, 'answer'). */
+/** Чи людина може зараз діяти за команду: дуель — дуелянт; відкрите випробування — відповідач; поза запитанням — капітан; бліц без команди в черзі — будь-хто; інакше як actorOf(…, 'answer'). */
 function canActNow(state: GameState, memberId: string, teamId: string): boolean {
   const duel = state.duel;
   if (state.phase === 'duel' && duel !== null && (duel.challengerId === teamId || duel.opponentId === teamId) && (duel.stage === 'question' || duel.stage === 'answer')) {
     return actorOf(state, memberId, 'duel').ok;
   }
+  // Випробування «Вибування» — той, хто відповідав на запис раунду.
+  if (state.phase === 'leaderboard' && trialOpen(state)) return actorOf(state, memberId, 'answerer').ok;
   // Поза запитанням (поле, ставка, рішення) — капітан.
   if (state.phase !== 'question') return actorOf(state, memberId, 'captain').ok;
   // Бліц: ті самі умови, що в кнопки й поля команди (спроби, час, уже відповіла).

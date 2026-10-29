@@ -1705,6 +1705,59 @@ describe('teams over sockets (10j)', () => {
   });
 });
 
+describe('player:pick-answerer over sockets (12g)', () => {
+  /** «Вибирає капітан»: Олена (капітан) і Тарас — червоні, Іра (капітан) і Марко — сині; гра на заставці раунду. */
+  async function chosenGame() {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')])], { teams: { ...defaultTeams(2), answerer: 'chosen' } });
+    const game = (await startGame(ctx.app, quiz)).game;
+    const joins = [];
+    for (const name of ['Олена', 'Тарас', 'Іра', 'Марко']) joins.push(await join(game.code, name));
+    const host = open({ code: game.code, role: 'host', token: game.hostToken });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    const [olena, taras, ira, marko] = joins.map((j) => open({ code: game.code, role: 'player', token: j.token }));
+    const view = await until(host, (v) => v.role === 'host' && (v.teams?.unassigned.filter((m) => m.connected).length ?? 0) === 4);
+    const [red, blue] = (view.teams?.teams ?? []).map((t) => t.id);
+    for (const [i, team] of [red, red, blue, blue].entries()) {
+      expect(await send(host, 'host:team-assign', { memberId: joins[i].playerId, teamId: team })).toEqual({ ok: true });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    const [olenaId, tarasId] = joins.map((j) => j.playerId);
+    return { game, host, stage, olena, taras, ira, marko, olenaId, tarasId };
+  }
+
+  it('the captain picks between questions; host and stage are forbidden, a teammate not_captain, a bad scope invalid, a question wrong_phase', async () => {
+    const { host, stage, olena, taras, tarasId } = await chosenGame();
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:pick-answerer', { memberId: tarasId, scope: 'question' })).toEqual({ ok: false, error: 'forbidden' });
+    }
+    for (const payload of [undefined, { memberId: tarasId }, { memberId: tarasId, scope: 'game' }, { memberId: 5, scope: 'round' }]) {
+      expect(await send(olena, 'player:pick-answerer', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(taras, 'player:pick-answerer', { memberId: tarasId, scope: 'question' })).toEqual({ ok: false, error: 'not_captain' });
+    expect(await send(olena, 'player:pick-answerer', { memberId: tarasId, scope: 'question' })).toEqual({ ok: true });
+    const mine = await until(olena, (v) => v.role === 'player' && v.team?.answererPick !== null && v.team?.answererPick !== undefined);
+    expect(mine.role === 'player' && mine.team?.answererPick).toEqual({ memberId: tarasId, scope: 'question' });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:pick-answerer', { memberId: null, scope: 'question' })).toEqual({ ok: false, error: 'wrong_phase' });
+    // Капітан не відповідає за команду, вибраний товариш — так.
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'not_answerer' });
+    expect(await send(taras, 'player:answer', correct)).toEqual({ ok: true });
+  });
+
+  it('more than four picks a second are too_soon; a kick clears the window of the person', async () => {
+    const { game, host, olena, olenaId, tarasId } = await chosenGame();
+    for (let i = 0; i < 4; i++) {
+      expect(await send(olena, 'player:pick-answerer', { memberId: i % 2 === 0 ? tarasId : null, scope: 'round' })).toEqual({ ok: true });
+    }
+    expect(await send(olena, 'player:pick-answerer', { memberId: tarasId, scope: 'round' })).toEqual({ ok: false, error: 'too_soon' });
+    const room = ctx.manager.get(game.code)!;
+    expect(room.pickRate.has(olenaId)).toBe(true);
+    expect(await send(host, 'host:kick', { playerId: olenaId })).toEqual({ ok: true });
+    expect(room.pickRate.has(olenaId)).toBe(false);
+  });
+});
+
 describe('autopilot sockets (11g)', () => {
   async function autopilotRoom(quiz: object = makeQuiz([single, text])) {
     const account = await signUp(ctx.app, 'Марта');
