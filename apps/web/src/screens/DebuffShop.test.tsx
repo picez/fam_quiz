@@ -3,7 +3,21 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerShop } from '@quiz/shared';
 import type { Send } from '../live/types';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { DebuffShop } from './DebuffShop';
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+/** Тіло першого правила з точно цим селектором у styles.css. */
+function rule(selector: string): string {
+  const start = css.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
 
 afterEach(cleanup);
 
@@ -53,6 +67,17 @@ describe('DebuffShop', () => {
     expect(onError).toHaveBeenLastCalledWith(null);
     // Фокус повертає очищення ефекту діалогу, що може виконатися вже після зникнення діалогу з DOM.
     await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('the sheet lists the five new debuffs with their names and lines, in a list that scrolls inside the card', () => {
+    const fresh: PlayerShop = { ...shop, items: (['flip', 'torch', 'sticky', 'noclock', 'bubbles'] as const).map((kind) => ({ kind, price: 200 })) };
+    render(<DebuffShop shop={fresh} score={1000} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    for (const name of [/Догори дриґом/, /Ліхтарик/, /Липкі кнопки/, /Без годинника/, /Бульбашки/]) expect(button(name)).toBeTruthy();
+    expect(screen.getByText('Кнопки спрацьовують з другого дотику.')).toBeTruthy();
+    expect(screen.getByText('Бульбашки закривають відповіді — лопайте.')).toBeTruthy();
+    expect(rule('.shop-items')).toMatch(/overflow-y:\s*auto/);
+    expect(rule('.shop-items')).toMatch(/max-height/);
   });
 
   it('an offline rival is shown as «Не в грі» and cannot be picked', () => {

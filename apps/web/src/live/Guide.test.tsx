@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { emptyBrief, type GuideView } from '@quiz/shared';
+import { BUFF_KINDS, DEBUFF_KINDS, emptyBrief, type GuideView } from '@quiz/shared';
 import { GuidePageView } from './Guide';
 
 afterEach(cleanup);
@@ -40,5 +40,19 @@ describe('GuidePageView', () => {
     render(<GuidePageView guide={{ ...guide, page: 0 }} size="phone" />);
     expect(screen.getByRole('heading', { name: 'Відповідайте з телефона' })).toBeTruthy();
     expect(document.querySelectorAll('.guide-lead')).toHaveLength(3);
+  });
+
+  it('a page with more than eight buffs or debuffs gets two columns (is-many); a short page does not', () => {
+    const many: GuideView = { page: 0, pages: [{ kind: 'buffs', buffs: [...BUFF_KINDS] }, { kind: 'debuffs', debuffs: [...DEBUFF_KINDS] }, { kind: 'buffs', buffs: ['fifty', 'double', 'risk', 'letter', 'peek'] }] };
+    render(<GuidePageView guide={many} size="stage" />);
+    expect(document.querySelectorAll('.guide-item')).toHaveLength(13);
+    expect(document.querySelector('.guide-items')?.classList.contains('is-many')).toBe(true);
+    cleanup();
+    render(<GuidePageView guide={{ ...many, page: 1 }} size="stage" />);
+    expect(document.querySelectorAll('.guide-item')).toHaveLength(11);
+    expect(document.querySelector('.guide-items')?.classList.contains('is-many')).toBe(true);
+    cleanup();
+    render(<GuidePageView guide={{ ...many, page: 2 }} size="stage" />);
+    expect(document.querySelector('.guide-items')?.classList.contains('is-many')).toBe(false);
   });
 });

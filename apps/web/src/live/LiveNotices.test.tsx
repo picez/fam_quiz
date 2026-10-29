@@ -169,6 +169,15 @@ describe('LiveNotices', () => {
     expect(document.querySelector('.live-notice')?.textContent).toMatch(/ведуч/i);
   });
 
+  it('a peek toast names who peeks at whom; a risk toast names the buff', () => {
+    const peek = { ...buffView().buffNotice!, playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, target: { playerId: 'p3', nickname: 'Іра' } };
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Петро → Іра');
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: { ...buffView().buffNotice!, kind: 'risk' } })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Оля: Ризик');
+  });
+
   it('buff toast shows «Оля: 50/50» for four seconds', () => {
     const { container } = render(<BuffToast view={buffView()} offsetMs={0} />);
     expect(screen.getByRole('status').textContent).toBe('Оля: 50/50');

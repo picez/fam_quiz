@@ -2,6 +2,9 @@ import type { GuideView } from "@quiz/shared";
 import { guidePageText } from "../guide-text";
 import { t } from "../i18n";
 
+/** Понад стільки пунктів (13 бафів, 11 дебафів) список — клас is-many: на сцені компактні дві колонки, щоб уміститися в 1280 × 720. */
+export const GUIDE_TWO_COLUMNS = 8;
+
 /**
  * Сторінка «Як грати»: stage — заголовок, номер, пункти зі значками й рядками балів, «Те саме — у ваших телефонах»;
  * phone — заголовок, номер, назви й рядки; host — заголовок, номер і назви пунктів. Без анімацій появи.
@@ -33,7 +36,7 @@ export function GuidePageView({
           </p>
         ))}
       {text.items.length > 0 && (
-        <ul className="guide-items">
+        <ul className={text.items.length > GUIDE_TWO_COLUMNS ? "guide-items is-many" : "guide-items"}>
           {text.items.map((item, i) => {
             // Рядок балів, що вже стоїть у рядку пункту (режим ставок фіналу), удруге не повторюється.
             const details = item.details.filter(

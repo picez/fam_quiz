@@ -1,9 +1,23 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, type HostPlayer, type SurvivalInfo } from '@quiz/shared';
+import { DEBUFF_KINDS, LEGACY_DEBUFFS, type HostPlayer, type SurvivalInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { DebuffPanel, isSurvivalGhost, parseAdjust, PointsPanel } from './HostPlayerTools';
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+/** Тіло першого правила з точно цим селектором у styles.css. */
+function rule(selector: string): string {
+  const start = css.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
 
 afterEach(cleanup);
 
@@ -70,6 +84,19 @@ describe('DebuffPanel', () => {
     expect(screen.getByText('Спрацює в наступному запитанні, де гравець відповідає.')).toBeTruthy();
     fireEvent.click(button('🌫️ Туман'));
     expect(send).toHaveBeenCalledWith('host:debuff', { playerId: 'p1', kind: 'fog' });
+  });
+
+  it('DebuffPanel shows eleven buttons with all kinds and six with the old ones; «🫧 Бульбашки» sends bubbles', () => {
+    const send = okSend();
+    render(<DebuffPanel player={player()} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);
+    expect(document.querySelectorAll('.debuff-picks button')).toHaveLength(11);
+    for (const label of ['🙃 Догори дриґом', '🔦 Ліхтарик', '🍯 Липкі кнопки', '⌛ Без годинника']) expect(button(label)).toBeTruthy();
+    fireEvent.click(button('🫧 Бульбашки'));
+    expect(send).toHaveBeenCalledWith('host:debuff', { playerId: 'p1', kind: 'bubbles' });
+    cleanup();
+    render(<DebuffPanel player={player()} kinds={[...LEGACY_DEBUFFS]} send={okSend()} onError={vi.fn()} />);
+    expect(document.querySelectorAll('.debuff-picks button')).toHaveLength(6);
+    expect(rule('.debuff-picks')).toMatch(/flex-wrap:\s*wrap/);
   });
 
   it('DebuffPanel lists the given kinds only', () => {

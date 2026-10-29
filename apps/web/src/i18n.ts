@@ -613,6 +613,8 @@ const uk = {
   spareText: 'Запасне: {text}',
   hintKnown: 'Підказка: {hint}',
   buffNotice: '{name}: {buff}',
+  buffNoticePeek: '👀 Підгляд: {name} → {target}',
+  stageBuffPeek: '{icon} {name} → {target}',
   sparesTitle: 'Запасні запитання',
   sparesHint: 'Для бафу «Заміна запитання» у класичних раундах (і на полі, поки жодна категорія не має власних запасних). Бали й час — від поточного запитання.',
   categorySparesTitle: 'Запасні категорії «{title}»',

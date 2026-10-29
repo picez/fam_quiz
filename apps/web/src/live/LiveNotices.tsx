@@ -84,7 +84,7 @@ export interface BuffToastView {
 }
 
 /**
- * «Оля: 50/50» — хтось узяв баф; у стовпчику .live-notices під сповіщенням балів.
+ * «Оля: 50/50» — хтось узяв баф («👀 Підгляд: Оля → Петро» — з ціллю «Підглянути»); у стовпчику .live-notices під сповіщенням балів.
  * Лише на запитанні, де баф узято, і не поверх заставки; тому, хто взяв баф (selfId), — ні: про це вже каже його рядок бафів.
  */
 export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; offsetMs: number; selfId?: string }) {
@@ -94,7 +94,9 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   if (shown.questionIndex !== view.questionIndex || shown.playerId === selfId) return null;
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
-      {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind, view.autopilot) })}
+      {shown.kind === 'peek' && shown.target !== null
+        ? t('buffNoticePeek', { name: shown.nickname, target: shown.target.nickname })
+        : t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind, view.autopilot) })}
     </div>
   );
 }

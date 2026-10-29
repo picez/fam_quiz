@@ -617,13 +617,16 @@ export function SharedOvertime({ view, offsetMs }: { view: { endsAt: number | nu
  * Значки сцени: «½ Оля» біля кожного гравця, що взяв баф на це запитання; що баф зробив, сцена не знає.
  * Заміна в класиці — лише «⇄ Оля відповідає на запасне» (запасного в зрізі сцени немає);
  * на полі запасне вже на сцені як запитання клітинки — «⇄ Оля: запасне запитання».
+ * «Підглянути» з ціллю — «◉ Оля → Петро»: хто й до кого, без самої відповіді.
  */
 export function StageBuffs({ buffs, board = false, autopilot = false }: { buffs: BuffTag[]; board?: boolean; autopilot?: boolean }) {
   if (buffs.length === 0) return null;
   const text = (tag: BuffTag) =>
     tag.kind === 'swap'
       ? `${BUFF_ICONS.swap} ${t(board ? 'stageSpareBoard' : 'stageSpare', { name: tag.nickname })}`
-      : `${BUFF_ICONS[tag.kind]} ${tag.nickname}`;
+      : tag.kind === 'peek' && tag.target !== null
+        ? t('stageBuffPeek', { icon: BUFF_ICONS.peek, name: tag.nickname, target: tag.target.nickname })
+        : `${BUFF_ICONS[tag.kind]} ${tag.nickname}`;
   return (
     <ul className="stage-buffs" aria-label={t('stageBuffsLabel')}>
       {buffs.map((tag) => (

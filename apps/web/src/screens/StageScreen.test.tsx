@@ -1119,6 +1119,22 @@ describe('StageScreen final', () => {
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null } }));
     expect(screen.getByText('Оля: 50/50')).toBeTruthy();
   });
+
+  it('a peek on the stage: «◉ Петро → Іра» in the buff row and «👀 Підгляд: Петро → Іра» as a notice', () => {
+    const target = { playerId: 'p3', nickname: 'Іра' };
+    show(
+      view({
+        phase: 'question',
+        questionIndex: 0,
+        question,
+        endsAt: Date.now() + 10_000,
+        buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'peek', target }],
+        buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'peek', questionIndex: 0, target },
+      }),
+    );
+    expect(within(document.querySelector('.stage-buffs') as HTMLElement).getByText('◉ Петро → Іра')).toBeTruthy();
+    expect(screen.getByText('👀 Підгляд: Петро → Іра')).toBeTruthy();
+  });
 });
 
 const olya = { playerId: 'p1', nickname: 'Оля' };

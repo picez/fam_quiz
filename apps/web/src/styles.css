@@ -3728,10 +3728,17 @@ button.match-item {
   min-width: 0;
 }
 
+/* 11 кнопок дебафів (12h) переносяться рядками; кнопка не ширша за рядок, довга назва переноситься всередині. */
 .debuff-picks {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.debuff-picks .btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .debuff-tag {
@@ -6807,6 +6814,31 @@ label.powers-price {
   font-size: clamp(1rem, 0.9vw + 1vh, 1.5rem);
 }
 
+/* Понад 8 пунктів (13 бафів, 11 дебафів — до 7 рядів): ті самі дві колонки, але дрібніше, щоб сторінка лишилася в 1280 × 720. */
+.guide.is-stage:has(.guide-items.is-many) {
+  gap: 1.2vh;
+}
+
+.guide.is-stage:has(.guide-items.is-many) .guide-lead {
+  font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
+}
+
+.guide.is-stage .guide-items.is-many {
+  gap: 1.4vh 3vw;
+}
+
+.guide.is-stage .guide-items.is-many .guide-item {
+  font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
+}
+
+.guide.is-stage .guide-items.is-many .guide-icon {
+  font-size: clamp(1rem, 1.5vw, 1.6rem);
+}
+
+.guide.is-stage .guide-items.is-many .guide-name {
+  font-size: clamp(1.15rem, 1vw + 1.2vh, 1.9rem);
+}
+
 .guide-phones {
   color: var(--guide-accent);
   font-size: clamp(1rem, 1.5vw, 1.5rem);
@@ -7247,6 +7279,13 @@ label.powers-price {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+}
+
+/* 11 дебафів (12h) — до шести рядів: список прокручується сам, «Закрити» під ним лишається на екрані. */
+.shop-items {
+  max-height: 55vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .shop-item,

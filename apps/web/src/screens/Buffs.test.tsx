@@ -581,6 +581,19 @@ describe('VoteSheet', () => {
 });
 
 describe('StageBuffs', () => {
+  it('a peek tag on the stage names who peeks at whom; other buffs keep the icon and the name', () => {
+    render(
+      <StageBuffs
+        buffs={[
+          { playerId: 'p2', nickname: 'Петро', kind: 'peek', target: { playerId: 'p3', nickname: 'Іра' } },
+          { playerId: 'p1', nickname: 'Оля', kind: 'risk', target: null },
+        ]}
+      />,
+    );
+    const items = [...document.querySelectorAll('.stage-buffs li')].map((node) => node.textContent);
+    expect(items).toEqual(['◉ Петро → Іра', '⚄ Оля']);
+  });
+
   it('the swap tag on the stage uses the spare colour', () => {
     render(
       <StageBuffs
