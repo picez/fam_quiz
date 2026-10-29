@@ -209,32 +209,54 @@ async function historyAchievements(db: Db, userId: string, exceptGameId: string 
 }
 
 /**
- * Ігри користувача, що закінчились після мітки й не дали йому жодного рядка user_achievement — нагородження могло загубитись
- * (збій, вичерпані повтори рекордера). Від найранішої. Зазвичай порожньо: один запит за індексами.
+ * Ігри користувача — зіграні, проведені чи за його вікториною (awardGame нагороджує всіх трьох), — що закінчились після мітки
+ * й не дали йому жодного рядка user_achievement: нагородження могло загубитись (збій, вичерпані повтори рекордера).
+ * Від найранішої. Зазвичай порожньо: три запити за індексами (participant_user_idx, game_host_idx, quiz_owner_idx).
  */
 async function missedGames(db: Db, userId: string, since: Date): Promise<{ gameId: string; earnedAt: Date }[]> {
-  const rows = await db
-    .select({ id: game.id, finishedAt: game.finishedAt })
-    .from(participant)
-    .innerJoin(game, eq(game.id, participant.gameId))
-    .where(
-      and(
-        eq(participant.userId, userId),
-        eq(game.status, 'finished'),
-        gt(game.finishedAt, since),
-        notExists(
-          db
-            .select({ one: sql`1` })
-            .from(userAchievement)
-            .where(and(eq(userAchievement.userId, userId), eq(userAchievement.gameId, game.id))),
-        ),
-      ),
-    )
-    .orderBy(asc(game.finishedAt), asc(game.id));
-  // Один рядок на гру (учасником гри користувач буває раз, але без покладання на це).
+  const fresh = and(
+    eq(game.status, 'finished'),
+    gt(game.finishedAt, since),
+    notExists(
+      db
+        .select({ one: sql`1` })
+        .from(userAchievement)
+        .where(and(eq(userAchievement.userId, userId), eq(userAchievement.gameId, game.id))),
+    ),
+  );
+  const columns = { id: game.id, finishedAt: game.finishedAt };
+  const played = await db.select(columns).from(participant).innerJoin(game, eq(game.id, participant.gameId)).where(and(eq(participant.userId, userId), fresh));
+  const hosted = await db.select(columns).from(game).where(and(eq(game.hostId, userId), fresh));
+  const authored = await db.select(columns).from(game).innerJoin(quiz, eq(quiz.id, game.quizId)).where(and(eq(quiz.ownerId, userId), fresh));
+  // Одна гра — один раз, хоч користувач у ній і грав, і вів, і автор.
   const byGame = new Map<string, Date>();
-  for (const row of rows) if (row.finishedAt !== null && !byGame.has(row.id)) byGame.set(row.id, row.finishedAt);
-  return [...byGame].map(([gameId, earnedAt]) => ({ gameId, earnedAt }));
+  for (const row of [...played, ...hosted, ...authored]) if (row.finishedAt !== null) byGame.set(row.id, row.finishedAt);
+  return [...byGame]
+    .map(([gameId, earnedAt]) => ({ gameId, earnedAt }))
+    .sort((a, b) => a.earnedAt.getTime() - b.earnedAt.getTime() || (a.gameId < b.gameId ? -1 : a.gameId > b.gameId ? 1 : 0));
+}
+
+/** Ігрові ачівки пропущених ігор (з їхньою датою й id); збій перевірки партії — у журнал, а не збій читання. */
+async function missedAchievements(
+  db: Db,
+  userId: string,
+  missed: { gameId: string; earnedAt: Date }[],
+  want: (id: AchievementId, earnedAt: Date | null, gameId: string | null) => void,
+  onError: (error: unknown) => void,
+): Promise<void> {
+  const dates = new Map(missed.map((m) => [m.gameId, m.earnedAt]));
+  for (let i = 0; i < missed.length; i += BATCH) {
+    try {
+      const found: [AchievementId, string][] = [];
+      for (const loaded of await loadAchievementGames(db, missed.slice(i, i + BATCH).map((m) => m.gameId))) {
+        const who = whoIn(loaded, userId);
+        if (who !== null) for (const id of gameAchievements(loaded, who)) found.push([id, loaded.gameId]);
+      }
+      for (const [id, gameId] of found) want(id, dates.get(gameId) ?? null, gameId);
+    } catch (error) {
+      onError(error);
+    }
+  }
 }
 
 export interface SyncOptions {
@@ -242,6 +264,8 @@ export interface SyncOptions {
   prepared?: CareerInputs;
   /** false — не читати типи запитань (чужа сторінка й профіль); доповнення історії читає їх усе одно. */
   types?: boolean;
+  /** Куди віддати збій наздоганяння пропущених ігор (читання від нього не падає). */
+  onError?: (error: unknown) => void;
 }
 
 /**
@@ -284,13 +308,16 @@ export async function syncAchievements(
     const who = loaded === undefined ? null : whoIn(loaded, userId);
     if (loaded !== undefined && who !== null) for (const id of gameAchievements(loaded, who)) want(id, at.earnedAt, at.gameId);
   }
-  const missed = synced && at === null ? await missedGames(db, userId, syncedAt) : [];
-  const dates = new Map(missed.map((m) => [m.gameId, m.earnedAt]));
-  for (let i = 0; i < missed.length; i += BATCH) {
-    for (const loaded of await loadAchievementGames(db, missed.slice(i, i + BATCH).map((m) => m.gameId))) {
-      const who = whoIn(loaded, userId);
-      if (who !== null) for (const id of gameAchievements(loaded, who)) want(id, dates.get(loaded.gameId) ?? null, loaded.gameId);
+  // Наздоганяння ніколи не ламає читання: збій — у журнал, а мітка все одно переходить за ці ігри (інакше вічні повтори).
+  const onError = options.onError ?? ((error: unknown) => console.error('Не вдалося наздогнати ачівки:', error));
+  let missed: { gameId: string; earnedAt: Date }[] = [];
+  if (synced && at === null) {
+    try {
+      missed = await missedGames(db, userId, syncedAt);
+    } catch (error) {
+      onError(error);
     }
+    await missedAchievements(db, userId, missed, want, onError);
   }
   const now = new Date();
   const careerAt = at ?? missed.at(-1) ?? null;

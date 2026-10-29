@@ -473,3 +473,68 @@ describe('fix wave (12i)', () => {
     expect(games.loadAchievementGames).not.toHaveBeenCalled();
   });
 });
+
+describe('catch-up of lost awards beyond players (12i)', () => {
+  /** Доповнена історія з міткою since: усе, що закінчилось пізніше, — для наздоганяння. */
+  const syncedSince = async (userId: string, since: string) => {
+    await read(userId);
+    await db.update(profile).set({ achievementsSyncedAt: new Date(since) }).where(eq(profile.userId, userId));
+  };
+
+  it('a host whose award was lost gets «За пультом» with the game date on the next read', async () => {
+    const host = 'store-lost-host';
+    await addUser(host, 'Ведучий');
+    await syncedSince(host, '2026-09-24T00:00:00Z');
+    const hosted = await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-09-24T18:00:00Z'),
+      finishedAt: new Date('2026-09-24T18:30:00Z'),
+      players: [guest],
+    });
+    const { earned } = await read(host);
+    expect(earned.get('host')?.earnedAt?.toISOString()).toBe('2026-09-24T18:30:00.000Z');
+    expect(earned.get('host')?.gameId).toBe(hosted.gameId);
+  });
+
+  it('a quiz owner whose award was lost gets author_hit with the tenth game date on the next read', async () => {
+    const author = 'store-lost-author';
+    const player = 'store-lost-reader';
+    await addUser(author, 'Авторка');
+    await addUser(player, 'Ярема');
+    const [own] = await db.insert(quiz).values({ ownerId: author, title: 'Полтава', description: '', settings: quizOne.settings, rounds: quizOne.rounds }).returning();
+    for (let i = 0; i < 9; i++) await playGame(player, new Date(`2026-07-${10 + i}T18:00:00Z`), { quizId: own.id });
+    await syncedSince(author, '2026-07-25T00:00:00Z');
+    const tenth = await playGame(player, new Date('2026-07-25T18:00:00Z'), { quizId: own.id });
+    const { earned } = await read(author);
+    expect(earned.get('author_hit')?.earnedAt?.toISOString()).toBe('2026-07-25T18:30:00.000Z');
+    expect(earned.get('author_hit')?.gameId).toBe(tenth.gameId);
+  });
+
+  it('a missed game that cannot be checked does not break the read: it is reported and the mark moves past it', async () => {
+    const me = 'store-lost-broken';
+    await addUser(me, 'Орест');
+    await syncedSince(me, '2026-09-25T00:00:00Z');
+    await playGame(me, new Date('2026-09-25T18:00:00Z'));
+    vi.mocked(games.loadAchievementGames).mockRejectedValueOnce(new Error('snapshot unreadable'));
+    const errors: unknown[] = [];
+    const { earned } = await syncAchievements(db, me, null, { onError: (error) => errors.push(error) });
+    expect(errors).toHaveLength(1);
+    // Кар'єрні все одно рахуються з фактів.
+    expect(earned.has('first_game')).toBe(true);
+    const [mark] = await db.select().from(profile).where(eq(profile.userId, me));
+    expect(mark.achievementsSyncedAt?.toISOString()).toBe('2026-09-25T18:30:00.000Z');
+
+    // Сторінка ачівок теж не падає, коли перевірка пропущеної гри ламається.
+    await db.update(profile).set({ achievementsSyncedAt: new Date('2026-09-25T00:00:00Z') }).where(eq(profile.userId, me));
+    await db.delete(userAchievement).where(eq(userAchievement.userId, me));
+    vi.mocked(games.loadAchievementGames).mockRejectedValueOnce(new Error('snapshot unreadable'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const page = await achievementsPage(db, me, true);
+      expect(page?.items.find((i) => i.id === 'first_game')?.earned).toBe(true);
+      expect(quiet).toHaveBeenCalled();
+    } finally {
+      quiet.mockRestore();
+    }
+  });
+});
