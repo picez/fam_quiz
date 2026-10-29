@@ -4796,8 +4796,10 @@ async function buffsGame() {
   expect(await checkedDebuffs()).toEqual([]);
   await debuffGroup.getByRole('button', { name: 'Усі', ...exact }).click();
   expect(await checkedDebuffs()).toEqual(debuffNames);
-  for (const name of ['Заморозка', 'Дзеркало', 'Гості на екрані', 'Брудний екран']) await box(debuffGroup, name).uncheck();
+  // «Усі» вмикає й п'ять дебафів 12h — вимикаємо їх разом зі старими чотирма.
+  for (const name of ['Заморозка', 'Дзеркало', 'Гості на екрані', 'Брудний екран', 'Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки']) await box(debuffGroup, name).uncheck();
   expect(await checkedDebuffs()).toEqual(['Тремтіння екрана', 'Туман']);
+  expect(await debuffGroup.locator('input:checked').count()).toBe(2);
   await host.setViewportSize({ width: 375, height: 812 });
   await expectNoSideScroll(host, 'buff8a-editor-375');
   await host.setViewportSize({ width: 1280, height: 900 });
