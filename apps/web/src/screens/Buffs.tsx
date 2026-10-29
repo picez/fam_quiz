@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { LIMITS } from '@quiz/shared';
 import type { Answer, BuffBlock, BuffKind, BuffSlot, BuffTag, HintRequest, OvertimeRow, PlayerActiveBuff, PlayerBuffs, PublicQuestion, Question, VotePrompt, VoteTally } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
-import { choiceLabel, signed, sliderValueText } from '../format';
+import { choiceLabel, num, pickedText, shownChoices, signed, sliderValueText } from '../format';
 import { errorText, hasText, t, type TextKey } from '../i18n';
 import { clockText, useLeftMs, useTimeOver } from '../live/Timer';
 import type { Send } from '../live/types';
@@ -21,7 +21,15 @@ const MINE: Partial<Record<BuffKind, string>> = {
   swap: t('swapMine'),
   audience: t('audienceMine'),
   hint: t('hintMine'),
+  risk: t('riskMine'),
+  guard: t('guardMine'),
+  letter: t('letterMine'),
+  scope: t('scopeMine'),
+  peek: t('peekMine'),
 };
+
+/** Від стількох кнопок ряд щільніший: 13 кнопок по 44 px — сім у рядку на 375 px. */
+const MANY_BUFFS = 7;
 
 /** Текст за ключем; у грі без ведучого — його «…Auto», якщо такий є. */
 function autoText(key: string, autopilot: boolean): string {
@@ -159,6 +167,7 @@ export function BuffRow({
   autopilot = false,
   send,
   onError,
+  onPeek,
 }: {
   buffs: PlayerBuffs;
   paused: boolean;
@@ -170,6 +179,8 @@ export function BuffRow({
   autopilot?: boolean;
   send: Send;
   onError: (message: string | null) => void;
+  /** «Підглянути» (12h): другий дотик відкриває аркуш вибору замість надсилання. */
+  onPeek?: () => void;
 }) {
   // Тимчасовий рядок: підтвердження або причина; null — рядок показує стан активного бафу.
   const [note, setNote] = useState<{ text: string; confirm: BuffKind | null } | null>(null);
@@ -213,6 +224,10 @@ export function BuffRow({
       return;
     }
     clear();
+    if (slot.kind === 'peek' && onPeek !== undefined) {
+      onPeek();
+      return;
+    }
     if (sendingRef.current) return;
     sendingRef.current = true;
     void send('player:buff', { kind: slot.kind })
@@ -249,7 +264,7 @@ export function BuffRow({
 
   return (
     <div className="buff-bar">
-      <div className="buff-row" role="group" aria-label={t('buffRowLabel')}>
+      <div className={buffs.slots.length > MANY_BUFFS ? 'buff-row is-many' : 'buff-row'} role="group" aria-label={t('buffRowLabel')}>
         {buffs.slots.map((slot) => {
           const block = shownBlock(slot, paused, timeOver, notStarted);
           const classes = ['buff-btn'];
@@ -383,12 +398,43 @@ export function VoteResults({ votes, question, offsetMs }: { votes: VoteTally; q
   );
 }
 
+/** Межі «Бінокля» словами: повзунок — з одиницею й знаками кроку, число — зі справжнім мінусом. */
+function rangeText(question: PublicQuestion, min: number, max: number): string {
+  const slider = question.type === 'slider' ? question.slider : null;
+  const shown = (value: number) => (slider === null ? num(value) : sliderValueText(value, slider));
+  return t('scopeRange', { min: shown(min), max: shown(max) });
+}
+
+/** Вміст панелі для бафів 12h: маска літер, проміжок чи рамка «Бінокля», підглянута відповідь — без вердикту. */
+function powerLine(active: PlayerActiveBuff, question: PublicQuestion) {
+  if (active.kind === 'letter' && active.letter !== null) {
+    return <p className="letter-hint">{t('letterHint', { mask: active.letter.mask, count: active.letter.letters })}</p>;
+  }
+  if (active.kind === 'scope' && active.scope !== null) {
+    const scope = active.scope;
+    return <p className="scope-hint">{scope.kind === 'range' ? rangeText(question, scope.min, scope.max) : t('scopeZoom')}</p>;
+  }
+  if (active.kind === 'peek' && active.peek !== null) {
+    const answer = pickedText(active.peek.answer, shownChoices(question), question.slider);
+    return <p className="peek-answer">{t('peekShown', { name: active.peek.target.nickname, answer })}</p>;
+  }
+  return null;
+}
+
 /**
  * Блок сталої висоти під рядом бафів для власного hint або audience: «Ведучий думає…» → текст,
- * «Чекаємо голосів…» → відсотки чи здогадки. З'являється лише з власним бафом; усе нове — всередині блоку.
+ * «Чекаємо голосів…» → відсотки чи здогадки; для 12h — маска літер, проміжок «Бінокля» чи підглянута відповідь.
+ * З'являється лише з власним бафом; усе нове — всередині блоку.
  */
 export function BuffPanel({ active, question, offsetMs }: { active: PlayerActiveBuff; question: PublicQuestion; offsetMs: number }) {
-  if (active.kind !== 'hint' && active.kind !== 'audience') return null;
+  if (active.kind !== 'hint' && active.kind !== 'audience') {
+    const line = powerLine(active, question);
+    return line === null ? null : (
+      <section className="buff-panel" aria-live="polite">
+        {line}
+      </section>
+    );
+  }
   const hint = active.hint;
   return (
     <section className="buff-panel" aria-live="polite">

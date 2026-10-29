@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
-import { AdjustmentToast, BuffToast, DebuffToast, NOTICE_MS, StageDebuffs, type BuffToastView } from './LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, NOTICE_MS, PeekedToast, StageDebuffs, type BuffToastView } from './LiveNotices';
 
 const NOW = 1_000_000;
 
@@ -232,6 +232,25 @@ describe('LiveNotices', () => {
     expect(screen.queryByRole('status')).toBeNull();
     cleanup();
     const none = render(<DebuffToast notice={null} offsetMs={0} />);
+    expect(none.container.firstChild).toBeNull();
+  });
+
+  it('12h: the peeked phone reads who peeked once per seq, for four seconds', () => {
+    const peekedBy = { seq: 5, at: NOW, nickname: 'Петро' };
+    const { rerender, container } = render(<PeekedToast peekedBy={peekedBy} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 У вашу відповідь підглянули: Петро');
+    expect(container.firstElementChild?.className).toBe('live-notice is-peek');
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    // Той самий seq у наступному зрізі не спливає вдруге.
+    rerender(<PeekedToast peekedBy={{ ...peekedBy }} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    rerender(<PeekedToast peekedBy={{ seq: 6, at: NOW + NOTICE_MS, nickname: 'Іра' }} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 У вашу відповідь підглянули: Іра');
+    cleanup();
+    const none = render(<PeekedToast peekedBy={null} offsetMs={0} />);
     expect(none.container.firstChild).toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { answerText, correctText, markText, pickedText, sliderValueText, shownCh
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
-import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, PeekedToast } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
@@ -59,6 +59,7 @@ import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
 import { ladderOutcomeText } from './LadderStatus';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
+import { PeekSheet } from './PeekSheet';
 import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
@@ -592,6 +593,11 @@ function usePersonalTotal(
 export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
+  const [peekFor, setPeekFor] = useState<number | null>(null);
+  const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
+  // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі).
+  const peekOpen = peekFor === view.questionIndex && phase === 'question' && !view.paused && peekSlot?.state === 'ready' && peekSlot.block === null;
   const decideGuard = useGuardedSend(send, setError);
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
@@ -745,7 +751,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
         <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} selfId={me.id} />
+        <PeekedToast peekedBy={me.peekedBy} offsetMs={offsetMs} />
       </LiveNotices>
+      {/* «Чию відповідь підглянути?» — нижній аркуш у порталі, поза зоною запитання: дебафи його не чіпають. */}
+      {peekOpen && me.buffs !== null && <PeekSheet peekable={me.buffs.peekable} send={send} onError={setError} onClose={() => setPeekFor(null)} />}
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
@@ -896,7 +905,21 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && answersForTeam && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
+            {me.buffs !== null && answersForTeam && (
+              <BuffRow
+                buffs={me.buffs}
+                paused={view.paused}
+                timeOver={buffTimeOver}
+                notStarted={notStarted}
+                autopilot={view.autopilot}
+                send={send}
+                onError={setError}
+                onPeek={() => {
+                  if (me.buffs !== null && me.buffs.peekable.length > 0) setPeekFor(view.questionIndex);
+                  else setError(t('buffWhy_no_answers'));
+                }}
+              />
+            )}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
@@ -1012,7 +1035,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <>
                 <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
-                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} />
+                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} scope={activeBuff?.scope ?? null} />
                 </fieldset>
                 {teamDraftOn && team?.answererMode === 'captain' && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
               </>

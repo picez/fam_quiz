@@ -146,4 +146,27 @@ describe('PinInput', () => {
     tap(75, 75);
     expect(document.querySelector('.pin-mark.is-mine')).toBeNull();
   });
+
+  it('12h: the binoculars open the map zoomed onto the window and frame it, the frame stays after reset', () => {
+    render(<PinInput question={question} onSubmit={() => {}} focus={{ x: 0.25, y: 0.25, size: 0.5 }} />);
+    expect(layer().style.transform).toContain('scale(2)');
+    // Вікно заповнює рамку: зсув −0,25 × 300 × 2 і −0,25 × 150 × 2.
+    expect(layer().style.transform).toContain('translate(-150px, -75px)');
+    const scope = document.querySelector('.pin-zoom-layer .pin-scope') as HTMLElement;
+    expect(scope).not.toBeNull();
+    expect(scope.style.left).toBe('25%');
+    expect(scope.style.top).toBe('25%');
+    expect(scope.style.width).toBe('50%');
+    expect(scope.style.height).toBe('50%');
+    fireEvent.click(screen.getByRole('button', { name: 'Уся мапа' }));
+    expect(layer().style.transform).toContain('scale(1)');
+    expect(document.querySelector('.pin-scope')).not.toBeNull();
+  });
+
+  it('12h: float tails of the window are rounded for the frame', () => {
+    render(<PinInput question={question} onSubmit={() => {}} focus={{ x: 0.1 + 0.2, y: 0.123456789, size: 0.5 }} />);
+    const scope = document.querySelector('.pin-scope') as HTMLElement;
+    expect(scope.style.left).toBe('30%');
+    expect(scope.style.top).toBe('12.35%');
+  });
 });

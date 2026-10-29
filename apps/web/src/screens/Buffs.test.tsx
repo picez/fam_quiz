@@ -706,3 +706,112 @@ describe('StageBuffs', () => {
     expect(rule('.buff-help-backdrop')).toContain('position: fixed');
   });
 });
+
+describe('12h buffs on the phone', () => {
+  const all = (over: Partial<Record<BuffKind, { state: 'ready' | 'blocked'; block: BuffBlock | null }>> = {}): PlayerBuffs => ({
+    slots: BUFF_KINDS.map((kind) => ({ kind, state: 'ready' as const, block: null, ...over[kind] })),
+    active: null,
+    peekable: [{ playerId: 'p3', nickname: 'Іра' }],
+  });
+
+  it('thirteen buttons in the catalogue order with the new icons', () => {
+    const { container } = row(all());
+    const buttons = [...container.querySelectorAll('.buff-row button')];
+    expect(buttons).toHaveLength(13);
+    expect(buttons.map((button) => button.textContent)).toEqual(BUFF_KINDS.map((kind) => BUFF_ICONS[kind]));
+    expect(buttons.slice(8).map((button) => button.textContent)).toEqual(['⚄', 'А…', '◎', '∞', '◉']);
+    // Тринадцять кнопок 44 px переносяться у два рядки на 375 − 40 px: сім у рядку з проміжком 4 px.
+    expect(container.querySelector('.buff-row')?.className).toContain('is-many');
+    expect(rule('.buff-row.is-many')).toMatch(/column-gap:\s*4px/);
+  });
+
+  it('the second tap on a ready peek opens the sheet instead of sending', () => {
+    const send = okSend();
+    const onPeek = vi.fn();
+    render(<BuffRow buffs={all()} paused={false} send={send} onError={vi.fn()} onPeek={onPeek} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('Ще раз — узяти «Підглянути»');
+    expect(onPeek).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(onPeek).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('blocked new buffs explain why', () => {
+    const onPeek = vi.fn();
+    const send = okSend();
+    render(
+      <BuffRow
+        buffs={all({ guard: { state: 'blocked', block: 'unfit_streak' }, peek: { state: 'blocked', block: 'no_answers' }, risk: { state: 'blocked', block: 'unfit_type' } })}
+        paused={false}
+        send={send}
+        onError={vi.fn()}
+        onPeek={onPeek}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Запобіжник' }));
+    expect(why().textContent).toBe('У цьому раунді немає серій.');
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('Ще немає жодної відповіді.');
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(onPeek).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Ризик' }));
+    expect(why().textContent).toBe('Ризик діє лише там, де відповідь однозначна.');
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('an active new buff explains itself in the line', () => {
+    const cases: [BuffKind, string][] = [
+      ['risk', '⚄ Ризик: правильно — ×3, помилка чи мовчання — мінус повна ціна'],
+      ['guard', '∞ Запобіжник: помилка не обірве серію'],
+      ['letter', 'А… Перша літера: бали — 75 %'],
+      ['scope', '◎ Бінокль'],
+      ['peek', '◉ Підглянуто'],
+    ];
+    for (const [kind, line] of cases) {
+      const { unmount } = row({ ...all(), slots: [{ kind, state: 'active', block: null }], active: { ...base, kind } });
+      expect(why().textContent).toBe(line);
+      unmount();
+    }
+  });
+
+  it('the panel shows the letter mask', () => {
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'letter', letter: { first: 'Л', mask: 'Л _ _ _ · _ _ _ _ _ _ _ _', letters: 12 } }} question={text} offsetMs={0} />,
+    );
+    expect(container.querySelector('.buff-panel .letter-hint')?.textContent).toBe('Л _ _ _ · _ _ _ _ _ _ _ _ (12)');
+    // Моноширинна маска переноситься в межах телефона.
+    const hint = rule('.letter-hint');
+    expect(hint).toMatch(/font-family:[^;]*monospace/);
+    expect(hint).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it('the panel shows the range on a slider with its unit, on a number and the zoom note', () => {
+    const slider: PublicQuestion = { ...question, type: 'slider', slider: { min: 1500, max: 1800, step: 10, unit: 'рік' } };
+    const one = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'range', min: 1590, max: 1650 } }} question={slider} offsetMs={0} />);
+    expect(one.container.querySelector('.scope-hint')?.textContent).toBe('Відповідь між 1590 рік і 1650 рік');
+    one.unmount();
+    const two = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'range', min: -12, max: 8 } }} question={question} offsetMs={0} />);
+    expect(two.container.querySelector('.scope-hint')?.textContent).toBe('Відповідь між −12 і 8');
+    two.unmount();
+    const pin: PublicQuestion = { ...question, type: 'pin', pin: { map: 'ukraine', aspect: 2 } };
+    const three = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'zoom', x: 0.25000000001, y: 0.1, size: 0.5 } }} question={pin} offsetMs={0} />);
+    expect(three.container.querySelector('.scope-hint')?.textContent).toBe('Ціль — у рамці на мапі');
+  });
+
+  it('the panel shows the peeked answer by its option text and no verdict', () => {
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'peek', peek: { target: { playerId: 'p3', nickname: 'Іра' }, answer: { type: 'single', optionId: 'b' } } }} question={single} offsetMs={0} />,
+    );
+    const shown = container.querySelector('.peek-answer')!;
+    expect(shown.textContent).toBe('👀 Іра: Київ');
+    expect(container.textContent).not.toMatch(/правильно|неправильно/i);
+    expect(container.querySelector('.correct, .is-right, .is-correct, .is-wrong')).toBeNull();
+  });
+
+  it('the peek sheet looks like the vote sheet', () => {
+    const sheet = rule('.peek-sheet');
+    expect(sheet).toMatch(/position:\s*fixed/);
+    expect(rule('.peek-options')).toMatch(/flex-wrap:\s*wrap/);
+  });
+});

@@ -3729,3 +3729,67 @@ describe('PlayerScreen: the author resumes a game (12r)', () => {
     expect(document.querySelector('details.resume-panel')).toBeNull();
   });
 });
+
+describe('PlayerScreen: 12h buffs', () => {
+  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'letter', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null, ...over });
+  const peekReady = {
+    slots: [
+      { kind: 'risk' as const, state: 'ready' as const, block: null },
+      { kind: 'peek' as const, state: 'ready' as const, block: null },
+    ],
+    active: null,
+    peekable: [{ playerId: 'p3', nickname: 'Іра' }],
+  };
+
+  it('two taps on peek open the sheet outside the question zone; a name sends the peek', async () => {
+    const send = show(onQuestion({ me: { ...me, buffs: peekReady } }));
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    const sheet = document.querySelector('.peek-sheet')!;
+    expect(sheet).not.toBeNull();
+    expect(sheet.closest('.debuff-zone')).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(sheet as HTMLElement).getByRole('button', { name: 'Іра' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:buff', { kind: 'peek', targetId: 'p3' });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('the sheet closes with a new question', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { rerender } = render(<PlayerScreen view={first} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(document.querySelector('.peek-sheet')).not.toBeNull();
+    rerender(<PlayerScreen view={{ ...first, questionIndex: 1 }} hostOnline offsetMs={0} send={send} />);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('the letter mask stands under the buff row, the answer field stays', () => {
+    const textQuestion = { ...publicQuestion, type: 'text' as const, text: 'Авторка «Лісової пісні»?', choices: [] };
+    const buffs = { slots: [{ kind: 'letter' as const, state: 'active' as const, block: null }], active: activeOf({ letter: { first: 'Л', mask: 'Л _ _ _ · _ _ _ _ _ _ _ _', letters: 12 } }), peekable: [] };
+    show(onQuestion({ question: textQuestion, me: { ...me, buffs } }));
+    const hint = document.querySelector('.debuff-zone .buff-panel .letter-hint')!;
+    expect(hint.textContent).toBe('Л _ _ _ · _ _ _ _ _ _ _ _ (12)');
+    expect(hint.closest('.buff-panel')?.previousElementSibling?.className).toBe('buff-bar');
+    expect(screen.getByLabelText('Ваша відповідь')).toBeTruthy();
+  });
+
+  it('the binoculars range puts a band on the slider', () => {
+    const sliderQuestion = { ...publicQuestion, type: 'slider' as const, text: 'Рік заснування академії?', choices: [], slider: { min: 1500, max: 1800, step: 10, unit: 'рік' } };
+    const buffs = { slots: [{ kind: 'scope' as const, state: 'active' as const, block: null }], active: activeOf({ kind: 'scope', scope: { kind: 'range', min: 1590, max: 1650 } }), peekable: [] };
+    show(onQuestion({ question: sliderQuestion, me: { ...me, buffs } }));
+    expect(document.querySelector('.scope-hint')?.textContent).toBe('Відповідь між 1590 рік і 1650 рік');
+    const band = document.querySelector('.slider-input .slider-band') as HTMLElement;
+    expect(band).not.toBeNull();
+    expect(band.style.left).toBe('30%');
+  });
+
+  it('the peeked phone reads who peeked', () => {
+    show(onQuestion({ me: { ...me, peekedBy: { seq: 1, at: Date.now(), nickname: 'Петро' } } }));
+    expect(document.querySelector('.live-notices')?.textContent).toContain('👀 У вашу відповідь підглянули: Петро');
+  });
+});

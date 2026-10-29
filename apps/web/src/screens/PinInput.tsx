@@ -8,14 +8,16 @@ interface Props {
   onSubmit: (answer: Answer) => void;
   submitLabel?: string;
   onDraft?: (draft: SubmittedAnswer | null) => void;
+  /** «Бінокль» (12h): вікно мапи, на яке рамка відкривається наближеною. */
+  focus?: { x: number; y: number; size: number } | null;
 }
 
 /** Точка на мапі: дотик ставить, повторний переставляє; «Відповісти» — лише з точкою. */
-export function PinInput({ question, onSubmit, submitLabel, onDraft }: Props) {
+export function PinInput({ question, onSubmit, submitLabel, onDraft, focus = null }: Props) {
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   return (
     <div className="pin-input">
-      <PinFrame pin={question.pin} imageUrl={question.imageUrl} point={point} onPlace={(next) => {
+      <PinFrame pin={question.pin} imageUrl={question.imageUrl} point={point} focus={focus} onPlace={(next) => {
           setPoint(next);
           onDraft?.({ type: 'pin', x: next.x, y: next.y });
         }} />

@@ -113,6 +113,20 @@ export function DebuffToast({ notice, offsetMs, selfId }: { notice: DebuffNotice
   );
 }
 
+/**
+ * Сповіщення тому, у кого підглянули (12h): «👀 У вашу відповідь підглянули: Оля» на NOTICE_MS (useNotice);
+ * кожен seq — один раз. У командній грі його бачить уся команда-ціль (зріз me.peekedBy).
+ */
+export function PeekedToast({ peekedBy, offsetMs }: { peekedBy: { seq: number; at: number; nickname: string } | null; offsetMs: number }) {
+  const shown = useNotice(peekedBy, offsetMs);
+  if (shown === null) return null;
+  return (
+    <div className="live-notice is-peek" role="status" aria-live="polite">
+      {t('peekedYou', { name: shown.nickname })}
+    </div>
+  );
+}
+
 /** Значки сцени: «🐞 Оля» біля кожного гравця з дебафом; без виду дебафу. */
 export function StageDebuffs({ debuffs }: { debuffs: BlitzPlayer[] }) {
   if (debuffs.length === 0) return null;
