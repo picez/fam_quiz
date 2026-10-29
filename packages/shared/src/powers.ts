@@ -13,16 +13,24 @@ export const LETTER_TYPES = ['text', 'clues'] as const satisfies readonly Questi
 /** «Бінокль» (12h): число, повзунок і точка на мапі. */
 export const SCOPE_TYPES = ['numeric', 'slider', 'pin'] as const satisfies readonly Question['type'][];
 
+/** Апострофи: ʼ (U+02BC) і ʻ — у Unicode літери-модифікатори, тож перевіряються раніше за літери. */
+const APOSTROPHE = /[ʼʻ’‘'`ʹ]/u;
 const WORD_CHAR = /[\p{L}\p{N}]/u;
+const MARK = /\p{M}/u;
 const SPACE = /\s/u;
 
-/** «Перша літера» (12h): перша літера великою, маска решти й кількість літер; null — у написанні немає літер (план 12h, «Перша літера»). */
+/**
+ * «Перша літера» (12h): перша літера великою, маска решти й кількість літер; null — у написанні немає літер (план 12h, «Перша літера»).
+ * letters рахує літери й цифри; апострофи, дефіси й пробіли не рахуються. Написання спершу складається в NFC, а знаки без пари відкидаються.
+ */
 export function letterMask(spelling: string): { first: string; mask: string; letters: number } | null {
   const marks: string[] = [];
   let first: string | null = null;
   let letters = 0;
-  for (const char of spelling.trim()) {
-    if (WORD_CHAR.test(char)) {
+  for (const char of spelling.normalize('NFC').trim()) {
+    if (APOSTROPHE.test(char)) marks.push(char);
+    else if (MARK.test(char)) continue;
+    else if (WORD_CHAR.test(char)) {
       letters += 1;
       if (first === null) {
         first = char.toLocaleUpperCase('uk');
