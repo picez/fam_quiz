@@ -123,6 +123,7 @@ import {
   currentBuffs,
   hasAnswered,
   lastBuff,
+  letterOf,
   presentedFor,
   questionFor,
   voteTally,
@@ -1815,9 +1816,9 @@ function activeBuff(state: GameState, play: Play, playerId: string, own: BuffPla
     hint: own.hint === undefined ? null : playerHint(own.hint),
     votes: own.vote === undefined ? null : voteView(state, play, playerId, own.vote),
     spare: own.kind === 'swap',
-    // letter, scope, peek — заглушки до задач 4–5 (12h).
-    letter: null,
-    scope: null,
+    letter: own.kind === 'letter' ? letterOf(play.question) : null,
+    scope: own.range !== undefined ? { kind: 'range', ...own.range } : own.zoom !== undefined ? { kind: 'zoom', ...own.zoom } : null,
+    // peek — заглушка до задачі 5 (12h).
     peek: null,
   };
 }

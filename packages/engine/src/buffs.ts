@@ -4,8 +4,13 @@ import {
   boardSpareSource,
   findCell,
   isUnscored,
+  LETTER_SHARE,
+  LETTER_TYPES,
+  letterMask,
   RISK_FACTOR,
   RISK_TYPES,
+  SCOPE,
+  SCOPE_TYPES,
   rulesOf,
   type Answer,
   SIMPLE_TYPES,
@@ -221,9 +226,11 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       // Без серій нічого берегти.
       return rulesOf(round).streak === null ? 'unfit_streak' : null;
     case 'letter':
+      return (LETTER_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
     case 'scope':
+      return (SCOPE_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
     case 'peek':
-      // 12h: задачі 4–5 дадуть власні гілки; доти ці бафи ніде не діють.
+      // 12h: задача 5 дасть власну гілку; доти цей баф ніде не діє.
       return 'unfit_type';
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
@@ -286,7 +293,7 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   return place ?? fitBlock(state, play, playerId, kind);
 }
 
-/** Узяти баф на поточне запитання. fifty тягне rng; time дає гравцеві особистий час понад спільний кінець. */
+/** Узяти баф на поточне запитання. fifty і scope тягнуть rng; time дає гравцеві особистий час понад спільний кінець. */
 export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
@@ -312,6 +319,8 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     first: null,
     ...(kind === 'audience' ? { vote: { endsAt: now + AUDIENCE_MS, ballots: {} } } : {}),
     ...(kind === 'hint' ? { hint: { text: play.question.hint ?? null, aloud: false } } : {}),
+    // Проміжок «Бінокля» лежить у стані: після перезапуску він той самий.
+    ...(kind === 'scope' ? pickScope(play.question, rng) : {}),
   };
   if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
@@ -494,6 +503,63 @@ export function pickRemoved(question: Question, rng: Rng): string[] {
   return removed;
 }
 
+/** Скільки знаків після коми в записі числа (1.5 → 1, 2061 → 0). */
+function decimalsOf(value: number): number {
+  const [, fraction = ''] = String(value).split('.');
+  // Експоненційний запис (1e-7) — без дробу в рядку; такі числа в запитаннях не трапляються.
+  return Math.min(fraction.length, 10);
+}
+
+/** Число, округлене до decimals знаків: прибирає хвости на кшталт 0.30000000000000004. */
+function roundTo(value: number, decimals: number): number {
+  return Number(value.toFixed(decimals));
+}
+
+/** Межа, що прилипає до сітки base + k × unit: down — вниз, інакше вгору; допуск ловить похибку дробів. */
+function snap(value: number, base: number, unit: number, down: boolean): number {
+  const steps = (value - base) / unit;
+  return base + (down ? Math.floor(steps + 1e-9) : Math.ceil(steps - 1e-9)) * unit;
+}
+
+/** «Бінокль» (12h): проміжок для числа й повзунка, вікно мапи для точки (план 12h, «Бінокль»); тягне rng раз (точка — двічі). Інший тип — {}. */
+export function pickScope(question: Question, rng: Rng): Pick<BuffPlay, 'range' | 'zoom'> {
+  if (question.type === 'slider') {
+    const { min, max, step, correct } = question;
+    const width = (max - min) * SCOPE.sliderShare;
+    const lo = Math.min(Math.max(correct - width * rng(), min), max - width);
+    // Межі прилипають до кроку назовні, але не виходять за шкалу.
+    const decimals = Math.max(decimalsOf(min), decimalsOf(step));
+    const from = roundTo(Math.max(snap(lo, min, step, true), min), decimals);
+    const to = roundTo(Math.min(snap(lo + width, min, step, false), max), decimals);
+    return { range: { min: from, max: to } };
+  }
+  if (question.type === 'numeric') {
+    const { correct } = question;
+    const width = 2 * Math.max(Math.abs(correct) * SCOPE.numericShare, SCOPE.numericMin);
+    const lo = correct - width * rng();
+    // Межі округлюються назовні до знаків правильної відповіді.
+    const decimals = decimalsOf(correct);
+    const unit = 10 ** -decimals;
+    return { range: { min: roundTo(snap(lo, 0, unit, true), decimals), max: roundTo(snap(lo + width, 0, unit, false), decimals) } };
+  }
+  if (question.type === 'pin') {
+    const size = SCOPE.pinSize;
+    const place = (target: number) => Math.min(Math.max(target - size * rng(), 0), 1 - size);
+    // Порядок важливий: перший виклик rng — x, другий — y.
+    const x = place(question.target.x);
+    const y = place(question.target.y);
+    return { zoom: { x, y, size } };
+  }
+  return {};
+}
+
+/** «Перша літера» (12h): letterMask першого написання основного запитання (text, clues); інакше null. */
+export function letterOf(question: Question): { first: string; mask: string; letters: number } | null {
+  if (question.type !== 'text' && question.type !== 'clues') return null;
+  const [spelling] = question.accepted;
+  return spelling === undefined ? null : letterMask(spelling);
+}
+
 /** «Ризик» (12h): повна ціна запитання з множниками — класика: points × множник раунду; поле: ціна × множник раунду × позначка клітинки. */
 export function riskStake(state: GameState, play: Play): number {
   const round = state.quiz.rounds[play.roundIndex];
@@ -531,7 +597,7 @@ export function withRiskMisses(state: GameState): GameState {
   return charged;
 }
 
-/** Бали запису з бафом: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса). */
+/** Бали запису з бафом: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), перша літера (+ × 75 %). */
 function buffedPoints(raw: AnswerRecord, kind: BuffKind, stake: number): number {
   switch (kind) {
     case 'double':
@@ -543,12 +609,15 @@ function buffedPoints(raw: AnswerRecord, kind: BuffKind, stake: number): number 
       // Неправильна чи без відповіді — повна ціна, навіть у раунді без штрафу.
       if (raw.grade === 'wrong') return -stake;
       return Math.max(raw.basePoints, 0);
+    case 'letter':
+      // Плата за підказку — з виграшу; мінус за помилку не змінюється.
+      return raw.basePoints > 0 ? Math.round(raw.basePoints * LETTER_SHARE) : raw.basePoints;
     default:
       return raw.basePoints;
   }
 }
 
-/** Для withRecord: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), позначки buff і spare. Вхід — запис без бафу. */
+/** Для withRecord: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), перша літера (+ × 75 %), позначки buff і spare. Вхід — запис без бафу. */
 export function applyBuff(record: AnswerRecord, buff: BuffPlay | null, stake: number): AnswerRecord {
   const { buff: _stale, spare: _staleSpare, ...raw } = record;
   if (buff === null) return raw;
