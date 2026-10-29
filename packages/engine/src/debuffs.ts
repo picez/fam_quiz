@@ -161,6 +161,12 @@ export function activeDebuff(state: GameState, playerId: string): DebuffState | 
   return state.phase === 'question' && debuff.firedAt === state.questionIndex ? debuff : null;
 }
 
+/** Дебаф, що спрацював на гравця рушія в запитанні index (12i, для запису); інакше null. Після закриття запитання (spendDebuffs) уже null. */
+export function debuffOn(state: GameState, index: number, playerId: string): DebuffKind | null {
+  const debuff = Object.hasOwn(state.debuffs, playerId) ? state.debuffs[playerId] : undefined;
+  return debuff !== undefined && debuff.firedAt === index ? debuff.kind : null;
+}
+
 /** Дебаф, що чекає або діє (для значка сцени й пульта); застарілий або після кінця гри — null. */
 export function shownDebuff(state: GameState, playerId: string): DebuffState | null {
   const debuff = Object.hasOwn(state.debuffs, playerId) ? state.debuffs[playerId] : undefined;

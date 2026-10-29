@@ -162,9 +162,12 @@ describe('short default nicknames (migration 0005)', () => {
     ]) {
       await db.insert(user).values({ id, name, email: `${id}@example.com` });
     }
-    const row = (userId: string, nickname: string) => ({ userId, nickname, nicknameKey: nicknameKey(nickname) });
+    // Сирий SQL: схема drizzle вже знає стовпці пізніших міграцій (0017), а база — ще ні.
+    const row = (userId: string, nickname: string) => sql`(${userId}, ${nickname}, ${nicknameKey(nickname)})`;
     // u1 — створений за старим правилом і не збережений; u2 — збережений з тим самим повним ім'ям; u3 — з аватаром.
-    await db.insert(profile).values([row('u1', 'Олена Петренко'), row('u2', 'Тарас Шевченко'), row('u3', 'Віра Коваль')]);
+    await db.execute(
+      sql`INSERT INTO "profile" ("user_id", "nickname", "nickname_key") VALUES ${sql.join([row('u1', 'Олена Петренко'), row('u2', 'Тарас Шевченко'), row('u3', 'Віра Коваль')], sql`, `)}`,
+    );
     await db.update(profile).set({ updatedAt: new Date(Date.now() + 1000) }).where(eq(profile.userId, 'u2'));
     await db.update(profile).set({ avatar: '/uploads/abcdefabcdefabcd.png' }).where(eq(profile.userId, 'u3'));
     await db.insert(follow).values({ followerId: 'u2', followeeId: 'u1' });
@@ -313,5 +316,57 @@ describe('teams schema (migration 0012)', () => {
 
     await db.delete(participant).where(eq(participant.id, teamId));
     expect(await db.select().from(participant)).toEqual([]);
+  });
+});
+
+describe('achievements schema (migration 0017)', () => {
+  const gameId = '11111111-1111-4111-8111-111111111111';
+  const participantId = '22222222-2222-4222-8222-222222222222';
+
+  it('migration 0017 lays over an older database: old answers get three nulls, the profile is not synced, no achievements yet', async () => {
+    const { answer, profile, userAchievement } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0016_appeal');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "nickname_key") VALUES ('u1', 'Олена', 'олена')`);
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES (${gameId}, 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(makeQuiz([single]))}::jsonb, 1, now())`);
+    await db.execute(sql`
+      INSERT INTO "participant" ("id", "game_id", "nickname", "user_id", "score", "total_time_ms")
+      VALUES (${participantId}, ${gameId}, 'Олена', 'u1', 1000, 3000)`);
+    await db.execute(sql`
+      INSERT INTO "answer" ("participant_id", "question_index", "payload", "time_ms", "accepted", "points", "overridden")
+      VALUES (${participantId}, 0, '{"type":"single","optionId":"b"}'::jsonb, 3000, true, 1000, false)`);
+
+    await migrateRest();
+
+    const [kept] = await db.select().from(answer);
+    expect(kept).toMatchObject({ participantId, points: 1000, debuff: null, clue: null, answeredBy: null });
+    const [own] = await db.select().from(profile);
+    expect(own.achievementsSyncedAt).toBeNull();
+    expect(await db.select().from(userAchievement)).toEqual([]);
+  });
+
+  it('one row per user and achievement; it goes with the user, the game only clears its link', async () => {
+    const { game, userAchievement } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.insert(game).values({ id: gameId, hostId: 'u1', code: '123456', status: 'finished', title: 'Гра', quizSnapshot: makeQuiz([single]), startedAt: new Date() });
+    const earnedAt = new Date('2026-10-29T10:00:00Z');
+    await db.insert(userAchievement).values([
+      { userId: 'u1', achievementId: 'first_game', earnedAt, gameId },
+      { userId: 'u1', achievementId: 'games_10', earnedAt: null, gameId: null },
+    ]);
+    await expect(db.insert(userAchievement).values({ userId: 'u1', achievementId: 'first_game' })).rejects.toThrow();
+
+    await db.delete(game).where(eq(game.id, gameId));
+    expect((await db.select().from(userAchievement)).map((r) => [r.achievementId, r.earnedAt, r.gameId])).toEqual(
+      expect.arrayContaining([
+        ['first_game', earnedAt, null],
+        ['games_10', null, null],
+      ]),
+    );
+    await db.delete(user).where(eq(user.id, 'u1'));
+    expect(await db.select().from(userAchievement)).toEqual([]);
   });
 });

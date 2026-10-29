@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, Phase, Quiz } from '@quiz/shared';
-import { activePick, answererOf, nextAnswerer, pickAnswerer, queueNext, shownAnswerer, startAnswerers, upcomingPick } from './answerer';
+import { activePick, answeredByOf, answererOf, nextAnswerer, pickAnswerer, queueNext, shownAnswerer, startAnswerers, upcomingPick } from './answerer';
 import { pickCell } from './board';
 import { chooserOf } from './board-turns';
 import { lock, next, pause, start, type GameState } from './game';
@@ -542,5 +542,34 @@ describe('answerer: edges', () => {
     const s = offline(must(pickAnswerer(intro, 'm1', 'm2', 'question')), 'm2');
     expect(upcomingPick(s, 't1')?.memberId).toBe('m2');
     expect(nextAnswerer(s, 't1')).toBe('m1');
+  });
+});
+
+describe('answerer: who answered, for the recorder (12i)', () => {
+  it('chosen: the picked one on the current question, also on the reveal; an earlier ordinary question — null', () => {
+    let s = toNextQuestion(must(pickAnswerer(intro, 'm1', 'm2', 'question')));
+    expect(answeredByOf(s, 0, 't1')).toBe('m2');
+    expect(answeredByOf(s, 0, 't2')).toBe('m4');
+    s = until(s, 'reveal');
+    expect(answeredByOf(s, 0, 't1')).toBe('m2');
+    s = toNextQuestion(s);
+    expect(answeredByOf(s, 0, 't1')).toBeNull();
+    expect(answeredByOf(s, 1, 't1')).toBe('m1');
+  });
+
+  it('blitz: the one who buzzed, also after the game moves on; a team that did not buzz — null', () => {
+    let s = toNextQuestion(game(teamQuiz([blitzRound('b1', [single, withId(single, 'q2')])], 2, 'chosen')));
+    s = must(actAnswer(s, 'm3', RIGHT, T0 + 1000));
+    expect(answeredByOf(s, 0, 't1')).toBe('m3');
+    expect(answeredByOf(s, 0, 't2')).toBeNull();
+    s = toNextQuestion(s);
+    expect(s.questionIndex).toBe(1);
+    expect(answeredByOf(s, 0, 't1')).toBe('m3');
+  });
+
+  it('captain mode: the captain', () => {
+    const s = toNextQuestion(game(teamQuiz(ROUNDS)));
+    expect(answeredByOf(s, 0, 't1')).toBe('m1');
+    expect(answeredByOf(s, 0, 't2')).toBe('m4');
   });
 });

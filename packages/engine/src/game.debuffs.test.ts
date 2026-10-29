@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
-import { activeDebuff, cancelDebuff, setDebuff, shownDebuff } from './debuffs';
+import { activeDebuff, cancelDebuff, debuffOn, setDebuff, shownDebuff } from './debuffs';
 import { placeWager } from './final';
 import { end, endRound, lock, next, removePlayer, setConnected, start, type GameState } from './game';
 import {
@@ -137,5 +137,21 @@ describe('host debuffs', () => {
     expect(finished.phase).toBe('finished');
     expect(shownDebuff(finished, 'p1')).toBeNull();
     expect(stageView(finished).debuffs).toEqual([]);
+  });
+
+  it('debuffOn: the kind fired on that question for the recorder; another question, a waiting or a spent debuff — null (12i)', () => {
+    const waiting = must(setDebuff(must(start(lobby3())), 'p1', 'fog'));
+    expect(debuffOn(waiting, 0, 'p1')).toBeNull();
+    const fired = must(next(waiting, T0)); // перше запитання
+    expect(debuffOn(fired, 0, 'p1')).toBe('fog');
+    expect(debuffOn(fired, 1, 'p1')).toBeNull();
+    expect(debuffOn(fired, 0, 'p2')).toBeNull();
+    const locked = must(lock(fired));
+    expect(debuffOn(locked, 0, 'p1')).toBeNull();
+    let state = locked;
+    while (state.phase !== 'question') state = must(next(state, T0 + 1000));
+    expect(state.questionIndex).toBe(1);
+    expect(debuffOn(state, 0, 'p1')).toBeNull();
+    expect(debuffOn(state, 1, 'p1')).toBeNull();
   });
 });

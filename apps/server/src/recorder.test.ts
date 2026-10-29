@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
@@ -1808,5 +1808,113 @@ describe('recorder: appeals (12f)', () => {
     await ctx.recorder.idle();
     expect(ctx.errors).toEqual([]);
     expect(await ctx.db.select().from(appeal)).toEqual([]);
+  });
+});
+
+describe('recorder: debuff, clue and answerer columns (12i)', () => {
+  /** Усі рядки answer у порядку запитань і спроб. */
+  const rowsOf = (db: Db) => db.select().from(answer).orderBy(asc(answer.questionIndex), asc(answer.attempt));
+
+  it('solo: the debuff a player answered under stays on the row after the next questions; no debuff — null; rows and adjustments still sum to the score', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([single, withId(single, 'q2'), text], { speedBonus: false }));
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.taras, points: 500 })).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.taras, ctx.olena, 'mud')).toEqual({ ok: true });
+    expect(ctx.manager.host(ctx.room, { type: 'debuff', playerId: ctx.taras, kind: 'fog' })).toEqual({ ok: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    await ctx.recorder.idle();
+    const first = (await rowsOf(ctx.db)).map((a) => [a.participantId, a.questionIndex, a.debuff]);
+    expect(first).toEqual(expect.arrayContaining([[ctx.olena, 0, 'mud'], [ctx.taras, 0, 'fog']]));
+    toQuestion(ctx.manager, ctx.room);
+    ctx.manager.answer(ctx.room, ctx.olena, wrong);
+    ctx.manager.answer(ctx.room, ctx.taras, correct);
+    ctx.host('end');
+    await ctx.recorder.idle();
+    const rows = await rowsOf(ctx.db);
+    expect(rows.map((a) => [a.participantId === ctx.olena ? 'Олена' : 'Тарас', a.questionIndex, a.debuff, a.clue, a.answeredBy])).toEqual(
+      expect.arrayContaining([
+        ['Олена', 0, 'mud', null, null],
+        ['Тарас', 0, 'fog', null, null],
+        ['Олена', 1, null, null, null],
+        ['Тарас', 1, null, null, null],
+      ]),
+    );
+    const adjustments = await ctx.db.select().from(scoreAdjustment);
+    for (const p of await ctx.db.select().from(participant)) {
+      const sum = [...rows, ...adjustments].filter((r) => r.participantId === p.id).reduce((total, r) => total + r.points, 0);
+      expect(sum).toBe(p.score);
+    }
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('«Хто я?»: the clue an answer came on — by the clue timer and by the own pace; other types — null', async () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [clues, { ...clues, id: 'q11b', cluePace: 'self' as const }, single], { speedBonus: false })]);
+    const ctx = await setup(undefined, 5000, 30, quiz);
+    const who = { type: 'clues', value: 'Шевченко' } as const;
+    ctx.host('start');
+    ctx.host('next');
+    ctx.scheduler.advance(10_500);
+    ctx.manager.answer(ctx.room, ctx.olena, who);
+    ctx.manager.answer(ctx.room, ctx.taras, who);
+    toQuestion(ctx.manager, ctx.room);
+    expect(ctx.manager.clue(ctx.room, ctx.olena)).toEqual({ ok: true });
+    ctx.manager.answer(ctx.room, ctx.olena, who);
+    ctx.manager.answer(ctx.room, ctx.taras, who);
+    toQuestion(ctx.manager, ctx.room);
+    playFirstQuestion(ctx);
+    ctx.host('end');
+    await ctx.recorder.idle();
+    expect((await rowsOf(ctx.db)).map((a) => [a.participantId === ctx.olena ? 'Олена' : 'Тарас', a.questionIndex, a.clue])).toEqual(
+      expect.arrayContaining([
+        ['Олена', 0, 3],
+        ['Тарас', 0, 3],
+        ['Олена', 1, 2],
+        ['Тарас', 1, 1],
+        ['Олена', 2, null],
+        ['Тарас', 2, null],
+      ]),
+    );
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('teams: the team row keeps who answered (the picked one, the captain, the one who buzzed) after the next questions; member rows have none', async () => {
+    const quiz = makeRoundsQuiz(
+      [classicRound('r1', [single, withId(single, 'q2'), cloud], { speedBonus: false }), blitzRound('b1', [withId(single, 'q3')])],
+      { teams: { ...defaultTeams(2), answerer: 'chosen' } },
+    );
+    const ctx = await recordedTeamGame(quiz);
+    const { manager, room, members } = ctx;
+    const [red, blue] = ctx.teams;
+    expect(manager.pickAnswerer(room, members['Оля'], members['Петро'], 'question')).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Петро'], correct)).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], wrong)).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Оля'], correct)).toEqual({ ok: true });
+    expect(manager.answer(room, members['Віра'], correct)).toEqual({ ok: true });
+    toQuestion(manager, room);
+    for (const name of ['Оля', 'Петро', 'Віра', 'Ігор']) expect(manager.answer(room, members[name], { type: 'wordcloud', words: ['каштани'] })).toEqual({ ok: true });
+    manager.host(room, { type: 'lock' });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Ігор'], correct)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'accept', playerId: blue })).toEqual({ ok: true });
+    toEnd(manager, room);
+    await ctx.recorder.idle();
+    const name = (id: string | null) => (id === null ? null : id === red ? 'Червоні' : id === blue ? 'Сині' : Object.entries(members).find(([, m]) => m === id)?.[0]);
+    const rows = (await rowsOf(ctx.db)).map((a) => [name(a.participantId), a.questionIndex, a.attempt, name(a.answeredBy)]);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        ['Червоні', 0, 0, 'Петро'],
+        ['Сині', 0, 0, 'Віра'],
+        ['Червоні', 1, 0, 'Оля'],
+        ['Сині', 1, 0, 'Віра'],
+        ['Сині', 3, 0, 'Ігор'],
+      ]),
+    );
+    const votes = rows.filter((r) => r[1] === 2);
+    expect(votes).toHaveLength(4);
+    for (const vote of votes) expect(vote[3]).toBeNull();
+    expect(ctx.errors).toEqual([]);
   });
 });
