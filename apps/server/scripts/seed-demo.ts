@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -29,6 +29,7 @@ import { teamsQuiz } from './teams-quiz';
 import { SHOWCASE_IMAGES, showcaseQuiz } from './showcase-quiz';
 import { GRAND_IMAGES, grandQuiz } from './grand-quiz';
 import { FAMILY_IMAGES, familyQuiz } from './family-quiz';
+import { family2Quiz } from './family2-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -116,7 +117,7 @@ async function uploadImages(site: string, db: Db, keys: readonly string[] = Obje
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -151,6 +152,8 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
     case 'family':
       if (!site) console.warn('No SITE_URL: the revealing pictures stay plain text questions');
       return familyQuiz(site ? await uploadImages(site, db, FAMILY_IMAGES) : {});
+    case 'family2':
+      return family2Quiz();
     case 'party-media': {
       const base = partyQuiz(await uploadImages(site!, db));
       return { ...base, title: `${base.title} (з картинками)` };
