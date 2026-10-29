@@ -3,7 +3,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { DEFAULT_RULES, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { DEFAULT_RULES, type AchievementsPage, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
@@ -1636,7 +1636,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Ачівки', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 
@@ -1698,7 +1698,8 @@ async function menuProfileFriends() {
   for (const name of ['Перша гра', 'Перша перемога']) {
     expect(await olya.locator('.achievements li:not(.locked)', { hasText: name }).count()).toBe(1);
   }
-  expect(await olya.getByLabel('10 ігор (ще не отримано)', exact).count()).toBe(1);
+  // Рядок значків — лише отримані (12i): «10 ігор» у профілі немає.
+  expect(await olya.locator('.achievements li', { hasText: '10 ігор' }).count()).toBe(0);
   await olya.locator('.profile-list li', { hasText: '«Тестова вікторина», 1 місце' }).waitFor();
   await shot(olya, 'profile-own-phone');
 
@@ -1742,7 +1743,7 @@ async function menuProfileFriends() {
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).click();
   await host.getByRole('heading', { name: 'Статистика' }).waitFor();
   expect(await stat(host, 'проведена гра').textContent()).toBe('1проведена гра');
-  expect(await host.locator('.achievements li:not(.locked)', { hasText: 'Ведучий' }).count()).toBe(1);
+  expect(await host.locator('.achievements li:not(.locked)', { hasText: 'За пультом' }).count()).toBe(1);
   const friend = host.locator('.friend-list a', { hasText: 'Зірка' });
   await friend.waitFor();
   await shot(host, 'profile-own-desktop');
@@ -2058,9 +2059,9 @@ async function invitesAndVersus() {
   // Нові ачівки.
   await olya.goto(`${base}/profile`);
   await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
-  expect(await olya.locator('.achievements li').count()).toBe(16);
+  expect(await olya.locator('.achievements li').count()).toBeLessThanOrEqual(8);
   expect(await noSideScroll(olya)).toBe(true);
-  await shot(olya, 'achievements-16-phone');
+  await shot(olya, 'achievements-strip-phone');
 
   // Приватність на рівні API.
   const anonymous = await browser.newContext();
@@ -16305,6 +16306,197 @@ async function powers12h() {
 it('part 12h: new buffs and debuffs — on 375 phones Оля risks and wins ×3 while Петро risks and loses 100 with no penalty round, Іра answers upside down with reduced motion, then under a torch, Петро peeks at Іра and sees «Леся Українка» with no verdict while Іра reads «👀 У вашу відповідь підглянули: Петро» and the 1280 × 720 stage says «👀 Підгляд: Петро → Іра», Оля gets «Л _ _ _ · _ _ _ _ _ _ _ _ (12)» and 75 %, sticky buttons say «Ой, липко!», the binoculars give a 60-year range with 1615 inside, the safety catch keeps Іра on a streak, the clock vanishes, twelve bubbles pop one by one, the editor shows thirteen buffs and eleven debuffs and an old quiz keeps six, the guide pages with thirteen and eleven items fit the stage, and thirteen buffs fit a 375 phone', async () => {
   try {
     await powers12h();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+function achievementQuestions12i() {
+  const common = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'i1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Десна', 'Південний Буг'), correctId: 'a' },
+    { ...common, id: 'i2', type: 'single' as const, text: 'Яке місто — столиця Буковини?', options: options('Чернівці', 'Ужгород', 'Луцьк', 'Рівне'), correctId: 'a' },
+  ];
+}
+
+/** Картка ачівки з назвою name на сторінці ачівок (12i). */
+const achievementCard = (page: Page, name: string) => page.locator('.achievement-card', { has: page.getByRole('heading', { name, exact: true }) });
+
+/** Сьогоднішня дата так, як її пише сторінка ачівок: «29 жовтня 2026», за Києвом. */
+const todayOn = async (page: Page) =>
+  ((await page.evaluate(
+    `new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Kyiv' }).format(new Date())`,
+  )) as string).replace(/\s*р\.$/, '');
+
+async function achievements12i() {
+  const host = await open('host12i', 1280, 800);
+  await register(host, 'host', 'Ліна Ведуча', 'host12i@example.com');
+  const questions = achievementQuestions12i();
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: 'Ачівки 12i',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  const olya = await open('olya12i', 375, 812);
+  await register(olya, 'menu', 'Оля Квіткова', 'olya12i@example.com');
+  const olyaProfile = (await (await olya.request.get(`${base}/api/me/profile`)).json()) as { id: string; nickname: string };
+  const olyaId = olyaProfile.id;
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Ачівки 12i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  await join(olya, code, 'Оля', false);
+  const petro = await open('petro12i', 375, 812);
+  await join(petro, code, 'Петро', false);
+  await host.getByText('Петро', exact).first().waitFor();
+
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+
+  // ── 1. Гра: Оля відповідає одразу й правильно, Петро — ні. ──
+  await step('Почати гру');
+  await afterSplash(host, olya, petro);
+  await step('Почати раунд');
+  await afterSplash(host, olya, petro);
+  await pickOption(olya, 'Дніпро');
+  await pickOption(petro, 'Дністер');
+  await step('Показати відповідь');
+  await step('Далі');
+  await step('Наступне запитання');
+  await afterSplash(host, olya, petro);
+  await pickOption(olya, 'Чернівці');
+  await pickOption(petro, 'Ужгород');
+  await step('Показати відповідь');
+  const finished = host.getByText('Гру завершено').first();
+  for (let i = 0; i < 6 && !(await finished.isVisible()); i++) {
+    await step('Далі').catch(() => undefined);
+    await afterSplash(host);
+  }
+  await finished.waitFor();
+
+  // ── 2. Нагорода записана після фінішу. ──
+  const ownPage = async () => (await (await olya.request.get(`${base}/api/me/achievements`)).json()) as AchievementsPage;
+  await expect.poll(async () => (await ownPage()).items.find((i) => i.id === 'fast_answer')?.earned, POLL).toBe(true);
+
+  // ── 3. Меню з п'ятьма пунктами. ──
+  await olya.goto(base);
+  await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+  expect((await olya.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual([
+    'Приєднатися',
+    'Мої вікторини',
+    'Історія',
+    'Ачівки',
+    'Профіль',
+  ]);
+  await expectNoSideScroll(olya, 'p12i-menu');
+  // Підпис у два рядки («Мої вікторини») не робить нижню панель вищою: --menu-h = 60 px.
+  expect((await olya.locator(MENU).boundingBox())!.height, 'the 375 menu grows taller').toBeLessThanOrEqual(60.5);
+  await olya.locator(MENU).getByRole('link', { name: 'Ачівки' }).click();
+  await olya.waitForURL(`${base}/achievements`);
+
+  // ── 4. Сторінка на телефоні. ──
+  await olya.getByRole('heading', { level: 1, name: 'Ачівки', exact: true }).waitFor();
+  const count = (await olya.locator('.achievements-count').textContent())!;
+  const earnedCount = Number(count.match(/^Отримано (\d+) з 48$/)?.[1]);
+  expect(earnedCount, count).toBeGreaterThanOrEqual(3);
+  expect(await olya.locator('section.achievement-group h2').allTextContents()).toEqual([
+    'Перші кроки',
+    'Влучність',
+    'Швидкість',
+    'Формати',
+    'Бафи й дебафи',
+    'Компанія',
+    'Ведення й авторство',
+  ]);
+  expect(await olya.getByText('Антиачівки').count()).toBe(0);
+  const today = await todayOn(olya);
+  const fast = achievementCard(olya, 'Швидкі пальці');
+  expect(await fast.getAttribute('class')).not.toContain('is-locked');
+  await fast.getByText('Відповідь є, а запитання ще не дочитане. Сміливо!', exact).waitFor();
+  await fast.getByText('Правильна відповідь швидше ніж за 2 с', exact).waitFor();
+  await fast.getByText(`Отримано ${today}`, exact).waitFor();
+  for (const name of ['Перша гра', 'Перша перемога']) expect(await achievementCard(olya, name).getAttribute('class')).not.toContain('is-locked');
+  const ten = achievementCard(olya, '10 ігор');
+  expect(await ten.getAttribute('class')).toContain('is-locked');
+  expect(await ten.locator('progress').getAttribute('value')).toBe('1');
+  await ten.getByText('1 / 10', exact).waitFor();
+  await expectNoSideScroll(olya, 'p12i-page-phone');
+  if (process.env.E2E_SHOTS === '1') {
+    await olya.getByRole('heading', { level: 2, name: 'Швидкість' }).evaluate((h) => h.scrollIntoView({ block: 'start' }));
+    await olya.screenshot({ path: resolve(ARTIFACTS, 'shots', 'p12i-page-phone-speed.png') });
+  }
+
+  // ── 5. Сторінка на 1280: кілька колонок. ──
+  await olya.setViewportSize({ width: 1280, height: 800 });
+  {
+    const cards = olya.locator('section.achievement-group').first().locator('.achievement-card');
+    const [a, b] = [(await cards.nth(0).boundingBox())!, (await cards.nth(1).boundingBox())!];
+    expect(a.y, 'the first two cards on one row at 1280').toBe(b.y);
+    expect(a.x).not.toBe(b.x);
+  }
+  await expectNoSideScroll(olya, 'p12i-page-desktop');
+  await olya.setViewportSize({ width: 375, height: 812 });
+
+  // ── 6. Профіль Олі: рядок значків. ──
+  await olya.goto(`${base}/profile`);
+  await olya.getByRole('heading', { name: 'Статистика' }).waitFor();
+  const strip = olya.locator('.achievement-strip li');
+  const stripCount = await strip.count();
+  expect(stripCount).toBeGreaterThanOrEqual(3);
+  expect(stripCount).toBeLessThanOrEqual(8);
+  expect(await olya.locator('.achievement-strip li', { hasText: 'Швидкі пальці' }).count()).toBe(1);
+  const more = olya.locator('.achievement-strip-more a');
+  expect(await more.textContent()).toMatch(/^(Усі ачівки →|ще \d+ →)$/);
+  expect(await more.getAttribute('href')).toBe('/achievements');
+  await expectNoSideScroll(olya, 'p12i-profile-strip');
+
+  // ── 7. Чужа сторінка: лише отримані, без поступу. ──
+  await host.goto(`${base}/profile/${olyaId}`);
+  await host.locator('.achievement-strip li').first().waitFor();
+  await host.locator('.achievement-strip-more a').click();
+  await host.waitForURL(`${base}/profile/${olyaId}/achievements`);
+  await host.getByRole('heading', { level: 1, name: `Ачівки: ${olyaProfile.nickname}` }).waitFor();
+  await achievementCard(host, 'Швидкі пальці').waitFor();
+  expect(await host.locator('.achievement-card.is-locked').count()).toBe(0);
+  expect(await host.locator('.achievements-page progress').count()).toBe(0);
+  expect(await achievementCard(host, '10 ігор').count()).toBe(0);
+  await expectNoSideScroll(host, 'p12i-public-desktop');
+
+  // ── 8. Своя сторінка ведучої: «За пультом» сьогодні. ──
+  await host.goto(`${base}/achievements`);
+  const desk = achievementCard(host, 'За пультом');
+  await desk.waitFor();
+  expect(await desk.getAttribute('class')).not.toContain('is-locked');
+  await desk.getByText(`Отримано ${today}`, exact).waitFor();
+  await expectNoSideScroll(host, 'p12i-host-own');
+
+  // ── 9. API: чужа сторінка — лише отримані, анонім — 401. ──
+  const publicPage = (await (await host.request.get(`${base}/api/profiles/${olyaId}/achievements`)).json()) as AchievementsPage;
+  expect(publicPage.own).toBe(false);
+  expect(publicPage.total).toBe(48);
+  expect(publicPage.items.length).toBe(earnedCount);
+  for (const item of publicPage.items) {
+    expect(item.earned, item.id).toBe(true);
+    expect(item.progress, item.id).toBeNull();
+  }
+  const anonymous = await browser.newContext();
+  expect((await anonymous.request.get(`${base}/api/me/achievements`)).status()).toBe(401);
+  await anonymous.close();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 12i: achievements I — after Оля answers «Дніпро» in under two seconds on a 375 phone, «🏅 Ачівки» between «Історія» and «Профіль» opens «Отримано N з 48» with «Швидкі пальці» dated today, grey «10 ігор» at «1 / 10», no «Антиачівки» group, cards in several columns at 1280, the profile shows a row of the newest badges, the host sees only Оля’s earned cards with no progress on her public page and «За пультом» on own page, and an anonymous visitor gets 401', async () => {
+  try {
+    await achievements12i();
   } catch (error) {
     await snapshot();
     throw error;

@@ -3033,9 +3033,11 @@ button.match-item {
     min-height: calc(var(--menu-h) - 1px);
     justify-content: center;
     flex-direction: column;
-    gap: 0.15rem;
-    padding: 0.25rem;
+    gap: 0.1rem;
+    padding: 0.15rem 0.25rem;
     font-size: 0.75rem;
+    /* Підпис у два рядки («Мої вікторини» з п'ятьма пунктами) не робить панель вищою за --menu-h. */
+    line-height: 1.05;
     text-align: center;
   }
 
@@ -12177,7 +12179,7 @@ button.wall-tile:disabled {
 /* П'ять пунктів нижнього меню на 375 px: «Приєднатися» вміщається в п'яту частину екрана. */
 @media (max-width: 400px) {
   .menu a {
-    padding: 0.25rem 0.1rem;
+    padding: 0.15rem 0.1rem;
     font-size: 0.7rem;
   }
 }
