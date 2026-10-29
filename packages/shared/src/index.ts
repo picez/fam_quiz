@@ -14,6 +14,7 @@ export * from './history';
 export * from './text';
 export * from './youtube';
 export * from './profile';
+export * from './achievements';
 export * from './guide';
 export * from './teams';
 export * from './breakdown';

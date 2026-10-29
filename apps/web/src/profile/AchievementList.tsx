@@ -1,7 +1,7 @@
 import type { Achievement, AchievementId } from '@quiz/shared';
-import { t } from '../i18n';
+import { hasText, t } from '../i18n';
 
-const ICONS: Record<AchievementId, string> = {
+const ICONS: Partial<Record<AchievementId, string>> = {
   first_game: '🎮',
   first_win: '🏆',
   games_10: '🎯',
@@ -20,18 +20,22 @@ const ICONS: Record<AchievementId, string> = {
   friends_5: '🤝',
 };
 
-/** Усі ачівки; неотримані показано заблокованими. */
+/** Усі ачівки з текстами; неотримані показано заблокованими. */
 export function AchievementList({ achievements }: { achievements: Achievement[] }) {
   return (
     <ul className="achievements">
       {achievements.map(({ id, earned }) => {
-        const name = t(`achievement_${id}`);
+        // Тимчасово (12i, задача 1): ачівки без назви й умови в i18n ще не показуються.
+        const nameKey = `achievement_${id}`;
+        const hintKey = `achievementHint_${id}`;
+        if (!hasText(nameKey) || !hasText(hintKey)) return null;
+        const name = t(nameKey);
         return earned ? (
-          <li key={id} title={t(`achievementHint_${id}`)}>
-            <span aria-hidden="true">{ICONS[id]}</span> {name}
+          <li key={id} title={t(hintKey)}>
+            <span aria-hidden="true">{ICONS[id] ?? '🏅'}</span> {name}
           </li>
         ) : (
-          <li key={id} className="locked" title={t(`achievementHint_${id}`)} aria-label={t('achievementLocked', { name })}>
+          <li key={id} className="locked" title={t(hintKey)} aria-label={t('achievementLocked', { name })}>
             <span aria-hidden="true">🔒</span> {name}
           </li>
         );

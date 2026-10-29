@@ -125,7 +125,8 @@ export function friendsPlayedWith(tables: GameTable[], userId: string, friendIds
   return met.size;
 }
 
-const EARNED: Record<AchievementId, (facts: AchievementFacts) => boolean> = {
+/** Умови 16 перших ачівок; решту (12i) рахує сховище ачівок. */
+const EARNED: Partial<Record<AchievementId, (facts: AchievementFacts) => boolean>> = {
   first_game: (f) => f.games >= 1,
   first_win: (f) => f.wins >= 1,
   games_10: (f) => f.games >= 10,
@@ -144,7 +145,10 @@ const EARNED: Record<AchievementId, (facts: AchievementFacts) => boolean> = {
   friends_5: (f) => f.friendsPlayedWith >= 5,
 };
 
-/** Усі ачівки в порядку ACHIEVEMENTS з позначкою, чи отримано. */
+/** Ачівки з умовою в EARNED у порядку ACHIEVEMENTS з позначкою, чи отримано; дат поки немає. */
 export function achievementsOf(facts: AchievementFacts): Achievement[] {
-  return ACHIEVEMENTS.map((id) => ({ id, earned: EARNED[id](facts) }));
+  return ACHIEVEMENTS.flatMap((id) => {
+    const earned = EARNED[id];
+    return earned === undefined ? [] : [{ id, earned: earned(facts), earnedAt: null }];
+  });
 }

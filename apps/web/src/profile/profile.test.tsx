@@ -64,7 +64,7 @@ describe('profile parts', () => {
 
   it('AchievementList shows earned and locked achievements', () => {
     const { container } = render(
-      <AchievementList achievements={[{ id: 'first_game', earned: true }, { id: 'wins_10', earned: false }]} />,
+      <AchievementList achievements={[{ id: 'first_game', earned: true, earnedAt: null }, { id: 'wins_10', earned: false, earnedAt: null }]} />,
     );
     const earned = screen.getByText('Перша гра').closest('li');
     expect(earned?.textContent).toContain('🎮');
