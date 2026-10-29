@@ -21,7 +21,7 @@ import { verdictOf } from './check';
 import { chainOf } from './chain';
 import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
-import { buffOf, questionFor } from './buffs';
+import { buffOf, isSilentRisk, questionFor } from './buffs';
 import { sortOf, sortSeq } from './sort';
 import { survivalAlive, survivalPlayOf, trialOpen } from './survival';
 import { wallOf } from './wall';
@@ -210,6 +210,8 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
     wager: wagerOf(play, id),
   };
   if (PROGRESS_TYPES.includes(play.question.type)) return progressRow(state, play, base, record);
+  // Мовчання з «Ризиком» (12h) — не відповідь, але вердикт (мінус) видно.
+  if (record !== undefined && isSilentRisk(play, record)) return { ...base, verdict: record.grade };
   if (record !== undefined) {
     const answer = record.answer;
     // Як hostFinal: типи, яких ведучий не оцінює, рішення не чекають (інакше awaiting не знявся б ніколи).

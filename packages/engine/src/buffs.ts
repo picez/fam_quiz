@@ -230,8 +230,10 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
     case 'scope':
       return (SCOPE_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
     case 'peek':
-      // 12h: задача 5 дасть власну гілку; доти цей баф ніде не діє.
-      return 'unfit_type';
+      if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
+      // Поле: відповідає лише той, хто вибрав клітинку, тож підглянути нема в кого.
+      if (play.board !== undefined) return 'no_answers';
+      return peekTargets(state, play, playerId).length === 0 ? 'no_answers' : null;
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
@@ -293,8 +295,19 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   return place ?? fitBlock(state, play, playerId, kind);
 }
 
-/** Узяти баф на поточне запитання. fifty і scope тягнуть rng; time дає гравцеві особистий час понад спільний кінець. */
-export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng): Result {
+/**
+ * «Підглянути» (12h): хто вже відповів на основне запитання (є запис з відповіддю, без запасного), крім самого учасника, у порядку гравців.
+ * Лише надіслані відповіді: перша спроба «Ще спроби», що чекає другої, лежить у бафі, а не в записах.
+ */
+export function peekTargets(state: GameState, play: Play, participant: string): string[] {
+  return state.players.flatMap((p) => {
+    const record = play.answers[p.id];
+    return p.id !== participant && record !== undefined && record.answer !== null && record.spare === undefined ? [p.id] : [];
+  });
+}
+
+/** Узяти баф на поточне запитання. fifty і scope тягнуть rng; time дає гравцеві особистий час понад спільний кінець; targetId — лише для peek (без нього чи поза peekTargets — peek_target). */
+export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng, targetId?: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
   if (buffsUsed(state, playerId).includes(kind)) return fail('buff_used');
@@ -309,6 +322,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (buffOf(play, playerId) !== null) return fail('buff_busy');
   if (fitBlock(state, play, playerId, kind) !== null) return fail('buff_unfit');
+  if (kind === 'peek' && (targetId === undefined || !peekTargets(state, play, playerId).includes(targetId))) return fail('peek_target');
   const seq = state.buffSeq + 1;
   const buff: BuffPlay = {
     kind,
@@ -321,6 +335,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     ...(kind === 'hint' ? { hint: { text: play.question.hint ?? null, aloud: false } } : {}),
     // Проміжок «Бінокля» лежить у стані: після перезапуску він той самий.
     ...(kind === 'scope' ? pickScope(play.question, rng) : {}),
+    ...(kind === 'peek' ? { peek: targetId } : {}),
   };
   if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
@@ -645,8 +660,14 @@ export function currentBuffs(state: GameState): BuffTag[] {
   if (!TAGGED.includes(state.phase) || play === undefined) return [];
   return state.players.flatMap((p) => {
     const buff = buffOf(play, p.id);
-    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind, target: null }];
+    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind, target: peekTarget(state, buff) }];
   });
+}
+
+/** Ціль «Підглянути» для сцени й пульта: ім'я й id, без відповіді; не peek чи ціль вилучено — null. */
+function peekTarget(state: GameState, buff: BuffPlay): BuffTag['target'] {
+  const target = buff.peek === undefined ? undefined : state.players.find((p) => p.id === buff.peek);
+  return target === undefined ? null : { playerId: target.id, nickname: target.nickname };
 }
 
 /**
@@ -660,7 +681,7 @@ export function lastBuff(state: GameState): BuffNotice | null {
     for (const p of state.players) {
       const buff = buffOf(play, p.id);
       if (buff !== null && (last === null || buff.seq > last.notice.seq)) {
-        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind, target: null }, index };
+        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind, target: peekTarget(state, buff) }, index };
       }
     }
   }

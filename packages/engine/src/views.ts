@@ -67,6 +67,7 @@ import {
   type PlayerShop,
   type PlayerActiveBuff,
   type PlayerHint,
+  type PlayerPeek,
   type HintRequest,
   type HostResponse,
   type VotePrompt,
@@ -122,8 +123,10 @@ import {
   canVote,
   currentBuffs,
   hasAnswered,
+  isSilentRisk,
   lastBuff,
   letterOf,
+  peekTargets,
   presentedFor,
   questionFor,
   voteTally,
@@ -153,6 +156,8 @@ import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
 const REVEALED: Phase[] = ['reveal', 'leaderboard', 'finished'];
+/** Етапи, на яких ціль бачить, що в її відповідь підглянули (12h): як значки бафів. */
+const PEEK_SEEN: Phase[] = ['question', 'locked', 'reveal'];
 const WITH_STANDINGS: Phase[] = ['leaderboard', 'round_end', 'finished'];
 // У цих етапах запитання ще (або вже) немає: журнал показує лише останнє зігране.
 const BETWEEN_QUESTIONS: Phase[] = ['lobby', 'guide', 'intro', 'board', 'wager', 'round_end', 'duel'];
@@ -1801,8 +1806,38 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
     const block = buffBlock(state, playerId, kind);
     return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
   });
-  // peekable — заглушка до задачі 5 (12h).
-  return { slots, active: own === null ? null : activeBuff(state, play, playerId, own), peekable: [] };
+  // «Підглянути» (12h): кого можна вибрати — лише поки баф можна взяти.
+  const peekable =
+    allowed.includes('peek') && !used.includes('peek') && own === null && !hasAnswered(state, play, playerId)
+      ? peekTargets(state, play, playerId).flatMap((id) => peekPerson(state, id) ?? [])
+      : [];
+  return { slots, active: own === null ? null : activeBuff(state, play, playerId, own), peekable };
+}
+
+/** Учасник для «Підглянути»: id й ім'я; немає в грі — null. */
+function peekPerson(state: GameState, id: string): BlitzPlayer | null {
+  const player = state.players.find((p) => p.id === id);
+  return player === undefined ? null : { playerId: player.id, nickname: player.nickname };
+}
+
+/** Підглянута відповідь (12h) — лише для того, хто підглянув: чия й сама відповідь, без вердикту й балів. Немає запису чи учасника — null. */
+function peekView(state: GameState, play: Play, targetId: string): PlayerPeek | null {
+  const target = peekPerson(state, targetId);
+  const record = Object.hasOwn(play.answers, targetId) ? play.answers[targetId] : undefined;
+  if (target === null || record === undefined || record.answer === null) return null;
+  return { target, answer: record.answer };
+}
+
+/** «Підглянути» (12h): останнє підглядання у відповідь учасника на поточному запитанні (question, locked, reveal); інакше null. */
+function peekedBy(state: GameState, participant: string): PlayerView['me']['peekedBy'] {
+  const play = state.plays[state.questionIndex];
+  if (!PEEK_SEEN.includes(state.phase) || play?.buffs === undefined) return null;
+  let last: PlayerView['me']['peekedBy'] = null;
+  for (const peeker of state.players) {
+    const buff = buffOf(play, peeker.id);
+    if (buff?.peek === participant && (last === null || buff.seq > last.seq)) last = { seq: buff.seq, at: buff.at, nickname: peeker.nickname };
+  }
+  return last;
 }
 
 /** Узятий баф гравця: прибрані варіанти, друга спроба, підказка, голоси й ознака запасного — лише для нього самого. */
@@ -1818,8 +1853,7 @@ function activeBuff(state: GameState, play: Play, playerId: string, own: BuffPla
     spare: own.kind === 'swap',
     letter: own.kind === 'letter' ? letterOf(play.question) : null,
     scope: own.range !== undefined ? { kind: 'range', ...own.range } : own.zoom !== undefined ? { kind: 'zoom', ...own.zoom } : null,
-    // peek — заглушка до задачі 5 (12h).
-    peek: null,
+    peek: own.peek === undefined ? null : peekView(state, play, own.peek),
   };
 }
 
@@ -1883,7 +1917,10 @@ function answeredCount(state: GameState): number {
     const own = bluff.stage === 'lies' ? bluff.lies : bluff.picks;
     return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
   }
-  const answered = [...new Set([...Object.keys(currentAnswers(state)), ...held])];
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
+  const answers = currentAnswers(state);
+  const recorded = Object.keys(answers).filter((id) => play === undefined || !isSilentRisk(play, answers[id]));
+  const answered = [...new Set([...recorded, ...held])];
   const open = currentSort(state);
   if (open === null || !inFinalRound(state)) return answered.length;
   const moved = new Set([...Object.keys(open.play.sort ?? {}), ...answered]);
@@ -2220,8 +2257,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
-      // заглушка до задачі 5 (12h)
-      peekedBy: null,
+      // Командна гра: зріз команди, тож сповіщення бачить уся команда-ціль.
+      peekedBy: peekedBy(state, playerId),
       overtime: personalClock(state, playerId),
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),
