@@ -839,10 +839,11 @@ const QUESTION_TYPE_SET: ReadonlySet<string> = new Set(QUESTION_TYPES);
 
 /**
  * Різні типи основних запитань (без запасних), на які є відповідь користувача: свої рядки, голоси людини, рядки команди
- * з answered_by = рядок людини; без AWAY_ATTEMPT. Тип — у SQL із game.plays і знімка (запитання раунду чи клітинки поля),
- * без читання знімка в Node; старі ігри без plays типів не дають. exceptGameId — гра, якої не враховувати.
+ * з answered_by = рядок людини; без AWAY_ATTEMPT і штрафів (PENALTY_ATTEMPT — не відповідь). Тип — у SQL із game.plays
+ * і знімка (запитання раунду чи клітинки поля), без читання знімка в Node; старі ігри без plays типів не дають.
+ * aroundGameId — гра, для якої кожен тип ще й знає, чи є він поза нею (elsewhere); exceptGameId — гра, якої не враховувати.
  */
-export async function answeredTypes(db: Db, userId: string, exceptGameId: string | null = null): Promise<Set<QuestionType>> {
+async function answeredTypeRows(db: Db, userId: string, aroundGameId: string | null, exceptGameId: string | null): Promise<{ type: QuestionType; elsewhere: boolean }[]> {
   const person = alias(participant, 'person');
   const ref = sql`${game.plays}->${answer.questionIndex}`;
   const round = sql`${game.quizSnapshot}->'rounds'->((${ref}->>'roundIndex')::int)`;
@@ -851,8 +852,9 @@ export async function answeredTypes(db: Db, userId: string, exceptGameId: string
     jsonb_path_query_first(${round}, '$.questions[*] ? (@.id == $id).type', ${vars}),
     jsonb_path_query_first(${round}, '$.categories[*].cells[*].question ? (@.id == $id).type', ${vars})
   ) #>> '{}'`;
+  const elsewhere = aroundGameId === null ? sql<boolean>`true` : sql<boolean>`bool_or(${game.id} <> ${aroundGameId})`;
   const rows = await db
-    .selectDistinct({ type })
+    .select({ type, elsewhere })
     .from(person)
     .innerJoin(game, eq(game.id, person.gameId))
     // Свій рядок (відповідь соло чи голос людини) або рядок команди, де відповідала ця людина.
@@ -862,11 +864,24 @@ export async function answeredTypes(db: Db, userId: string, exceptGameId: string
         eq(person.userId, userId),
         isNull(answer.spareId),
         ne(answer.attempt, AWAY_ATTEMPT),
+        ne(answer.attempt, PENALTY_ATTEMPT),
         sql`${answer.questionIndex} < ${game.questionsPlayed}`,
         exceptGameId === null ? undefined : ne(game.id, exceptGameId),
       ),
-    );
-  return new Set(rows.flatMap(({ type: found }) => (found !== null && QUESTION_TYPE_SET.has(found) ? [found as QuestionType] : [])));
+    )
+    .groupBy(type);
+  return rows.flatMap((row) => (row.type !== null && QUESTION_TYPE_SET.has(row.type) ? [{ type: row.type as QuestionType, elsewhere: row.elsewhere }] : []));
+}
+
+/** Типи запитань із відповіддю користувача (див. answeredTypeRows); exceptGameId — гра, якої не враховувати. */
+export async function answeredTypes(db: Db, userId: string, exceptGameId: string | null = null): Promise<Set<QuestionType>> {
+  return new Set((await answeredTypeRows(db, userId, null, exceptGameId)).map((row) => row.type));
+}
+
+/** Типи запитань із відповіддю користувача одним запитом: усі (all) і без гри gameId (without) — для фактів «до» неї. */
+export async function answeredTypesAround(db: Db, userId: string, gameId: string): Promise<{ all: Set<QuestionType>; without: Set<QuestionType> }> {
+  const rows = await answeredTypeRows(db, userId, gameId, null);
+  return { all: new Set(rows.map((row) => row.type)), without: new Set(rows.filter((row) => row.elsewhere).map((row) => row.type)) };
 }
 
 export async function playerHistory(db: Db, userId: string): Promise<PlayedGame[]> {

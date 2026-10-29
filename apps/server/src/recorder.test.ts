@@ -1923,6 +1923,26 @@ describe('recorder: debuff, clue and answerer columns (12i)', () => {
     for (const vote of votes) expect(vote[3]).toBeNull();
     expect(ctx.errors).toEqual([]);
   });
+
+  it('teams: a rewrite of the closed question after the answerer went offline keeps the person who answered', async () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus: false })], { teams: { ...defaultTeams(2), answerer: 'chosen' } });
+    const ctx = await recordedTeamGame(quiz);
+    const { manager, room, members } = ctx;
+    const [red] = ctx.teams;
+    expect(manager.pickAnswerer(room, members['Оля'], members['Петро'], 'question')).toEqual({ ok: true });
+    toQuestion(manager, room);
+    expect(manager.answer(room, members['Петро'], wrong)).toEqual({ ok: true });
+    manager.host(room, { type: 'lock' });
+    manager.host(room, { type: 'next' });
+    await ctx.recorder.idle();
+    manager.disconnect(room, { role: 'player', playerId: members['Петро'] });
+    // Ведуча зараховує відповідь на розкритті: останнє закрите запитання пишеться ще раз, а Петра вже немає на зв'язку.
+    expect(manager.host(room, { type: 'override', playerId: red, grade: 'correct' })).toEqual({ ok: true });
+    await ctx.recorder.idle();
+    const rows = (await rowsOf(ctx.db)).filter((a) => a.participantId === red && a.questionIndex === 0);
+    expect(rows.map((a) => [a.points > 0, a.answeredBy])).toEqual([[true, members['Петро']]]);
+    expect(ctx.errors).toEqual([]);
+  });
 });
 
 describe('recorder: achievements (12i)', () => {

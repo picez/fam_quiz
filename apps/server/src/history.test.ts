@@ -2057,6 +2057,30 @@ describe('answeredTypes (12i)', () => {
     expect(await answeredTypes(db, olya)).toEqual(new Set(['single', 'text', 'poll', 'pin']));
   });
 
+  it('a penalty row is not an answer: its question type does not count', async () => {
+    const [account] = await db.insert(user).values({ id: 'types-penalty', name: 'Ярина', email: 'types-penalty@example.com' }).returning();
+    await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-10-03T18:00:00Z'),
+      snapshot: typesQuiz,
+      questionsPlayed: 2,
+      plays: typesPlays,
+      players: [
+        {
+          userId: account.id,
+          nickname: 'Ярина',
+          score: 0,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, accepted: true, points: 0 },
+            { questionIndex: 1, attempt: PENALTY_ATTEMPT, accepted: false, points: -100 },
+          ],
+        },
+      ],
+    });
+    expect(await answeredTypes(db, account.id)).toEqual(new Set(['single']));
+  });
+
   it('an old game without plays gives no types', async () => {
     const [account] = await db.insert(user).values({ id: 'types-old', name: 'Віра', email: 'types-old@example.com' }).returning();
     await seedGame(db, {

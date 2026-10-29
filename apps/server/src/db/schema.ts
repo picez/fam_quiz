@@ -295,7 +295,7 @@ export const profile = pgTable('profile', {
   nicknameKey: text('nickname_key').notNull().unique(),
   /** Шлях /uploads/<назва> або null. */
   avatar: text('avatar'),
-  /** Історію цього користувача вже доповнено ачівками (12i); null — ще ні. */
+  /** Історію цього користувача вже доповнено ачівками (12i); null — ще ні. Далі — мітка: ігри, що закінчились пізніше й не дали жодного рядка user_achievement, читання наздоганяє. */
   achievementsSyncedAt: at('achievements_synced_at'),
   ...stamps,
 });

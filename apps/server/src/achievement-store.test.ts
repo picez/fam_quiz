@@ -1,18 +1,29 @@
 import { ACHIEVEMENTS } from '@quiz/shared';
-import { classicRound, makeRoundsQuiz, single, slider } from '@quiz/engine/testing';
+import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from '@quiz/engine/testing';
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
 import { achievementsPage, awardGame, careerFacts, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
-import { profile, quiz, user, userAchievement } from './db/schema';
-import { setFollow } from './profiles';
+import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
+import * as history from './history';
+import { publicProfile, setFollow } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
 
 vi.mock('./achievement-games', async (importOriginal) => {
   const original = await importOriginal<typeof import('./achievement-games')>();
   return { ...original, loadAchievementGames: vi.fn(original.loadAchievementGames) };
+});
+
+vi.mock('./history', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./history')>();
+  return {
+    ...original,
+    playerGames: vi.fn(original.playerGames),
+    answeredTypes: vi.fn(original.answeredTypes),
+    answeredTypesAround: vi.fn(original.answeredTypesAround),
+  };
 });
 
 const HOST = 'store-host';
@@ -26,7 +37,20 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.mocked(games.loadAchievementGames).mockClear();
+  clearHistorySpies();
 });
+
+function clearHistorySpies() {
+  vi.mocked(history.playerGames).mockClear();
+  vi.mocked(history.answeredTypes).mockClear();
+  vi.mocked(history.answeredTypesAround).mockClear();
+}
+
+/** Скільки разів читали типи запитань користувача userId (будь-яким способом). */
+const typeReads = (userId: string) =>
+  [...vi.mocked(history.answeredTypes).mock.calls, ...vi.mocked(history.answeredTypesAround).mock.calls].filter(([, id]) => id === userId).length;
+/** Скільки разів читали ігри користувача userId. */
+const gameReads = (userId: string) => vi.mocked(history.playerGames).mock.calls.filter(([, id]) => id === userId).length;
 
 async function addUser(id: string, name: string) {
   await db.insert(user).values({ id, name, email: `${id}@example.com` });
@@ -71,7 +95,7 @@ async function playGame(
 }
 
 const rowsOf = (userId: string) => db.select().from(userAchievement).where(eq(userAchievement.userId, userId));
-const read = async (userId: string) => syncAchievements(db, userId, await careerFacts(db, userId), null);
+const read = async (userId: string) => syncAchievements(db, userId, null);
 
 describe('filling the history once', () => {
   it('the first read writes game and career achievements as «long ago», the second inserts nothing and loads no games', async () => {
@@ -304,5 +328,148 @@ describe('achievements page', () => {
     expect(page?.items.find((i) => i.id === 'first_game')?.earnedAt).toBe('2026-09-14T18:30:00.000Z');
     const [row] = await db.select().from(userAchievement).where(and(eq(userAchievement.userId, me), eq(userAchievement.achievementId, 'first_game')));
     expect(row.gameId).toBe(gameId);
+  });
+});
+
+describe('fix wave (12i)', () => {
+  it('one user whose award fails does not keep the others from theirs; the error is reported', async () => {
+    const bad = 'store-bad';
+    const good = 'store-good';
+    await addUser(bad, 'Злата');
+    await addUser(good, 'Остап');
+    const { gameId } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-09-15T18:00:00Z'),
+      players: [
+        { userId: bad, nickname: 'Злата', score: 100, rank: 1 },
+        { userId: good, nickname: 'Остап', score: 50, rank: 2 },
+      ],
+    });
+    const original = vi.mocked(history.playerGames).getMockImplementation()!;
+    vi.mocked(history.playerGames).mockImplementation((database, userId, limit) =>
+      userId === bad ? Promise.reject(new Error('read failed')) : original(database, userId, limit),
+    );
+    const errors: unknown[] = [];
+    try {
+      const awarded = await awardGame(db, gameId, (error) => errors.push(error));
+      expect(awarded.has(bad)).toBe(false);
+      expect(awarded.get(good)).toContain('first_game');
+    } finally {
+      vi.mocked(history.playerGames).mockImplementation(original);
+    }
+    expect(errors).toHaveLength(1);
+    expect((await rowsOf(good)).map((r) => r.achievementId)).toContain('first_game');
+    expect(await rowsOf(bad)).toEqual([]);
+  });
+
+  it('a finish before the first read reads the career once: the facts before the game come from the same rows', async () => {
+    const me = 'store-once';
+    await addUser(me, 'Устим');
+    await playGame(me, new Date('2026-09-16T18:00:00Z'));
+    const { gameId } = await playGame(me, new Date('2026-09-17T18:00:00Z'));
+    clearHistorySpies();
+    await awardGame(db, gameId);
+    expect(gameReads(me)).toBe(1);
+    expect(typeReads(me)).toBe(1);
+    const stored = await rowsOf(me);
+    expect(stored.find((r) => r.achievementId === 'first_game')?.earnedAt).toBeNull();
+    expect(stored.find((r) => r.achievementId === 'first_game')?.gameId).toBeNull();
+  });
+
+  it('question types are not read once all_types is stored, nor on another player page or profile', async () => {
+    const me = 'store-types';
+    await addUser(me, 'Ліза');
+    await playGame(me, new Date('2026-09-18T18:00:00Z'));
+    await read(me);
+
+    clearHistorySpies();
+    await achievementsPage(db, me, false);
+    await publicProfile(db, me, HOST);
+    expect(typeReads(me)).toBe(0);
+    await achievementsPage(db, me, true);
+    expect(typeReads(me)).toBe(1);
+
+    await db.insert(userAchievement).values({ userId: me, achievementId: 'all_types', earnedAt: null, gameId: null });
+    clearHistorySpies();
+    await achievementsPage(db, me, true);
+    await read(me);
+    expect(typeReads(me)).toBe(0);
+  });
+
+  it('a round with only a penalty row is not a played round type', async () => {
+    const me = 'store-rounds';
+    await addUser(me, 'Тереза');
+    const blitzOnly = withId(single, 'store-blitz');
+    const twoRounds = makeRoundsQuiz([classicRound('r1', [single]), blitzRound('b1', [blitzOnly])]);
+    await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-09-19T18:00:00Z'),
+      snapshot: twoRounds,
+      questionsPlayed: 2,
+      plays: [
+        { roundIndex: 0, questionId: single.id },
+        { roundIndex: 1, questionId: blitzOnly.id },
+      ],
+      players: [
+        {
+          userId: me,
+          nickname: 'Тереза',
+          score: 0,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, accepted: true, points: 100 },
+            { questionIndex: 1, roundIndex: 1, attempt: PENALTY_ATTEMPT, accepted: false, points: -100 },
+          ],
+        },
+      ],
+    });
+    expect((await careerFacts(db, me)).roundTypes).toBe(1);
+  });
+
+  it('a game whose award was lost is awarded on the next read with its own date; read again, nothing is loaded', async () => {
+    const me = 'store-lost';
+    await addUser(me, 'Мирослава');
+    await read(me);
+    // Мітка — ніби історію доповнено раніше, ніж закінчилась гра, чиє нагородження загубилось.
+    await db.update(profile).set({ achievementsSyncedAt: new Date('2026-09-20T00:00:00Z') }).where(eq(profile.userId, me));
+    const { gameId } = await playGame(me, new Date('2026-09-20T18:00:00Z'), { timeMs: 1500 });
+
+    vi.mocked(games.loadAchievementGames).mockClear();
+    const { earned, fresh } = await read(me);
+    expect(fresh).toEqual(expect.arrayContaining(['first_game', 'fast_answer']));
+    expect(earned.get('fast_answer')?.earnedAt?.toISOString()).toBe('2026-09-20T18:30:00.000Z');
+    expect(earned.get('fast_answer')?.gameId).toBe(gameId);
+    expect(earned.get('first_game')?.earnedAt?.toISOString()).toBe('2026-09-20T18:30:00.000Z');
+    expect(earned.get('first_game')?.gameId).toBe(gameId);
+    expect(games.loadAchievementGames).toHaveBeenCalledTimes(1);
+
+    vi.mocked(games.loadAchievementGames).mockClear();
+    expect((await read(me)).fresh).toEqual([]);
+    expect(games.loadAchievementGames).not.toHaveBeenCalled();
+
+    // Гру, яку нагородили як слід, наступне читання не перевіряє.
+    const awardedGame = await playGame(me, new Date('2026-09-21T18:00:00Z'), { value: 50 });
+    await awardGame(db, awardedGame.gameId);
+    vi.mocked(games.loadAchievementGames).mockClear();
+    expect((await read(me)).fresh).toEqual([]);
+    expect(games.loadAchievementGames).not.toHaveBeenCalled();
+  });
+
+  it('a lost game that gave nothing is checked once: the mark moves past it', async () => {
+    const me = 'store-nothing';
+    await addUser(me, 'Богдана');
+    await playGame(me, new Date('2026-09-22T18:00:00Z'));
+    await read(me);
+    await db.update(profile).set({ achievementsSyncedAt: new Date('2026-09-23T00:00:00Z') }).where(eq(profile.userId, me));
+    await playGame(me, new Date('2026-09-23T18:00:00Z'));
+
+    vi.mocked(games.loadAchievementGames).mockClear();
+    await read(me);
+    expect(games.loadAchievementGames).toHaveBeenCalledTimes(1);
+    const [mark] = await db.select().from(profile).where(eq(profile.userId, me));
+    expect(mark.achievementsSyncedAt?.toISOString()).toBe('2026-09-23T18:30:00.000Z');
+    vi.mocked(games.loadAchievementGames).mockClear();
+    await read(me);
+    expect(games.loadAchievementGames).not.toHaveBeenCalled();
   });
 });

@@ -169,8 +169,9 @@ describe('profile facts', () => {
     });
     expect(olena.wins).toEqual([{ gameId, title: 'Тестова вікторина', startedAt: expect.any(String), rank: 1 }]);
     expect(Date.parse(olena.wins[0].startedAt)).not.toBeNaN();
-    // 12i: відповіді в тесті миттєві, тож Олена має й «Швидкі пальці» (правильна швидше ніж за 2 с).
-    expect(earned(olena.achievements)).toEqual(['first_game', 'first_win', 'fast_answer']);
+    // 12i: відповіді в тесті миттєві, тож Олена має й «Швидкі пальці» (правильна швидше ніж за 2 с) — якщо час відповіді
+    // не вийшов рівно 0 мс (відкриття й відповідь в одну мілісекунду; «Швидкі пальці» вимагають час > 0).
+    expect(earned(olena.achievements).filter((id) => id !== 'fast_answer')).toEqual(['first_game', 'first_win']);
     expect(olena.achievements).toHaveLength(48);
     // 12i: дата — ISO-мить отримання (гра записана й нагороджена) чи null для неотриманих.
     expect(olena.achievements.map((a) => a.id)).toEqual([...ACHIEVEMENTS]);

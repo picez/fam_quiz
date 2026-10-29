@@ -301,10 +301,11 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
               clue,
               answeredBy,
             })
-            // Дебаф і відповідач видно, лише поки запитання поточне: повторний запис останнього закритого їх не затирає.
+            // Дебаф і відповідач видно, лише поки запитання поточне: повторний запис останнього закритого їх не затирає;
+            // відповідач — перший записаний (на розкритті той, хто відповідав, міг піти зі зв'язку, і answererOf дав би капітана).
             .onConflictDoUpdate({
               target: [answer.participantId, answer.questionIndex, answer.attempt],
-              set: { ...grade, debuff: sql`coalesce(excluded.debuff, ${answer.debuff})`, clue, answeredBy: sql`coalesce(excluded.answered_by, ${answer.answeredBy})` },
+              set: { ...grade, debuff: sql`coalesce(excluded.debuff, ${answer.debuff})`, clue, answeredBy: sql`coalesce(${answer.answeredBy}, excluded.answered_by)` },
             });
         }
       }
@@ -470,8 +471,9 @@ export function attachRecorder(
       await save(db, { ...snapshot, fromQuestion });
       savedQuestions.set(room.id, closed);
       // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
+      // Збій одного користувача awardGame сам віддає в журнал і йде далі; його ачівки наздожене наступне читання.
       if (state.phase === 'finished' && !awarded.has(room.id)) {
-        await awardGame(db, room.id);
+        await awardGame(db, room.id, onError);
         awarded.add(room.id);
       }
       failures.delete(room.id);

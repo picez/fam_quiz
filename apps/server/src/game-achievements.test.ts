@@ -100,6 +100,14 @@ describe('gameAchievements: speed', () => {
     expect(earned(fakeGame({ rows: [row(0, { timeMs: 30_001 })] }))).not.toContain('last_second');
     expect(earned(fakeGame({ questions: [q(0, { limitMs: null })], rows: [row(0, { timeMs: 29_500 })] }))).not.toContain('last_second');
   });
+
+  it('a spare answer has another time limit than the main question: it gives no speed achievements', () => {
+    const spare = { spareId: 'spare-1' };
+    expect(earned(fakeGame({ rows: [row(0, { timeMs: 1500, ...spare })] }))).not.toContain('fast_answer');
+    expect(earned(fakeGame({ rows: [row(0, { timeMs: 29_500, ...spare })] }))).not.toContain('last_second');
+    const ten = range(10);
+    expect(earned(fakeGame({ questions: ten.map((i) => q(i)), rows: ten.map((i) => row(i, { timeMs: 2500, ...spare })) }))).not.toContain('fast_10');
+  });
 });
 
 describe('gameAchievements: sniper', () => {

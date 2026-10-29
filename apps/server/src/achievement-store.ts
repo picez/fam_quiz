@@ -8,14 +8,15 @@ import {
   type AchievementId,
   type AchievementsPage,
   type ProfileStats,
+  type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, count, eq, gt, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
 import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, follow, game, participant, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
 import { gameAchievements } from './game-achievements';
-import { answeredTypes, gameTables, playerGames, type GameTable } from './history';
+import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { ensureProfile } from './profiles';
 
 /** Скільки ігор доповнення історії читає за раз. */
@@ -57,43 +58,91 @@ export async function careerInputs(db: Db, userId: string, exceptGameId: string 
   return { games, tables, stats };
 }
 
-/**
- * Кар'єрні факти користувача (те, що profileFacts рахував для ачівок, + 12i): prepared — уже прочитане профілем;
- * exceptGameId — без цієї гри (тоді prepared не передають).
- */
-export async function careerFacts(db: Db, userId: string, prepared?: CareerInputs, exceptGameId: string | null = null): Promise<CareerFacts> {
-  const { games, tables, stats } = prepared ?? (await careerInputs(db, userId, exceptGameId));
-  const except = (column: typeof game.id | typeof participant.gameId) => (exceptGameId === null ? undefined : ne(column, exceptGameId));
+/** Те саме без гри gameId, у пам'яті (без нових запитів); hostedThere — гру вів сам користувач (і вона рахувалась у hosted). */
+function inputsWithout(inputs: CareerInputs, gameId: string, hostedThere: number): CareerInputs {
+  const games = inputs.games.filter((g) => g.played.gameId !== gameId);
+  const played = games.map((g) => g.played);
+  return {
+    games,
+    tables: inputs.tables.filter((table) => table.gameId !== gameId),
+    stats: { ...gameStats(played), ...podiumStats(played), quizzes: inputs.stats.quizzes, hosted: inputs.stats.hosted - hostedThere },
+  };
+}
+
+/** Лічильники кар'єри поза іграми профілю; *InGame — частка гри split (для фактів «до» неї), без split — 0. */
+interface CareerCounts {
+  friends: Set<string>;
+  debuffs: number;
+  debuffsInGame: number;
+  authored: number;
+  authoredInGame: number;
+  hostedInGame: number;
+  /** Типи запитань: усі й без гри split; null — не читали (тоді questionTypes = 0, а all_types цим читанням не дається). */
+  types: { all: Set<QuestionType>; without: Set<QuestionType> } | null;
+}
+
+/** Один набір запитів на лічильники: і «зараз», і «до гри split» (умовні count, а не другий набір запитів). */
+async function careerCounts(db: Db, userId: string, split: string | null, withTypes: boolean): Promise<CareerCounts> {
+  const inSplit = (column: typeof game.id | typeof participant.gameId) =>
+    (split === null ? sql`0` : sql`count(*) filter (where ${column} = ${split})`).mapWith(Number);
   const friendRows = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
   // Купівлі дебафів власних соло-учасників: у командній грі покупку записано на команду без людини.
   const [debuffs] = await db
-    .select({ n: count() })
+    .select({ n: count(), inGame: inSplit(participant.gameId) })
     .from(scoreAdjustment)
     .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
-    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff'), except(participant.gameId)));
+    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff')));
   // Ігри вікторин користувача, хоч хто їх вів; ігри видалених вікторин не рахуються.
   const [authored] = await db
-    .select({ n: count() })
+    .select({ n: count(), inGame: inSplit(game.id) })
     .from(game)
     .innerJoin(quiz, eq(quiz.id, game.quizId))
-    .where(and(eq(quiz.ownerId, userId), eq(game.status, 'finished'), except(game.id)));
-  const questionTypes = await answeredTypes(db, userId, exceptGameId);
+    .where(and(eq(quiz.ownerId, userId), eq(game.status, 'finished')));
+  let hostedInGame = 0;
+  if (split !== null) {
+    const [hosted] = await db
+      .select({ n: count() })
+      .from(game)
+      .where(and(eq(game.id, split), eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
+    hostedInGame = hosted.n;
+  }
+  let types: CareerCounts['types'] = null;
+  if (withTypes) {
+    if (split === null) {
+      const all = await answeredTypes(db, userId);
+      types = { all, without: all };
+    } else types = await answeredTypesAround(db, userId, split);
+  }
+  return {
+    friends: new Set(friendRows.map((r) => r.id)),
+    debuffs: debuffs.n,
+    debuffsInGame: debuffs.inGame,
+    authored: authored.n,
+    authoredInGame: authored.inGame,
+    hostedInGame,
+    types,
+  };
+}
 
+/** Кар'єрні факти з уже прочитаного; without — без цієї гри (вона мусить бути split у counts). Без запитів. */
+function factsOf(userId: string, inputs: CareerInputs, counts: CareerCounts, without: string | null): CareerFacts {
+  const { games, tables, stats } = without === null ? inputs : inputsWithout(inputs, without, counts.hostedInGame);
   // Свій учасник у грі (сам гравець або команда, де він грав): з кількох береться той, що з кращим місцем, а без місця останній.
   const mine = tables.flatMap((table) => {
     const own = table.players.filter((p) => p.userId === userId || p.memberUserIds.includes(userId)).sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
     return own[0] === undefined ? [] : [{ table, player: own[0] }];
   });
-  // Типи раундів, де є свій рядок-відповідь чи штраф (коригування раунду не грають).
+  // Типи раундів, де є свій рядок-відповідь (голоси й позначки виходу таблиця не містить; штрафи й коригування — не відповідь).
   const roundTypes = new Set(
     mine.flatMap(({ table, player }) =>
       player.rows.flatMap((row) => {
-        const type = row.attempt === ADJUSTMENT_ATTEMPT ? undefined : table.roundTypes[row.roundIndex];
+        const type = row.attempt === ADJUSTMENT_ATTEMPT || row.attempt === PENALTY_ATTEMPT ? undefined : table.roundTypes[row.roundIndex];
         return type === undefined ? [] : [type];
       }),
     ),
   );
   const played = games.map((g) => g.played);
+  const types = counts.types === null ? null : without === null ? counts.types.all : counts.types.without;
   return {
     games: stats.games,
     wins: stats.wins,
@@ -104,13 +153,22 @@ export async function careerFacts(db: Db, userId: string, prepared?: CareerInput
     blitzWins: mine.filter(({ table, player }) => wonBlitzRound(table, player.participantId)).length,
     finalHits: mine.filter(({ table, player }) => hitFinal(table, player.participantId)).length,
     comebacks: mine.filter(({ table, player }) => isComeback(table, player.participantId)).length,
-    friendsPlayedWith: friendsPlayedWith(tables, userId, new Set(friendRows.map((r) => r.id))),
+    friendsPlayedWith: friendsPlayedWith(tables, userId, counts.friends),
     podium: stats.podium.first + stats.podium.second + stats.podium.third,
-    debuffsBought: debuffs.n,
-    authorGames: authored.n,
+    debuffsBought: counts.debuffs - (without === null ? 0 : counts.debuffsInGame),
+    authorGames: counts.authored - (without === null ? 0 : counts.authoredInGame),
     roundTypes: roundTypes.size,
-    questionTypes: questionTypes.size,
+    questionTypes: types?.size ?? 0,
   };
+}
+
+/**
+ * Кар'єрні факти користувача (те, що profileFacts рахував для ачівок, + 12i): prepared — уже прочитане профілем (усі ігри);
+ * exceptGameId — без цієї гри (відфільтровано в пам'яті).
+ */
+export async function careerFacts(db: Db, userId: string, prepared?: CareerInputs, exceptGameId: string | null = null): Promise<CareerFacts> {
+  const inputs = prepared ?? (await careerInputs(db, userId));
+  return factsOf(userId, inputs, await careerCounts(db, userId, exceptGameId, true), exceptGameId);
 }
 
 /** Рядки user_achievement у мапу; ачівку колись можуть прибрати з каталогу: її рядок лишається, але не показується. */
@@ -120,14 +178,14 @@ function earnedOf(rows: { id: AchievementId | null; earnedAt: Date | null; gameI
   return earned;
 }
 
-/** Записані ачівки користувача і позначка «історію доповнено» — одним запитом; без профілю — порожньо й не доповнено. */
-async function storedOf(db: Db, userId: string): Promise<{ earned: EarnedAchievements; synced: boolean }> {
+/** Записані ачівки користувача і мітка доповнення історії — одним запитом; без профілю — порожньо й мітки немає. */
+async function storedOf(db: Db, userId: string): Promise<{ earned: EarnedAchievements; syncedAt: Date | null }> {
   const rows = await db
     .select({ syncedAt: profile.achievementsSyncedAt, id: userAchievement.achievementId, earnedAt: userAchievement.earnedAt, gameId: userAchievement.gameId })
     .from(profile)
     .leftJoin(userAchievement, eq(userAchievement.userId, profile.userId))
     .where(eq(profile.userId, userId));
-  return { earned: earnedOf(rows), synced: rows[0]?.syncedAt != null };
+  return { earned: earnedOf(rows), syncedAt: rows[0]?.syncedAt ?? null };
 }
 
 /** Ігрові ачівки користувача з усіх його завершених ігор (крім exceptGameId), від найстарішої: id → перша гра, що її дала. */
@@ -151,27 +209,74 @@ async function historyAchievements(db: Db, userId: string, exceptGameId: string 
 }
 
 /**
- * Дописує пропущені ачівки й повертає всі отримані (лише відомі id) і щойно вставлені цим викликом (fresh).
+ * Ігри користувача, що закінчились після мітки й не дали йому жодного рядка user_achievement — нагородження могло загубитись
+ * (збій, вичерпані повтори рекордера). Від найранішої. Зазвичай порожньо: один запит за індексами.
+ */
+async function missedGames(db: Db, userId: string, since: Date): Promise<{ gameId: string; earnedAt: Date }[]> {
+  const rows = await db
+    .select({ id: game.id, finishedAt: game.finishedAt })
+    .from(participant)
+    .innerJoin(game, eq(game.id, participant.gameId))
+    .where(
+      and(
+        eq(participant.userId, userId),
+        eq(game.status, 'finished'),
+        gt(game.finishedAt, since),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(userAchievement)
+            .where(and(eq(userAchievement.userId, userId), eq(userAchievement.gameId, game.id))),
+        ),
+      ),
+    )
+    .orderBy(asc(game.finishedAt), asc(game.id));
+  // Один рядок на гру (учасником гри користувач буває раз, але без покладання на це).
+  const byGame = new Map<string, Date>();
+  for (const row of rows) if (row.finishedAt !== null && !byGame.has(row.id)) byGame.set(row.id, row.finishedAt);
+  return [...byGame].map(([gameId, earnedAt]) => ({ gameId, earnedAt }));
+}
+
+export interface SyncOptions {
+  /** Уже прочитані ігри профілю (усі). */
+  prepared?: CareerInputs;
+  /** false — не читати типи запитань (чужа сторінка й профіль); доповнення історії читає їх усе одно. */
+  types?: boolean;
+}
+
+/**
+ * Дописує пропущені ачівки й повертає всі отримані (лише відомі id), щойно вставлені цим викликом (fresh) і кар'єрні факти.
  * Історію доповнює раз (earned_at null): ігрові — з першою грою, що дала ачівку, кар'єрні — за фактами «до» гри at.
  * at — гра, що щойно закінчилась: її ігрові й нові кар'єрні — з її датою й id; без at — нові кар'єрні з now().
+ * Читання без at ще й наздоганяє ігри після мітки profile.achievements_synced_at без жодного свого рядка (missedGames):
+ * ігрові — з датою й id гри, нові кар'єрні — з найпізнішою з них; мітка переходить на неї, тож гра без ачівок перевіряється раз.
  * Отримане не забирається; паралельні виклики нешкідливі (ключ (user_id, achievement_id)).
+ * Рідкісна гонка: якщо перше читання (доповнення) збігається з фінішем гри, ця гра вже finished у historyAchievements —
+ * її ачівки запишуться як «давно» з її id, і датований запис awardGame нічого не змінить (onConflictDoNothing).
  */
 export async function syncAchievements(
   db: Db,
   userId: string,
-  facts: CareerFacts,
   at: FinishedAt | null,
-): Promise<{ earned: EarnedAchievements; fresh: AchievementId[] }> {
-  const { earned, synced } = await storedOf(db, userId);
+  options: SyncOptions = {},
+): Promise<{ earned: EarnedAchievements; fresh: AchievementId[]; facts: CareerFacts }> {
+  const { earned, syncedAt } = await storedOf(db, userId);
+  const synced = syncedAt !== null;
   const pending: EarnedAchievements = new Map();
   const want = (id: AchievementId, earnedAt: Date | null, gameId: string | null) => {
     if (!earned.has(id) && !pending.has(id)) pending.set(id, { earnedAt, gameId });
   };
 
+  // Доповнення з грою at: факти «до» неї — з тих самих рядків, у пам'яті.
+  const split = !synced && at !== null ? at.gameId : null;
+  const inputs = options.prepared ?? (await careerInputs(db, userId));
+  const counts = await careerCounts(db, userId, split, !synced || (options.types !== false && !earned.has('all_types')));
+  const facts = factsOf(userId, inputs, counts, null);
+
   if (!synced) {
     for (const [id, gameId] of await historyAchievements(db, userId, at?.gameId ?? null)) want(id, null, gameId);
     // Кар'єра «до» щойно завершеної гри: те, що дала саме вона, отримає її дату нижче.
-    const before = at === null ? facts : await careerFacts(db, userId, undefined, at.gameId);
+    const before = split === null ? facts : factsOf(userId, inputs, counts, split);
     for (const id of careerEarned(before)) want(id, null, null);
   }
   if (at !== null) {
@@ -179,8 +284,17 @@ export async function syncAchievements(
     const who = loaded === undefined ? null : whoIn(loaded, userId);
     if (loaded !== undefined && who !== null) for (const id of gameAchievements(loaded, who)) want(id, at.earnedAt, at.gameId);
   }
+  const missed = synced && at === null ? await missedGames(db, userId, syncedAt) : [];
+  const dates = new Map(missed.map((m) => [m.gameId, m.earnedAt]));
+  for (let i = 0; i < missed.length; i += BATCH) {
+    for (const loaded of await loadAchievementGames(db, missed.slice(i, i + BATCH).map((m) => m.gameId))) {
+      const who = whoIn(loaded, userId);
+      if (who !== null) for (const id of gameAchievements(loaded, who)) want(id, dates.get(loaded.gameId) ?? null, loaded.gameId);
+    }
+  }
   const now = new Date();
-  for (const id of careerEarned(facts)) want(id, at?.earnedAt ?? now, at?.gameId ?? null);
+  const careerAt = at ?? missed.at(-1) ?? null;
+  for (const id of careerEarned(facts)) want(id, careerAt?.earnedAt ?? now, careerAt?.gameId ?? null);
 
   let fresh: AchievementId[] = [];
   if (pending.size > 0) {
@@ -204,15 +318,26 @@ export async function syncAchievements(
   if (!synced) {
     await ensureProfile(db, userId);
     await db.update(profile).set({ achievementsSyncedAt: now }).where(eq(profile.userId, userId));
+  } else if (missed.length > 0) {
+    const last = missed[missed.length - 1].earnedAt;
+    await db
+      .update(profile)
+      .set({ achievementsSyncedAt: sql`greatest(${profile.achievementsSyncedAt}, ${last})` })
+      .where(eq(profile.userId, userId));
   }
-  return { earned, fresh };
+  return { earned, fresh, facts };
 }
 
 /**
  * Після фінішу гри: учасники з акаунтами (гравці соло й люди команд), ведучий і власник вікторини.
  * Повертає щойно отримані з датою гри (для 12j; доповнена історія «давно» — не нове). Незавершена гра — порожньо.
+ * Збій для одного користувача не зупиняє інших: він іде в onError, а його ачівки наздожене наступне читання (missedGames).
  */
-export async function awardGame(db: Db, gameId: string): Promise<Map<string, AchievementId[]>> {
+export async function awardGame(
+  db: Db,
+  gameId: string,
+  onError: (error: unknown) => void = (error) => console.error('Не вдалося видати ачівки:', error),
+): Promise<Map<string, AchievementId[]>> {
   const awarded = new Map<string, AchievementId[]>();
   const [loaded] = await loadAchievementGames(db, [gameId]);
   if (loaded === undefined) return awarded;
@@ -223,11 +348,15 @@ export async function awardGame(db: Db, gameId: string): Promise<Map<string, Ach
 
   const at = { gameId, earnedAt: loaded.finishedAt ?? new Date(), game: loaded };
   for (const userId of users) {
-    const { earned, fresh } = await syncAchievements(db, userId, await careerFacts(db, userId), at);
-    awarded.set(
-      userId,
-      fresh.filter((id) => earned.get(id)?.earnedAt != null),
-    );
+    try {
+      const { earned, fresh } = await syncAchievements(db, userId, at);
+      awarded.set(
+        userId,
+        fresh.filter((id) => earned.get(id)?.earnedAt != null),
+      );
+    } catch (error) {
+      onError(error);
+    }
   }
   return awarded;
 }
@@ -244,8 +373,8 @@ export function achievementList(earned: EarnedAchievements): Achievement[] {
 export async function achievementsPage(db: Db, userId: string, own: boolean): Promise<AchievementsPage | null> {
   const card = await ensureProfile(db, userId);
   if (card === null) return null;
-  const facts = await careerFacts(db, userId);
-  const { earned } = await syncAchievements(db, userId, facts, null);
+  // Чужа сторінка не показує поступу: типи запитань для неї не читаються.
+  const { earned, facts } = await syncAchievements(db, userId, null, { types: own });
   const progress = careerProgress(facts);
   const items = achievementList(earned).flatMap((achievement): AchievementCard[] => {
     if (!own && !achievement.earned) return [];

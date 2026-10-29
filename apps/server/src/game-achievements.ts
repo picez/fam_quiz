@@ -76,9 +76,9 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
   const own = ownRows(game, who);
   const answers = own.filter(answerRow);
   const accepted = answers.filter((r) => r.accepted);
-  /** Прийняті свої рядки зі справжнім часом. */
+  /** Прийняті свої рядки зі справжнім часом; запасне запитання має власний ліміт, якого знімок основного не знає — не рахується. */
   const timed = accepted.flatMap((r) => {
-    const limitMs = questions.get(r.questionIndex)?.limitMs ?? null;
+    const limitMs = r.spareId === null ? (questions.get(r.questionIndex)?.limitMs ?? null) : null;
     return limitMs === null ? [] : [{ row: r, limitMs }];
   });
   /** Свій рядок на основному запитанні (не запасному) з питанням зі знімка. */

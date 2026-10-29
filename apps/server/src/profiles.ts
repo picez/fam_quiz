@@ -13,7 +13,7 @@ import {
 } from '@quiz/shared';
 import { and, asc, count, eq } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
-import { achievementList, careerFacts, careerInputs, syncAchievements } from './achievement-store';
+import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
 import { listQuizzes } from './quizzes';
@@ -106,13 +106,17 @@ function isUniqueViolation(error: unknown): boolean {
 
 export const WINS_SHOWN = 20;
 
-/** Статистика, ачівки (усі з позначками й датами) й останні перемоги (не більше WINS_SHOWN, найновіші першими). */
+/**
+ * Статистика, ачівки (усі з позначками й датами) й останні перемоги (не більше WINS_SHOWN, найновіші першими).
+ * own — профіль власника; чужий профіль не читає типів запитань (поступу там немає).
+ */
 export async function profileFacts(
   db: Db,
   userId: string,
+  own = true,
 ): Promise<{ stats: ProfileStats; achievements: Achievement[]; wins: ProfileWin[] }> {
   const prepared = await careerInputs(db, userId);
-  const { earned } = await syncAchievements(db, userId, await careerFacts(db, userId, prepared), null);
+  const { earned } = await syncAchievements(db, userId, null, { prepared, types: own });
   const wins = prepared.games
     .map((g) => g.played)
     .filter(isWin)
@@ -185,7 +189,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
 export async function publicProfile(db: Db, id: string, viewerId: string | null): Promise<PublicProfile | null> {
   const base = await ensureProfile(db, id);
   if (!base) return null;
-  const { stats, achievements } = await profileFacts(db, id);
+  const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
   return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
 }
