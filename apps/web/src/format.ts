@@ -221,6 +221,14 @@ export function formatDate(iso: string): string {
   return Number.isNaN(date.getTime()) ? '' : dateFormat.format(date);
 }
 
+const dayFormat = new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/** Дата без часу словами («29 жовтня 2026», без «р.», яке дописує uk-UA); порожній рядок, якщо значення не є датою. */
+export function formatDay(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? '' : dayFormat.format(date).replace(/\s*р\.$/, '');
+}
+
 /** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */
 export function num(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);

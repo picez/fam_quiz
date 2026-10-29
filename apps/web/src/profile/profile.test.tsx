@@ -67,7 +67,7 @@ describe('profile parts', () => {
       <AchievementList achievements={[{ id: 'first_game', earned: true, earnedAt: null }, { id: 'wins_10', earned: false, earnedAt: null }]} />,
     );
     const earned = screen.getByText('Перша гра').closest('li');
-    expect(earned?.textContent).toContain('🎮');
+    expect(earned?.textContent).toContain('🎈');
     expect(earned?.getAttribute('title')).toBe('Зіграти першу гру з акаунта');
     const locked = screen.getByLabelText('10 перемог (ще не отримано)');
     expect(locked.className).toContain('locked');

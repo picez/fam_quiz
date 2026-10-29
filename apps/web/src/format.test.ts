@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, sliderNumber } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, sliderNumber } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -161,6 +161,18 @@ describe('formatDate', () => {
 
   it('returns an empty string for something that is not a date', () => {
     expect(formatDate('не дата')).toBe('');
+  });
+});
+
+describe('formatDay', () => {
+  it('shows the day and the month in words with the year, without the time', () => {
+    const text = formatDay('2026-10-29T10:00:00.000Z');
+    expect(text).toContain('жовтня 2026');
+    expect(text).not.toContain(':');
+  });
+
+  it('returns an empty string for something that is not a date', () => {
+    expect(formatDay('нісенітниця')).toBe('');
   });
 });
 
