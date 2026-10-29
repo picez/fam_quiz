@@ -4,6 +4,8 @@ import {
   boardSpareSource,
   findCell,
   isUnscored,
+  RISK_FACTOR,
+  RISK_TYPES,
   rulesOf,
   type Answer,
   SIMPLE_TYPES,
@@ -214,11 +216,14 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       return nextSpare(state, play) === null ? 'spares_out' : null;
     }
     case 'risk':
+      return (RISK_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
+    case 'guard':
+      // Без серій нічого берегти.
+      return rulesOf(round).streak === null ? 'unfit_streak' : null;
     case 'letter':
     case 'scope':
-    case 'guard':
     case 'peek':
-      // 12h: задачі 3–5 дадуть власні гілки; доти нові бафи ніде не діють.
+      // 12h: задачі 4–5 дадуть власні гілки; доти ці бафи ніде не діють.
       return 'unfit_type';
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
@@ -489,13 +494,65 @@ export function pickRemoved(question: Question, rng: Rng): string[] {
   return removed;
 }
 
-/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначки buff і spare. Вхід — запис без бафу. */
-export function applyBuff(record: AnswerRecord, buff: BuffPlay | null): AnswerRecord {
+/** «Ризик» (12h): повна ціна запитання з множниками — класика: points × множник раунду; поле: ціна × множник раунду × позначка клітинки. */
+export function riskStake(state: GameState, play: Play): number {
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round.type === 'board' && play.board !== undefined) return Math.round(play.board.price * round.rules.multiplier * play.board.multiplier);
+  return Math.round(play.question.points * rulesOf(round).multiplier);
+}
+
+/** «Запобіжник» (12h): учасник узяв його на цьому записі — невдача не рве серію. */
+export function guardHolds(play: Play, participant: string): boolean {
+  return buffOf(play, participant)?.kind === 'guard';
+}
+
+/** Для lockNow (12h): хто взяв «Ризик» і не відповів, отримує запис мовчання з −riskStake. Без таких — той самий стан. */
+export function withRiskMisses(state: GameState): GameState {
+  const play = state.plays[state.questionIndex];
+  if (state.phase !== 'question' || play?.buffs === undefined) return state;
+  let charged = state;
+  for (const player of state.players) {
+    if (buffOf(play, player.id)?.kind !== 'risk' || recordOf(state, state.questionIndex, player.id) !== undefined) continue;
+    // Класика — кожен, поле — лише той, хто вибрав клітинку.
+    if (!buffRowHere(state, play, player.id)) continue;
+    const stake = riskStake(state, play);
+    charged = withRecord(charged, player.id, {
+      answer: null,
+      timeMs: limitMsOf(play) ?? 0,
+      accepted: false,
+      accuracy: 0,
+      grade: 'wrong',
+      basePoints: -stake,
+      streakBonus: 0,
+      points: -stake,
+      overridden: false,
+    });
+  }
+  return charged;
+}
+
+/** Бали запису з бафом: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса). */
+function buffedPoints(raw: AnswerRecord, kind: BuffKind, stake: number): number {
+  switch (kind) {
+    case 'double':
+      return raw.basePoints > 0 ? raw.basePoints * 2 : raw.basePoints;
+    case 'shield':
+      return raw.basePoints < 0 ? 0 : raw.basePoints;
+    case 'risk':
+      if (raw.grade === 'correct') return raw.basePoints * RISK_FACTOR;
+      // Неправильна чи без відповіді — повна ціна, навіть у раунді без штрафу.
+      if (raw.grade === 'wrong') return -stake;
+      return Math.max(raw.basePoints, 0);
+    default:
+      return raw.basePoints;
+  }
+}
+
+/** Для withRecord: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), позначки buff і spare. Вхід — запис без бафу. */
+export function applyBuff(record: AnswerRecord, buff: BuffPlay | null, stake: number): AnswerRecord {
   const { buff: _stale, spare: _staleSpare, ...raw } = record;
   if (buff === null) return raw;
-  const doubled = buff.kind === 'double' && raw.basePoints > 0;
-  const shielded = buff.kind === 'shield' && raw.basePoints < 0;
-  const basePoints = doubled ? raw.basePoints * 2 : shielded ? 0 : raw.basePoints;
+  const basePoints = buffedPoints(raw, buff.kind, stake);
   const spare = buff.kind === 'swap' && buff.spare !== undefined ? { spare: buff.spare.id } : {};
   return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind, ...spare };
 }

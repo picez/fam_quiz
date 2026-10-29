@@ -1,7 +1,7 @@
-import { DEFAULT_RULES, type Question, type Quiz, type QuizSettings, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, type BuffKind, type Question, type Quiz, type QuizSettings, type RoundRules } from '@quiz/shared';
 import { pickCell } from '../board';
 import { next, start, type GameState } from '../game';
-import { bool, boardRound, makeQuiz, makeRoundsQuiz, multi, numeric, order, single4, text, withId, type RoundOptions } from './fixtures';
+import { bool, boardRound, clues, makeQuiz, makeRoundsQuiz, multi, numeric, order, pin, single4, slider, text, withId, type RoundOptions } from './fixtures';
 import { lobbyWith, must, startRound } from './helpers';
 
 export const T0 = 1_000_000;
@@ -26,8 +26,8 @@ export function toBuffQuestion(patch: Partial<QuizSettings> & RoundOptions = {})
   return startRound(lobbyWith(buffQuiz(patch), 'Оля', 'Петро', 'Іра'), T0, () => 0);
 }
 
-/** Поле 3 × 3 (penalty з patch, check auto, з телефона), у c1 друга клітинка x2 на single4; Оля вибирає її о T0. */
-export function toBuffCell(rules: Partial<RoundRules> = {}, check: 'auto' | 'manual' = 'auto'): GameState {
+/** Поле 3 × 3 (penalty з patch, check auto, з телефона), у c1 друга клітинка x2 на single4; бафи — FIRST_BUFFS, якщо buffs не каже інакше; Оля вибирає її о T0. */
+export function toBuffCell(rules: Partial<RoundRules> = {}, check: 'auto' | 'manual' = 'auto', buffs: readonly BuffKind[] = FIRST_BUFFS): GameState {
   const categories = ['Міста', 'Річки', 'Гори'].map((title, i) => ({
     title,
     cells: [1, 2, 3].map((j) => {
@@ -36,9 +36,37 @@ export function toBuffCell(rules: Partial<RoundRules> = {}, check: 'auto' | 'man
     }),
   }));
   const round = boardRound('g1', categories, { rules: { ...DEFAULT_RULES, ...rules }, check, answerMode: 'phone' });
-  const quiz = makeRoundsQuiz([round], { leaderboard: 'end', buffs: [...FIRST_BUFFS] });
+  const quiz = makeRoundsQuiz([round], { leaderboard: 'end', buffs: [...buffs] });
   const intro = must(start(lobbyWith(quiz, 'Оля', 'Петро', 'Іра')));
   return must(pickCell(must(next(intro, T0)), 'p1', 'c12', T0, () => 0));
+}
+
+/** П'ять бафів 12h. */
+export const POWERS_BUFFS = ['risk', 'letter', 'scope', 'guard', 'peek'] as const;
+
+/** Серія «Сил»: дві поспіль, +50. */
+export const POWERS_STREAK = { length: 2, bonus: { kind: 'fixed', value: 50 } } as const;
+
+/**
+ * Сили 12h у класиці «Сили» (штраф none, без бонусу швидкості, серія 2 з бонусом +50): q1 single4, q2 text «Одеса»,
+ * q3 slider 50 ± 2 (шкала 0–100), q4 numeric 2061 ± 100, q5 pin (ціль у центрі), q6 clues «Шевченко», q7 bool;
+ * усі 1000, 20 с; settings.buffs — п'ять нових 12h, якщо patch не каже інакше.
+ */
+export function powersQuiz(patch: Partial<QuizSettings> & RoundOptions = {}): Quiz {
+  const questions: Question[] = [single4, text, slider, numeric, pin, clues, bool].map((question, i) => ({ ...question, id: `q${i + 1}`, timeLimit: 20 }));
+  return makeQuiz(questions, {
+    title: 'Сили',
+    speedBonus: false,
+    rules: { ...DEFAULT_RULES, streak: POWERS_STREAK },
+    leaderboard: 'end',
+    buffs: [...POWERS_BUFFS],
+    ...patch,
+  });
+}
+
+/** Оля p1, Петро p2, Іра p3; відкрито q1 о T0 (rng () => 0). */
+export function toPowersQuestion(patch: Partial<QuizSettings> & RoundOptions = {}): GameState {
+  return startRound(lobbyWith(powersQuiz(patch), 'Оля', 'Петро', 'Іра'), T0, () => 0);
 }
 
 /** Бафи 8b, що потребують інших: зал, підказка, заміна. */
