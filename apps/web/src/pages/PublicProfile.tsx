@@ -108,7 +108,7 @@ export function PublicProfile() {
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
-        <AchievementStrip achievements={profile.achievements} to={`/profile/${profile.id}/achievements`} />
+        <AchievementStrip achievements={profile.achievements} to={`/profile/${encodeURIComponent(profile.id)}/achievements`} />
       </section>
     </main>
   );

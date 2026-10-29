@@ -16321,8 +16321,9 @@ function achievementQuestions12i() {
   ];
 }
 
-/** Картка ачівки з назвою name на сторінці ачівок (12i). */
-const achievementCard = (page: Page, name: string) => page.locator('.achievement-card', { has: page.getByRole('heading', { name, exact: true }) });
+/** Картка ачівки з назвою name на сторінці ачівок (12i); заголовок закритої ще й каже читачеві екрана «, ще не отримано» (Chromium ставить перед прихованим span пробіл). */
+const achievementCard = (page: Page, name: string) =>
+  page.locator('.achievement-card', { has: page.getByRole('heading', { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*, ще не отримано)?$`) }) });
 
 /** Сьогоднішня дата так, як її пише сторінка ачівок: «29 жовтня 2026», за Києвом. */
 const todayOn = async (page: Page) =>
@@ -16426,6 +16427,8 @@ async function achievements12i() {
   for (const name of ['Перша гра', 'Перша перемога']) expect(await achievementCard(olya, name).getAttribute('class')).not.toContain('is-locked');
   const ten = achievementCard(olya, '10 ігор');
   expect(await ten.getAttribute('class')).toContain('is-locked');
+  expect(await ten.getByRole('heading').textContent()).toBe('10 ігор, ще не отримано');
+  expect(await ten.getAttribute('aria-label')).toBeNull();
   expect(await ten.locator('progress').getAttribute('value')).toBe('1');
   await ten.getByText('1 / 10', exact).waitFor();
   await expectNoSideScroll(olya, 'p12i-page-phone');

@@ -35,10 +35,11 @@ describe('achievement texts', () => {
     }
   });
 
-  it('nothing about russia or the USSR', () => {
+  it('nothing about russia or the USSR, not even its household tropes', () => {
     for (const id of ACHIEVEMENTS) {
-      for (const text of [name(id), joke(id), hint(id)]) expect(text, id).not.toMatch(/росі|москв|ссср|радянськ/iu);
+      for (const text of [name(id), joke(id), hint(id)]) expect(text, id).not.toMatch(/росі|москв|ссср|радянськ|сервант/iu);
     }
+    expect(joke('sort_clean')).toBe('Усе по поличках, як у бабусі в комоді.');
   });
 });
 

@@ -12165,9 +12165,14 @@ button.wall-tile:disabled {
   color: var(--amber);
 }
 
+/* Закрита картка: сіріє лише значок, текст лишає свій контраст (AA); пунктир — ще одна ознака без кольору. */
 .achievement-card.is-locked {
+  border-style: dashed;
+}
+
+.achievement-card.is-locked .achievement-icon {
   filter: grayscale(1);
-  opacity: 0.6;
+  opacity: 0.45;
 }
 
 .achievement-card progress {

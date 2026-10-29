@@ -45,6 +45,13 @@ describe('PublicProfile', () => {
     expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/u2/achievements');
   });
 
+  it('the achievements link encodes the profile id', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
+    open();
+    expect(await screen.findByText('Тарас')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
+  });
+
   it('shows the podium numbers of a public profile', async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ok: true,

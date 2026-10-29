@@ -95,14 +95,15 @@ function CardView({ item }: { item: AchievementCard }) {
   const name = t(`achievement_${item.id}` as TextKey);
   const progress = !item.earned ? item.progress : null;
   return (
-    <li
-      className={item.earned ? 'achievement-card' : 'achievement-card is-locked'}
-      aria-label={item.earned ? undefined : t('achievementLockedLabel', { name })}
-    >
+    <li className={item.earned ? 'achievement-card' : 'achievement-card is-locked'}>
       <span className="achievement-icon" aria-hidden="true">
         {ACHIEVEMENT_ICONS[item.id]}
       </span>
-      <h3>{name}</h3>
+      {/* Закрита картка: «ще не отримано» читач екрана чує в заголовку, а решта картки лишається доступною як є. */}
+      <h3>
+        {name}
+        {!item.earned && <span className="sr-only">{t('achievementLockedNote')}</span>}
+      </h3>
       <p className="achievement-joke">{t(`achievementJoke_${item.id}` as TextKey)}</p>
       <p className="achievement-hint">{t(`achievementHint_${item.id}` as TextKey)}</p>
       {item.earned && (

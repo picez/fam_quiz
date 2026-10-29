@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_INFO, type AchievementCard, type AchievementsPage } from '@quiz/shared';
 import { getAchievements, getMyAchievements, me } from '../api';
@@ -62,7 +65,8 @@ const open = (path: string) =>
     </MemoryRouter>,
   );
 
-const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name }).closest('li') as HTMLElement;
+/** Картка за назвою; заголовок закритої ще й каже читачеві екрана «ще не отримано». */
+const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name: new RegExp(`^${name}(, ще не отримано)?$`) }).closest('li') as HTMLElement;
 
 describe('Achievements, own page', () => {
   it('shows the count, the groups in order without the empty anti group', async () => {
@@ -88,6 +92,7 @@ describe('Achievements, own page', () => {
     await screen.findByText('Отримано 2 з 48');
     const fast = cardOf('Швидкі пальці');
     expect(fast.classList.contains('is-locked')).toBe(false);
+    expect(within(fast).getByRole('heading', { level: 3 }).textContent).toBe('Швидкі пальці');
     expect(within(fast).getByText('Відповідь є, а запитання ще не дочитане. Сміливо!')).toBeTruthy();
     expect(within(fast).getByText('Правильна відповідь швидше ніж за 2 с')).toBeTruthy();
     expect(within(fast).getByText(`Отримано ${formatDay('2026-10-29T10:00:00.000Z')}`)).toBeTruthy();
@@ -100,7 +105,10 @@ describe('Achievements, own page', () => {
     await screen.findByText('Отримано 2 з 48');
     const games = cardOf('10 ігор');
     expect(games.classList.contains('is-locked')).toBe(true);
-    expect(games.getAttribute('aria-label')).toBe('10 ігор: ще не отримано');
+    // Назву картки не підмінено: «ще не отримано» — прихований текст у заголовку.
+    expect(games.hasAttribute('aria-label')).toBe(false);
+    expect(within(games).getByRole('heading', { level: 3 }).textContent).toBe('10 ігор, ще не отримано');
+    expect(within(games).getByText(', ще не отримано').classList.contains('sr-only')).toBe(true);
     const bar = games.querySelector('progress');
     expect(bar?.getAttribute('value')).toBe('1');
     expect(bar?.getAttribute('max')).toBe('10');
@@ -151,5 +159,24 @@ describe('Achievements, another player', () => {
     vi.mocked(getAchievements).mockResolvedValue({ ok: false, error: 'not_found' });
     open('/profile/nobody/achievements');
     expect(await screen.findByText('Такого профілю немає.')).toBeTruthy();
+  });
+});
+
+describe('Achievements, styles', () => {
+  const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+  const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+  /** Тіло першого правила з точно цим селектором у styles.css; немає — null. */
+  const rule = (selector: string) => {
+    const start = css.indexOf(`\n${selector} {`);
+    return start < 0 ? null : css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+  };
+
+  it('a locked card greys only its icon: the text keeps its contrast', () => {
+    const card = rule('.achievement-card.is-locked') ?? '';
+    expect(card).not.toContain('filter');
+    expect(card).not.toContain('opacity');
+    const icon = rule('.achievement-card.is-locked .achievement-icon');
+    expect(icon).toContain('filter: grayscale(1);');
+    expect(icon).toContain('opacity');
   });
 });
