@@ -9,6 +9,7 @@ import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
+import { secondsLeft } from '../clock';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
@@ -34,7 +35,7 @@ import { SurveyBoard } from './SurveyBoard';
 import { BluffBoard } from './BluffBoard';
 import { BluffChoice } from './BluffChoice';
 import { BluffLieInput } from './BluffLieInput';
-import { DebuffStrip, DebuffZone, useDebuffQuestion } from './Debuffs';
+import { DebuffStrip, DebuffZone, NoClock, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
 import { AnswererPicker } from './AnswererPicker';
@@ -861,7 +862,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
+            {/* «Без годинника»: на місці табло — ⌛ тієї самої висоти; кінець часу приходить несподівано. */}
+            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock bar={clockTotal !== null} />}
+            {!chainMine && debuff?.kind !== 'noclock' && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">

@@ -250,6 +250,29 @@ describe('PlayerScreen', () => {
     expect(debuffed).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
   });
 
+  it('no clock hides the timer behind ⌛ in the same place; without a debuff the timer is there', () => {
+    show(onQuestion({ me: { ...me, debuff: { kind: 'noclock', since: Date.now(), by: null } } }));
+    expect(screen.queryByRole('timer')).toBeNull();
+    const hidden = screen.getByRole('img', { name: 'Годинник сховано' });
+    expect(hidden.classList.contains('timer')).toBe(true);
+    expect(hidden.classList.contains('is-noclock')).toBe(true);
+    expect(hidden.closest('.question-head')).not.toBeNull();
+    expect(hidden.textContent).toContain('⌛');
+    cleanup();
+    show(onQuestion());
+    expect(screen.getByRole('timer').closest('.question-head')).not.toBeNull();
+    expect(screen.queryByRole('img', { name: 'Годинник сховано' })).toBeNull();
+  });
+
+  it('flip turns the question inside the zone, the timer stays upright outside it', () => {
+    show(onQuestion({ me: { ...me, debuff: { kind: 'flip', since: Date.now(), by: null } } }));
+    const zone = document.querySelector('.debuff-zone.is-flip')!;
+    expect(zone).not.toBeNull();
+    expect(zone.querySelector('.debuff-content h1.question')).not.toBeNull();
+    const timer = screen.getByRole('timer');
+    expect(zone.contains(timer)).toBe(false);
+  });
+
   it('a video question shows the player and no timer on the phone', () => {
     const withVideo = { ...publicQuestion, video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(onQuestion({ question: withVideo, endsAt: null, remainingMs: null }));

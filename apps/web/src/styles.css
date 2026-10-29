@@ -4161,6 +4161,109 @@ body:has(.debuff-banner) .live-notices {
   }
 }
 
+/* ---------- Нові дебафи на телефоні (12h) ---------- */
+
+/* «Догори дриґом»: перевертається лише вміст; шапка, таймер і банер — поза ним. rotate, бо translate бере тремтіння. */
+.debuff-zone.is-flip .debuff-content {
+  rotate: 180deg;
+}
+
+/* «Ліхтарик»: темрява з колом світла навколо пальця (--tx / --ty пише зона; до першого дотику — середина). */
+.debuff-torch {
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, 50%), transparent 92%, rgb(0 0 0 / 0.96));
+}
+
+/* «Бульбашки»: кнопки над варіантами ловлять дотик самі (на відміну від решти шарів). Місце — центр бульбашки. */
+.debuff-bubble {
+  z-index: 3;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid rgb(255 255 255 / 0.55);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, rgb(255 255 255 / 0.95) 0 12%, rgb(170 215 255 / 0.85) 40%, rgb(90 140 220 / 0.9));
+  box-shadow: 0 0.2rem 0.6rem rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  translate: -50% -50%;
+}
+
+.debuff-bubble.is-popped {
+  pointer-events: none;
+}
+
+.is-calm .debuff-bubble {
+  animation: none;
+}
+
+/* «Липкі кнопки»: плашка поверх зони, вміст не зсувається. */
+.sticky-note {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 4;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--amber);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-family: var(--display);
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* «Без годинника»: ⌛ на пластині завширшки з дві цифри; смужка порожня — висота табло та сама. */
+.timer.is-noclock {
+  margin: 0;
+}
+
+.timer.is-noclock .flap {
+  min-width: 3.4em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .debuff-zone.is-flip:not(.is-calm) .debuff-content {
+    transition: rotate 0.4s ease;
+  }
+
+  .debuff-bubble {
+    animation: bubble-float 3s ease-in-out var(--delay, 0s) infinite alternate;
+  }
+
+  .debuff-bubble.is-popped {
+    animation: bubble-pop 0.25s ease-out forwards;
+  }
+
+  @keyframes bubble-float {
+    from {
+      transform: translate(0, 0);
+    }
+
+    to {
+      transform: translate(6px, -10px);
+    }
+  }
+
+  @keyframes bubble-pop {
+    to {
+      opacity: 0;
+      transform: scale(1.5);
+    }
+  }
+}
+
+/* Лопнута бульбашка без анімації не лишає сліду. */
+.is-calm .debuff-bubble.is-popped {
+  display: none;
+}
+
 .sort-edit-row {
   flex-wrap: wrap;
   padding-block: 0.375rem;
