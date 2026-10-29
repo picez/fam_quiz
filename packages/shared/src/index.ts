@@ -7,6 +7,7 @@ export * from './upgrade';
 export * from './answer';
 export * from './standing';
 export * from './game';
+export * from './powers';
 export * from './views';
 export * from './events';
 export * from './history';

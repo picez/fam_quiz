@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BUFF_KINDS, DEBUFF_KINDS } from '@quiz/shared';
 import type { BuffBlock, BuffKind, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import type { Send } from '../live/types';
+import { BUFF_ICONS } from '../buff-meta';
+import { DEBUFF_ICONS } from '../debuff-meta';
+import { hasText } from '../i18n';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, StageBuffs, VoteSheet } from './Buffs';
 
 const NOW = 1_000_000;
@@ -81,6 +85,17 @@ function row(buffs: PlayerBuffs, over: { paused?: boolean; timeOver?: boolean; s
 const why = () => document.querySelector('.buff-why')!;
 
 describe('Buffs', () => {
+  it('12h: every buff and debuff has an icon, a name and its texts', () => {
+    for (const kind of BUFF_KINDS) {
+      expect(BUFF_ICONS[kind], kind).toBeTruthy();
+      for (const key of [`buff_${kind}`, `buffTip_${kind}`, `buffGuide_${kind}`, `buffWhere_${kind}`]) expect(hasText(key), key).toBe(true);
+    }
+    for (const kind of DEBUFF_KINDS) {
+      expect(DEBUFF_ICONS[kind], kind).toBeTruthy();
+      for (const key of [`debuff_${kind}`, `debuffGuide_${kind}`]) expect(hasText(key), key).toBe(true);
+    }
+  });
+
   it('in a blitz the buff row is one compact line that says there are no buffs', () => {
     const off = (block: 'off_blitz' | 'off_blitz_cell'): PlayerBuffs => ({
       slots: [

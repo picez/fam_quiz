@@ -19,12 +19,14 @@ export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
   /** Перенесено з попередньої гри (12r): стартові бали учасника; раунд — стартовий, afterQuestion 0; не скасовується й не є балами раунду. */
   | 'carry';
 
-/** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. */
-export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const;
+/** Дебафи від ведучого: діють на телефоні цілі в наступному запитанні, у якому вона відповідає. 12h — ще п'ять у кінці. */
+export const DEBUFF_KINDS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud', 'flip', 'torch', 'sticky', 'noclock', 'bubbles'] as const;
 export type DebuffKind = (typeof DEBUFF_KINDS)[number];
+/** Дебафи вікторини без settings.debuffs (12h): шість, що були до 12h; нові вмикає лише автор. */
+export const LEGACY_DEBUFFS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const satisfies readonly DebuffKind[];
 
-/** Бафи: гравець бере сам на своєму телефоні, по одному кожного дозволеного на гру. */
-export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'] as const;
+/** Бафи: гравець бере сам на своєму телефоні, по одному кожного дозволеного на гру. 12h — ще п'ять у кінці. */
+export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek'] as const;
 export type BuffKind = (typeof BUFF_KINDS)[number];
 /** Усі бафи працюють (частина 8b); перевірка buff_unavailable лишається для майбутніх видів. */
 export const READY_BUFFS: readonly BuffKind[] = [...BUFF_KINDS];
@@ -54,6 +56,10 @@ export type BuffBlock =
   | 'off_survival'
   /** «Мільйонер»: бафів немає, свої підказки (10i). */
   | 'off_ladder'
+  /** «Запобіжник»: у раунді немає серій (12h). */
+  | 'unfit_streak'
+  /** «Підглянути»: ще ніхто не відповів на це запитання (12h). */
+  | 'no_answers'
   /** Гра без ведучого: підказки ведучого немає, а автор не написав тексту (11g). */
   | 'unfit_host';
 
@@ -137,6 +143,8 @@ export type ErrorCode =
   | 'buff_used'
   | 'buff_busy'
   | 'buff_unfit'
+  /** «Підглянути» (12h): ціль не вибрано, це сам гравець або ціль ще не відповіла на основне запитання. */
+  | 'peek_target'
   | 'vote_closed'
   | 'vote_denied'
   /** Апеляція (12f): зал ще голосує — «Далі» й нова апеляція чекають. */

@@ -108,8 +108,8 @@ export type HostUndoTarget = z.infer<typeof undoTargetSchema>;
 export const undoSchema = z.object({ target: undoTargetSchema });
 /** Дебаф від ведучого. */
 export const debuffSchema = z.object({ playerId, kind: z.enum(DEBUFF_KINDS) });
-/** Баф, який гравець бере на поточне запитання. */
-export const buffSchema = z.object({ kind: z.enum(BUFF_KINDS) });
+/** Баф гравця; targetId — лише для «Підглянути» (12h): у кого підглянути (у командній грі — команда). */
+export const buffSchema = z.object({ kind: z.enum(BUFF_KINDS), targetId: playerId.optional() });
 /** Друга спроба після часткової першої: keep — залишити першу, інакше ще спроба. */
 export const retrySchema = z.object({ keep: z.boolean() });
 /** Купити дебаф для суперника (9c): ціль і вид; покупець — з ідентичності сокета. */

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   LIMITS,
   QUESTION_TYPES,
-  READY_BUFFS,
   ROUND_TYPES,
   allowedBuffs,
   boardSpareSource,
@@ -24,6 +23,9 @@ import { horizonQuiz } from './horizon-quiz';
 import { compassQuiz } from './compass-quiz';
 import { showcaseQuiz } from './showcase-quiz';
 import { teamsQuiz } from './teams-quiz';
+
+/** Демо лишаються з вісьмома бафами, що були до 12h: нового демо-вмісту 12h не додає. */
+const PRE_12H_BUFFS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'];
 
 /** Тексти всіх запитань вікторини: раунди, питання на виживання, загальні запасні, запасні категорій і дуелі. */
 const texts = (quiz: Quiz) => [
@@ -90,7 +92,7 @@ describe('the «Горизонт» quiz', () => {
   it('turns on explanations, buffs, the debuff shop, spares, hints, speed bonus and duels', () => {
     const { settings } = horizonQuiz;
     expect(settings.newcomers).toBe(true);
-    expect(allowedBuffs(horizonQuiz)).toEqual([...READY_BUFFS]);
+    expect(allowedBuffs(horizonQuiz)).toEqual(PRE_12H_BUFFS);
     expect(settings.debuffShop).toBe(true);
     expect(settings.debuffs?.length).toBe(6);
     expect(Object.keys(settings.debuffPrices ?? {}).length).toBe(6);

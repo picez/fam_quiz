@@ -1,4 +1,4 @@
-import { DEBUFF_KINDS, type Answer } from '@quiz/shared';
+import { LEGACY_DEBUFFS, type Answer } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { takeBuff } from './buffs';
 import { lock, next, pause, removePlayer, start, submitAnswer, type GameState } from './game';
@@ -178,6 +178,6 @@ describe('buff views', () => {
     expect(me?.me.overtime).toBeNull();
     const stage = stageView(s);
     expect([stage.buffs, stage.buffNotice, stage.overtime]).toEqual([[], null, []]);
-    expect(hostView(s).allowed).toEqual({ debuffs: [...DEBUFF_KINDS], buffs: [] });
+    expect(hostView(s).allowed).toEqual({ debuffs: [...LEGACY_DEBUFFS], buffs: [] });
   });
 });

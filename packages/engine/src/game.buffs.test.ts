@@ -1,4 +1,4 @@
-import { DEFAULT_RULES, DEBUFF_KINDS, type Answer, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, DEBUFF_KINDS, LEGACY_DEBUFFS, type Answer, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { buffBlock, buffsUsed, fiftyCount, takeBuff } from './buffs';
@@ -209,6 +209,7 @@ describe('buffs', () => {
     expect(setDebuff(toBuffQuestion({ debuffs: [] }), 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
     expect(setDebuff(toBuffQuestion({ debuffs: [] }), 'p9', 'fog')).toEqual({ ok: false, error: 'not_found' });
     const plain = startRound(lobbyWith(makeQuiz([single4]), 'Оля'), T0, rng0);
-    for (const kind of DEBUFF_KINDS) expect(setDebuff(plain, 'p1', kind).ok).toBe(true);
+    // 12h: без settings.debuffs — старі шість; нові п'ять лише явним вибором.
+    for (const kind of DEBUFF_KINDS) expect(setDebuff(plain, 'p1', kind).ok, kind).toBe((LEGACY_DEBUFFS as readonly string[]).includes(kind));
   });
 });

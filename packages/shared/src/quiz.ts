@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BUFF_KINDS, DEBUFF_KINDS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
+import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
 
@@ -974,7 +974,7 @@ export type TeamsSettings = z.infer<typeof teamsSettingsSchema>;
 
 export const quizSettingsSchema = z.object({
   leaderboard: z.enum(['each', 'end']),
-  /** Дозволені дебафи; немає поля — усі шість (старі вікторини). */
+  /** Дозволені дебафи; немає поля — старі шість (LEGACY_DEBUFFS), нові п'ять 12h лише явним вибором. */
   debuffs: z.array(z.enum(DEBUFF_KINDS)).max(DEBUFF_KINDS.length).optional(),
   /** Дозволені бафи; немає поля — жодного. */
   buffs: z.array(z.enum(BUFF_KINDS)).max(BUFF_KINDS.length).optional(),
@@ -1141,10 +1141,10 @@ export const quizSchema = z
 
 export type Quiz = z.infer<typeof quizSchema>;
 
-/** Дозволені дебафи в порядку DEBUFF_KINDS. */
+/** Дозволені дебафи в порядку DEBUFF_KINDS; без settings.debuffs — старі шість (12h). */
 export function allowedDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
   const chosen = quiz.settings.debuffs;
-  return chosen ? DEBUFF_KINDS.filter((kind) => chosen.includes(kind)) : [...DEBUFF_KINDS];
+  return chosen ? DEBUFF_KINDS.filter((kind) => chosen.includes(kind)) : [...LEGACY_DEBUFFS];
 }
 
 /** Ціна дебафу у вікторині для гравців (ведучий насилає безкоштовно). */

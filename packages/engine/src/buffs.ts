@@ -207,6 +207,13 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       if (scope === 'category' && spares.length === 0) return 'no_category_spares';
       return nextSpare(state, play) === null ? 'spares_out' : null;
     }
+    case 'risk':
+    case 'letter':
+    case 'scope':
+    case 'guard':
+    case 'peek':
+      // 12h: задачі 3–5 дадуть власні гілки; доти нові бафи ніде не діють.
+      return 'unfit_type';
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
