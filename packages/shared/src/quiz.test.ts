@@ -6,6 +6,7 @@ import {
   pickAnswererSchema,
   BUFF_KINDS,
   DEBUFF_KINDS,
+  LEGACY_DEBUFFS,
   READY_BUFFS,
   allowedBuffs,
   allowedDebuffs,
@@ -1046,11 +1047,11 @@ describe('buffs and debuffs in the settings', () => {
     return result.success ? [] : result.error.issues.map((i) => i.message);
   };
 
-  it('a quiz without power settings allows every debuff and no buff', () => {
+  it('a quiz without power settings allows the six legacy debuffs and no buff', () => {
     const parsed = quizSchema.parse(baseQuiz);
     expect(parsed.settings.debuffs).toBeUndefined();
     expect(parsed.settings.buffs).toBeUndefined();
-    expect(allowedDebuffs(parsed)).toEqual([...DEBUFF_KINDS]);
+    expect(allowedDebuffs(parsed)).toEqual([...LEGACY_DEBUFFS]);
     expect(allowedBuffs(parsed)).toEqual([]);
   });
   it('keeps chosen debuffs and buffs in the canonical order', () => {
@@ -1073,8 +1074,20 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(retrySchema, { keep: true })).toBe(true);
     expect(valid(retrySchema, { keep: 'yes' })).toBe(false);
   });
-  it('all eight buff kinds are known and ready', () => {
-    expect(BUFF_KINDS).toHaveLength(8);
+  it('12h: new debuffs only by choice, their prices default, new buffs pass and peek carries a target', () => {
+    expect(LEGACY_DEBUFFS).toEqual(['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud']);
+    expect(allowedDebuffs(quizSchema.parse(withPowers({ debuffs: ['bubbles', 'flip'] })))).toEqual(['flip', 'bubbles']);
+    const priced = quizSchema.parse(withPowers({ debuffPrices: { torch: 300 } }));
+    expect(debuffPrice(priced, 'torch')).toBe(300);
+    expect(debuffPrice(priced, 'sticky')).toBe(LIMITS.defaultDebuffPrice);
+    const powers = quizSchema.parse(withPowers({ buffs: ['peek', 'guard', 'scope', 'letter', 'risk'] }));
+    expect(allowedBuffs(powers)).toEqual(['risk', 'letter', 'scope', 'guard', 'peek']);
+    expect(valid(buffSchema, { kind: 'peek', targetId: 'p2' })).toBe(true);
+    expect(valid(buffSchema, { kind: 'peek' })).toBe(true);
+    expect(valid(buffSchema, { kind: 'spy' })).toBe(false);
+  });
+  it('all thirteen buff kinds are known and ready', () => {
+    expect(BUFF_KINDS).toHaveLength(13);
     expect(READY_BUFFS).toEqual([...BUFF_KINDS]);
   });
 

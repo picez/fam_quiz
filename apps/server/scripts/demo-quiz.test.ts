@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LADDER_PRESETS, LIMITS, READY_BUFFS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema, type Quiz } from '@quiz/shared';
+import { LADDER_PRESETS, LIMITS, SURVIVAL_TYPES, WIPEOUT_TYPES, allowedBuffs, boardSpareSource, questionSchema, questionsOf, quizSchema, type Quiz } from '@quiz/shared';
 import { createQuiz, getQuiz } from '../src/quizzes';
 import { user } from '../src/db/schema';
 import { createTestDb } from '../src/testing/test-db';
@@ -12,6 +12,9 @@ import { mosaicQuiz } from './mosaic-quiz';
 import { compassQuiz } from './compass-quiz';
 import { horizonQuiz } from './horizon-quiz';
 import { teamsQuiz } from './teams-quiz';
+
+/** Демо лишаються з вісьмома бафами, що були до 12h: нового демо-вмісту 12h не додає. */
+const PRE_12H_BUFFS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap'];
 
 describe('order labels in the demo quizzes', () => {
   it('ocean and film-year orders carry labels', () => {
@@ -227,8 +230,8 @@ describe('seeding the erudite quiz', () => {
 });
 
 describe('the erudite demo quiz buffs', () => {
-  it('the erudite quiz gives every player all eight buffs', () => {
-    expect(allowedBuffs(eruditeQuiz)).toEqual([...READY_BUFFS]);
+  it('the erudite quiz gives every player the eight pre-12h buffs', () => {
+    expect(allowedBuffs(eruditeQuiz)).toEqual(PRE_12H_BUFFS);
     expect(allowedBuffs(eruditeQuiz)).toHaveLength(8);
     expect(quizSchema.safeParse(eruditeQuiz).success).toBe(true);
   });
@@ -261,7 +264,7 @@ describe('the school quiz', () => {
     }
   });
 
-  it('gives all eight buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
+  it('gives the eight pre-12h buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
     expect(schoolQuiz.settings.buffs).toHaveLength(8);
     expect(schoolQuiz.settings.newcomers).toBe(true);
     expect(questionsOf(schoolQuiz).filter((q) => q.hint).length).toBeGreaterThanOrEqual(8);
@@ -326,8 +329,8 @@ describe('the mosaic quiz', () => {
     }
   });
 
-  it('gives all eight buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
-    expect(allowedBuffs(mosaicQuiz)).toEqual([...READY_BUFFS]);
+  it('gives the eight pre-12h buffs, has hints, a spare of every simple type and a duel pool that persists', async () => {
+    expect(allowedBuffs(mosaicQuiz)).toEqual(PRE_12H_BUFFS);
     expect(questionsOf(mosaicQuiz).filter((q) => q.hint).length).toBeGreaterThanOrEqual(10);
     expect(mosaicQuiz.spares?.map((q) => q.type)).toEqual(['single', 'multi', 'boolean', 'text', 'numeric']);
     expect(mosaicQuiz.spares?.every((q) => q.video === null)).toBe(true);

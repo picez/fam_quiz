@@ -29,6 +29,7 @@ import {
   DEFAULT_TEAM_FORM,
   guidePages,
   newcomersOn,
+  RISK_FACTOR,
   rulesOf,
   answerWindowMs,
   hallPoints,
@@ -46,10 +47,14 @@ import {
   buffOf,
   dropBallots,
   finishRetry,
+  guardHolds,
   holdFirstTry,
+  isSilentRisk,
   questionFor,
+  riskStake,
   settleRetries,
   shiftBuffClocks,
+  withRiskMisses,
   type BuffPlay,
 } from './buffs';
 import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQueue, withPlay } from './blitz';
@@ -788,9 +793,15 @@ export function roundQuestionNumber(state: GameState): number {
  */
 export function withRecord(state: GameState, playerId: string, record: AnswerRecord): GameState {
   const plays = state.plays.map((play, index) =>
-    index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: applyBuff(record, buffOf(play, playerId)) } } : play,
+    index === state.questionIndex ? { ...play, answers: { ...play.answers, [playerId]: buffed(state, play, playerId, record) } } : play,
   );
   return { ...state, plays };
+}
+
+/** Запис з бафом гравця; «Ризик» (12h) бере ставку — повну ціну запитання. */
+function buffed(state: GameState, play: Play, playerId: string, record: AnswerRecord): AnswerRecord {
+  const buff = buffOf(play, playerId);
+  return applyBuff(record, buff, buff?.kind === 'risk' ? riskStake(state, play) : 0);
 }
 
 export function addPlayer(state: GameState, player: { id: string; nickname: string }): Result {
@@ -1360,7 +1371,11 @@ export function streakCounts(state: GameState, upTo: number): Record<string, num
       // На полі серію рахують лише власні ходи гравця.
       const board = state.plays[i].board;
       if (board !== undefined && board.chooserId !== player.id) continue;
-      if (record === undefined || record.grade !== 'correct') break;
+      if (record === undefined || record.grade !== 'correct') {
+        // «Запобіжник» (12h): невдача серію не рве й не продовжує.
+        if (guardHolds(state.plays[i], player.id)) continue;
+        break;
+      }
       count += 1;
     }
     counts[player.id] = count;
@@ -1400,8 +1415,17 @@ export function withTotals(input: GameState): GameState {
       const base = streakBase(play, player.id, record);
       // Подвійні бали: бонус рахується від неподвоєних балів і теж подвоюється.
       const doubled = record.buff === 'double' && base > 0;
-      const earned = (counters[player.id] ?? 0) >= streak.length;
-      const bonus = !earned ? 0 : doubled ? 2 * streakBonus(base / 2, streak.bonus) : streakBonus(base, streak.bonus);
+      // «Ризик» (12h): бонус рахується від неутроєних балів і не множиться.
+      const tripled = record.buff === 'risk' && record.grade === 'correct' && base > 0;
+      // Бонус лише за правильну відповідь: «Запобіжник» тримає серію, але сам бонусу не дає.
+      const earned = record.grade === 'correct' && (counters[player.id] ?? 0) >= streak.length;
+      const bonus = !earned
+        ? 0
+        : doubled
+          ? 2 * streakBonus(base / 2, streak.bonus)
+          : tripled
+            ? streakBonus(base / RISK_FACTOR, streak.bonus)
+            : streakBonus(base, streak.bonus);
       answers[player.id] = { ...record, streakBonus: bonus, points: record.basePoints + bonus };
     }
     return { ...play, answers };
@@ -1449,7 +1473,8 @@ export function lockNow(state: GameState): GameState {
   // Незакінчена стіна отримує записи за знайдені групи.
   // Блеф отримує записи лише тут: бали залежать від виборів усіх.
   // Голосування залу «Мільйонера» закривається з відповідями залу на цю мить.
-  const closed = spendDebuffs(withCellPenalty(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(closeAudience(settleRetries(state)))))))));
+  // Хто взяв «Ризик» і змовчав, отримує мінус повної ціни (12h).
+  const closed = spendDebuffs(withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(closeAudience(settleRetries(state))))))))));
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -2174,7 +2199,8 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   // Оцінка в бліці остаточна, навіть для гравця без запису.
   if (round.type === 'blitz') return fail('wrong_phase');
   const record = recordOf(state, state.questionIndex, playerId);
-  if (record === undefined) return fail('not_found');
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь: як і мовчання без бафу, оцінювати нічого.
+  if (record === undefined || isSilentRisk(play, record)) return fail('not_found');
   // «Ва-банк»: лише правильно чи неправильно; банк і статус перераховує withTotals (withWipeoutPoints).
   if (round.type === 'wipeout') {
     if (grade === 'partial') return fail('partial_disabled');

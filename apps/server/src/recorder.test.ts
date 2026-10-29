@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
-import { answer, appeal, game, participant, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
+import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, VOTE_ATTEMPT } from './db/schema';
 import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
@@ -786,13 +786,13 @@ describe('recorder: blitz', () => {
 describe('recorder: board', () => {
   const cell = (id: string, points: number, timeLimit = 30) => ({ ...withId(single, id), points, timeLimit });
 
-  async function boardSetup(round: ReturnType<typeof boardRound>) {
+  async function boardSetup(round: ReturnType<typeof boardRound>, settings: Parameters<typeof makeRoundsQuiz>[1] = {}) {
     const db = await createTestDb();
     await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
     const scheduler = new FakeScheduler();
     const manager = new RoomManager(scheduler, () => 0.5);
     const recorder = attachRecorder(manager, db);
-    const room = manager.create(makeRoundsQuiz([round]), HOST, null);
+    const room = manager.create(makeRoundsQuiz([round], settings), HOST, null);
     const enter = (nickname: string) => {
       const joined = manager.join(room.code, nickname);
       if (!joined.ok) throw new Error(joined.error);
@@ -861,6 +861,36 @@ describe('recorder: board', () => {
       ]),
     );
     expect(answers).toHaveLength(3);
+  });
+
+  /** Рядок відповіді без службових полів: точне порівняння рядків «Ризику». */
+  const riskRow = (a: typeof answer.$inferSelect) => ({ questionIndex: a.questionIndex, attempt: a.attempt, payload: a.payload, accepted: a.accepted, points: a.points, buff: a.buff, overridden: a.overridden });
+
+  it('12h: risk on a phone cell that runs out of time is an answer row with no answer and minus the stake (not a silent-risk penalty row)', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [cell('c11', 100, 10), cell('c12', 200)] }]);
+    const { scheduler, manager, room, olena, saved } = await boardSetup(round, { buffs: ['risk'] });
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    expect(manager.buff(room, olena, 'risk')).toEqual({ ok: true });
+    scheduler.advance(10_000);
+    expect(room.state.phase).toBe('locked');
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('reveal');
+    const { answers } = await saved();
+    expect(answers.map(riskRow)).toEqual([{ questionIndex: 0, attempt: 0, payload: null, accepted: false, points: -100, buff: 'risk', overridden: false }]);
+    expect(room.state.players.find((p) => p.id === olena)?.score).toBe(-100);
+  });
+
+  it('12h: risk on a voice cell graded right after the close is an answer row with the triple', async () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ question: cell('c11', 100), answerMode: 'voice' as const }, cell('c12', 200)] }]);
+    const { manager, room, olena, saved } = await boardSetup(round, { buffs: ['risk'] });
+    expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    expect(manager.buff(room, olena, 'risk')).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'override', playerId: olena, grade: 'correct' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const { answers } = await saved();
+    expect(answers.map(riskRow)).toEqual([{ questionIndex: 0, attempt: 0, payload: null, accepted: true, points: 300, buff: 'risk', overridden: false }]);
+    expect(room.state.players.find((p) => p.id === olena)?.score).toBe(300);
   });
   it('a final answer is stored with its signed wager and silence as a points row', async () => {
     const db = await createTestDb();
@@ -1069,6 +1099,68 @@ describe('recorder: buffs', () => {
     const points = room.state.players.find((p) => p.id === olena)?.score;
     expect(by('Олена')).toEqual({ nickname: 'Олена', questionIndex: 0, points, buff: 'swap', spareId: 's1' });
     expect(by('Петро')?.spareId).toBeNull();
+  });
+
+  it('a silent risk is a penalty row with its buff; a right and a wrong risk are answer rows; rows and adjustments sum to the score, also after the silent penalty is undone (12h)', async () => {
+    const quiz = makeQuiz([single, withId(single, 'q2')], { speedBonus: false, buffs: ['risk'] });
+    const ctx = await setup(undefined, 5000, 30, quiz);
+    const ira = (() => {
+      const joined = ctx.manager.join(ctx.room.code, 'Іра');
+      if (!joined.ok) throw new Error(joined.error);
+      ctx.manager.connect(ctx.room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    })();
+    ctx.host('start');
+    ctx.host('next');
+    // Олена бере «Ризик» і мовчить; Тарас — «Ризик» і правильно; Іра — без бафу, правильно. Запитання закриває таймер.
+    expect(ctx.manager.buff(ctx.room, ctx.olena, 'risk')).toEqual({ ok: true });
+    expect(ctx.manager.buff(ctx.room, ctx.taras, 'risk')).toEqual({ ok: true });
+    ctx.manager.answer(ctx.room, ctx.taras, correct);
+    ctx.manager.answer(ctx.room, ira, correct);
+    ctx.scheduler.advance(30_000);
+    expect(ctx.room.state.phase).not.toBe('question');
+    const scoreOf = (id: string) => ctx.room.state.players.find((p) => p.id === id)?.score;
+    expect(scoreOf(ctx.olena)).toBe(-1000);
+    expect(scoreOf(ctx.taras)).toBe(3000);
+    let { answers } = await ctx.saved();
+    const row = (id: string) => answers.find((a) => a.participantId === id && a.questionIndex === 0);
+    const exact = (a: (typeof answers)[number] | undefined) => a && { attempt: a.attempt, payload: a.payload, points: a.points, streakBonus: a.streakBonus, accepted: a.accepted, overridden: a.overridden, buff: a.buff, spareId: a.spareId };
+    expect(exact(row(ctx.olena))).toEqual({ attempt: PENALTY_ATTEMPT, payload: null, points: -1000, streakBonus: 0, accepted: false, overridden: false, buff: 'risk', spareId: null });
+    expect(exact(row(ctx.taras))).toEqual({ attempt: 0, payload: correct, points: 3000, streakBonus: 0, accepted: true, overridden: false, buff: 'risk', spareId: null });
+    expect(exact(row(ira))).toEqual({ attempt: 0, payload: correct, points: 1000, streakBonus: 0, accepted: true, overridden: false, buff: null, spareId: null });
+    expect(answers.filter((a) => a.questionIndex === 0)).toHaveLength(3);
+
+    // Друге запитання: Іра бере «Ризик» і помиляється, Тарас помиляється без бафу, Олена відповідає правильно.
+    while (ctx.room.state.phase !== 'question') ctx.host('next');
+    expect(ctx.manager.buff(ctx.room, ira, 'risk')).toEqual({ ok: true });
+    ctx.manager.answer(ctx.room, ira, wrong);
+    ctx.manager.answer(ctx.room, ctx.taras, wrong);
+    ctx.manager.answer(ctx.room, ctx.olena, correct);
+    expect(ctx.room.state.phase).not.toBe('question');
+    ({ answers } = await ctx.saved());
+    expect(exact(answers.find((a) => a.participantId === ira && a.questionIndex === 1))).toEqual({ attempt: 0, payload: wrong, points: -1000, streakBonus: 0, accepted: false, overridden: false, buff: 'risk', spareId: null });
+
+    // Скасування 12a знімає мінус мовчання; сума рядків і коригувань — далі рахунок.
+    ctx.host('next');
+    expect(ctx.manager.host(ctx.room, { type: 'undo', target: { question: 0, playerId: ctx.olena } })).toEqual({ ok: true });
+    ctx.host('end');
+    const saved = await ctx.saved();
+    const adjustments = await ctx.db.select().from(scoreAdjustment);
+    expect(adjustments.map((a) => [a.participantId, a.source, a.points, a.undoesQuestion])).toEqual([[ctx.olena, 'undo', 1000, 0]]);
+    for (const p of saved.participants) {
+      const sum = (list: { participantId: string; points: number }[]) => list.filter((r) => r.participantId === p.id).reduce((total, r) => total + r.points, 0);
+      expect(p.score).toBe(sum(saved.answers) + sum(adjustments));
+      expect(p.score).toBe(scoreOf(p.id));
+    }
+    expect(saved.participants.map((p) => [p.nickname, p.score])).toEqual([['Іра', 0], ['Олена', 1000], ['Тарас', 3000]]);
+
+    // Історія: штрафний рядок «Ризику» видно в відповідях зі значком бафу й без відповіді; у «відповіли» він не входить.
+    const detail = await hostGame(ctx.db, HOST, ctx.room.id);
+    const first = detail?.questions[0];
+    expect(first?.responses.find((r) => r.nickname === 'Олена')).toMatchObject({ answer: null, accepted: false, buff: 'risk' });
+    expect(first?.responses.find((r) => r.nickname === 'Тарас')).toMatchObject({ answer: correct, accepted: true, buff: 'risk' });
+    expect(first?.answered).toBe(2);
+    expect(ctx.errors).toEqual([]);
   });
 
   it('a game without buffs saves no buff', async () => {

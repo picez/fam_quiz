@@ -84,7 +84,7 @@ export interface BuffToastView {
 }
 
 /**
- * «Оля: 50/50» — хтось узяв баф; у стовпчику .live-notices під сповіщенням балів.
+ * «Оля: 50/50» — хтось узяв баф («👀 Підгляд: Оля → Петро» — з ціллю «Підглянути»); у стовпчику .live-notices під сповіщенням балів.
  * Лише на запитанні, де баф узято, і не поверх заставки; тому, хто взяв баф (selfId), — ні: про це вже каже його рядок бафів.
  */
 export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; offsetMs: number; selfId?: string }) {
@@ -92,9 +92,13 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
   const splash = useSplash(view.splash, view.paused, offsetMs);
   if (shown === null || splash !== null) return null;
   if (shown.questionIndex !== view.questionIndex || shown.playerId === selfId) return null;
+  // У кого підглянули (12h), той бачить своє «👀 У вашу відповідь підглянули» (PeekedToast), а не це.
+  if (selfId !== undefined && shown.target?.playerId === selfId) return null;
   return (
     <div className="live-notice is-buff" role="status" aria-live="polite">
-      {t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind, view.autopilot) })}
+      {shown.kind === 'peek' && shown.target !== null
+        ? t('buffNoticePeek', { name: shown.nickname, target: shown.target.nickname })
+        : t('buffNotice', { name: shown.nickname, buff: buffName(shown.kind, view.autopilot) })}
     </div>
   );
 }
@@ -109,6 +113,20 @@ export function DebuffToast({ notice, offsetMs, selfId }: { notice: DebuffNotice
   return (
     <div className="live-notice is-debuff" role="status" aria-live="polite">
       {t('debuffBoughtNotice', { buyer: shown.buyer.nickname, target: shown.target.nickname })}
+    </div>
+  );
+}
+
+/**
+ * Сповіщення тому, у кого підглянули (12h): «👀 У вашу відповідь підглянули: Оля» на NOTICE_MS (useNotice);
+ * кожен seq — один раз. У командній грі його бачить уся команда-ціль (зріз me.peekedBy).
+ */
+export function PeekedToast({ peekedBy, offsetMs }: { peekedBy: { seq: number; at: number; nickname: string } | null; offsetMs: number }) {
+  const shown = useNotice(peekedBy, offsetMs);
+  if (shown === null) return null;
+  return (
+    <div className="live-notice is-peek" role="status" aria-live="polite">
+      {t('peekedYou', { name: shown.nickname })}
     </div>
   );
 }

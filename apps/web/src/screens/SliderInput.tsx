@@ -8,7 +8,12 @@ interface Props {
   onSubmit: (answer: Answer) => void;
   submitLabel?: string;
   onDraft?: (draft: SubmittedAnswer | null) => void;
+  /** «Бінокль» (12h): проміжок, де відповідь, — смуга над доріжкою. */
+  band?: { min: number; max: number } | null;
 }
+
+/** Частка шкали у відсотках без хвостів (0,3 × 100 = 30,000000000000004). */
+const pct = (share: number) => `${Math.round(Math.min(Math.max(share, 0), 1) * 10_000) / 100}%`;
 
 /** Найближче вузол сітки min + k·step, округлене до знаків кроку й межі: 0,1 × 10 без «0,9999999». */
 function snap(value: number, min: number, step: number): number {
@@ -17,7 +22,7 @@ function snap(value: number, min: number, step: number): number {
 }
 
 /** Повзунок: велике число, кнопки «−»/«+» на один крок для точного налаштування одним пальцем, «Відповісти». */
-export function SliderInput({ question, onSubmit, submitLabel, onDraft }: Props) {
+export function SliderInput({ question, onSubmit, submitLabel, onDraft, band = null }: Props) {
   const { min, max, step } = question.slider;
   const [value, setValue] = useState(() => snap(min + Math.round((max - min) / 2 / step) * step, min, step));
   const change = (next: number) => {
@@ -39,16 +44,24 @@ export function SliderInput({ question, onSubmit, submitLabel, onDraft }: Props)
         <button type="button" className="btn btn-icon slider-step" aria-label={t('sliderLess', { step: stepText })} disabled={value <= min} onClick={() => move(-step)}>
           −
         </button>
-        <input
-          type="range"
-          aria-label={t('sliderLabel')}
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          aria-valuetext={sliderValueText(value, shown)}
-          onChange={(event) => change(Math.min(max, Math.max(min, snap(Number(event.target.value), min, step))))}
-        />
+        <div className="slider-track">
+          {band !== null && max > min && (
+            // Рейка смуги відступає на пів повзунка з обох боків: так смуга стоїть під тими значеннями, куди стає повзунок.
+            <span className="slider-band-rail" aria-hidden="true">
+              <span className="slider-band" aria-hidden="true" style={{ left: pct((band.min - min) / (max - min)), width: pct((band.max - band.min) / (max - min)) }} />
+            </span>
+          )}
+          <input
+            type="range"
+            aria-label={t('sliderLabel')}
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            aria-valuetext={sliderValueText(value, shown)}
+            onChange={(event) => change(Math.min(max, Math.max(min, snap(Number(event.target.value), min, step))))}
+          />
+        </div>
         <button type="button" className="btn btn-icon slider-step" aria-label={t('sliderMore', { step: stepText })} disabled={value >= max} onClick={() => move(step)}>
           +
         </button>

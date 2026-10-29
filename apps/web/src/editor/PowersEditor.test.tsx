@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BUFF_KINDS, DEBUFF_KINDS } from '@quiz/shared';
+import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { debuffName } from '../debuff-meta';
 import { t } from '../i18n';
@@ -103,5 +103,40 @@ describe('PowersEditor help (10a)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Довідка: Крамниця дебафів' }));
     fireEvent.click(screen.getByRole('button', { name: `Довідка: ${buffName(BUFF_KINDS[0])}` }));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('PowersEditor 12h', () => {
+  const box = (name: string) => screen.getByRole('checkbox', { name }) as HTMLInputElement;
+
+  it('a quiz without debuffs has exactly the old six on and the five new ones off', () => {
+    render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={vi.fn()} />);
+    for (const kind of LEGACY_DEBUFFS) expect(box(debuffName(kind)).checked).toBe(true);
+    for (const name of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки']) expect(box(name).checked).toBe(false);
+    expect(document.querySelectorAll('.powers-list')[0].querySelectorAll('input[type="checkbox"]')).toHaveLength(11);
+    expect(document.querySelectorAll('.powers-list')[1].querySelectorAll('input[type="checkbox"]')).toHaveLength(13);
+  });
+
+  it('ticking «Липкі кнопки» adds it after the old six and shows its price field', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={onChange} />);
+    fireEvent.click(box('Липкі кнопки'));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ debuffs: ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud', 'sticky'] }));
+    rerender(<PowersEditor settings={{ leaderboard: 'each', debuffs: onChange.mock.lastCall![0].debuffs }} spares={undefined} onChange={onChange} />);
+    const prices = screen.getAllByLabelText('Ціна, балів');
+    expect(prices).toHaveLength(7);
+    expect(box('Липкі кнопки').closest('.powers-row')?.querySelector('input[type="number"]')?.getAttribute('placeholder')).toBe('200');
+  });
+
+  it('«Усі» turns on eleven debuffs and thirteen buffs', () => {
+    const onChange = vi.fn();
+    render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={onChange} />);
+    const [allDebuffs, allBuffs] = screen.getAllByRole('button', { name: 'Усі' });
+    fireEvent.click(allDebuffs);
+    expect(onChange.mock.lastCall![0].debuffs).toEqual([...DEBUFF_KINDS]);
+    expect(onChange.mock.lastCall![0].debuffs).toHaveLength(11);
+    fireEvent.click(allBuffs);
+    expect(onChange.mock.lastCall![0].buffs).toEqual([...BUFF_KINDS]);
+    expect(onChange.mock.lastCall![0].buffs).toHaveLength(13);
   });
 });

@@ -179,7 +179,7 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -198,7 +198,7 @@ describe('HostScreen', () => {
       during('reveal', pictured, {
         question: { ...publicOf(pictured), choices: shown },
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -233,8 +233,8 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: 'shield', spare: null, clue: null },
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: 'shield', spare: null, clue: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -276,8 +276,8 @@ describe('HostScreen', () => {
     show(
       during('reveal', single, {
         responses: [
-          { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean', value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: 'swap', spare, clue: null },
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
+          { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean', value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: 'swap', spare, clue: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -296,7 +296,7 @@ describe('HostScreen', () => {
       during('question', single, {
         endsAt: now - 1000,
         limitMs: 20_000,
-        buffs: [{ playerId: 'p1', nickname: 'Олена', kind: 'swap' }],
+        buffs: [{ playerId: 'p1', nickname: 'Олена', kind: 'swap', target: null }],
         overtime: [{ playerId: 'p1', nickname: 'Олена', deadline: now + 19_000, remainingMs: null }],
       }),
     );
@@ -306,14 +306,14 @@ describe('HostScreen', () => {
   });
 
   it('a buff notice reaches the host console', () => {
-    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0 } }));
+    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0, target: null } }));
     expect(screen.getByText('Олена: 50/50')).toBeTruthy();
   });
 
   it('lets the host accept or reject text answers on reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
-      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 875, overridden: false, buff: null, spare: null, clue: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Одеса' }, timeMs: 5000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 875, overridden: false, buff: null, spare: null, clue: null },
     ];
     const send = show(during('reveal', textQuestion, { responses }));
     fireEvent.click(button('Зарахувати'));
@@ -322,9 +322,25 @@ describe('HostScreen', () => {
     expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p2', grade: 'wrong' });
   });
 
+  it('a silent «Ризик» row reads «мовчання» with its minus and offers no grade buttons', () => {
+    const responses = [
+      { playerId: 'p1', nickname: 'Олена', answer: null, timeMs: 20_000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: true, points: -1000, overridden: false, buff: 'risk' as const, spare: null, clue: null },
+      { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 5000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    ];
+    show(during('reveal', textQuestion, { responses }));
+    const rowOf = (name: string) => [...document.querySelectorAll('ul.rows li')].find((li) => li.querySelector('.name')?.textContent === name) as HTMLElement;
+    const silentRow = rowOf('Олена');
+    expect(within(silentRow).getByText('мовчання')).toBeTruthy();
+    expect(within(silentRow).getByText('−1000')).toBeTruthy();
+    expect(within(silentRow).queryByRole('button')).toBeNull();
+    expect(within(silentRow).queryByText('не зараховано')).toBeNull();
+    const otherRow = rowOf('Тарас');
+    expect(within(otherRow).getByRole('button', { name: 'Зарахувати' })).toBeTruthy();
+  });
+
   it('does not offer manual grading for choice questions or before reveal', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'a' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
     ];
     show(during('reveal', single, { responses }));
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
@@ -459,7 +475,7 @@ describe('HostScreen: rounds', () => {
 
   it('offers «partially» only when the round allows it', () => {
     const responses = [
-      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+      { playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
     ];
     show(during('reveal', textQuestion, { responses, round: round() }));
     expect(screen.queryByRole('button', { name: 'Частково' })).toBeNull();
@@ -547,7 +563,7 @@ describe('HostScreen: blitz', () => {
         round,
         blitz: blitz({ queue: [] }),
         responses: [
-          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, points: -1000, overridden: false, buff: null, spare: null, clue: null },
+          { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Київ' }, timeMs: 1, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, silent: false, points: -1000, overridden: false, buff: null, spare: null, clue: null },
         ],
       }),
     );
@@ -923,7 +939,7 @@ describe('HostScreen: blitz', () => {
       const spare: Question = { id: 's1', type: 'boolean', text: 'Чорне море солоніше за Азовське?', imageUrl: null, video: null, timeLimit: 20, points: 1000, correct: true };
       const cell = { id: 'c1', category: 'Міста', price: 100, mark: 'none' as const, kind: 'normal' as const, answerMode: 'phone' as const, penalty: 'none' as const };
       const responses = [
-        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 100, overridden: false, buff: 'swap' as const, spare, clue: null },
+        { playerId: 'p1', nickname: 'Олена', answer: { type: 'boolean' as const, value: true }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 100, overridden: false, buff: 'swap' as const, spare, clue: null },
       ];
       show(during('reveal', single, { round: boardRound, players: three, board: boardOf({ cell }), responses }));
       const mark = screen.getByText('запасне');
@@ -1161,7 +1177,7 @@ describe('HostScreen final', () => {
         players: three,
         final: hostFinal(),
         responses: [
-          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, away: [], awayPenalty: false, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
+          { playerId: 'p1', nickname: 'Анна', answer: { type: 'single', optionId: 'b' }, grade: 'correct', accepted: true, points: 0, streakBonus: 0, away: [], awayPenalty: false, silent: false, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
         ],
       }),
     );
@@ -1190,7 +1206,7 @@ describe('HostScreen final', () => {
         round: finalRound,
         players: three,
         responses: [
-          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, away: [], awayPenalty: false, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
+          { playerId: 'p2', nickname: 'Богдан', answer: { type: 'single', optionId: 'a' }, grade: 'wrong', accepted: false, points: -200, streakBonus: 0, away: [], awayPenalty: false, silent: false, overridden: false, buff: null, spare: null, clue: null, timeMs: 1000 },
         ],
         final: hostFinal({
           left: 1,
@@ -1882,7 +1898,7 @@ describe('HostScreen clues and pin (10c)', () => {
     show(
       during('reveal', cluesFull, {
         question: cluesOf(5),
-        responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'clues', value: 'Шевченко' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 800, overridden: false, buff: null, spare: null, clue: 2 }],
+        responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'clues', value: 'Шевченко' }, timeMs: 4000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 800, overridden: false, buff: null, spare: null, clue: 2 }],
       }),
     );
     expect(screen.getByText('на підказці 2')).toBeTruthy();
@@ -1982,7 +1998,7 @@ describe('HostScreen: wall, poll and word cloud (10d)', () => {
     buff: null,
     spare: null,
     clue: null,
-    away: [], awayPenalty: false,
+    away: [], awayPenalty: false, silent: false,
   });
 
   it('the wall shows the groups with names and the live table, with no grading buttons', () => {
@@ -2309,7 +2325,7 @@ describe('HostScreen: bluff (10f)', () => {
     });
 
     it('a text answer on the reveal can be accepted or rejected, never «partly»', () => {
-      show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs, responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null }] }));
+      show(during('reveal', textQuestion, { round: wRound, wipeout: wInfo({ decide: null }), allowed: noDebuffs, responses: [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Одеса' }, timeMs: 4000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null }] }));
       expect(screen.queryByRole('button', { name: /Частково/ })).toBeNull();
       expect(screen.getByRole('button', { name: t('accept') })).toBeTruthy();
     });
@@ -2848,7 +2864,7 @@ describe('HostScreen: facts (12d)', () => {
     { kind: 'sniper' as const, names: ['Олена'], correct: 5, answered: 6 },
     { kind: 'streak' as const, names: ['Тарас'], length: 4 },
   ];
-  const response = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'b' }, timeMs: 2100, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, points: 900, overridden: false, buff: null, spare: null, clue: null };
+  const response = { playerId: 'p1', nickname: 'Олена', answer: { type: 'single' as const, optionId: 'b' }, timeMs: 2100, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 900, overridden: false, buff: null, spare: null, clue: null };
 
   it('the reveal line in the responses panel', () => {
     show(during('reveal', single, { responses: [response], facts: { reveal: { accepted: 3, answered: 4, fastest: { names: ['Олена'], timeMs: 2100 }, bluff: null }, round: null, awards: null } }));
@@ -2936,6 +2952,7 @@ describe('away marks (12e)', () => {
     playerId: 'p1', nickname: 'Олена', answer: { type: 'single', optionId: 'b' }, timeMs: 4000, accepted: true, grade: 'correct', streakBonus: 0, points: 900, overridden: false, buff: null, spare: null, clue: null,
     away: [{ personId: 'p1', nickname: 'Олена', ms: 4200, count: 1, out: false }],
     awayPenalty: false,
+    silent: false,
     ...over,
   });
 
@@ -2992,8 +3009,8 @@ describe('appeal (12f)', () => {
     ...over,
   });
   const responses: HostView['responses'] = [
-    { playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
-    { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Одесса' }, timeMs: 5000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    { playerId: 'p1', nickname: 'Олена', answer: { type: 'text', value: 'Адеса' }, timeMs: 4000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    { playerId: 'p2', nickname: 'Тарас', answer: { type: 'text', value: 'Одесса' }, timeMs: 5000, accepted: false, grade: 'wrong', streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
   ];
 
   it('while the hall votes, the main button says «Голосує зал» and is disabled; the card shows the counts, never a voter', () => {

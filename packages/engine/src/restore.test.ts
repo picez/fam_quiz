@@ -83,6 +83,7 @@ import {
   makeRoundsQuiz,
   pin,
   single,
+  single4,
   slider,
   sortQ,
   survey,
@@ -333,7 +334,9 @@ const STATE_SHAPE: Record<string, string> = {
   BluffPick: keysOf<BluffPick>()(['optionId', 'timeMs'], true),
   BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
-  BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare'], true),
+  BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
+  BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
+  BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
   DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
   DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId'], true),
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
@@ -1076,6 +1079,57 @@ const KEYS: Record<number, Record<string, string>> = {
     ResumeSetup: 'points,roundIndex',
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
+  21: {
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'answerers,captains,current,dice,duelists,form,list,members,turns',
+    AnswererPick: 'fromQuestion,memberId,roundIndex,scope',
+    AnswererTurn: 'memberId,questionIndex',
+    AnswererNow: 'memberId,questionIndex',
+    TeamsSettings: 'answerer,count,names',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
+    BuffRange: 'max,min',
+    BuffZoom: 'size,x,y',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    Splash: 'at,kind,until',
+    AwayEntry: 'count,ms,since',
+    AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
+    ResumeSetup: 'points,roundIndex',
+    Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
+  },
 };
 
 /** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
@@ -1138,6 +1192,34 @@ function answering(): GameState {
   const quiz = teamQuiz([classicRound('r1', [single, withId(single, 'q2')])], 2, 'rotate');
   const s = must(pickAnswerer(teamGame(quiz, [['Оля', 'Петро'], ['Віра']]), 'm1', 'm2', 'round'));
   return startAnswerers(must(next(s, T0, () => 0)));
+}
+
+/**
+ * 12h: класика (повзунок, точка, single4) на трьох — поля BuffPlay поки що ставляться прямо в стан:
+ * Оля — «Бінокль» з range на повзунку й zoom на точці; Петро — «Підглянути» в Олю; Іра — мовчання з «Ризиком» після закриття.
+ */
+function powered(): GameState {
+  const quiz = makeRoundsQuiz([classicRound('r1', [slider, pin, withId(single4, 'q3')])], { buffs: ['scope', 'peek', 'risk'], leaderboard: 'end' });
+  const withBuffs = (s: GameState, buffs: Record<string, BuffPlay>): GameState => ({
+    ...s,
+    buffSeq: Object.values(buffs).reduce((seq, b) => Math.max(seq, b.seq), s.buffSeq),
+    plays: s.plays.map((p, i) => (i === s.plays.length - 1 ? { ...p, buffs: { ...p.buffs, ...buffs } } : p)),
+  });
+  const buff = (kind: BuffPlay['kind'], seq: number, at: number, extra: Partial<BuffPlay>): BuffPlay => ({ kind, seq, at, removed: [], retry: null, first: null, ...extra });
+  const closeAndGo = (s: GameState, at: number): GameState => must(next(must(next(must(lock(s)), at, () => 0)), at + 500, () => 0));
+  let s = openAt(lobbyWith(quiz, 'Оля', 'Петро', 'Іра'), T0, () => 0);
+  s = withBuffs(s, { p1: buff('scope', 1, T0 + 500, { range: { min: 40, max: 60 } }) });
+  s = must(submitAnswer(s, 'p1', { type: 'slider', value: 50 }, T0 + 1000));
+  s = closeAndGo(s, T0 + 2000);
+  s = withBuffs(s, { p1: buff('scope', 2, T0 + 3000, { zoom: { x: 0.25, y: 0.25, size: 0.5 } }) });
+  s = must(submitAnswer(s, 'p1', { type: 'pin', x: 0.5, y: 0.5 }, T0 + 4000));
+  s = closeAndGo(s, T0 + 5000);
+  s = must(submitAnswer(s, 'p1', kyiv, T0 + 6000));
+  s = withBuffs(s, { p2: buff('peek', 3, T0 + 6500, { peek: 'p1' }), p3: buff('risk', 4, T0 + 6600, {}) });
+  s = must(submitAnswer(s, 'p2', kyiv, T0 + 7000));
+  s = must(lock(s));
+  const silent: AnswerRecord = { answer: null, timeMs: 20_000, accepted: false, accuracy: 0, grade: 'wrong', basePoints: -100, streakBonus: 0, points: -100, overridden: false, buff: 'risk' };
+  return { ...s, plays: s.plays.map((p, i) => (i === s.plays.length - 1 ? { ...p, answers: { ...p.answers, p3: silent } } : p)) };
 }
 
 /** Стани, де трапляються вкладені частини: класика з відповіддю, поле з «50/50», зал, дуель, заставка, дебаф, покупка дебафу, фінал, бліц (черга й спроба). */
@@ -1303,6 +1385,7 @@ function representative(): GameState[] {
     appealed(),
     resumedCarry(),
     answering(),
+    powered(),
   ];
 }
 
@@ -1554,6 +1637,30 @@ describe('the saved state', () => {
     expect(saved.quiz.settings.teams?.answerer).toBe('rotate');
   });
 
+  it('a version 20 state (no peek, range or zoom) restores; the binoculars range and map window and the peek target survive the round trip and suspend', () => {
+    // стан до 12h: класика з «50/50» без нових полів бафу
+    const plain = must(takeBuff(toBuffCell(), 'p1', 'fifty', T0 + 1000, () => 0));
+    const old = roundTrip(suspend(roundTrip(plain), T0 + 2000));
+    const oldBuffs = old.plays.flatMap((p) => Object.values(p.buffs ?? {}));
+    expect(oldBuffs.length).toBeGreaterThan(0);
+    for (const b of oldBuffs) for (const key of ['peek', 'range', 'zoom']) expect(key in b).toBe(false);
+    expect(old.paused).toBe(true);
+    expect(READABLE_STATE_VERSIONS).toContain(20);
+    expect(must(resume(old, T0 + HOUR)).paused).toBe(false);
+    // нові поля переживають JSON і suspend
+    const s = powered();
+    expect(s.plays.map((p) => p.buffs)).toEqual([
+      { p1: expect.objectContaining({ kind: 'scope', range: { min: 40, max: 60 } }) },
+      { p1: expect.objectContaining({ kind: 'scope', zoom: { x: 0.25, y: 0.25, size: 0.5 } }) },
+      { p2: expect.objectContaining({ kind: 'peek', peek: 'p1' }), p3: expect.objectContaining({ kind: 'risk' }) },
+    ]);
+    expect(s.plays[2].answers.p3).toMatchObject({ answer: null, buff: 'risk', points: -100 });
+    expect(roundTrip(s)).toEqual(s);
+    const saved = roundTrip(suspend(roundTrip(s), T0 + 8000));
+    expect(saved.plays.map((p) => p.buffs)).toEqual(s.plays.map((p) => p.buffs));
+    expect(saved.plays[2].answers).toEqual(s.plays[2].answers);
+  });
+
   it('suspend decides an appeal whose vote ended before the save; one still running waits with its time left', () => {
     const s = appealed();
     expect(s.appeals?.at(-1)).toMatchObject({ outcome: null, endsAt: T0 + 36_000 });
@@ -1585,7 +1692,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -1620,7 +1727,10 @@ describe('the saved state', () => {
       add('Attempt', s.plays.flatMap((p) => p.blitz?.attempts ?? []));
       add('FinalState', [s.final]);
       add('FinalPlay', s.plays.map((p) => p.final));
-      add('BuffPlay', s.plays.flatMap((p) => Object.values(p.buffs ?? {})));
+      const buffs = s.plays.flatMap((p) => Object.values(p.buffs ?? {}));
+      add('BuffPlay', buffs);
+      add('BuffRange', buffs.map((b) => b.range));
+      add('BuffZoom', buffs.map((b) => b.zoom));
       add('DebuffState', Object.values(s.debuffs));
       add('DuelState', [s.duel]);
       add('DuelQuestionPlay', s.duel?.questions ?? []);

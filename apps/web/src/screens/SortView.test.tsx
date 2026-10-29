@@ -498,6 +498,22 @@ describe('tilt sending (11d)', () => {
       expect(send).not.toHaveBeenCalledWith('player:sort', expect.anything());
     });
 
+    it('12h: upside down a swipe goes to the zone the finger points at, and the card follows the finger', () => {
+      const send = okSend();
+      render(
+        <div className="is-flip">
+          <SortPlay question={sortQuestion(2)} sort={playerSort()} paused={false} offsetMs={0} send={send} />
+        </div>,
+      );
+      fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });
+      fireEvent.pointerMove(card(), { pointerId: 1, clientX: 200, clientY: 310 });
+      // Повернута картка: зсув у її власних координатах протилежний.
+      expect(card().style.transform).toBe('translate(-100px, -10px)');
+      fireEvent.pointerUp(card(), { pointerId: 1, clientX: 200, clientY: 310 });
+      // Праворуч на екрані — це ліва зона повернутої арени.
+      expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c1' });
+    });
+
     it('a move cancels the tail instead of releasing', () => {
       const { send } = play(2, playerSort({ watched: true }));
       fireEvent.pointerDown(card(), { pointerId: 1, clientX: 100, clientY: 300 });

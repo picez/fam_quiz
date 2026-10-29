@@ -75,4 +75,20 @@ describe('SliderInput', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
     expect(onSubmit).toHaveBeenCalledWith({ type: 'slider', value: 1 });
   });
+
+  it('12h: the binoculars band marks the range over the track', () => {
+    const { container, rerender } = render(<SliderInput question={question()} onSubmit={() => {}} band={{ min: 40, max: 60 }} />);
+    const band = container.querySelector('.slider-band') as HTMLElement;
+    expect(band).not.toBeNull();
+    expect(band.getAttribute('aria-hidden')).toBe('true');
+    expect(band.style.left).toBe('40%');
+    expect(band.style.width).toBe('20%');
+    // Смуга — у рядку доріжки, поруч із самим повзунком.
+    expect(band.closest('.slider-track')?.querySelector('input[type="range"]')).not.toBeNull();
+    rerender(<SliderInput question={question({ min: 1500, max: 1800, step: 10 })} onSubmit={() => {}} band={{ min: 1590, max: 1650 }} />);
+    expect((container.querySelector('.slider-band') as HTMLElement).style.left).toBe('30%');
+    expect((container.querySelector('.slider-band') as HTMLElement).style.width).toBe('20%');
+    rerender(<SliderInput question={question()} onSubmit={() => {}} band={null} />);
+    expect(container.querySelector('.slider-band')).toBeNull();
+  });
 });

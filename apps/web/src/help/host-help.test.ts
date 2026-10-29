@@ -98,6 +98,43 @@ describe('host help', () => {
     expect(text('setting.duels')).toContain('Бафів і дебафів у дуелі немає');
   });
 
+  it('12h: thirteen buffs and eleven debuffs, each with the rule, the exclusions and its own numbers', () => {
+    expect(BUFF_KINDS.length).toBe(13);
+    expect(DEBUFF_KINDS.length).toBe(11);
+    expect(helpIds('buffs').length).toBe(13);
+    expect(helpIds('debuffs').length).toBe(11);
+    const has = (id: HelpId, parts: string[]) => {
+      const body = text(id);
+      for (const part of parts) expect(body, `${id}: ${part}`).toContain(part);
+    };
+    has('buff.risk', ['×3', 'повну ціну', 'Частково', 'Подвійними']);
+    has('buff.letter', ['75 %', 'Хто я?']);
+    has('buff.scope', ['20 %', '±10 %', '±2', 'чверті основи']);
+    has('buff.guard', ['серію', 'Серія']);
+    has('buff.peek', ['без позначки', '👀', 'не чернетку', 'іншої команди']);
+    has('debuff.torch', ['80 пікселів']);
+    has('debuff.bubbles', ['12 бульбашок']);
+    has('debuff.sticky', ['Ой, липко!']);
+    for (const kind of ['flip', 'torch', 'bubbles'] as const) has(`debuff.${kind}`, ['Зменшити рух']);
+    has('setting.debuffShop', ['шість перших']);
+    has('setting.streak', ['Запобіжник']);
+    expect(text('debuff.shake')).toContain('того, хто відповідає');
+    const fresh: HelpId[] = ['buff.risk', 'buff.letter', 'buff.scope', 'buff.guard', 'buff.peek', 'debuff.flip', 'debuff.torch', 'debuff.sticky', 'debuff.noclock', 'debuff.bubbles'];
+    for (const id of fresh) {
+      expect(text(id).toLowerCase(), id).not.toMatch(/росі|срср/);
+      expect(text(id), id).not.toMatch(/підглянув |підглянула|відповів |відповіла/);
+    }
+    expect(searchHelp('ліхтар')).toEqual(['debuff.torch']);
+    expect(searchHelp('ризик')).toContain('buff.risk');
+  });
+
+  it('12h: the help quotes the phone texts as the phone says them; the whole team sees the letter and the range', () => {
+    expect(text('buff.peek')).toContain('«👀 У вашу відповідь підглянули: Оля»');
+    expect(text('buff.peek')).not.toContain('У твою відповідь підглянуто');
+    expect(text('buff.letter')).toContain('У командній грі літеру бачить уся команда.');
+    expect(text('buff.scope')).toContain('У командній грі проміжок бачить уся команда.');
+  });
+
   it('11b minimum-time entry follows «newcomers» and tells the minimum times', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.pacing')).toBe(ids.indexOf('setting.newcomers') + 1);

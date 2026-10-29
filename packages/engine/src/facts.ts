@@ -19,6 +19,7 @@ import {
 } from '@quiz/shared';
 import { awayParticipant } from './away';
 import { roundCount, scoreLinesByPlayer, withRounds } from './breakdown';
+import { isSilentRisk } from './buffs';
 import { recordOf, type GameState } from './game';
 import { rankPlayers } from './ranking';
 
@@ -67,6 +68,8 @@ export function factInput(state: GameState): FactInput {
       }
       // Мовчання у фіналі — штраф, а не відповідь.
       if (play.final !== undefined && record.answer === null) continue;
+      // Мовчання з «Ризиком» (12h) — теж штраф: історія пише його рядком штрафу.
+      if (isSilentRisk(play, record)) continue;
       rows.push({
         ...row,
         attempt: 0,

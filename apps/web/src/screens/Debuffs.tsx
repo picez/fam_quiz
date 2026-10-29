@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import type { DebuffKind, PlayerView, PublicQuestion } from '@quiz/shared';
 import { debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
 import { reducedMotion } from '../motion';
+import { STATUS_TEXT, type TimerStatus } from '../live/Timer';
 import { FogLayer, MudLayer } from './WipeLayers';
 
 type Debuff = PlayerView['me']['debuff'];
@@ -20,7 +21,41 @@ export const SHAKE_CYCLE_MS = 2800;
 export const SHAKE_BURST = 0.3;
 /** Вібрація на початку поштовху: дзиж — пауза — дзиж. */
 const SHAKE_BUZZ = [120, 60, 120];
-const TIPS: Partial<Record<DebuffKind, TextKey>> = { fog: 'debuffTip_fog', mud: 'debuffTip_mud', freeze: 'debuffTip_freeze' };
+const TIPS: Partial<Record<DebuffKind, TextKey>> = {
+  fog: 'debuffTip_fog',
+  mud: 'debuffTip_mud',
+  freeze: 'debuffTip_freeze',
+  flip: 'debuffTip_flip',
+  torch: 'debuffTip_torch',
+  sticky: 'debuffTip_sticky',
+  noclock: 'debuffTip_noclock',
+  bubbles: 'debuffTip_bubbles',
+};
+/** Радіус світла «Ліхтарика» (12h), px. CSS бере те саме число через --torch-r. */
+export const TORCH_RADIUS_PX = 80;
+/** Скільки бульбашок закривають відповіді (12h). */
+export const BUBBLE_COUNT = 12;
+/** Скільки висить «Ой, липко!» після липкого дотику (12h), мс. */
+export const STICKY_NOTE_MS = 1200;
+/** Сітка бульбашок: 3 стовпці × 4 рядки по нижніх 70 % зони. */
+const BUBBLE_COLS = 3;
+const BUBBLE_TOP = 0.3;
+
+/** Позиції бульбашок у частках зони: сітка 3 × 4 по нижніх 70 % зони з детермінованим зсувом від seed (як GUESTS). */
+export function bubbleSpots(seed: number): { x: number; y: number }[] {
+  const rows = BUBBLE_COUNT / BUBBLE_COLS;
+  const cellH = (1 - BUBBLE_TOP) / rows;
+  // Зсув −k…k сотих частки; той самий seed — ті самі місця на кожному перемальовуванні.
+  const jitter = (n: number, k: number) => ((((n % (2 * k + 1)) + 2 * k + 1) % (2 * k + 1)) - k) / 100;
+  return Array.from({ length: BUBBLE_COUNT }, (_, i) => {
+    const col = i % BUBBLE_COLS;
+    const row = Math.floor(i / BUBBLE_COLS);
+    return {
+      x: (col + 0.5) / BUBBLE_COLS + jitter(seed * 37 + i * 23, 5),
+      y: BUBBLE_TOP + (row + 0.5) * cellH + jitter(seed * 17 + i * 29, 3),
+    };
+  });
+}
 
 /** 5000 мс, але не більше половини часу запитання; без таймера — 5000. */
 export function freezeMs(limitMs: number | null): number {
@@ -122,6 +157,125 @@ function Ice({ stage }: { stage: number }) {
   );
 }
 
+/** «Бульбашки»: кнопки над зоною ловлять дотик самі, тож варіант під бульбашкою не натискається, поки її не лопнуто. */
+function BubblesLayer({ seed, calm }: { seed: number; calm: boolean }) {
+  const [popped, setPopped] = useState<ReadonlySet<number>>(() => new Set());
+  return (
+    <>
+      {bubbleSpots(seed).map((spot, i) => {
+        const style = { left: `${(spot.x * 100).toFixed(1)}%`, top: `${(spot.y * 100).toFixed(1)}%`, '--delay': `${((i * 0.7) % 3).toFixed(1)}s` } as CSSProperties;
+        if (popped.has(i))
+          // Лопнута бульбашка лишається тінню на час анімації; зі «Зменшити рух» зникає одразу.
+          return calm ? null : <span key={i} className="debuff-layer debuff-bubble is-popped" aria-hidden="true" style={style} />;
+        return (
+          <button
+            key={i}
+            type="button"
+            className="debuff-layer debuff-bubble"
+            aria-label={t('bubblePop')}
+            style={style}
+            onClick={() => setPopped((set) => new Set(set).add(i))}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Що липне: кнопка, підпис чи [role=button] у самому вмісті, поза рядом бафів і поза полями введення. */
+function stickyTarget(target: EventTarget, content: HTMLElement): Element | null {
+  if (!(target instanceof Element) || !content.contains(target)) return null;
+  const typing = 'input:not([type="checkbox"]):not([type="radio"]), textarea, select';
+  if (target.closest(typing) !== null) return null;
+  const hit = target.closest('button, label, [role="button"]');
+  if (hit === null || !content.contains(hit) || hit.closest('.buff-bar') !== null) return null;
+  // Підпис поля: дотик ставить курсор у поле, а не відповідає.
+  if (hit.matches('label') && hit.querySelector(typing) !== null) return null;
+  return hit;
+}
+
+/** «Липкі кнопки»: кожна кнопка спрацьовує з другого дотику, перший показує «Ой, липко!». Стан — на запитання. */
+function useSticky(active: boolean, questionIndex: number) {
+  // Кнопки, що вже «відлипли»; нове запитання — новий набір.
+  const unstuck = useRef<{ key: number; set: WeakSet<Element> }>({ key: questionIndex, set: new WeakSet() });
+  if (unstuck.current.key !== questionIndex) unstuck.current = { key: questionIndex, set: new WeakSet() };
+  // Новий об'єкт на кожен липкий дотик: плашка висить STICKY_NOTE_MS від останнього.
+  const [note, setNote] = useState<{ key: number } | null>(null);
+  useEffect(() => {
+    if (note === null) return;
+    const id = setTimeout(() => setNote(null), STICKY_NOTE_MS);
+    return () => clearTimeout(id);
+  }, [note]);
+  const onClickCapture = (event: MouseEvent<HTMLFieldSetElement>) => {
+    const hit = stickyTarget(event.target, event.currentTarget);
+    if (hit === null || unstuck.current.set.has(hit)) return;
+    unstuck.current.set.add(hit);
+    event.preventDefault();
+    event.stopPropagation();
+    setNote({ key: questionIndex });
+  };
+  return { shown: active && note !== null && note.key === questionIndex, onClickCapture: active ? onClickCapture : undefined };
+}
+
+/**
+ * «Ліхтарик»: світло йде за пальцем; координати пишуться прямо в стиль зони, без перемальовувань.
+ * Палець — через пасивні touchstart / touchmove (pointermove обривається, щойно браузер починає прокрутку, як у wipe.ts),
+ * миша й перо — через pointerdown / pointermove. Нове запитання чи кінець дебафу повертає світло на середину.
+ */
+function useTorch(zoneRef: RefObject<HTMLDivElement | null>, active: boolean, questionIndex: number): void {
+  useEffect(() => {
+    const el = zoneRef.current;
+    if (!active || el === null) return;
+    const light = (clientX: number, clientY: number) => {
+      const rect = el.getBoundingClientRect();
+      el.style.setProperty('--tx', `${Math.round(clientX - rect.left)}px`);
+      el.style.setProperty('--ty', `${Math.round(clientY - rect.top)}px`);
+    };
+    const onPointer = (e: globalThis.PointerEvent) => {
+      if (e.pointerType !== 'touch') light(e.clientX, e.clientY);
+    };
+    const onTouch = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      if (touch !== undefined) light(touch.clientX, touch.clientY);
+    };
+    el.addEventListener('pointerdown', onPointer, { passive: true });
+    el.addEventListener('pointermove', onPointer, { passive: true });
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('touchmove', onTouch, { passive: true });
+    return () => {
+      el.removeEventListener('pointerdown', onPointer);
+      el.removeEventListener('pointermove', onPointer);
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('touchmove', onTouch);
+      el.style.removeProperty('--tx');
+      el.style.removeProperty('--ty');
+    };
+  }, [zoneRef, active, questionIndex]);
+}
+
+/**
+ * «Без годинника»: на місці табло — пісочний годинник тієї самої висоти, без role="timer".
+ * Стан годинника («Пауза», «Чекає рішення ведучого») лишається в тій самій клітинці, що й у табло; повного часу не видно.
+ */
+export function NoClock({ total, status }: { total: number | null; status: TimerStatus }) {
+  // Невидимий «/ 30 с» тримає ширину клітинки, як у табло.
+  const totalText = total === null ? '' : t('timerOf', { seconds: Math.round(total / 1000) });
+  return (
+    <p className="timer is-noclock" role="img" aria-label={status === null ? t('noClockLabel') : `${t('noClockLabel')}. ${t(STATUS_TEXT[status])}`}>
+      <span className="timer-flaps" aria-hidden="true">
+        <span className="flap">⌛</span>
+      </span>
+      {(total !== null || status !== null) && (
+        <span className="timer-label" data-held={t('timerHeld')} data-total={totalText} aria-hidden="true">
+          {status !== null && <span className="timer-status">{t(STATUS_TEXT[status])}</span>}
+        </span>
+      )}
+      {/* Порожня смужка тримає висоту табло зі смужкою часу. */}
+      {total !== null && <span className="timer-bar" aria-hidden="true" />}
+    </p>
+  );
+}
+
 /** Обгортка запитання на телефоні: однакова для всіх, з дебафом додає класи, шари й банер. */
 export function DebuffZone({
   debuff,
@@ -152,6 +306,8 @@ export function DebuffZone({
   // Фаза на мить спрацювання: CSS-поштовх іде в такт із вібрацією, перемальовування його не зсувають.
   const phase = useMemo(() => (shakeSince === null ? null : shakePhase(shakeSince, offsetMs)), [shakeSince, offsetMs]);
   const zoneRef = useRef<HTMLDivElement>(null);
+  const sticky = useSticky(kind === 'sticky', questionIndex);
+  useTorch(zoneRef, kind === 'torch', questionIndex);
 
   const banner = elapsed !== null && kind !== null && elapsed < BANNER_MS;
   const frozen = kind === 'freeze' && elapsed !== null && elapsed < freezeFor;
@@ -160,17 +316,31 @@ export function DebuffZone({
   const tip = kind !== null ? TIPS[kind] : undefined;
 
   const className = ['debuff-zone', kind !== null && `is-${kind}`, calm && 'is-calm'].filter(Boolean).join(' ');
+  const style =
+    phase !== null
+      ? ({ '--shake-cycle': `${SHAKE_CYCLE_MS}ms`, '--shake-phase': `${phase}ms` } as CSSProperties)
+      : kind === 'torch'
+        ? ({ '--torch-r': `${TORCH_RADIUS_PX}px` } as CSSProperties)
+        : undefined;
   return (
     <div
       ref={zoneRef}
       className={className}
       data-debuff={kind ?? undefined}
-      style={phase === null ? undefined : ({ '--shake-cycle': `${SHAKE_CYCLE_MS}ms`, '--shake-phase': `${phase}ms` } as CSSProperties)}
+      style={style}
     >
-      <fieldset className="debuff-content" disabled={frozen}>
+      <fieldset className="debuff-content" disabled={frozen} onClickCapture={sticky.onClickCapture}>
         {children}
       </fieldset>
       {frozen && <Ice stage={iceStage} />}
+      {kind === 'torch' && <div className="debuff-layer debuff-torch" aria-hidden="true" />}
+      {kind === 'bubbles' && <BubblesLayer key={questionIndex} seed={questionIndex} calm={calm} />}
+      {/* Живий регіон стоїть з першої миті «Липких кнопок»: читалка озвучує вже першу появу тексту. */}
+      {kind === 'sticky' && (
+        <p className="sticky-note" role="status">
+          {sticky.shown ? t('stickyNote') : ''}
+        </p>
+      )}
       {kind === 'fog' && <FogLayer key={questionIndex} zone={zoneRef} />}
       {kind === 'mud' && <MudLayer key={questionIndex} zone={zoneRef} seed={questionIndex} />}
       {kind === 'guests' &&

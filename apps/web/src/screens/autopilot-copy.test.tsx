@@ -243,7 +243,7 @@ const screens: Screen[] = [
         questionIndex: 0,
         question: publicQuestion,
         ...open,
-        buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'hint', questionIndex: 0 },
+        buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'hint', questionIndex: 0, target: null },
       }),
   },
   // Ручний бліц і ручна клітинка лишаються ручними: автопілот оцінює відповідь за ключем на крок пізніше, тож очікування видно.

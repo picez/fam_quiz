@@ -385,7 +385,7 @@ export function attachSockets(
     on('player:buff', (args) => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = buffSchema.safeParse(payloadOf(args));
-      return payload.success ? manager.buff(room, identity.playerId, payload.data.kind) : INVALID;
+      return payload.success ? manager.buff(room, identity.playerId, payload.data.kind, payload.data.targetId) : INVALID;
     });
 
     on('player:debuff', (args) => {

@@ -32,6 +32,9 @@ describe('pin zoom', () => {
   it('maps a frame point to shares of the picture, mirrored and clamped', () => {
     expect(toImagePoint(NO_ZOOM, 75, 75, box, false)).toEqual({ x: 0.25, y: 0.5 });
     expect(toImagePoint(NO_ZOOM, 75, 75, box, true)).toEqual({ x: 0.75, y: 0.5 });
+    // «Догори дриґом» (12h): рамка повернута на 180°, тож перевертаються обидві осі.
+    expect(toImagePoint(NO_ZOOM, 75, 30, box, { x: true, y: true })).toEqual({ x: 0.75, y: 0.8 });
+    expect(toImagePoint(NO_ZOOM, 75, 30, box, { x: false, y: false })).toEqual({ x: 0.25, y: 0.2 });
     expect(toImagePoint(NO_ZOOM, -20, 400, box, false)).toEqual({ x: 0, y: 1 });
     expect(toImagePoint({ scale: 2, x: -150, y: -75 }, 150, 75, box, false)).toEqual({ x: 0.5, y: 0.5 });
   });

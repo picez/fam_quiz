@@ -1,7 +1,7 @@
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { PublicPin } from '@quiz/shared';
 import { t } from '../i18n';
-import { NO_ZOOM, PIN_MAX_ZOOM, clampView, pinchView, toImagePoint, zoomAround, type Box, type Point, type ZoomView } from '../pin-zoom';
+import { NO_ZOOM, PIN_MAX_ZOOM, clampView, pinchView, toImagePoint, zoomAround, type Box, type Mirror, type Point, type ZoomView } from '../pin-zoom';
 import { PinBoard, pinSpot } from './PinBoard';
 
 interface Props {
@@ -10,7 +10,12 @@ interface Props {
   point: { x: number; y: number } | null;
   onPlace: (point: { x: number; y: number }) => void;
   overlay?: ReactNode;
+  /** «Бінокль» (12h): вікно мапи в частках основи — рамка відкривається наближеною на нього й показує його межі. */
+  focus?: { x: number; y: number; size: number } | null;
 }
+
+/** Частка основи у відсотках без хвостів після коми (0,1 + 0,2 → 30%). */
+const pct = (share: number) => `${Math.round(share * 10_000) / 100}%`;
 
 /** Рух пальця понад стільки пікселів — уже не дотик, а перетягування. */
 const TAP_SLOP = 8;
@@ -28,7 +33,7 @@ interface Gesture {
 }
 
 /** Рамка з наближенням: дві руки — масштаб, один палець на наближеній — зсув, короткий дотик — onPlace(частки). Кнопки «＋», «－», «⤢». */
-export function PinFrame({ pin, imageUrl, point, onPlace, overlay }: Props) {
+export function PinFrame({ pin, imageUrl, point, onPlace, overlay, focus = null }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<ZoomView>(NO_ZOOM);
   const viewRef = useRef(view);
@@ -43,10 +48,25 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay }: Props) {
     const rect = frameRef.current?.getBoundingClientRect();
     return { width: rect?.width ?? 0, height: rect?.height ?? 0 };
   };
+  // «Бінокль»: до першого кадру — наближення 1 / size, вікно заповнює рамку (розмір рамки відомий лише після монтування).
+  const fx = focus?.x ?? null;
+  const fy = focus?.y ?? null;
+  const fsize = focus?.size ?? null;
+  useLayoutEffect(() => {
+    if (fx === null || fy === null || fsize === null || fsize <= 0) return;
+    const b = box();
+    const scale = 1 / fsize;
+    apply(clampView({ scale, x: -fx * b.width * scale, y: -fy * b.height * scale }, b));
+    // box і apply читають лише ref-и.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fx, fy, fsize]);
   // Під «Дзеркалом» рамка віддзеркалена разом з екраном: x у власних координатах рамки перевертається.
-  const mirrored = () => {
+  // «Догори дриґом» (12h) повертає її на 180°: перевертаються обидві осі (з дзеркалом x повертається назад).
+  const mirrored = (): Mirror => {
     const frame = frameRef.current;
-    return frame !== null && frame.closest('.is-mirror') !== null;
+    const mirror = frame !== null && frame.closest('.is-mirror') !== null;
+    const flip = frame !== null && frame.closest('.is-flip') !== null;
+    return { x: mirror !== flip, y: flip };
   };
   // Поле вимкнене (пауза, заставка перед стартом): дотики нічого не роблять, як і кнопки.
   const disabled = () => frameRef.current?.closest('fieldset[disabled]') != null;
@@ -55,7 +75,10 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay }: Props) {
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   };
   /** Точка у власних координатах рамки (з урахуванням дзеркала) — для наближення й зсуву. */
-  const local = (p: Point, b: Box): Point => (mirrored() ? { x: b.width - p.x, y: p.y } : p);
+  const local = (p: Point, b: Box): Point => {
+    const axes = mirrored();
+    return { x: axes.x ? b.width - p.x : p.x, y: axes.y ? b.height - p.y : p.y };
+  };
 
   const startPan = (at: Point) => {
     if (gesture.current !== null) gesture.current.pan = { view: viewRef.current, at: local(at, box()) };
@@ -139,9 +162,12 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay }: Props) {
         onPointerUp={(event) => finish(event, false)}
         onPointerCancel={(event) => finish(event, true)}
       >
-        <div className="pin-zoom-layer" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
+        <div className="pin-zoom-layer" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, '--unscale': unscale } as CSSProperties}>
           <PinBoard pin={pin} imageUrl={imageUrl}>
             {overlay}
+            {focus !== null && (
+              <span className="pin-scope" aria-hidden="true" style={{ left: pct(focus.x), top: pct(focus.y), width: pct(focus.size), height: pct(focus.size) }} />
+            )}
             {point !== null && (
               <span
                 className="pin-mark is-mine"

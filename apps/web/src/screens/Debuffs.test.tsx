@@ -1,14 +1,29 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import type { Answer, DebuffKind, PlayerSort, PublicQuestion } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { AnswerInput } from './AnswerInput';
-import { BANNER_MS, DebuffZone, MIRROR_SWAP_MS, SHAKE_BURST, SHAKE_CYCLE_MS, freezeMs, rotateChoices, useDebuffQuestion } from './Debuffs';
+import { createPortal } from 'react-dom';
+import {
+  BANNER_MS,
+  BUBBLE_COUNT,
+  DebuffZone,
+  MIRROR_SWAP_MS,
+  SHAKE_BURST,
+  SHAKE_CYCLE_MS,
+  STICKY_NOTE_MS,
+  TORCH_RADIUS_PX,
+  bubbleSpots,
+  freezeMs,
+  rotateChoices,
+  useDebuffQuestion,
+} from './Debuffs';
+import { SliderInput } from './SliderInput';
 import { SortPlay } from './SortView';
 
 beforeEach(() => {
@@ -264,6 +279,316 @@ describe('DebuffZone', () => {
     await act(async () => {});
     fireEvent.click(left());
     expect(send).toHaveBeenCalledTimes(3);
+  });
+});
+
+const text: PublicQuestion = { ...single, type: 'text', choices: [] };
+
+/** Зона з дебафом, що спрацював давно (банера вже немає), і довільним вмістом. */
+function Old({ kind, questionIndex = 2, children }: { kind: DebuffKind; questionIndex?: number; children: ReactNode }) {
+  return (
+    <DebuffZone debuff={{ kind, since: Date.now() - 10_000, by: null }} limitMs={30_000} offsetMs={0} questionIndex={questionIndex}>
+      {children}
+    </DebuffZone>
+  );
+}
+
+const note = () => document.querySelector('p.sticky-note');
+/** Текст живого регіону «Липких кнопок» (він завжди на місці, порожній між дотиками). */
+const noteText = () => note()?.textContent ?? null;
+const bubbles = () => screen.queryAllByRole('button', { name: 'Лопнути бульбашку' });
+
+describe('DebuffZone: 12h debuffs', () => {
+  it('flip turns the question zone upside down, calm with reduced motion', () => {
+    render(<Zone kind="flip" />);
+    expect(zone().classList.contains('is-flip')).toBe(true);
+    expect(zone().classList.contains('is-calm')).toBe(false);
+    expect(screen.getByRole('status').textContent).toContain('Тримайтеся: усе догори дриґом');
+    expect(document.querySelector('.debuff-layer')).toBeNull();
+    cleanup();
+    reduce();
+    render(<Zone kind="flip" />);
+    expect(zone().classList.contains('is-flip')).toBe(true);
+    expect(zone().classList.contains('is-calm')).toBe(true);
+  });
+
+  it('the torch lights a circle that follows the finger, and the layer under it lets taps through', () => {
+    const onSubmit = vi.fn();
+    render(<Zone kind="torch" onSubmit={onSubmit} />);
+    expect(screen.getByRole('status').textContent).toContain('Водіть пальцем — там світло');
+    const torch = document.querySelector('.debuff-torch')!;
+    expect(torch).not.toBeNull();
+    expect(torch.classList.contains('debuff-layer')).toBe(true);
+    expect(torch.getAttribute('aria-hidden')).toBe('true');
+    expect(TORCH_RADIUS_PX).toBe(80);
+    expect(zone().style.getPropertyValue('--torch-r')).toBe('80px');
+    // До першого дотику — середина зони (типові значення CSS).
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+    fireEvent.pointerMove(zone(), { clientX: 100, clientY: 200 });
+    expect(zone().style.getPropertyValue('--tx')).toBe('100px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('200px');
+    fireEvent.pointerDown(zone(), { clientX: 30, clientY: 40 });
+    expect(zone().style.getPropertyValue('--tx')).toBe('30px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('40px');
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+
+  it('the torch follows a finger through passive touch events too (pointer events stop once the page scrolls)', () => {
+    const { rerender } = render(<Old kind="torch">x</Old>);
+    fireEvent.touchStart(zone(), { changedTouches: [{ clientX: 120, clientY: 60 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('120px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('60px');
+    fireEvent.touchMove(zone(), { changedTouches: [{ clientX: 140, clientY: 90 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('140px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('90px');
+    // Нове запитання — світло знову посередині.
+    rerender(
+      <Old kind="torch" questionIndex={3}>
+        x
+      </Old>,
+    );
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+    expect(zone().style.getPropertyValue('--ty')).toBe('');
+    fireEvent.pointerMove(zone(), { clientX: 10, clientY: 20 });
+    expect(zone().style.getPropertyValue('--tx')).toBe('10px');
+    // Дебаф скінчився — слухачі зняті, світла немає.
+    rerender(
+      <DebuffZone debuff={null} limitMs={30_000} offsetMs={0} questionIndex={4}>
+        x
+      </DebuffZone>,
+    );
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+    fireEvent.touchMove(zone(), { changedTouches: [{ clientX: 140, clientY: 90 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+  });
+
+  it('sticky buttons work from the second tap, the first says «Ой, липко!»', () => {
+    const onSubmit = vi.fn();
+    render(
+      <Old kind="sticky">
+        <AnswerInput question={single} onSubmit={onSubmit} />
+      </Old>,
+    );
+    expect(zone().classList.contains('is-sticky')).toBe(true);
+    // Живий регіон змонтований заздалегідь: читалки екрана озвучують першу ж появу тексту.
+    expect(note()).not.toBeNull();
+    expect(noteText()).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(noteText()).toBe('Ой, липко!');
+    expect(note()?.getAttribute('role')).toBe('status');
+    // Плашка поверх зони, а не у вмісті: варіанти не зсуваються.
+    expect(content().contains(note())).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+    act(() => {
+      vi.advanceTimersByTime(STICKY_NOTE_MS);
+    });
+    expect(noteText()).toBe('');
+    // Інший варіант липне сам по собі.
+    fireEvent.click(screen.getByRole('button', { name: /c/ }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(noteText()).toBe('Ой, липко!');
+  });
+
+  it('the answer button sticks too, the text field does not', () => {
+    const onSubmit = vi.fn();
+    render(
+      <Old kind="sticky">
+        <AnswerInput question={text} onSubmit={onSubmit} />
+      </Old>,
+    );
+    const input = screen.getByRole('textbox');
+    fireEvent.click(input);
+    expect(noteText()).toBe('');
+    fireEvent.change(input, { target: { value: 'Дніпро' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(noteText()).toBe('Ой, липко!');
+    fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'text', value: 'Дніпро' });
+  });
+
+  it('the buff row and portalled sheets never stick', () => {
+    const buff = vi.fn();
+    const sheet = vi.fn();
+    render(
+      <Old kind="sticky">
+        <div className="buff-bar">
+          <button type="button" onClick={buff}>
+            баф
+          </button>
+        </div>
+        {createPortal(
+          <button type="button" onClick={sheet}>
+            аркуш
+          </button>,
+          document.body,
+        )}
+      </Old>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'баф' }));
+    expect(buff).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'аркуш' }));
+    expect(sheet).toHaveBeenCalledTimes(1);
+    expect(noteText()).toBe('');
+  });
+
+  it('a new question makes the buttons sticky again', () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(
+      <Old kind="sticky" questionIndex={2}>
+        <AnswerInput question={single} onSubmit={onSubmit} />
+      </Old>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    rerender(
+      <Old kind="sticky" questionIndex={3}>
+        <AnswerInput question={single} onSubmit={onSubmit} />
+      </Old>,
+    );
+    expect(noteText()).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(noteText()).toBe('Ой, липко!');
+  });
+
+  it('twelve bubbles cover the answers, a tap pops one, a bubble catches the tap itself', () => {
+    const onSubmit = vi.fn();
+    render(<Zone kind="bubbles" onSubmit={onSubmit} />);
+    expect(screen.getByRole('status').textContent).toContain('Лопайте бульбашки дотиком');
+    expect(BUBBLE_COUNT).toBe(12);
+    expect(bubbles()).toHaveLength(12);
+    for (const bubble of bubbles()) {
+      expect(bubble.classList.contains('debuff-bubble')).toBe(true);
+      // Поза fieldset: «Липкі кнопки» й «Лід» бульбашок не чіпають.
+      expect(content().contains(bubble)).toBe(false);
+    }
+    const first = bubbles()[0]!;
+    expect(first.style.left).toMatch(/%$/);
+    expect(first.style.top).toMatch(/%$/);
+    fireEvent.click(first);
+    expect(bubbles()).toHaveLength(11);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /b/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+
+  it('popped bubbles fade with motion and vanish at once with reduced motion', () => {
+    render(<Zone kind="bubbles" />);
+    fireEvent.click(bubbles()[0]!);
+    const popped = document.querySelector('.debuff-bubble.is-popped')!;
+    expect(popped).not.toBeNull();
+    expect(popped.tagName).toBe('SPAN');
+    expect(popped.getAttribute('aria-hidden')).toBe('true');
+    cleanup();
+    reduce();
+    render(<Zone kind="bubbles" />);
+    expect(zone().classList.contains('is-calm')).toBe(true);
+    fireEvent.click(bubbles()[0]!);
+    expect(bubbles()).toHaveLength(11);
+    expect(document.querySelector('.debuff-bubble.is-popped')).toBeNull();
+  });
+
+  it('a new question brings all twelve bubbles back', () => {
+    const { rerender } = render(
+      <Old kind="bubbles" questionIndex={2}>
+        x
+      </Old>,
+    );
+    fireEvent.click(bubbles()[0]!);
+    fireEvent.click(bubbles()[0]!);
+    expect(bubbles()).toHaveLength(10);
+    rerender(
+      <Old kind="bubbles" questionIndex={3}>
+        x
+      </Old>,
+    );
+    expect(bubbles()).toHaveLength(12);
+  });
+
+  it('bubble spots: a 3 × 4 grid over the lower 70 % of the zone, the same for the same seed', () => {
+    const spots = bubbleSpots(3);
+    expect(spots).toHaveLength(12);
+    for (const { x, y } of spots) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(1);
+      expect(y).toBeGreaterThanOrEqual(0.3);
+      expect(y).toBeLessThanOrEqual(1);
+    }
+    expect(bubbleSpots(3)).toEqual(spots);
+    expect(bubbleSpots(4)).not.toEqual(spots);
+    expect(bubbleSpots(-5)).toHaveLength(12);
+  });
+
+  it('no clock draws only the content, no layers', () => {
+    render(<Zone kind="noclock" />);
+    expect(zone().classList.contains('is-noclock')).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain('Час іде, але годинника не видно');
+    expect(document.querySelector('.debuff-layer')).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('the sticky tip is in the banner', () => {
+    render(<Zone kind="sticky" />);
+    expect(document.querySelector('.debuff-banner')!.textContent).toContain('Кожна кнопка — з другого дотику');
+    cleanup();
+    // Без «Липких кнопок» живого регіону немає.
+    render(<Zone kind="flip" />);
+    expect(note()).toBeNull();
+  });
+});
+
+describe('12h debuff styles', () => {
+  it('flip uses rotate (shake owns translate), instant with reduced motion', () => {
+    expect(rule('.debuff-zone.is-flip .debuff-content')).toContain('rotate: 180deg;');
+    expect(rule('.debuff-zone.is-flip:not(.is-calm) .debuff-content')).toContain('transition: rotate 0.4s ease;');
+    // Набраний текст повертається назад, як під «Дзеркалом»: його можна прочитати.
+    expect(css).toContain('.is-flip .debuff-content input,\n.is-flip .debuff-content textarea {\n  rotate: 180deg;');
+  });
+
+  it('the binoculars band on a slider turns back with the slider under mirror and flip, so it stays over the right values', () => {
+    const sliderQuestion = { ...single, type: 'slider' as const, choices: [], slider: { min: 0, max: 100, step: 1, unit: '' } };
+    for (const kind of ['mirror', 'flip'] as const) {
+      render(
+        <Old kind={kind}>
+          <SliderInput question={sliderQuestion} onSubmit={() => {}} band={{ min: 20, max: 40 }} />
+        </Old>,
+      );
+      const rail = document.querySelector('.debuff-content .slider-track .slider-band-rail');
+      expect(rail).not.toBeNull();
+      expect(rail?.parentElement?.querySelector('input[type="range"]')).not.toBeNull();
+      cleanup();
+    }
+    // Повзунок повертається назад (як усі поля введення) — смуга повертається так само.
+    expect(css).toContain('.is-mirror .debuff-content input,');
+    expect(rule('.is-mirror .debuff-content .slider-band-rail')).toContain('transform: scaleX(-1);');
+    expect(rule('.is-flip .debuff-content .slider-band-rail')).toContain('rotate: 180deg;');
+  });
+
+  it('the torch darkens everything but a circle of --torch-r and catches no taps', () => {
+    const torch = rule('.debuff-torch');
+    expect(torch).toContain('inset: 0;');
+    expect(torch).toContain('pointer-events: none;');
+    expect(torch).toContain('radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, min(50%, 40vh)), transparent 92%, rgb(0 0 0 / 0.96))');
+  });
+
+  it('bubbles are 72 px circles that catch taps, still with reduced motion', () => {
+    const bubble = rule('.debuff-bubble');
+    expect(bubble).toContain('width: 72px;');
+    expect(bubble).toContain('height: 72px;');
+    expect(bubble).toContain('pointer-events: auto;');
+    expect(css).toContain('@keyframes bubble-float');
+    expect(css).toContain('@keyframes bubble-pop');
+    expect(rule('.is-calm .debuff-bubble')).toContain('animation: none;');
+  });
+
+  it('the sticky note floats over the zone, the hidden clock keeps the timer size', () => {
+    expect(rule('.sticky-note')).toContain('position: absolute;');
+    expect(rule('.timer.is-noclock .flap')).toContain('min-width: 3.4em;');
   });
 });
 

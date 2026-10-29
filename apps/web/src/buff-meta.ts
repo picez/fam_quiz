@@ -1,7 +1,7 @@
 import type { BuffKind } from '@quiz/shared';
 import { t, type TextKey } from './i18n';
 
-/** Значки — одноколірні текстові гліфи (не кольорові емодзі): на темному тлі всі вісім однаково контрастні. */
+/** Значки — одноколірні текстові гліфи (не кольорові емодзі): на темному тлі всі однаково контрастні. */
 export const BUFF_ICONS: Record<BuffKind, string> = {
   fifty: '½',
   double: '×2',
@@ -11,6 +11,11 @@ export const BUFF_ICONS: Record<BuffKind, string> = {
   audience: '%',
   hint: '?',
   swap: '⇄',
+  risk: '⚄',
+  letter: 'А…',
+  scope: '◎',
+  guard: '∞',
+  peek: '◉',
 };
 
 /** autopilot: у грі без ведучого підказка — з вікторини, тож «від ведучого» не пишемо. */

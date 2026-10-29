@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { BUFF_KINDS, DEBUFF_KINDS } from '@quiz/shared';
 import type { BuffBlock, BuffKind, PlayerActiveBuff, PlayerBuffs, PublicQuestion, VotePrompt, VoteTally } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import type { Send } from '../live/types';
+import { BUFF_ICONS } from '../buff-meta';
+import { DEBUFF_ICONS } from '../debuff-meta';
+import { hasText } from '../i18n';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, StageBuffs, VoteSheet } from './Buffs';
 
 const NOW = 1_000_000;
@@ -26,6 +30,7 @@ const ready: PlayerBuffs = {
     { kind: 'shield', state: 'blocked', block: 'unfit_penalty' },
   ],
   active: null,
+  peekable: [],
 };
 
 const active: PlayerBuffs = {
@@ -34,7 +39,8 @@ const active: PlayerBuffs = {
     { kind: 'double', state: 'blocked', block: 'taken' },
     { kind: 'shield', state: 'blocked', block: 'taken' },
   ],
-  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false },
+  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null },
+  peekable: [],
 };
 
 const used: PlayerBuffs = {
@@ -44,6 +50,7 @@ const used: PlayerBuffs = {
     { kind: 'shield', state: 'used', block: 'used' },
   ],
   active: null,
+  peekable: [],
 };
 
 const blocked: PlayerBuffs = {
@@ -53,6 +60,7 @@ const blocked: PlayerBuffs = {
     { kind: 'shield', state: 'blocked', block: 'answered' },
   ],
   active: null,
+  peekable: [],
 };
 
 const question: PublicQuestion = {
@@ -81,6 +89,17 @@ function row(buffs: PlayerBuffs, over: { paused?: boolean; timeOver?: boolean; s
 const why = () => document.querySelector('.buff-why')!;
 
 describe('Buffs', () => {
+  it('12h: every buff and debuff has an icon, a name and its texts', () => {
+    for (const kind of BUFF_KINDS) {
+      expect(BUFF_ICONS[kind], kind).toBeTruthy();
+      for (const key of [`buff_${kind}`, `buffTip_${kind}`, `buffGuide_${kind}`, `buffWhere_${kind}`]) expect(hasText(key), key).toBe(true);
+    }
+    for (const kind of DEBUFF_KINDS) {
+      expect(DEBUFF_ICONS[kind], kind).toBeTruthy();
+      for (const key of [`debuff_${kind}`, `debuffGuide_${kind}`]) expect(hasText(key), key).toBe(true);
+    }
+  });
+
   it('in a blitz the buff row is one compact line that says there are no buffs', () => {
     const off = (block: 'off_blitz' | 'off_blitz_cell'): PlayerBuffs => ({
       slots: [
@@ -89,6 +108,7 @@ describe('Buffs', () => {
         { kind: 'shield', state: 'blocked', block },
       ],
       active: null,
+      peekable: [],
     });
     const { container, unmount } = row(off('off_blitz'));
     expect(container.querySelector('.buff-row')).toBeNull();
@@ -100,7 +120,7 @@ describe('Buffs', () => {
     expect(document.querySelector('.buff-off')?.textContent).toBe('На бліц-клітинках бафів немає.');
     cleanup();
     // У фіналі, ланцюжку й сортуванні — звичайний ряд неактивних кнопок.
-    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null });
+    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null, peekable: [] });
     expect(document.querySelectorAll('.buff-row button')).toHaveLength(1);
     expect(document.querySelector('.buff-off')).toBeNull();
   });
@@ -193,6 +213,7 @@ describe('Buffs', () => {
           { kind: 'shield', state: 'blocked', block: 'unfit_penalty' },
         ],
         active: null,
+        peekable: [],
       },
       { timeOver: true },
     );
@@ -208,13 +229,13 @@ describe('Buffs', () => {
 
   it('retry prompt: again or keep / more', async () => {
     const send = okSend();
-    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false };
+    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     render(<RetryPrompt active={again} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
     cleanup();
 
-    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false };
+    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     render(<RetryPrompt active={choice} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText(/Частково правильно: \+750\. Залишити чи ще спроба\?/)).toBeTruthy();
     await act(async () => {
@@ -277,7 +298,7 @@ describe('Buffs', () => {
   });
 
   it('the again prompt stands in the explanation line, not above the options', () => {
-    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false } });
+    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } });
     expect(why().textContent).toBe('Неправильно, ще одна спроба');
   });
 });
@@ -306,7 +327,7 @@ const single: PublicQuestion = {
 };
 const text: PublicQuestion = { ...question, type: 'text' };
 
-const base: PlayerActiveBuff = { kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+const base: PlayerActiveBuff = { kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
 const tally = (over: Partial<VoteTally> = {}): VoteTally => ({ endsAt: NOW + 15_000, remainingMs: null, closed: false, cast: 0, counts: {}, guesses: [], ...over });
 const audience = (votes: VoteTally): PlayerActiveBuff => ({ ...base, kind: 'audience', votes });
 
@@ -560,12 +581,30 @@ describe('VoteSheet', () => {
 });
 
 describe('StageBuffs', () => {
+  it('a peek tag on the stage names who peeks at whom; other buffs keep the icon and the name', () => {
+    render(
+      <StageBuffs
+        buffs={[
+          { playerId: 'p2', nickname: 'Петро', kind: 'peek', target: { playerId: 'p3', nickname: 'Іра' } },
+          { playerId: 'p1', nickname: 'Оля', kind: 'risk', target: null },
+        ]}
+      />,
+    );
+    const items = [...document.querySelectorAll('.stage-buffs li')].map((node) => node.textContent);
+    expect(items).toEqual(['◉ Петро → Іра', '⚄ Оля']);
+  });
+
+  it('a peek whose target left the game reads just «◉ Петро»', () => {
+    render(<StageBuffs buffs={[{ playerId: 'p2', nickname: 'Петро', kind: 'peek', target: null }]} />);
+    expect([...document.querySelectorAll('.stage-buffs li')].map((node) => node.textContent)).toEqual(['◉ Петро']);
+  });
+
   it('the swap tag on the stage uses the spare colour', () => {
     render(
       <StageBuffs
         buffs={[
-          { playerId: 'p1', nickname: 'Оля', kind: 'swap' },
-          { playerId: 'p2', nickname: 'Петро', kind: 'hint' },
+          { playerId: 'p1', nickname: 'Оля', kind: 'swap', target: null },
+          { playerId: 'p2', nickname: 'Петро', kind: 'hint', target: null },
         ]}
       />,
     );
@@ -576,7 +615,7 @@ describe('StageBuffs', () => {
   });
 
   it('«?» lists what each allowed buff does and where it works', () => {
-    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null });
+    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null, peekable: [] });
     row(slots(['fifty', 'audience']));
     expect(document.querySelectorAll('.buff-row .buff-btn')).toHaveLength(2);
     const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
@@ -635,7 +674,7 @@ describe('StageBuffs', () => {
   });
 
   it('a disabled button says exactly why', () => {
-    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null });
+    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null, peekable: [] });
     const whyOf = (buffs: PlayerBuffs, name: string) => {
       const { unmount } = row(buffs);
       fireEvent.click(screen.getByRole('button', { name }));
@@ -651,14 +690,14 @@ describe('StageBuffs', () => {
   });
 
   it('swap on a cell of a category without spares explains why', () => {
-    const { unmount } = row({ slots: [{ kind: 'swap', state: 'blocked', block: 'no_category_spares' }], active: null });
+    const { unmount } = row({ slots: [{ kind: 'swap', state: 'blocked', block: 'no_category_spares' }], active: null, peekable: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Заміна запитання' }));
     expect(document.querySelector('.buff-why')?.textContent).toBe('У цій категорії немає запасних запитань.');
     unmount();
   });
 
   it('the swap help names the category', () => {
-    row({ slots: [{ kind: 'swap', state: 'ready', block: null }], active: null });
+    row({ slots: [{ kind: 'swap', state: 'ready', block: null }], active: null, peekable: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Що роблять бафи' }));
     const sheet = screen.getByRole('dialog', { name: 'Бафи' });
     expect(within(sheet).getByText('Де: класика й поле у свій хід. На полі — запасне з тієї ж категорії.')).toBeTruthy();
@@ -683,5 +722,132 @@ describe('StageBuffs', () => {
     expect(rule('.buff-help-sheet')).toContain('position: fixed');
     expect(rule('.buff-help-sheet')).toContain('z-index: 75');
     expect(rule('.buff-help-backdrop')).toContain('position: fixed');
+  });
+});
+
+describe('12h buffs on the phone', () => {
+  const all = (over: Partial<Record<BuffKind, { state: 'ready' | 'blocked'; block: BuffBlock | null }>> = {}): PlayerBuffs => ({
+    slots: BUFF_KINDS.map((kind) => ({ kind, state: 'ready' as const, block: null, ...over[kind] })),
+    active: null,
+    peekable: [{ playerId: 'p3', nickname: 'Іра' }],
+  });
+
+  it('thirteen buttons in the catalogue order with the new icons', () => {
+    const { container } = row(all());
+    const buttons = [...container.querySelectorAll('.buff-row button')];
+    expect(buttons).toHaveLength(13);
+    expect(buttons.map((button) => button.textContent)).toEqual(BUFF_KINDS.map((kind) => BUFF_ICONS[kind]));
+    expect(buttons.slice(8).map((button) => button.textContent)).toEqual(['⚄', 'А…', '◎', '∞', '◉']);
+    // Тринадцять кнопок 44 px переносяться у два рядки на 375 − 40 px: сім у рядку з проміжком 4 px.
+    expect(container.querySelector('.buff-row')?.className).toContain('is-many');
+    expect(rule('.buff-row.is-many')).toMatch(/column-gap:\s*4px/);
+  });
+
+  it('the second tap on a ready peek opens the sheet instead of sending', () => {
+    const send = okSend();
+    const onPeek = vi.fn();
+    render(<BuffRow buffs={all()} paused={false} send={send} onError={vi.fn()} onPeek={onPeek} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('Ще раз — узяти «Підглянути»');
+    expect(onPeek).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(onPeek).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('blocked new buffs explain why', () => {
+    const onPeek = vi.fn();
+    const send = okSend();
+    render(
+      <BuffRow
+        buffs={all({ guard: { state: 'blocked', block: 'unfit_streak' }, peek: { state: 'blocked', block: 'no_answers' }, risk: { state: 'blocked', block: 'unfit_type' } })}
+        paused={false}
+        send={send}
+        onError={vi.fn()}
+        onPeek={onPeek}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Запобіжник' }));
+    expect(why().textContent).toBe('У цьому раунді немає серій.');
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('Ще немає жодної відповіді.');
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(onPeek).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Ризик' }));
+    expect(why().textContent).toBe('Ризик діє лише там, де відповідь однозначна.');
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('peek on a board cell says nobody else answers there', () => {
+    render(<BuffRow buffs={all({ peek: { state: 'blocked', block: 'unfit_board' } })} paused={false} send={okSend()} onError={vi.fn()} onPeek={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(why().textContent).toBe('На полі підглянути нема в кого.');
+  });
+
+  it('an active new buff explains itself in the line', () => {
+    const cases: [BuffKind, string][] = [
+      ['risk', '⚄ Ризик: правильно — ×3, помилка чи мовчання — мінус повна ціна'],
+      ['guard', '∞ Запобіжник: помилка не обірве серію'],
+      ['letter', 'А… Перша літера: бали — 75 %'],
+      ['scope', '◎ Бінокль'],
+      ['peek', '◉ Підглянуто'],
+    ];
+    for (const [kind, line] of cases) {
+      const { unmount } = row({ ...all(), slots: [{ kind, state: 'active', block: null }], active: { ...base, kind } });
+      expect(why().textContent).toBe(line);
+      unmount();
+    }
+  });
+
+  it('the panel shows the letter mask', () => {
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'letter', letter: { first: 'Л', mask: 'Л _ _ _ · _ _ _ _ _ _ _ _', letters: 12 } }} question={text} offsetMs={0} />,
+    );
+    expect(container.querySelector('.buff-panel .letter-hint')?.textContent).toBe('Л _ _ _ · _ _ _ _ _ _ _ _ (12)');
+    // Моноширинна маска переноситься в межах телефона.
+    const hint = rule('.letter-hint');
+    expect(hint).toMatch(/font-family:[^;]*monospace/);
+    expect(hint).toMatch(/overflow-wrap:\s*anywhere/);
+  });
+
+  it('the panel shows the range on a slider with its unit, on a number and the zoom note', () => {
+    const slider: PublicQuestion = { ...question, type: 'slider', slider: { min: 1500, max: 1800, step: 10, unit: 'рік' } };
+    const one = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'range', min: 1590, max: 1650 } }} question={slider} offsetMs={0} />);
+    expect(one.container.querySelector('.scope-hint')?.textContent).toBe('Відповідь між 1590 рік і 1650 рік');
+    one.unmount();
+    const two = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'range', min: -12, max: 8 } }} question={question} offsetMs={0} />);
+    expect(two.container.querySelector('.scope-hint')?.textContent).toBe('Відповідь між −12 і 8');
+    two.unmount();
+    const pin: PublicQuestion = { ...question, type: 'pin', pin: { map: 'ukraine', aspect: 2 } };
+    const three = render(<BuffPanel active={{ ...base, kind: 'scope', scope: { kind: 'zoom', x: 0.25000000001, y: 0.1, size: 0.5 } }} question={pin} offsetMs={0} />);
+    expect(three.container.querySelector('.scope-hint')?.textContent).toBe('Ціль — у рамці на мапі');
+  });
+
+  it('the panel shows the peeked answer by its option text and no verdict', () => {
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'peek', peek: { target: { playerId: 'p3', nickname: 'Іра' }, answer: { type: 'single', optionId: 'b' } } }} question={single} offsetMs={0} />,
+    );
+    const shown = container.querySelector('.peek-answer')!;
+    expect(shown.textContent).toBe('👀 Іра: Київ');
+    expect(container.textContent).not.toMatch(/правильно|неправильно/i);
+    expect(container.querySelector('.correct, .is-right, .is-correct, .is-wrong')).toBeNull();
+  });
+
+  it('a peeked number reads with a real minus', () => {
+    const numericQ: PublicQuestion = { ...single, type: 'numeric', choices: [] };
+    const { container } = render(
+      <BuffPanel active={{ ...base, kind: 'peek', peek: { target: { playerId: 'p3', nickname: 'Іра' }, answer: { type: 'numeric', value: -40 } } }} question={numericQ} offsetMs={0} />,
+    );
+    expect(container.querySelector('.peek-answer')?.textContent).toBe('👀 Іра: −40');
+  });
+
+  it('the peek sheet looks like the vote sheet', () => {
+    const sheet = rule('.peek-sheet');
+    expect(sheet).toMatch(/position:\s*fixed/);
+    // Над аркушем голосування залу (обидва — position: fixed): вибір цілі не ховається під ним.
+    const z = (selector: string) => Number(/z-index:\s*(\d+)/.exec(rule(selector))?.[1]);
+    expect(z('.peek-sheet')).toBe(71);
+    expect(z('.peek-sheet')).toBeGreaterThan(z('.vote-sheet'));
+    expect(rule('.peek-options')).toMatch(/flex-wrap:\s*wrap/);
   });
 });

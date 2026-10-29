@@ -4,6 +4,13 @@ import {
   boardSpareSource,
   findCell,
   isUnscored,
+  LETTER_SHARE,
+  LETTER_TYPES,
+  letterMask,
+  RISK_FACTOR,
+  RISK_TYPES,
+  SCOPE,
+  SCOPE_TYPES,
   rulesOf,
   type Answer,
   SIMPLE_TYPES,
@@ -69,6 +76,12 @@ export interface BuffPlay {
   hint?: { text: string | null; aloud: boolean };
   /** swap: id запасного, порядок його варіантів, мить видачі, межа для бонусу швидкості (null — без таймера). */
   spare?: { id: string; presented: string[]; startedAt: number; limitMs: number | null };
+  /** peek (12h): учасник, у якого підглянули (у командній грі — команда); лише в бафі peek. */
+  peek?: string;
+  /** scope (12h) на числі й повзунку: проміжок, у якому правильна відповідь (включно). */
+  range?: { min: number; max: number };
+  /** scope (12h) на точці: вікно мапи в частках основи — лівий верхній кут і сторона (частка ширини й висоти). */
+  zoom?: { x: number; y: number; size: number };
 }
 
 /** Баф гравця на запитанні; null — немає. */
@@ -207,6 +220,22 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       if (scope === 'category' && spares.length === 0) return 'no_category_spares';
       return nextSpare(state, play) === null ? 'spares_out' : null;
     }
+    case 'risk':
+      return (RISK_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
+    case 'guard':
+      // Без серій нічого берегти.
+      return rulesOf(round).streak === null ? 'unfit_streak' : null;
+    case 'letter':
+      if (!(LETTER_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
+      // Написання без жодної літери чи цифри: показати нічого.
+      return letterOf(question) === null ? 'unfit_type' : null;
+    case 'scope':
+      return (SCOPE_TYPES as readonly string[]).includes(question.type) ? null : 'unfit_type';
+    case 'peek':
+      if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
+      // Поле: відповідає лише той, хто вибрав клітинку, тож підглянути нема в кого.
+      if (play.board !== undefined) return 'unfit_board';
+      return peekTargets(state, play, playerId).length === 0 ? 'no_answers' : null;
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
@@ -268,8 +297,19 @@ export function buffBlock(state: GameState, playerId: string, kind: BuffKind, no
   return place ?? fitBlock(state, play, playerId, kind);
 }
 
-/** Узяти баф на поточне запитання. fifty тягне rng; time дає гравцеві особистий час понад спільний кінець. */
-export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng): Result {
+/**
+ * «Підглянути» (12h): хто вже відповів на основне запитання (є запис з відповіддю, без запасного), крім самого учасника, у порядку гравців.
+ * Лише надіслані відповіді: перша спроба «Ще спроби», що чекає другої, лежить у бафі, а не в записах.
+ */
+export function peekTargets(state: GameState, play: Play, participant: string): string[] {
+  return state.players.flatMap((p) => {
+    const record = play.answers[p.id];
+    return p.id !== participant && record !== undefined && record.answer !== null && record.spare === undefined ? [p.id] : [];
+  });
+}
+
+/** Узяти баф на поточне запитання. fifty і scope тягнуть rng; time дає гравцеві особистий час понад спільний кінець; targetId — лише для peek (без нього чи поза peekTargets — peek_target). */
+export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng, targetId?: string): Result {
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
   if (buffsUsed(state, playerId).includes(kind)) return fail('buff_used');
@@ -284,6 +324,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (buffOf(play, playerId) !== null) return fail('buff_busy');
   if (fitBlock(state, play, playerId, kind) !== null) return fail('buff_unfit');
+  if (kind === 'peek' && (targetId === undefined || !peekTargets(state, play, playerId).includes(targetId))) return fail('peek_target');
   const seq = state.buffSeq + 1;
   const buff: BuffPlay = {
     kind,
@@ -294,6 +335,9 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
     first: null,
     ...(kind === 'audience' ? { vote: { endsAt: now + AUDIENCE_MS, ballots: {} } } : {}),
     ...(kind === 'hint' ? { hint: { text: play.question.hint ?? null, aloud: false } } : {}),
+    // Проміжок «Бінокля» лежить у стані: після перезапуску він той самий.
+    ...(kind === 'scope' ? pickScope(play.question, rng) : {}),
+    ...(kind === 'peek' ? { peek: targetId } : {}),
   };
   if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
@@ -476,13 +520,135 @@ export function pickRemoved(question: Question, rng: Rng): string[] {
   return removed;
 }
 
-/** Для withRecord: подвійні (+ ×2) і щит (− → 0), позначки buff і spare. Вхід — запис без бафу. */
-export function applyBuff(record: AnswerRecord, buff: BuffPlay | null): AnswerRecord {
+/** Скільки знаків після коми в записі числа (1.5 → 1, 2061 → 0). */
+function decimalsOf(value: number): number {
+  const [, fraction = ''] = String(value).split('.');
+  // Експоненційний запис (1e-7) — без дробу в рядку; такі числа в запитаннях не трапляються.
+  return Math.min(fraction.length, 10);
+}
+
+/** Число, округлене до decimals знаків: прибирає хвости на кшталт 0.30000000000000004. */
+function roundTo(value: number, decimals: number): number {
+  return Number(value.toFixed(decimals));
+}
+
+/** Межа, що прилипає до сітки base + k × unit: down — вниз, інакше вгору; допуск ловить похибку дробів. */
+function snap(value: number, base: number, unit: number, down: boolean): number {
+  const steps = (value - base) / unit;
+  return base + (down ? Math.floor(steps + 1e-9) : Math.ceil(steps - 1e-9)) * unit;
+}
+
+/** «Бінокль» (12h): проміжок для числа й повзунка, вікно мапи для точки (план 12h, «Бінокль»); тягне rng раз (точка — двічі). Інший тип — {}. */
+export function pickScope(question: Question, rng: Rng): Pick<BuffPlay, 'range' | 'zoom'> {
+  if (question.type === 'slider') {
+    const { min, max, step, correct } = question;
+    const width = (max - min) * SCOPE.sliderShare;
+    const lo = Math.min(Math.max(correct - width * rng(), min), max - width);
+    // Межі прилипають до кроку назовні, але не виходять за шкалу.
+    const decimals = Math.max(decimalsOf(min), decimalsOf(step));
+    const from = roundTo(Math.max(snap(lo, min, step, true), min), decimals);
+    const to = roundTo(Math.min(snap(lo + width, min, step, false), max), decimals);
+    return { range: { min: from, max: to } };
+  }
+  if (question.type === 'numeric') {
+    const { correct } = question;
+    const width = 2 * Math.max(Math.abs(correct) * SCOPE.numericShare, SCOPE.numericMin);
+    const lo = correct - width * rng();
+    // Межі округлюються назовні до знаків правильної відповіді.
+    const decimals = decimalsOf(correct);
+    const unit = 10 ** -decimals;
+    return { range: { min: roundTo(snap(lo, 0, unit, true), decimals), max: roundTo(snap(lo + width, 0, unit, false), decimals) } };
+  }
+  if (question.type === 'pin') {
+    const size = SCOPE.pinSize;
+    const place = (target: number) => Math.min(Math.max(target - size * rng(), 0), 1 - size);
+    // Порядок важливий: перший виклик rng — x, другий — y.
+    const x = place(question.target.x);
+    const y = place(question.target.y);
+    return { zoom: { x, y, size } };
+  }
+  return {};
+}
+
+/** «Перша літера» (12h): letterMask першого написання основного запитання (text, clues); інакше null. */
+export function letterOf(question: Question): { first: string; mask: string; letters: number } | null {
+  if (question.type !== 'text' && question.type !== 'clues') return null;
+  const [spelling] = question.accepted;
+  return spelling === undefined ? null : letterMask(spelling);
+}
+
+/** «Ризик» (12h): повна ціна запитання з множниками — класика: points × множник раунду; поле: ціна × множник раунду × позначка клітинки. */
+export function riskStake(state: GameState, play: Play): number {
+  const round = state.quiz.rounds[play.roundIndex];
+  if (round.type === 'board' && play.board !== undefined) return Math.round(play.board.price * round.rules.multiplier * play.board.multiplier);
+  return Math.round(play.question.points * rulesOf(round).multiplier);
+}
+
+/** «Запобіжник» (12h): учасник узяв його на цьому записі — невдача не рве серію. */
+export function guardHolds(play: Play, participant: string): boolean {
+  return buffOf(play, participant)?.kind === 'guard';
+}
+
+/**
+ * Мовчання з «Ризиком» у класиці (12h): запис без відповіді — штраф, а не відповідь (цікавинки й історія його не рахують, оцінити його не можна).
+ * На полі не рахується: усна клітинка завжди без відповіді з телефона, а її оцінює ведучий.
+ */
+export function isSilentRisk(play: Play, record: AnswerRecord): boolean {
+  return record.buff === 'risk' && record.answer === null && play.board === undefined;
+}
+
+/** Для lockNow (12h): хто взяв «Ризик» і не відповів, отримує запис мовчання з −riskStake. Без таких — той самий стан. */
+export function withRiskMisses(state: GameState): GameState {
+  const play = state.plays[state.questionIndex];
+  if (state.phase !== 'question' || play?.buffs === undefined) return state;
+  let charged = state;
+  for (const player of state.players) {
+    // Відповідь з телефона, що чекає «Прийняти», — не мовчання: без оцінки її зробить неправильною розкриття поля.
+    if (buffOf(play, player.id)?.kind !== 'risk' || hasAnswered(state, play, player.id)) continue;
+    // Класика — кожен, поле — лише той, хто вибрав клітинку.
+    if (!buffRowHere(state, play, player.id)) continue;
+    const stake = riskStake(state, play);
+    charged = withRecord(charged, player.id, {
+      answer: null,
+      // Мовчання коштує весь час гравця (межа його бонусу швидкості).
+      timeMs: answerLimitMs(play, player.id) ?? 0,
+      accepted: false,
+      accuracy: 0,
+      grade: 'wrong',
+      basePoints: -stake,
+      streakBonus: 0,
+      points: -stake,
+      overridden: false,
+    });
+  }
+  return charged;
+}
+
+/** Бали запису з бафом: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), перша літера (+ × 75 %). */
+function buffedPoints(raw: AnswerRecord, kind: BuffKind, stake: number): number {
+  switch (kind) {
+    case 'double':
+      return raw.basePoints > 0 ? raw.basePoints * 2 : raw.basePoints;
+    case 'shield':
+      return raw.basePoints < 0 ? 0 : raw.basePoints;
+    case 'risk':
+      if (raw.grade === 'correct') return raw.basePoints * RISK_FACTOR;
+      // Неправильна чи без відповіді — повна ціна, навіть у раунді без штрафу.
+      if (raw.grade === 'wrong') return -stake;
+      return Math.max(raw.basePoints, 0);
+    case 'letter':
+      // Плата за підказку — з виграшу; мінус за помилку не змінюється.
+      return raw.basePoints > 0 ? Math.round(raw.basePoints * LETTER_SHARE) : raw.basePoints;
+    default:
+      return raw.basePoints;
+  }
+}
+
+/** Для withRecord: подвійні (+ ×2), щит (− → 0), ризик (×3 / −stake / часткова без мінуса), перша літера (+ × 75 %), позначки buff і spare. Вхід — запис без бафу. */
+export function applyBuff(record: AnswerRecord, buff: BuffPlay | null, stake: number): AnswerRecord {
   const { buff: _stale, spare: _staleSpare, ...raw } = record;
   if (buff === null) return raw;
-  const doubled = buff.kind === 'double' && raw.basePoints > 0;
-  const shielded = buff.kind === 'shield' && raw.basePoints < 0;
-  const basePoints = doubled ? raw.basePoints * 2 : shielded ? 0 : raw.basePoints;
+  const basePoints = buffedPoints(raw, buff.kind, stake);
   const spare = buff.kind === 'swap' && buff.spare !== undefined ? { spare: buff.spare.id } : {};
   return { ...raw, basePoints, points: basePoints + raw.streakBonus, buff: buff.kind, ...spare };
 }
@@ -496,8 +662,14 @@ export function currentBuffs(state: GameState): BuffTag[] {
   if (!TAGGED.includes(state.phase) || play === undefined) return [];
   return state.players.flatMap((p) => {
     const buff = buffOf(play, p.id);
-    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind }];
+    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind, target: peekTarget(state, buff) }];
   });
+}
+
+/** Ціль «Підглянути» для сцени й пульта: ім'я й id, без відповіді; не peek чи ціль вилучено — null. */
+function peekTarget(state: GameState, buff: BuffPlay): BuffTag['target'] {
+  const target = buff.peek === undefined ? undefined : state.players.find((p) => p.id === buff.peek);
+  return target === undefined ? null : { playerId: target.id, nickname: target.nickname };
 }
 
 /**
@@ -511,7 +683,7 @@ export function lastBuff(state: GameState): BuffNotice | null {
     for (const p of state.players) {
       const buff = buffOf(play, p.id);
       if (buff !== null && (last === null || buff.seq > last.notice.seq)) {
-        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind }, index };
+        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind, target: peekTarget(state, buff) }, index };
       }
     }
   }

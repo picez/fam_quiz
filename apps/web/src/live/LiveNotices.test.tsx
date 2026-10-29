@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdjustmentNotice } from '@quiz/shared';
-import { AdjustmentToast, BuffToast, DebuffToast, NOTICE_MS, StageDebuffs, type BuffToastView } from './LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, NOTICE_MS, PeekedToast, StageDebuffs, type BuffToastView } from './LiveNotices';
 
 const NOW = 1_000_000;
 
@@ -152,7 +152,7 @@ describe('LiveNotices', () => {
   });
 
   const buffView = (over: Partial<BuffToastView> = {}): BuffToastView => ({
-    buffNotice: { seq: 1, at: NOW, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 },
+    buffNotice: { seq: 1, at: NOW, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null },
     questionIndex: 0,
     splash: null,
     paused: false,
@@ -167,6 +167,38 @@ describe('LiveNotices', () => {
     cleanup();
     render(<BuffToast view={buffView({ buffNotice: hint })} offsetMs={0} />);
     expect(document.querySelector('.live-notice')?.textContent).toMatch(/ведуч/i);
+  });
+
+  it('a peek toast names who peeks at whom; a risk toast names the buff', () => {
+    const peek = { ...buffView().buffNotice!, playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, target: { playerId: 'p3', nickname: 'Іра' } };
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Петро → Іра');
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: { ...buffView().buffNotice!, kind: 'risk' } })} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('Оля: Ризик');
+  });
+
+  it('12h: whoever was peeked at gets only their own peek notice, not the buff toast; the peeker gets none; a lost target falls back to the buff name', () => {
+    const peek = { ...buffView().buffNotice!, playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, target: { playerId: 'p3', nickname: 'Іра' } };
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p3" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p2" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: peek })} offsetMs={0} selfId="p1" />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Петро → Іра');
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: { ...peek, target: null } })} offsetMs={0} selfId="p3" />);
+    expect(screen.getByRole('status').textContent).toBe('Петро: Підглянути');
+    cleanup();
+    // Командна гра: selfId — id команди (me.id), ціль — команда.
+    const teamPeek = { ...peek, playerId: 'team-a', nickname: 'Червоні', target: { playerId: 'team-b', nickname: 'Сині' } };
+    render(<BuffToast view={buffView({ buffNotice: teamPeek })} offsetMs={0} selfId="team-b" />);
+    expect(screen.queryByRole('status')).toBeNull();
+    cleanup();
+    render(<BuffToast view={buffView({ buffNotice: teamPeek })} offsetMs={0} selfId="team-c" />);
+    expect(screen.getByRole('status').textContent).toBe('👀 Підгляд: Червоні → Сині');
   });
 
   it('buff toast shows «Оля: 50/50» for four seconds', () => {
@@ -232,6 +264,25 @@ describe('LiveNotices', () => {
     expect(screen.queryByRole('status')).toBeNull();
     cleanup();
     const none = render(<DebuffToast notice={null} offsetMs={0} />);
+    expect(none.container.firstChild).toBeNull();
+  });
+
+  it('12h: the peeked phone reads who peeked once per seq, for four seconds', () => {
+    const peekedBy = { seq: 5, at: NOW, nickname: 'Петро' };
+    const { rerender, container } = render(<PeekedToast peekedBy={peekedBy} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 У вашу відповідь підглянули: Петро');
+    expect(container.firstElementChild?.className).toBe('live-notice is-peek');
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_MS);
+    });
+    expect(screen.queryByRole('status')).toBeNull();
+    // Той самий seq у наступному зрізі не спливає вдруге.
+    rerender(<PeekedToast peekedBy={{ ...peekedBy }} offsetMs={0} />);
+    expect(screen.queryByRole('status')).toBeNull();
+    rerender(<PeekedToast peekedBy={{ seq: 6, at: NOW + NOTICE_MS, nickname: 'Іра' }} offsetMs={0} />);
+    expect(screen.getByRole('status').textContent).toBe('👀 У вашу відповідь підглянули: Іра');
+    cleanup();
+    const none = render(<PeekedToast peekedBy={null} offsetMs={0} />);
     expect(none.container.firstChild).toBeNull();
   });
 });

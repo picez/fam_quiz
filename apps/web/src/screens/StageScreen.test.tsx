@@ -561,7 +561,7 @@ describe('StageScreen: blitz', () => {
           question,
           endsAt: Date.now() + 20_000,
           board: boardOf({ cell }),
-          buffs: [{ playerId: 'p1', nickname: 'Анна', kind: 'swap' }],
+          buffs: [{ playerId: 'p1', nickname: 'Анна', kind: 'swap', target: null }],
         }),
       );
       const list = screen.getByRole('list', { name: 'Бафи гравців' });
@@ -1053,8 +1053,8 @@ describe('StageScreen final', () => {
   it('the stage shows who took which buff, not what it did', () => {
     const four = { ...question, choices: [...choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
     const buffs = [
-      { playerId: 'p1', nickname: 'Оля', kind: 'fifty' as const },
-      { playerId: 'p2', nickname: 'Петро', kind: 'double' as const },
+      { playerId: 'p1', nickname: 'Оля', kind: 'fifty' as const, target: null },
+      { playerId: 'p2', nickname: 'Петро', kind: 'double' as const, target: null },
     ];
     for (const phase of ['question', 'locked', 'reveal'] as const) {
       show(view({ phase, questionIndex: 0, question: four, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? { ...full, options: four.choices } : null }));
@@ -1073,7 +1073,7 @@ describe('StageScreen final', () => {
   });
 
   it('the stage says who answers a spare, not what it is', () => {
-    const buffs = [{ playerId: 'p1', nickname: 'Оля', kind: 'swap' as const }];
+    const buffs = [{ playerId: 'p1', nickname: 'Оля', kind: 'swap' as const, target: null }];
     for (const phase of ['question', 'locked', 'reveal'] as const) {
       show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? full : null }));
       const list = screen.getByRole('list', { name: 'Бафи гравців' });
@@ -1086,8 +1086,8 @@ describe('StageScreen final', () => {
 
   it('the stage shows the hint and audience icons only', () => {
     const buffs = [
-      { playerId: 'p2', nickname: 'Петро', kind: 'hint' as const },
-      { playerId: 'p3', nickname: 'Іра', kind: 'audience' as const },
+      { playerId: 'p2', nickname: 'Петро', kind: 'hint' as const, target: null },
+      { playerId: 'p3', nickname: 'Іра', kind: 'audience' as const, target: null },
     ];
     show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs }));
     const list = screen.getByRole('list', { name: 'Бафи гравців' });
@@ -1096,7 +1096,7 @@ describe('StageScreen final', () => {
   });
 
   it('the stage never shows a hint, not even at the reveal', () => {
-    const buffs = [{ playerId: 'p2', nickname: 'Петро', kind: 'hint' as const }];
+    const buffs = [{ playerId: 'p2', nickname: 'Петро', kind: 'hint' as const, target: null }];
     for (const phase of ['question', 'locked', 'reveal'] as const) {
       show(view({ phase, questionIndex: 0, question, endsAt: Date.now() + 10_000, buffs, reveal: phase === 'reveal' ? { ...full, hint: 'Тече через Київ' } : null }));
       expect(document.body.textContent).not.toContain('Тече через Київ');
@@ -1116,8 +1116,24 @@ describe('StageScreen final', () => {
   });
 
   it('a buff notice on the stage', () => {
-    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0 } }));
+    show(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null } }));
     expect(screen.getByText('Оля: 50/50')).toBeTruthy();
+  });
+
+  it('a peek on the stage: «◉ Петро → Іра» in the buff row and «👀 Підгляд: Петро → Іра» as a notice', () => {
+    const target = { playerId: 'p3', nickname: 'Іра' };
+    show(
+      view({
+        phase: 'question',
+        questionIndex: 0,
+        question,
+        endsAt: Date.now() + 10_000,
+        buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'peek', target }],
+        buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'peek', questionIndex: 0, target },
+      }),
+    );
+    expect(within(document.querySelector('.stage-buffs') as HTMLElement).getByText('◉ Петро → Іра')).toBeTruthy();
+    expect(screen.getByText('👀 Підгляд: Петро → Іра')).toBeTruthy();
   });
 });
 

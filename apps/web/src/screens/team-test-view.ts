@@ -15,7 +15,7 @@ export const publicQuestion: PublicQuestion = {
   ],
 };
 
-export const baseMe: PlayerView['me'] = { id: 'team-b', nickname: 'Сині', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
+export const baseMe: PlayerView['me'] = { id: 'team-b', nickname: 'Сині', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 export const teamsView = (over: Partial<TeamsView> = {}): TeamsView => ({
   form: 'pick',

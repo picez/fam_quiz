@@ -3728,10 +3728,17 @@ button.match-item {
   min-width: 0;
 }
 
+/* 11 кнопок дебафів (12h) переносяться рядками; кнопка не ширша за рядок, довга назва переноситься всередині. */
 .debuff-picks {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.debuff-picks .btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .debuff-tag {
@@ -4159,6 +4166,130 @@ body:has(.debuff-banner) .live-notices {
       filter: blur(2px);
     }
   }
+}
+
+/* ---------- Нові дебафи на телефоні (12h) ---------- */
+
+/* «Догори дриґом»: перевертається лише вміст; шапка, таймер і банер — поза ним. rotate, бо translate бере тремтіння. */
+.debuff-zone.is-flip .debuff-content {
+  rotate: 180deg;
+}
+
+/* Поля введення повертаються вдруге (як під «Дзеркалом»): набраний текст читається. */
+.is-flip .debuff-content input,
+.is-flip .debuff-content textarea {
+  rotate: 180deg;
+}
+
+/* Смуга «Бінокля» (12h) повертається так само, як повзунок під нею: стоїть над тими самими значеннями. */
+.is-mirror .debuff-content .slider-band-rail {
+  transform: scaleX(-1);
+}
+
+.is-flip .debuff-content .slider-band-rail {
+  rotate: 180deg;
+}
+
+/* «Ліхтарик»: темрява з колом світла навколо пальця (--tx / --ty пише зона). До першого дотику — середина,
+   але не нижче 40vh: у довгій зоні світло з'являється на видимому екрані. */
+.debuff-torch {
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, min(50%, 40vh)), transparent 92%, rgb(0 0 0 / 0.96));
+}
+
+/* «Бульбашки»: кнопки над варіантами ловлять дотик самі (на відміну від решти шарів). Місце — центр бульбашки. */
+.debuff-bubble {
+  z-index: 3;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 2px solid rgb(255 255 255 / 0.55);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 30%, rgb(255 255 255 / 0.95) 0 12%, rgb(170 215 255 / 0.85) 40%, rgb(90 140 220 / 0.9));
+  box-shadow: 0 0.2rem 0.6rem rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  translate: -50% -50%;
+}
+
+.debuff-bubble.is-popped {
+  pointer-events: none;
+}
+
+.is-calm .debuff-bubble {
+  animation: none;
+}
+
+/* «Липкі кнопки»: плашка поверх зони, вміст не зсувається. */
+.sticky-note {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  z-index: 4;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--amber);
+  border-radius: 0.75rem;
+  background: var(--notice-bg);
+  color: var(--paper);
+  font-family: var(--display);
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Живий регіон стоїть увесь час «Липких кнопок»; без тексту його не видно. */
+.sticky-note:empty {
+  opacity: 0;
+}
+
+/* «Без годинника»: ⌛ на пластині завширшки з дві цифри; смужка порожня — висота табло та сама. */
+.timer.is-noclock {
+  margin: 0;
+}
+
+.timer.is-noclock .flap {
+  min-width: 3.4em;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .debuff-zone.is-flip:not(.is-calm) .debuff-content {
+    transition: rotate 0.4s ease;
+  }
+
+  .debuff-bubble {
+    animation: bubble-float 3s ease-in-out var(--delay, 0s) infinite alternate;
+  }
+
+  .debuff-bubble.is-popped {
+    animation: bubble-pop 0.25s ease-out forwards;
+  }
+
+  @keyframes bubble-float {
+    from {
+      transform: translate(0, 0);
+    }
+
+    to {
+      transform: translate(6px, -10px);
+    }
+  }
+
+  @keyframes bubble-pop {
+    to {
+      opacity: 0;
+      transform: scale(1.5);
+    }
+  }
+}
+
+/* Лопнута бульбашка без анімації не лишає сліду. */
+.is-calm .debuff-bubble.is-popped {
+  display: none;
 }
 
 .sort-edit-row {
@@ -5348,6 +5479,11 @@ label.powers-price {
   min-height: 44px;
 }
 
+/* 13 бафів (12h): сім кнопок 44 px у рядку на 375 − 2 × 20 px = 335 (7 × 44 + 6 × 4 = 332), тож ряд — два рядки, без прокрутки вбік. */
+.buff-row.is-many {
+  column-gap: 4px;
+}
+
 .buff-btn {
   display: inline-grid;
   place-items: center;
@@ -5775,6 +5911,57 @@ label.powers-price {
 
 .buff-panel p {
   margin: 0;
+}
+
+/* «Перша літера» (12h): маска моноширинна, щоб «_» стояли рівно; довга відповідь переноситься в межах телефона. */
+.letter-hint {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+/* Аркуш «Чию відповідь підглянути?» (12h) — як аркуш голосування: знизу, поверх сторінки, нічого не зсуває. */
+.peek-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 71;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--buff-accent);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  color: var(--paper);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.peek-sheet h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.peek-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.peek-option {
+  flex: 1 1 8rem;
+  min-width: 0;
+  min-height: 44px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Сповіщення тому, у кого підглянули (12h). */
+.live-notice.is-peek {
+  border-color: var(--buff-accent);
 }
 
 .vote-head {
@@ -6648,6 +6835,36 @@ label.powers-price {
   font-size: clamp(1rem, 0.9vw + 1vh, 1.5rem);
 }
 
+/* Понад 8 пунктів (13 бафів, 11 дебафів — до 7 рядів): ті самі дві колонки, але дрібніше, щоб сторінка лишилася в 1280 × 720. */
+.guide.is-stage:has(.guide-items.is-many) {
+  gap: 1.2vh;
+}
+
+.guide.is-stage:has(.guide-items.is-many) .guide-title {
+  font-size: clamp(2rem, 2vw + 2vh, 4rem);
+}
+
+.guide.is-stage:has(.guide-items.is-many) .guide-lead {
+  font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
+}
+
+.guide.is-stage .guide-items.is-many {
+  gap: 0.8vh 3vw;
+}
+
+.guide.is-stage .guide-items.is-many .guide-item {
+  font-size: clamp(1rem, 0.8vw + 1vh, 1.6rem);
+  line-height: 1.2;
+}
+
+.guide.is-stage .guide-items.is-many .guide-icon {
+  font-size: clamp(1rem, 1.5vw, 1.6rem);
+}
+
+.guide.is-stage .guide-items.is-many .guide-name {
+  font-size: clamp(1.15rem, 1vw + 1.2vh, 1.9rem);
+}
+
 .guide-phones {
   color: var(--guide-accent);
   font-size: clamp(1rem, 1.5vw, 1.5rem);
@@ -7090,6 +7307,13 @@ label.powers-price {
   gap: 0.5rem;
 }
 
+/* 11 дебафів (12h) — до шести рядів: список прокручується сам, «Закрити» під ним лишається на екрані. */
+.shop-items {
+  max-height: 55vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .shop-item,
 .shop-target {
   display: flex;
@@ -7240,6 +7464,33 @@ label.powers-price {
   grid-template-columns: 3rem minmax(0, 1fr) 3rem;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Доріжка повзунка з місцем для смуги «Бінокля» (12h) під повзунком. */
+.slider-track {
+  position: relative;
+  min-width: 0;
+}
+
+/* Рейка смуги відступає на пів повзунка (2,75rem / 2): центр повзунка ходить саме в цих межах. */
+.slider-band-rail {
+  position: absolute;
+  inset: 0 1.375rem;
+  pointer-events: none;
+}
+
+.slider-band {
+  position: absolute;
+  top: 50%;
+  height: 1.25rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--buff-accent) 45%, transparent);
+  outline: 1px solid var(--buff-accent);
+}
+
+.slider-track input[type='range'] {
+  position: relative;
 }
 
 .slider-step {
@@ -7650,6 +7901,15 @@ label.powers-price {
   position: absolute;
   inset: 0;
   transform-origin: 0 0;
+}
+
+/* Вікно «Бінокля» (12h): пунктирна рамка в частках основи; товщина лінії не росте з наближенням. */
+.pin-scope {
+  position: absolute;
+  box-sizing: border-box;
+  border: calc(2px * var(--unscale, 1)) dashed var(--buff-accent);
+  border-radius: calc(4px * var(--unscale, 1));
+  pointer-events: none;
 }
 
 .pin-frame .pin-board {

@@ -4,11 +4,12 @@ import { answerText, correctText, markText, pickedText, sliderValueText, shownCh
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
-import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
+import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, PeekedToast } from '../live/LiveNotices';
 import { GuidePageView } from '../live/Guide';
 import { Splash, useSplash } from '../live/Splash';
 import { AwayAlarm, AwayNote } from '../live/AwayAlarm';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
+import { secondsLeft } from '../clock';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
@@ -34,7 +35,7 @@ import { SurveyBoard } from './SurveyBoard';
 import { BluffBoard } from './BluffBoard';
 import { BluffChoice } from './BluffChoice';
 import { BluffLieInput } from './BluffLieInput';
-import { DebuffStrip, DebuffZone, useDebuffQuestion } from './Debuffs';
+import { DebuffStrip, DebuffZone, NoClock, useDebuffQuestion } from './Debuffs';
 import { DuelBanner, DuelButton, DuelPlay } from './DuelView';
 import { DuelistPicker } from './DuelistPicker';
 import { AnswererPicker } from './AnswererPicker';
@@ -59,6 +60,7 @@ import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
 import { ladderOutcomeText } from './LadderStatus';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
+import { PeekSheet } from './PeekSheet';
 import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
@@ -592,6 +594,9 @@ function usePersonalTotal(
 export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
+  const [peekFor, setPeekFor] = useState<number | null>(null);
+  const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
   const decideGuard = useGuardedSend(send, setError);
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
@@ -663,6 +668,13 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі) і час не вийшов.
+  const peekAllowed = phase === 'question' && !view.paused && !buffTimeOver && peekSlot?.state === 'ready' && peekSlot.block === null;
+  const peekOpen = peekFor === view.questionIndex && peekAllowed;
+  // Пауза, закриття, сплив час чи баф уже не готовий закривають аркуш насовсім: після паузи він сам не вискакує.
+  useEffect(() => {
+    if (peekFor !== null && !peekAllowed) setPeekFor(null);
+  }, [peekFor, peekAllowed]);
   const sharedOver = useTimeOver(view.endsAt, view.remainingMs, offsetMs);
   const clockTotal = usePersonalTotal(view, myClock);
   const waiting = phase === 'question' && myClock === null && sharedOver && view.overtime.length > 0;
@@ -745,7 +757,10 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
         <BuffToast view={view} offsetMs={offsetMs} selfId={me.id} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} selfId={me.id} />
+        <PeekedToast peekedBy={me.peekedBy} offsetMs={offsetMs} />
       </LiveNotices>
+      {/* «Чию відповідь підглянути?» — нижній аркуш у порталі, поза зоною запитання: дебафи його не чіпають. */}
+      {peekOpen && me.buffs !== null && <PeekSheet peekable={me.buffs.peekable} send={send} onError={setError} onClose={() => setPeekFor(null)} />}
       {/* Запрошення проголосувати — нижній аркуш position: fixed: чужий баф нічого не зсуває. */}
       {phase === 'question' && question !== null && (
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
@@ -852,7 +867,9 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               </p>
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
-            {!chainMine && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
+            {/* «Без годинника»: на місці табло — ⌛ тієї самої висоти; кінець часу приходить несподівано. */}
+            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock total={clockTotal} status={timerStatus(view)} />}
+            {!chainMine && debuff?.kind !== 'noclock' && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
             <p className="meta">
@@ -896,7 +913,21 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
             )}
             <YouTubePlayer video={question.video} masked={view.reveal === null} />
             {/* Ряд бафів — з першої миті запитання до його закриття, однакового розміру в усіх станах. */}
-            {me.buffs !== null && answersForTeam && <BuffRow buffs={me.buffs} paused={view.paused} timeOver={buffTimeOver} notStarted={notStarted} autopilot={view.autopilot} send={send} onError={setError} />}
+            {me.buffs !== null && answersForTeam && (
+              <BuffRow
+                buffs={me.buffs}
+                paused={view.paused}
+                timeOver={buffTimeOver}
+                notStarted={notStarted}
+                autopilot={view.autopilot}
+                send={send}
+                onError={setError}
+                onPeek={() => {
+                  if (me.buffs !== null && me.buffs.peekable.length > 0) setPeekFor(view.questionIndex);
+                  else setError(t('buffWhy_no_answers'));
+                }}
+              />
+            )}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
@@ -923,7 +954,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
               question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
             ) : chainMine && me.chain !== null ? (
-              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} />
+              <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} noClock={debuff?.kind === 'noclock'} />
             ) : instant && me.blitz !== null ? (
               <>
                 {me.blitz.canAnswer ? (
@@ -943,7 +974,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                 {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
                 <div className="blitz-status-row">
                   {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-                  {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
+                  {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && debuff?.kind !== 'noclock' && (
                     <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
                   )}
                   <p className="blitz-status">{instantStatus(me.blitz, timeOver, view.autopilot)}</p>
@@ -973,6 +1004,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                   confirm={teamDraftOn}
                   send={send}
                   onError={setError}
+                  noClock={debuff?.kind === 'noclock'}
                 />
               </>
             ) : board !== null && !chooserIsMe ? (
@@ -1012,7 +1044,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               // «Неправильно, ще одна спроба» стоїть у рядку пояснень бафів, тож варіанти не зсуваються.
               <>
                 <fieldset className="inputs" disabled={locked || me.ladder?.hallClosed === true}>
-                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} />
+                  <AnswerInput key={`${view.questionIndex}-${retryStage ?? ''}-${activeBuff?.spare === true ? 'spare' : 'main'}`} question={shown ?? question} removed={activeBuff?.removed ?? view.ladder?.fifty ?? view.removed} onSubmit={submit} onDraft={onDraft} confirm={teamDraftOn} scope={activeBuff?.scope ?? null} />
                 </fieldset>
                 {teamDraftOn && team?.answererMode === 'captain' && <p className="meta team-you-answer">{t('teamYouAnswer')}</p>}
               </>
@@ -1278,6 +1310,7 @@ function BlitzTurn({
   confirm,
   send,
   onError,
+  noClock,
 }: {
   view: PlayerView;
   /** Запитання для поля відповіді (з урахуванням «Дзеркала»). */
@@ -1296,6 +1329,8 @@ function BlitzTurn({
   confirm: boolean;
   send: Send;
   onError: (message: string | null) => void;
+  /** «Без годинника» (12h): відліку вікна відповіді теж не видно. */
+  noClock: boolean;
 }) {
   const { me, question } = view;
   if (question === null) return null;
@@ -1318,7 +1353,7 @@ function BlitzTurn({
       <>
         <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
         {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-        {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        {blitz.deadline !== null && !view.paused && !noClock && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
         {voice ? (
           blitz.position === 1 ? <p className="lead">{t('answerAloud')}</p> : null
         ) : (

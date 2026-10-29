@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Answer, SubmittedAnswer, Choice, PublicQuestion } from '@quiz/shared';
+import type { Answer, SubmittedAnswer, Choice, PlayerScope, PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
@@ -22,6 +22,8 @@ interface Props {
   onDraft?: (draft: SubmittedAnswer | null) => void;
   /** Командна гра: вибір одного варіанта спершу позначає (чернетка товаришам), потім «Відповісти». Без пропа — одним дотиком. */
   confirm?: boolean;
+  /** «Бінокль» (12h): проміжок — смуга на повзунку; вікно — наближена рамка на мапі. */
+  scope?: PlayerScope | null;
 }
 
 const NONE: string[] = [];
@@ -220,7 +222,7 @@ function ConfirmChoice({ question, onSubmit, removed, submitLabel, onDraft }: Pr
   );
 }
 
-export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft, confirm = false }: Props) {
+export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft, confirm = false, scope = null }: Props) {
   switch (question.type) {
     case 'single':
       if (confirm) return <ConfirmChoice question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
@@ -254,7 +256,7 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'match':
       return <MatchInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;
     case 'pin':
-      return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
+      return question.pin === null ? null : <PinInput question={{ ...question, pin: question.pin }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} focus={scope?.kind === 'zoom' ? scope : null} />;
     case 'poll':
       return (
         <ChoiceButtons
@@ -273,6 +275,6 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'survey':
       return question.survey === null ? null : <SurveyInput answers={question.survey.answers} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} />;
     case 'slider':
-      return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} />;
+      return question.slider === null ? null : <SliderInput question={{ ...question, slider: question.slider }} onSubmit={onSubmit} submitLabel={submitLabel} onDraft={onDraft} band={scope?.kind === 'range' ? scope : null} />;
   }
 }

@@ -806,6 +806,8 @@ export interface PlayerDuel {
 /** Хто який баф узяв на поточне запитання — значок біля імені. */
 export interface BuffTag extends BlitzPlayer {
   kind: BuffKind;
+  /** «Підглянути» (12h): у кого підглянули; для інших бафів null. */
+  target: BlitzPlayer | null;
 }
 
 /** Відкритий вибір у «Ва-банк» після закриття вікна (11e): took — забрав сам; stay — далі; auto — не вибрав, банк забрано за замовчуванням. */
@@ -963,6 +965,8 @@ export interface BuffNotice extends BlitzPlayer {
   kind: BuffKind;
   /** Запитання, на якому баф узято: сповіщення видно лише на ньому, не на заставці наступної клітинки. */
   questionIndex: number;
+  /** «Підглянути» (12h): у кого підглянули; для інших бафів null. */
+  target: BlitzPlayer | null;
 }
 
 /** Гравець із додатковим часом без відповіді: особистий кінець пізніший за спільний, тож розкриття на нього чекатиме. */
@@ -994,6 +998,28 @@ export interface PlayerActiveBuff {
   votes: VoteTally | null;
   /** swap: гравець відповідає на запасне. */
   spare: boolean;
+  /** letter (12h): лише для свого бафу цього виду; інакше null. */
+  letter: PlayerLetter | null;
+  /** scope (12h): лише для свого бафу цього виду; інакше null. */
+  scope: PlayerScope | null;
+  /** peek (12h): лише для свого бафу цього виду; інакше null. */
+  peek: PlayerPeek | null;
+}
+
+/** «Перша літера» (12h): перша літера, маска («Л _ _ _ · …») і кількість літер. */
+export interface PlayerLetter {
+  first: string;
+  mask: string;
+  letters: number;
+}
+
+/** «Бінокль» (12h): проміжок відповіді (число, повзунок) чи вікно мапи в частках основи (точка). */
+export type PlayerScope = { kind: 'range'; min: number; max: number } | { kind: 'zoom'; x: number; y: number; size: number };
+
+/** «Підглянути» (12h): чия відповідь і сама відповідь — без вердикту й балів. */
+export interface PlayerPeek {
+  target: BlitzPlayer;
+  answer: Answer;
 }
 
 /** Підказка для гравця: waiting — ведучий думає; text — текст; aloud — ведучий підказав уголос. */
@@ -1036,6 +1062,8 @@ export interface PlayerBuffs {
   /** Усі дозволені бафи вікторини в порядку BUFF_KINDS — ряд однакового розміру в усіх станах. */
   slots: BuffSlot[];
   active: PlayerActiveBuff | null;
+  /** «Підглянути» (12h): хто вже відповів і кого можна вибрати зараз; [] — нікого або бафу немає. */
+  peekable: BlitzPlayer[];
 }
 
 /** Слово «хмари» для меню автора (11g): лише те, що сцена показує, і сховане ним; без авторів слів. */
@@ -1335,6 +1363,8 @@ export interface PlayerView extends BaseView {
     duel: PlayerDuel | null;
     /** Ряд бафів; null — у вікторині немає бафів, етап не question або гравець тут не відповідає з телефона. */
     buffs: PlayerBuffs | null;
+    /** «Підглянути» (12h): останнє підглядання в мою відповідь на цьому запитанні (question, locked, reveal); у командній грі — у відповідь моєї команди. Інакше null. */
+    peekedBy: { seq: number; at: number; nickname: string } | null;
     /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
     overtime: { deadline: number | null; remainingMs: number | null } | null;
     /** Тип поточного запитання, якщо воно перше такого типу в грі й гравець відповідає з телефона; лише етап question і з поясненнями. Інакше null. */
@@ -1390,6 +1420,8 @@ export interface HostResponse {
   away: AwayMark[];
   /** Штраф за вихід (12e) зніме ці додатні бали, щойно вони стануть остаточними: пульт пише «→ 0 (вихід із гри)». Уже дописаний штраф — false. */
   awayPenalty: boolean;
+  /** Мовчання з «Ризиком» у класиці (12h): рядок штрафу, а не відповідь — оцінити його не можна, пульт пише «мовчання». */
+  silent: boolean;
 }
 
 /** Вердикт автоперевірки для пульта (11c): видно лише ведучому й ще до розкриття. */

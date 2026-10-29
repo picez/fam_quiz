@@ -75,6 +75,7 @@ export function ChainPlay({
   offsetMs,
   send,
   onDraft,
+  noClock = false,
 }: {
   chain: PlayerChain;
   question: PublicQuestion;
@@ -83,6 +84,8 @@ export function ChainPlay({
   send: Send;
   /** Живий вибір (12b): надруковане слово до «Перевірити»; порожньо — null. */
   onDraft?: DraftInput;
+  /** Дебаф «Без годинника» (12h): відлік ланцюжка теж ховається. */
+  noClock?: boolean;
 }) {
   const [word, setWord] = useState('');
   const [miss, setMiss] = useState(false);
@@ -165,7 +168,7 @@ export function ChainPlay({
 
   return (
     <section className="chain-play">
-      {!done && !out && <Timer view={{ endsAt: chain.deadline, remainingMs: chain.remainingMs }} offsetMs={offsetMs} />}
+      {!done && !out && !noClock && <Timer view={{ endsAt: chain.deadline, remainingMs: chain.remainingMs }} offsetMs={offsetMs} />}
       <ChainWords first={question.chain.first} masks={chain.masks} current={done ? undefined : chain.solved} />
       {done ? (
         <h2>{t('chainDone', { time: secondsText(chain.timeMs ?? 0) })}</h2>

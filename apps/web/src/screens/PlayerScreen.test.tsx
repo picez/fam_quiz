@@ -36,7 +36,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -224,7 +224,7 @@ describe('PlayerScreen audio without a stage', () => {
     const { rerender } = render(screenOf(current, false));
     const first = audioEl();
     const active = { kind: 'swap' as const, removed: [], retry: null, first: null, hint: null };
-    const swapped = withClip({ me: { ...me, buffs: { slots: [], active } as never } }, spareClip);
+    const swapped = withClip({ me: { ...me, buffs: { slots: [], active, peekable: [] } as never } }, spareClip);
     rerender(screenOf(swapped, false));
     expect(audioEl()?.getAttribute('src')).toBe(spareClip.url);
     expect(audioEl()).not.toBe(first);
@@ -248,6 +248,48 @@ describe('PlayerScreen', () => {
     // Спершу — постійний (порожній) стовпчик сповіщень і живий регіон аркуша голосування (невидимий).
     expect(classes()).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone']);
     expect(debuffed).toEqual(['live-notices', 'sr-only vote-live', 'bar', 'question-head', 'debuff-zone is-mirror']);
+  });
+
+  it('no clock hides the timer behind ⌛ in the same place; without a debuff the timer is there', () => {
+    show(onQuestion({ me: { ...me, debuff: { kind: 'noclock', since: Date.now(), by: null } } }));
+    expect(screen.queryByRole('timer')).toBeNull();
+    const hidden = screen.getByRole('img', { name: 'Годинник сховано' });
+    expect(hidden.classList.contains('timer')).toBe(true);
+    expect(hidden.classList.contains('is-noclock')).toBe(true);
+    expect(hidden.closest('.question-head')).not.toBeNull();
+    expect(hidden.textContent).toContain('⌛');
+    cleanup();
+    show(onQuestion());
+    expect(screen.getByRole('timer').closest('.question-head')).not.toBeNull();
+    expect(screen.queryByRole('img', { name: 'Годинник сховано' })).toBeNull();
+  });
+
+  it('no clock keeps the clock status: «Пауза» and «Чекає рішення ведучого» stay in the same label cell', () => {
+    const hidden = { ...me, debuff: { kind: 'noclock' as const, since: Date.now(), by: null } };
+    show(onQuestion({ me: hidden, limitMs: 20_000 }));
+    const clock = () => screen.getByRole('img', { name: /^Годинник сховано/ });
+    // Мітка тримає те саме місце, що й у табло, але повного часу не показує.
+    const label = clock().querySelector('.timer-label')!;
+    expect(label).not.toBeNull();
+    expect(label.getAttribute('data-held')).toBe('Чекає рішення ведучого');
+    expect(label.querySelector('.timer-status')).toBeNull();
+    expect(clock().querySelector('.timer-bar')).not.toBeNull();
+    cleanup();
+    show(onQuestion({ me: hidden, paused: true, endsAt: null, remainingMs: 9000 }));
+    expect(clock().querySelector('.timer-status')?.textContent).toBe('Пауза');
+    expect(clock().getAttribute('aria-label')).toBe('Годинник сховано. Пауза');
+    cleanup();
+    show(onQuestion({ me: hidden, held: true }));
+    expect(clock().querySelector('.timer-status')?.textContent).toBe('Чекає рішення ведучого');
+  });
+
+  it('flip turns the question inside the zone, the timer stays upright outside it', () => {
+    show(onQuestion({ me: { ...me, debuff: { kind: 'flip', since: Date.now(), by: null } } }));
+    const zone = document.querySelector('.debuff-zone.is-flip')!;
+    expect(zone).not.toBeNull();
+    expect(zone.querySelector('.debuff-content h1.question')).not.toBeNull();
+    const timer = screen.getByRole('timer');
+    expect(zone.contains(timer)).toBe(false);
   });
 
   it('a video question shows the player and no timer on the phone', () => {
@@ -513,6 +555,13 @@ describe('PlayerScreen: blitz', () => {
     expect(screen.getAllByRole('timer').map((timer) => timer.getAttribute('aria-label'))).toEqual(['9']);
   });
 
+  it('no clock hides the answer-window countdown too', () => {
+    const queued = blitzMe({ position: 1, deadline: Date.now() + 5000 }, { debuff: { kind: 'noclock', since: Date.now(), by: null } });
+    show(inBlitz(queued));
+    expect(screen.queryByRole('timer')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Годинник сховано' })).toBeTruthy();
+  });
+
   it('confirms a sent answer with the place in the queue', () => {
     show(inBlitz(blitzMe({ position: 1 }, { answer: { type: 'text', value: 'Одеса' } })));
     expect(screen.getByText('Відповідь надіслано, ви 1-й у черзі')).toBeTruthy();
@@ -772,13 +821,14 @@ describe('PlayerScreen: blitz', () => {
     it('the chooser of a voice cell has the buff row, the buff panel and the struck-through removed options', () => {
       const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
       const voiceCell = boardOf('p1', { cell: { ...cell, answerMode: 'voice' } });
-      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false });
+      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null });
       const buffsOf = (kind: 'fifty' | 'hint', removed: string[]) => ({
         slots: [
           { kind: 'fifty' as const, state: kind === 'fifty' ? ('active' as const) : ('blocked' as const), block: kind === 'fifty' ? null : ('taken' as const) },
           { kind: 'hint' as const, state: kind === 'hint' ? ('active' as const) : ('blocked' as const), block: kind === 'hint' ? null : ('taken' as const) },
         ],
         active: activeOf(kind, removed),
+        peekable: [],
       });
       show(onQuestion({ round, question: four, board: voiceCell, removed: ['a', 'c'], me: { ...me, buffs: buffsOf('fifty', ['a', 'c']) } }));
       expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
@@ -1638,6 +1688,7 @@ describe('PlayerScreen: sort', () => {
       { kind: 'double' as const, state: 'ready' as const, block: null },
     ],
     active: null,
+    peekable: [],
   };
 
   it('the buff row sits under the question for the whole question', () => {
@@ -1660,22 +1711,22 @@ describe('PlayerScreen: sort', () => {
   });
 
   it('50/50 fades the removed options on the phone, the second try asks again', () => {
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     const lviv = screen.getByRole('button', { name: 'Львів — прибрано' }) as HTMLButtonElement;
     expect(lviv.disabled).toBe(true);
     expect(lviv.className).toContain('is-removed');
     cleanup();
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
     cleanup();
     // На паузі вибір чекає.
-    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect((screen.getByRole('button', { name: 'Залишити' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Ще спроба' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -1688,7 +1739,7 @@ describe('PlayerScreen: sort', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double', target: null }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0, target: null } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1701,7 +1752,7 @@ describe('PlayerScreen: sort', () => {
 
   it('extra time shows my own timer', () => {
     const now = Date.now();
-    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
+    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
     expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
     expect(screen.getByText('+30 с — ваш час')).toBeTruthy();
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
@@ -1709,7 +1760,7 @@ describe('PlayerScreen: sort', () => {
 
   it('my own clock is measured against the limit plus my extra time', () => {
     const now = Date.now();
-    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     const { container } = render(
       <PlayerScreen
         view={onQuestion({ endsAt: now - 1000, limitMs: 20_000, me: { ...me, buffs: { ...buffs, active }, overtime: { deadline: now + 29_000, remainingMs: null } } })}
@@ -1758,10 +1809,10 @@ describe('PlayerScreen: sort', () => {
   it('the again prompt does not push the options down', () => {
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
     const zoneShape = () => [...document.querySelector('.debuff-content, .debuff-zone')!.querySelectorAll('*')].map((el) => el.tagName);
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     const armed = zoneShape();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(zoneShape()).toEqual(armed);
     expect(document.querySelector('.buff-why')?.textContent).toBe('Неправильно, ще одна спроба');
   });
@@ -1773,8 +1824,8 @@ describe('PlayerScreen: buffs with others', () => {
     { kind: 'audience' as const, state: 'blocked' as const, block: 'taken' as const },
     { kind: 'swap' as const, state: 'blocked' as const, block: 'taken' as const },
   ];
-  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, ...over });
-  const withActive = (active: PlayerActiveBuff | null) => ({ slots, active });
+  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null, ...over });
+  const withActive = (active: PlayerActiveBuff | null) => ({ slots, active, peekable: [] });
 
   it('a hint arrives inside the panel without moving the answer', () => {
     const send = vi.fn(async () => ({ ok: true as const }));
@@ -1856,7 +1907,7 @@ describe('PlayerScreen: buffs with others', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0 } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience', target: null }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0, target: null } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1875,6 +1926,7 @@ describe('PlayerScreen: splashes', () => {
   const buffs = {
     slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }],
     active: null,
+    peekable: [],
   };
   const timed = () => {
     vi.useFakeTimers();
@@ -3125,7 +3177,7 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
   // Петро відповідає за команду, Оля — капітан.
   const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
   const olya = { answererId: 'u3', answerer: false, answererMode: 'chosen' as const, canAct: false };
-  const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null } as unknown as PlayerView['me']['buffs'];
+  const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null, peekable: [] } as unknown as PlayerView['me']['buffs'];
   const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false }], block: null };
 
   it('the answerer reads «Ти відповідаєш за команду» above the question and has the answer field', () => {
@@ -3353,8 +3405,8 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
   });
 
   it('no button on the second attempt of a retry: the first one is already held', () => {
-    const active = { kind: 'retry' as const, removed: [], retry: 'again' as const, first: { answer: { type: 'clues' as const, value: 'Франко' }, points: 0 }, hint: null, votes: null, spare: false };
-    show(onQuestion({ question: selfClues(), me: { ...me, buffs: { slots: [], active } } }));
+    const active = { kind: 'retry' as const, removed: [], retry: 'again' as const, first: { answer: { type: 'clues' as const, value: 'Франко' }, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
+    show(onQuestion({ question: selfClues(), me: { ...me, buffs: { slots: [], active, peekable: [] } } }));
     expect(more()).toBeNull();
   });
 
@@ -3724,5 +3776,142 @@ describe('PlayerScreen: the author resumes a game (12r)', () => {
   it('another player sees no panel', () => {
     show(view({ autopilot: true, author: null }), { code: '123456' });
     expect(document.querySelector('details.resume-panel')).toBeNull();
+  });
+});
+
+describe('PlayerScreen: 12h buffs', () => {
+  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'letter', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null, ...over });
+  const peekReady = {
+    slots: [
+      { kind: 'risk' as const, state: 'ready' as const, block: null },
+      { kind: 'peek' as const, state: 'ready' as const, block: null },
+    ],
+    active: null,
+    peekable: [{ playerId: 'p3', nickname: 'Іра' }],
+  };
+
+  it('two taps on peek open the sheet outside the question zone; a name sends the peek', async () => {
+    const send = show(onQuestion({ me: { ...me, buffs: peekReady } }));
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    const sheet = document.querySelector('.peek-sheet')!;
+    expect(sheet).not.toBeNull();
+    expect(sheet.closest('.debuff-zone')).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(sheet as HTMLElement).getByRole('button', { name: 'Іра' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:buff', { kind: 'peek', targetId: 'p3' });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('the sheet closes with a new question', () => {
+    const send = vi.fn(async () => ({ ok: true as const }));
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { rerender } = render(<PlayerScreen view={first} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(document.querySelector('.peek-sheet')).not.toBeNull();
+    rerender(<PlayerScreen view={{ ...first, questionIndex: 1 }} hostOnline offsetMs={0} send={send} />);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  /** Відкрити аркуш «Підглянути» на view; повертає rerender і send. */
+  const openSheet = (first: PlayerView, send: Send = vi.fn(async () => ({ ok: true as const }))) => {
+    const result = render(<PlayerScreen view={first} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Підглянути' }));
+    expect(document.querySelector('.peek-sheet')).not.toBeNull();
+    const again = (next: PlayerView) => result.rerender(<PlayerScreen view={next} hostOnline offsetMs={0} send={send} />);
+    return { again, send };
+  };
+
+  it('a pause closes the sheet and the resume does not bring it back', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, paused: true, endsAt: null, remainingMs: 15_000 });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('closing the question closes the sheet', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, phase: 'locked', endsAt: null });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('time running out closes the sheet', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const { again } = openSheet(first);
+    again({ ...first, endsAt: Date.now() - 1000 });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('a peek slot that is no longer ready closes the sheet for good', () => {
+    const first = onQuestion({ me: { ...me, buffs: peekReady } });
+    const slotsWith = (state: 'active' | 'blocked', block: 'answered' | null) => ({
+      ...peekReady,
+      slots: [peekReady.slots[0], { kind: 'peek' as const, state, block }],
+    });
+    const { again } = openSheet(first);
+    again({ ...first, me: { ...me, buffs: slotsWith('blocked', 'answered') as never } });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    cleanup();
+    const second = openSheet(first);
+    second.again({ ...first, me: { ...me, buffs: slotsWith('active', null) as never } });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    second.again(first);
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+  });
+
+  it('a refused peek closes the sheet and says why', async () => {
+    const send = vi.fn(async () => ({ ok: false as const, error: 'peek_target' }));
+    openSheet(onQuestion({ me: { ...me, buffs: peekReady } }), send as unknown as Send);
+    await act(async () => {
+      fireEvent.click(within(document.querySelector('.peek-sheet') as HTMLElement).getByRole('button', { name: 'Іра' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:buff', { kind: 'peek', targetId: 'p3' });
+    expect(document.querySelector('.peek-sheet')).toBeNull();
+    expect(screen.getByText('Цю відповідь зараз не підглянути.')).toBeTruthy();
+  });
+
+  it('the letter mask stands under the buff row, the answer field stays', () => {
+    const textQuestion = { ...publicQuestion, type: 'text' as const, text: 'Авторка «Лісової пісні»?', choices: [] };
+    const buffs = { slots: [{ kind: 'letter' as const, state: 'active' as const, block: null }], active: activeOf({ letter: { first: 'Л', mask: 'Л _ _ _ · _ _ _ _ _ _ _ _', letters: 12 } }), peekable: [] };
+    show(onQuestion({ question: textQuestion, me: { ...me, buffs } }));
+    const hint = document.querySelector('.debuff-zone .buff-panel .letter-hint')!;
+    expect(hint.textContent).toBe('Л _ _ _ · _ _ _ _ _ _ _ _ (12)');
+    expect(hint.closest('.buff-panel')?.previousElementSibling?.className).toBe('buff-bar');
+    expect(screen.getByLabelText('Ваша відповідь')).toBeTruthy();
+  });
+
+  it('the binoculars range puts a band on the slider', () => {
+    const sliderQuestion = { ...publicQuestion, type: 'slider' as const, text: 'Рік заснування академії?', choices: [], slider: { min: 1500, max: 1800, step: 10, unit: 'рік' } };
+    const buffs = { slots: [{ kind: 'scope' as const, state: 'active' as const, block: null }], active: activeOf({ kind: 'scope', scope: { kind: 'range', min: 1590, max: 1650 } }), peekable: [] };
+    show(onQuestion({ question: sliderQuestion, me: { ...me, buffs } }));
+    expect(document.querySelector('.scope-hint')?.textContent).toBe('Відповідь між 1590 рік і 1650 рік');
+    const band = document.querySelector('.slider-input .slider-band') as HTMLElement;
+    expect(band).not.toBeNull();
+    expect(band.style.left).toBe('30%');
+  });
+
+  it('the peeked phone reads who peeked', () => {
+    show(onQuestion({ me: { ...me, peekedBy: { seq: 1, at: Date.now(), nickname: 'Петро' } } }));
+    expect(document.querySelector('.live-notices')?.textContent).toContain('👀 У вашу відповідь підглянули: Петро');
+  });
+
+  it('the peeked phone gets only «У вашу відповідь підглянули», not the stage-style peek toast', () => {
+    const buffNotice = { seq: 2, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'peek' as const, questionIndex: 0, target: { playerId: 'p1', nickname: 'Олена' } };
+    show(onQuestion({ buffNotice, me: { ...me, peekedBy: { seq: 1, at: Date.now(), nickname: 'Петро' } } }));
+    const notices = document.querySelector('.live-notices')?.textContent ?? '';
+    expect(notices).toContain('👀 У вашу відповідь підглянули: Петро');
+    expect(notices).not.toContain('Підгляд');
   });
 });
