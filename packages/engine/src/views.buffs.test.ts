@@ -31,7 +31,7 @@ describe('buff views', () => {
       ['time', 'blocked', 'taken'],
       ['shield', 'blocked', 'taken'],
     ]);
-    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null, hint: null, votes: null, spare: false });
+    expect(playerView(s, 'p1')?.me.buffs?.active).toEqual({ kind: 'double', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null });
     expect(playerView(s, 'p2')?.me.buffs?.active).toBeNull();
 
     s = must(lock(s));
@@ -84,8 +84,8 @@ describe('buff views', () => {
   it('the stage and others see who took which buff, not what it did', () => {
     let s = take(take(toBuffQuestion(), 'p1', 'fifty'), 'p2', 'double', T0 + 500);
     const tags = [
-      { playerId: 'p1', nickname: 'Оля', kind: 'fifty' },
-      { playerId: 'p2', nickname: 'Петро', kind: 'double' },
+      { playerId: 'p1', nickname: 'Оля', kind: 'fifty', target: null },
+      { playerId: 'p2', nickname: 'Петро', kind: 'double', target: null },
     ];
     expect(stageView(s).buffs).toEqual(tags);
     expect(playerView(s, 'p3')?.buffs).toEqual(tags);
@@ -102,14 +102,14 @@ describe('buff views', () => {
     let s = toBuffQuestion();
     expect(stageView(s).buffNotice).toBeNull();
     s = take(s, 'p1', 'fifty', T0 + 1000);
-    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 });
+    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null });
     s = take(s, 'p2', 'double', T0 + 2000);
-    expect(playerView(s, 'p3')?.buffNotice).toEqual({ seq: 2, at: T0 + 2000, playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 });
+    expect(playerView(s, 'p3')?.buffNotice).toEqual({ seq: 2, at: T0 + 2000, playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0, target: null });
     expect(hostView(s).buffNotice?.seq).toBe(2);
     s = must(removePlayer(s, 'p2'));
-    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 });
+    expect(stageView(s).buffNotice).toEqual({ seq: 1, at: T0 + 1000, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null });
     s = take(s, 'p3', 'double', T0 + 3000); // номер не перевикористовується після вилучення
-    expect(stageView(s).buffNotice).toEqual({ seq: 3, at: T0 + 3000, playerId: 'p3', nickname: 'Іра', kind: 'double', questionIndex: 0 });
+    expect(stageView(s).buffNotice).toEqual({ seq: 3, at: T0 + 3000, playerId: 'p3', nickname: 'Іра', kind: 'double', questionIndex: 0, target: null });
     // На наступному запитанні сповіщення лишається в зрізі, але з номером свого запитання: екрани його не покажуть.
     s = must(lock(s));
     s = must(next(s, T0, rng0));
@@ -145,7 +145,7 @@ describe('buff views', () => {
     s = take(s, 'p1', 'retry');
     s = answer(s, 'p1', num(2111), T0 + 1000);
     const mine = playerView(s, 'p1');
-    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 }, hint: null, votes: null, spare: false });
+    expect(mine?.me.buffs?.active).toEqual({ kind: 'retry', removed: [], retry: 'choice', first: { answer: num(2111), points: 750 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null });
     expect(mine?.me.answer).toBeNull();
     expect(hostView(s).responses.map((r) => r.playerId)).not.toContain('p1');
     for (const view of [playerView(s, 'p2'), stageView(s)]) expect(JSON.stringify(view)).not.toContain('2111');

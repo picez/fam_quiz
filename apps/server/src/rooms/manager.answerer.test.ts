@@ -320,7 +320,7 @@ describe('the answerer across the bot room and a restart (12g)', () => {
     expect(room.state.teams?.turns).toBeDefined();
     const saved = viaJson(manager.snapshot(room));
     expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
-    expect(GAME_STATE_VERSION).toBe(20);
+    expect(GAME_STATE_VERSION).toBe(21);
     manager.freeze();
     const later = new RoomManager(scheduler, () => 0.5);
     const back = later.restore(saved) as Room;

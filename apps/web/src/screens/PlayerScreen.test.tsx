@@ -36,7 +36,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -224,7 +224,7 @@ describe('PlayerScreen audio without a stage', () => {
     const { rerender } = render(screenOf(current, false));
     const first = audioEl();
     const active = { kind: 'swap' as const, removed: [], retry: null, first: null, hint: null };
-    const swapped = withClip({ me: { ...me, buffs: { slots: [], active } as never } }, spareClip);
+    const swapped = withClip({ me: { ...me, buffs: { slots: [], active, peekable: [] } as never } }, spareClip);
     rerender(screenOf(swapped, false));
     expect(audioEl()?.getAttribute('src')).toBe(spareClip.url);
     expect(audioEl()).not.toBe(first);
@@ -772,13 +772,14 @@ describe('PlayerScreen: blitz', () => {
     it('the chooser of a voice cell has the buff row, the buff panel and the struck-through removed options', () => {
       const four = { ...publicQuestion, choices: [...publicQuestion.choices, { id: 'c', text: 'Одеса' }, { id: 'd', text: 'Харків' }] };
       const voiceCell = boardOf('p1', { cell: { ...cell, answerMode: 'voice' } });
-      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false });
+      const activeOf = (kind: 'fifty' | 'hint', removed: string[]) => ({ kind, removed, retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null });
       const buffsOf = (kind: 'fifty' | 'hint', removed: string[]) => ({
         slots: [
           { kind: 'fifty' as const, state: kind === 'fifty' ? ('active' as const) : ('blocked' as const), block: kind === 'fifty' ? null : ('taken' as const) },
           { kind: 'hint' as const, state: kind === 'hint' ? ('active' as const) : ('blocked' as const), block: kind === 'hint' ? null : ('taken' as const) },
         ],
         active: activeOf(kind, removed),
+        peekable: [],
       });
       show(onQuestion({ round, question: four, board: voiceCell, removed: ['a', 'c'], me: { ...me, buffs: buffsOf('fifty', ['a', 'c']) } }));
       expect(screen.getByText('Відповідайте вголос')).toBeTruthy();
@@ -1638,6 +1639,7 @@ describe('PlayerScreen: sort', () => {
       { kind: 'double' as const, state: 'ready' as const, block: null },
     ],
     active: null,
+    peekable: [],
   };
 
   it('the buff row sits under the question for the whole question', () => {
@@ -1660,22 +1662,22 @@ describe('PlayerScreen: sort', () => {
   });
 
   it('50/50 fades the removed options on the phone, the second try asks again', () => {
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     const lviv = screen.getByRole('button', { name: 'Львів — прибрано' }) as HTMLButtonElement;
     expect(lviv.disabled).toBe(true);
     expect(lviv.className).toContain('is-removed');
     cleanup();
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(screen.getByRole('button', { name: 'Залишити' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
     cleanup();
     // На паузі вибір чекає.
-    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ paused: true, me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'choice', first: { ...first, points: 75 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect((screen.getByRole('button', { name: 'Залишити' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Ще спроба' }) as HTMLButtonElement).disabled).toBe(true);
   });
@@ -1688,7 +1690,7 @@ describe('PlayerScreen: sort', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0 } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Петро', kind: 'double', target: null }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Петро', kind: 'double', questionIndex: 0, target: null } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1701,7 +1703,7 @@ describe('PlayerScreen: sort', () => {
 
   it('extra time shows my own timer', () => {
     const now = Date.now();
-    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
+    show(onQuestion({ endsAt: now - 1000, me: { ...me, buffs: { ...buffs, active: { kind: 'time', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } }, overtime: { deadline: now + 24_000, remainingMs: null } } }));
     expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('24');
     expect(screen.getByText('+30 с — ваш час')).toBeTruthy();
     expect(screen.queryByText(/Чекаємо/)).toBeNull();
@@ -1709,7 +1711,7 @@ describe('PlayerScreen: sort', () => {
 
   it('my own clock is measured against the limit plus my extra time', () => {
     const now = Date.now();
-    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+    const active = { kind: 'time' as const, removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     const { container } = render(
       <PlayerScreen
         view={onQuestion({ endsAt: now - 1000, limitMs: 20_000, me: { ...me, buffs: { ...buffs, active }, overtime: { deadline: now + 29_000, remainingMs: null } } })}
@@ -1758,10 +1760,10 @@ describe('PlayerScreen: sort', () => {
   it('the again prompt does not push the options down', () => {
     const first = { answer: { type: 'single' as const, optionId: 'a' }, points: 0 };
     const zoneShape = () => [...document.querySelector('.debuff-content, .debuff-zone')!.querySelectorAll('*')].map((el) => el.tagName);
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'armed', first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     const armed = zoneShape();
     cleanup();
-    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false } } } }));
+    show(onQuestion({ me: { ...me, buffs: { ...buffs, active: { kind: 'retry', removed: [], retry: 'again', first, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } } } }));
     expect(zoneShape()).toEqual(armed);
     expect(document.querySelector('.buff-why')?.textContent).toBe('Неправильно, ще одна спроба');
   });
@@ -1773,8 +1775,8 @@ describe('PlayerScreen: buffs with others', () => {
     { kind: 'audience' as const, state: 'blocked' as const, block: 'taken' as const },
     { kind: 'swap' as const, state: 'blocked' as const, block: 'taken' as const },
   ];
-  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, ...over });
-  const withActive = (active: PlayerActiveBuff | null) => ({ slots, active });
+  const activeOf = (over: Partial<PlayerActiveBuff>): PlayerActiveBuff => ({ kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null, ...over });
+  const withActive = (active: PlayerActiveBuff | null) => ({ slots, active, peekable: [] });
 
   it('a hint arrives inside the panel without moving the answer', () => {
     const send = vi.fn(async () => ({ ok: true as const }));
@@ -1856,7 +1858,7 @@ describe('PlayerScreen: buffs with others', () => {
     const was = shape();
     rerender(
       <PlayerScreen
-        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience' }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0 } }}
+        view={{ ...before, buffs: [{ playerId: 'p2', nickname: 'Оля', kind: 'audience', target: null }], buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Оля', kind: 'audience', questionIndex: 0, target: null } }}
         hostOnline
         offsetMs={0}
         send={send}
@@ -1875,6 +1877,7 @@ describe('PlayerScreen: splashes', () => {
   const buffs = {
     slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }],
     active: null,
+    peekable: [],
   };
   const timed = () => {
     vi.useFakeTimers();
@@ -3125,7 +3128,7 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
   // Петро відповідає за команду, Оля — капітан.
   const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
   const olya = { answererId: 'u3', answerer: false, answererMode: 'chosen' as const, canAct: false };
-  const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null } as unknown as PlayerView['me']['buffs'];
+  const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null, peekable: [] } as unknown as PlayerView['me']['buffs'];
   const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false }], block: null };
 
   it('the answerer reads «Ти відповідаєш за команду» above the question and has the answer field', () => {
@@ -3353,8 +3356,8 @@ describe('PlayerScreen: «Who am I?» at own pace (12c)', () => {
   });
 
   it('no button on the second attempt of a retry: the first one is already held', () => {
-    const active = { kind: 'retry' as const, removed: [], retry: 'again' as const, first: { answer: { type: 'clues' as const, value: 'Франко' }, points: 0 }, hint: null, votes: null, spare: false };
-    show(onQuestion({ question: selfClues(), me: { ...me, buffs: { slots: [], active } } }));
+    const active = { kind: 'retry' as const, removed: [], retry: 'again' as const, first: { answer: { type: 'clues' as const, value: 'Франко' }, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
+    show(onQuestion({ question: selfClues(), me: { ...me, buffs: { slots: [], active, peekable: [] } } }));
     expect(more()).toBeNull();
   });
 

@@ -103,7 +103,7 @@ describe('resume a game: the autopilot author (12r)', () => {
     manager.freeze();
     expect(isSavedRoom(saved)).toBe(true);
     expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
-    expect(GAME_STATE_VERSION).toBe(20);
+    expect(GAME_STATE_VERSION).toBe(21);
     const next = new RoomManager(scheduler, steppingRng());
     const back = next.restore(saved) as Room;
     expect(back.state.autopilot?.resume).toEqual(resume);

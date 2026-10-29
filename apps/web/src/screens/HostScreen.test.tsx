@@ -296,7 +296,7 @@ describe('HostScreen', () => {
       during('question', single, {
         endsAt: now - 1000,
         limitMs: 20_000,
-        buffs: [{ playerId: 'p1', nickname: 'Олена', kind: 'swap' }],
+        buffs: [{ playerId: 'p1', nickname: 'Олена', kind: 'swap', target: null }],
         overtime: [{ playerId: 'p1', nickname: 'Олена', deadline: now + 19_000, remainingMs: null }],
       }),
     );
@@ -306,7 +306,7 @@ describe('HostScreen', () => {
   });
 
   it('a buff notice reaches the host console', () => {
-    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0 } }));
+    show(during('question', single, { endsAt: Date.now() + 10_000, buffNotice: { seq: 1, at: Date.now(), playerId: 'p2', nickname: 'Олена', kind: 'fifty', questionIndex: 0, target: null } }));
     expect(screen.getByText('Олена: 50/50')).toBeTruthy();
   });
 

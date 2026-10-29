@@ -152,7 +152,7 @@ describe('LiveNotices', () => {
   });
 
   const buffView = (over: Partial<BuffToastView> = {}): BuffToastView => ({
-    buffNotice: { seq: 1, at: NOW, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0 },
+    buffNotice: { seq: 1, at: NOW, playerId: 'p1', nickname: 'Оля', kind: 'fifty', questionIndex: 0, target: null },
     questionIndex: 0,
     splash: null,
     paused: false,

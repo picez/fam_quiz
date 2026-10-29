@@ -69,6 +69,12 @@ export interface BuffPlay {
   hint?: { text: string | null; aloud: boolean };
   /** swap: id запасного, порядок його варіантів, мить видачі, межа для бонусу швидкості (null — без таймера). */
   spare?: { id: string; presented: string[]; startedAt: number; limitMs: number | null };
+  /** peek (12h): учасник, у якого підглянули (у командній грі — команда); лише в бафі peek. */
+  peek?: string;
+  /** scope (12h) на числі й повзунку: проміжок, у якому правильна відповідь (включно). */
+  range?: { min: number; max: number };
+  /** scope (12h) на точці: вікно мапи в частках основи — лівий верхній кут і сторона (частка ширини й висоти). */
+  zoom?: { x: number; y: number; size: number };
 }
 
 /** Баф гравця на запитанні; null — немає. */
@@ -503,7 +509,7 @@ export function currentBuffs(state: GameState): BuffTag[] {
   if (!TAGGED.includes(state.phase) || play === undefined) return [];
   return state.players.flatMap((p) => {
     const buff = buffOf(play, p.id);
-    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind }];
+    return buff === null ? [] : [{ playerId: p.id, nickname: p.nickname, kind: buff.kind, target: null }];
   });
 }
 
@@ -518,7 +524,7 @@ export function lastBuff(state: GameState): BuffNotice | null {
     for (const p of state.players) {
       const buff = buffOf(play, p.id);
       if (buff !== null && (last === null || buff.seq > last.notice.seq)) {
-        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind }, index };
+        last = { notice: { seq: buff.seq, at: buff.at, playerId: p.id, nickname: p.nickname, kind: buff.kind, target: null }, index };
       }
     }
   }

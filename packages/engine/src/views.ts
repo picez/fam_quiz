@@ -1800,7 +1800,8 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
     const block = buffBlock(state, playerId, kind);
     return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
   });
-  return { slots, active: own === null ? null : activeBuff(state, play, playerId, own) };
+  // peekable — заглушка до задачі 5 (12h).
+  return { slots, active: own === null ? null : activeBuff(state, play, playerId, own), peekable: [] };
 }
 
 /** Узятий баф гравця: прибрані варіанти, друга спроба, підказка, голоси й ознака запасного — лише для нього самого. */
@@ -1814,6 +1815,10 @@ function activeBuff(state: GameState, play: Play, playerId: string, own: BuffPla
     hint: own.hint === undefined ? null : playerHint(own.hint),
     votes: own.vote === undefined ? null : voteView(state, play, playerId, own.vote),
     spare: own.kind === 'swap',
+    // letter, scope, peek — заглушки до задач 4–5 (12h).
+    letter: null,
+    scope: null,
+    peek: null,
   };
 }
 
@@ -2055,6 +2060,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
       shop: null,
       duel: null,
       buffs: null,
+      peekedBy: null,
       overtime: null,
       tip: null,
       vote: null,
@@ -2213,6 +2219,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
+      // заглушка до задачі 5 (12h)
+      peekedBy: null,
       overtime: personalClock(state, playerId),
       tip: typeTip(state, playerId),
       vote: votePrompt(state, playerId),

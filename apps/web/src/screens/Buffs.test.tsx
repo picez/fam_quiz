@@ -30,6 +30,7 @@ const ready: PlayerBuffs = {
     { kind: 'shield', state: 'blocked', block: 'unfit_penalty' },
   ],
   active: null,
+  peekable: [],
 };
 
 const active: PlayerBuffs = {
@@ -38,7 +39,8 @@ const active: PlayerBuffs = {
     { kind: 'double', state: 'blocked', block: 'taken' },
     { kind: 'shield', state: 'blocked', block: 'taken' },
   ],
-  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false },
+  active: { kind: 'fifty', removed: ['a'], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null },
+  peekable: [],
 };
 
 const used: PlayerBuffs = {
@@ -48,6 +50,7 @@ const used: PlayerBuffs = {
     { kind: 'shield', state: 'used', block: 'used' },
   ],
   active: null,
+  peekable: [],
 };
 
 const blocked: PlayerBuffs = {
@@ -57,6 +60,7 @@ const blocked: PlayerBuffs = {
     { kind: 'shield', state: 'blocked', block: 'answered' },
   ],
   active: null,
+  peekable: [],
 };
 
 const question: PublicQuestion = {
@@ -104,6 +108,7 @@ describe('Buffs', () => {
         { kind: 'shield', state: 'blocked', block },
       ],
       active: null,
+      peekable: [],
     });
     const { container, unmount } = row(off('off_blitz'));
     expect(container.querySelector('.buff-row')).toBeNull();
@@ -115,7 +120,7 @@ describe('Buffs', () => {
     expect(document.querySelector('.buff-off')?.textContent).toBe('На бліц-клітинках бафів немає.');
     cleanup();
     // У фіналі, ланцюжку й сортуванні — звичайний ряд неактивних кнопок.
-    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null });
+    row({ slots: [{ kind: 'fifty', state: 'blocked', block: 'off_final' }], active: null, peekable: [] });
     expect(document.querySelectorAll('.buff-row button')).toHaveLength(1);
     expect(document.querySelector('.buff-off')).toBeNull();
   });
@@ -208,6 +213,7 @@ describe('Buffs', () => {
           { kind: 'shield', state: 'blocked', block: 'unfit_penalty' },
         ],
         active: null,
+        peekable: [],
       },
       { timeOver: true },
     );
@@ -223,13 +229,13 @@ describe('Buffs', () => {
 
   it('retry prompt: again or keep / more', async () => {
     const send = okSend();
-    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false };
+    const again: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'again', first: { answer: { type: 'numeric', value: 3 }, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     render(<RetryPrompt active={again} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText('Неправильно, ще одна спроба')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
     cleanup();
 
-    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false };
+    const choice: PlayerActiveBuff = { kind: 'retry', removed: [], retry: 'choice', first: { answer: { type: 'numeric', value: 42 }, points: 750 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
     render(<RetryPrompt active={choice} question={question} send={send} onError={vi.fn()} />);
     expect(screen.getByText(/Частково правильно: \+750\. Залишити чи ще спроба\?/)).toBeTruthy();
     await act(async () => {
@@ -292,7 +298,7 @@ describe('Buffs', () => {
   });
 
   it('the again prompt stands in the explanation line, not above the options', () => {
-    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false } });
+    row({ ...active, active: { kind: 'retry', removed: [], retry: 'again', first: { answer: null, points: 0 }, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null } });
     expect(why().textContent).toBe('Неправильно, ще одна спроба');
   });
 });
@@ -321,7 +327,7 @@ const single: PublicQuestion = {
 };
 const text: PublicQuestion = { ...question, type: 'text' };
 
-const base: PlayerActiveBuff = { kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false };
+const base: PlayerActiveBuff = { kind: 'hint', removed: [], retry: null, first: null, hint: null, votes: null, spare: false, letter: null, scope: null, peek: null };
 const tally = (over: Partial<VoteTally> = {}): VoteTally => ({ endsAt: NOW + 15_000, remainingMs: null, closed: false, cast: 0, counts: {}, guesses: [], ...over });
 const audience = (votes: VoteTally): PlayerActiveBuff => ({ ...base, kind: 'audience', votes });
 
@@ -579,8 +585,8 @@ describe('StageBuffs', () => {
     render(
       <StageBuffs
         buffs={[
-          { playerId: 'p1', nickname: 'Оля', kind: 'swap' },
-          { playerId: 'p2', nickname: 'Петро', kind: 'hint' },
+          { playerId: 'p1', nickname: 'Оля', kind: 'swap', target: null },
+          { playerId: 'p2', nickname: 'Петро', kind: 'hint', target: null },
         ]}
       />,
     );
@@ -591,7 +597,7 @@ describe('StageBuffs', () => {
   });
 
   it('«?» lists what each allowed buff does and where it works', () => {
-    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null });
+    const slots = (kinds: BuffKind[]): PlayerBuffs => ({ slots: kinds.map((kind) => ({ kind, state: 'ready' as const, block: null })), active: null, peekable: [] });
     row(slots(['fifty', 'audience']));
     expect(document.querySelectorAll('.buff-row .buff-btn')).toHaveLength(2);
     const opener = screen.getByRole('button', { name: 'Що роблять бафи' });
@@ -650,7 +656,7 @@ describe('StageBuffs', () => {
   });
 
   it('a disabled button says exactly why', () => {
-    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null });
+    const blockedOf = (kind: BuffKind, block: BuffBlock): PlayerBuffs => ({ slots: [{ kind, state: 'blocked', block }], active: null, peekable: [] });
     const whyOf = (buffs: PlayerBuffs, name: string) => {
       const { unmount } = row(buffs);
       fireEvent.click(screen.getByRole('button', { name }));
@@ -666,14 +672,14 @@ describe('StageBuffs', () => {
   });
 
   it('swap on a cell of a category without spares explains why', () => {
-    const { unmount } = row({ slots: [{ kind: 'swap', state: 'blocked', block: 'no_category_spares' }], active: null });
+    const { unmount } = row({ slots: [{ kind: 'swap', state: 'blocked', block: 'no_category_spares' }], active: null, peekable: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Заміна запитання' }));
     expect(document.querySelector('.buff-why')?.textContent).toBe('У цій категорії немає запасних запитань.');
     unmount();
   });
 
   it('the swap help names the category', () => {
-    row({ slots: [{ kind: 'swap', state: 'ready', block: null }], active: null });
+    row({ slots: [{ kind: 'swap', state: 'ready', block: null }], active: null, peekable: [] });
     fireEvent.click(screen.getByRole('button', { name: 'Що роблять бафи' }));
     const sheet = screen.getByRole('dialog', { name: 'Бафи' });
     expect(within(sheet).getByText('Де: класика й поле у свій хід. На полі — запасне з тієї ж категорії.')).toBeTruthy();
