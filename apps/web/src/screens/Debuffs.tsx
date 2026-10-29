@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react';
 import type { DebuffKind, PlayerView, PublicQuestion } from '@quiz/shared';
 import { debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
 import { reducedMotion } from '../motion';
+import { STATUS_TEXT, type TimerStatus } from '../live/Timer';
 import { FogLayer, MudLayer } from './WipeLayers';
 
 type Debuff = PlayerView['me']['debuff'];
@@ -216,15 +217,61 @@ function useSticky(active: boolean, questionIndex: number) {
   return { shown: active && note !== null && note.key === questionIndex, onClickCapture: active ? onClickCapture : undefined };
 }
 
-/** «Без годинника»: на місці табло — пісочний годинник тієї самої висоти, без role="timer". */
-export function NoClock({ bar }: { bar: boolean }) {
+/**
+ * «Ліхтарик»: світло йде за пальцем; координати пишуться прямо в стиль зони, без перемальовувань.
+ * Палець — через пасивні touchstart / touchmove (pointermove обривається, щойно браузер починає прокрутку, як у wipe.ts),
+ * миша й перо — через pointerdown / pointermove. Нове запитання чи кінець дебафу повертає світло на середину.
+ */
+function useTorch(zoneRef: RefObject<HTMLDivElement | null>, active: boolean, questionIndex: number): void {
+  useEffect(() => {
+    const el = zoneRef.current;
+    if (!active || el === null) return;
+    const light = (clientX: number, clientY: number) => {
+      const rect = el.getBoundingClientRect();
+      el.style.setProperty('--tx', `${Math.round(clientX - rect.left)}px`);
+      el.style.setProperty('--ty', `${Math.round(clientY - rect.top)}px`);
+    };
+    const onPointer = (e: globalThis.PointerEvent) => {
+      if (e.pointerType !== 'touch') light(e.clientX, e.clientY);
+    };
+    const onTouch = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      if (touch !== undefined) light(touch.clientX, touch.clientY);
+    };
+    el.addEventListener('pointerdown', onPointer, { passive: true });
+    el.addEventListener('pointermove', onPointer, { passive: true });
+    el.addEventListener('touchstart', onTouch, { passive: true });
+    el.addEventListener('touchmove', onTouch, { passive: true });
+    return () => {
+      el.removeEventListener('pointerdown', onPointer);
+      el.removeEventListener('pointermove', onPointer);
+      el.removeEventListener('touchstart', onTouch);
+      el.removeEventListener('touchmove', onTouch);
+      el.style.removeProperty('--tx');
+      el.style.removeProperty('--ty');
+    };
+  }, [zoneRef, active, questionIndex]);
+}
+
+/**
+ * «Без годинника»: на місці табло — пісочний годинник тієї самої висоти, без role="timer".
+ * Стан годинника («Пауза», «Чекає рішення ведучого») лишається в тій самій клітинці, що й у табло; повного часу не видно.
+ */
+export function NoClock({ total, status }: { total: number | null; status: TimerStatus }) {
+  // Невидимий «/ 30 с» тримає ширину клітинки, як у табло.
+  const totalText = total === null ? '' : t('timerOf', { seconds: Math.round(total / 1000) });
   return (
-    <p className="timer is-noclock" role="img" aria-label={t('noClockLabel')}>
+    <p className="timer is-noclock" role="img" aria-label={status === null ? t('noClockLabel') : `${t('noClockLabel')}. ${t(STATUS_TEXT[status])}`}>
       <span className="timer-flaps" aria-hidden="true">
         <span className="flap">⌛</span>
       </span>
+      {(total !== null || status !== null) && (
+        <span className="timer-label" data-held={t('timerHeld')} data-total={totalText} aria-hidden="true">
+          {status !== null && <span className="timer-status">{t(STATUS_TEXT[status])}</span>}
+        </span>
+      )}
       {/* Порожня смужка тримає висоту табло зі смужкою часу. */}
-      {bar && <span className="timer-bar" aria-hidden="true" />}
+      {total !== null && <span className="timer-bar" aria-hidden="true" />}
     </p>
   );
 }
@@ -260,6 +307,7 @@ export function DebuffZone({
   const phase = useMemo(() => (shakeSince === null ? null : shakePhase(shakeSince, offsetMs)), [shakeSince, offsetMs]);
   const zoneRef = useRef<HTMLDivElement>(null);
   const sticky = useSticky(kind === 'sticky', questionIndex);
+  useTorch(zoneRef, kind === 'torch', questionIndex);
 
   const banner = elapsed !== null && kind !== null && elapsed < BANNER_MS;
   const frozen = kind === 'freeze' && elapsed !== null && elapsed < freezeFor;
@@ -274,22 +322,12 @@ export function DebuffZone({
       : kind === 'torch'
         ? ({ '--torch-r': `${TORCH_RADIUS_PX}px` } as CSSProperties)
         : undefined;
-  // «Ліхтарик»: світло йде за пальцем; координати пишуться прямо в стиль зони, без перемальовувань.
-  const light = (event: PointerEvent<HTMLDivElement>) => {
-    const el = zoneRef.current;
-    if (el === null) return;
-    const rect = el.getBoundingClientRect();
-    el.style.setProperty('--tx', `${Math.round(event.clientX - rect.left)}px`);
-    el.style.setProperty('--ty', `${Math.round(event.clientY - rect.top)}px`);
-  };
   return (
     <div
       ref={zoneRef}
       className={className}
       data-debuff={kind ?? undefined}
       style={style}
-      onPointerDown={kind === 'torch' ? light : undefined}
-      onPointerMove={kind === 'torch' ? light : undefined}
     >
       <fieldset className="debuff-content" disabled={frozen} onClickCapture={sticky.onClickCapture}>
         {children}
@@ -297,9 +335,10 @@ export function DebuffZone({
       {frozen && <Ice stage={iceStage} />}
       {kind === 'torch' && <div className="debuff-layer debuff-torch" aria-hidden="true" />}
       {kind === 'bubbles' && <BubblesLayer key={questionIndex} seed={questionIndex} calm={calm} />}
-      {sticky.shown && (
+      {/* Живий регіон стоїть з першої миті «Липких кнопок»: читалка озвучує вже першу появу тексту. */}
+      {kind === 'sticky' && (
         <p className="sticky-note" role="status">
-          {t('stickyNote')}
+          {sticky.shown ? t('stickyNote') : ''}
         </p>
       )}
       {kind === 'fog' && <FogLayer key={questionIndex} zone={zoneRef} />}

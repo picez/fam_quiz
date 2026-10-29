@@ -57,10 +57,18 @@ export function pinchView(start: ZoomView, a0: Point, b0: Point, a1: Point, b1: 
   return anchored(start, start.scale * ratio, m0, m1, box);
 }
 
-/** Точка рамки (px, py) → частки основи 0…1; mirrored — рамка під «Дзеркалом» (x перевертається). */
-export function toImagePoint(view: ZoomView, px: number, py: number, box: Box, mirrored: boolean): { x: number; y: number } {
-  const localX = mirrored ? box.width - px : px;
+/** Які осі рамки перевернуті відносно екрана: «Дзеркало» — x, «Догори дриґом» (12h, поворот на 180°) — обидві. */
+export interface Mirror {
+  x: boolean;
+  y: boolean;
+}
+
+/** Точка рамки (px, py) → частки основи 0…1; mirrored — рамка під «Дзеркалом» (true — лише x) чи перевернута по осях. */
+export function toImagePoint(view: ZoomView, px: number, py: number, box: Box, mirrored: boolean | Mirror): { x: number; y: number } {
+  const axes = typeof mirrored === 'boolean' ? { x: mirrored, y: false } : mirrored;
+  const localX = axes.x ? box.width - px : px;
+  const localY = axes.y ? box.height - py : py;
   const x = box.width > 0 ? (localX - view.x) / view.scale / box.width : 0;
-  const y = box.height > 0 ? (py - view.y) / view.scale / box.height : 0;
+  const y = box.height > 0 ? (localY - view.y) / view.scale / box.height : 0;
   return { x: plain(clamp(x, 0, 1)), y: plain(clamp(y, 0, 1)) };
 }

@@ -282,11 +282,14 @@ export function SortPlay({
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setDrag({ dx: 0, dy: 0 });
   };
+  // «Догори дриґом» (12h): арена повернута на 180°, тож зсув пальця у її власних координатах протилежний.
+  // «Дзеркало» арену перевертає вдруге (CSS), тож там зсув справжній.
+  const sign = () => (arenaRef.current?.closest('.is-flip') != null ? -1 : 1);
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = dragRef.current;
     if (start === null || start.id !== event.pointerId) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
+    const dx = (event.clientX - start.x) * sign();
+    const dy = (event.clientY - start.y) * sign();
     setDrag({ dx, dy });
     tilt(tiltOf(dx, dy, positions, categories, zoneAt(event.clientX, event.clientY)));
   };
@@ -295,7 +298,7 @@ export function SortPlay({
     if (start === null || start.id !== event.pointerId) return;
     dragRef.current = null;
     setDrag(null);
-    const pos = zoneAt(event.clientX, event.clientY) ?? swipeTarget(event.clientX - start.x, event.clientY - start.y, positions);
+    const pos = zoneAt(event.clientX, event.clientY) ?? swipeTarget((event.clientX - start.x) * sign(), (event.clientY - start.y) * sign(), positions);
     if (pos !== null && moveTo(pos)) tilt.cancel();
     else tilt.release();
   };

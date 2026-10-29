@@ -863,7 +863,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               {waiting && <OvertimeLine rows={view.overtime} offsetMs={offsetMs} />}
             </div>
             {/* «Без годинника»: на місці табло — ⌛ тієї самої висоти; кінець часу приходить несподівано. */}
-            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock bar={clockTotal !== null} />}
+            {!chainMine && debuff?.kind === 'noclock' && secondsLeft(myClock ?? view, offsetMs, Date.now()) !== null && <NoClock total={clockTotal} status={timerStatus(view)} />}
             {!chainMine && debuff?.kind !== 'noclock' && <Timer view={myClock ?? view} offsetMs={offsetMs} total={clockTotal} status={timerStatus(view)} leadMs={question.audio && view.bluff?.stage !== 'choice' ? publicWindowMs(question) - (question.timeLimit ?? 0) * 1000 : 0} />}
           </div>
           {board !== null && board.cell !== null && (
@@ -969,7 +969,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                 {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
                 <div className="blitz-status-row">
                   {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-                  {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && (
+                  {me.blitz.canAnswer && repickEnd !== null && !view.paused && !timeOver && debuff?.kind !== 'noclock' && (
                     <Timer view={{ endsAt: repickEnd, remainingMs: null }} offsetMs={offsetMs} />
                   )}
                   <p className="blitz-status">{instantStatus(me.blitz, timeOver, view.autopilot)}</p>
@@ -999,6 +999,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
                   confirm={teamDraftOn}
                   send={send}
                   onError={setError}
+                  noClock={debuff?.kind === 'noclock'}
                 />
               </>
             ) : board !== null && !chooserIsMe ? (
@@ -1304,6 +1305,7 @@ function BlitzTurn({
   confirm,
   send,
   onError,
+  noClock,
 }: {
   view: PlayerView;
   /** Запитання для поля відповіді (з урахуванням «Дзеркала»). */
@@ -1322,6 +1324,8 @@ function BlitzTurn({
   confirm: boolean;
   send: Send;
   onError: (message: string | null) => void;
+  /** «Без годинника» (12h): відліку вікна відповіді теж не видно. */
+  noClock: boolean;
 }) {
   const { me, question } = view;
   if (question === null) return null;
@@ -1344,7 +1348,7 @@ function BlitzTurn({
       <>
         <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
         {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-        {blitz.deadline !== null && !view.paused && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        {blitz.deadline !== null && !view.paused && !noClock && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
         {voice ? (
           blitz.position === 1 ? <p className="lead">{t('answerAloud')}</p> : null
         ) : (

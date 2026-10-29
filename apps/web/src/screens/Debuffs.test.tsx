@@ -293,6 +293,8 @@ function Old({ kind, questionIndex = 2, children }: { kind: DebuffKind; question
 }
 
 const note = () => document.querySelector('p.sticky-note');
+/** Текст живого регіону «Липких кнопок» (він завжди на місці, порожній між дотиками). */
+const noteText = () => note()?.textContent ?? null;
 const bubbles = () => screen.queryAllByRole('button', { name: 'Лопнути бульбашку' });
 
 describe('DebuffZone: 12h debuffs', () => {
@@ -331,6 +333,35 @@ describe('DebuffZone: 12h debuffs', () => {
     expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
   });
 
+  it('the torch follows a finger through passive touch events too (pointer events stop once the page scrolls)', () => {
+    const { rerender } = render(<Old kind="torch">x</Old>);
+    fireEvent.touchStart(zone(), { changedTouches: [{ clientX: 120, clientY: 60 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('120px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('60px');
+    fireEvent.touchMove(zone(), { changedTouches: [{ clientX: 140, clientY: 90 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('140px');
+    expect(zone().style.getPropertyValue('--ty')).toBe('90px');
+    // Нове запитання — світло знову посередині.
+    rerender(
+      <Old kind="torch" questionIndex={3}>
+        x
+      </Old>,
+    );
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+    expect(zone().style.getPropertyValue('--ty')).toBe('');
+    fireEvent.pointerMove(zone(), { clientX: 10, clientY: 20 });
+    expect(zone().style.getPropertyValue('--tx')).toBe('10px');
+    // Дебаф скінчився — слухачі зняті, світла немає.
+    rerender(
+      <DebuffZone debuff={null} limitMs={30_000} offsetMs={0} questionIndex={4}>
+        x
+      </DebuffZone>,
+    );
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+    fireEvent.touchMove(zone(), { changedTouches: [{ clientX: 140, clientY: 90 }] });
+    expect(zone().style.getPropertyValue('--tx')).toBe('');
+  });
+
   it('sticky buttons work from the second tap, the first says «Ой, липко!»', () => {
     const onSubmit = vi.fn();
     render(
@@ -339,9 +370,12 @@ describe('DebuffZone: 12h debuffs', () => {
       </Old>,
     );
     expect(zone().classList.contains('is-sticky')).toBe(true);
+    // Живий регіон змонтований заздалегідь: читалки екрана озвучують першу ж появу тексту.
+    expect(note()).not.toBeNull();
+    expect(noteText()).toBe('');
     fireEvent.click(screen.getByRole('button', { name: /b/ }));
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(note()?.textContent).toBe('Ой, липко!');
+    expect(noteText()).toBe('Ой, липко!');
     expect(note()?.getAttribute('role')).toBe('status');
     // Плашка поверх зони, а не у вмісті: варіанти не зсуваються.
     expect(content().contains(note())).toBe(false);
@@ -350,11 +384,11 @@ describe('DebuffZone: 12h debuffs', () => {
     act(() => {
       vi.advanceTimersByTime(STICKY_NOTE_MS);
     });
-    expect(note()).toBeNull();
+    expect(noteText()).toBe('');
     // Інший варіант липне сам по собі.
     fireEvent.click(screen.getByRole('button', { name: /c/ }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(note()).not.toBeNull();
+    expect(noteText()).toBe('Ой, липко!');
   });
 
   it('the answer button sticks too, the text field does not', () => {
@@ -366,11 +400,11 @@ describe('DebuffZone: 12h debuffs', () => {
     );
     const input = screen.getByRole('textbox');
     fireEvent.click(input);
-    expect(note()).toBeNull();
+    expect(noteText()).toBe('');
     fireEvent.change(input, { target: { value: 'Дніпро' } });
     fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(note()).not.toBeNull();
+    expect(noteText()).toBe('Ой, липко!');
     fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));
     expect(onSubmit).toHaveBeenCalledWith({ type: 'text', value: 'Дніпро' });
   });
@@ -397,7 +431,7 @@ describe('DebuffZone: 12h debuffs', () => {
     expect(buff).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'аркуш' }));
     expect(sheet).toHaveBeenCalledTimes(1);
-    expect(note()).toBeNull();
+    expect(noteText()).toBe('');
   });
 
   it('a new question makes the buttons sticky again', () => {
@@ -415,10 +449,10 @@ describe('DebuffZone: 12h debuffs', () => {
         <AnswerInput question={single} onSubmit={onSubmit} />
       </Old>,
     );
-    expect(note()).toBeNull();
+    expect(noteText()).toBe('');
     fireEvent.click(screen.getByRole('button', { name: /b/ }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(note()).not.toBeNull();
+    expect(noteText()).toBe('Ой, липко!');
   });
 
   it('twelve bubbles cover the answers, a tap pops one, a bubble catches the tap itself', () => {
@@ -499,7 +533,11 @@ describe('DebuffZone: 12h debuffs', () => {
 
   it('the sticky tip is in the banner', () => {
     render(<Zone kind="sticky" />);
-    expect(screen.getByRole('status').textContent).toContain('Кожна кнопка — з другого дотику');
+    expect(document.querySelector('.debuff-banner')!.textContent).toContain('Кожна кнопка — з другого дотику');
+    cleanup();
+    // Без «Липких кнопок» живого регіону немає.
+    render(<Zone kind="flip" />);
+    expect(note()).toBeNull();
   });
 });
 
@@ -507,13 +545,15 @@ describe('12h debuff styles', () => {
   it('flip uses rotate (shake owns translate), instant with reduced motion', () => {
     expect(rule('.debuff-zone.is-flip .debuff-content')).toContain('rotate: 180deg;');
     expect(rule('.debuff-zone.is-flip:not(.is-calm) .debuff-content')).toContain('transition: rotate 0.4s ease;');
+    // Набраний текст повертається назад, як під «Дзеркалом»: його можна прочитати.
+    expect(css).toContain('.is-flip .debuff-content input,\n.is-flip .debuff-content textarea {\n  rotate: 180deg;');
   });
 
   it('the torch darkens everything but a circle of --torch-r and catches no taps', () => {
     const torch = rule('.debuff-torch');
     expect(torch).toContain('inset: 0;');
     expect(torch).toContain('pointer-events: none;');
-    expect(torch).toContain('radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, 50%), transparent 92%, rgb(0 0 0 / 0.96))');
+    expect(torch).toContain('radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, min(50%, 40vh)), transparent 92%, rgb(0 0 0 / 0.96))');
   });
 
   it('bubbles are 72 px circles that catch taps, still with reduced motion', () => {

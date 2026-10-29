@@ -9,7 +9,7 @@ export function timerStatus(view: { paused: boolean; held: boolean; autopilot?: 
   return view.paused ? 'paused' : view.held ? (view.autopilot === true ? 'heldAuto' : 'held') : null;
 }
 
-const STATUS_TEXT = { paused: 'timerPaused', listening: 'timerListening', held: 'timerHeld', heldAuto: 'timerHeldAuto' } as const;
+export const STATUS_TEXT = { paused: 'timerPaused', listening: 'timerListening', held: 'timerHeld', heldAuto: 'timerHeldAuto' } as const;
 
 interface Props {
   view: { endsAt: number | null; remainingMs: number | null };

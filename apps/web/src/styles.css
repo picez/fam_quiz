@@ -4175,12 +4175,19 @@ body:has(.debuff-banner) .live-notices {
   rotate: 180deg;
 }
 
-/* «Ліхтарик»: темрява з колом світла навколо пальця (--tx / --ty пише зона; до першого дотику — середина). */
+/* Поля введення повертаються вдруге (як під «Дзеркалом»): набраний текст читається. */
+.is-flip .debuff-content input,
+.is-flip .debuff-content textarea {
+  rotate: 180deg;
+}
+
+/* «Ліхтарик»: темрява з колом світла навколо пальця (--tx / --ty пише зона). До першого дотику — середина,
+   але не нижче 40vh: у довгій зоні світло з'являється на видимому екрані. */
 .debuff-torch {
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  background: radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, 50%), transparent 92%, rgb(0 0 0 / 0.96));
+  background: radial-gradient(circle var(--torch-r) at var(--tx, 50%) var(--ty, min(50%, 40vh)), transparent 92%, rgb(0 0 0 / 0.96));
 }
 
 /* «Бульбашки»: кнопки над варіантами ловлять дотик самі (на відміну від решти шарів). Місце — центр бульбашки. */
@@ -4224,6 +4231,11 @@ body:has(.debuff-banner) .live-notices {
   white-space: nowrap;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+/* Живий регіон стоїть увесь час «Липких кнопок»; без тексту його не видно. */
+.sticky-note:empty {
+  opacity: 0;
 }
 
 /* «Без годинника»: ⌛ на пластині завширшки з дві цифри; смужка порожня — висота табло та сама. */

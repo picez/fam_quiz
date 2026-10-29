@@ -264,6 +264,25 @@ describe('PlayerScreen', () => {
     expect(screen.queryByRole('img', { name: 'Годинник сховано' })).toBeNull();
   });
 
+  it('no clock keeps the clock status: «Пауза» and «Чекає рішення ведучого» stay in the same label cell', () => {
+    const hidden = { ...me, debuff: { kind: 'noclock' as const, since: Date.now(), by: null } };
+    show(onQuestion({ me: hidden, limitMs: 20_000 }));
+    const clock = () => screen.getByRole('img', { name: /^Годинник сховано/ });
+    // Мітка тримає те саме місце, що й у табло, але повного часу не показує.
+    const label = clock().querySelector('.timer-label')!;
+    expect(label).not.toBeNull();
+    expect(label.getAttribute('data-held')).toBe('Чекає рішення ведучого');
+    expect(label.querySelector('.timer-status')).toBeNull();
+    expect(clock().querySelector('.timer-bar')).not.toBeNull();
+    cleanup();
+    show(onQuestion({ me: hidden, paused: true, endsAt: null, remainingMs: 9000 }));
+    expect(clock().querySelector('.timer-status')?.textContent).toBe('Пауза');
+    expect(clock().getAttribute('aria-label')).toBe('Годинник сховано. Пауза');
+    cleanup();
+    show(onQuestion({ me: hidden, held: true }));
+    expect(clock().querySelector('.timer-status')?.textContent).toBe('Чекає рішення ведучого');
+  });
+
   it('flip turns the question inside the zone, the timer stays upright outside it', () => {
     show(onQuestion({ me: { ...me, debuff: { kind: 'flip', since: Date.now(), by: null } } }));
     const zone = document.querySelector('.debuff-zone.is-flip')!;
@@ -534,6 +553,13 @@ describe('PlayerScreen: blitz', () => {
     cleanup();
     show({ ...inBlitz(queued), paused: true, endsAt: null, remainingMs: 9000 });
     expect(screen.getAllByRole('timer').map((timer) => timer.getAttribute('aria-label'))).toEqual(['9']);
+  });
+
+  it('no clock hides the answer-window countdown too', () => {
+    const queued = blitzMe({ position: 1, deadline: Date.now() + 5000 }, { debuff: { kind: 'noclock', since: Date.now(), by: null } });
+    show(inBlitz(queued));
+    expect(screen.queryByRole('timer')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Годинник сховано' })).toBeTruthy();
   });
 
   it('confirms a sent answer with the place in the queue', () => {

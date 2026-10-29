@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublicPin, PublicQuestion } from '@quiz/shared';
+import { DebuffZone } from './Debuffs';
 import { PinInput } from './PinInput';
 
 const question: PublicQuestion & { pin: PublicPin } = {
@@ -135,6 +136,33 @@ describe('PinInput', () => {
     tap(75, 75);
     fireEvent.click(submit());
     expect(onSubmit).toHaveBeenCalledWith({ type: 'pin', x: 0.75, y: 0.5 });
+  });
+
+  it('12h: upside down the pin lands right under the finger', () => {
+    const onSubmit = vi.fn();
+    render(
+      <DebuffZone debuff={{ kind: 'flip', since: Date.now() - 10_000, by: null }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        <PinInput question={question} onSubmit={onSubmit} />
+      </DebuffZone>,
+    );
+    tap(75, 30); // повернуто на 180°: це x = 225, y = 120 рамки
+    fireEvent.click(submit());
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'pin', x: 0.75, y: 0.8 });
+  });
+
+  it('12h: upside down a drag moves the zoomed map with the finger', () => {
+    render(
+      <div className="is-flip">
+        <PinInput question={question} onSubmit={() => {}} />
+      </div>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Наблизити' }));
+    expect(layer().style.transform).toBe('translate(-75px, -37.5px) scale(1.5)');
+    // Палець праворуч і вниз на екрані — це ліворуч і вгору в повернутій рамці.
+    fireEvent.pointerDown(frame(), { pointerId: 1, clientX: 100, clientY: 50 });
+    fireEvent.pointerMove(frame(), { pointerId: 1, clientX: 150, clientY: 60 });
+    fireEvent.pointerUp(frame(), { pointerId: 1, clientX: 150, clientY: 60 });
+    expect(layer().style.transform).toBe('translate(-125px, -47.5px) scale(1.5)');
   });
 
   it('a disabled input (pause, splash) ignores taps', () => {

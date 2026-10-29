@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import type { PublicPin } from '@quiz/shared';
 import { t } from '../i18n';
-import { NO_ZOOM, PIN_MAX_ZOOM, clampView, pinchView, toImagePoint, zoomAround, type Box, type Point, type ZoomView } from '../pin-zoom';
+import { NO_ZOOM, PIN_MAX_ZOOM, clampView, pinchView, toImagePoint, zoomAround, type Box, type Mirror, type Point, type ZoomView } from '../pin-zoom';
 import { PinBoard, pinSpot } from './PinBoard';
 
 interface Props {
@@ -61,9 +61,12 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay, focus = null 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fx, fy, fsize]);
   // Під «Дзеркалом» рамка віддзеркалена разом з екраном: x у власних координатах рамки перевертається.
-  const mirrored = () => {
+  // «Догори дриґом» (12h) повертає її на 180°: перевертаються обидві осі (з дзеркалом x повертається назад).
+  const mirrored = (): Mirror => {
     const frame = frameRef.current;
-    return frame !== null && frame.closest('.is-mirror') !== null;
+    const mirror = frame !== null && frame.closest('.is-mirror') !== null;
+    const flip = frame !== null && frame.closest('.is-flip') !== null;
+    return { x: mirror !== flip, y: flip };
   };
   // Поле вимкнене (пауза, заставка перед стартом): дотики нічого не роблять, як і кнопки.
   const disabled = () => frameRef.current?.closest('fieldset[disabled]') != null;
@@ -72,7 +75,10 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay, focus = null 
     return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
   };
   /** Точка у власних координатах рамки (з урахуванням дзеркала) — для наближення й зсуву. */
-  const local = (p: Point, b: Box): Point => (mirrored() ? { x: b.width - p.x, y: p.y } : p);
+  const local = (p: Point, b: Box): Point => {
+    const axes = mirrored();
+    return { x: axes.x ? b.width - p.x : p.x, y: axes.y ? b.height - p.y : p.y };
+  };
 
   const startPan = (at: Point) => {
     if (gesture.current !== null) gesture.current.pan = { view: viewRef.current, at: local(at, box()) };
