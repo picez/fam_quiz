@@ -1,11 +1,15 @@
-import { DEFAULT_RULES, type Answer, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, type Answer, type RoundRules } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { appealPoints, appealReasons } from './appeal';
+import { pickCell } from './board';
 import { buffBlock, takeBuff } from './buffs';
-import { acceptAnswer, end, lock, next, override, recordOf, submitAnswer, type GameState } from './game';
+import { factInput } from './facts';
+import { acceptAnswer, end, lock, next, override, recordOf, start, submitAnswer, type GameState } from './game';
 import { undoScore } from './undo';
 import { POWERS_STREAK, T0, toBuffCell, toPowersQuestion } from './testing/buffs';
-import { blitzRound, bluff, chain, makeQuiz, makeRoundsQuiz, order, poll, single4 } from './testing/fixtures';
+import { blitzRound, bluff, boardRound, chain, classicRound, makeQuiz, makeRoundsQuiz, order, poll, single4, withId } from './testing/fixtures';
+import { teamGame } from './testing/teams';
+import { actAnswer } from './team-act';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
 const rng0 = () => 0;
@@ -147,6 +151,99 @@ describe('risk (12h)', () => {
     expect(buffBlock(doubled, 'p1', 'risk')).toBe('taken');
     expect(takeBuff(doubled, 'p1', 'risk', T0 + 600, rng0)).toEqual({ ok: false, error: 'buff_busy' });
     expect(buffBlock(open([single4]), 'p1', 'risk')).toBeNull();
+  });
+});
+
+describe('risk (12h): silence, boards, teams and grades', () => {
+  /** Іра з «Ризиком» мовчить, Оля відповідає правильно; запитання закрите й розкрите. */
+  const silent = () => toReveal(answer(take(toPowersQuestion(), 'p3', 'risk', T0 + 500), 'p1', pick('b'), T0 + 1000), T0 + 2000);
+
+  it('silence with risk is a penalty, not an answer: no fact row, no buff used', () => {
+    const rows = factInput(silent()).rows;
+    expect(rows.filter((r) => r.playerId === 'p3')).toEqual([]);
+    expect(rows.some((r) => r.buff === 'risk')).toBe(false);
+    expect(rows.filter((r) => r.playerId === 'p1')).toHaveLength(1);
+  });
+
+  it('the host cannot grade silence with risk; nothing to appeal', () => {
+    const s = silent();
+    expect(override(s, 'p3', 'correct')).toEqual({ ok: false, error: 'not_found' });
+    expect(appealPoints(s, 'p3')).toBe(0);
+    expect(score(s, 'p3')).toBe(-1000);
+  });
+
+  it('the host can give a partial grade to a risk answer: usual points, no minus', () => {
+    let s = take(toPowersQuestion({ rules: rules({ partial: 50 }) }), 'p1', 'risk', T0 + 500);
+    s = toReveal(answer(s, 'p1', pick('a'), T0 + 1000), T0 + 2000);
+    s = must(override(s, 'p1', 'partial'));
+    expect(recordOf(s, 0, 'p1')).toMatchObject({ grade: 'partial', basePoints: 500, buff: 'risk' });
+  });
+
+  it('a wrong risk answer with a minus round costs the stake once, not stake plus penalty', () => {
+    let s = take(toPowersQuestion({ rules: rules({ penalty: 'minus' }) }), 'p1', 'risk', T0 + 500);
+    s = must(lock(answer(s, 'p1', pick('a'), T0 + 1000)));
+    expect(recordOf(s, 0, 'p1')).toMatchObject({ basePoints: -1000, points: -1000 });
+    expect(score(s, 'p1')).toBe(-1000);
+  });
+
+  it('who am I: the triple is of the clue-reduced points, the stake is the full price', () => {
+    let s = toPowersQuestion();
+    for (let i = 0; i < 5; i++) s = toNext(s, T0 + 30_000 * (i + 1));
+    expect(s.plays[5].question.type).toBe('clues');
+    const at = T0 + 150_000;
+    s = take(s, 'p1', 'risk', at + 100);
+    s = take(s, 'p3', 'risk', at + 100);
+    s = answer(s, 'p1', { type: 'clues', value: 'Шевченко' }, at + 11_000);
+    s = answer(s, 'p2', { type: 'clues', value: 'Шевченко' }, at + 11_000);
+    s = answer(s, 'p3', { type: 'clues', value: 'Франко' }, at + 11_000);
+    const plain = recordOf(s, 5, 'p2')!.basePoints;
+    expect(plain).toBeGreaterThan(0);
+    expect(plain).toBeLessThan(1000);
+    expect(recordOf(s, 5, 'p1')?.basePoints).toBe(plain * 3);
+    expect(recordOf(s, 5, 'p3')?.basePoints).toBe(-1000);
+  });
+
+  it('teams: the answering team takes risk; a silent team pays the stake', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single4, withId(single4, 'q2')], { speedBonus: false })], {
+      teams: defaultTeams(2),
+      buffs: ['risk'],
+    });
+    let s = must(next(teamGame(quiz, [['Оля', 'Петро'], ['Іра', 'Денис']]), T0, rng0));
+    expect(s.phase).toBe('question');
+    s = take(s, 't1', 'risk', T0 + 500);
+    s = take(s, 't2', 'risk', T0 + 500);
+    s = must(actAnswer(s, 'm1', pick('b'), T0 + 1000));
+    expect(recordOf(s, 0, 't1')).toMatchObject({ basePoints: 3000, buff: 'risk' });
+    s = must(lock(s));
+    expect(recordOf(s, 0, 't2')).toMatchObject({ answer: null, points: -1000, buff: 'risk' });
+    expect([score(s, 't1'), score(s, 't2')]).toEqual([3000, -1000]);
+  });
+
+  it('a phone board cell: silence pays once; an answer waiting for the host is not silence', () => {
+    let quiet = must(lock(take(toBuffCell({}, 'auto', ['risk']), 'p1', 'risk', T0 + 500)));
+    expect(recordOf(quiet, 0, 'p1')).toMatchObject({ answer: null, points: -2000, buff: 'risk' });
+    quiet = must(next(quiet, T0 + 30_000, rng0));
+    expect(quiet.phase).toBe('reveal');
+    expect(score(quiet, 'p1')).toBe(-2000);
+
+    let pending = answer(take(toBuffCell({}, 'auto', ['risk']), 'p1', 'risk', T0 + 500), 'p1', pick('b'), T0 + 1000);
+    expect(recordOf(pending, 0, 'p1')).toBeUndefined();
+    pending = must(lock(pending));
+    expect(recordOf(pending, 0, 'p1')).toBeUndefined();
+    pending = must(next(pending, T0 + 30_000, rng0));
+    expect(recordOf(pending, 0, 'p1')).toMatchObject({ answer: pick('b'), grade: 'wrong', points: -2000, buff: 'risk' });
+    expect(score(pending, 'p1')).toBe(-2000);
+  });
+
+  it('a voice board cell: the host grades it after the close and risk pays the triple', () => {
+    const round = boardRound('g1', [{ title: 'Міста', cells: [{ question: withId(single4, 'c11'), answerMode: 'voice' }, withId(single4, 'c12')] }]);
+    const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { buffs: ['risk'] }), 'Оля', 'Петро'))), T0, rng0));
+    let s = take(must(pickCell(board, 'p1', 'c11', T0, rng0)), 'p1', 'risk', T0 + 500);
+    s = must(lock(s));
+    expect(recordOf(s, 0, 'p1')).toMatchObject({ answer: null, points: -1000, buff: 'risk' });
+    s = must(override(s, 'p1', 'correct'));
+    expect(recordOf(s, 0, 'p1')).toMatchObject({ grade: 'correct', points: 3000, buff: 'risk' });
+    expect(score(s, 'p1')).toBe(3000);
   });
 });
 

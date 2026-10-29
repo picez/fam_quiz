@@ -572,19 +572,29 @@ export function guardHolds(play: Play, participant: string): boolean {
   return buffOf(play, participant)?.kind === 'guard';
 }
 
+/**
+ * Мовчання з «Ризиком» у класиці (12h): запис без відповіді — штраф, а не відповідь (цікавинки й історія його не рахують, оцінити його не можна).
+ * На полі не рахується: усна клітинка завжди без відповіді з телефона, а її оцінює ведучий.
+ */
+export function isSilentRisk(play: Play, record: AnswerRecord): boolean {
+  return record.buff === 'risk' && record.answer === null && play.board === undefined;
+}
+
 /** Для lockNow (12h): хто взяв «Ризик» і не відповів, отримує запис мовчання з −riskStake. Без таких — той самий стан. */
 export function withRiskMisses(state: GameState): GameState {
   const play = state.plays[state.questionIndex];
   if (state.phase !== 'question' || play?.buffs === undefined) return state;
   let charged = state;
   for (const player of state.players) {
-    if (buffOf(play, player.id)?.kind !== 'risk' || recordOf(state, state.questionIndex, player.id) !== undefined) continue;
+    // Відповідь з телефона, що чекає «Прийняти», — не мовчання: без оцінки її зробить неправильною розкриття поля.
+    if (buffOf(play, player.id)?.kind !== 'risk' || hasAnswered(state, play, player.id)) continue;
     // Класика — кожен, поле — лише той, хто вибрав клітинку.
     if (!buffRowHere(state, play, player.id)) continue;
     const stake = riskStake(state, play);
     charged = withRecord(charged, player.id, {
       answer: null,
-      timeMs: limitMsOf(play) ?? 0,
+      // Мовчання коштує весь час гравця (межа його бонусу швидкості).
+      timeMs: answerLimitMs(play, player.id) ?? 0,
       accepted: false,
       accuracy: 0,
       grade: 'wrong',

@@ -49,6 +49,7 @@ import {
   finishRetry,
   guardHolds,
   holdFirstTry,
+  isSilentRisk,
   questionFor,
   riskStake,
   settleRetries,
@@ -2198,7 +2199,8 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   // Оцінка в бліці остаточна, навіть для гравця без запису.
   if (round.type === 'blitz') return fail('wrong_phase');
   const record = recordOf(state, state.questionIndex, playerId);
-  if (record === undefined) return fail('not_found');
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь: як і мовчання без бафу, оцінювати нічого.
+  if (record === undefined || isSilentRisk(play, record)) return fail('not_found');
   // «Ва-банк»: лише правильно чи неправильно; банк і статус перераховує withTotals (withWipeoutPoints).
   if (round.type === 'wipeout') {
     if (grade === 'partial') return fail('partial_disabled');
