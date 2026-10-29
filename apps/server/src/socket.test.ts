@@ -755,6 +755,21 @@ describe('host presence', () => {
     expect(await send(olena, 'player:retry', { keep: true })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
+  it('player:buff carries the peek target to the manager; a non-string target is invalid (12h)', async () => {
+    const quiz = makeQuiz([single, text], { buffs: ['peek'] });
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, olena, taras, tarasJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(taras, 'player:answer', wrong)).toEqual({ ok: true });
+    expect(await send(olena, 'player:buff', { kind: 'peek', targetId: 5 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:buff', { kind: 'peek' })).toEqual({ ok: false, error: 'peek_target' });
+    expect(await send(olena, 'player:buff', { kind: 'peek', targetId: tarasJoin.playerId })).toEqual({ ok: true });
+    const mine = await until(olena, (v) => v.role === 'player' && v.me.buffs?.active?.peek != null);
+    expect(mine.role === 'player' && mine.me.buffs?.active?.peek).toEqual({ target: { playerId: tarasJoin.playerId, nickname: 'Тарас' }, answer: wrong });
+  });
+
   it('a player buys a debuff for a rival: role-checked, validated, charged, and the rival sees the buyer when it fires', async () => {
     const quiz = makeQuiz([single, text], { debuffs: ['fog'], debuffPrices: { fog: 100 } });
     const created = (await startGame(ctx.app, quiz)).game;

@@ -1052,11 +1052,12 @@ export class RoomManager {
     return this.apply(room, pickDoor(room.state, who.id, door, this.now()));
   }
 
-  buff(room: Room, playerId: string, kind: BuffKind): AckResult {
+  /** Гравець бере баф; targetId — ціль «Підглянути» (12h). У командній грі — той, хто відповідає (12g). */
+  buff(room: Room, playerId: string, kind: BuffKind, targetId?: string): AckResult {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
-    return this.apply(room, takeBuff(room.state, who.id, kind, this.now(), this.rng));
+    return this.apply(room, takeBuff(room.state, who.id, kind, this.now(), this.rng, targetId));
   }
 
   /** Гравець купує дебаф для суперника (9c). */

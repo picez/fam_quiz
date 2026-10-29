@@ -1,4 +1,4 @@
-import { appealTally, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { appealTally, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type Question } from '@quiz/shared';
 import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
@@ -100,10 +100,11 @@ function answerRowsOf(state: GameState, index: number, playerId: string): Omit<A
   const attempts = state.plays[index].blitz?.attempts.filter((a) => a.playerId === playerId);
   if (attempts === undefined) {
     const { answer: payload, timeMs, accepted, points, streakBonus, overridden } = record;
-    const { final } = state.plays[index];
+    const play = state.plays[index];
+    const { final } = play;
     // Мовчання у фіналі — рядок балів без відповіді, як штраф бліц-клітинки. Ставка йде окремо:
-    // у спільному банку бали не дорівнюють ±ставці.
-    const silent = final !== undefined && payload === null;
+    // у спільному банку бали не дорівнюють ±ставці. Мовчання з «Ризиком» у класиці (12h) — теж штраф, з бафом на рядку.
+    const silent = (final !== undefined && payload === null) || isSilentRisk(play, record);
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
     // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка.
     const vote = isUnscored(state.plays[index].question);

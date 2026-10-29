@@ -249,8 +249,8 @@ function responsesOf(
     const own: GameAppeal | null =
       found === undefined ? null : { reason: found.reason, yes: found.yes, no: found.no, outcome: found.outcome as GameAppeal['outcome'] };
     const rows = given
-      // Штрафний рядок бліц-клітинки не є відповіддю.
-      .filter((a) => a.participantId === participantId && a.attempt !== PENALTY_ATTEMPT)
+      // Штрафний рядок бліц-клітинки не є відповіддю; мовчання з «Ризиком» (12h) видно рядком без відповіді зі значком бафу.
+      .filter((a) => a.participantId === participantId && (a.attempt !== PENALTY_ATTEMPT || a.buff === 'risk'))
       .sort((a, b) => a.attempt - b.attempt)
       .map((a, i) => ({ nickname, answer: a.payload, accepted: a.accepted, buff: a.buff ?? null, spare: spares.find((q) => q.id === a.spareId) ?? null, awayMs: a.awayMs ?? null, appeal: i === 0 ? own : null }));
     if (rows.length > 0 || own === null) return rows;
