@@ -55,7 +55,7 @@ const LIMIT = 100;
  * Знімок вікторини гри: ігри, зіграні до появи раундів, зберегли його в старому форматі.
  * Знімки не змінюються, а схема змінюється, тож старий знімок може її не пройти: тоді null.
  */
-function snapshotOf(raw: unknown): Quiz | null {
+export function snapshotOf(raw: unknown): Quiz | null {
   const parsed = quizSchema.safeParse(upgradeQuiz(raw));
   return parsed.success ? parsed.data : null;
 }
@@ -90,7 +90,7 @@ function roundQuestionsAt(quiz: Quiz, roundIndex: number): Question[] {
 }
 
 /** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
-function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
+export function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
   // Старі ігри не мають журналу: вони йшли одним списком, тож зіграно перші questionsPlayed запитань.
   if (plays.length === 0) {
     return questionsOf(quiz)
