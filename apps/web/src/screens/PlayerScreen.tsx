@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
@@ -569,6 +569,20 @@ function instantStatus(blitz: PlayerBlitz, timeOver: boolean, autopilot: boolean
 }
 
 /**
+ * Висота блоку відповіді, поки поле відкрите: після надсилання на його місці стоїть коротша відповідь,
+ * а блок тримає ту саму висоту до кінця запитання (key), тож рядок стану й черга під ним не підскакують.
+ */
+function useKeptHeight(open: boolean, key: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const kept = useRef<{ key: number; height: number } | null>(null);
+  if (kept.current !== null && kept.current.key !== key) kept.current = null;
+  useLayoutEffect(() => {
+    if (open && ref.current !== null) kept.current = { key, height: ref.current.offsetHeight };
+  });
+  return { ref, minHeight: open ? undefined : kept.current?.height };
+}
+
+/**
  * Повний час для власного годинника: спільний ліміт плюс власний додатковий час (кінець особистий − кінець спільний;
  * на паузі — різниця залишків). Найбільше значення за запитання тримається: пауза після спільного кінця
  * зменшує додатковий час на витрачене, а смужка не має стрибати.
@@ -691,6 +705,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
   const clueGuard = useGuardedSend(send, setError);
   const cluesMine =
     phase === 'question' && question?.clues?.self === true && acting && me.answer === null && activeBuff?.first == null && (board === null || chooserIsMe) && !onSpare;
+  const keptAnswer = useKeptHeight(instant && me.blitz?.canAnswer === true, view.questionIndex);
   const queue =
     instant && view.blitz !== null ? (
       <BlitzQueue rows={view.blitz.rows} reserve={view.playerCount} question={question} blinking={rowBlink} closed={phase !== 'question'} />
@@ -957,20 +972,22 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
               <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} noClock={debuff?.kind === 'noclock'} />
             ) : instant && me.blitz !== null ? (
               <>
-                {me.blitz.canAnswer ? (
-                  // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
-                  <fieldset className="inputs" disabled={locked || timeOver}>
-                    <AnswerInput
-                      key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
-                      question={shown ?? question}
-                      onSubmit={(answer) => {
-                        if (!timeOver) void submit(answer);
-                      }}
-                    />
-                  </fieldset>
-                ) : (
-                  <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={null} blink={blink} />
-                )}
+                <div ref={keptAnswer.ref} style={{ minHeight: keptAnswer.minHeight }}>
+                  {me.blitz.canAnswer ? (
+                    // Після нуля поле лишається на місці, лише вимкнене: варіанти не стрибають, а сервер однаково відмовив би.
+                    <fieldset className="inputs" disabled={locked || timeOver}>
+                      <AnswerInput
+                        key={`${view.questionIndex}-${me.blitz.position ?? 0}-${me.answer === null}`}
+                        question={shown ?? question}
+                        onSubmit={(answer) => {
+                          if (!timeOver) void submit(answer);
+                        }}
+                      />
+                    </fieldset>
+                  ) : (
+                    <SpotlightChoices removed={view.removed} question={question} spotlight={own} reveal={null} blink={blink} />
+                  )}
+                </div>
                 {/* Відлік вікна стоїть у рядку стану з зарезервованою висотою: ні поява, ні зникнення не зсувають черги. */}
                 <div className="blitz-status-row">
                   {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
@@ -1351,9 +1368,12 @@ function BlitzTurn({
     }
     return (
       <>
-        <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
-        {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
-        {blitz.deadline !== null && !view.paused && !noClock && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        {/* Місце в черзі й відлік вікна — в одному рядку з зарезервованою висотою: коли черга доходить до гравця, поле не з'їжджає. */}
+        <div className="blitz-status-row">
+          <p className="blitz-place">{t('blitzPlace', { position: blitz.position })}</p>
+          {/* Сервер зсуває вікно лише після продовження, тож на паузі відлік вікна не показуємо. */}
+          {blitz.deadline !== null && !view.paused && !noClock && <Timer view={{ endsAt: blitz.deadline, remainingMs: null }} offsetMs={offsetMs} />}
+        </div>
         {voice ? (
           blitz.position === 1 ? <p className="lead">{t('answerAloud')}</p> : null
         ) : (

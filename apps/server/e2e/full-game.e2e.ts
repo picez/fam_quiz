@@ -16505,3 +16505,91 @@ it('part 12i: achievements I — after Оля answers «Дніпро» in under 
     throw error;
   }
 }, 600_000);
+
+/** Верх і висота елемента (px), округлені. */
+const rectOf = (locator: Locator) =>
+  locator.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return { top: Math.round(box.top), height: Math.round(box.height) };
+  });
+
+it('backlog 3: blitz answer fields never move — a buzzer blitz keeps the queued field in place when the opponent before it is judged and the own answer window opens; an instant text blitz keeps the queue in place when the second player sends', async () => {
+  try {
+    const host = await open('host-b3', 1280, 900);
+    await register(host, 'host', 'Ірина Ведуча', 'host-b3@example.com');
+    const capital = { ...single, id: 'q-b3-1', timeLimit: 60 };
+    const gold = { ...withId(textQ, 'q-b3-2'), text: 'Хімічний символ золота?', accepted: ['Au'], timeLimit: 60 };
+    const silver = { ...withId(textQ, 'q-b3-3'), text: 'Хімічний символ срібла?', accepted: ['Ag'], timeLimit: 60 };
+    const data = {
+      ...makeRoundsQuiz([
+        blitzRound('rb1', [capital, gold] as never, { title: 'Бліц з кнопкою', check: 'manual', attempts: 1, answerWindow: 20 }),
+        blitzRound('rb2', [silver] as never, { title: 'Миттєвий бліц', check: 'auto', attempts: 1 }),
+      ]),
+      title: 'Бліц без стрибків',
+    };
+    const saved = await host.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: 'Бліц без стрибків' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    const olya = await open('olya-b3', 375, 812);
+    const taras = await open('taras-b3', 375, 812);
+    await join(olya, code, 'Оля', false);
+    await join(taras, code, 'Тарас', false);
+    await host.getByText('Тарас').first().waitFor();
+    await click(host, 'Почати гру');
+    await click(host, 'Почати раунд');
+
+    for (const kind of ['choice', 'text'] as const) {
+      // Оля перша: її відповідь чекає ведучого (помаранчева).
+      await olya.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+      await click(olya, 'Відповісти');
+      if (kind === 'choice') await olya.locator('fieldset.inputs').getByRole('button', { name: /Київ/ }).click();
+      else {
+        await olya.locator('fieldset.inputs').getByRole('textbox').fill('Ag');
+        await olya.locator('fieldset.inputs').getByRole('button', { name: 'Відповісти', ...exact }).click();
+      }
+      await taras.locator('.choice.is-pending, .is-pending').first().waitFor();
+      // Тарас тисне «Відповісти» другим: поле з'являється під відповіддю Олі.
+      await click(taras, 'Відповісти');
+      await taras.getByText('Ви 2-й у черзі').waitFor();
+      const queued = await rectOf(taras.locator('fieldset.inputs'));
+      await shot(taras, `b3-${kind}-queued`);
+      // Ведучий: Оля неправильно — Тарас голова, його вікно відповіді відкривається.
+      await click(host, 'Неправильно');
+      await taras.getByText('Ви 1-й у черзі').waitFor();
+      await taras.locator('.timer').first().waitFor();
+      await shot(taras, `b3-${kind}-head`);
+      expect(await rectOf(taras.locator('fieldset.inputs')), `the ${kind} field moves when Тарас becomes the head`).toEqual(queued);
+      if (kind === 'choice') await taras.locator('fieldset.inputs').getByRole('button', { name: /Київ/ }).click();
+      else {
+        await taras.locator('fieldset.inputs').getByRole('textbox').fill('Au');
+        await taras.locator('fieldset.inputs').getByRole('button', { name: 'Відповісти', ...exact }).click();
+      }
+      await click(host, 'Правильно');
+      await click(host, 'Показати відповідь');
+      await click(host, 'Далі');
+      if (kind === 'choice') await click(host, 'Наступне запитання');
+      else {
+        await click(host, 'Наступний раунд');
+        await click(host, 'Почати раунд');
+      }
+    }
+
+    // Миттєвий бліц, текст: Оля надсилає першою, потім Тарас — черга в Тараса на місці.
+    await olya.locator('fieldset.inputs').getByRole('textbox').waitFor();
+    await olya.locator('fieldset.inputs').getByRole('textbox').fill('Ag');
+    await olya.locator('fieldset.inputs').getByRole('button', { name: 'Відповісти', ...exact }).click();
+    await taras.locator('.blitz-queue li', { hasText: 'Оля' }).waitFor();
+    const queue = await rectOf(taras.locator('.blitz-queue'));
+    await taras.locator('fieldset.inputs').getByRole('textbox').fill('Au');
+    await taras.locator('fieldset.inputs').getByRole('button', { name: 'Відповісти', ...exact }).click();
+    await taras.locator('.blitz-queue li', { hasText: 'Тарас' }).waitFor();
+    await shot(taras, 'b3-instant-text-sent');
+    expect(await rectOf(taras.locator('.blitz-queue')), 'the instant queue moves when Тарас sends a text answer').toEqual(queue);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
