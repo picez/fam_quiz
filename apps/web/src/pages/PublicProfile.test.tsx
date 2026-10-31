@@ -42,14 +42,14 @@ describe('PublicProfile', () => {
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();
     expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/u2/achievements');
+    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/u2/achievements');
   });
 
   it('the achievements link encodes the profile id', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
+    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
   });
 
   it('shows the podium numbers of a public profile', async () => {
@@ -68,7 +68,7 @@ describe('PublicProfile', () => {
     expect(await screen.findByText('Тарас')).toBeTruthy();
     expect(screen.getByText('email приховано')).toBeTruthy();
     expect(screen.getByText('Статистика')).toBeTruthy();
-    expect(screen.getByText('Ачівки')).toBeTruthy();
+    expect(screen.getByText('Досягнення')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Додати в друзі' }));
     expect(await screen.findByText('У друзях')).toBeTruthy();
     expect(follow).toHaveBeenCalledWith('u2');

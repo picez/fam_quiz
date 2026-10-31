@@ -104,21 +104,21 @@ describe('profile parts', () => {
       expect(container.textContent).not.toContain('🔒');
     });
 
-    it('with eight or fewer earned shows «Усі ачівки →»', () => {
+    it('with eight or fewer earned shows «Усі досягнення →»', () => {
       strip([
         { id: 'first_game', earned: true, earnedAt: null },
         { id: 'host', earned: true, earnedAt: null },
         { id: 'first_win', earned: true, earnedAt: null },
       ]);
       expect(document.querySelectorAll('.achievement-strip > li')).toHaveLength(3);
-      expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/achievements');
+      expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/achievements');
     });
 
     it('with none earned says so and still links to the page', () => {
       const { container } = strip([{ id: 'first_game', earned: false, earnedAt: null }]);
-      expect(screen.getByText('Ще жодної ачівки').className).toContain('meta');
+      expect(screen.getByText('Ще жодного досягнення').className).toContain('meta');
       expect(container.querySelectorAll('.achievement-strip > li')).toHaveLength(0);
-      expect(screen.getByRole('link', { name: 'Усі ачівки →' })).toBeTruthy();
+      expect(screen.getByRole('link', { name: 'Усі досягнення →' })).toBeTruthy();
     });
   });
 });

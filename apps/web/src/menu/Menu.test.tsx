@@ -57,9 +57,9 @@ describe('Menu', () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
-    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🏅Ачівки', '👤Профіль']);
+    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🏅Досягнення', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Ачівки'), href('Профіль')]).toEqual([
+    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Досягнення'), href('Профіль')]).toEqual([
       '/',
       '/quizzes',
       '/history',
@@ -73,13 +73,13 @@ describe('Menu', () => {
   it('achievements are marked on their page, and another player’s achievements belong to the profile', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/achievements');
-    await screen.findByRole('link', { name: 'Ачівки' });
-    expect(screen.getByRole('link', { name: 'Ачівки' }).getAttribute('aria-current')).toBe('page');
+    await screen.findByRole('link', { name: 'Досягнення' });
+    expect(screen.getByRole('link', { name: 'Досягнення' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
     cleanup();
     show('/profile/u2/achievements');
-    await screen.findByRole('link', { name: 'Ачівки' });
-    expect(screen.getByRole('link', { name: 'Ачівки' }).getAttribute('aria-current')).toBeNull();
+    await screen.findByRole('link', { name: 'Досягнення' });
+    expect(screen.getByRole('link', { name: 'Досягнення' }).getAttribute('aria-current')).toBeNull();
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
   });
 

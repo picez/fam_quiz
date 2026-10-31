@@ -72,7 +72,7 @@ describe('Achievements, own page', () => {
   it('shows the count, the groups in order without the empty anti group', async () => {
     const { container } = open('/achievements');
     expect(await screen.findByText('Отримано 2 з 48')).toBeTruthy();
-    expect(screen.getByRole('heading', { level: 1, name: 'Ачівки' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Досягнення' })).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
       'Перші кроки',
       'Влучність',
@@ -82,7 +82,7 @@ describe('Achievements, own page', () => {
       'Компанія',
       'Ведення й авторство',
     ]);
-    expect(screen.queryByText('Антиачівки')).toBeNull();
+    expect(screen.queryByText('Антидосягнення')).toBeNull();
     expect(container.querySelectorAll('.achievement-card')).toHaveLength(48);
     expect(getMyAchievements).toHaveBeenCalled();
   });
@@ -135,7 +135,7 @@ describe('Achievements, own page', () => {
 describe('Achievements, another player', () => {
   it('shows the name linked to the profile and only earned cards without progress', async () => {
     const { container } = open('/profile/u2/achievements');
-    const title = await screen.findByRole('heading', { level: 1, name: 'Ачівки: Оля' });
+    const title = await screen.findByRole('heading', { level: 1, name: 'Досягнення: Оля' });
     expect(within(title).getByRole('link', { name: 'Оля' }).getAttribute('href')).toBe('/profile/u2');
     expect(getAchievements).toHaveBeenCalledWith('u2');
     expect(container.querySelectorAll('.achievement-card')).toHaveLength(2);
@@ -146,13 +146,13 @@ describe('Achievements, another player', () => {
   it('opens for a visitor without an account', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/profile/u2/achievements');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Ачівки: Оля' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Досягнення: Оля' })).toBeTruthy();
   });
 
   it('says so when nothing is earned yet', async () => {
     vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: { ...theirs, earned: 0, items: [] } });
     open('/profile/u2/achievements');
-    expect(await screen.findByText('Ще жодної ачівки. Усе попереду!')).toBeTruthy();
+    expect(await screen.findByText('Ще жодного досягнення. Усе попереду!')).toBeTruthy();
   });
 
   it('an unknown profile is not found', async () => {

@@ -63,7 +63,7 @@ describe('Profile', () => {
     open();
     expect(await screen.findByText('Олена')).toBeTruthy();
     expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Усі ачівки →' }).getAttribute('href')).toBe('/achievements');
+    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/achievements');
     expect(document.body.textContent).not.toContain('🔒');
   });
 
@@ -84,7 +84,7 @@ describe('Profile', () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Статистика', 'Ачівки', 'Мої вікторини', 'Перемоги', 'Друзі']);
+    expect(headings).toEqual(['Статистика', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
     expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');

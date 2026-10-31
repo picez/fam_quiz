@@ -1636,7 +1636,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Ачівки', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Досягнення', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 
@@ -16337,7 +16337,7 @@ async function achievements12i() {
   const questions = achievementQuestions12i();
   const data = {
     ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
-    title: 'Ачівки 12i',
+    title: 'Досягнення 12i',
   };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -16348,7 +16348,7 @@ async function achievements12i() {
   const olyaId = olyaProfile.id;
 
   await host.goto(`${base}/quizzes`);
-  await host.locator('.quiz-list li', { hasText: 'Ачівки 12i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.locator('.quiz-list li', { hasText: 'Досягнення 12i' }).getByRole('button', { name: 'Грати', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const code = host.url().slice(-6);
   await join(olya, code, 'Оля', false);
@@ -16394,17 +16394,17 @@ async function achievements12i() {
     'Приєднатися',
     'Мої вікторини',
     'Історія',
-    'Ачівки',
+    'Досягнення',
     'Профіль',
   ]);
   await expectNoSideScroll(olya, 'p12i-menu');
   // Підпис у два рядки («Мої вікторини») не робить нижню панель вищою: --menu-h = 60 px.
   expect((await olya.locator(MENU).boundingBox())!.height, 'the 375 menu grows taller').toBeLessThanOrEqual(60.5);
-  await olya.locator(MENU).getByRole('link', { name: 'Ачівки' }).click();
+  await olya.locator(MENU).getByRole('link', { name: 'Досягнення' }).click();
   await olya.waitForURL(`${base}/achievements`);
 
   // ── 4. Сторінка на телефоні. ──
-  await olya.getByRole('heading', { level: 1, name: 'Ачівки', exact: true }).waitFor();
+  await olya.getByRole('heading', { level: 1, name: 'Досягнення', exact: true }).waitFor();
   const count = (await olya.locator('.achievements-count').textContent())!;
   const earnedCount = Number(count.match(/^Отримано (\d+) з 48$/)?.[1]);
   expect(earnedCount, count).toBeGreaterThanOrEqual(3);
@@ -16417,7 +16417,7 @@ async function achievements12i() {
     'Компанія',
     'Ведення й авторство',
   ]);
-  expect(await olya.getByText('Антиачівки').count()).toBe(0);
+  expect(await olya.getByText('Антидосягнення').count()).toBe(0);
   const today = await todayOn(olya);
   const fast = achievementCard(olya, 'Швидкі пальці');
   expect(await fast.getAttribute('class')).not.toContain('is-locked');
@@ -16457,7 +16457,7 @@ async function achievements12i() {
   expect(stripCount).toBeLessThanOrEqual(8);
   expect(await olya.locator('.achievement-strip li', { hasText: 'Швидкі пальці' }).count()).toBe(1);
   const more = olya.locator('.achievement-strip-more a');
-  expect(await more.textContent()).toMatch(/^(Усі ачівки →|ще \d+ →)$/);
+  expect(await more.textContent()).toMatch(/^(Усі досягнення →|ще \d+ →)$/);
   expect(await more.getAttribute('href')).toBe('/achievements');
   await expectNoSideScroll(olya, 'p12i-profile-strip');
 
@@ -16466,7 +16466,7 @@ async function achievements12i() {
   await host.locator('.achievement-strip li').first().waitFor();
   await host.locator('.achievement-strip-more a').click();
   await host.waitForURL(`${base}/profile/${olyaId}/achievements`);
-  await host.getByRole('heading', { level: 1, name: `Ачівки: ${olyaProfile.nickname}` }).waitFor();
+  await host.getByRole('heading', { level: 1, name: `Досягнення: ${olyaProfile.nickname}` }).waitFor();
   await achievementCard(host, 'Швидкі пальці').waitFor();
   expect(await host.locator('.achievement-card.is-locked').count()).toBe(0);
   expect(await host.locator('.achievements-page progress').count()).toBe(0);
@@ -16497,7 +16497,7 @@ async function achievements12i() {
   expect(problems).toEqual([]);
 }
 
-it('part 12i: achievements I — after Оля answers «Дніпро» in under two seconds on a 375 phone, «🏅 Ачівки» between «Історія» and «Профіль» opens «Отримано N з 48» with «Швидкі пальці» dated today, grey «10 ігор» at «1 / 10», no «Антиачівки» group, cards in several columns at 1280, the profile shows a row of the newest badges, the host sees only Оля’s earned cards with no progress on her public page and «За пультом» on own page, and an anonymous visitor gets 401', async () => {
+it('part 12i: achievements I — after Оля answers «Дніпро» in under two seconds on a 375 phone, «🏅 Досягнення» between «Історія» and «Профіль» opens «Отримано N з 48» with «Швидкі пальці» dated today, grey «10 ігор» at «1 / 10», no «Антидосягнення» group, cards in several columns at 1280, the profile shows a row of the newest badges, the host sees only Оля’s earned cards with no progress on her public page and «За пультом» on own page, and an anonymous visitor gets 401', async () => {
   try {
     await achievements12i();
   } catch (error) {
