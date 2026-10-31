@@ -5,7 +5,7 @@ import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, Pla
 import type { Send } from '../live/types';
 import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
-import { BLINK_MS } from './verdict-blink';
+import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
 import { baseMe, teamPlayerView } from './team-test-view';
 
 afterEach(cleanup);
@@ -1175,10 +1175,20 @@ describe('PlayerScreen: spotlight', () => {
     const at = (over: Partial<PlayerView>) => (
       <PlayerScreen view={view({ questionIndex: 0, question: publicQuestion, round, board: boardOf(anna), ...over })} hostOnline offsetMs={0} send={vi.fn()} />
     );
-    const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
-    expect(document.querySelector('.is-blinking')).toBeNull();
-    rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'correct' } }));
-    expect(document.querySelector('.choice.is-blinking')).not.toBeNull();
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(at({ phase: 'question', endsAt: Date.now() + 20_000, spotlight: { ...anna, answer, grade: null } }));
+      expect(document.querySelector('.is-blinking')).toBeNull();
+      rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'correct' } }));
+      // Напруга (беклог 19): ще мить відповідь помаранчева й мигає, правильної не видно.
+      expect(document.querySelector('main.is-suspense .choice.is-pending')).not.toBeNull();
+      expect(document.querySelector('.choice.is-correct')).toBeNull();
+      act(() => vi.advanceTimersByTime(SUSPENSE_MS));
+      expect(document.querySelector('main.is-suspense')).toBeNull();
+      expect(document.querySelector('.choice.is-blinking')).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a locked phone keeps the options with the orange answer', () => {
@@ -1200,6 +1210,8 @@ describe('PlayerScreen: spotlight', () => {
       expect(document.querySelector('.choice.is-pending')).not.toBeNull();
       expect(document.querySelector('.is-blinking')).toBeNull();
       rerender(at({ phase: 'reveal', reveal: fullQuestion, spotlight: { ...anna, answer, grade: 'wrong' } }));
+      expect(document.querySelector('.choice.is-wrong')).toBeNull();
+      act(() => vi.advanceTimersByTime(SUSPENSE_MS));
       expect(document.querySelector('.choice.is-wrong.is-blinking')).not.toBeNull();
       act(() => vi.advanceTimersByTime(BLINK_MS));
       expect(document.querySelector('.is-blinking')).toBeNull();

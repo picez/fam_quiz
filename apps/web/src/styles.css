@@ -1118,6 +1118,13 @@ button.choice {
   }
 }
 
+/* Напруга перед вердиктом (беклог 19): помаранчева відповідь швидко мигає, поки вердикт тримається; без руху — просто пауза. */
+@media (prefers-reduced-motion: no-preference) {
+  .is-suspense .is-pending {
+    animation: verdict-blink 0.3s ease-in-out infinite;
+  }
+}
+
 /* ---------- Довгий текст: слова переносяться, довгі запитання дрібнішають ---------- */
 
 .inputs {

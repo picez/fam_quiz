@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BlitzRow, Spotlight } from '@quiz/shared';
 
 /** Скільки мигає вердикт: шість циклів по 0,5 с. */
@@ -72,4 +72,38 @@ export function useBlinkingRows(rows: BlitzRow[], scope: number): ReadonlySet<st
   }, []);
 
   return blinking;
+}
+
+/** Скільки триває напруга перед вердиктом (беклог 19): відповідь ще помаранчева й мигає, як у «Мільйонері». */
+export const SUSPENSE_MS = 1500;
+
+/** Відповідь, що чекає ведучого: гравець і відповідь; інакше null. */
+function pendingKey(spotlight: Spotlight | null): string | null {
+  if (spotlight === null || spotlight.grade !== null) return null;
+  return `${spotlight.playerId}|${JSON.stringify(spotlight.answer)}`;
+}
+
+/**
+ * Напруга перед вердиктом: коли помаранчева відповідь отримує оцінку, екран ще SUSPENSE_MS показує попередній зріз
+ * (відповідь помаранчева й мигає, правильної відповіді й нових балів ще не видно), потім — найсвіжіший.
+ * useLayoutEffect: зріз з вердиктом не встигає намалюватися ні на кадр.
+ */
+export function useVerdictSuspense<V extends { spotlight: Spotlight | null }>(view: V): { view: V; suspense: boolean } {
+  const [held, setHeld] = useState<V | null>(null);
+  const last = useRef(view);
+  useLayoutEffect(() => {
+    const before = last.current;
+    last.current = view;
+    if (held !== null) return;
+    const waiting = pendingKey(before.spotlight);
+    const after = view.spotlight;
+    if (waiting === null || after === null || after.grade === null || `${after.playerId}|${JSON.stringify(after.answer)}` !== waiting) return;
+    setHeld(before);
+  }, [view, held]);
+  useEffect(() => {
+    if (held === null) return;
+    const stop = setTimeout(() => setHeld(null), SUSPENSE_MS);
+    return () => clearTimeout(stop);
+  }, [held]);
+  return held === null ? { view, suspense: false } : { view: held, suspense: true };
 }

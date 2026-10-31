@@ -27,7 +27,7 @@ import type { AudioCommand } from '../live/useGame';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
-import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
+import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-blink';
 import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
@@ -831,7 +831,9 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
   );
 }
 
-export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null }: Props) {
+export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null }: Props) {
+  // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
+  const { view, suspense } = useVerdictSuspense(live);
   const { phase, standings } = view;
   // Хук на рівні екрана: миготіння має пережити зміну етапу question → reveal.
   const blink = useVerdictBlink(view.spotlight);
@@ -839,7 +841,7 @@ export function StageScreen({ view, code, joinUrl, offsetMs, hostOnline, audioCo
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
-    <main className={appeal !== null ? 'app stage has-appeal' : 'app stage'}>
+    <main className={['app stage', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')}>
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />

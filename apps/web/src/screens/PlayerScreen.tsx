@@ -23,7 +23,7 @@ import { PinBoard } from './PinBoard';
 import { SliderScale } from './SliderScale';
 import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
-import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
+import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { Standings } from './Standings';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
@@ -606,7 +606,9 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
+export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
+  // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
+  const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
@@ -766,7 +768,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
 
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
-    <main className="app player" aria-busy={notStarted || undefined}>
+    <main className={suspense ? 'app player is-suspense' : 'app player'} aria-busy={notStarted || undefined}>
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
