@@ -1297,6 +1297,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** У лобі — нікнейми всіх, хто вже зайшов, у порядку входу (беклог 5); поза лобі поля немає. */
+  lobby?: string[];
   me: {
     id: string;
     nickname: string;

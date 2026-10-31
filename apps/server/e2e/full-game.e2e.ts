@@ -451,7 +451,7 @@ async function scenario() {
   // 4. Текст: ведучий вручну зараховує відповідь з іншим написанням.
   await field(olya, 'Ваша відповідь').fill('  одеса ');
   await click(olya, 'Відповісти');
-  await field(taras, 'Ваша відповідь').fill('Одесса');
+  await field(taras, 'Ваша відповідь').fill('Odesa');
   await click(taras, 'Відповісти');
   await reveal();
   await olya.getByText('Правильно!').waitFor();
@@ -9158,7 +9158,7 @@ async function wipeoutGame() {
 
   // 7. w4: ручна оцінка.
   await stage.getByText('Столиця Туреччини?', exact).waitFor();
-  await numericAnswer(vira, 'Анкарра');
+  await numericAnswer(vira, 'Стамбул');
   await host.getByText('Запитання закрите').waitFor();
   await click(host, 'Показати відповідь');
   await vira.getByText('Банк згорів', exact).first().waitFor();

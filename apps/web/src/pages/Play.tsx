@@ -9,6 +9,7 @@ import { useSirenUnlock } from '../live/useSirenUnlock';
 import { useWakeLock } from '../live/useWakeLock';
 import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
+import { Menu } from '../menu/Menu';
 import { useAccount } from '../useAccount';
 
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
@@ -39,43 +40,47 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     else setError(errorText(result.error === 'wrong_phase' ? 'game_started' : result.error));
   };
 
+  // До входу в гру меню є, як на інших сторінках (беклог 24): з форми можна піти куди завгодно.
   return (
-    <main className="app narrow">
-      <h1 className="brand">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
-      <form className="panel" onSubmit={submit}>
-        <label className="field">
-          <span>{t('nicknameLabel')}</span>
-          <input
-            value={nickname}
-            onChange={(event) => setNickname(event.target.value)}
-            maxLength={20}
-            autoComplete="nickname"
-            autoFocus
-            aria-describedby="nickname-hint"
-          />
-        </label>
-        <p className="meta" id="nickname-hint">
-          {t('nicknameHint')}
-        </p>
-        <button type="submit" className="btn btn-primary" disabled={!ready || busy}>
-          {t(busy ? 'checking' : 'enterGame')}
-        </button>
-        {error !== null && (
-          <p className="error" role="alert">
-            {error}
+    <div className="with-menu">
+      <Menu />
+      <main className="app narrow">
+        <h1 className="brand">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
+        <form className="panel" onSubmit={submit}>
+          <label className="field">
+            <span>{t('nicknameLabel')}</span>
+            <input
+              value={nickname}
+              onChange={(event) => setNickname(event.target.value)}
+              maxLength={20}
+              autoComplete="nickname"
+              autoFocus
+              aria-describedby="nickname-hint"
+            />
+          </label>
+          <p className="meta" id="nickname-hint">
+            {t('nicknameHint')}
           </p>
+          <button type="submit" className="btn btn-primary" disabled={!ready || busy}>
+            {t(busy ? 'checking' : 'enterGame')}
+          </button>
+          {error !== null && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+        {account.status === 'signed-in' && <p className="meta">{t('playingAs', { name: account.account.name })}</p>}
+        {account.status === 'anonymous' && (
+          <Link className="quiet-link" to={`/login?next=${encodeURIComponent(`/play/${code}`)}`}>
+            {t('signInToKeep')}
+          </Link>
         )}
-      </form>
-      {account.status === 'signed-in' && <p className="meta">{t('playingAs', { name: account.account.name })}</p>}
-      {account.status === 'anonymous' && (
-        <Link className="quiet-link" to={`/login?next=${encodeURIComponent(`/play/${code}`)}`}>
-          {t('signInToKeep')}
+        <Link className="quiet-link" to="/">
+          {t('joinTitle')}
         </Link>
-      )}
-      <Link className="quiet-link" to="/">
-        {t('joinTitle')}
-      </Link>
-    </main>
+      </main>
+    </div>
   );
 }
 

@@ -258,3 +258,11 @@ describe('points of the question just closed (backlog 13)', () => {
     expect(stageView(s).standings!.every((row) => row.question === undefined)).toBe(true);
   });
 });
+
+describe('the lobby on the phone (backlog 5)', () => {
+  it('a player in the lobby sees everyone who joined in the order of joining; after the start the list is gone', () => {
+    const s = lobbyWith(twoRoundsQuiz(), 'Оля', 'Петро');
+    expect(phone(s, 'p2').lobby).toEqual(['Оля', 'Петро']);
+    expect(phone(startRound(s, 1000, rng), 'p1').lobby).toBeUndefined();
+  });
+});

@@ -817,6 +817,19 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
         <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} />
       )}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
+      {/* Хто вже в лобі (беклог 5); у командній грі склад видно в командах. */}
+      {phase === 'lobby' && view.team === null && view.lobby !== undefined && (
+        <div className="roster">
+          <p className="meta">{t('playersIn', { count: view.lobby.length })}</p>
+          <ul className="chips">
+            {view.lobby.map((nickname, index) => (
+              <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined}>
+                {nickname}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 

@@ -137,7 +137,7 @@ describe('survival: alive players and the edge', () => {
     for (let i = 0; i < 3; i += 1) s = pass(s, i * 10_000);
     expect(s.plays[s.questionIndex].question.id).toBe('s4');
     s = must(submitAnswer(s, 'p1', RIGHT[3], 40_000));
-    s = must(submitAnswer(s, 'p2', { type: 'text', value: 'Одесса' }, 40_000));
+    s = must(submitAnswer(s, 'p2', { type: 'text', value: 'Херсон' }, 40_000));
     s = must(next(must(submitAnswer(s, 'p3', RIGHT[3], 40_000)), 41_000, rng));
     expect(edgeNow(s)).toEqual(['p2']);
     s = must(override(s, 'p2', 'correct'));

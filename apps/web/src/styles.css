@@ -1041,6 +1041,11 @@ button.choice {
   opacity: 0.45;
 }
 
+/* Власний нікнейм у лобі на телефоні. */
+.chips .is-me {
+  border-color: var(--amber);
+}
+
 .stage-board {
   display: grid;
   gap: 3vh;

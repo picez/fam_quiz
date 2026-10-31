@@ -438,7 +438,7 @@ describe('decisions (10g)', () => {
     s = playRung(s, { p1: RIGHT[2], p2: RIGHT[2] }, 7000);
     s = toNext(stay(s, 'p1', 'p2'), 9000);
     expect(s.plays[3].question.id).toBe('w4');
-    s = playRung(s, { p1: RIGHT[3], p2: { type: 'text', value: 'Одесса' } }, 10_000);
+    s = playRung(s, { p1: RIGHT[3], p2: { type: 'text', value: 'Херсон' } }, 10_000);
     expect(s.phase).toBe('reveal');
     expect(wipeoutTable(s).p2).toEqual({ status: 'burned', bank: 0, step: 3 });
     expect(override(s, 'p2', 'partial')).toEqual({ ok: false, error: 'partial_disabled' });

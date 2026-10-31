@@ -32,6 +32,43 @@ export function textMatches(accepted: string[], value: string): boolean {
   return normalized !== '' && accepted.some((spelling) => normalizeText(spelling) === normalized);
 }
 
+/**
+ * Збіг з допуском до одруківки (беклог 14): точний textMatches або відстань Дамерау — Левенштейна до одного з написань
+ * не більша за typoBudget написання, з тією самою першою літерою. Цифр допуск не стосується: «1991» і «1992» — різні відповіді.
+ */
+export function textAccepts(accepted: string[], value: string): boolean {
+  if (textMatches(accepted, value)) return true;
+  const typed = normalizeText(value);
+  if (typed === '' || /\d/u.test(typed)) return false;
+  return accepted.some((spelling) => {
+    const key = normalizeText(spelling);
+    const budget = typoBudget(key);
+    // Перша літера має збігтися: «Адеса» замість «Одеса» — вже інше слово, а не одруківка.
+    return budget > 0 && !/\d/u.test(key) && key[0] === typed[0] && Math.abs(key.length - typed.length) <= budget && typoDistance(key, typed) <= budget;
+  });
+}
+
+/** Скільки одруківок прощається: до 4 літер — жодної, 5–8 — одна, від 9 — дві. */
+function typoBudget(key: string): number {
+  const length = [...key].length;
+  return length >= 9 ? 2 : length >= 5 ? 1 : 0;
+}
+
+/** Відстань Дамерау — Левенштейна (обмежена: сусідні літери, переставлені місцями, — одна помилка). */
+function typoDistance(a: string, b: string): number {
+  const x = [...a];
+  const y = [...b];
+  const d: number[][] = Array.from({ length: x.length + 1 }, (_, i) => Array.from({ length: y.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= x.length; i++) {
+    for (let j = 1; j <= y.length; j++) {
+      const cost = x[i - 1] === y[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && x[i - 1] === y[j - 2] && x[i - 2] === y[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[x.length][y.length];
+}
+
 /** Збіги значень з рядками дошки: id першого рядка, де textMatches([text, ...accepted], value); рядок, уже влучений раніше, — null. */
 export function surveyHits(rows: readonly SurveyRow[], values: readonly string[]): (string | null)[] {
   const hit = new Set<string>();
@@ -61,11 +98,11 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
   }
 
   if (question.type === 'text' && answer.type === 'text') {
-    return full(textMatches(question.accepted, answer.value));
+    return full(textAccepts(question.accepted, answer.value));
   }
 
   if (question.type === 'clues' && answer.type === 'clues') {
-    return full(textMatches(question.accepted, answer.value));
+    return full(textAccepts(question.accepted, answer.value));
   }
 
   if (question.type === 'numeric' && answer.type === 'numeric') {

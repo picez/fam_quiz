@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getMyCard, joinGame, me } from '../api';
@@ -33,7 +33,7 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn(), getMyCard: vi.fn() }));
+vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })) }));
 vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
@@ -167,6 +167,12 @@ describe('Play: whether the game will be kept', () => {
     await waitFor(() => expect(field.value).toBe('Оленка'));
     submitNickname('Оля');
     await waitFor(() => expect(joinGame).toHaveBeenCalledWith('123456', 'Оля'));
+  });
+
+  it('the join form has the menu like the other pages (backlog 24)', async () => {
+    open();
+    const nav = await screen.findByRole('navigation');
+    expect(within(nav).getByRole('link', { name: /Приєднатися/ }).getAttribute('href')).toBe('/');
   });
 
   it('leaves the name empty for a visitor and asks no profile', async () => {

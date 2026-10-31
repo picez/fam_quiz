@@ -2217,6 +2217,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
   const visible = finalVisiblePoints(state, playerId);
   return {
     ...shared,
+    // Лобі (беклог 5): хто вже зайшов, у порядку входу.
+    ...(state.phase === 'lobby' ? { lobby: state.players.map((p) => p.nickname) } : {}),
     question: shared.question === null ? null : withoutClip(ownClues(state, playerId, shared.question)),
     ...(spare === null
       ? {}

@@ -462,6 +462,13 @@ describe('PlayerScreen', () => {
     expect(Array.from(document.querySelectorAll('.round-gain')).map((node) => node.textContent)).toEqual(['+900 за раунд', '+750 за раунд']);
   });
 
+  it('the lobby shows who has already joined, the own nickname marked (backlog 5)', () => {
+    show(view({ phase: 'lobby', questionIndex: -1, lobby: ['Тарас', 'Олена', 'Іра'] }));
+    expect(screen.getByText('У грі: 3')).toBeTruthy();
+    expect(Array.from(document.querySelectorAll('.chips li')).map((node) => node.textContent)).toEqual(['Тарас', 'Олена', 'Іра']);
+    expect(document.querySelector('.chips .is-me')?.textContent).toBe(me.nickname);
+  });
+
   it('shows every player in the standings, not only the top five', () => {
     const standings = Array.from({ length: 8 }, (_, i) => ({ participantId: i === 6 ? 'p1' : `x${i}`, nickname: `Гравець ${i + 1}`, score: 800 - i * 100, totalTimeMs: 1, rank: i + 1 }));
     show(view({ phase: 'leaderboard', questionIndex: 0, standings, me: { ...me, score: 200, rank: 7 } }));

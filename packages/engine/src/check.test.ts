@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkAnswer, paceFactor, paysForTime, shareVerdict, surveyHits, textMatches, verdictOf } from './check';
+import { checkAnswer, paceFactor, paysForTime, shareVerdict, surveyHits, textAccepts, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
 import { bool, clues, match, multi, numeric, order, pin, single, slider, survey, text, withReveal } from './testing/fixtures';
 
@@ -272,5 +272,33 @@ describe('«100 to 1» survey (10e)', () => {
     expect(verdictOf(survey, { type: 'survey', values: ['Яблуко', 'Банан'] }, 40_000)).toMatchObject({ accepted: true, grade: 'correct' });
     expect(verdictOf(survey, { type: 'survey', values: ['Кавун'] }, 0)).toMatchObject({ accepted: false, grade: 'partial' });
     expect(verdictOf(survey, { type: 'survey', values: ['ананас'] }, 0)).toEqual({ accepted: false, accuracy: 0, grade: 'wrong' });
+  });
+});
+
+describe('typo tolerance (backlog 14)', () => {
+  it('one slip in a word of 5–8 letters and two from 9 count as right: a missed, extra, wrong or swapped letter', () => {
+    expect(textAccepts(['Чернівці'], 'Черніці')).toBe(true);
+    expect(textAccepts(['Чернівці'], 'Чернівцці')).toBe(true);
+    expect(textAccepts(['Чернівці'], 'Чернивці')).toBe(true);
+    expect(textAccepts(['Чернівці'], 'Чренівці')).toBe(true);
+    expect(textAccepts(['Чернівці'], 'Чрнвці')).toBe(false);
+    expect(textAccepts(['Одеса'], 'Адеса')).toBe(false);
+    expect(textAccepts(['Олександр Довженко'], 'Олексанр Довжнко')).toBe(true);
+    expect(textAccepts(['Олександр Довженко'], 'Олксанр Довжнко')).toBe(false);
+  });
+
+  it('short answers and anything with digits must be exact', () => {
+    expect(textAccepts(['Au'], 'Ag')).toBe(false);
+    expect(textAccepts(['Київ'], 'Кива')).toBe(false);
+    expect(textAccepts(['Київ'], 'київ')).toBe(true);
+    expect(textAccepts(['1991 рік'], '1992 рік')).toBe(false);
+    expect(textAccepts(['s1mple'], 's1mpl')).toBe(false);
+    expect(textAccepts(['Залізо'], '')).toBe(false);
+  });
+
+  it('a text answer and «Who am I?» use it; textMatches stays exact', () => {
+    const question = { id: 'q', type: 'text', text: 'Найдовша річка України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Дніпро'] } as const;
+    expect(checkAnswer(question as never, { type: 'text', value: 'Днипро' })).toEqual({ accepted: true, accuracy: 1 });
+    expect(textMatches(['Дніпро'], 'Днипро')).toBe(false);
   });
 });
