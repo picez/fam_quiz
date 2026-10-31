@@ -776,11 +776,13 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
           : t('leaderboard')}
     </h1>
   );
+  // Скільки рядків поміщається; коли учасників більше, останній рядок — «…і ще N».
+  const rows = phase === 'finished' || phase === 'leaderboard' ? STAGE_ROWS_MAX : highlighted ? 7 : 8;
   const table = (
     <Standings
       standings={standings}
-      limit={phase === 'finished' || phase === 'leaderboard' ? (standings.length > STAGE_ROWS_MAX ? STAGE_ROWS_MAX - 1 : undefined) : highlighted ? 7 : 8}
-      more={(phase === 'finished' || phase === 'leaderboard') && standings.length > STAGE_ROWS_MAX ? standings.length - (STAGE_ROWS_MAX - 1) : undefined}
+      limit={standings.length > rows ? rows - 1 : undefined}
+      more={standings.length > rows ? standings.length - (rows - 1) : undefined}
       streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
       teams={view.teams}
       gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}

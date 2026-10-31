@@ -1241,7 +1241,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
       {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
-          <Standings standings={view.standings} highlightId={me.id} limit={5} />
+          <Standings standings={view.standings} highlightId={me.id} />
         </>
       )}
 
@@ -1252,7 +1252,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
-          <Standings standings={view.standings} highlightId={me.id} limit={5} />
+          <Standings standings={view.standings} highlightId={me.id} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>

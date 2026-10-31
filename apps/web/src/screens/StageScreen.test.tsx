@@ -280,10 +280,17 @@ describe('StageScreen: rounds', () => {
       expect(document.querySelector('.round-highlights')).not.toBeNull();
       expect(document.querySelector('.stage-board')!.classList.contains('has-highlights')).toBe(true);
       expect(document.querySelectorAll('.standings li')).toHaveLength(7);
+      // Дев'ятеро не поміщаються: шість рядків і «…і ще 3», а не мовчки обрізані місця.
+      expect(document.querySelector('.standings-more')!.textContent).toBe('…і ще 3');
       cleanup();
       show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: eight.map((r) => ({ ...r, rounds: [r.score, 0] })) }));
       expect(document.querySelector('.round-highlights')).toBeNull();
       expect(document.querySelectorAll('.standings li')).toHaveLength(8);
+      expect(document.querySelector('.standings-more')!.textContent).toBe('…і ще 2');
+      cleanup();
+      show(view({ phase: 'round_end', round: { ...round, index: 1 }, standings: eight.slice(0, 8).map((r) => ({ ...r, rounds: [r.score, 0] })) }));
+      expect(document.querySelectorAll('.standings li')).toHaveLength(8);
+      expect(document.querySelector('.standings-more')).toBeNull();
     });
 
     it('the leaderboard and the podium stay without gains', () => {
