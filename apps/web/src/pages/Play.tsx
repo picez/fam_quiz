@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
-import { joinGame } from '../api';
+import { getMyCard, joinGame } from '../api';
 import { errorText, t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { useAwayWatch } from '../live/useAwayWatch';
@@ -14,6 +14,18 @@ import { useAccount } from '../useAccount';
 function JoinForm({ code, notice, onJoined }: { code: string; notice: string | null; onJoined: (token: string) => void }) {
   const account = useAccount();
   const [nickname, setNickname] = useState('');
+  // Хто увійшов, не вводить ім'я щоразу: поле заповнюється нікнеймом профілю, і його можна змінити перед входом.
+  const signedIn = account.status === 'signed-in';
+  useEffect(() => {
+    if (!signedIn) return;
+    let current = true;
+    void getMyCard().then((result) => {
+      if (current && result.ok) setNickname((typed) => (typed === '' ? result.data.nickname.slice(0, 20) : typed));
+    });
+    return () => {
+      current = false;
+    };
+  }, [signedIn]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(notice);
   const ready = nickname.trim().length >= 2;

@@ -50,6 +50,13 @@ describe('own profile', () => {
     expect(body.stats.quizzes).toBe(1);
   });
 
+  it('the card for the join form is only the nickname and avatar (backlog 4)', async () => {
+    const response = await request('GET', '/api/me/card', taras.cookie);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ id: tarasId, nickname: 'Тарас', avatar: null });
+    expect((await request('GET', '/api/me/card')).statusCode).toBe(401);
+  });
+
   it('own profile and changes need a session', async () => {
     expect((await request('GET', '/api/me/profile')).statusCode).toBe(401);
     expect((await request('PUT', '/api/me/profile', undefined, { nickname: 'Зірка', avatar: null })).statusCode).toBe(401);

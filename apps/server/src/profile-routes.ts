@@ -25,6 +25,15 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     return ownProfile(db, user);
   });
 
+  // Лише картка профілю (нікнейм, аватар), без статистики: форма входу в гру підставляє нікнейм.
+  app.get('/api/me/card', async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const card = await ensureProfile(db, user.id);
+    if (card === null) return reply.code(404).send(NOT_FOUND);
+    return card;
+  });
+
   app.put('/api/me/profile', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);

@@ -140,6 +140,7 @@ export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encod
 export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
 
 export const getMyProfile = () => fetchData<OwnProfile>('/api/me/profile');
+export const getMyCard = () => fetchData<ProfileCard>('/api/me/card');
 export const saveMyProfile = (update: ProfileUpdate) => fetchData<ProfileCard>('/api/me/profile', { method: 'PUT', body: update });
 export const getProfile = (id: string) => fetchData<PublicProfile>(`/api/profiles/${encodeURIComponent(id)}`);
 export const getMyAchievements = () => fetchData<AchievementsPage>('/api/me/achievements');

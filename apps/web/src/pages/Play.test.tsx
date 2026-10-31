@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { joinGame, me } from '../api';
+import { getMyCard, joinGame, me } from '../api';
 import { loadAuthor, loadPlayer, saveAuthor, savePlayer } from '../storage';
 import { Play } from './Play';
 
@@ -33,13 +33,14 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn() }));
+vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn(), getMyCard: vi.fn() }));
 vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
   localStorage.clear();
   sockets.length = 0;
   vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+  vi.mocked(getMyCard).mockReset().mockResolvedValue({ ok: false, error: 'unauthorized' });
 });
 afterEach(cleanup);
 
@@ -155,6 +156,24 @@ describe('Play: whether the game will be kept', () => {
     open();
     expect(await screen.findByText('Ви увійшли як Олена: гра потрапить у «Мої ігри».')).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
+  });
+
+  it('fills the name from the profile nickname for a signed-in player, who can still change it (backlog 4)', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена Петренко', email: 'o@example.com' });
+    vi.mocked(getMyCard).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: 'Оленка', avatar: null } });
+    vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
+    open();
+    const field = screen.getByLabelText<HTMLInputElement>('Ваше ім’я');
+    await waitFor(() => expect(field.value).toBe('Оленка'));
+    submitNickname('Оля');
+    await waitFor(() => expect(joinGame).toHaveBeenCalledWith('123456', 'Оля'));
+  });
+
+  it('leaves the name empty for a visitor and asks no profile', async () => {
+    open();
+    await screen.findByRole('link', { name: 'Увійти, щоб гра збереглась у «Мої ігри»' });
+    expect(screen.getByLabelText<HTMLInputElement>('Ваше ім’я').value).toBe('');
+    expect(getMyCard).not.toHaveBeenCalled();
   });
 });
 
