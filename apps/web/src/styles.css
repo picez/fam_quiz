@@ -3172,6 +3172,29 @@ button.match-item {
   gap: 0.5rem;
 }
 
+.friend-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.friend-seen {
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+/* Онлайн: зелена крапка перед словом. */
+.friend-seen.is-online::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: var(--correct);
+}
+
 @media (max-width: 30rem) {
   .profile-editor {
     flex-direction: column;

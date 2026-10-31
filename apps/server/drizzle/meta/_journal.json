@@ -127,6 +127,13 @@
       "when": 1793254218050,
       "tag": "0017_achievements",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793445696194,
+      "tag": "0018_profile_last_seen",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, type OwnProfile } from '@quiz/shared';
-import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
+import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, searchProfiles, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
 import { Profile } from './Profile';
 
@@ -12,6 +12,7 @@ vi.mock('../api', () => ({
   getMyProfile: vi.fn(),
   saveMyProfile: vi.fn(),
   findProfile: vi.fn(),
+  searchProfiles: vi.fn(async () => ({ ok: true, data: [] })),
   follow: vi.fn(),
   uploadImage: vi.fn(),
   signOut: vi.fn(),
@@ -28,7 +29,7 @@ const mine: OwnProfile = {
   achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game', earnedAt: null })),
   quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
-  friends: [{ id: 'u2', nickname: 'Тарас', avatar: null }],
+  friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
 };
 
 beforeEach(() => {
@@ -88,6 +89,8 @@ describe('Profile', () => {
     expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
+    // Друг заходив хвилину тому — онлайн (беклог 9).
+    expect(screen.getByText('онлайн').className).toBe('friend-seen is-online');
     expect(screen.getByRole('link', { name: 'Мій публічний профіль' }).getAttribute('href')).toBe('/profile/u1');
   });
 
@@ -196,6 +199,14 @@ describe('Profile', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Додати друга' }));
     await waitFor(() => expect(follow).toHaveBeenCalledWith('u3'));
     await waitFor(() => expect(getMyProfile).toHaveBeenCalledTimes(2));
+  });
+
+  it('suggests nicknames that start with what is typed (backlog 9)', async () => {
+    vi.mocked(searchProfiles).mockResolvedValue({ ok: true, data: [{ id: 'u3', nickname: 'Іра', avatar: null }, { id: 'u4', nickname: 'Ірина', avatar: null }] });
+    open();
+    fireEvent.change(await screen.findByLabelText('Нікнейм друга'), { target: { value: 'Ір' } });
+    await waitFor(() => expect(searchProfiles).toHaveBeenCalledWith('Ір'));
+    await waitFor(() => expect(Array.from(document.querySelectorAll('#friend-hints option')).map((o) => o.getAttribute('value'))).toEqual(['Іра', 'Ірина']));
   });
 
   it('refuses to add yourself and ignores a double click', async () => {

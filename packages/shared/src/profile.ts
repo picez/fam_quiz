@@ -34,6 +34,14 @@ export interface ProfileCard {
   avatar: string | null;
 }
 
+/** Друг у списку (беклог 9): ще й коли його востаннє бачили на сайті (ISO); null — ще не бачили. */
+export interface FriendCard extends ProfileCard {
+  lastSeenAt: string | null;
+}
+
+/** Скільки після останнього звернення людина вважається онлайн. */
+export const ONLINE_MS = 5 * 60_000;
+
 /** Запрошення в гру, що чекає в лобі. */
 export interface GameInvite {
   code: string;
@@ -82,7 +90,7 @@ export interface OwnProfile extends ProfileCard {
   achievements: Achievement[];
   quizzes: { id: string; title: string }[];
   wins: ProfileWin[];
-  friends: ProfileCard[];
+  friends: FriendCard[];
 }
 
 type Counted = Pick<PlayedGame, 'status' | 'rank' | 'score' | 'playerCount' | 'correct' | 'questionsPlayed'>;

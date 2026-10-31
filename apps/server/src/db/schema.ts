@@ -297,6 +297,8 @@ export const profile = pgTable('profile', {
   avatar: text('avatar'),
   /** Історію цього користувача вже доповнено ачівками (12i); null — ще ні. Далі — мітка: ігри, що закінчились пізніше й не дали жодного рядка user_achievement, читання наздоганяє. */
   achievementsSyncedAt: at('achievements_synced_at'),
+  /** Останнє звернення до сайту (беклог 9): за ним друзі бачать «онлайн» чи «був(-ла) …»; null — ще не бачили. */
+  lastSeenAt: at('last_seen_at'),
   ...stamps,
 });
 

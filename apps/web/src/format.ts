@@ -1,4 +1,4 @@
-import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo } from '@quiz/shared';
+import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
@@ -322,4 +322,15 @@ export function pickedText(answer: Answer, choices: Choice[], slider: PublicSlid
 /** Відстань точки від правильної, % довшої сторони, з одним знаком після коми. */
 export function pinDistanceText(question: Parameters<typeof pinDistance>[0], x: number, y: number): string {
   return pinDistance(question, x, y).toLocaleString('uk-UA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+/** Коли друга бачили (беклог 9): «онлайн» до ONLINE_MS, далі хвилини, години, потім дата; null — ще не бачили. */
+export function seenText(lastSeenAt: string | null, now = Date.now()): string | null {
+  if (lastSeenAt === null) return null;
+  const ago = now - Date.parse(lastSeenAt);
+  if (Number.isNaN(ago)) return null;
+  if (ago < ONLINE_MS) return t('friendOnline');
+  if (ago < 3_600_000) return t('friendSeen', { when: t('agoMinutes', { count: Math.floor(ago / 60_000) }) });
+  if (ago < 86_400_000) return t('friendSeen', { when: t('agoHours', { count: Math.floor(ago / 3_600_000) }) });
+  return t('friendSeen', { when: formatDate(lastSeenAt) });
 }

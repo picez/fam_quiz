@@ -147,6 +147,7 @@ export const getMyAchievements = () => fetchData<AchievementsPage>('/api/me/achi
 export const getAchievements = (id: string) => fetchData<AchievementsPage>(`/api/profiles/${encodeURIComponent(id)}/achievements`);
 export const getVersus = (id: string) => fetchData<Versus>(`/api/me/versus/${encodeURIComponent(id)}`);
 export const findProfile = (nickname: string) => fetchData<ProfileCard>(`/api/profiles?nickname=${encodeURIComponent(nickname)}`);
+export const searchProfiles = (query: string) => fetchData<ProfileCard[]>(`/api/profiles/search?q=${encodeURIComponent(query)}`);
 export const follow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'PUT' });
 export const unfollow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'DELETE' });
 

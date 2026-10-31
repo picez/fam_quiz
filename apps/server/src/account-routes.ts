@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
 import type { Db } from './db/client';
 import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
+import { touchSeen } from './profiles';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
@@ -87,6 +88,8 @@ export async function registerAccountRoutes(
   app.get('/api/me', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send({ error: 'unauthorized' });
+    // Меню питає /api/me на кожній сторінці: за цим друзі бачать «онлайн» (беклог 9). Збій мітки вхід не ламає.
+    await touchSeen(deps.db, user.id).catch((error: unknown) => request.log.warn({ err: error }, 'touchSeen failed'));
     return user;
   });
 

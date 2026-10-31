@@ -4,7 +4,7 @@ import type { CurrentUser } from './account-routes';
 import { achievementsPage } from './achievement-store';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
-import { ensureProfile, findByNickname, friendsOf, ownProfile, publicProfile, saveProfile, setFollow } from './profiles';
+import { ensureProfile, findByNickname, friendsOf, ownProfile, publicProfile, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -97,6 +97,27 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       }
       const found = await findByNickname(db, nickname);
       return found ?? reply.code(404).send(NOT_FOUND);
+    },
+  );
+
+  // Підказки пошуку друга (беклог 9): нікнейми, що починаються з q.
+  app.get<{ Querystring: { q?: unknown } }>(
+    '/api/profiles/search',
+    {
+      config: {
+        rateLimit: {
+          max: 60,
+          timeWindow: '1 minute',
+          keyGenerator: async (request: FastifyRequest) => `search:${(await currentUser(request))?.id ?? request.ip}`,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await currentUser(request);
+      if (user === null) return reply.code(401).send(UNAUTHORIZED);
+      const { q } = request.query;
+      if (typeof q !== 'string' || q.length > MAX_QUERY_LENGTH) return reply.code(400).send({ error: 'invalid_payload' });
+      return searchProfiles(db, q, user.id);
     },
   );
 

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { follow, user } from './db/schema';
+import { follow, profile, user } from './db/schema';
 import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -44,7 +44,7 @@ describe('own profile', () => {
     expect(body.email).toBe(olena.email);
     expect(body.nickname).toBe('Олена');
     expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина' }]);
-    expect(body.friends).toEqual([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
+    expect(body.friends).toMatchObject([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
     expect(body.achievements).toHaveLength(48);
     expect(body.achievements[0]).toEqual({ id: 'first_game', earned: false, earnedAt: null });
     expect(body.stats.quizzes).toBe(1);
@@ -151,7 +151,7 @@ describe('friends', () => {
     expect((await request('GET', '/api/me/friends')).statusCode).toBe(401);
     const response = await request('GET', '/api/me/friends', olena.cookie);
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
+    expect(response.json()).toMatchObject([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
     expect(response.body).not.toContain(taras.email);
   });
 
@@ -170,7 +170,7 @@ describe('friends', () => {
     expect((await request('PUT', url, anna.cookie)).statusCode).toBe(204);
     expect((await request('PUT', url, anna.cookie)).statusCode).toBe(204);
     const friends = async (cookie: string) => (await request('GET', '/api/me/profile', cookie)).json().friends;
-    expect(await friends(anna.cookie)).toEqual([{ id: borysId, nickname: 'Борис К', avatar: null }]);
+    expect(await friends(anna.cookie)).toMatchObject([{ id: borysId, nickname: 'Борис К', avatar: null }]);
     expect(await friends(borys.cookie)).toEqual([]);
     expect((await request('GET', `/api/profiles/${borysId}`, anna.cookie)).json().following).toBe(true);
     expect((await request('DELETE', url, anna.cookie)).statusCode).toBe(204);
@@ -266,5 +266,25 @@ describe('achievements pages (12i)', () => {
     }
     expect((await request('GET', '/api/profiles/nobody/achievements')).statusCode).toBe(404);
     expect((await request('GET', `/api/profiles/${'x'.repeat(65)}/achievements`)).statusCode).toBe(404);
+  });
+});
+
+describe('friends online and search (backlog 9)', () => {
+  it('a friend who just opened the site has a fresh lastSeenAt', async () => {
+    await request('GET', '/api/me/card', taras.cookie);
+    await db.update(profile).set({ lastSeenAt: null }).where(eq(profile.userId, tarasId));
+    const before = Date.now();
+    await request('GET', '/api/me', taras.cookie);
+    const [friend] = (await request('GET', '/api/me/friends', olena.cookie)).json() as { id: string; lastSeenAt: string | null }[];
+    expect(friend.id).toBe(tarasId);
+    expect(Date.parse(friend.lastSeenAt!)).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  it('search suggests nicknames by their start, never the viewer, and needs a session', async () => {
+    await request('GET', '/api/me/card', olena.cookie);
+    expect(((await request('GET', '/api/profiles/search?q=%D1%82%D0%B0', olena.cookie)).json() as { nickname: string }[]).map((p) => p.nickname)).toContain('Тарас');
+    expect(((await request('GET', '/api/profiles/search?q=%D0%BE%D0%BB%D0%B5', olena.cookie)).json() as { id: string }[]).map((p) => p.id)).not.toContain(olenaId);
+    expect((await request('GET', '/api/profiles/search?q=%25', olena.cookie)).json()).toEqual([]);
+    expect((await request('GET', '/api/profiles/search?q=ab')).statusCode).toBe(401);
   });
 });

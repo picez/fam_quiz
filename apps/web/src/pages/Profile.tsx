@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
-import { formatDate } from '../format';
+import { formatDate, seenText } from '../format';
 import { t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
@@ -138,6 +138,10 @@ export function Profile() {
                 <Link to={`/profile/${friend.id}`}>
                   <Avatar profile={friend} size="small" /> {friend.nickname}
                 </Link>
+                {/* Онлайн чи коли бачили (беклог 9). */}
+                {seenText(friend.lastSeenAt) !== null && (
+                  <span className={seenText(friend.lastSeenAt) === t('friendOnline') ? 'friend-seen is-online' : 'friend-seen'}>{seenText(friend.lastSeenAt)}</span>
+                )}
               </li>
             ))}
           </ul>

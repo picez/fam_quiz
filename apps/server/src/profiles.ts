@@ -4,6 +4,7 @@ import {
   isWin,
   nicknameSchema,
   type Achievement,
+  type FriendCard,
   type OwnProfile,
   type ProfileCard,
   type ProfileStats,
@@ -11,7 +12,7 @@ import {
   type ProfileUpdate,
   type ProfileWin,
 } from '@quiz/shared';
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
 import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
@@ -127,22 +128,45 @@ export async function profileFacts(
 }
 
 /** Друзі (на кого підписаний), за нікнеймом. */
-export async function friendsOf(db: Db, userId: string): Promise<ProfileCard[]> {
-  const rows = await db
-    .select({ id: follow.followeeId, nickname: profile.nickname, avatar: profile.avatar })
+export async function friendsOf(db: Db, userId: string): Promise<FriendCard[]> {
+  const found = await db
+    .select({ id: follow.followeeId, nickname: profile.nickname, avatar: profile.avatar, lastSeenAt: profile.lastSeenAt })
     .from(follow)
     .innerJoin(profile, eq(profile.userId, follow.followeeId))
     .where(eq(follow.followerId, userId))
     .orderBy(asc(profile.nickname));
+  const rows: FriendCard[] = found.map((row) => ({ ...row, lastSeenAt: row.lastSeenAt?.toISOString() ?? null }));
   // Друг, якому профіль ще не створювали, теж має бути в списку.
   const withProfile = new Set(rows.map((row) => row.id));
   const all = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
   for (const { id } of all) {
     if (withProfile.has(id)) continue;
     const created = await ensureProfile(db, id);
-    if (created) rows.push(created);
+    if (created) rows.push({ ...created, lastSeenAt: null });
   }
   return rows.sort((a, b) => a.nickname.localeCompare(b.nickname));
+}
+
+/** Людина щойно була на сайті (беклог 9): мітка оновлюється не частіше ніж раз на хвилину; без профілю — нічого. */
+export async function touchSeen(db: Db, userId: string): Promise<void> {
+  await db
+    .update(profile)
+    .set({ lastSeenAt: new Date() })
+    .where(and(eq(profile.userId, userId), or(isNull(profile.lastSeenAt), lt(profile.lastSeenAt, new Date(Date.now() - 60_000)))));
+}
+
+/** Підказки пошуку друга (беклог 9): до SEARCH_LIMIT профілів, чий нікнейм починається з query (за nickname_key), крім себе. */
+export const SEARCH_LIMIT = 8;
+export async function searchProfiles(db: Db, query: string, viewerId: string): Promise<ProfileCard[]> {
+  const key = nicknameKey(query);
+  if (key.length < 2) return [];
+  const escaped = key.replace(/[\\%_]/g, (char) => `\\${char}`);
+  return db
+    .select({ id: profile.userId, nickname: profile.nickname, avatar: profile.avatar })
+    .from(profile)
+    .where(and(like(profile.nicknameKey, `${escaped}%`), ne(profile.userId, viewerId)))
+    .orderBy(asc(profile.nickname))
+    .limit(SEARCH_LIMIT);
 }
 
 /** Профіль за точним нікнеймом (через nickname_key); null — немає. */

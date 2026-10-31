@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, sliderNumber } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, seenText, sliderNumber } from './format';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -264,5 +264,17 @@ describe('bluff (10f)', () => {
     expect(answerText({ type: 'bluff', lie: 'Рим', pick: 'Барселона', truth: true, fooled: 1 }, bluffQ)).toBe('вигадка «Рим» · вибір «Барселона» ✓ · купилися: 1');
     expect(answerText({ type: 'bluff', lie: 'Рим', pick: 'Мадрид', truth: false, fooled: 0 }, bluffQ)).toBe('вигадка «Рим» · вибір «Мадрид» ✗');
     expect(answerText({ type: 'bluff', lie: null, pick: null, truth: false, fooled: 0 }, bluffQ)).toBe('без вигадки · без вибору');
+  });
+});
+
+describe('seenText (backlog 9)', () => {
+  const now = Date.parse('2026-10-31T12:00:00Z');
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  it('online for five minutes, then minutes, hours and the date', () => {
+    expect(seenText(null, now)).toBeNull();
+    expect(seenText(ago(60_000), now)).toBe('онлайн');
+    expect(seenText(ago(12 * 60_000), now)).toBe('був(-ла) 12 хв тому');
+    expect(seenText(ago(3 * 3_600_000), now)).toBe('був(-ла) 3 год тому');
+    expect(seenText(ago(3 * 86_400_000), now)).toMatch(/^був\(-ла\) 28 жовтня 2026/);
   });
 });
