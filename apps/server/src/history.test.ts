@@ -245,6 +245,8 @@ describe('history: blitz attempts', () => {
     attempt(tarasId, 'c');
     attempt(olenaId, 'b');
     expect(room.state.phase).toBe('locked');
+    // В історії гравця лише завершені ігри.
+    expect(ctx.manager.host(room, { type: 'end' })).toEqual({ ok: true });
     await ctx.recorder.idle();
 
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {

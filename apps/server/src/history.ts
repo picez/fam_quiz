@@ -434,7 +434,13 @@ async function teamGameIds(db: Db, gameIds: string[]): Promise<Set<string>> {
 }
 
 export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> {
-  const games = await db.select().from(game).where(eq(game.hostId, hostId)).orderBy(desc(game.startedAt)).limit(LIMIT);
+  // Лише ігри, що завершились: перервана й та, що ще триває, в історії не показуються (перервану продовжують через resumeOptions).
+  const games = await db
+    .select()
+    .from(game)
+    .where(and(eq(game.hostId, hostId), eq(game.status, 'finished')))
+    .orderBy(desc(game.startedAt))
+    .limit(LIMIT);
   const ids = games.map((row) => row.id);
   const players = await playerCounts(db, ids);
   const teamGames = await teamGameIds(db, ids);
@@ -769,7 +775,8 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
     .select({ participant, game })
     .from(participant)
     .innerJoin(game, eq(participant.gameId, game.id))
-    .where(eq(participant.userId, userId))
+    // Лише завершені ігри: перервана (і її продовження 12r не двоїть гру) та гра, що ще триває, не рахуються ні в історії, ні в профілі.
+    .where(and(eq(participant.userId, userId), eq(game.status, 'finished')))
     .orderBy(desc(game.startedAt));
   const rows = limit === null ? await query : await query.limit(limit);
   if (rows.length === 0) return [];

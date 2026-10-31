@@ -194,6 +194,23 @@ describe('profile facts', () => {
     expect(earned(host.achievements)).toEqual(['host']);
   });
 
+  it('only finished games count: an aborted or running game is in neither history nor the profile games (backlog 12)', async () => {
+    const hostId = randomUUID();
+    const me = randomUUID();
+    await db.insert(user).values([
+      { id: hostId, name: 'Ведуча', email: `${hostId}@example.com` },
+      { id: me, name: 'Гравець', email: `${me}@example.com` },
+    ]);
+    const seed = (status: 'finished' | 'aborted' | 'running', day: number) =>
+      seedGame(db, { hostId, status, startedAt: new Date(Date.UTC(2026, 2, day)), players: [{ userId: me, nickname: 'Я', score: 100, rank: 1 }, { userId: null, nickname: 'Гість', score: 0, rank: 2 }] });
+    const finished = await seed('finished', 1);
+    await seed('aborted', 2);
+    await seed('running', 3);
+    expect((await hostGames(db, hostId)).map((g) => g.id)).toEqual([finished.gameId]);
+    expect((await playerGames(db, me, null)).map((g) => g.played.gameId)).toEqual([finished.gameId]);
+    expect((await profileFacts(db, me)).stats).toMatchObject({ games: 1, wins: 1 });
+  });
+
   it('profile counts the podium, the top-3 share, the best score and the average place from stored games (11f)', async () => {
     const hostId = randomUUID();
     const me = randomUUID();
@@ -224,7 +241,8 @@ describe('profile facts', () => {
       });
     }
     const { stats } = await profileFacts(db, me);
-    expect(stats).toMatchObject({ games: 8, wins: 1, podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
+    // Перервана гра не рахується зовсім (беклог 12): ігор 7, а не 8.
+    expect(stats).toMatchObject({ games: 7, wins: 1, podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
     expect((await publicProfile(db, me, null))?.stats).toMatchObject({ podium: { first: 1, second: 1, third: 1 }, top3: 50, bestScore: 500, avgPlace: 2.2 });
   });
 
