@@ -1944,12 +1944,19 @@ function publicStandings(state: GameState): Standing[] | null {
   if (found !== undefined) return found;
   // У «Ва-банк» між запитаннями замість таблиці драбина.
   const hidden = state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state));
-  const standings = !hidden && WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)) : null;
+  const rows = !hidden && WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)) : null;
+  // Між запитаннями — ще й бали кожного за щойно закрите запитання (беклог 13).
+  const standings = rows !== null && state.phase === 'leaderboard' ? rows.map((row) => ({ ...row, question: questionPoints(scoreLinesByPlayer(state), row.participantId, state.questionIndex) })) : rows;
   standingsCache.set(state, standings);
   return standings;
 }
 
 type LinesByPlayer = ReadonlyMap<string, readonly PlayerScoreLine[]>;
+
+/** Сума рядків гравця за запитанням questionIndex (усі спроби, штрафи, бафи). */
+function questionPoints(byPlayer: LinesByPlayer, playerId: string, questionIndex: number): number {
+  return (byPlayer.get(playerId) ?? []).reduce((sum, line) => (line.questionIndex === questionIndex ? sum + line.points : sum), 0);
+}
 
 function breakdownFor(byPlayer: LinesByPlayer, playerId: string): ScoreBreakdown {
   return breakdownOf(byPlayer.get(playerId) ?? []);

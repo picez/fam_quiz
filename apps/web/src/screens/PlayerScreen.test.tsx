@@ -448,6 +448,20 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Ваше місце: 2 з 2')).toBeTruthy();
   });
 
+  it('the table between questions shows the points of the question just closed, the round end the points of the round (backlog 13)', () => {
+    const standings = [
+      { participantId: 'p2', nickname: 'Тарас', score: 900, totalTimeMs: 1, rank: 1, rounds: [900], question: 400 },
+      { participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 2, rounds: [750], question: -250 },
+    ];
+    show(view({ phase: 'leaderboard', questionIndex: 1, standings, me: { ...me, score: 750, rank: 2 } }));
+    expect(Array.from(document.querySelectorAll('.round-gain')).map((node) => node.textContent)).toEqual(['+400 за запитання', '−250 за запитання']);
+    cleanup();
+
+    const roundEnd = standings.map(({ question: _question, ...row }) => row);
+    show(view({ phase: 'round_end', questionIndex: 1, round: { index: 0, total: 1, title: 'Раунд', type: 'classic' } as never, standings: roundEnd, me: { ...me, score: 750, rank: 2 } }));
+    expect(Array.from(document.querySelectorAll('.round-gain')).map((node) => node.textContent)).toEqual(['+900 за раунд', '+750 за раунд']);
+  });
+
   it('shows every player in the standings, not only the top five', () => {
     const standings = Array.from({ length: 8 }, (_, i) => ({ participantId: i === 6 ? 'p1' : `x${i}`, nickname: `Гравець ${i + 1}`, score: 800 - i * 100, totalTimeMs: 1, rank: i + 1 }));
     show(view({ phase: 'leaderboard', questionIndex: 0, standings, me: { ...me, score: 200, rank: 7 } }));

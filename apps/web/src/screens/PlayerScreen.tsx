@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
+import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
@@ -1269,7 +1270,7 @@ export function PlayerScreen({ view, hostOnline, offsetMs, send, tilts = NO_TILT
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
-          <Standings standings={view.standings} highlightId={me.id} />
+          <Standings standings={view.standings} highlightId={me.id} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>

@@ -235,3 +235,26 @@ describe('score columns and breakdowns in views (11f)', () => {
     expect(phone(s, 'p1').me).not.toBe(phone(s, 'p2').me);
   });
 });
+
+describe('points of the question just closed (backlog 13)', () => {
+  it('the table between questions gives everyone the points of the question just closed; the final table has none', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2'), withId(single, 'q3')], MINUS)], { leaderboard: 'each' });
+    let s = answer(startRound(lobbyWith(quiz, 'Оля', 'Петро'), 1000, rng), { p1: kyiv, p2: lviv }, 2000);
+    s = to(s, 'leaderboard', 3000);
+    const first = stageView(s).standings!;
+    expect(first.map((row) => [row.nickname, row.question])).toEqual([
+      ['Оля', 1000],
+      ['Петро', -1000],
+    ]);
+    // Друге запитання: Петро правильно, Оля мовчить — 0, а не підсумок.
+    s = answer(to(s, 'question', 4000), { p2: kyiv }, 5000);
+    s = to(s, 'leaderboard', 6000);
+    expect(phone(s, 'p1').standings!.map((row) => [row.nickname, row.question])).toEqual([
+      ['Оля', 0],
+      ['Петро', 1000],
+    ]);
+    s = answer(to(s, 'question', 7000), {}, 8000);
+    s = to(s, 'finished', 9000);
+    expect(stageView(s).standings!.every((row) => row.question === undefined)).toBe(true);
+  });
+});

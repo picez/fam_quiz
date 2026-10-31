@@ -22,7 +22,9 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
     <ol className="standings">
       {shown.map((row) => {
         const streak = streaks?.[row.participantId] ?? 0;
-        const gain = gains?.[row.participantId];
+        // Приріст раунду (gains) або, між запитаннями, бали за щойно закрите запитання (беклог 13).
+        const roundGain = gains?.[row.participantId];
+        const gain = roundGain ?? row.question;
         const team = teams?.teams.find((entry) => entry.id === row.participantId) ?? null;
         const classes = [row.participantId === highlightId ? 'is-me' : '', team === null ? '' : `has-team team-${team.color}`].filter(Boolean).join(' ');
         return (
@@ -33,7 +35,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>
             {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
-            {gain !== undefined && <span className={gain < 0 ? 'round-gain is-minus' : 'round-gain'}>{t('roundGain', { points: signed(gain) })}</span>}
+            {gain !== undefined && <span className={gain < 0 ? 'round-gain is-minus' : 'round-gain'}>{t(roundGain !== undefined ? 'roundGain' : 'questionGain', { points: signed(gain) })}</span>}
             <span className="score">{num(row.score)}</span>
           </li>
         );

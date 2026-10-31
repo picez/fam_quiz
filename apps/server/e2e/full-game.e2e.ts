@@ -12093,7 +12093,7 @@ async function stats11f() {
   expect(problems).toEqual([]);
 }
 
-it('part 11f: the 1280 × 720 stage round end fits eight long nicknames (seven rows shown) with «+N за раунд», a five- and a three-way best of the round and the biggest climb', async () => {
+it('part 11f: the 1280 × 720 stage round end fits eight long nicknames (six rows and «…і ще 2») with «+N за раунд», a five- and a three-way best of the round and the biggest climb', async () => {
   const sockets: Socket[] = [];
   try {
     await longRoundEnds11f(sockets);
@@ -12163,8 +12163,9 @@ async function longRoundEnds11f(sockets: Socket[]) {
     await host.getByText('Запитання закрите').waitFor();
     await click(host, 'Показати відповідь');
     await click(host, 'Далі');
-    // З рядком найкращих сцена показує 7 рядків із 8, щоб не прокручуватись.
-    await expect.poll(() => stage.locator('.round-gain').count(), POLL).toBe(7);
+    // З рядком найкращих сцена показує 7 рядків, щоб не прокручуватись: 6 гравців і «…і ще 2» замість мовчки обрізаних місць.
+    await expect.poll(() => stage.locator('.round-gain').count(), POLL).toBe(6);
+    expect(await stage.locator('.standings-more').textContent()).toBe('…і ще 2');
   };
 
   await click(host, 'Почати гру');
