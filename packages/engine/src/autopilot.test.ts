@@ -16,6 +16,7 @@ import { dicePending, rollDie } from './board-dice';
 import { buzz } from './blitz';
 import { bluffOrder, bluffPlayOf } from './bluff';
 import { pickCell, skipTurn } from './board';
+import { takeBuff } from './buffs';
 import { declareDuel } from './duel';
 import { placeWager } from './final';
 import { addPlayer, createGame, end, lock, removePlayer, setConnected, submitAnswer, tick, type GameState, type Result, type Rng } from './game';
@@ -26,6 +27,7 @@ import {
   blitzRound,
   boardRound,
   bluff,
+  bool,
   classicRound,
   finalRound,
   LADDER_RIGHT,
@@ -723,6 +725,26 @@ describe('task 4 review (11g)', () => {
     s = go(s);
     expect(s.phase).toBe('reveal');
     expect(s.plays[0].answers.a).toMatchObject({ grade: 'correct', overridden: false, points: 1000 });
+  });
+
+  it('a manual board cell after «Заміна запитання» is judged by the key of the spare, not of the cell', () => {
+    // Клітинка — текст «Одеса», запасне — «так / ні» з правильним «ні»: ключ клітинки відповіді «ні» не має.
+    for (const correct of [false, true]) {
+      const quiz = {
+        ...makeRoundsQuiz([boardRound('g1', [{ title: 'Ріки', cells: [withId(text, 'b1'), withId(text, 'b2')] }], { check: 'manual' })], { buffs: ['swap'] }),
+        spares: [{ ...withId(bool, 'sp1'), correct } as Question],
+      };
+      let s = begin(quiz, []);
+      s = go(s);
+      s = act(s, pickCell(s, 'a', 'b1', T + 9000, rng), T + 9000);
+      const swapped = s.startedAt! + 500;
+      s = act(s, takeBuff(s, 'a', 'swap', swapped, rng), swapped);
+      const answered = swapped + 1000;
+      s = act(s, submitAnswer(s, 'a', { type: 'boolean', value: correct }, answered), answered);
+      s = go(s);
+      expect(s.phase).toBe('reveal');
+      expect(s.plays[0].answers.a).toMatchObject({ grade: 'correct', accepted: true, spare: 'sp1', points: 1000 });
+    }
   });
 
   it('wipeout and survival: locked, reveal and the table are paced', () => {

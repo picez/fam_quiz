@@ -5,6 +5,7 @@ import { dicePending, rollForRest, startDice } from './board-dice';
 import { cellPlayed, chooserOf } from './board-turns';
 import { bluffOrder, bluffPlayOf, removeBluffOption } from './bluff';
 import { resumeError } from './carry';
+import { questionFor } from './buffs';
 import { checkAnswer } from './check';
 import { cancelDuel, duelCategoriesLeft, pickDuelCategory } from './duel';
 import {
@@ -282,7 +283,8 @@ function judgeByKey(state: GameState, pending: Pending, now: number): Result {
   if (accepted.ok) return accepted;
   const play = state.plays[state.questionIndex];
   if (play === undefined) return accepted;
-  const accuracy = checkAnswer(play.question, pending.answer).accuracy;
+  // Після «Заміни запитання» гравець відповідав на запасне: ключ — його, а не клітинки.
+  const accuracy = checkAnswer(questionFor(state, play, pending.playerId), pending.answer).accuracy;
   if (play.blitz !== undefined) return judge(state, pending.playerId, accuracy === 1, now);
   if (accuracy >= 1) return override(state, pending.playerId, 'correct', now);
   // Частково — лише за правилом раунду (partial_disabled → неправильно).
