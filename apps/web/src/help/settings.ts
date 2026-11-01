@@ -6,7 +6,7 @@ const s = (ms: number) => `${ms / 1000} с`;
 const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
 
 /** Налаштування з довідкою в порядку довідника. */
-export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'undo', 'away', 'appeal', 'description', 'speedBonus', 'spares', 'debuffShop', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal', 'autopilot'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'undo', 'away', 'appeal', 'description', 'speedBonus', 'spares', 'debuffShop', 'levelBonuses', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal', 'autopilot'] as const;
 export type SettingHelpKey = (typeof SETTING_HELP_KEYS)[number];
 
 export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
@@ -214,6 +214,18 @@ export const SETTING_HELP: Record<SettingHelpKey, HelpEntry> = {
       'Зніміть прапорець «Гравці можуть купувати дебафи», щоб дебафи насилали лише ви.',
     ],
     limits: ['У командній грі дебаф купує капітан за командні бали й насилає на іншу команду.', 'Не купується у фінальному раунді, у «Ва-банк», у «Мільйонері» (крамниця закрита), на паузі й під час дуелі. У «Вибуванні» купується, але не на привидів; привид може купувати для живих.'],
+  },
+  levelBonuses: {
+    title: 'Бонуси рівнів',
+    what: 'Гравці з акаунтами й рівнем 5+ отримують невеликі бонуси на гру: «+5 с», «Підказка рівня» та «Оберіг».',
+    how: [
+      'З 5-го рівня в телефоні з’являється «+5 с» (з 20-го — «+10 с»): додає гравцеві часу на запитанні. З 10-го — «Підказка рівня»: показує підказку, яку ви написали до запитання.',
+      'З 15-го гравець має «Оберіг»: він гасить перший дебаф проти нього, ваш чи куплений. Ви бачите 🛡 біля такого гравця.',
+      'Кожен бонус — раз за гру. Він не займає місце бафу й не рахується використаним бафом.',
+    ],
+    points: ['Бонус видається, лише якщо в вікторині є до чого його застосувати: таймер, підказки в запитаннях, дозволені дебафи.'],
+    tip: ['Зніміть прапорець «Бонуси рівнів», щоб усі грали на рівних. У лобі видно, чи бонуси ввімкнено.'],
+    limits: ['Гостям і командній грі бонуси не видаються. У бліці, фіналі та інших особливих раундах кнопок немає, як і бафів.'],
   },
   duels: {
     title: 'Дуелі',

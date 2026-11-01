@@ -550,7 +550,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
-        <ReactionButton shown={reactionAllowed(phase)} event="host:react" send={send} />
+        <ReactionButton shown={reactionAllowed(phase)} level={Infinity} event="host:react" send={send} />
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 
@@ -1296,6 +1296,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 
+      {phase === 'lobby' && <p className="meta">{t(view.levelBonuses === false ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
       {phase === 'lobby' && <InviteFriends code={code} />}
       {phase === 'lobby' && <PrizePlaces code={code} />}
 

@@ -140,3 +140,20 @@ describe('PowersEditor 12h', () => {
     expect(onChange.mock.lastCall![0].buffs).toHaveLength(13);
   });
 });
+
+describe('PowersEditor level bonuses (15a)', () => {
+  it('is on without the key; unticking writes false and ticking again drops the key', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={onChange} />);
+    const box = screen.getByLabelText(t('levelBonusesLabel')) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(screen.getByText(t('levelBonusesHint'))).toBeTruthy();
+    fireEvent.click(box);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ levelBonuses: false }));
+    rerender(<PowersEditor settings={{ leaderboard: 'each', levelBonuses: false }} spares={undefined} onChange={onChange} />);
+    const off = screen.getByLabelText(t('levelBonusesLabel')) as HTMLInputElement;
+    expect(off.checked).toBe(false);
+    fireEvent.click(off);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ levelBonuses: undefined }));
+  });
+});

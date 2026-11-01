@@ -309,6 +309,14 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
   });
 
+  it('the lobby says the host turned level bonuses off, and says nothing when they are on (15a)', () => {
+    show(view({ levelBonuses: false }));
+    expect(screen.getByText('Бонуси рівнів вимкнено ведучим')).toBeTruthy();
+    cleanup();
+    show(view());
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
+  });
+
   it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
     const send = show(view({ autopilot: true, author: { cloud: null, bluff: null, people: [], resume: null } }), { code: '123456', stageUrl: null });
     expect(screen.getByText('123 456')).toBeTruthy();
