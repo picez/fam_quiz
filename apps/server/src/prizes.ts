@@ -99,7 +99,6 @@ export async function deletePrize(
     const room = manager.rooms().find((r) => r.id === row.reservedGame);
     if (room !== undefined) {
       if (ownerId !== null && room.state.phase !== 'lobby') return 'prize_in_game';
-      manager.unplacePrize(room, id);
     } else if (ownerId !== null) {
       const [stored] = await db.select({ code: liveRoom.code }).from(liveRoom).where(eq(liveRoom.roomId, row.reservedGame));
       if (stored !== undefined) return 'prize_in_game';
@@ -116,7 +115,11 @@ export async function deletePrize(
       ),
     )
     .returning({ id: prize.id });
-  return removed.length > 0 ? 'deleted' : 'prize_in_game';
+  if (removed.length === 0) return 'prize_in_game';
+  // Знімаємо з кімнати лише після справжнього видалення: інакше кімната втратила б приз, який лишився в базі.
+  const holder = row.reservedGame === null ? undefined : manager.rooms().find((r) => r.id === row.reservedGame);
+  if (holder !== undefined) manager.unplacePrize(holder, id);
+  return 'deleted';
 }
 
 class Taken extends Error {}

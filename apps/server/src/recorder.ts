@@ -630,7 +630,7 @@ export function attachRecorder(
           }
           return;
         }
-        const timer = setTimeout(() => record(room),Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(() => record(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {
