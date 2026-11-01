@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
+import { clueShare, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
@@ -43,6 +43,7 @@ import { FactCards, RevealFactsLine } from './FactCards';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { ScoreTable } from './ScoreTable';
 import { ReactionMain } from '../live/Reactions';
+import { ReactionButton } from './ReactionSheet';
 import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
@@ -541,6 +542,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
+        <ReactionButton shown={reactionAllowed(phase)} event="host:react" send={send} />
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 

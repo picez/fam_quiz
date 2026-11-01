@@ -66,6 +66,8 @@ import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
 import { ReactionMain } from '../live/Reactions';
+import { ReactionButton } from './ReactionSheet';
+import { canReact } from '../reactions';
 
 interface Props {
   view: PlayerView;
@@ -801,6 +803,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
+        {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
+        <ReactionButton shown={canReact(view)} event="player:react" send={send} />
         <strong className="score">{num(me.score)}</strong>
       </header>
 

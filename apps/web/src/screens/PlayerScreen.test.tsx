@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
@@ -3982,5 +3983,25 @@ describe('PlayerScreen reactions (13a)', () => {
     expect(document.querySelector('.reaction-badge')).toBeNull();
     expect(document.querySelector('.reaction-strip')).toBeNull();
     expect(document.querySelector('main.app.player')?.classList.contains('has-reactions')).toBe(false);
+  });
+
+  const reactButton = () => screen.queryByRole('button', { name: t('reactionButton') });
+
+  it('«😀 Реакція» stands in the header between questions and not on the question', () => {
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings }));
+    const button = reactButton();
+    expect(button).not.toBeNull();
+    expect(button?.closest('header.bar')).not.toBeNull();
+    // Перед рахунком.
+    expect(button?.nextElementSibling?.classList.contains('score')).toBe(true);
+    cleanup();
+    showWith(onQuestion({ standings }));
+    expect(reactButton()).toBeNull();
+  });
+
+  it('no «😀 Реакція» while a survival trial waits for this phone', () => {
+    const survival = { status: 'edge' as const, outAfter: null, ghostCorrect: null, canAnswerTrial: true, trialAnswer: null, canPickDoor: false, door: null, result: null, bonus: null };
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings, me: { ...me, survival } }));
+    expect(reactButton()).toBeNull();
   });
 });

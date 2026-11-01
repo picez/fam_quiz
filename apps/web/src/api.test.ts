@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { authProviders, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -163,5 +163,25 @@ describe('autopilot', () => {
     const fetchMock = respond(200, { blocked: [], changed: [] });
     expect(await getAutopilotCheck('q1')).toEqual({ ok: true, blocked: [], changed: [] });
     expect(fetchMock).toHaveBeenCalledWith('/api/quizzes/q1/autopilot', { method: 'GET', headers: undefined, body: undefined });
+  });
+});
+
+describe('favourite stickers (13a)', () => {
+  it('reads and saves the list through /api/me/stickers', async () => {
+    let fetchMock = respond(200, { favorites: ['nyaBeach'] });
+    expect(await getFavoriteStickers()).toEqual({ ok: true, favorites: ['nyaBeach'] });
+    expect(fetchMock).toHaveBeenCalledWith('/api/me/stickers', { method: 'GET', headers: undefined, body: undefined });
+
+    fetchMock = respond(200, { favorites: ['nyaCute', 'nyaBeach'] });
+    expect(await saveFavoriteStickers(['nyaCute', 'nyaBeach'])).toEqual({ ok: true, favorites: ['nyaCute', 'nyaBeach'] });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/me/stickers');
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(String(init.body))).toEqual({ favorites: ['nyaCute', 'nyaBeach'] });
+  });
+
+  it('a guest gets unauthorized', async () => {
+    respond(401, { error: 'unauthorized' });
+    expect(await getFavoriteStickers()).toEqual({ ok: false, error: 'unauthorized' });
   });
 });

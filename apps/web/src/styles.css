@@ -12401,3 +12401,142 @@ button.wall-tile:disabled {
 .app.stage.has-reactions .appeal-card.is-stage {
   bottom: calc(0.75rem + var(--reaction-strip-h));
 }
+
+/* «😀 Реакція» (13a): пігулка «Таблиці» в шапці телефона й пульта — не вища за рядок шапки, тож її поява нічого не зсуває. */
+.table-button.reaction-button {
+  padding-inline: 0.6rem;
+}
+
+.table-button.reaction-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Тісна шапка 375 px (ще одна пігулка: «Таблиця», крамниця, меню автора, «Наживо» чи «↶ Бали» пульта): лишається сам 😀 (aria-label «😀 Реакція»), щоб імені й коду було місце. */
+@media (max-width: 400px) {
+  .bar:has(.table-button:not(.reaction-button), .live-toggle, .undo-button) .reaction-button-label {
+    display: none;
+  }
+
+  .bar:has(.table-button:not(.reaction-button), .live-toggle, .undo-button) .reaction-button {
+    min-width: 2.75rem;
+  }
+}
+
+/* Аркуш реакції: знизу, поверх сторінки й смуги реакцій, нічого не зсуває; прокручується весь, а «Усі стікери» — ще й усередині. */
+.reaction-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 72;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--amber);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  color: var(--paper);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.reaction-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.reaction-sheet h2,
+.reaction-sheet h3 {
+  margin: 0;
+}
+
+.reaction-sheet h2 {
+  font-size: 1.1rem;
+}
+
+.reaction-sheet h3 {
+  margin-bottom: 0.5rem;
+  color: var(--dim);
+  font-size: 0.95rem;
+}
+
+.reaction-sheet .meta {
+  margin: 0;
+}
+
+.reaction-emoji {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.reaction-emoji-btn {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reaction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reaction-grid.is-all {
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.reaction-cell {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.reaction-pick {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reaction-pick img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.reaction-star {
+  flex: 0 0 1.75rem;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.reaction-star[aria-pressed='true'] {
+  color: var(--amber);
+}
