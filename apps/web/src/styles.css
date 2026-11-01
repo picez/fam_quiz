@@ -12732,3 +12732,44 @@ button.wall-tile:disabled {
   border: 0;
   background: transparent;
 }
+
+/* Трофей (14a): квадрат під модель; поки model-viewer не готовий чи без WebGL — значок у кольорі матеріалу. */
+.trophy {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  max-width: 100%;
+}
+
+.trophy-stage {
+  width: min(40vh, 320px);
+}
+
+.trophy-phone {
+  width: min(56vw, 200px);
+}
+
+.trophy-card {
+  width: 96px;
+}
+
+.trophy-model {
+  width: 100%;
+  height: 100%;
+  --poster-color: transparent;
+  background: transparent;
+}
+
+.trophy-fallback {
+  font-size: calc(var(--trophy-icon, 1) * 3.5rem);
+  line-height: 1;
+  filter: drop-shadow(0 0 0.35em currentColor);
+}
+
+.trophy-stage .trophy-fallback {
+  font-size: 9rem;
+}
+
+.trophy-phone .trophy-fallback {
+  font-size: 6rem;
+}

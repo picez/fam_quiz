@@ -2382,6 +2382,26 @@ const uk = {
   reactionClose: 'Закрити',
   reactionFavoriteAdd: 'Додати {name} в улюблені',
   reactionFavoriteRemove: 'Прибрати {name} з улюблених',
+  // Трофеї й диплом (14a)
+  trophy_cup: 'кубок',
+  trophy_medal: 'медаль',
+  trophy_crown: 'корона',
+  trophy_star: 'зірка',
+  trophy_statuette: 'статуетка',
+  material_bronze_m: 'Бронзовий',
+  material_bronze_f: 'Бронзова',
+  material_silver_m: 'Срібний',
+  material_silver_f: 'Срібна',
+  material_gold_m: 'Золотий',
+  material_gold_f: 'Золота',
+  material_diamond_m: 'Діамантовий',
+  material_diamond_f: 'Діамантова',
+  prizeSummaryReal: '🎁 {text}',
+  prizeSummaryTitle: '🎗️ Титул «{title}»',
+  prizeSummaryDiploma: '📜 Диплом',
+  prizeSummaryEngraving: '✒️ «{text}»',
+  diplomaTitle: 'Диплом',
+  diplomaPlace: '{place} місце',
 } as const;
 
 export type TextKey = keyof typeof uk;
