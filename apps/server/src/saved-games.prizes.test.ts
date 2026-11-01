@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
 import type { ContinueResponse, PrizeContent } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { prize, savedGame, user } from './db/schema';
+import { game, prize, savedGame, user } from './db/schema';
 import { createPrize, deletePrize, reservePlaces } from './prizes';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -72,6 +72,23 @@ describe('prizes of a saved game', () => {
     const s = await savedWithPrize();
     expect((await call('DELETE', `/api/games/${s.gameId}`, s.owner.cookie)).statusCode).toBe(200);
     expect(await statusOf(s.cup)).toBe('free');
+  });
+
+  it('a delete that removed no row (the game stopped being saved meanwhile) keeps the prize reserved', async () => {
+    const s = await savedWithPrize();
+    // Остання звірка перед видаленням: у цю мить гру хтось продовжив — рядок уже не 'saved'.
+    // Запит стає в чергу бази раніше за саме видалення.
+    const spy = vi.spyOn(ctx.manager, 'openFor').mockImplementationOnce(() => {
+      void db.update(game).set({ status: 'running' }).where(eq(game.id, s.gameId)).then(() => undefined);
+      return false;
+    });
+    try {
+      await call('DELETE', `/api/games/${s.gameId}`, s.owner.cookie);
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await db.select().from(game).where(eq(game.id, s.gameId)))[0]?.status).toBe('running');
+    expect(await statusOf(s.cup)).toBe('reserved');
   });
 
   it('an exact continuation plays for the same prize', async () => {

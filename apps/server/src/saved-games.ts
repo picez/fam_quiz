@@ -291,9 +291,12 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     if (manager.openFor(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
     // І рядок live_room (продовження в іншому процесі) — теж безпосередньо перед видаленням.
     if ((await openGameIds(db, manager)).has(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
-    await db.delete(game).where(and(eq(game.id, found.game.id), eq(game.status, 'saved')));
-    // Гри більше немає — її призи повертаються на склад (14a).
-    await releaseUnsaved(db, found.game.id);
+    const removed = await db
+      .delete(game)
+      .where(and(eq(game.id, found.game.id), eq(game.status, 'saved')))
+      .returning({ id: game.id });
+    // Гри більше немає — її призи повертаються на склад (14a). Не видалилося нічого (гру тим часом продовжили) — резерви лишаються.
+    if (removed.length > 0) await releaseUnsaved(db, found.game.id);
     return reply.code(200).send({});
   });
 
