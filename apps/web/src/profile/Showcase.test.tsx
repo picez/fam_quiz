@@ -53,13 +53,18 @@ describe('Showcase', () => {
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
-  it('without IntersectionObserver the trophy view mounts at once', () => {
+  it('without IntersectionObserver only emoji show, and a tap opens 3D for that card', () => {
     vi.stubGlobal('IntersectionObserver', undefined);
-    render(<Showcase showcase={{ title: null, awards: [award()] }} own />);
-    expect(document.querySelector('.trophy-mock')).not.toBeNull();
+    render(<Showcase showcase={{ title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' })] }} own />);
+    expect(document.querySelector('.trophy-mock')).toBeNull();
+    const emoji = document.querySelectorAll('.award-emoji');
+    expect(emoji).toHaveLength(2);
+    fireEvent.click(emoji[0]!);
+    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
+    expect(document.querySelectorAll('.award-emoji')).toHaveLength(1);
   });
 
-  it('mounts 3D only for the cards that are in view', () => {
+  function fakeObserver() {
     const observers: { cb: IntersectionObserverCallback; seen: Element[] }[] = [];
     class Fake {
       seen: Element[] = [];
@@ -75,15 +80,34 @@ describe('Showcase', () => {
       unobserve() {}
     }
     vi.stubGlobal('IntersectionObserver', Fake);
+    const show = (index: number, isIntersecting = true) => {
+      const card = document.querySelectorAll('.award-card')[index]!;
+      const entry = observers.find((o) => o.seen.includes(card))!;
+      act(() => entry.cb([{ isIntersecting } as IntersectionObserverEntry], entry as unknown as IntersectionObserver));
+    };
+    return show;
+  }
+
+  it('mounts 3D only for the cards that are in view and keeps it after they scroll away', () => {
+    const show = fakeObserver();
     render(<Showcase showcase={{ title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' }), award({ id: 'a3' })] }} own />);
     expect(document.querySelectorAll('.trophy-mock')).toHaveLength(0);
     expect(document.querySelectorAll('.award-emoji')).toHaveLength(3);
-    const cards = document.querySelectorAll('.award-card');
-    const second = observers.find((entry) => entry.seen.includes(cards[1]!));
-    expect(second).toBeTruthy();
-    act(() => second!.cb([{ isIntersecting: true } as IntersectionObserverEntry], second as unknown as IntersectionObserver));
+    show(1);
+    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
+    show(1, false);
     expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
     expect(document.querySelectorAll('.award-emoji')).toHaveLength(2);
+  });
+
+  it('allows at most 6 live 3D cards by scrolling; the rest stay emoji until tapped', () => {
+    const show = fakeObserver();
+    const awards = Array.from({ length: 8 }, (_, i) => award({ id: `a${i}` }));
+    render(<Showcase showcase={{ title: null, awards }} own />);
+    for (let i = 0; i < 8; i++) show(i);
+    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(6);
+    fireEvent.click(document.querySelectorAll('.award-emoji')[0]!);
+    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(7);
   });
 
   it('the diploma button exists only for awards with a diploma and makes it with the award nickname', async () => {
