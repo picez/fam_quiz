@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -1646,7 +1646,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Досягнення', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 
@@ -2083,7 +2083,7 @@ async function invitesAndVersus() {
   expect(versusText).not.toContain('@');
   expect(versusText).not.toContain(hostId);
   const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
-  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'stats']);
+  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'showcase', 'stats']);
 
   expect(problems).toEqual([]);
 }
@@ -17120,5 +17120,333 @@ it('part 13b: saved games — the host saves in the middle of question 2 and eve
     throw error;
   } finally {
     slots404Expected = false;
+  }
+});
+
+/** Меню телефона (14a): шість пунктів, висота, прокрутка вбік і чи влазить кожен короткий підпис (::after з data-short) у свій пункт. */
+const MENU_FITS_14A = `(() => {
+  const nav = document.querySelector('nav[aria-label="Меню"]');
+  const links = [...nav.querySelectorAll('a')];
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0';
+  document.body.append(probe);
+  const clipped = [];
+  const shown = [];
+  for (const a of links) {
+    const after = getComputedStyle(a, '::after');
+    shown.push(after.content);
+    for (const key of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing']) probe.style[key] = after[key];
+    probe.textContent = a.dataset.short;
+    const style = getComputedStyle(a);
+    const inner = a.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const width = probe.getBoundingClientRect().width;
+    if (width > inner + 0.5 || a.scrollWidth > a.clientWidth) clipped.push(a.dataset.short + ': ' + width.toFixed(1) + ' > ' + inner.toFixed(1));
+    const box = a.getBoundingClientRect();
+    if (box.left < -0.5 || box.right > innerWidth + 0.5) clipped.push(a.dataset.short + ': outside the screen');
+  }
+  probe.remove();
+  return {
+    count: links.length,
+    height: nav.getBoundingClientRect().height,
+    wide: document.documentElement.scrollWidth <= innerWidth && nav.scrollWidth <= nav.clientWidth,
+    shown,
+    clipped,
+  };
+})()`;
+
+/** Меню з шістьма пунктами на ширині width: не вище 60 px, без прокрутки вбік, жоден короткий підпис не обрізано. */
+async function expectPhoneMenu14a(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 812 });
+  const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
+  expect(fit.count, `menu ${width}: items`).toBe(6);
+  expect(fit.height, `menu ${width}: height`).toBeLessThanOrEqual(60);
+  expect(fit.wide, `menu ${width}: horizontal scroll`).toBe(true);
+  expect(fit.clipped, `menu ${width}: clipped labels`).toEqual([]);
+  expect(fit.shown.every((content) => content.includes('"')), `menu ${width}: short labels are not shown (${fit.shown.join(', ')})`).toBe(true);
+  await shot(page, `p14a-menu-${width}`);
+}
+
+function prizeQuestions14a() {
+  const common = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'p1', type: 'single' as const, text: 'Яке місто називають столицею Галичини?', options: options('Львів', 'Тернопіль', 'Івано-Франківськ', 'Дрогобич'), correctId: 'a' },
+    { ...common, id: 'p2', type: 'single' as const, text: 'Яке море омиває Одесу?', options: options('Чорне', 'Азовське', 'Середземне', 'Балтійське'), correctId: 'a' },
+  ];
+}
+
+/** Запити до 3D: файли моделей і чанк model-viewer. */
+const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/model-viewer[^/]*\.js/.test(url);
+
+async function prizes14a() {
+  const TITLE = 'Призова вікторина 14a';
+  const ENGRAVING = 'Чемпіон призової вікторини 2026';
+  const KING = '👑 Король вікторини';
+  const requests = new Map<string, string[]>();
+  const track = (name: string, page: Page) => {
+    const list: string[] = [];
+    requests.set(name, list);
+    page.on('request', (request) => list.push(request.url()));
+  };
+  /** Телефон без Web Share: «Диплом» гарантовано завантажує файл (canShare живе на прототипі, не на самому navigator). */
+  const noShare = (page: Page) =>
+    page.addInitScript(() => {
+      delete (Navigator.prototype as unknown as { canShare?: unknown }).canShare;
+      delete (navigator as unknown as { canShare?: unknown }).canShare;
+    });
+
+  // ── 1. Склад: ведучий на телефонному вікні створює два призи. ──
+  const host = await open('host14a', 1280, 800);
+  track('host', host);
+  await register(host, 'host', 'Марта Ведуча', 'host14a@example.com');
+  const olya = await open('olya14a', 375, 812);
+  await noShare(olya);
+  track('olya', olya);
+  await register(olya, 'menu', 'Оля', 'olya14a@example.com');
+
+  // Друга сторінка того самого контексту (та сама сесія): «Мої призи» на 375 px.
+  const hostPhone = await host.context().newPage();
+  await hostPhone.setViewportSize({ width: 375, height: 812 });
+  hostPhone.on('pageerror', (error) => problems.push(`hostPhone14a: ${error.message} @ ${hostPhone.url()}`));
+  hostPhone.on('console', (message) => {
+    if (message.type() === 'error' && !message.text().includes('401 (Unauthorized)')) problems.push(`hostPhone14a console: ${message.text()} @ ${message.location().url}`);
+  });
+  hostPhone.on('dialog', (dialog) => void dialog.accept());
+  pages.set('hostPhone14a', hostPhone);
+  await hostPhone.goto(base);
+  await hostPhone.locator(MENU).getByRole('link', { name: 'Призи', ...exact }).click();
+  await hostPhone.waitForURL(/\/prizes$/);
+  await hostPhone.getByRole('heading', { name: 'Мої призи', ...exact }).waitFor();
+
+  const check = (label: string) => hostPhone.getByRole('checkbox', { name: label, ...exact }).check();
+  await click(hostPhone, 'Новий приз');
+  await field(hostPhone, 'Назва').fill('Головний приз');
+  await check('3D-трофей');
+  await hostPhone.getByRole('radio', { name: 'кубок', ...exact }).check();
+  await hostPhone.getByRole('radio', { name: 'Золото', ...exact }).check();
+  await check('Гравіювання');
+  await field(hostPhone, 'Текст гравіювання').fill(ENGRAVING);
+  await check('Справжній приз');
+  await field(hostPhone, 'Що за приз').fill('Піца 🍕');
+  await check('Титул біля ніку');
+  await field(hostPhone, 'Який титул (на 7 днів)').fill(KING);
+  await check('Диплом');
+  await expectNoSideScroll(hostPhone, 'p14a-prize-editor');
+  await click(hostPhone, 'Зберегти');
+  await hostPhone.locator('.prize-list li', { hasText: 'Головний приз' }).waitFor();
+
+  await click(hostPhone, 'Новий приз');
+  await field(hostPhone, 'Назва').fill('Друге місце');
+  await check('3D-трофей');
+  await hostPhone.getByRole('radio', { name: 'медаль', ...exact }).check();
+  await hostPhone.getByRole('radio', { name: 'Срібло', ...exact }).check();
+  await click(hostPhone, 'Зберегти');
+  await hostPhone.locator('.prize-list li', { hasText: 'Друге місце' }).waitFor();
+  expect(await hostPhone.locator('.prize-list li').count()).toBe(2);
+  await expectNoSideScroll(hostPhone, 'p14a-prizes');
+  // Меню з шістьма пунктами: 375 і 360 px.
+  await expectPhoneMenu14a(hostPhone, 375);
+  await expectPhoneMenu14a(hostPhone, 360);
+  await hostPhone.close();
+  pages.delete('hostPhone14a');
+
+  // ── 2. Лобі: призи на 1-ше й 2-ге місця, «Граємо за» на сцені й телефонах. ──
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', prizeQuestions14a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stage = await open('stage14a', 1280, 720);
+  track('stage', stage);
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  const petro = await open('petro14a', 375, 812);
+  await noShare(petro);
+  track('petro', petro);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await host.getByText('Петро', exact).first().waitFor();
+
+  const panel = host.locator('section.prize-places');
+  await panel.getByRole('heading', { name: 'Призи гри', ...exact }).waitFor();
+  const placeSelect = (index: number) => panel.locator('.prize-place').nth(index).locator('select');
+  await placeSelect(0).locator('option', { hasText: 'Головний приз' }).waitFor({ state: 'attached' });
+  await placeSelect(0).selectOption({ label: 'Головний приз' });
+  await placeSelect(1).selectOption({ label: 'Друге місце' });
+  await panel.getByRole('button', { name: 'Покласти призи', ...exact }).click();
+  await panel.getByText('Призи покладено.', exact).waitFor();
+  await shot(host, 'p14a-host-lobby');
+
+  const stageFor = stage.locator('.playing-for');
+  await stageFor.getByText('Граємо за', exact).waitFor();
+  for (const text of ['Золотий кубок', 'Піца 🍕', 'Срібна медаль']) expect(await stageFor.innerText()).toContain(text);
+  // «Граємо за» не виштовхує QR за межі 720 px, сцена не гортається.
+  const qr = (await stage.locator('.qr').boundingBox())!;
+  expect(qr.y + qr.height, 'p14a-stage-lobby: the QR is pushed below 720').toBeLessThanOrEqual(720);
+  const forBox = (await stageFor.boundingBox())!;
+  expect(forBox.y + forBox.height, 'p14a-stage-lobby: «Граємо за» is below 720').toBeLessThanOrEqual(720);
+  expect(await stage.evaluate('document.scrollingElement.scrollHeight <= innerHeight'), 'p14a-stage-lobby: the stage scrolls').toBe(true);
+  await shot(stage, 'p14a-stage-lobby');
+
+  const phoneFor = olya.locator('.playing-for');
+  await phoneFor.waitFor();
+  const phoneLine = (await phoneFor.textContent())!;
+  expect(phoneLine.startsWith('Граємо за: '), phoneLine).toBe(true);
+  for (const text of ['🏆 Золотий кубок', '🎁 Піца 🍕', '🏅 Срібна медаль']) expect(phoneLine).toContain(text);
+  await expectNoSideScroll(olya, 'p14a-phone-lobby');
+  await petro.locator('.playing-for').waitFor();
+
+  // Лобі без трофеїв: жодного запиту на модель чи чанк model-viewer.
+  for (const [name, list] of requests) expect(list.filter(isTrophyRequest), `${name} loaded 3D in the lobby`).toEqual([]);
+
+  // ── 3. Гра: Оля 200, Петро 100. ──
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  await step('Почати гру');
+  await afterSplash(host, stage, olya, petro);
+  await step('Почати раунд');
+  await afterSplash(host, stage, olya, petro);
+  await olya.getByRole('button', { name: /Львів/ }).waitFor();
+  await petro.getByRole('button', { name: /Тернопіль/ }).waitFor();
+  await pickOption(olya, 'Львів');
+  await pickOption(petro, 'Тернопіль');
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Далі');
+  await step('Наступне запитання');
+  await afterSplash(host, stage, olya, petro);
+  for (const page of [olya, petro]) {
+    await page.getByRole('button', { name: /Чорне/ }).waitFor();
+    await pickOption(page, 'Чорне');
+  }
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Завершити гру');
+
+  // ── 4. Церемонія: спершу 2-ге місце, тоді переможець. ──
+  const ceremony = stage.locator('.ceremony');
+  const second = ceremony.locator('.podium-col.is-place-2.is-shown');
+  const first = ceremony.locator('.podium-col.is-place-1.is-shown');
+  await second.waitFor({ timeout: 20_000 });
+  expect(await second.locator('.podium-name').textContent()).toBe('Петро');
+  expect(await first.count(), 'the winner is shown before the 2nd place').toBe(0);
+  await first.waitFor({ timeout: 10_000 });
+  expect(await first.locator('.podium-name').textContent()).toBe('Оля');
+  expect(await first.locator('.engraving').textContent()).toBe(ENGRAVING);
+  expect(await first.locator('.podium-title').textContent()).toContain(KING);
+  expect(await first.locator('.podium-real').textContent()).toContain('Піца 🍕');
+  // Гравіювання не обрізане й не виходить за сцену.
+  const engraving = first.locator('.engraving');
+  expect(await engraving.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1), 'the engraving is clipped').toBe(true);
+  const engravingBox = (await engraving.boundingBox())!;
+  expect(engravingBox.x >= 0 && engravingBox.x + engravingBox.width <= 1280 && engravingBox.y + engravingBox.height <= 720, 'the engraving leaves the stage').toBe(true);
+  expect(await stage.evaluate('document.scrollingElement.scrollHeight <= innerHeight'), 'p14a-stage-ceremony: the stage scrolls').toBe(true);
+  // 3D є (запит моделі кубка) або, без WebGL у безголовому браузері, значок-емодзі.
+  await expect
+    .poll(async () => requests.get('stage')!.some((url) => url.endsWith('/models/cup.glb')) || (await first.locator('.trophy-fallback').count()) > 0, POLL)
+    .toBe(true);
+  const stage3d = requests.get('stage')!.some((url) => url.endsWith('/models/cup.glb'));
+  console.log(`p14a: stage trophy — ${stage3d ? 'cup.glb requested (3D)' : 'emoji fallback (no WebGL)'}`);
+  // Кадр — коли колонка переможця вже піднялась (скінченні анімації скінчились), а модель кубка намалювалась.
+  await stage.evaluate(`Promise.all(
+    [...document.querySelectorAll('.ceremony .is-place-1')].flatMap((el) => el.getAnimations({ subtree: true }))
+      .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+      .map((a) => a.finished.catch(() => undefined)),
+  ).then(() => true)`);
+  if (stage3d) await first.locator('.trophy-fallback').waitFor({ state: 'detached', timeout: 5000 }).catch(() => undefined);
+  await shot(stage, 'p14a-stage-ceremony');
+  // Після церемонії — звичайний п'єдестал.
+  await stage.locator('.stage-board.is-final').waitFor({ timeout: 15_000 });
+  expect(await ceremony.count()).toBe(0);
+
+  // Телефон Олі: «Твій приз» і диплом файлом.
+  const olyaPrize = olya.locator('section.my-prize');
+  await olyaPrize.getByRole('heading', { name: 'Твій приз', ...exact }).waitFor({ timeout: 25_000 });
+  expect(await olyaPrize.innerText()).toContain('1 місце');
+  expect(await olyaPrize.getByText('Ти граєш як гість: у вітрину приз не потрапить.', exact).count()).toBe(0);
+  const [download] = await Promise.all([olya.waitForEvent('download'), olyaPrize.getByRole('button', { name: 'Диплом', ...exact }).click()]);
+  expect(download.suggestedFilename()).toBe('dyplom-Оля.png');
+  const png = readFileSync((await download.path())!);
+  expect(png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), 'the diploma is not a PNG').toBe(true);
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 850]);
+  expect(await olyaPrize.getByRole('alert').count(), 'the diploma failed').toBe(0);
+  await expectNoSideScroll(olya, 'p14a-phone-prize');
+
+  // Диплом у <img>: він малюється, і на ньому є текст (темні пікселі на кремовому тлі), а не лише рамка.
+  const diplomaPage = await open('diploma14a', 1200, 850);
+  await diplomaPage.setContent(`<!doctype html><body style="margin:0"><img id="d" src="data:image/png;base64,${png.toString('base64')}"></body>`);
+  const ink = (await diplomaPage.evaluate(`(async () => {
+    const img = document.getElementById('d');
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(img, 0, 0);
+    const { data } = context.getImageData(100, 100, img.naturalWidth - 200, img.naturalHeight - 200);
+    let dark = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] < 200) dark++;
+    return { width: img.naturalWidth, height: img.naturalHeight, dark };
+  })()`)) as { width: number; height: number; dark: number };
+  expect([ink.width, ink.height]).toEqual([1200, 850]);
+  expect(ink.dark, 'the diploma has no text').toBeGreaterThan(2000);
+  await shot(diplomaPage, 'p14a-diploma');
+
+  // Телефон Петра (гість, 2-ге місце): приз, нотатка гостя, без диплома.
+  const petroPrize = petro.locator('section.my-prize');
+  await petroPrize.getByRole('heading', { name: 'Твій приз', ...exact }).waitFor({ timeout: 25_000 });
+  expect(await petroPrize.innerText()).toContain('2 місце');
+  await petroPrize.getByText('Ти граєш як гість: у вітрину приз не потрапить.', exact).waitFor();
+  expect(await petroPrize.getByRole('button', { name: 'Диплом', ...exact }).count()).toBe(0);
+  await expectNoSideScroll(petro, 'p14a-phone-guest');
+
+  // ── 5. Склад і вітрина. ──
+  await expect
+    .poll(async () => {
+      const items = (await (await host.request.get(`${base}/api/me/prizes`)).json()) as { content: { name: string }; status: string }[];
+      return items.map((item) => [item.content.name, item.status]);
+    }, POLL)
+    .toEqual([['Друге місце', 'free']]);
+
+  await olya.goto(`${base}/profile`);
+  const showcase = olya.locator('section.showcase');
+  await showcase.getByRole('heading', { name: 'Нагороди', ...exact }).waitFor();
+  const card = showcase.locator('.award-card');
+  expect(await card.count()).toBe(1);
+  expect(await card.locator('.award-line').textContent()).toContain('1 місце · Призова вікторина 14a');
+  expect(await card.locator('.engraving').textContent()).toBe(ENGRAVING);
+  expect(await showcase.getByRole('button', { name: 'Диплом', ...exact }).count()).toBe(1);
+  // Бейдж титулу біля ніку в шапці профілю (поза вітриною).
+  await olya.locator('.nick-title', { hasText: KING }).first().waitFor();
+  expect(await olya.locator('.nick-title').evaluateAll((els) => els.filter((el) => !el.closest('section.showcase')).map((el) => el.textContent))).toContain(KING);
+  // Вітрина — одна колонка, картка в межах екрана.
+  await card.scrollIntoViewIfNeeded();
+  const cardBox = (await card.boundingBox())!;
+  expect(cardBox.x >= 0 && cardBox.x + cardBox.width <= 375, 'the award card leaves the 375 phone').toBe(true);
+  await expectNoSideScroll(olya, 'p14a-showcase');
+
+  const olyaId = await myId(olya);
+  const response = await petro.request.get(`${base}/api/profiles/${olyaId}`);
+  expect(response.ok(), await response.text()).toBe(true);
+  const profile = (await response.json()) as { showcase: { title: { text: string } | null; awards: unknown[] } };
+  expect(profile.showcase.awards).toHaveLength(1);
+  expect(profile.showcase.title?.text).toBe(KING);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 14a: prizes — the host makes a gold cup with an engraving, a pizza, a title and a diploma and a silver medal in «Мої призи», puts them on places 1 and 2 in the lobby, the stage and the phones show «Граємо за», the finish raises the podium with the winner last, the signed-in Оля gets «Твій приз» and downloads the diploma, the cup moves to her showcase with the title, and the medal of the guest Петро goes back to the store', async () => {
+  try {
+    await prizes14a();
+  } catch (error) {
+    await snapshot();
+    throw error;
   }
 });
