@@ -139,3 +139,27 @@ describe('Showcase', () => {
     expect(screen.getByText(/Король/)).toBeTruthy();
   });
 });
+
+describe('the title next to the nickname on narrow screens (14a)', async () => {
+  const { existsSync, readFileSync } = await import('node:fs');
+  const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path))!;
+  const css = readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
+  /** Тіла правил selector усередині @media (max-width: 480px). */
+  const narrow = (selector: string) =>
+    [...css.matchAll(/@media \(max-width: 480px\) \{\n([\s\S]*?)\n\}/g)].flatMap((block) => {
+      const start = block[1]!.indexOf(`  ${selector} {`);
+      return start < 0 ? [] : [block[1]!.slice(block[1]!.indexOf('{', start) + 1, block[1]!.indexOf('}', start))];
+    });
+
+  it('in the profile head the title gets its own line under the nickname, unclamped', () => {
+    const [rule] = narrow('.profile-head .nick-title');
+    expect(rule).toBeDefined();
+    expect(rule).toContain('display: block;');
+    expect(rule).toContain('max-width: none;');
+    expect(rule).toContain('white-space: normal;');
+  });
+
+  it('elsewhere a narrow screen keeps the 12ch clamp', () => {
+    expect(narrow('.nick-title')).toEqual([expect.stringContaining('max-width: 12ch;')]);
+  });
+});

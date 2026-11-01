@@ -12933,6 +12933,14 @@ button.wall-tile:disabled {
   .nick-title {
     max-width: 12ch;
   }
+  /* У шапці профілю титул — окремим рядком під ніком і повністю: місця під ним досить. */
+  .profile-head .nick-title {
+    display: block;
+    margin-inline-start: 0;
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 
 /* ---------- Церемонія призів (14a): подіум 2 — 1 — 3, конфеті, «Твій приз» ---------- */
