@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AwardCard, Showcase as ShowcaseData } from '@quiz/shared';
@@ -140,10 +143,9 @@ describe('Showcase', () => {
   });
 });
 
-describe('the title next to the nickname on narrow screens (14a)', async () => {
-  const { existsSync, readFileSync } = await import('node:fs');
-  const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path))!;
-  const css = readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
+describe('the title next to the nickname on narrow screens (14a)', () => {
+  const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+  const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
   /** Тіла правил selector усередині @media (max-width: 480px). */
   const narrow = (selector: string) =>
     [...css.matchAll(/@media \(max-width: 480px\) \{\n([\s\S]*?)\n\}/g)].flatMap((block) => {

@@ -17340,8 +17340,12 @@ async function prizes14a() {
   await first.waitFor({ timeout: 10_000 });
   expect(await first.locator('.podium-name').textContent()).toBe('Оля');
   expect(await first.locator('.engraving').textContent()).toBe(ENGRAVING);
-  expect(await first.locator('.podium-title').textContent()).toContain(KING);
+  // Титул уже з короною: друга 👑 не додається.
+  expect(await first.locator('.podium-title').textContent()).toBe(KING);
   expect(await first.locator('.podium-real').textContent()).toContain('Піца 🍕');
+  // Призи лише на 1-му й 2-му місцях: подіум у дві колонки, 2 — 1, без порожньої третьої.
+  expect(await ceremony.locator('.podium-col').evaluateAll((cols) => cols.map((col) => col.getAttribute('data-place')))).toEqual(['2', '1']);
+  expect(await stage.evaluate(`getComputedStyle(document.querySelector('.ceremony .podium')).gridTemplateColumns.split(' ').length`)).toBe(2);
   // Гравіювання не обрізане й не виходить за сцену.
   const engraving = first.locator('.engraving');
   expect(await engraving.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight + 1), 'the engraving is clipped').toBe(true);
@@ -17371,6 +17375,7 @@ async function prizes14a() {
   await olyaPrize.getByRole('heading', { name: 'Твій приз', ...exact }).waitFor({ timeout: 25_000 });
   expect(await olyaPrize.innerText()).toContain('1 місце');
   expect(await olyaPrize.getByText('Ти граєш як гість: у вітрину приз не потрапить.', exact).count()).toBe(0);
+  expect(await olyaPrize.locator('.podium-title').textContent()).toBe(KING);
   const [download] = await Promise.all([olya.waitForEvent('download'), olyaPrize.getByRole('button', { name: 'Диплом', ...exact }).click()]);
   expect(download.suggestedFilename()).toBe('dyplom-Оля.png');
   const png = readFileSync((await download.path())!);
@@ -17426,6 +17431,7 @@ async function prizes14a() {
   // Бейдж титулу біля ніку в шапці профілю (поза вітриною).
   await olya.locator('.nick-title', { hasText: KING }).first().waitFor();
   expect(await olya.locator('.nick-title').evaluateAll((els) => els.filter((el) => !el.closest('section.showcase')).map((el) => el.textContent))).toContain(KING);
+  await expectFullHeadTitle(olya, KING, 'p14a-own-profile');
   // Вітрина — одна колонка, картка в межах екрана.
   await card.scrollIntoViewIfNeeded();
   const cardBox = (await card.boundingBox())!;
@@ -17439,7 +17445,37 @@ async function prizes14a() {
   expect(profile.showcase.awards).toHaveLength(1);
   expect(profile.showcase.title?.text).toBe(KING);
 
+  // Публічний профіль Олі очима Петра (375 px): «Нагороди» з кубком і титул біля ніку в шапці.
+  await petro.goto(`${base}/profile/${olyaId}`);
+  await petro.getByRole('heading', { level: 1, name: /Оля/ }).waitFor();
+  const publicShowcase = petro.locator('section.showcase');
+  await publicShowcase.getByRole('heading', { name: 'Нагороди', ...exact }).waitFor();
+  const publicCard = publicShowcase.locator('.award-card');
+  expect(await publicCard.count()).toBe(1);
+  expect(await publicCard.locator('.award-line').textContent()).toContain('1 місце · Призова вікторина 14a');
+  expect(await publicCard.locator('.engraving').textContent()).toBe(ENGRAVING);
+  await expectFullHeadTitle(petro, KING, 'p14a-public-profile');
+  await expectNoSideScroll(petro, 'p14a-public-profile');
+  await shot(petro, 'p14a-public-profile');
+
   expect(problems).toEqual([]);
+}
+
+/** Титул у шапці профілю на вузькому екрані: окремим рядком під ніком, повністю (не обрізаний). */
+async function expectFullHeadTitle(page: Page, title: string, label: string) {
+  const badge = page.locator('.profile-head .nick-title');
+  await badge.waitFor();
+  expect(await badge.textContent(), label).toBe(title);
+  // Нік — перший текстовий вузол h1: його рамка через Range, титул має починатися нижче.
+  const layout = await page.evaluate(`(() => {
+    const el = document.querySelector('.profile-head .nick-title');
+    const range = document.createRange();
+    range.selectNodeContents(el.parentElement.firstChild);
+    const nickBox = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return { clipped: el.scrollWidth > el.clientWidth + 1, below: box.top >= nickBox.bottom - 1, display: getComputedStyle(el).display };
+  })()`);
+  expect(layout, `${label}: the title next to the nickname`).toEqual({ clipped: false, below: true, display: 'block' });
 }
 
 it('part 14a: prizes — the host makes a gold cup with an engraving, a pizza, a title and a diploma and a silver medal in «Мої призи», puts them on places 1 and 2 in the lobby, the stage and the phones show «Граємо за», the finish raises the podium with the winner last, the signed-in Оля gets «Твій приз» and downloads the diploma, the cup moves to her showcase with the title, and the medal of the guest Петро goes back to the store', async () => {
