@@ -305,7 +305,11 @@ async function join(page: Page, code: string, nickname: string, viaHome: boolean
   } else {
     await page.goto(`${base}/play/${code}`);
   }
-  await field(page, 'Ваше ім’я').fill(nickname);
+  const input = field(page, 'Ваше ім’я');
+  await input.fill(nickname);
+  // Увійшовшому форма сама підставляє нік профілю, лише поки поле порожнє; якщо відповідь прийшла посеред fill (поле вже
+  // виділене, але ще порожнє), текст дописується до підставленого («ОляОля»). Після fill поле вже не порожнє, тож досить одного повтору.
+  if ((await input.inputValue()) !== nickname) await input.fill(nickname);
   await click(page, 'Увійти в гру');
   await page.getByText('Ви в грі. Чекаємо на старт.').waitFor();
 }
@@ -16828,6 +16832,7 @@ async function reactionLayout13a(sockets: Socket[]) {
   await click(host, 'Почати раунд');
   await afterSplash(host, stage);
   await stage.getByText(q1.text, exact).first().waitFor();
+  const pictureOnQuestion = (await stage.locator('.question-image').boundingBox())!.height;
   for (const [index, player] of players.entries()) {
     const ack = await new Promise<{ ok: boolean }>((done) => player.socket.emit('player:answer', { type: 'single', optionId: index < 5 ? 'a' : 'b' }, done));
     expect(ack.ok, `${player.nickname} answers`).toBe(true);
@@ -16837,6 +16842,8 @@ async function reactionLayout13a(sockets: Socket[]) {
   await stage.locator('main.has-reactions').waitFor();
   expect((await socketReact13a(players[0]!.socket, sticker)).ok).toBe(true);
   await badgeImg13a(stage.locator('.reaction-strip')).waitFor();
+  // Картинка не змінює висоту на відкритті відповіді: варіанти не стрибають.
+  expect((await stage.locator('.question-image').boundingBox())!.height, 'the picture jumps at the reveal').toBeCloseTo(pictureOnQuestion, 0);
   // Відкрита відповідь з картинкою й чотирма варіантами вже до 13a не вміщалась у 720 (≈808 px) — це поза 13a.
   // Тут: смуга не робить сцену вищою, ніж без неї, і не накриває рядок «Правильна відповідь».
   const [withStrip, client, bare] = (await stage.evaluate(`(() => {

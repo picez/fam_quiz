@@ -56,6 +56,16 @@ describe('canReact', () => {
     expect(canReact(view('leaderboard', survival({ canAnswerTrial: true })))).toBe(false);
     expect(canReact(view('leaderboard', survival({ canPickDoor: true })))).toBe(false);
   });
+
+  it('is closed while the phone decides in «Ва-банк» (stay / take) or in «Мільйонер» (take / go on)', () => {
+    const decide = (me: Record<string, unknown>) => ({ phase: 'leaderboard', me: { survival: null, ...me } }) as unknown as PlayerView;
+    const wipeout = (canDecide: boolean) => ({ status: 'in', bank: 300, decision: null, canDecide });
+    const ladder = (canDecide: boolean) => ({ role: 'contestant', canLifeline: false, hint: null, canDecide, hallClosed: false, hallPoints: null, won: null });
+    expect(canReact(decide({ wipeout: wipeout(false) }))).toBe(true);
+    expect(canReact(decide({ wipeout: wipeout(true) }))).toBe(false);
+    expect(canReact(decide({ ladder: ladder(false) }))).toBe(true);
+    expect(canReact(decide({ ladder: ladder(true) }))).toBe(false);
+  });
 });
 
 describe('strayReactions', () => {
