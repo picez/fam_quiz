@@ -30,6 +30,7 @@ import { SHOWCASE_IMAGES, showcaseQuiz } from './showcase-quiz';
 import { GRAND_IMAGES, grandQuiz } from './grand-quiz';
 import { FAMILY_IMAGES, familyQuiz } from './family-quiz';
 import { family2Quiz } from './family2-quiz';
+import { EVENING_IMAGES, eveningQuiz } from './evening-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -80,8 +81,33 @@ async function thumbnails(keys: readonly string[]): Promise<Record<string, strin
   return result;
 }
 
+/**
+ * Мініатюри 1280 px для карти ключ → стаття англійської Вікіпедії або «File:…» з Commons.
+ */
+async function wideSources(map: Record<string, string>): Promise<Record<string, string>> {
+  const result: Record<string, string> = {};
+  for (const [key, title] of Object.entries(map)) {
+    const api = title.startsWith('File:')
+      ? `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json&titles=${encodeURIComponent(title)}`
+      : `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=1280&format=json&redirects=1&titles=${encodeURIComponent(title)}`;
+    const body = (await (await fetch(api, { headers: UA })).json()) as {
+      query: { pages: Record<string, { thumbnail?: { source: string }; imageinfo?: { thumburl?: string; url: string }[] }> };
+    };
+    const page = Object.values(body.query.pages)[0];
+    const source = page?.thumbnail?.source ?? page?.imageinfo?.[0]?.thumburl ?? page?.imageinfo?.[0]?.url;
+    if (source) result[key] = source;
+    else console.warn(`No image for ${title}`);
+  }
+  return result;
+}
+
 /** Завантажує картинки keys на сайт від імені тимчасового акаунта; повертає ключ → /uploads/… */
-async function uploadImages(site: string, db: Db, keys: readonly string[] = Object.keys(ARTICLES)): Promise<Record<string, string>> {
+async function uploadImages(
+  site: string,
+  db: Db,
+  keys: readonly string[] = Object.keys(ARTICLES),
+  sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
+): Promise<Record<string, string>> {
   const email = `seed-${randomBytes(6).toString('hex')}@example.invalid`;
   const signUp = await fetch(`${site}/api/auth/sign-up/email`, {
     method: 'POST',
@@ -92,7 +118,7 @@ async function uploadImages(site: string, db: Db, keys: readonly string[] = Obje
   const cookie = signUp.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
   try {
     const urls: Record<string, string> = {};
-    for (const [key, source] of Object.entries(await thumbnails(keys))) {
+    for (const [key, source] of Object.entries(await sources())) {
       const image = await fetch(source, { headers: UA });
       const type = image.headers.get('content-type')?.split(';')[0] ?? '';
       if (!image.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(type)) {
@@ -117,7 +143,7 @@ async function uploadImages(site: string, db: Db, keys: readonly string[] = Obje
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -154,6 +180,15 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return familyQuiz(site ? await uploadImages(site, db, FAMILY_IMAGES) : {});
     case 'family2':
       return family2Quiz();
+    case 'evening': {
+      if (!site) throw new Error('The evening quiz needs SITE_URL: its pictures are required');
+      const urls = await uploadImages(site, db, Object.keys(EVENING_IMAGES), () => wideSources(EVENING_IMAGES));
+      return eveningQuiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
     case 'party-media': {
       const base = partyQuiz(await uploadImages(site!, db));
       return { ...base, title: `${base.title} (з картинками)` };
