@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { diskStorage, isMediaName, memoryStorage, sniffAudio, sniffImage } from './images';
+import { diskStorage, isMediaName, isStickerKey, memoryStorage, sniffAudio, sniffImage, sniffSticker } from './images';
 import { r2Storage } from './r2';
 import { JPEG, PNG, WEBP } from '../testing/images';
 
@@ -137,5 +137,50 @@ describe('r2 storage', () => {
     const storage = r2Storage({ ...settings, fetch: async () => new Response(null, { status: 200 }) });
     await expect(storage.put('../other-bucket/x.png', PNG, 'image/png')).rejects.toThrow();
     expect(await storage.get('a/b.png')).toBeNull();
+  });
+});
+
+describe('stickers in the storage', () => {
+  const GIF = new Uint8Array([...'GIF89a'].map((c) => c.charCodeAt(0)).concat([1, 0, 1, 0]));
+  const GIF87 = new Uint8Array([...'GIF87a'].map((c) => c.charCodeAt(0)).concat([1, 0]));
+
+  it('recognizes only the shape stickers/<id>.<gif|png>', () => {
+    expect(isStickerKey('stickers/nyaBeach.png')).toBe(true);
+    expect(isStickerKey('stickers/nyaBeach.gif')).toBe(true);
+    for (const bad of ['stickers/../x.png', 'stickers/a.webp', 'nyaBeach.png', 'stickers/1a.gif', 'stickers/a/b.gif']) {
+      expect(isStickerKey(bad)).toBe(false);
+    }
+  });
+
+  it('sniffs GIF87a, GIF89a and PNG, and nothing else', () => {
+    expect(sniffSticker(GIF)).toBe('image/gif');
+    expect(sniffSticker(GIF87)).toBe('image/gif');
+    expect(sniffSticker(PNG)).toBe('image/png');
+    expect(sniffSticker(JPEG)).toBeNull();
+    expect(sniffSticker(new Uint8Array())).toBeNull();
+  });
+
+  it('keeps GIF out of the question-image sniffer', () => {
+    expect(sniffImage(GIF)).toBeNull();
+  });
+
+  it('stores and returns a sticker in memory', async () => {
+    const storage = memoryStorage();
+    await storage.put('stickers/x.gif', GIF, 'image/gif');
+    expect((await storage.get('stickers/x.gif'))?.bytes).toEqual(GIF);
+    await expect(storage.put('stickers/../x.gif', GIF, 'image/gif')).rejects.toThrow();
+  });
+
+  it('stores and returns a sticker on disk, creating the folder', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'stickers-'));
+    try {
+      const storage = diskStorage(dir);
+      await storage.put('stickers/x.gif', GIF, 'image/gif');
+      expect(Buffer.from((await storage.get('stickers/x.gif'))!.bytes)).toEqual(Buffer.from(GIF));
+      expect(await storage.get('stickers/y.gif')).toBeNull();
+      expect(await storage.get('stickers/../x.gif')).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

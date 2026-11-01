@@ -32,6 +32,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000',
       '/uploads': 'http://localhost:3000',
+      '/stickers': 'http://localhost:3000',
       '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },

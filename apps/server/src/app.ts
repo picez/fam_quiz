@@ -12,6 +12,7 @@ import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
+import { registerStickerRoutes } from './sticker-routes';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
 
@@ -29,6 +30,8 @@ export interface AppOptions {
   maxRooms?: number;
   /** Де лежать зображення до запитань; без нього вони живуть у пам'яті процесу. */
   storage?: ImageStorage;
+  /** Віддавати малу картинку-фікстуру, коли справжнього файла стікера у сховищі немає (локально й у тестах); типово ні. */
+  stickerFixtures?: boolean;
   /** Тека зі зібраним web-клієнтом. */
   webRoot?: string;
   /** Заставки переходів; типово вимкнено, справжній сервер (main.ts) вмикає. */
@@ -81,7 +84,9 @@ export async function buildApp(options: AppOptions) {
     google: options.auth.google !== undefined,
   });
 
-  await registerUploadRoutes(app, { storage: options.storage ?? memoryStorage(), currentUser });
+  const imageStorage = options.storage ?? memoryStorage();
+  await registerUploadRoutes(app, { storage: imageStorage, currentUser });
+  await registerStickerRoutes(app, { storage: imageStorage, fixtures: options.stickerFixtures ?? false });
   await registerProfileRoutes(app, { db: options.db, currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });

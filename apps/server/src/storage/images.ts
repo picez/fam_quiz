@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export type ImageType = 'image/jpeg' | 'image/png' | 'image/webp';
 export type AudioType = 'audio/mpeg' | 'audio/ogg' | 'audio/mp4';
 export type MediaType = ImageType | AudioType;
+export type StickerType = 'image/gif' | 'image/png';
 
 export interface StoredImage {
   bytes: Uint8Array;
@@ -11,7 +12,7 @@ export interface StoredImage {
 
 /** Сховище зображень і аудіо (назва лишилася від першого). Назву файлу вигадує сервер; сховище лише перевіряє її форму. */
 export interface ImageStorage {
-  put(name: string, bytes: Uint8Array, contentType: MediaType): Promise<void>;
+  put(name: string, bytes: Uint8Array, contentType: MediaType | StickerType): Promise<void>;
   /** Зображення або null, якщо такого немає. Збій сховища є винятком, а не null. */
   get(name: string): Promise<StoredImage | null>;
 }
@@ -27,6 +28,7 @@ export const EXTENSIONS: Record<MediaType, string> = {
 
 const IMAGE_NAME = /^[a-z0-9]{16,64}\.(jpg|png|webp)$/;
 const MEDIA_NAME = /^[a-z0-9]{16,64}\.(jpg|png|webp|mp3|ogg|m4a)$/;
+const STICKER_KEY = /^stickers\/[A-Za-z][A-Za-z0-9]{0,39}\.(gif|png)$/;
 const AUDIO_NAME = /^[a-z0-9]{16,64}\.(mp3|ogg|m4a)$/;
 
 /** Чи годиться назва зображення: лише така форма не може вказати за межі сховища. */
@@ -35,10 +37,15 @@ export const isImageName = (name: string) => IMAGE_NAME.test(name);
 /** Назва файлу сховища: зображення або аудіо. */
 export const isMediaName = (name: string) => MEDIA_NAME.test(name);
 
+/** Ключ стікера у сховищі: stickers/<id>.<gif|png>. */
+export const isStickerKey = (name: string) => STICKER_KEY.test(name);
+
+const isStorable = (name: string) => isMediaName(name) || isStickerKey(name);
+
 export const isAudioName = (name: string) => AUDIO_NAME.test(name);
 
 function assertName(name: string) {
-  if (!isMediaName(name)) throw new Error('invalid media name');
+  if (!isStorable(name)) throw new Error('invalid media name');
 }
 
 const startsWith = (bytes: Uint8Array, signature: number[], offset = 0) =>
@@ -51,6 +58,13 @@ export function sniffImage(bytes: Uint8Array): ImageType | null {
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'image/jpeg';
   if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   if (startsWith(bytes, ascii('RIFF')) && startsWith(bytes, ascii('WEBP'), 8)) return 'image/webp';
+  return null;
+}
+
+/** Формат стікера за вмістом (GIF87a, GIF89a, PNG) або null. Окремо від sniffImage: завантаження GIF не відкриваємо. */
+export function sniffSticker(bytes: Uint8Array): StickerType | null {
+  if (startsWith(bytes, ascii('GIF87a')) || startsWith(bytes, ascii('GIF89a'))) return 'image/gif';
+  if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   return null;
 }
 
@@ -91,11 +105,11 @@ export function diskStorage(dir: string): ImageStorage {
   return {
     async put(name, bytes) {
       assertName(name);
-      await mkdir(dir, { recursive: true });
+      await mkdir(dirname(join(dir, name)), { recursive: true });
       await writeFile(join(dir, name), bytes);
     },
     async get(name) {
-      if (!isMediaName(name)) return null;
+      if (!isStorable(name)) return null;
       try {
         return { bytes: await readFile(join(dir, name)) };
       } catch (error) {

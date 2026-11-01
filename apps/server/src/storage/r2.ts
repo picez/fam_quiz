@@ -1,5 +1,5 @@
 import { AwsClient } from 'aws4fetch';
-import { isMediaName, type ImageStorage } from './images';
+import { isMediaName, isStickerKey, type ImageStorage } from './images';
 
 export interface R2Settings {
   accountId: string;
@@ -18,13 +18,14 @@ export function r2Storage(settings: R2Settings): ImageStorage {
     service: 's3',
     region: 'auto',
   });
+  const storable = (name: string) => isMediaName(name) || isStickerKey(name);
   const send = settings.fetch ?? ((request: Request) => fetch(request));
   const urlOf = (name: string) =>
     `https://${settings.accountId}.r2.cloudflarestorage.com/${settings.bucket}/${name}`;
 
   return {
     async put(name, bytes, contentType) {
-      if (!isMediaName(name)) throw new Error('invalid media name');
+      if (!storable(name)) throw new Error('invalid media name');
       const request = await client.sign(urlOf(name), {
         method: 'PUT',
         headers: { 'content-type': contentType },
@@ -34,7 +35,7 @@ export function r2Storage(settings: R2Settings): ImageStorage {
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);
     },
     async get(name) {
-      if (!isMediaName(name)) return null;
+      if (!storable(name)) return null;
       const response = await send(await client.sign(urlOf(name), { method: 'GET' }));
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`image storage answered ${response.status}`);

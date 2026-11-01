@@ -56,6 +56,10 @@ function imageStorage(): ImageStorage {
 }
 
 const storage = imageStorage();
+/** Без R2 файлів стікерів на диску немає: локально віддається мала картинка-фікстура. */
+const stickerFixtures = ![process.env.R2_ACCOUNT_ID, process.env.R2_BUCKET, process.env.R2_ACCESS_KEY_ID, process.env.R2_SECRET_ACCESS_KEY].every(
+  (value) => value !== undefined && value !== '',
+);
 /** Вхід через Google вмикається, коли задано обидва ключі. */
 function googleKeys() {
   const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret } = process.env;
@@ -88,6 +92,7 @@ const { app, shutdown } = await buildApp({
   // ділять одне обмеження частоти.
   trustProxy: proxyTrust(process.env.TRUST_PROXY),
   storage,
+  stickerFixtures,
   webRoot: existsSync(built) ? built : undefined,
   // Єдине місце, де вмикаються заставки переходів справжньої гри (8c).
   transitions: true,
