@@ -105,8 +105,18 @@ export async function deletePrize(
       if (stored !== undefined) return 'prize_in_game';
     }
   }
-  await db.delete(prize).where(eq(prize.id, id));
-  return 'deleted';
+  // Лише якщо приз досі такий, яким його прочитали: інакше його встигли покласти в гру (чи вручити).
+  const removed = await db
+    .delete(prize)
+    .where(
+      and(
+        eq(prize.id, id),
+        eq(prize.status, row.status),
+        row.reservedGame === null ? isNull(prize.reservedGame) : eq(prize.reservedGame, row.reservedGame),
+      ),
+    )
+    .returning({ id: prize.id });
+  return removed.length > 0 ? 'deleted' : 'prize_in_game';
 }
 
 class Taken extends Error {}

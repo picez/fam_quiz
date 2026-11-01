@@ -129,6 +129,20 @@ describe('deleting prizes', () => {
     expect(await rowOf(a)).toBeDefined();
   });
 
+  it('refuses with prize_in_game when the prize was put into a game between the read and the delete', async () => {
+    const a = await make('u1', 'A');
+    const g1 = randomUUID();
+    // У мить видалення інший запит кладе приз у гру; база виконує його раніше (той самий черговий зв'язок).
+    const racing = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'delete') void reservePlaces(target, 'u1', g1, [a, null, null]);
+        return Reflect.get(target, key, receiver) as unknown;
+      },
+    });
+    expect(await deletePrize(racing, manager, a, 'u1')).toBe('prize_in_game');
+    expect(await rowOf(a)).toMatchObject({ status: 'reserved', reservedGame: g1 });
+  });
+
   it('does not delete a prize of someone else or one already awarded', async () => {
     const [a, b] = [await make('u1', 'A'), await make('u1', 'B')];
     await db.update(prize).set({ status: 'awarded' }).where(eq(prize.id, b));
