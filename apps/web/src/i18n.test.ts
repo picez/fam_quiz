@@ -8,6 +8,8 @@ describe('i18n', () => {
 
   it('explains known error codes and falls back for unknown ones', () => {
     expect(errorText('nickname_taken')).toBe('Таке ім’я вже зайняте. Виберіть інше.');
+    expect(errorText('invalid_payload:prize_empty')).toBe('Увімкни хоча б одну опцію.');
+    expect(errorText('invalid_payload:other')).toBe('Некоректні дані.');
     expect(errorText('something_new')).toBe('Щось пішло не так. Спробуйте ще раз.');
   });
 });

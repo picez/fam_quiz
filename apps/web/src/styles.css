@@ -12221,11 +12221,12 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* П'ять пунктів нижнього меню на 375 px: «Приєднатися» вміщається в п'яту частину екрана. */
+/* Шість пунктів нижнього меню на 375 px: кожному по 62 px, тож підпис дрібніший і при потребі переноситься по літерах. */
 @media (max-width: 400px) {
   .menu a {
-    padding: 0.15rem 0.1rem;
-    font-size: 0.7rem;
+    padding: 0.15rem 0;
+    font-size: 0.625rem;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -12772,4 +12773,91 @@ button.wall-tile:disabled {
 
 .trophy-phone .trophy-fallback {
   font-size: 6rem;
+}
+
+/* ---------- Мої призи (14a) ---------- */
+.prize-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.prize-editor .field input:not([type='file']):not([type='checkbox']) {
+  min-width: 0;
+  width: 100%;
+}
+
+.prize-part {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--line);
+  min-width: 0;
+}
+
+.prize-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.prize-choice legend {
+  padding: 0;
+  font-weight: 600;
+}
+
+.prize-choice label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+}
+
+.prize-preview {
+  height: 9rem;
+  max-width: 100%;
+}
+
+.prize-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.prize-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 0;
+}
+
+.prize-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prize-badge {
+  align-self: flex-start;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--amber);
+  color: var(--amber);
+  font-size: 0.8125rem;
+  font-weight: 600;
 }

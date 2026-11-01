@@ -10,6 +10,7 @@ import { Host } from './pages/Host';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
 import { Play } from './pages/Play';
+import { Prizes } from './pages/Prizes';
 import { Profile } from './pages/Profile';
 import { PublicProfile } from './pages/PublicProfile';
 import { Quizzes } from './pages/Quizzes';
@@ -28,6 +29,7 @@ export function AppRoutes() {
         <Route path="/history/:id" element={<GameHistory />} />
         <Route path="/me" element={<MyGames />} />
         <Route path="/achievements" element={<Achievements />} />
+        <Route path="/prizes" element={<Prizes />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
         <Route path="/profile/:id/achievements" element={<Achievements />} />

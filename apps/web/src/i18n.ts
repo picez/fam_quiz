@@ -2402,6 +2402,39 @@ const uk = {
   prizeSummaryEngraving: '✒️ «{text}»',
   diplomaTitle: 'Диплом',
   diplomaPlace: '{place} місце',
+  menuPrizes: 'Призи',
+  prizesTitle: 'Мої призи',
+  prizeNew: 'Новий приз',
+  prizeName: 'Назва',
+  prizeNameHint: 'Назву бачиш лише ти.',
+  prizeOptTrophy: '3D-трофей',
+  prizeOptEngraving: 'Гравіювання',
+  prizeEngravingText: 'Текст гравіювання',
+  prizeOptReal: 'Справжній приз',
+  prizeRealText: 'Що за приз',
+  prizeOptTitle: 'Титул біля ніку',
+  prizeTitleText: 'Який титул (на 7 днів)',
+  prizeOptDiploma: 'Диплом',
+  prizeKind: 'Вид',
+  prizeMaterial: 'Матеріал',
+  material_bronze: 'Бронза',
+  material_silver: 'Срібло',
+  material_gold: 'Золото',
+  material_diamond: 'Діамант',
+  prizeCeremonyNote: 'Церемонія у фіналі — завжди, коли в грі є приз',
+  prizeInGame: 'У грі',
+  prizeInSavedGame: 'У збереженій грі',
+  prizeEdit: 'Змінити',
+  prizeDelete: 'Видалити',
+  prizesEmpty: 'Призів ще немає. Створи перший — і клади його на місця в лобі.',
+  prizeDeleteConfirm: 'Видалити приз «{name}»?',
+  prizeNameRequired: 'Дай призу назву.',
+  prizeFillOptions: 'Заповни увімкнені опції.',
+  err_prize_empty: 'Увімкни хоча б одну опцію.',
+  err_invalid_payload_prize_empty: 'Увімкни хоча б одну опцію.',
+  err_prize_taken: 'Цей приз уже лежить в іншій грі.',
+  err_prize_in_game: 'Приз лежить у грі — зніми його з місця, щоб змінити.',
+  err_too_many_prizes: 'На складі вже 50 призів.',
 } as const;
 
 export type TextKey = keyof typeof uk;
@@ -2416,8 +2449,12 @@ export function hasText(key: string): key is TextKey {
 }
 
 export function errorText(code: string): string {
-  const key = `err_${code}`;
-  return key in uk ? t(key as TextKey) : t('err_unknown');
+  // «invalid_payload:prize_empty» — причина 400; без окремого тексту лишається загальний.
+  for (const candidate of [code.replace(':', '_'), code.split(':')[0]!]) {
+    const key = `err_${candidate}`;
+    if (key in uk) return t(key as TextKey);
+  }
+  return t('err_unknown');
 }
 
 type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
