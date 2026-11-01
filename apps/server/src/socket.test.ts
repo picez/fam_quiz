@@ -2015,6 +2015,13 @@ describe('reactions over sockets (13a)', () => {
     expect(await send(olena, 'player:react')).toEqual({ ok: false, error: 'invalid_payload' });
   });
 
+  it('a guest gets sticker_locked above the starter set; the host may send any sticker (15a)', async () => {
+    const { host, olena } = await atReveal();
+    const locked = { kind: 'sticker', value: STICKERS.find((s) => s.series === 'other')!.id };
+    expect(await send(olena, 'player:react', locked)).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(await send(host, 'host:react', locked)).toEqual({ ok: true });
+  });
+
   it('is wrong_phase in a question and too_soon right after a reaction', async () => {
     const early = await lobby();
     await send(early.host, 'host:start');
@@ -2024,5 +2031,19 @@ describe('reactions over sockets (13a)', () => {
     const { olena } = await atReveal();
     expect(await send(olena, 'player:react', sticker)).toEqual({ ok: true });
     expect(await send(olena, 'player:react', sticker)).toEqual({ ok: false, error: 'too_soon' });
+  });
+});
+
+describe('level perks over sockets (15a)', () => {
+  it('player:perk: only for players, a valid kind, and a guest has none', async () => {
+    const { host, stage, olena } = await lobby();
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(stage, inPhase('question'));
+    expect(await send(stage, 'player:perk', { kind: 'time' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'player:perk', { kind: 'time' })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'player:perk', { kind: 'ward' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:perk')).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:perk', { kind: 'time' })).toEqual({ ok: false, error: 'not_allowed' });
   });
 });

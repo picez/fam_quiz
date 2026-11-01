@@ -15,6 +15,7 @@ import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
 import { registerStickerRoutes } from './sticker-routes';
+import { attachLevels } from './levels';
 import { attachTitles } from './titles';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
@@ -52,6 +53,7 @@ export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false, pacing: options.pacing ?? false });
   const recorder = attachRecorder(manager, options.db);
   const titles = attachTitles(manager, options.db);
+  const levels = attachLevels(manager, options.db);
   const store = options.persist === undefined ? null : new RoomStore(options.db, manager, options.persist);
   if (store !== null) {
     await store.boot();
@@ -150,6 +152,7 @@ export async function buildApp(options: AppOptions) {
     await app.close();
     await recorder.idle();
     await titles.idle();
+    await levels.idle();
   };
 
   return { app, manager, io, recorder, invites, store, shutdown };

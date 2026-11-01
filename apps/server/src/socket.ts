@@ -50,6 +50,7 @@ import {
   liveWatchSchema,
   startSchema,
   reactSchema,
+  perkSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -412,6 +413,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = reactSchema.safeParse(payloadOf(args));
       return payload.success ? manager.react(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:perk', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = perkSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.usePerk(room, identity.playerId, payload.data.kind) : INVALID;
     });
 
     on('host:react', (args) => {
