@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
+import { STICKERS } from '@quiz/shared';
 import { buildApp } from './app';
 import { follow, profile, user } from './db/schema';
 import { seedGame } from './testing/history-rows';
@@ -286,5 +287,39 @@ describe('friends online and search (backlog 9)', () => {
     expect(((await request('GET', '/api/profiles/search?q=%D0%BE%D0%BB%D0%B5', olena.cookie)).json() as { id: string }[]).map((p) => p.id)).not.toContain(olenaId);
     expect((await request('GET', '/api/profiles/search?q=%25', olena.cookie)).json()).toEqual([]);
     expect((await request('GET', '/api/profiles/search?q=ab')).statusCode).toBe(401);
+  });
+});
+
+describe('favorite stickers (13a)', () => {
+  const a = STICKERS[0]!.id;
+  const b = STICKERS[1]!.id;
+
+  it('need a session', async () => {
+    expect((await request('GET', '/api/me/stickers')).statusCode).toBe(401);
+    expect((await request('PUT', '/api/me/stickers', undefined, { favorites: [a] })).statusCode).toBe(401);
+  });
+
+  it('start empty, keep order, drop unknown and duplicate ids', async () => {
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [] });
+    const put = await request('PUT', '/api/me/stickers', olena.cookie, { favorites: [b, a, 'nope', b] });
+    expect(put.statusCode).toBe(200);
+    expect(put.json()).toEqual({ favorites: [b, a] });
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [b, a] });
+  });
+
+  it('refuse a bad body', async () => {
+    const tooMany = await request('PUT', '/api/me/stickers', olena.cookie, { favorites: Array(41).fill(a) });
+    expect(tooMany.statusCode).toBe(400);
+    expect(tooMany.json()).toEqual({ error: 'invalid_payload' });
+    expect((await request('PUT', '/api/me/stickers', olena.cookie, { favorites: 'x' })).statusCode).toBe(400);
+  });
+
+  it('drop an id that left the manifest when reading', async () => {
+    await db.update(profile).set({ favoriteStickers: ['gone', a] }).where(eq(profile.userId, olenaId));
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [a] });
+  });
+
+  it('are separate for each player', async () => {
+    expect((await request('GET', '/api/me/stickers', taras.cookie)).json()).toEqual({ favorites: [] });
   });
 });
