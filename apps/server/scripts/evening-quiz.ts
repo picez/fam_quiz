@@ -1,5 +1,6 @@
 import { BUFF_KINDS, DEBUFF_KINDS, type Question, type Quiz } from '@quiz/shared';
-import { cloud, poll, rules, surveyFromCloud } from './demo-quiz';
+import { rules } from './demo-quiz';
+import { POLLS } from './evening/polls';
 import { EVENING_THEMES, type EveningPart, type EveningTheme, type Img } from './evening/kit';
 import * as science from './evening/science';
 import * as world from './evening/world';
@@ -27,6 +28,7 @@ const interleave = (lists: Question[][]): Question[] => {
 
 /**
  * «Вечір тринадцяти тем» — велика вікторина з ведучим на вечір 1 листопада 2026:
+ * «100 до 1» — лише за справжніми опублікованими опитуваннями (джерело й рік у тексті).
  * 11 відкритих тем і дві таємні категорії, усі типи запитань, картинки, відео й аудіо, таймер від 20 секунд.
  * img — ключ картинки → адреса /uploads/…; без картинки збирання падає (картинки обов’язкові).
  * Жодного запитання, пов’язаного з росією чи радянським періодом.
@@ -39,18 +41,6 @@ export const eveningQuiz = (img: Img): Quiz => {
   /** Остаточні id: «тема-номер». */
   const reid = (q: Question): Question => ({ ...q, id: `${q.id.split('-')[0]}-${++k}` });
   const all = (xs: Question[], f: (x: Question) => Question) => xs.map(f);
-
-  const vibe = { ...poll('З чого почнемо вечір? Що вам сьогодні найбільше до смаку?', ['Наука й природа', 'Книжки й комікси', 'Спорт і романи на льоду', 'Руки й сад', 'Головне — таємні категорії']), id: 'vote-1' };
-  const evening = { ...cloud('Одним-двома словами: без чого не буває ідеального вечора з друзями?', 2, 40), id: 'vote-2' };
-  const evening100 = {
-    ...surveyFromCloud('100 до 1 з ваших відповідей: без чого не буває ідеального вечора з друзями? Назвіть два', evening, [
-      ['Піца', 25, ['Піци']],
-      ['Настолки', 20, ['Настільні ігри', 'Настільна гра']],
-      ['Вино', 15, ['Винце']],
-      ['Музика', 12, ['Музики']],
-    ]),
-    id: 'vote-3',
-  };
 
   const warmup = all(interleave(parts.map((p) => p.warmup)), reid);
   const main = all(interleave(parts.map((p) => p.main)), reid);
@@ -104,22 +94,22 @@ export const eveningQuiz = (img: Img): Quiz => {
         type: 'classic',
         title: 'Розминка: тринадцять дверей',
         description:
-          'Спершу опитування й «хмара слів» без балів — ваші відповіді ще повернуться в «100 до 1». Далі по одному легкому запитанню з кожної теми вечора, і з двох таємних теж: спробуйте вгадати, про що вони. Швидші правильні відповіді дають бонус.',
+          'По одному легкому запитанню з кожної теми вечора, і з двох таємних теж: спробуйте вгадати, про що вони. Швидші правильні відповіді дають бонус.',
         speedBonus: true,
         shuffleOptions: true,
         rules: rules({}),
-        questions: [vibe, evening, ...warmup],
+        questions: warmup,
       },
       {
         id: 'ev-main',
         type: 'classic',
         title: 'Усі формати',
         description:
-          'Пари, порядок, сортування, повзунок, точка на мапі, стіна зв’язків, «Хто я?», ланцюжок і блеф — тут кожне запитання по-своєму. Бали залежать від складності. Частково правильна відповідь приносить половину, а за три правильні поспіль — бонус 50 %. У кінці — «100 до 1» з вашої «хмари».',
+          'Пари, порядок, сортування, повзунок, точка на мапі, стіна зв’язків, «Хто я?», ланцюжок і блеф — тут кожне запитання по-своєму. Бали залежать від складності. Частково правильна відповідь приносить половину, а за три правильні поспіль — бонус 50 %. У кінці — «100 до 1» за справжніми опитуваннями: вгадайте найпопулярніші відповіді.',
         speedBonus: false,
         shuffleOptions: true,
         rules: rules({ partial: 50, streak: { length: 3, bonus: { kind: 'percent', value: 50 } } }),
-        questions: [...main, evening100],
+        questions: [...main, ...all(POLLS, reid)],
       },
       {
         id: 'ev-media',

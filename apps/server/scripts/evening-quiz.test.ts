@@ -31,7 +31,9 @@ describe('the «Вечір тринадцяти тем» quiz', () => {
 
   it('has every round type and every question type, all buffs and debuffs, duels', () => {
     expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
-    expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES));
+    // Без опитувань і «хмари» серед гравців: «100 до 1» лише за справжніми опитуваннями.
+    expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud')));
+    expect(played(quiz).filter((q) => q.type === 'survey' && ('cloudId' in q)).length).toBe(0);
     expect(quiz.settings.buffs).toEqual([...BUFF_KINDS]);
     expect(quiz.settings.debuffs).toEqual([...DEBUFF_KINDS]);
     expect(quiz.duels?.categories).toHaveLength(3);
