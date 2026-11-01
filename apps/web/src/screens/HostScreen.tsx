@@ -1255,6 +1255,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 </span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 {player.debuff !== null && <span className="tag debuff-tag">{debuffTagText(player.debuff)}</span>}
+                {view.wards?.[player.id] === 'ready' && (
+                  <span className="tag ward-tag" role="img" aria-label={t('shopWarded')}>
+                    🛡
+                  </span>
+                )}
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
                 <span className="score">{num(player.score)}</span>
                 {live &&
@@ -1282,7 +1287,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                     busy={peopleBusy}
                   />
                 )}
-                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : isSurvivalGhost(view.survival, phase, player.id) ? null : <DebuffPanel player={player} kinds={debuffKinds} send={send} onError={setError} />)}
+                {live && tools?.playerId === player.id && (tools.kind === 'points' ? <PointsPanel player={player} send={send} onError={setError} /> : isSurvivalGhost(view.survival, phase, player.id) ? null : <DebuffPanel player={player} kinds={debuffKinds} warded={view.wards?.[player.id] === 'ready'} send={send} onError={setError} />)}
               </li>
             ))}
           </ul>

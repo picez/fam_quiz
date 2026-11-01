@@ -13355,3 +13355,50 @@ button.wall-tile:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* Бонуси рівня (15a): під рядом бафів, переносяться на новий рядок; підказка займає сталу висоту — відповіді не зсуваються. */
+.perk-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.25rem 0;
+  max-width: 100%;
+}
+
+.perk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.perk-btn {
+  min-height: 44px;
+}
+
+.perk-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border: 2px solid var(--buff-accent, currentColor);
+  border-radius: 999px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.perk-chip.is-spent {
+  background: var(--panel);
+}
+
+.perk-hint {
+  margin: 0;
+  min-height: 2.5rem;
+  overflow-wrap: anywhere;
+}
+
+.shop-ward,
+.ward-tag {
+  margin-left: 0.25rem;
+}

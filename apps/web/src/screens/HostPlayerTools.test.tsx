@@ -77,6 +77,14 @@ describe('failed send', () => {
 });
 
 describe('DebuffPanel', () => {
+  it('a warded player shows 🛡 in the panel', () => {
+    render(<DebuffPanel player={player()} kinds={['fog']} warded send={okSend()} onError={vi.fn()} />);
+    expect(screen.getByRole('img', { name: 'має оберіг: перший дебаф згасне' }).textContent).toBe('🛡');
+    cleanup();
+    render(<DebuffPanel player={player()} kinds={['fog']} send={okSend()} onError={vi.fn()} />);
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
   it('the debuff panel lists six debuffs and sends the chosen one', () => {
     const send = okSend();
     render(<DebuffPanel player={player()} kinds={[...DEBUFF_KINDS]} send={send} onError={vi.fn()} />);

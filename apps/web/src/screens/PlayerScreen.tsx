@@ -64,6 +64,7 @@ import { LadderDecision } from './LadderDecision';
 import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
 import { ladderOutcomeText } from './LadderStatus';
+import { Perks } from './Perks';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 import { PeekSheet } from './PeekSheet';
 import { AppealCard } from './AppealCard';
@@ -629,6 +630,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
   const decideGuard = useGuardedSend(send, setError);
+  const perkGuard = useGuardedSend(send, setError);
+  const ward = view.wards?.[me.id];
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
@@ -905,6 +908,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
+      {/* Оберіг поза запитанням — чип угорі (у запитанні він стоїть у ряду бонусів). */}
+      {!(phase === 'question' && question !== null) && ward !== undefined && <Perks perks={null} ward={ward} onUse={() => undefined} />}
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
@@ -978,6 +983,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                 }}
               />
             )}
+            {/* Бонуси рівня (15a): під рядом бафів, висота стала, поле відповіді не рухається. */}
+            {answersForTeam && <Perks perks={me.perks} ward={ward} onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}

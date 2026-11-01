@@ -3835,6 +3835,16 @@ describe('PlayerScreen: 12h buffs', () => {
     peekable: [{ playerId: 'p3', nickname: 'Іра' }],
   };
 
+  it('the level hint button sends player:perk; a ward chip shows under the question', async () => {
+    const perks = { items: [{ kind: 'hint' as const, block: null }], timeMs: 5000, hint: null };
+    const send = show(onQuestion({ me: { ...me, perks }, wards: { p1: 'ready' } }));
+    expect(screen.getByText('🛡 Оберіг')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '💡 Підказка рівня' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:perk', { kind: 'hint' });
+  });
+
   it('two taps on peek open the sheet outside the question zone; a name sends the peek', async () => {
     const send = show(onQuestion({ me: { ...me, buffs: peekReady } }));
     expect(document.querySelector('.peek-sheet')).toBeNull();

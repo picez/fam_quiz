@@ -82,12 +82,20 @@ export function PointsPanel({ player, send, onError }: PanelProps) {
 }
 
 /** kinds — дозволені вікториною дебафи (HostView.allowed.debuffs), у порядку DEBUFF_KINDS. */
-export function DebuffPanel({ player, kinds, send, onError }: PanelProps & { kinds: DebuffKind[] }) {
+export function DebuffPanel({ player, kinds, warded = false, send, onError }: PanelProps & { kinds: DebuffKind[]; warded?: boolean }) {
   const { busy, run } = useGuardedSend(send, onError);
   const current = player.debuff;
   return (
     <div className="player-tools">
       <p className="meta">{t('debuffHint')}</p>
+      {warded && (
+        <p className="meta">
+          <span role="img" aria-label={t('shopWarded')}>
+            🛡
+          </span>{' '}
+          {t('shopWarded')}
+        </p>
+      )}
       {current !== null && <p className="meta">{debuffTagText(current)}</p>}
       <div className="debuff-picks">
         {kinds.map((kind) => (

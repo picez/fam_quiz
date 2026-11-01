@@ -36,6 +36,14 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name }) a
 const okSend = () => vi.fn(async () => ({ ok: true as const })) as unknown as Send & ReturnType<typeof vi.fn>;
 
 describe('DebuffShop', () => {
+  it('a warded target shows 🛡', () => {
+    const warded = { ...shop, targets: [{ ...shop.targets[0]!, warded: true }] };
+    render(<DebuffShop shop={warded} score={250} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    fireEvent.click(button(/Туман/));
+    expect(screen.getByRole('img', { name: 'має оберіг: перший дебаф згасне' }).textContent).toBe('🛡');
+  });
+
   it('buys fog for Петро in three taps and closes', async () => {
     const send = okSend();
     const onError = vi.fn();
