@@ -12221,12 +12221,20 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Шість пунктів нижнього меню на 375 px: кожному по 62 px, тож підпис дрібніший і при потребі переноситься по літерах. */
+/* Шість пунктів нижнього меню на 375 px: кожному по 62 px, тож підпис короткий (data-short), а не дрібніший. */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
-    font-size: 0.625rem;
-    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+  }
+
+  /* Вузький екран: замість повного підпису (aria-label лишається повним) — короткий з data-short. */
+  .menu a .menu-full {
+    display: none;
+  }
+
+  .menu a::after {
+    content: attr(data-short);
   }
 }
 

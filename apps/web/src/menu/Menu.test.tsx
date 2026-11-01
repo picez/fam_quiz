@@ -71,6 +71,15 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
   });
 
+  it('every item keeps its full name for assistive tech and carries a short label for the narrow bar', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/');
+    await screen.findByRole('link', { name: 'Профіль' });
+    const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
+    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Вікторини', 'Історія', 'Призи', 'Ачівки', 'Профіль']);
+  });
+
   it('prizes are marked on their page and a visitor does not see them', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/prizes');

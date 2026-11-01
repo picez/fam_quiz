@@ -51,6 +51,7 @@ function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
     const result = await deletePrize(item.id);
     if (!result.ok) return setError(errorText(result.error));
     setItems((list) => list.filter((entry) => entry.id !== item.id));
+    setEditing((current) => (current.mode === 'edit' && current.item.id === item.id ? { mode: 'none' } : current));
   };
 
   return (

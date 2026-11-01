@@ -89,6 +89,16 @@ describe('Prizes', () => {
     expect(deletePrize).toHaveBeenCalledWith('p1');
   });
 
+  it('deleting the prize open in the editor closes the editor', async () => {
+    vi.mocked(deletePrize).mockResolvedValue({ ok: true });
+    open();
+    await screen.findByText('Кубок року');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Змінити' })[0]!);
+    expect(screen.getByLabelText('Назва')).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Видалити' })[0]!);
+    await waitFor(() => expect(screen.queryByLabelText('Назва')).toBeNull());
+  });
+
   it('a refused delete shows the error and keeps the card', async () => {
     vi.mocked(deletePrize).mockResolvedValue({ ok: false, error: 'prize_in_game' });
     open();
