@@ -1,7 +1,7 @@
 import { BUFF_KINDS, DEBUFF_KINDS, type Question, type Quiz } from '@quiz/shared';
 import { rules } from './demo-quiz';
 import { POLLS } from './evening/polls';
-import { EVENING_THEMES, type EveningPart, type EveningTheme, type Img } from './evening/kit';
+import { EVENING_THEMES, type Cell, type EveningPart, type EveningTheme, type Img } from './evening/kit';
 import * as science from './evening/science';
 import * as world from './evening/world';
 import * as culture from './evening/culture';
@@ -23,6 +23,39 @@ export const eveningThemeOf = (id: string): EveningTheme | null => {
 const interleave = (lists: Question[][]): Question[] => {
   const out: Question[] = [];
   for (let i = 0; lists.some((l) => i < l.length); i++) for (const l of lists) if (i < l.length) out.push(l[i]);
+  return out;
+};
+
+/** Детермінований генератор випадкових чисел (mulberry32) із зерном із рядка. */
+const random = (seed: string) => {
+  let a = [...seed].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619), 2166136261) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+};
+const pick = <T,>(xs: T[], next: () => number): T => xs[Math.floor(next() * xs.length)];
+
+/**
+ * Множник і бліц-клітинка категорії стоять на випадкових цінах (зерно — тема), щоб гравці не мали шаблону
+ * на кшталт «×3 завжди на 400, ×2 на 200». Множник — ×2 або ×3 навмання, на будь-якій ціні від 100 до 400.
+ * Приблизно в половині категорій є бліц-клітинка на іншій ціні. Відповідь уголос лишається при своєму запитанні,
+ * а бліц на клітинку вголос не потрапляє.
+ */
+const scatter = (theme: string, cells: Cell[]): Cell[] => {
+  const next = random(`evening-${theme}`);
+  const out: Cell[] = cells.map((c) => ({ ...c, mark: 'none', kind: 'normal', penalty: 'none' }));
+  const marked = Math.floor(next() * out.length);
+  out[marked] = { ...out[marked], mark: next() < 0.5 ? 'x2' : 'x3' };
+  if (next() < 0.5) {
+    const free = out.map((c, i) => i).filter((i) => i !== marked && out[i].answerMode !== 'voice' && out[i].question.type !== 'chain');
+    if (free.length) {
+      const b = pick(free, next);
+      out[b] = { ...out[b], kind: 'blitz' };
+    }
+  }
   return out;
 };
 
@@ -54,7 +87,7 @@ export const eveningQuiz = (img: Img): Quiz => {
       return {
         id: `ev-cat-${theme}`,
         title: EVENING_THEMES[theme],
-        cells: source.cells.map((c) => ({ ...c, question: reid(c.question) })),
+        cells: scatter(theme, source.cells).map((c) => ({ ...c, question: reid(c.question) })),
         spares: [reid(source.spare)],
       };
     });
