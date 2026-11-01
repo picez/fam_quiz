@@ -455,6 +455,28 @@ describe('reconnecting and kicking', () => {
   });
 });
 
+describe('saving a game over sockets (13b)', () => {
+  it('host:save closes the room for the phones and the stage with «saved»', async () => {
+    const { host, stage, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('intro'));
+    const phone = new Promise<string>((resolve) => olena.socket.on('closed', resolve));
+    const screen = new Promise<string>((resolve) => stage.socket.on('closed', resolve));
+    const desk = new Promise<string>((resolve) => host.socket.on('closed', resolve));
+    expect(await send(host, 'host:save')).toEqual({ ok: true });
+    expect(await phone).toBe('saved');
+    expect(await screen).toBe('saved');
+    expect(await desk).toBe('saved');
+  });
+
+  it('a phone cannot save a hosted game', async () => {
+    const { host, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('intro'));
+    expect(await send(olena, 'host:save')).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
 describe('host presence', () => {
   it('tells players when the host arrives and leaves', async () => {
     const game = await createGame();

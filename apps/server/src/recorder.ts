@@ -499,6 +499,8 @@ export function attachRecorder(
   const debuffsSeen = new Map<string, DebuffsSeen>();
   /** Кімнати, чию завершену гру вже нагороджено ачівками (12i). */
   const awarded = new Set<string>();
+  /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
+  const sealed = new WeakSet<Room>();
 
   const forget = (roomId: string) => {
     for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen]) map.delete(roomId);
@@ -525,7 +527,7 @@ export function attachRecorder(
   const record = (room: Room) => {
     const { state } = room;
     const hostId = room.hostUserId;
-    if (hostId === null || state.phase === 'lobby') return;
+    if (hostId === null || state.phase === 'lobby' || sealed.has(room)) return;
     seeDebuffs(room);
     const current = signature(state);
     if (lastSignature.get(room.id) === current) return;
@@ -582,6 +584,33 @@ export function attachRecorder(
     queues.set(room.id, queued);
   };
 
+  /** Збереження (13b): та сама черга й ті самі повтори, що в record; запис цілий (fromQuestion 0), тож давніший збій він заступає. */
+  const persistSaved = (room: Room, saved: SavedGameData) => {
+    const hostId = room.hostUserId;
+    if (hostId === null) return;
+    const write: SavedWrite = { id: room.id, code: room.code, hostId, quizId: room.quizId, playerUsers: new Map(saved.playerUsers), saved, replaces: null };
+    const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
+      .then(async () => {
+        await saveSavedGame(db, write);
+        failures.delete(room.id);
+      })
+      .catch((error) => {
+        onError(error);
+        const attempt = (failures.get(room.id) ?? 0) + 1;
+        failures.set(room.id, attempt);
+        if (attempt > maxRetries) {
+          failures.delete(room.id);
+          return;
+        }
+        const timer = setTimeout(() => persistSaved(room, saved), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        timer.unref();
+      })
+      .then(() => {
+        if (closedRooms.has(room.id) && queues.get(room.id) === queued && !failures.has(room.id)) forget(room.id);
+      });
+    queues.set(room.id, queued);
+  };
+
   manager.onEvent((room, event) => {
     if (event.type === 'changed') {
       // Перехоплена кімната могла повернутися в цей процес: вона знову жива.
@@ -592,6 +621,12 @@ export function attachRecorder(
     // Кімнату перехопив інший процес — як закриту: дописати почате й забути (повернеться — пишеться з початку).
     if (event.type === 'closed' || event.type === 'moved') {
       closedRooms.add(room.id);
+      if (event.type === 'closed' && event.saved !== undefined) {
+        sealed.add(room);
+        // Збій попереднього запису більше не повторюється (sealed): його рядки пише збереження.
+        failures.delete(room.id);
+        persistSaved(room, event.saved);
+      }
       // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
       if (failures.has(room.id)) return;
       const pending = queues.get(room.id);

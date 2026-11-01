@@ -186,6 +186,67 @@ describe('saved games in the database', () => {
     expect(await ctx.db.select().from(scoreAdjustment)).toHaveLength(1);
   });
 
+  it('saving by hand in the middle of question 2 writes the game as saved with question 1 only (manager + recorder)', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    toCheckpoint(ctx, g);
+    g.host({ type: 'next' });
+    ctx.manager.answer(g.room, g.olena, { type: 'text', value: 'Київ' });
+    g.host({ type: 'adjust', playerId: g.taras, points: 50 });
+    await ctx.recorder.idle();
+    g.host({ type: 'save' });
+    expect(ctx.manager.get(g.room.code)).toBeUndefined();
+    await ctx.recorder.idle();
+
+    const [row] = await ctx.db.select().from(game);
+    expect(row).toMatchObject({ id: g.room.id, status: 'saved', questionsPlayed: 1, finishedAt: null });
+    expect((await ctx.db.select().from(answer)).filter((a) => a.questionIndex === 1)).toEqual([]);
+    expect((await ctx.db.select().from(scoreAdjustment)).map((a) => a.points)).toEqual([20]);
+    const [saved] = await ctx.db.select().from(savedGame);
+    expect(saved.gameId).toBe(g.room.id);
+    expect((saved.data as SavedGameData).state.phase).toBe('leaderboard');
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a failed save is retried in the same queue', async () => {
+    const ctx = await setup();
+    const db = ctx.db;
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const original = db.transaction.bind(db);
+    let failNext = false;
+    const flaky = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'transaction') {
+          return (...args: Parameters<typeof db.transaction>) => {
+            if (failNext) {
+              failNext = false;
+              return Promise.reject(new Error('db down'));
+            }
+            return original(...args);
+          };
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const recorder = attachRecorder(manager, flaky, (error) => errors.push(error), 1);
+    const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
+    const joined = manager.join(room.code, 'Олена');
+    if (!joined.ok) throw new Error(joined.error);
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    await recorder.idle();
+    failNext = true;
+    expect(manager.host(room, { type: 'save' })).toEqual({ ok: true });
+    await recorder.idle();
+    for (let i = 0; i < 50 && (await db.select().from(savedGame)).length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await recorder.idle();
+    }
+    expect(errors).toHaveLength(1);
+    expect((await db.select().from(game))[0].status).toBe('saved');
+    expect(await db.select().from(savedGame)).toHaveLength(1);
+  });
+
   it('exactSaved reads only a known state version; isSavedGameData does not check it', async () => {
     const ctx = await setup();
     const g = ctx.open();

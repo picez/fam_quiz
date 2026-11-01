@@ -92,6 +92,8 @@ import {
   gameFacts,
   stageView,
   start,
+  restPoint,
+  slotsOf,
   suspend,
   takeHint,
   teamsOn,
@@ -121,6 +123,7 @@ import {
   type TeamAct,
 } from '@quiz/engine';
 import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { SAVED_GAME_VERSION, type SavedGameData } from './continuation';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -196,6 +199,11 @@ export interface Room {
    * додала б вигаданий час, а решта повернень рахується, тож ними не засипати. Розрив не прибирає (телефон міг повернутися без зв'язку).
    */
   awayCredit: Set<string>;
+  /**
+   * Контрольна точка (13b): останній стан на межі між запитаннями (restPoint) і мить його commit; null — гра ще її не мала.
+   * «Зберегти й продовжити пізніше» бере саме її: усе з недограного запитання відпадає разом зі станом.
+   */
+  checkpoint: { state: GameState; at: number } | null;
 }
 
 /**
@@ -259,7 +267,8 @@ export interface Tilt {
 export type RoomEvent =
   | { type: 'changed' }
   | { type: 'kicked'; playerId: string }
-  | { type: 'closed' }
+  /** saved — гру збережено (13b): рекордер пише її як «Не завершену». */
+  | { type: 'closed'; saved?: SavedGameData }
   | { type: 'moved' }
   | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
   | { type: 'awards'; seq: number }
@@ -273,7 +282,7 @@ export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
   | { type: 'start'; resume?: ResumeSetup }
-  | { type: 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' | 'bluff-all' }
+  | { type: 'lock' | 'next' | 'pause' | 'resume' | 'end-round' | 'end' | 'save' | 'dice' | 'roll' | 'skip' | 'duel-skip' | 'duel-cancel' | 'guide-skip' | 'clue' | 'survey-all' | 'bluff-all' }
   | { type: 'accept' | 'repick'; playerId: string }
   | { type: 'override'; playerId: string; grade: Grade }
   | { type: 'kick'; playerId: string }
@@ -298,10 +307,10 @@ export type HostAction =
 // Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
 export type AuthorAction =
   | { type: 'start'; resume?: ResumeSetup }
-  | { type: 'pause' | 'resume' | 'end' }
+  | { type: 'pause' | 'resume' | 'end' | 'save' }
   | Extract<HostAction, { type: 'kick' | 'cloud-hide' | 'bluff-remove' | 'team-form' }>;
 
-const AUTHOR_ACTIONS: ReadonlySet<HostAction['type']> = new Set<AuthorAction['type']>(['start', 'pause', 'resume', 'end', 'kick', 'cloud-hide', 'bluff-remove', 'team-form']);
+const AUTHOR_ACTIONS: ReadonlySet<HostAction['type']> = new Set<AuthorAction['type']>(['start', 'pause', 'resume', 'end', 'save', 'kick', 'cloud-hide', 'bluff-remove', 'team-form']);
 const isAuthorAction = (action: HostAction): action is AuthorAction => AUTHOR_ACTIONS.has(action.type);
 
 export type JoinResult =
@@ -331,6 +340,8 @@ export interface SavedRoom {
   tickedTo: number;
   /** Мить знімка за годинником менеджера; відновлений стан стоїть на паузі з неї. */
   savedAt: number;
+  /** Контрольна точка (13b); немає — ще не було (старий сервер поле ігнорує). */
+  checkpoint?: { state: GameState; at: number };
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
@@ -350,6 +361,12 @@ export function isSavedRoom(raw: unknown): raw is SavedRoom {
     isObject(raw.state) &&
     Array.isArray(raw.state.players)
   );
+}
+
+/** Контрольна точка з рядка бази (13b): лише об'єкт зі state.players-масивом і числом at, інакше null. */
+function checkpointOf(raw: unknown): { state: GameState; at: number } | null {
+  if (!isObject(raw) || typeof raw.at !== 'number' || !isObject(raw.state) || !Array.isArray(raw.state.players)) return null;
+  return { state: raw.state as unknown as GameState, at: raw.at };
 }
 
 const newToken = () => randomBytes(24).toString('base64url');
@@ -522,6 +539,7 @@ export class RoomManager {
       appealRate: new Map(),
       pickRate: new Map(),
       awayCredit: new Set(),
+      checkpoint: null,
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -544,6 +562,7 @@ export class RoomManager {
       state: room.state,
       tickedTo: room.tickedTo,
       savedAt: this.now(),
+      ...(room.checkpoint === null ? {} : { checkpoint: room.checkpoint }),
     };
   }
 
@@ -582,6 +601,7 @@ export class RoomManager {
       appealRate: new Map(),
       pickRate: new Map(),
       awayCredit: new Set(),
+      checkpoint: checkpointOf(saved.checkpoint),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1225,6 +1245,8 @@ export class RoomManager {
         return this.apply(room, authorResume(state, this.now()));
       case 'end':
         return this.apply(room, end(state, this.now()));
+      case 'save':
+        return this.save(room);
       case 'kick':
         return action.playerId === playerId ? NOT_ALLOWED : this.kick(room, action.playerId);
       case 'cloud-hide':
@@ -1265,6 +1287,8 @@ export class RoomManager {
         return this.apply(room, endRound(state, this.now()));
       case 'end':
         return this.apply(room, end(state, this.now()));
+      case 'save':
+        return this.save(room);
       case 'override':
         return this.apply(room, override(state, action.playerId, action.grade, this.now()));
       case 'dice':
@@ -1377,7 +1401,7 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.absence);
     room.absence = this.scheduler.setTimeout(() => {
       room.absence = null;
-      if (this.alive(room)) this.apply(room, end(room.state, this.now()));
+      if (this.alive(room)) this.autosave(room);
     }, HOST_ABSENCE_MS);
   }
 
@@ -1395,7 +1419,7 @@ export class RoomManager {
     if (room.absence !== null) return;
     room.absence = this.scheduler.setTimeout(() => {
       room.absence = null;
-      if (this.alive(room)) this.apply(room, end(room.state, this.now()));
+      if (this.alive(room)) this.autosave(room);
     }, AUTOPILOT_EMPTY_MS);
   }
 
@@ -1423,6 +1447,49 @@ export class RoomManager {
       room.authorAway = null;
       if (this.alive(room)) this.apply(room, authorResume(room.state, this.now()));
     }, HOST_ABSENCE_MS);
+  }
+
+  /** Ручне збереження (host 'save', author 'save'): hostUserId null → not_allowed; lobby/finished чи checkpoint null → wrong_phase; інакше закрити з saved. */
+  save(room: Room): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (room.hostUserId === null) return NOT_ALLOWED;
+    if (!this.savable(room, false)) return { ok: false, error: 'wrong_phase' };
+    this.closeSaved(room);
+    return { ok: true };
+  }
+
+  /** Таймери (13b): гру, яку можна зберегти, — зберегти й закрити; інакше «Завершити гру», як досі. */
+  private autosave(room: Room): void {
+    if (this.savable(room, true)) this.closeSaved(room);
+    else this.apply(room, end(room.state, this.now()));
+  }
+
+  /** hostUserId є, фаза не lobby/finished, контрольна точка є, а для автозбереження гра ще й дійшла до запитання (plays). */
+  private savable(room: Room, auto: boolean): boolean {
+    const { phase, plays } = room.state;
+    if (room.hostUserId === null || phase === 'lobby' || phase === 'finished' || room.checkpoint === null) return false;
+    return !auto || plays.length > 0;
+  }
+
+  /** Що піде в saved_game: контрольна точка; акаунти — лише людей і гравців точки. */
+  private savedData(room: Room): SavedGameData {
+    const checkpoint = room.checkpoint!;
+    const people = new Set([...checkpoint.state.players.map((p) => p.id), ...slotsOf(checkpoint.state).map((slot) => slot.id)]);
+    return {
+      v: SAVED_GAME_VERSION,
+      stateVersion: GAME_STATE_VERSION,
+      state: checkpoint.state,
+      at: checkpoint.at,
+      playerUsers: [...room.playerUsers].filter(([playerId]) => people.has(playerId)),
+      quizId: room.quizId,
+    };
+  }
+
+  private closeSaved(room: Room): void {
+    const saved = this.savedData(room);
+    this.clearTimers(room);
+    this.live.delete(room.code);
+    this.emit(room, { type: 'closed', saved });
   }
 
   private alive(room: Room): boolean {
@@ -1455,6 +1522,8 @@ export class RoomManager {
     const wasPaused = room.state.paused;
     const stamped = this.pacing || state.autopilot !== undefined ? stamp(room.state, state, at) : state;
     room.state = planAutopilot(room.state, stamped, at);
+    // Межа між запитаннями (13b): звідси гру можна зберегти й продовжити.
+    if (restPoint(room.state)) room.checkpoint = { state: room.state, at };
     // Пауза (і та, що ставить автопілот, коли нікого на зв'язку): нахили більше не діють.
     if (!wasPaused && room.state.paused) room.tilts.clear();
     if (room.state.autopilot !== undefined) {
