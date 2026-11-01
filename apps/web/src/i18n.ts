@@ -2460,6 +2460,9 @@ const uk = {
   myPrizeGuest: 'Ти граєш як гість: у вітрину приз не потрапить.',
   prizeResultsTitle: 'Призи',
   prizeResult: '{place} місце — {name}',
+  showcaseTitle: 'Нагороди',
+  showcaseUntil: 'титул до {date}',
+  awardLine: '{place} місце · {quiz} · {date}',
   prizeNobody: '{place} місце — нікого, приз повернеться на склад',
 } as const;
 

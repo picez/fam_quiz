@@ -8,6 +8,7 @@ import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
 import { ProfileEditor } from '../profile/ProfileEditor';
 import { InviteList } from '../profile/InviteList';
+import { Showcase } from '../profile/Showcase';
 import { StatsView } from '../profile/StatsView';
 import { useAccount } from '../useAccount';
 import { announceInvitesChanged, useInvites } from '../useInvites';
@@ -75,7 +76,10 @@ export function Profile() {
         <header className="profile-head">
           <Avatar profile={profile} size="large" />
           <div>
-            <h1 className="brand">{profile.nickname}</h1>
+            <h1 className="brand">
+              {profile.nickname}
+              {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
+            </h1>
             <p className="meta">{profile.email}</p>
             <div className="toolbar">
               <button type="button" className="btn btn-small" onClick={() => setEditing(true)}>
@@ -97,6 +101,7 @@ export function Profile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      <Showcase showcase={profile.showcase} own />
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
         <AchievementStrip achievements={profile.achievements} to="/achievements" />

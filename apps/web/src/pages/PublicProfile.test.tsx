@@ -46,6 +46,22 @@ describe('PublicProfile', () => {
     expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/u2/achievements');
   });
 
+  it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ok: true,
+      data: profile({
+        showcase: {
+          title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      }),
+    });
+    open();
+    expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
+    expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
+    expect(screen.getByText('🎁 Піца')).toBeTruthy();
+  });
+
   it('the achievements link encodes the profile id', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
     open();
