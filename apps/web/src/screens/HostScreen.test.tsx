@@ -3251,3 +3251,10 @@ describe('HostScreen prize places (14a)', () => {
     expect(screen.queryByText('Призи гри')).toBeNull();
   });
 });
+
+describe('HostScreen titles (14a)', () => {
+  it('the main player list shows the title next to the nickname', async () => {
+    show(view({ titles: { Олена: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Олена');
+  });
+});

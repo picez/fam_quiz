@@ -4023,3 +4023,26 @@ describe('PlayerScreen prizes (14a)', () => {
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
   });
 });
+
+describe('PlayerScreen «Граємо за» at intros (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const round = (index: number): RoundInfo => ({ index, total: 4, title: 'Раунд', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null });
+  const screenOf = (current: PlayerView) => <PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />;
+  it('shows at the first round intro, not at a later one', () => {
+    show(view({ phase: 'intro', round: round(0), questionIndex: 0, prizes }));
+    expect(screen.getByText(/Граємо за/)).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round: round(1), questionIndex: 3, prizes }));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+  it('a continued game: the first intro after the lobby shows it at a later round', () => {
+    const { rerender } = render(screenOf(view({ phase: 'lobby', prizes })));
+    rerender(screenOf(view({ phase: 'intro', round: round(2), questionIndex: -1, prizes })));
+    expect(screen.getByText(/Граємо за/)).toBeTruthy();
+    rerender(screenOf(view({ phase: 'intro', round: round(3), questionIndex: -1, prizes })));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+});

@@ -58,4 +58,27 @@ describe('PrizePlaces', () => {
     expect(link.getAttribute('href')).toBe('/prizes');
     expect(link.getAttribute('target')).toBe('_blank');
   });
+
+  it('for a host without an account shows a quiet line, no alert', async () => {
+    vi.mocked(gamePrizes).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    render(<PrizePlaces code="123456" />);
+    await screen.findByText('Увійдіть, щоб класти призи');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('for a missing room shows nothing', async () => {
+    vi.mocked(gamePrizes).mockResolvedValue({ ok: false, error: 'not_found' });
+    const { container } = render(<PrizePlaces code="123456" />);
+    await waitFor(() => expect(gamePrizes).toHaveBeenCalled());
+    expect(container.textContent).toBe('');
+  });
+
+  it('on another error shows the alert and retries on the button', async () => {
+    vi.mocked(gamePrizes).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    render(<PrizePlaces code="123456" />);
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
+    await screen.findByLabelText('1 місце');
+    expect(gamePrizes).toHaveBeenCalledTimes(2);
+  });
 });

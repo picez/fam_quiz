@@ -2493,3 +2493,18 @@ describe('StageScreen prizes and titles (14a)', () => {
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
   });
 });
+
+describe('StageScreen «Граємо за» for a continued game (13b)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const later: RoundInfo = { index: 2, total: 4, title: 'Далі', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  it('the first intro after the lobby shows it even when it is a later round, the next intro does not', () => {
+    const { rerender } = render(<StageScreen view={view({ phase: 'lobby', prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    rerender(<StageScreen view={view({ phase: 'intro', round: later, questionIndex: -1, prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    rerender(<StageScreen view={view({ phase: 'intro', round: { ...later, index: 3 }, questionIndex: -1, prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+});

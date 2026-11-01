@@ -31,7 +31,7 @@ import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-
 import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
-import { PlayingFor } from './PlayingFor';
+import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
 import { StageTeams } from './StageTeams';
 import { StageAnswerers } from './StageAnswerers';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
@@ -480,7 +480,7 @@ function FinalStage({ view }: { view: StageView }) {
   );
 }
 
-function Intro({ view }: { view: StageView }) {
+function Intro({ view, showPrizes }: { view: StageView; showPrizes: boolean }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
   if (view.round.type === 'ladder' && view.ladder !== null) return <LadderIntro view={view} info={view.ladder} />;
@@ -490,7 +490,7 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />
-      {view.prizes !== undefined && view.prizes.places.length > 0 && view.round.index === 0 && view.questionIndex === 0 && <PlayingFor prizes={view.prizes} size="stage" />}
+      {showPrizes && view.prizes !== undefined && <PlayingFor prizes={view.prizes} size="stage" />}
     </>
   );
   return (
@@ -848,6 +848,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const showPrizes = useShowPrizesAtIntro(view);
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
@@ -878,7 +879,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
-      {phase === 'intro' && <Intro view={view} />}
+      {phase === 'intro' && <Intro view={view} showPrizes={showPrizes} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}

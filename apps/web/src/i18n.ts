@@ -2416,6 +2416,8 @@ const uk = {
   prizeNone: '— без призу —',
   prizePut: 'Покласти призи',
   prizePlaced: 'Призи покладено.',
+  prizesSignIn: 'Увійдіть, щоб класти призи',
+  prizesRetry: 'Спробувати ще',
   prizesNoneYet: 'Призів ще немає.',
   playingForTitle: 'Граємо за',
   playingFor: 'Граємо за: {list}',

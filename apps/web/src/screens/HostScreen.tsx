@@ -1130,10 +1130,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   .filter((player) => !view.responses.some((response) => response.playerId === player.id))
                   .map((player) => (
                     <li key={`silent-${player.id}`}>
-                      <span className="name">
-                  {player.nickname}
-                  {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
-                </span>
+                      <span className="name">{player.nickname}</span>
                       <span className="given">{t(phase === 'question' ? 'finalThinking' : 'finalSilent')}</span>
                     </li>
                   ))}
@@ -1249,7 +1246,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <ul className="rows">
             {view.players.map((player) => (
               <li key={player.id} className="player-row">
-                <span className="name">{player.nickname}</span>
+                <span className="name">
+                  {player.nickname}
+                  {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
+                </span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 {player.debuff !== null && <span className="tag debuff-tag">{debuffTagText(player.debuff)}</span>}
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}

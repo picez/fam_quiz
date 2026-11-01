@@ -16,6 +16,9 @@ export function PrizePlaces({ code }: { code: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const [quiet, setQuiet] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let alive = true;
     void gamePrizes(code).then((result) => {
@@ -23,14 +26,28 @@ export function PrizePlaces({ code }: { code: string }) {
       if (result.ok) {
         setInfo(result.data);
         setChosen(chosenOf(result.data));
-      } else setError(errorText(result.error));
+        setError(null);
+        setQuiet(null);
+      } else if (result.error === 'unauthorized' || result.error === 'not_found') setQuiet(result.error);
+      else setError(errorText(result.error));
     });
     return () => {
       alive = false;
     };
-  }, [code]);
+  }, [code, attempt]);
 
-  if (info === null) return error === null ? null : <p className="error" role="alert">{error}</p>;
+  if (info === null) {
+    if (quiet === 'unauthorized') return <p className="meta">{t('prizesSignIn')}</p>;
+    if (quiet !== null || error === null) return null;
+    return (
+      <div className="prize-places-error">
+        <p className="error" role="alert">{error}</p>
+        <button type="button" className="btn btn-small" onClick={() => setAttempt((n) => n + 1)}>
+          {t('prizesRetry')}
+        </button>
+      </div>
+    );
+  }
 
   const empty = info.options.length === 0 && info.places.every((id) => id === null);
   if (empty)
