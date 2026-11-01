@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getMyCard, joinGame, me } from '../api';
+import { claimSlot, gameSlots, getMyCard, joinGame, me } from '../api';
 import { loadAuthor, loadPlayer, saveAuthor, savePlayer } from '../storage';
 import { Play } from './Play';
 
@@ -33,7 +33,7 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ joinGame: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })) }));
+vi.mock('../api', () => ({ joinGame: vi.fn(), gameSlots: vi.fn(), claimSlot: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })) }));
 vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
@@ -41,6 +41,9 @@ beforeEach(() => {
   sockets.length = 0;
   vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
   vi.mocked(getMyCard).mockReset().mockResolvedValue({ ok: false, error: 'unauthorized' });
+  vi.mocked(gameSlots).mockReset().mockResolvedValue({ ok: true, data: { slots: [], mine: null } });
+  vi.mocked(claimSlot).mockReset();
+  vi.mocked(joinGame).mockReset();
 });
 afterEach(cleanup);
 
@@ -264,5 +267,91 @@ describe('Play: the phone tells the server when it leaves the game (12e)', () =>
     await settle();
     expect(screen.queryByText(WARNING)).toBeNull();
     Reflect.deleteProperty(navigator, 'wakeLock');
+  });
+});
+
+describe('Play: «Хто ти?» in a continued game (13b)', () => {
+  const petro = { id: '00000000-0000-4000-8000-000000000001', nickname: 'Петро', team: null };
+  const olya = { id: '00000000-0000-4000-8000-000000000002', nickname: 'Оля', team: 'Сови' };
+
+  it('offers the saved players and «Я новий гравець»; the name field waits for «Я новий гравець»', async () => {
+    vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro, olya], mine: null } });
+    vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
+    open();
+    const group = await screen.findByRole('group', { name: 'Хто ти?' });
+    expect(gameSlots).toHaveBeenCalledWith('123456');
+    expect(within(group).getByRole('radio', { name: 'Петро' })).toBeTruthy();
+    expect(within(group).getByRole('radio', { name: 'Оля · Сови' })).toBeTruthy();
+    expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
+    fireEvent.click(within(group).getByRole('radio', { name: 'Я новий гравець' }));
+    submitNickname('Новенька');
+    await settle();
+    expect(joinGame).toHaveBeenCalledWith('123456', 'Новенька');
+    expect(claimSlot).not.toHaveBeenCalled();
+    expect(loadPlayer('123456')).toBe('fresh-token');
+  });
+
+  it('choosing «Петро» claims his place and enters the game', async () => {
+    vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro], mine: null } });
+    vi.mocked(claimSlot).mockResolvedValue({ ok: true, token: 'petro-token', playerId: petro.id });
+    open();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Петро' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+    await settle();
+    expect(claimSlot).toHaveBeenCalledWith('123456', petro.id);
+    expect(joinGame).not.toHaveBeenCalled();
+    expect(loadPlayer('123456')).toBe('petro-token');
+    expect(screen.getByText('Підключаємося…')).toBeTruthy();
+  });
+
+  it('a signed-in player with their own place takes it without a click', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Оля', email: 'olya@example.com' });
+    vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro], mine: olya } });
+    vi.mocked(claimSlot).mockResolvedValue({ ok: true, token: 'olya-token', playerId: olya.id });
+    open();
+    await waitFor(() => expect(claimSlot).toHaveBeenCalledWith('123456', olya.id));
+    await settle();
+    expect(loadPlayer('123456')).toBe('olya-token');
+    expect(screen.getByText('Підключаємося…')).toBeTruthy();
+  });
+
+  it('a taken place says so and reads the places again', async () => {
+    vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro], mine: null } });
+    vi.mocked(claimSlot).mockResolvedValue({ ok: false, error: 'slot_taken' });
+    open();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Петро' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Це місце вже зайняте. Вибери інше.');
+    await waitFor(() => expect(gameSlots).toHaveBeenCalledTimes(2));
+  });
+
+  it('without saved places the form is as before', async () => {
+    open();
+    await settle();
+    expect(gameSlots).toHaveBeenCalledWith('123456');
+    expect(screen.queryByRole('group', { name: 'Хто ти?' })).toBeNull();
+    expect(screen.getByLabelText('Ваше ім’я')).toBeTruthy();
+  });
+
+  it('a saved game sends the phone back to the form with «Гру збережено — продовжимо пізніше.»', async () => {
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('closed', 'saved'));
+    const lead = await screen.findByText('Гру збережено — продовжимо пізніше.');
+    expect(lead.className).toBe('lead');
+    expect(loadPlayer('123456')).toBeNull();
+    // Не форма входу: ні поля імені, ні «Увійти в гру», ні помилки; місця не читаються.
+    expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Увійти в гру' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Приєднатися до гри' }).getAttribute('href')).toBe('/');
+    expect(gameSlots).not.toHaveBeenCalled();
+  });
+
+  it('a released place asks the player to choose again', async () => {
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('closed', 'released'));
+    expect(await screen.findByText('Ведучий звільнив твоє місце. Вибери себе ще раз.')).toBeTruthy();
   });
 });

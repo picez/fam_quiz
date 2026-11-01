@@ -14,7 +14,7 @@ export function Stage() {
   if (token === '' || game.status === 'unauthorized' || game.closed !== null) {
     return (
       <main className="app stage">
-        <p className="lead">{t('gameGone')}</p>
+        <p className="lead">{t(game.closed === 'saved' ? 'gameSaved' : 'gameGone')}</p>
       </main>
     );
   }

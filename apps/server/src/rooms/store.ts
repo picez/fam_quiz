@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { liveRoom } from '../db/schema';
-import { markAborted, markInterrupted } from '../recorder';
+import { abandonRooms, parkInterrupted } from '../saved-games';
 import { isSavedRoom, type Room, type RoomManager } from './manager';
 
 export const SAVE_DELAY_MS = 1000;
@@ -84,7 +84,7 @@ export class RoomStore {
   async boot(): Promise<number> {
     await this.purge();
     const kept = await this.db.select({ roomId: liveRoom.roomId }).from(liveRoom);
-    await markInterrupted(
+    await parkInterrupted(
       this.db,
       kept.map((row) => row.roomId),
     );
@@ -339,17 +339,14 @@ export class RoomStore {
     entry.timer = null;
   }
 
-  /** Видалити рядки, не змінені понад добу (where — додаткова умова), і перервати їхні ігри. */
+  /** Видалити рядки, не змінені понад добу (where — додаткова умова); їхні ігри — зберегти, якщо є що, інакше перервати (13b). */
   private async purge(where?: SQL): Promise<void> {
     const old = lt(liveRoom.updatedAt, this.at(-MAX_AGE_MS));
     const dropped = await this.db
       .delete(liveRoom)
       .where(where === undefined ? old : and(old, where))
-      .returning({ roomId: liveRoom.roomId });
-    await markAborted(
-      this.db,
-      dropped.map((row) => row.roomId),
-    );
+      .returning({ roomId: liveRoom.roomId, data: liveRoom.data });
+    await abandonRooms(this.db, dropped, this.onError);
   }
 
   /** Атомарно забрати вільні (віддані чи покинуті) рядки й підняти їхні кімнати. Повертає кількість піднятих. */
@@ -382,10 +379,7 @@ export class RoomStore {
         .where(and(eq(liveRoom.owner, this.me), inArray(liveRoom.code, unused.map((row) => row.code))));
     }
     if (broken.length > 0) {
-      await markAborted(
-        this.db,
-        broken.map((row) => row.roomId),
-      );
+      await abandonRooms(this.db, broken, this.onError);
       await this.db
         .delete(liveRoom)
         .where(and(eq(liveRoom.owner, this.me), inArray(liveRoom.code, broken.map((row) => row.code))));

@@ -4,7 +4,7 @@ import { paceWindow, sortOf, stageView, type GameState } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import type { Scheduler } from './scheduler';
-import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, LOBBY_TTL_MS, RoomManager, type HostAction, type Identity, type Room } from './manager';
+import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, LOBBY_TTL_MS, RoomManager, type HostAction, type Identity, type Room, type RoomEvent } from './manager';
 
 const correct = { type: 'single', optionId: 'b' } as const;
 const odesa = { type: 'text', value: 'Одеса' } as const;
@@ -296,12 +296,16 @@ describe('pauses of an autopilot room (11g)', () => {
 
   it('30 minutes with nobody online end the game; a return before that clears the timer', () => {
     const first = atQuestion();
+    const events: RoomEvent[] = [];
+    first.manager.onEvent((_room, event) => events.push(event));
     first.manager.disconnect(first.room, first.author);
     first.manager.disconnect(first.room, first.others[0].identity);
     first.scheduler.advance(AUTOPILOT_EMPTY_MS - 1);
     expect(first.room.state.phase).toBe('question');
     first.scheduler.advance(1);
-    expect(first.room.state.phase).toBe('finished');
+    // 13b: гра дійшла до запитання — її збережено й кімнату закрито.
+    expect(first.manager.get(first.room.code)).toBeUndefined();
+    expect(events.at(-1)).toMatchObject({ type: 'closed', saved: { state: { phase: 'intro' } } });
 
     const second = atQuestion();
     second.manager.disconnect(second.room, second.author);
@@ -367,11 +371,15 @@ describe('autopilot review fixes (11g)', () => {
     expect(act({ type: 'pause' })).toEqual({ ok: true });
     manager.disconnect(room, others[0].identity);
     manager.disconnect(room, author);
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
     scheduler.advance(AUTOPILOT_EMPTY_MS - 1);
     expect(room.state.phase).toBe('reveal');
     expect(room.state.paused).toBe(true);
     scheduler.advance(1);
-    expect(room.state.phase).toBe('finished');
+    // 13b: гра дійшла до запитання — її збережено (контрольна точка — це розкриття) й кімнату закрито.
+    expect(manager.get(room.code)).toBeUndefined();
+    expect(events.at(-1)).toMatchObject({ type: 'closed', saved: { state: { phase: 'reveal' } } });
   });
 
   it('only one pilot timer is pending after back-to-back steps', () => {

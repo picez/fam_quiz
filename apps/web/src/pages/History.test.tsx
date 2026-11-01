@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
-import { getGame, listGames, me } from '../api';
+import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
+import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
 
-vi.mock('../api', () => ({ me: vi.fn(), listGames: vi.fn(), getGame: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), continueGame: vi.fn(), deleteSavedGame: vi.fn() }));
 
 const summary: GameSummary = {
   id: 'g1',
@@ -89,6 +90,8 @@ const open = (path: string) =>
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
         <Route path="/login" element={<LoginStub />} />
+        <Route path="/host/:code" element={<p>пульт</p>} />
+        <Route path="/play/:code" element={<p>телефон</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -1069,5 +1072,159 @@ describe('GameHistory: facts (12d)', () => {
     expect(screen.queryByRole('heading', { name: 'Нагороди гри' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Учасники' })).toBeNull();
     expect(container.querySelector('.fact-table')).toBeNull();
+  });
+});
+
+describe('History: unfinished games (13b)', () => {
+  const saved: GameSummary = {
+    ...summary,
+    id: 'g7',
+    title: 'Річки',
+    status: 'saved',
+    finishedAt: null,
+    questionsPlayed: 3,
+    saved: { mode: 'exact', open: false, openCode: null, savedAt: '2026-10-30T18:00:00.000Z' },
+  };
+  const info = saved.saved as NonNullable<GameSummary['saved']>;
+  const savedItem = () => screen.getByRole('link', { name: 'Річки' }).closest('li') as HTMLElement;
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('lists a saved game in «Не завершені» above the finished ones', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [saved, summary] });
+    open('/history');
+    const section = await screen.findByRole('region', { name: 'Не завершені' });
+    expect(within(section).getByRole('link', { name: 'Річки' })).toBeTruthy();
+    expect(within(section).queryByRole('link', { name: 'Географія' })).toBeNull();
+    expect(within(section).getByText('Не завершена')).toBeTruthy();
+    expect(savedItem().className).toContain('is-saved');
+    const finished = screen.getByRole('link', { name: 'Географія' });
+    expect(section.compareDocumentPosition(finished) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(savedItem()).getByRole('button', { name: 'Продовжити' }).hasAttribute('disabled')).toBe(false);
+    expect(within(savedItem()).getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('there is no «Не завершені» section without saved games', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [summary] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Географія' });
+    expect(screen.queryByText('Не завершені')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Продовжити' })).toBeNull();
+  });
+
+  it('explains a restart, a blocked game and an open continuation', async () => {
+    vi.mocked(listGames).mockResolvedValue({
+      ok: true,
+      data: [
+        { ...saved, id: 'r', title: 'Рестарт', saved: { ...info, mode: 'restart' } },
+        { ...saved, id: 'b', title: 'Блок', saved: { ...info, mode: 'blocked' } },
+        { ...saved, id: 'o', title: 'Відкрита', saved: { ...info, open: true } },
+      ],
+    });
+    open('/history');
+    const item = async (title: string) => (await screen.findByRole('link', { name: title })).closest('li') as HTMLElement;
+    const restart = await item('Рестарт');
+    expect(within(restart).getByText('Продовжиться з початку раунду (оновлення застосунку)')).toBeTruthy();
+    expect(within(restart).getByRole('button', { name: 'Продовжити' }).hasAttribute('disabled')).toBe(false);
+    const blocked = await item('Блок');
+    expect(within(blocked).getByText('Не можна продовжити')).toBeTruthy();
+    expect(within(blocked).getByRole('button', { name: 'Продовжити' }).hasAttribute('disabled')).toBe(true);
+    expect(within(blocked).getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(false);
+    const opened = await item('Відкрита');
+    expect(within(opened).getByText('Продовження вже відкрите')).toBeTruthy();
+    expect(within(opened).getByRole('button', { name: 'Продовжити' }).hasAttribute('disabled')).toBe(true);
+    expect(within(opened).getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('an open continuation links back only by its own code and only with that code’s tokens', async () => {
+    const link = () => within(savedItem()).queryByRole('link', { name: 'Повернутися до гри' });
+    // Токени чужої (останньої) гри не годяться, поки у списку немає коду продовження.
+    saveLastGame('111111');
+    saveHost('111111', { hostToken: 'x', stageToken: 'y' });
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true, openCode: '654321' } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(link()).toBeNull();
+    expect(within(savedItem()).getByText('Продовження вже відкрите')).toBeTruthy();
+    cleanup();
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(link()!.getAttribute('href')).toBe('/host/654321');
+    cleanup();
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true, openCode: null } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(link()).toBeNull();
+  });
+
+  it('a bot game’s open continuation links to the author’s phone when the author key for its code is here', async () => {
+    saveAuthor('654321', { stageToken: 's' });
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, autopilot: true, saved: { ...info, open: true, openCode: '654321' } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(within(savedItem()).getByRole('link', { name: 'Повернутися до гри' }).getAttribute('href')).toBe('/play/654321');
+  });
+
+  it('«Продовжити» of a hosted game opens the console with the new tokens', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [saved] });
+    vi.mocked(continueGame).mockResolvedValue({ ok: true, gameId: 'g7', code: '123456', hostToken: 'h', stageToken: 's' });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Продовжити' }));
+    expect(await screen.findByText('пульт')).toBeTruthy();
+    expect(continueGame).toHaveBeenCalledWith('g7');
+    expect(loadHost('123456')).toEqual({ hostToken: 'h', stageToken: 's' });
+    expect(loadLastGame()).toBe('123456');
+  });
+
+  it('«Продовжити» of a bot game opens the author’s phone with the stage key', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, autopilot: true }] });
+    vi.mocked(continueGame).mockResolvedValue({ ok: true, gameId: 'g7', code: '123456', stageToken: 's', token: 't', playerId: 'p1' });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Продовжити' }));
+    expect(await screen.findByText('телефон')).toBeTruthy();
+    expect(loadPlayer('123456')).toBe('t');
+    expect(loadAuthor('123456')).toEqual({ stageToken: 's' });
+    expect(loadLastGame()).toBe('123456');
+  });
+
+  it('a refused continuation says why and stays on the page', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [saved] });
+    vi.mocked(continueGame).mockResolvedValue({ ok: false, error: 'continue_open' });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Продовжити' }));
+    expect(await screen.findByText('Цю гру вже продовжують.')).toBeTruthy();
+    expect(screen.queryByText('пульт')).toBeNull();
+  });
+
+  it('«Видалити» asks first, deletes and reads the list again', async () => {
+    vi.mocked(listGames).mockResolvedValueOnce({ ok: true, data: [saved, summary] }).mockResolvedValue({ ok: true, data: [summary] });
+    vi.mocked(deleteSavedGame).mockResolvedValue({ ok: true });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Видалити' }));
+    expect(confirm).toHaveBeenCalledWith('Видалити збережену гру «Річки»? Повернути її не вийде.');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Річки' })).toBeNull());
+    expect(deleteSavedGame).toHaveBeenCalledWith('g7');
+    expect(listGames).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('link', { name: 'Географія' })).toBeTruthy();
+    confirm.mockRestore();
+  });
+
+  it('«Видалити» without the confirmation sends nothing', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [saved] });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    fireEvent.click(within(savedItem()).getByRole('button', { name: 'Видалити' }));
+    expect(deleteSavedGame).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Річки' })).toBeTruthy();
+    confirm.mockRestore();
   });
 });

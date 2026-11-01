@@ -73,10 +73,15 @@ describe('a room restored after a restart', () => {
     manager.freeze();
     const next = new RoomManager(scheduler, () => 0.5);
     const back = next.restore(saved) as Room;
+    const events: RoomEvent[] = [];
+    next.onEvent((_room, event) => events.push(event));
     scheduler.advance(HOST_ABSENCE_MS - 1);
     expect(back.state.phase).not.toBe('finished');
+    expect(next.get(back.code)).toBe(back);
     scheduler.advance(1);
-    expect(back.state.phase).toBe('finished');
+    // 13b: ведучий з акаунтом, гра дійшла до запитання — її збережено (контрольна точка — заставка) й кімнату закрито.
+    expect(next.get(back.code)).toBeUndefined();
+    expect(events.at(-1)).toMatchObject({ type: 'closed', saved: { state: { phase: 'intro' } } });
   });
 
   it('refuses a code that is already alive and a snapshot of another version', () => {
@@ -418,10 +423,14 @@ describe('an autopilot room restored after a restart (11g)', () => {
     manager.freeze();
     const next = new RoomManager(scheduler, () => 0.5);
     const back = next.restore(saved) as Room;
+    const events: RoomEvent[] = [];
+    next.onEvent((_room, event) => events.push(event));
     scheduler.advance(AUTOPILOT_EMPTY_MS - 1);
     expect(back.state.phase).toBe('reveal');
     scheduler.advance(1);
-    expect(back.state.phase).toBe('finished');
+    // 13b: кімната порожня 30 хв, гра дійшла до запитання — її збережено (контрольна точка — розкриття) й кімнату закрито.
+    expect(next.get(back.code)).toBeUndefined();
+    expect(events.at(-1)).toMatchObject({ type: 'closed', saved: { state: { phase: 'reveal' } } });
   });
 
   it('an author pause stays an author pause after the restart', () => {

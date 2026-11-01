@@ -349,3 +349,15 @@ describe('a resumed team game in the history (12r)', () => {
     ]);
   });
 });
+
+describe('resumeOptions skips saved games (13b)', () => {
+  it('a game with the status saved is not offered', async () => {
+    const owner = await host();
+    const quizId = await saveQuiz(owner.cookie);
+    const kept = await playGame(owner.cookie, quizId, { questions: 1, startedAt: new Date('2026-10-05T10:00:00Z') });
+    const parked = await playGame(owner.cookie, quizId, { questions: 1, startedAt: new Date('2026-10-06T10:00:00Z') });
+    await db.update(game).set({ status: 'saved' }).where(eq(game.id, parked.gameId));
+    const options = await resumeOptions(db, owner.id, quizId, '00000000-0000-4000-8000-000000000000');
+    expect(options.map((o) => o.gameId)).toEqual([kept.gameId]);
+  });
+});

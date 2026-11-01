@@ -76,6 +76,18 @@ export function Host() {
     );
   }
 
+  // Збережену гру (13b) продовжують з «Історії ігор».
+  if (tokens !== null && game.closed === 'saved') {
+    return (
+      <main className="app narrow">
+        <p className="lead">{t('gameSaved')}</p>
+        <Link className="btn btn-primary" to="/history">
+          {t('savedToHistory')}
+        </Link>
+      </main>
+    );
+  }
+
   if (tokens !== null && (game.status === 'unauthorized' || game.closed !== null)) {
     return (
       <main className="app narrow">

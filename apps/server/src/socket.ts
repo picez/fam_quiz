@@ -80,7 +80,7 @@ const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
-const SIMPLE_HOST_ACTIONS = ['lock', 'next', 'pause', 'resume', 'end-round', 'end', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all', 'team-deal', 'team-dice', 'team-roll'] as const;
+const SIMPLE_HOST_ACTIONS = ['lock', 'next', 'pause', 'resume', 'end-round', 'end', 'save', 'dice', 'roll', 'skip', 'duel-skip', 'duel-cancel', 'guide-skip', 'clue', 'survey-all', 'bluff-all', 'team-deal', 'team-dice', 'team-roll'] as const;
 
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
@@ -276,9 +276,12 @@ export function attachSockets(
     if (event.type === 'closed') dropDrafts(room);
     const leaving =
       event.type === 'kicked' ? members.filter((s) => s.data.identity.playerId === event.playerId) : members;
+    const reason = event.type === 'kicked' ? (event.reason ?? 'kicked') : event.saved !== undefined ? 'saved' : 'expired';
     for (const socket of leaving) {
-      socket.emit('closed', event.type === 'kicked' ? 'kicked' : 'expired');
-      socket.disconnect(true);
+      socket.emit('closed', reason);
+      // Збереження (13b) закриває кімнату посеред обробника host:save: розрив — після ack, інакше відповідь не дійде.
+      if (reason === 'saved') setImmediate(() => socket.disconnect(true));
+      else socket.disconnect(true);
     }
   });
 
@@ -588,6 +591,13 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = kickSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'kick', ...payload.data }) : INVALID;
+    });
+
+    // Звільнити місце збереженої гри (13b): та сама форма, що й host:kick.
+    on('host:release', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = kickSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'release', ...payload.data }) : INVALID;
     });
 
     on('host:adjust', (args) => {

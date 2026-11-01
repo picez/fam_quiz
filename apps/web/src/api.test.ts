@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -183,5 +183,25 @@ describe('favourite stickers (13a)', () => {
   it('a guest gets unauthorized', async () => {
     respond(401, { error: 'unauthorized' });
     expect(await getFavoriteStickers()).toEqual({ ok: false, error: 'unauthorized' });
+  });
+});
+
+describe('saved games (13b)', () => {
+  it('continues, deletes, lists the places and claims one', async () => {
+    let fetchMock = respond(201, { gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    expect(await continueGame('g 1')).toEqual({ ok: true, gameId: 'g1', code: '123456', hostToken: 'h', stageToken: 's' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/games/g%201/continue', expect.objectContaining({ method: 'POST', body: '{}' }));
+
+    fetchMock = respond(204);
+    expect(await deleteSavedGame('g1')).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith('/api/games/g1', expect.objectContaining({ method: 'DELETE' }));
+
+    fetchMock = respond(200, { slots: [], mine: null });
+    expect(await gameSlots('123456')).toEqual({ ok: true, data: { slots: [], mine: null } });
+    expect(fetchMock).toHaveBeenCalledWith('/api/games/by-code/123456/slots', expect.objectContaining({ method: 'GET' }));
+
+    fetchMock = respond(409, { error: 'slot_taken' });
+    expect(await claimSlot('123456', 's1')).toEqual({ ok: false, error: 'slot_taken' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/games/by-code/123456/claim', expect.objectContaining({ method: 'POST', body: '{"slotId":"s1"}' }));
   });
 });

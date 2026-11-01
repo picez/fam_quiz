@@ -64,7 +64,7 @@ export function snapshotOf(raw: unknown): Quiz | null {
 }
 
 /** Кількість запитань у знімку без повної валідації: зіпсований знімок рахуємо за сирою структурою. */
-function questionCountOf(raw: unknown): number {
+export function questionCountOf(raw: unknown): number {
   const quiz = snapshotOf(raw);
   if (quiz !== null) return questionsOf(quiz).length;
   const upgraded = upgradeQuiz(raw);
@@ -402,7 +402,7 @@ function ladderResult(
 const distinct = (values: unknown[]) => new Set(values).size;
 
 /** Кількість людей (соло-гравців або людей команд, без рядків команд) у кожній із заданих ігор. */
-async function playerCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
+export async function playerCounts(db: Db, gameIds: string[]): Promise<Map<string, number>> {
   if (gameIds.length === 0) return new Map();
   const rows = await db
     .select({ gameId: participant.gameId, players: count() })
@@ -424,7 +424,7 @@ async function rivalCounts(db: Db, gameIds: string[]): Promise<Map<string, numbe
 }
 
 /** Командні ігри серед заданих: ті, де є рядки команд. */
-async function teamGameIds(db: Db, gameIds: string[]): Promise<Set<string>> {
+export async function teamGameIds(db: Db, gameIds: string[]): Promise<Set<string>> {
   if (gameIds.length === 0) return new Set();
   const rows = await db
     .selectDistinct({ gameId: participant.gameId })
@@ -479,7 +479,7 @@ export async function resumeOptions(db: Db, hostId: string, quizId: string, excl
   const games = await db
     .select()
     .from(game)
-    .where(and(eq(game.hostId, hostId), eq(game.quizId, quizId), ne(game.id, excludeId), sql`${game.questionsPlayed} > 0`))
+    .where(and(eq(game.hostId, hostId), eq(game.quizId, quizId), ne(game.id, excludeId), ne(game.status, 'saved'), sql`${game.questionsPlayed} > 0`))
     .orderBy(desc(game.startedAt))
     .limit(RESUME_OPTIONS);
   if (games.length === 0) return [];

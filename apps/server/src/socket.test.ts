@@ -455,6 +455,67 @@ describe('reconnecting and kicking', () => {
   });
 });
 
+describe('freeing a slot of a continued game over sockets (13b)', () => {
+  /** Збережена гра з Оленою й Тарасом, продовжена точно; Тарас зайняв своє місце й на зв'язку. */
+  async function continuedGame() {
+    const created = await createGame();
+    const olenaJoin = await join(created.code, 'Олена');
+    const tarasJoin = await join(created.code, 'Тарас');
+    const room = ctx.manager.get(created.code)!;
+    let saved: Parameters<typeof ctx.manager.continueSaved>[2] | undefined;
+    const off = ctx.manager.onEvent((_room, event) => {
+      if (event.type === 'closed' && event.saved !== undefined) saved = event.saved;
+    });
+    expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'save' })).toEqual({ ok: true });
+    off();
+    const result = ctx.manager.continueSaved(room.id, room.hostUserId!, saved!);
+    if (!result.ok) throw new Error(result.error);
+    const next = result.room;
+    const claimed = ctx.manager.claim(next.code, tarasJoin.playerId, null);
+    if (!claimed.ok) throw new Error(claimed.error);
+    const host = open({ code: next.code, role: 'host', token: next.hostToken });
+    const taras = open({ code: next.code, role: 'player', token: claimed.token });
+    await until(host, (view) => view.role === 'host' && view.players.some((p) => p.id === tarasJoin.playerId && p.connected));
+    return { host, taras, tarasId: tarasJoin.playerId, olenaId: olenaJoin.playerId };
+  }
+
+  it('host:release sends «released» to the phone of the freed slot', async () => {
+    const { host, taras, tarasId } = await continuedGame();
+    const closed = new Promise<string>((resolve) => taras.socket.on('closed', resolve));
+    expect(await send(host, 'host:release', { player: 1 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:release', { playerId: tarasId })).toEqual({ ok: true });
+    expect(await closed).toBe('released');
+  });
+
+  it('a player of a game with a host cannot free a slot', async () => {
+    const { taras, olenaId } = await continuedGame();
+    expect(await send(taras, 'host:release', { playerId: olenaId })).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('saving a game over sockets (13b)', () => {
+  it('host:save closes the room for the phones and the stage with «saved»', async () => {
+    const { host, stage, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('intro'));
+    const phone = new Promise<string>((resolve) => olena.socket.on('closed', resolve));
+    const screen = new Promise<string>((resolve) => stage.socket.on('closed', resolve));
+    const desk = new Promise<string>((resolve) => host.socket.on('closed', resolve));
+    expect(await send(host, 'host:save')).toEqual({ ok: true });
+    expect(await phone).toBe('saved');
+    expect(await screen).toBe('saved');
+    expect(await desk).toBe('saved');
+  });
+
+  it('a phone cannot save a hosted game', async () => {
+    const { host, olena } = await lobby();
+    await send(host, 'host:start');
+    await until(olena, inPhase('intro'));
+    expect(await send(olena, 'host:save')).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
 describe('host presence', () => {
   it('tells players when the host arrives and leaves', async () => {
     const game = await createGame();

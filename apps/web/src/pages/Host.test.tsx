@@ -7,12 +7,22 @@ import { loadHost, saveHost } from '../storage';
 import { RETRY_MS } from '../live/useGame';
 import { Host } from './Host';
 
-const { auths } = vi.hoisted(() => ({ auths: [] as unknown[] }));
+const { auths, handlers } = vi.hoisted(() => ({ auths: [] as unknown[], handlers: new Map<string, (...args: unknown[]) => void>() }));
 
 vi.mock('socket.io-client', () => ({
   io: (options: { auth: unknown }) => {
     auths.push(options.auth);
-    return { connected: false, active: true, on() { return this; }, emit() {}, connect() {}, close() {} };
+    return {
+      connected: false,
+      active: true,
+      on(event: string, handler: (...args: unknown[]) => void) {
+        handlers.set(event, handler);
+        return this;
+      },
+      emit() {},
+      connect() {},
+      close() {},
+    };
   },
 }));
 vi.mock('../api', () => ({ hostAccess: vi.fn() }));
@@ -21,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   auths.length = 0;
+  handlers.clear();
 });
 afterEach(cleanup);
 
@@ -78,5 +89,24 @@ describe('Host', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('a saved game says «Гру збережено — продовжимо пізніше.» and leads to the history (13b)', async () => {
+    saveHost('123456', { hostToken: 'local-host', stageToken: 'local-stage' });
+    open();
+    await screen.findByText('Підключаємося…');
+    act(() => handlers.get('closed')?.('saved'));
+    expect(screen.getByText('Гру збережено — продовжимо пізніше.')).toBeTruthy();
+    expect(screen.queryByText(/Цієї гри вже немає/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'До історії ігор' }).getAttribute('href')).toBe('/history');
+  });
+
+  it('a game closed otherwise is still gone', async () => {
+    saveHost('123456', { hostToken: 'local-host', stageToken: 'local-stage' });
+    open();
+    await screen.findByText('Підключаємося…');
+    act(() => handlers.get('closed')?.('expired'));
+    expect(screen.getByText(/Цієї гри вже немає/)).toBeTruthy();
+    expect(screen.queryByText('Гру збережено — продовжимо пізніше.')).toBeNull();
   });
 });

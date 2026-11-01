@@ -5,8 +5,9 @@ import { HelpButton } from '../help/HelpButton';
 import { errorText, t, type TextKey } from '../i18n';
 import type { Send } from '../live/types';
 import { HostCloud } from './HostCloud';
+import { SlotsPanel } from './SlotsPanel';
 
-type Screen = 'main' | 'kick' | 'teams' | 'hide';
+type Screen = 'main' | 'kick' | 'teams' | 'hide' | 'slots';
 
 /** Форми, які автор обирає сам; «Розподіляю сам» в автопілоті — випадковий розподіл у мить старту, тож окремої кнопки немає. */
 const AUTHOR_FORMS: TeamForm[] = ['pick', 'random', 'dice'];
@@ -30,6 +31,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
   const lobby = view.phase === 'lobby';
   const canHide = author !== null && (author.cloud !== null || author.bluff !== null);
   const hidden = author === null || view.phase === 'finished';
+  const continued = author?.continued;
 
   /** Звільняє аркуш: відповідь прийшла, минуло 3 с без відповіді (перепідключення) або аркуш закрито. */
   const release = () => {
@@ -78,10 +80,10 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
     document.addEventListener('keydown', onEscape);
     return () => document.removeEventListener('keydown', onEscape);
   }, [open]);
-  // Етап «хмари» чи вибору блефу минув — екран «Приховати…» повертається на головний.
+  // Етап «хмари» чи вибору блефу минув — екран «Приховати…» повертається на головний; так само «Місця» без продовження.
   useEffect(() => {
-    if (screen === 'hide' && !canHide) go('main');
-  }, [screen, canHide]);
+    if ((screen === 'hide' && !canHide) || (screen === 'slots' && continued === undefined)) go('main');
+  }, [screen, canHide, continued]);
 
   if (hidden) return null;
 
@@ -132,7 +134,7 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
     if (event.target === event.currentTarget) close();
   };
 
-  const title: Record<Screen, TextKey> = { main: 'authorMenu', kick: 'authorKick', teams: 'teamFormLabel', hide: 'authorHide' };
+  const title: Record<Screen, TextKey> = { main: 'authorMenu', kick: 'authorKick', teams: 'teamFormLabel', hide: 'authorHide', slots: 'slotsPanel' };
   const back = (
     <button type="button" className="btn btn-small btn-quiet" onClick={() => go('main')}>
       {t('authorBack')}
@@ -175,6 +177,23 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                   {canHide && (
                     <button type="button" className="author-menu-item" disabled={pending} onClick={() => go('hide')}>
                       {t('authorHide')}
+                    </button>
+                  )}
+                  {continued !== undefined && (
+                    <button type="button" className="author-menu-item" disabled={pending} onClick={() => go('slots')}>
+                      {t('slotsPanel')}
+                    </button>
+                  )}
+                  {!lobby && (
+                    <button
+                      type="button"
+                      className="author-menu-item"
+                      disabled={pending}
+                      onClick={() => {
+                        if (window.confirm(t('saveConfirm'))) runAndClose('host:save');
+                      }}
+                    >
+                      {t('saveLater')}
                     </button>
                   )}
                   {!lobby && (
@@ -273,6 +292,13 @@ export function AuthorMenu({ view, send }: { view: PlayerView; send: Send }) {
                       </ul>
                     </>
                   )}
+                  {back}
+                </>
+              )}
+
+              {screen === 'slots' && continued !== undefined && (
+                <>
+                  <SlotsPanel continued={continued} send={send} self={view.team?.memberId ?? view.me.id} paused={view.paused} phase={view.phase} resume={author.resume} />
                   {back}
                 </>
               )}

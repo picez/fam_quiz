@@ -3179,3 +3179,60 @@ describe('HostScreen reactions (13a)', () => {
     }
   });
 });
+
+describe('HostScreen: saved games (13b)', () => {
+  const continued = {
+    slots: [
+      { id: 'p1', nickname: 'Олена', team: null, taken: true, account: false },
+      { id: 'p2', nickname: 'Тарас', team: null, taken: false, account: false },
+    ],
+    carryRound: null,
+  };
+
+  it('«Зберегти й продовжити пізніше» is on a question and the leaderboard, not in the lobby or at the finish', () => {
+    show(during('question', single));
+    expect(button('Зберегти й продовжити пізніше')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'leaderboard', questionIndex: 0 }));
+    expect(button('Зберегти й продовжити пізніше')).toBeTruthy();
+    cleanup();
+    show(view());
+    expect(screen.queryByRole('button', { name: 'Зберегти й продовжити пізніше' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1 }));
+    expect(screen.queryByRole('button', { name: 'Зберегти й продовжити пізніше' })).toBeNull();
+  });
+
+  it('the save asks first, then sends host:save; it stands before «Завершити»', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const send = show(view({ phase: 'leaderboard', questionIndex: 0 }));
+    const save = button('Зберегти й продовжити пізніше');
+    expect(save.compareDocumentPosition(button('Завершити гру')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(save);
+    expect(confirm).toHaveBeenCalledWith('Зберегти гру й закрити кімнату? Недогране запитання почнеться заново. Продовжиш з «Історії ігор».');
+    expect(send).not.toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    fireEvent.click(save);
+    expect(send).toHaveBeenCalledWith('host:save', undefined);
+  });
+
+  it('a continued game shows «Місця збереженої гри» above the actions', () => {
+    show(view({ phase: 'leaderboard', questionIndex: 0, paused: true, continued }));
+    const panel = document.querySelector('details.slots-panel')!;
+    expect(within(panel as HTMLElement).getByText('Місця збереженої гри')).toBeTruthy();
+    expect(panel.compareDocumentPosition(document.querySelector('footer.actions')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'leaderboard', questionIndex: 0 }));
+    expect(document.querySelector('details.slots-panel')).toBeNull();
+  });
+
+  it('a continued lobby has no «Продовжити попередню гру» but says where it starts', () => {
+    const resume = { rounds: [{ title: 'Розминка', type: 'classic' as const }, { title: 'Річки', type: 'classic' as const }], participants: [{ id: 'p1', nickname: 'Олена' }] };
+    const send = show(view({ resume, continued: { ...continued, carryRound: 1 } }));
+    expect(document.querySelector('details.resume-panel')).toBeNull();
+    expect(screen.queryByText('Продовжити попередню гру')).toBeNull();
+    expect(screen.getByText('Почнемо з «Раунд 2 · Річки» з балами збереженої гри.')).toBeTruthy();
+    fireEvent.click(button('Почати гру'));
+    expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+});

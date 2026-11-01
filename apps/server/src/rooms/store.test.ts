@@ -250,7 +250,7 @@ describe('saving live rooms', () => {
     expect(warnings[0]).toContain(big.code);
   });
 
-  it('boot drops day-old rooms and aborts their games, and interrupts games without a saved room', async () => {
+  it('boot drops day-old rooms and saves their games (they reached a question, 13b), and interrupts games without a saved room', async () => {
     const w = await world();
     const a = w.make('a');
     const old = playing(a.manager, w.scheduler).room;
@@ -268,7 +268,8 @@ describe('saving live rooms', () => {
     expect(await b.store.boot()).toBe(1);
     expect(await rowOf(w.db, old.code)).toBeUndefined();
     expect(b.manager.get(old.code)).toBeUndefined();
-    expect(await statusOf(w.db, old.id)).toBe('aborted');
+    // 13b: читабельний запис з контрольною точкою (заставка раунду) гри, що дійшла до запитання, — збереження.
+    expect(await statusOf(w.db, old.id)).toBe('saved');
     expect(await statusOf(w.db, unsaved.id)).toBe('aborted');
     expect(b.manager.get(fresh.code)).toBeDefined();
     await b.recorder.idle();
@@ -484,7 +485,7 @@ describe('rows and the lease, edge cases', () => {
     expect(c.manager.get(room.code)).toBeDefined();
   });
 
-  it('a restore that throws drops the row and does not stop the boot', async () => {
+  it('a restore that throws drops the row (its game saved from the checkpoint, 13b) and does not stop the boot', async () => {
     const w = await world();
     const a = w.make('a');
     const bad = playing(a.manager, w.scheduler).room;
@@ -503,7 +504,7 @@ describe('rows and the lease, edge cases', () => {
     expect(await b.store.boot()).toBe(1);
     expect(errors).toHaveLength(1);
     expect(await rowOf(w.db, bad.code)).toBeUndefined();
-    expect(await statusOf(w.db, bad.id)).toBe('aborted');
+    expect(await statusOf(w.db, bad.id)).toBe('saved');
     expect(b.manager.get(good.code)).toBeDefined();
   });
 

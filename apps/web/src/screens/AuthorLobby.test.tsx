@@ -104,3 +104,23 @@ describe('AuthorLobby', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith('Потрібно щонайменше дві команди з гравцями.'));
   });
 });
+
+describe('AuthorLobby: a restarted saved game (13b)', () => {
+  it('says the round it starts with instead of «Продовжити попередню гру»', () => {
+    const resume = { rounds: [{ title: 'Розминка', type: 'classic' as const }, { title: 'Річки', type: 'classic' as const }], participants: [{ id: 'p1', nickname: 'Олена' }] };
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    render(
+      <AuthorLobby code="123456" stageUrl={null} joinUrl={joinUrl} send={send} onError={vi.fn()} resume={resume} continued={{ slots: [], carryRound: 1 }} />,
+    );
+    expect(screen.getByText('Почнемо з «Раунд 2 · Річки» з балами збереженої гри.')).toBeTruthy();
+    expect(screen.queryByText('Продовжити попередню гру')).toBeNull();
+    expect(document.querySelector('details.resume-panel')).toBeNull();
+  });
+
+  it('an exact continuation (no carry) shows neither', () => {
+    const resume = { rounds: [{ title: 'Розминка', type: 'classic' as const }], participants: [] };
+    render(<AuthorLobby code="123456" stageUrl={null} joinUrl={joinUrl} send={vi.fn()} onError={vi.fn()} resume={resume} continued={{ slots: [], carryRound: null }} />);
+    expect(screen.queryByText(/Почнемо з/)).toBeNull();
+    expect(screen.queryByText('Продовжити попередню гру')).toBeNull();
+  });
+});
