@@ -201,11 +201,12 @@ describe('profile facts', () => {
       { id: hostId, name: 'Ведуча', email: `${hostId}@example.com` },
       { id: me, name: 'Гравець', email: `${me}@example.com` },
     ]);
-    const seed = (status: 'finished' | 'aborted' | 'running', day: number) =>
+    const seed = (status: 'finished' | 'aborted' | 'running' | 'saved', day: number) =>
       seedGame(db, { hostId, status, startedAt: new Date(Date.UTC(2026, 2, day)), players: [{ userId: me, nickname: 'Я', score: 100, rank: 1 }, { userId: null, nickname: 'Гість', score: 0, rank: 2 }] });
     const finished = await seed('finished', 1);
     await seed('aborted', 2);
     await seed('running', 3);
+    await seed('saved', 4);
     expect((await hostGames(db, hostId)).map((g) => g.id)).toEqual([finished.gameId]);
     expect((await playerGames(db, me, null)).map((g) => g.played.gameId)).toEqual([finished.gameId]);
     expect((await profileFacts(db, me)).stats).toMatchObject({ games: 1, wins: 1 });

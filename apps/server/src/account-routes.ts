@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
 import type { Db } from './db/client';
 import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
+import { openGameIds, savedSummaries } from './saved-games';
 import { touchSeen } from './profiles';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
@@ -224,7 +225,7 @@ export async function registerAccountRoutes(
   app.get('/api/games', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    return hostGames(db, user.id);
+    return [...(await savedSummaries(db, user.id, await openGameIds(db, manager))), ...(await hostGames(db, user.id))];
   });
 
   app.get<WithId>('/api/games/:id', async (request, reply) => {
