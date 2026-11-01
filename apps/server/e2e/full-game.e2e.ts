@@ -16837,7 +16837,24 @@ async function reactionLayout13a(sockets: Socket[]) {
   await stage.locator('main.has-reactions').waitFor();
   expect((await socketReact13a(players[0]!.socket, sticker)).ok).toBe(true);
   await badgeImg13a(stage.locator('.reaction-strip')).waitFor();
-  await expectFitsHeight13a(stage, 'p13a-stage-reveal-image');
+  // Відкрита відповідь з картинкою й чотирма варіантами вже до 13a не вміщалась у 720 (≈808 px) — це поза 13a.
+  // Тут: смуга не робить сцену вищою, ніж без неї, і не накриває рядок «Правильна відповідь».
+  const [withStrip, client, bare] = (await stage.evaluate(`(() => {
+    const root = document.documentElement;
+    const main = document.querySelector('main.has-reactions');
+    const now = root.scrollHeight;
+    main.classList.remove('has-reactions');
+    const before = root.scrollHeight;
+    main.classList.add('has-reactions');
+    return [now, root.clientHeight, before];
+  })()`)) as [number, number, number];
+  expect(withStrip, `p13a-stage-reveal-image: the strip room makes the stage taller (${withStrip} > ${bare})`).toBeLessThanOrEqual(bare + 8);
+  const answerLine = (await stage.locator('.lead.answer', { hasText: 'Правильна відповідь' }).boundingBox())!;
+  const stripBox = (await stage.locator('.reaction-strip').boundingBox())!;
+  expect(
+    answerLine.y + answerLine.height <= stripBox.y || answerLine.y >= stripBox.y + stripBox.height,
+    `p13a-stage-reveal-image: the strip (${Math.round(stripBox.y)}..${Math.round(stripBox.y + stripBox.height)}) covers «Правильна відповідь» (${Math.round(answerLine.y)}..${Math.round(answerLine.y + answerLine.height)})`,
+  ).toBe(true);
   await shot(stage, 'p13a-stage-reveal-image');
 
   // ── Підсумок раунду з повною таблицею: видимий рядок — бейдж, обрізаний «…і ще 2» — смуга. ──
