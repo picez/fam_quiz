@@ -25,3 +25,5 @@ export * from './facts';
 export * from './away';
 export * from './appeal';
 export * from './resume';
+export * from './stickers';
+export * from './reactions';

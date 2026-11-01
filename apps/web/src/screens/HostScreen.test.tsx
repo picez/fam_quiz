@@ -3149,3 +3149,33 @@ describe('HostScreen: resume a game (12r)', () => {
     expect(document.querySelector('details.resume-panel')).toBeNull();
   });
 });
+
+describe('HostScreen reactions (13a)', () => {
+  const reactButton = () => screen.queryByRole('button', { name: t('reactionButton') });
+
+  it('«😀 Реакція» stands in the header before the room code on the reveal and not on the question', () => {
+    show(during('reveal', single));
+    const button = reactButton();
+    expect(button?.closest('header.bar')).not.toBeNull();
+    expect(button?.nextElementSibling?.classList.contains('code')).toBe(true);
+    cleanup();
+    show(during('question', single));
+    expect(reactButton()).toBeNull();
+  });
+
+  it('a tap opens the sheet and a pick sends host:react', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ favorites: [] }), { status: 200 })));
+    try {
+      const send = show(during('reveal', single));
+      fireEvent.click(reactButton() as HTMLElement);
+      const dialog = screen.getByRole('dialog', { name: t('reactionSheetTitle') });
+      await act(async () => {
+        fireEvent.click(within(dialog).getByRole('button', { name: '🤯' }));
+      });
+      expect(send).toHaveBeenCalledWith('host:react', { kind: 'emoji', value: '🤯' });
+      expect(screen.queryByRole('dialog', { name: t('reactionSheetTitle') })).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

@@ -2437,3 +2437,29 @@ describe('StageScreen: appeal (12f)', () => {
     expect(document.querySelector('.appeal-card')).toBeNull();
   });
 });
+
+describe('StageScreen reactions (13a)', () => {
+  const standings = [
+    { participantId: 'p1', nickname: 'Оля', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p2', nickname: 'Тарас', score: 400, totalTimeMs: 1, rank: 2 },
+  ];
+  const reactions = [{ seq: 1, by: 'p1', nickname: 'Оля', rowId: 'p1', item: { kind: 'sticker' as const, value: 'nyaBeach' } }];
+  const showWith = (current: StageView) =>
+    render(<StageScreen view={current} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline reactions={reactions} />);
+
+  it('between questions the badge stands in the row of Оля and the stage keeps room for the strip', () => {
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings }));
+    const olya = [...document.querySelectorAll('.standings li')].find((li) => li.textContent?.includes('Оля')) as HTMLElement;
+    expect(olya.querySelector('.reaction-badge img')?.getAttribute('src')).toBe('/stickers/nyaBeach.png');
+    expect(olya.querySelector('.reaction-badge img')?.getAttribute('width')).toBe('56');
+    expect(document.querySelector('main.app.stage')?.classList.contains('has-reactions')).toBe(true);
+    expect(document.querySelector('.reaction-strip.is-stage')).not.toBeNull();
+  });
+
+  it('on the question a still-living reaction is not drawn, and there is no strip', () => {
+    showWith(view({ phase: 'question', questionIndex: 0, question, endsAt: Date.now() + 20_000, standings }));
+    expect(document.querySelector('.reaction-badge')).toBeNull();
+    expect(document.querySelector('.reaction-strip')).toBeNull();
+    expect(document.querySelector('main.app.stage')?.classList.contains('has-reactions')).toBe(false);
+  });
+});

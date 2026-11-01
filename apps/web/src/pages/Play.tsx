@@ -158,6 +158,7 @@ export function Play() {
         code={code}
         stageUrl={stageUrl}
         stageOnline={game.stageOnline}
+        reactions={game.reactions}
       />
     </>
   );

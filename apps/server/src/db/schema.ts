@@ -1,5 +1,6 @@
 import type { BluffOption } from '@quiz/engine';
 import type { AchievementId, AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import { sql } from 'drizzle-orm';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
@@ -299,6 +300,8 @@ export const profile = pgTable('profile', {
   achievementsSyncedAt: at('achievements_synced_at'),
   /** Останнє звернення до сайту (беклог 9): за ним друзі бачать «онлайн» чи «був(-ла) …»; null — ще не бачили. */
   lastSeenAt: at('last_seen_at'),
+  /** Улюблені стікери (беклог 7): id з маніфесту, від нещодавно доданих; невідомі id відкидаються під час читання. */
+  favoriteStickers: text('favorite_stickers').array().notNull().default(sql`'{}'`),
   ...stamps,
 });
 

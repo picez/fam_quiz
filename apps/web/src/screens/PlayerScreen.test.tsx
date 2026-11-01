@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
@@ -3957,5 +3958,50 @@ describe('PlayerScreen: 12h buffs', () => {
     const notices = document.querySelector('.live-notices')?.textContent ?? '';
     expect(notices).toContain('👀 У вашу відповідь підглянули: Петро');
     expect(notices).not.toContain('Підгляд');
+  });
+});
+
+describe('PlayerScreen reactions (13a)', () => {
+  const standings = [
+    { participantId: 'p1', nickname: 'Олена', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p2', nickname: 'Тарас', score: 400, totalTimeMs: 1, rank: 2 },
+  ];
+  const reactions = [{ seq: 1, by: 'p2', nickname: 'Тарас', rowId: 'p2', item: { kind: 'sticker' as const, value: 'nyaBeach' } }];
+  const showWith = (current: PlayerView) =>
+    render(<PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} reactions={reactions} />);
+
+  it('between questions the badge stands in the row of Тарас and the phone keeps room for the strip', () => {
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings }));
+    const taras = [...document.querySelectorAll('.standings li')].find((li) => li.textContent?.includes('Тарас')) as HTMLElement;
+    expect(taras.querySelector('.reaction-badge img')?.getAttribute('width')).toBe('28');
+    expect(document.querySelector('main.app.player')?.classList.contains('has-reactions')).toBe(true);
+    expect(document.querySelector('.reaction-strip.is-phone')).not.toBeNull();
+  });
+
+  it('the phone already on the question draws no living reaction and no strip', () => {
+    showWith(onQuestion({ standings }));
+    expect(document.querySelector('.reaction-badge')).toBeNull();
+    expect(document.querySelector('.reaction-strip')).toBeNull();
+    expect(document.querySelector('main.app.player')?.classList.contains('has-reactions')).toBe(false);
+  });
+
+  const reactButton = () => screen.queryByRole('button', { name: t('reactionButton') });
+
+  it('«😀 Реакція» stands in the header between questions and not on the question', () => {
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings }));
+    const button = reactButton();
+    expect(button).not.toBeNull();
+    expect(button?.closest('header.bar')).not.toBeNull();
+    // Перед рахунком.
+    expect(button?.nextElementSibling?.classList.contains('score')).toBe(true);
+    cleanup();
+    showWith(onQuestion({ standings }));
+    expect(reactButton()).toBeNull();
+  });
+
+  it('no «😀 Реакція» while a survival trial waits for this phone', () => {
+    const survival = { status: 'edge' as const, outAfter: null, ghostCorrect: null, canAnswerTrial: true, trialAnswer: null, canPickDoor: false, door: null, result: null, bonus: null };
+    showWith(view({ phase: 'leaderboard', questionIndex: 0, standings, me: { ...me, survival } }));
+    expect(reactButton()).toBeNull();
   });
 });

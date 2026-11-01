@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { ClientToServerEvents, CloseReason, GameView, HostDrafts, ServerToClientEvents, SocketAuth, SortTilt } from '@quiz/shared';
+import { REACTION_SHOW_MS, type ClientToServerEvents, type CloseReason, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { freshSplash } from '../clock';
+import { dropReaction, upsertReaction } from '../reactions';
 import type { Send, SendResult } from './types';
 
 /** Остання команда звуку від ведучого; seq зростає, тож кожна нова — окрема. */
@@ -33,6 +34,8 @@ export function useGame(auth: SocketAuth | null) {
   const [tilts, setTilts] = useState<Record<string, SortTilt>>({});
   // Останній пакет живих виборів для пульта (12b); лише в пам'яті, з новим запитанням чи розривом зникає.
   const [drafts, setDrafts] = useState<HostDrafts | null>(null);
+  // Остання реакція кожної людини (13a), REACTION_SHOW_MS; лише в пам'яті, з розривом зникає.
+  const [reactions, setReactions] = useState<Reaction[]>([]);
   const socketRef = useRef<GameSocket | null>(null);
 
   const code = auth?.code;
@@ -49,6 +52,7 @@ export function useGame(auth: SocketAuth | null) {
     setAwardsSeq(null);
     setTilts({});
     setDrafts(null);
+    setReactions([]);
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -57,6 +61,8 @@ export function useGame(auth: SocketAuth | null) {
     let gone = false;
     let restarting = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    // Таймери зникнення реакцій: кожна живе REACTION_SHOW_MS від приходу.
+    const reactionTimers = new Set<ReturnType<typeof setTimeout>>();
     // Запитання, на якому зібрано нахили: нове запитання їх скидає.
     let tiltsAt: number | null = null;
     const again = () => {
@@ -83,6 +89,14 @@ export function useGame(auth: SocketAuth | null) {
     socket.on('awards', (step) => setAwardsSeq(step.seq));
     socket.on('sort:tilt', (tilt) => setTilts((prev) => ({ ...prev, [tilt.sorterId]: tilt })));
     socket.on('host:drafts', (batch) => setDrafts(batch));
+    socket.on('reaction', (reaction) => {
+      setReactions((prev) => upsertReaction(prev, reaction));
+      const timer = setTimeout(() => {
+        reactionTimers.delete(timer);
+        setReactions((prev) => (prev.some((entry) => entry.seq === reaction.seq) ? dropReaction(prev, reaction.seq) : prev));
+      }, REACTION_SHOW_MS);
+      reactionTimers.add(timer);
+    });
     socket.on('closed', (reason) => {
       gone = true;
       setClosed(reason);
@@ -94,6 +108,10 @@ export function useGame(auth: SocketAuth | null) {
     socket.on('disconnect', (reason) => {
       setTilts({});
       setDrafts(null);
+      // Після перезапуску сервера лічильник seq почнеться знову: старі таймери не мусять прибрати нову реакцію.
+      for (const timer of reactionTimers) clearTimeout(timer);
+      reactionTimers.clear();
+      setReactions([]);
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -117,6 +135,7 @@ export function useGame(auth: SocketAuth | null) {
 
     return () => {
       if (retry !== null) clearTimeout(retry);
+      for (const timer of reactionTimers) clearTimeout(timer);
       socket.close();
       socketRef.current = null;
     };
@@ -141,5 +160,5 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
   }, []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, offsetMs, closed, tilts, drafts, forgetLive, send };
+  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send };
 }

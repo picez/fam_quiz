@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { hallPoints, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
+import { hallPoints, type Reaction, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
 import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
 import { t, type TextKey } from '../i18n';
 import { stageAwayText } from '../away-text';
@@ -51,6 +51,7 @@ import { SurveyBoard } from './SurveyBoard';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { AwardsCarousel } from './AwardsCarousel';
 import { AppealCard } from './AppealCard';
+import { ReactionMain } from '../live/Reactions';
 
 interface Props {
   view: StageView;
@@ -65,9 +66,12 @@ interface Props {
   awardsSeq?: number | null;
   /** Останній нахил картки сортування за тим, хто сортує (11d). */
   tilts?: Record<string, SortTilt>;
+  /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
+  reactions?: Reaction[];
 }
 
 const NO_TILTS: Record<string, SortTilt> = {};
+const NO_REACTIONS: Reaction[] = [];
 
 function hostOf(url: string): string {
   try {
@@ -831,7 +835,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
   );
 }
 
-export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null }: Props) {
+export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null, reactions = NO_REACTIONS }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const { phase, standings } = view;
@@ -841,7 +845,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
-    <main className={['app stage', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')}>
+    // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
+    <ReactionMain className={['app stage', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />
@@ -878,6 +883,6 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
       {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}
-    </main>
+    </ReactionMain>
   );
 }

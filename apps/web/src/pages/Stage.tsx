@@ -43,6 +43,7 @@ export function Stage() {
         audioCommand={game.audioCommand}
         awardsSeq={game.awardsSeq}
         tilts={game.tilts}
+        reactions={game.reactions}
       />
     </>
   );

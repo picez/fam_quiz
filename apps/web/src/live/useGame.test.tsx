@@ -200,3 +200,33 @@ describe('useGame host drafts (12b)', () => {
     expect(result.current.tilts).toEqual({});
   });
 });
+
+describe('useGame reactions (13a)', () => {
+  const reaction = (patch = {}) => ({ seq: 1, by: 'p1', nickname: 'Оля', rowId: 'p1', item: { kind: 'emoji', value: '👏' }, ...patch });
+
+  it('keeps the latest reaction of each person for 4 s', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    expect(result.current.reactions).toEqual([]);
+    act(() => socket.fire('reaction', reaction()));
+    expect(result.current.reactions).toEqual([reaction()]);
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => socket.fire('reaction', reaction({ seq: 2, item: { kind: 'sticker', value: 'nyaBeach' } })));
+    expect(result.current.reactions).toEqual([reaction({ seq: 2, item: { kind: 'sticker', value: 'nyaBeach' } })]);
+    // Таймер першої (через 4000 мс від неї) не прибирає другу.
+    act(() => vi.advanceTimersByTime(3000));
+    expect(result.current.reactions).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current.reactions).toEqual([]);
+  });
+
+  it('a lost connection forgets the reactions', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('reaction', reaction()));
+    act(() => socket.fire('reaction', reaction({ seq: 2, by: 'host', nickname: null, rowId: null })));
+    expect(result.current.reactions).toHaveLength(2);
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.reactions).toEqual([]);
+  });
+});

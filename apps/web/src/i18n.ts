@@ -2340,6 +2340,19 @@ const uk = {
   debuffGuide_sticky: 'Кнопки спрацьовують з другого дотику.',
   debuffGuide_noclock: 'Таймер зникає.',
   debuffGuide_bubbles: 'Бульбашки закривають відповіді — лопайте.',
+  // Реакції (13a)
+  reactionHost: 'Ведучий',
+  reactionStripLabel: 'Реакції',
+  reactionSticker: 'Стікер {name}',
+  reactionEmoji: 'Реакція {emoji}',
+  reactionButton: '😀 Реакція',
+  reactionSheetTitle: 'Реакція',
+  reactionFavorites: '★ Мої улюблені',
+  reactionFavoritesEmpty: "Натисни ☆ на стікері, і він з'явиться тут.",
+  reactionAll: 'Усі стікери',
+  reactionClose: 'Закрити',
+  reactionFavoriteAdd: 'Додати {name} в улюблені',
+  reactionFavoriteRemove: 'Прибрати {name} з улюблених',
 } as const;
 
 export type TextKey = keyof typeof uk;

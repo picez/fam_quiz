@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import type { WipeoutInfo, WipeoutRow, WipeoutStatus } from '@quiz/shared';
 import { num } from '../format';
 import { t } from '../i18n';
+import { RowReaction } from '../live/Reactions';
 
 type Size = 'stage' | 'host' | 'phone';
 
@@ -159,7 +160,10 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
           <ul>
             {choices.map((row) => (
               <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
-                <span className="name">{row.nickname}</span>
+                <span className="name">
+                  {row.nickname}
+                  <RowReaction rowId={row.playerId} />
+                </span>
                 <span className={`wipeout-choice is-${row.choice}`}>{choiceText(row)}</span>
               </li>
             ))}
@@ -178,7 +182,10 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
                 const mark = status === 'in' || status === 'took' ? decisionMark(row, size) : null;
                 return (
                   <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
-                    <span className="name">{row.nickname}</span>
+                    <span className="name">
+                      {row.nickname}
+                      <RowReaction rowId={row.playerId} />
+                    </span>
                     {mark !== null && <span className={`wipeout-mark is-${row.decision}`}>{mark}</span>}
                     {status !== 'burned' && <span className="score">{num(row.bank)}</span>}
                   </li>

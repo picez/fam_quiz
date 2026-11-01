@@ -208,8 +208,12 @@ a {
   background: rgb(0 0 0 / 0.25);
 }
 
+/* Сцена: висота однакова в усіх фазах запитання (question, locked, reveal…), тож на відкритті відповіді нічого не стрибає.
+   Вона вже на висоту смуги реакцій нижча за колишні 38vh: смуга з'являється на reveal, і рядок «Правильна відповідь» з
+   підсумком мають закінчуватися над нею. 1rem — запас понад смугу: без смуги сцена з картинкою, одним рядком запитання й
+   чотирма варіантами на 1280 × 720 виходила на 808 px, тобто на 88 px вище — це 80 px смуги (5rem) і ще 8 px, які покриває 1rem. */
 .stage .question-image {
-  height: 38vh;
+  height: calc(38vh - var(--reaction-strip-h) - 1rem);
 }
 
 .host .question-image {
@@ -12223,4 +12227,367 @@ button.wall-tile:disabled {
     padding: 0.15rem 0.1rem;
     font-size: 0.7rem;
   }
+}
+
+/* ---------- Реакції (13a) ----------
+   Бейдж біля ніка має сталий розмір (телефон і пульт 28 px, сцена 56 px) і від'ємні вертикальні поля: у рядку він займає
+   рівно 1em, тож висота рядка не змінюється. Смуга — шар position: fixed унизу зі сталою висотою --reaction-strip-h; у
+   REACTION_PHASES main має .has-reactions і тримає під нею такий самий запас (як .has-appeal), тож смуга нічого не накриває. */
+:root {
+  --reaction-strip-h: 3rem;
+}
+
+.app.stage {
+  --reaction-strip-h: 5rem;
+}
+
+.reaction-badge {
+  --reaction-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--reaction-size);
+  height: var(--reaction-size);
+  margin-block: calc(0.5em - var(--reaction-size) / 2);
+  margin-inline-start: 0.375em;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.stage .reaction-badge {
+  --reaction-size: 56px;
+}
+
+/* Тісні дошки сцени («Вибування», «Ва-банк»): рядок ≈ 1.5em з полями 0.125rem, тож бейдж іде за шрифтом і не лізе
+   в сусідні рядки (і не обрізається overflow: hidden дошки в першому й останньому). */
+.survival-board.is-stage .reaction-badge,
+.wipeout-players.is-stage .reaction-badge {
+  --reaction-size: min(56px, 1.5em);
+}
+
+/* Таблиця балів: нік — власний span з трикрапкою (min-width: 0), бейдж поруч не стискається, тож завжди видно;
+   ширину колонки й далі тримає max-width .score-table .name — довгий нік лише коротшає. */
+.score-name-line {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.score-name-line .score-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score-name-line .row-reactions {
+  flex: none;
+}
+
+.reaction-badge img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reaction-badge.is-emoji {
+  font-size: calc(var(--reaction-size) * 0.8);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reaction-badge {
+    animation: reaction-pop 200ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-badge {
+    animation: none;
+  }
+}
+
+@keyframes reaction-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.row-reactions {
+  white-space: nowrap;
+}
+
+.reaction-by {
+  display: inline-block;
+  max-width: 7em;
+  margin-inline-start: 0.25em;
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.reaction-strip {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  gap: 1rem;
+  height: var(--reaction-strip-h);
+  padding-inline: 1rem;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  background: var(--notice-bg);
+  pointer-events: none;
+}
+
+/* Порожня смуга лишає свій запас, але не видна. */
+.reaction-strip:empty {
+  border-top-color: transparent;
+  background: none;
+}
+
+.reaction-strip-item {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  max-width: 14rem;
+  white-space: nowrap;
+}
+
+.reaction-strip-item b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reaction-strip.is-stage {
+  gap: 2rem;
+  font-size: 1.75rem;
+}
+
+.reaction-strip.is-stage .reaction-strip-item {
+  max-width: 24rem;
+}
+
+.app.has-reactions {
+  padding-bottom: calc(max(1.5rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
+}
+
+/* Телефон: запас під сповіщення плюс смуга; сповіщення стоять над смугою. */
+.app.player.has-reactions {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--notice-room) + var(--reaction-strip-h));
+}
+
+.app.player.has-reactions:has(> .duel-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--notice-room) + 0.5rem + var(--reaction-strip-h));
+}
+
+.app.player.has-reactions:has(> .appeal-sheet) {
+  padding-bottom: calc(var(--appeal-sheet-h, 45dvh) + 1rem);
+}
+
+.app.player.has-reactions .live-notices {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
+}
+
+/* Пульт: липка панель дій стоїть над смугою, а не під нею. */
+.app.host.has-reactions .actions {
+  bottom: var(--reaction-strip-h);
+}
+
+/* Сцена: смуга живе в наявному нижньому запасі під сповіщення (не поверх нього), тож запас — більше з двох, а не сума:
+   на 1280 × 720 це +4 px, а не +80. Сповіщення й значки, коли є, стоять над смугою; картка апеляції піднімається на її висоту. */
+.app.stage.has-reactions {
+  padding-bottom: max(4vh, 4.75rem, var(--reaction-strip-h));
+}
+
+.app.stage.has-reactions .live-notices,
+.app.stage.has-reactions .stage-tags {
+  bottom: calc(0.75rem + var(--reaction-strip-h));
+}
+
+.app.stage.has-appeal.has-reactions {
+  padding-bottom: calc(var(--appeal-room) + var(--reaction-strip-h));
+}
+
+.app.stage.has-appeal.has-reactions .live-notices,
+.app.stage.has-appeal.has-reactions .stage-tags {
+  bottom: calc(var(--appeal-room) - 0.25rem + var(--reaction-strip-h));
+}
+
+.app.stage.has-reactions .appeal-card.is-stage {
+  bottom: calc(0.75rem + var(--reaction-strip-h));
+}
+
+/* «😀 Реакція» (13a): пігулка «Таблиці» в шапці телефона й пульта — не вища за рядок шапки, тож її поява нічого не зсуває. */
+.table-button.reaction-button {
+  padding-inline: 0.6rem;
+}
+
+.table-button.reaction-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Телефон до 400 px (360 / 375): шапка в один рядок і без прокручування вбік за будь-яких сусідів («⚔ Дуель», крамниця,
+   «Таблиця», меню автора, «Наживо» чи «↶ Бали» пульта). Від «😀 Реакція» лишається сам 😀 (aria-label повний) з дотиковою зоною 44 px,
+   проміжки вужчі, а коли й так тісно — текстові пігулки («⚔ Дуель», «Таблиця») стискаються трикрапкою; значки й рахунок не стискаються. */
+@media (max-width: 400px) {
+  .bar .reaction-button-label {
+    display: none;
+  }
+
+  .bar .reaction-button {
+    position: relative;
+    padding-inline: 0.4rem;
+  }
+
+  .bar .reaction-button::after {
+    content: '';
+    position: absolute;
+    inset: -0.375rem -0.25rem;
+  }
+
+  .bar:has(.reaction-button) {
+    gap: 0.375rem;
+  }
+
+  .bar:has(.reaction-button) > :is(.duel-button, .table-button:not(.reaction-button, .shop-button, .author-menu-btn)) {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Аркуш реакції: знизу, поверх сторінки й смуги реакцій, нічого не зсуває; прокручується весь, а «Усі стікери» — ще й усередині. */
+.reaction-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 72;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 85vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 2px solid var(--amber);
+  border-radius: 1rem 1rem 0 0;
+  background: var(--stage);
+  color: var(--paper);
+  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
+}
+
+.reaction-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.reaction-sheet h2,
+.reaction-sheet h3 {
+  margin: 0;
+}
+
+.reaction-sheet h2 {
+  font-size: 1.1rem;
+}
+
+.reaction-sheet h3 {
+  margin-bottom: 0.5rem;
+  color: var(--dim);
+  font-size: 0.95rem;
+}
+
+.reaction-sheet .meta {
+  margin: 0;
+}
+
+.reaction-emoji {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.reaction-emoji-btn {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reaction-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reaction-grid.is-all {
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.reaction-cell {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.reaction-pick {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0.25rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reaction-pick img {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.reaction-star {
+  flex: 0 0 1.75rem;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.reaction-star[aria-pressed='true'] {
+  color: var(--amber);
 }

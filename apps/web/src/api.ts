@@ -156,3 +156,8 @@ export const inviteFriends = (code: string, userIds: string[]) => fetchData<{ in
 export const getRoomInvites = (code: string) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`);
 export const getMyInvites = () => fetchData<GameInvite[]>('/api/me/invites');
 export const dismissInvite = (code: string) => request<object>(`/api/me/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
+
+/** Улюблені стікери власного профілю (13a); гість отримує unauthorized. */
+export const getFavoriteStickers = () => request<{ favorites: string[] }>('/api/me/stickers');
+/** Зберігає весь список (не більше 40 — його обрізає toggleFavorite). */
+export const saveFavoriteStickers = (favorites: string[]) => request<{ favorites: string[] }>('/api/me/stickers', { method: 'PUT', body: { favorites } });

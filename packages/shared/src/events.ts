@@ -7,6 +7,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
+import type { Reaction, ReactionItem } from './reactions';
 import { ANSWERER_SCOPES, TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -290,6 +291,10 @@ export interface ClientToServerEvents {
   'host:audio': (payload: z.infer<typeof audioCommandSchema>, ack: Ack) => void;
   /** «Нагороди гри» (12d): наступний слайд каруселі на сцені; лише finished і з нагородами. */
   'host:awards': (ack: Ack) => void;
+  /** Реакція (13a): швидке емодзі чи стікер; лише між запитаннями, не частіше ніж раз на REACTION_GAP_MS. */
+  'player:react': (payload: ReactionItem, ack: Ack) => void;
+  /** Реакція ведучого (13a): лише справжній пульт. */
+  'host:react': (payload: ReactionItem, ack: Ack) => void;
 }
 
 export interface StateMeta {
@@ -307,6 +312,8 @@ export interface ServerToClientEvents {
   audio: (command: { action: 'replay' | 'stop'; seq: number }) => void;
   /** Дотик ведучого «Нагороди на сцені» (12d); seq зростає в межах кімнати. Отримують лише сцени. */
   awards: (step: { seq: number }) => void;
+  /** Реакція (13a): усім ролям кімнати; стан гри той самий. */
+  reaction: (reaction: Reaction) => void;
   /** Нахил картки того, хто сортує (11d): лише там, де показ дозволено. */
   'sort:tilt': (tilt: SortTilt) => void;
   /** Живі вибори до «Надіслати» (12b): лише пультам з увімкненим «наживо», не частіше ніж раз на HOST_DRAFTS_MS. */

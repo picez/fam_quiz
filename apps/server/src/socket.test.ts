@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
 import { answer, appeal, scoreAdjustment } from './db/schema';
@@ -1899,5 +1899,69 @@ describe('autopilot sockets (11g)', () => {
   it('keeps forbidden for players of an ordinary room', async () => {
     const { olena } = await lobby();
     expect(await send(olena, 'host:start')).toEqual({ ok: false, error: 'forbidden' });
+  });
+});
+
+describe('reactions over sockets (13a)', () => {
+  const listen = (tracked: Tracked) => {
+    const received: Reaction[] = [];
+    tracked.socket.on('reaction', (reaction) => received.push(reaction));
+    return received;
+  };
+  const sticker = { kind: 'sticker', value: STICKERS[0]!.id };
+  /** Гра до reveal першого запитання. */
+  const atReveal = async () => {
+    const setup = await lobby();
+    await send(setup.host, 'host:start');
+    await send(setup.host, 'host:next');
+    await until(setup.stage, inPhase('question'));
+    await send(setup.host, 'host:lock');
+    await until(setup.stage, inPhase('locked'));
+    await send(setup.host, 'host:next');
+    await until(setup.stage, inPhase('reveal'));
+    return setup;
+  };
+
+  it('a player reaction reaches the host, the stage and both phones, the author included', async () => {
+    const { host, stage, olena, taras, olenaJoin } = await atReveal();
+    const heard = [host, stage, olena, taras].map(listen);
+    expect(await send(olena, 'player:react', sticker)).toEqual({ ok: true });
+    await pause(200);
+    for (const received of heard) {
+      expect(received).toHaveLength(1);
+      expect(received[0]).toMatchObject({ by: olenaJoin.playerId, nickname: 'Олена', rowId: olenaJoin.playerId, item: sticker });
+    }
+    expect(heard[1]).toEqual(heard[0]);
+    expect(heard[2]).toEqual(heard[0]);
+    expect(heard[3]).toEqual(heard[0]);
+  });
+
+  it('the stage cannot react; a player cannot use host:react; the host can', async () => {
+    const { host, stage, olena } = await atReveal();
+    const heard = listen(stage);
+    expect(await send(stage, 'player:react', sticker)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(stage, 'host:react', sticker)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(olena, 'host:react', sticker)).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:react', { kind: 'emoji', value: '👏' })).toEqual({ ok: true });
+    await pause(200);
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toMatchObject({ by: 'host', nickname: null, rowId: null });
+  });
+
+  it('refuses junk payloads', async () => {
+    const { olena } = await atReveal();
+    expect(await send(olena, 'player:react', { kind: 'sticker', value: 'nope' })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:react')).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('is wrong_phase in a question and too_soon right after a reaction', async () => {
+    const early = await lobby();
+    await send(early.host, 'host:start');
+    await send(early.host, 'host:next');
+    await until(early.stage, inPhase('question'));
+    expect(await send(early.olena, 'player:react', sticker)).toEqual({ ok: false, error: 'wrong_phase' });
+    const { olena } = await atReveal();
+    expect(await send(olena, 'player:react', sticker)).toEqual({ ok: true });
+    expect(await send(olena, 'player:react', sticker)).toEqual({ ok: false, error: 'too_soon' });
   });
 });

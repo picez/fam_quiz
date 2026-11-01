@@ -3,6 +3,7 @@ import {
   LIMITS,
   isWin,
   nicknameSchema,
+  normalizeFavorites,
   type Achievement,
   type FriendCard,
   type OwnProfile,
@@ -216,4 +217,19 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
   return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
+}
+
+/** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */
+export async function favoriteStickers(db: Db, userId: string): Promise<string[]> {
+  await ensureProfile(db, userId);
+  const [row] = await db.select({ ids: profile.favoriteStickers }).from(profile).where(eq(profile.userId, userId));
+  return normalizeFavorites(row?.ids ?? []);
+}
+
+/** Записує normalizeFavorites(ids) і повертає записане. */
+export async function saveFavoriteStickers(db: Db, userId: string, ids: string[]): Promise<string[]> {
+  await ensureProfile(db, userId);
+  const favorites = normalizeFavorites(ids);
+  await db.update(profile).set({ favoriteStickers: favorites }).where(eq(profile.userId, userId));
+  return favorites;
 }

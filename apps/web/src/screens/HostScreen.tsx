@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, revealShare, type Answer, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
+import { clueShare, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
@@ -42,6 +42,8 @@ import { Standings } from './Standings';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { ScoreTable } from './ScoreTable';
+import { ReactionMain } from '../live/Reactions';
+import { ReactionButton } from './ReactionSheet';
 import { HostTeams, TeamPeople, teamsStartable } from './HostTeams';
 import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
@@ -78,7 +80,11 @@ interface Props {
   onWatch?: (on: boolean) => void;
   /** Останній пакет живих виборів (12b); null — немає чи вимкнено. */
   drafts?: HostDrafts | null;
+  /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
+  reactions?: Reaction[];
 }
+
+const NO_REACTIONS: Reaction[] = [];
 
 type HostEvent = keyof ClientToServerEvents;
 
@@ -216,7 +222,7 @@ function HostScores({ view }: { view: HostView }) {
   );
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -520,7 +526,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
     ) : null;
 
   return (
-    <main className="app host">
+    // Реакції (13a): лише в REACTION_PHASES; смуга стоїть під липкою панеллю дій.
+    <ReactionMain className="app host" phase={phase} reactions={reactions} size="host">
       <LiveNotices>
         <BuffToast view={view} offsetMs={offsetMs} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
@@ -535,6 +542,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
+        <ReactionButton shown={reactionAllowed(phase)} event="host:react" send={send} />
         <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 
@@ -1367,6 +1375,6 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
       </footer>
-    </main>
+    </ReactionMain>
   );
 }

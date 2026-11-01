@@ -1,6 +1,7 @@
 import type { Standing, TeamsView } from '@quiz/shared';
 import { num, signed } from '../format';
 import { t } from '../i18n';
+import { RowReaction } from '../live/Reactions';
 
 interface Props {
   standings: Standing[];
@@ -32,6 +33,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
             <span className="rank">{row.rank}</span>
             <span className="name">
               {row.nickname}
+              <RowReaction rowId={row.participantId} />
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>
             {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}

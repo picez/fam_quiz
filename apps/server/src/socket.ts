@@ -49,6 +49,7 @@ import {
   captainSchema,
   liveWatchSchema,
   startSchema,
+  reactSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -254,6 +255,10 @@ export function attachSockets(
         .forEach((socket) => socket.emit('audio', { action: event.action, seq: event.seq }));
       return;
     }
+    if (event.type === 'reaction') {
+      members.forEach((socket) => socket.emit('reaction', event.reaction));
+      return;
+    }
     if (event.type === 'awards') {
       // Карусель нагород живе на сцені: телефони й пульт дотику не отримують.
       members.filter((socket) => socket.data.identity.role === 'stage').forEach((socket) => socket.emit('awards', { seq: event.seq }));
@@ -398,6 +403,18 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = voteSchema.safeParse(payloadOf(args));
       return payload.success ? manager.vote(room, identity.playerId, payload.data.askerId, payload.data.answer) : INVALID;
+    });
+
+    on('player:react', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = reactSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.react(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('host:react', (args) => {
+      if (!isHost) return FORBIDDEN;
+      const payload = reactSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.react(room, 'host', payload.data) : INVALID;
     });
 
     on('player:appeal', (args) => {

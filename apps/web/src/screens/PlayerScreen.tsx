@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
@@ -65,6 +65,9 @@ import { PeekSheet } from './PeekSheet';
 import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
+import { ReactionMain } from '../live/Reactions';
+import { ReactionButton } from './ReactionSheet';
+import { canReact } from '../reactions';
 
 interface Props {
   view: PlayerView;
@@ -79,6 +82,8 @@ interface Props {
   stageUrl?: string | null;
   /** Чи під'єднана сцена (звук без сцени — задача 8). */
   stageOnline?: boolean;
+  /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
+  reactions?: Reaction[];
 }
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
@@ -361,6 +366,7 @@ function Result({ view }: { view: PlayerView }) {
 }
 
 const NO_TILTS: Record<string, SortTilt> = {};
+const NO_REACTIONS: Reaction[] = [];
 
 /** Власний підсумок сортування: час повного сортування або скільки встиг. */
 function sortOutcomeText(sort: NonNullable<PlayerView['me']['sort']>): string {
@@ -606,7 +612,7 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true }: Props) {
+export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
@@ -768,7 +774,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
-    <main className={suspense ? 'app player is-suspense' : 'app player'} aria-busy={notStarted || undefined}>
+    // Реакції (13a): лише в REACTION_PHASES — телефон, що вже на запитанні, живої реакції не малює.
+    <ReactionMain className={suspense ? 'app player is-suspense' : 'app player'} aria-busy={notStarted || undefined} phase={phase} reactions={reactions} size="phone">
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
@@ -796,6 +803,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
+        {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
+        <ReactionButton shown={canReact(view)} event="player:react" send={send} />
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -1325,7 +1334,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       )}
       {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}
       <AwayAlarm code={code} person={team?.memberId ?? me.id} away={view.lastAway} />
-    </main>
+    </ReactionMain>
   );
 }
 
