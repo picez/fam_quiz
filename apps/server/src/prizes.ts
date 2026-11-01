@@ -1,7 +1,18 @@
-import { PRIZE_LIMITS, type PlacedPrize, type PrizeContent, type PrizeItem, type PrizePlace } from '@quiz/shared';
-import { and, count, desc, eq, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
+import {
+  PRIZE_LIMITS,
+  SHOWCASE_MAX,
+  TITLE_MS,
+  publicContent,
+  type AwardCard,
+  type PlacedPrize,
+  type PrizeContent,
+  type PrizeItem,
+  type PrizePlace,
+  type Showcase,
+} from '@quiz/shared';
+import { and, count, desc, eq, gt, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { liveRoom, prize } from './db/schema';
+import { liveRoom, prize, prizeAward, userTitle } from './db/schema';
 import type { RoomManager } from './rooms/manager';
 
 type Row = typeof prize.$inferSelect;
@@ -160,3 +171,90 @@ export async function releaseStalePrizes(db: Db, keep: string[]): Promise<number
   return rows.length;
 }
 
+
+/** Що дає місце (задача 4 рахує з кімнати). winners — акаунти людей місця з ніком у грі; [] — гості чи нікого. */
+export interface PrizeOutcome {
+  place: PrizePlace;
+  prizeId: string;
+  winners: { userId: string; nickname: string }[];
+}
+export interface AwardInput {
+  gameId: string;
+  quizTitle: string;
+  at: Date;
+  outcomes: PrizeOutcome[];
+}
+
+/**
+ * Для кожного місця своя транзакція. Перехід reserved → awarded умовний, тож повтор нічого не змінює;
+ * вітрина й титул пишуться лише разом із першим переходом.
+ */
+export async function awardPrizes(db: Db, input: AwardInput): Promise<void> {
+  const { gameId, quizTitle, at } = input;
+  for (const outcome of input.outcomes) {
+    await db.transaction(async (tx) => {
+      const mine = and(eq(prize.id, outcome.prizeId), eq(prize.status, 'reserved'), eq(prize.reservedGame, gameId));
+      if (outcome.winners.length === 0) {
+        await tx.update(prize).set({ status: 'free', reservedGame: null, updatedAt: new Date() }).where(mine);
+        return;
+      }
+      const [row] = await tx.update(prize).set({ status: 'awarded', reservedGame: null, updatedAt: new Date() }).where(mine).returning();
+      if (row === undefined) return;
+      const content = row.content;
+      for (const winner of outcome.winners) {
+        await tx
+          .insert(prizeAward)
+          .values({ userId: winner.userId, prizeId: row.id, gameId, place: outcome.place, content, quizTitle, nickname: winner.nickname, awardedAt: at })
+          .onConflictDoNothing();
+        if (content.title !== null) {
+          const expiresAt = new Date(at.getTime() + TITLE_MS);
+          await tx
+            .insert(userTitle)
+            .values({ userId: winner.userId, text: content.title, gameId, awardedAt: at, expiresAt })
+            .onConflictDoUpdate({ target: userTitle.userId, set: { text: content.title, gameId, awardedAt: at, expiresAt } });
+        }
+      }
+    });
+  }
+  // Резерви гри, яких немає серед місць (кімната без призів після відкату), повертаються.
+  await releasePrizes(db, gameId);
+}
+
+/** Чинні титули (expires_at > now): userId → текст. */
+export async function currentTitles(db: Db, userIds: string[], now: Date = new Date()): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await db
+    .select({ userId: userTitle.userId, text: userTitle.text })
+    .from(userTitle)
+    .where(and(inArray(userTitle.userId, userIds), gt(userTitle.expiresAt, now)));
+  return new Map(rows.map((row) => [row.userId, row.text]));
+}
+
+/** Вітрина: чинний титул і нагороди (найновіші першими, не більше SHOWCASE_MAX), зміст без name. */
+export async function showcaseOf(db: Db, userId: string, now: Date = new Date()): Promise<Showcase> {
+  const [titleRow] = await db
+    .select()
+    .from(userTitle)
+    .where(and(eq(userTitle.userId, userId), gt(userTitle.expiresAt, now)));
+  const rows = await db
+    .select()
+    .from(prizeAward)
+    .where(eq(prizeAward.userId, userId))
+    .orderBy(desc(prizeAward.awardedAt), desc(prizeAward.id))
+    .limit(SHOWCASE_MAX);
+  const awards: AwardCard[] = rows.map((row) => ({
+    id: row.id,
+    place: row.place,
+    content: publicContent(row.content),
+    quizTitle: row.quizTitle,
+    nickname: row.nickname,
+    awardedAt: row.awardedAt!.toISOString(),
+  }));
+  return { title: titleRow === undefined ? null : { text: titleRow.text, until: titleRow.expiresAt!.toISOString() }, awards };
+}
+
+/** Адмінка: прибрати рядок вітрини. */
+export async function deleteAward(db: Db, awardId: string): Promise<boolean> {
+  const rows = await db.delete(prizeAward).where(eq(prizeAward.id, awardId)).returning({ id: prizeAward.id });
+  return rows.length > 0;
+}
