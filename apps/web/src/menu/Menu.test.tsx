@@ -143,6 +143,7 @@ describe('Menu', () => {
       show('/quizzes');
       const badge = await screen.findByLabelText('Запрошень: 2');
       expect(badge.textContent).toBe('2');
+      expect(screen.getByRole('link', { name: 'Профіль, Запрошень: 2' })).toBeTruthy();
       cleanup();
 
       vi.mocked(getMyInvites).mockClear();

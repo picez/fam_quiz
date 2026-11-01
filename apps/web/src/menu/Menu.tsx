@@ -27,10 +27,13 @@ export function Menu() {
   const items =
     account.status === 'signed-in' ? [JOIN, QUIZZES, HISTORY, PRIZES_ITEM, ACHIEVEMENTS_ITEM, PROFILE] : account.status === 'anonymous' ? [JOIN, signIn] : [JOIN];
 
+  const name = (item: Item) =>
+    item === PROFILE && invites.length > 0 ? `${t(item.label)}, ${t('invitesBadge', { count: invites.length })}` : t(item.label);
+
   return (
     <nav className="menu" aria-label={t('menuLabel')}>
       {items.map((item) => (
-        <Link key={item.label} to={item.to} aria-label={t(item.label)} data-short={t(item.short)} aria-current={item.active(location.pathname) ? 'page' : undefined}>
+        <Link key={item.label} to={item.to} aria-label={name(item)} data-short={t(item.short)} aria-current={item.active(location.pathname) ? 'page' : undefined}>
           <span aria-hidden="true">{item.icon}</span>
           <span className="menu-full">{t(item.label)}</span>
           {item === PROFILE && invites.length > 0 && (

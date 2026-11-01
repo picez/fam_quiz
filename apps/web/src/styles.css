@@ -12226,6 +12226,7 @@ button.wall-tile:disabled {
   .menu a {
     padding: 0.15rem 0;
     font-size: 0.75rem;
+    letter-spacing: -0.01em;
   }
 
   /* Вузький екран: замість повного підпису (aria-label лишається повним) — короткий з data-short. */
@@ -12235,6 +12236,7 @@ button.wall-tile:disabled {
 
   .menu a::after {
     content: attr(data-short);
+    content: attr(data-short) / '';
   }
 }
 
