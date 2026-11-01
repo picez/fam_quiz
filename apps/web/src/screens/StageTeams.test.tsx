@@ -59,3 +59,10 @@ describe('StageTeams', () => {
     expect(document.querySelector('.dice-panel')).toBeNull();
   });
 });
+
+describe('StageTeams levels (15a)', () => {
+  it('shows the level of a team member', () => {
+    render(<StageTeams teams={threeTeams()} levels={{ Оля: { level: 7, color: 'mint', frame: null } }} />);
+    expect(screen.getByText('Рів. 7').closest('li')?.textContent).toContain('Оля');
+  });
+});

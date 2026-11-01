@@ -2462,6 +2462,8 @@ const uk = {
   prizeResultsTitle: 'Призи',
   prizeResult: '{place} місце — {name}',
   showcaseTitle: 'Нагороди',
+  levelBadge: 'Рів. {n}',
+  levelAria: 'Рівень {n}',
   showcaseUntil: 'титул до {date}',
   awardLine: '{place} місце · {quiz} · {date}',
   prizeNobody: '{place} місце — нікого, приз повернеться на склад',

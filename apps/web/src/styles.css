@@ -12943,6 +12943,60 @@ button.wall-tile:disabled {
   }
 }
 
+/* ---------- Нік з рівнем, кольором і рамкою (15a) ---------- */
+.nick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: bottom;
+  border-radius: 0.5em;
+}
+.nick-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nick > .nick-title {
+  margin-inline-start: 0;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.nick-level {
+  flex-shrink: 0;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  font-size: 0.65em;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+  background: rgb(127 127 127 / 0.22);
+}
+.nick-c-sky { color: #38bdf8; }
+.nick-c-mint { color: #34d399; }
+.nick-c-sun { color: #fbbf24; }
+.nick-c-coral { color: #fb7185; }
+.nick-c-violet { color: #a78bfa; }
+.nick-c-gold { color: #eab308; }
+.nick-c-rainbow {
+  background: linear-gradient(90deg, #f87171, #fbbf24, #34d399, #38bdf8, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.nick-f-bronze { outline: 2px solid #b45309; outline-offset: 2px; }
+.nick-f-silver { outline: 2px solid #cbd5e1; outline-offset: 2px; }
+.nick-f-gold { outline: 2px solid #eab308; outline-offset: 2px; }
+.nick-f-neon { outline: 2px solid #22d3ee; outline-offset: 2px; box-shadow: 0 0 8px 2px #22d3ee; }
+.nick-f-fire { outline: 2px solid #f97316; outline-offset: 2px; box-shadow: 0 0 8px 2px #ef4444; }
+.nick-f-rainbow { outline: 2px solid #a78bfa; outline-offset: 2px; box-shadow: -3px 0 6px #f87171, 3px 0 6px #38bdf8; }
+@media (prefers-reduced-motion: no-preference) {
+  .nick-f-neon, .nick-f-fire { transition: box-shadow 0.3s; }
+}
+
 /* ---------- Церемонія призів (14a): подіум 2 — 1 — 3, конфеті, «Твій приз» ---------- */
 .ceremony {
   display: flex;

@@ -29,6 +29,7 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { BlitzQueue } from './BlitzQueue';
 import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-blink';
 import { Standings } from './Standings';
+import { Nick } from './Nick';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
 import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
@@ -98,7 +99,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
       </div>
       {view.teams !== null ? (
         <div className="roster">
-          <StageTeams teams={view.teams} titles={view.titles} />
+          <StageTeams teams={view.teams} titles={view.titles} levels={view.levels} />
         </div>
       ) : (
         <div className="roster">
@@ -106,8 +107,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
           <ul className="chips">
             {view.players.map((player) => (
               <li key={player.id} className={player.connected ? undefined : 'is-away'}>
-                {player.nickname}
-                {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
+                <Nick nickname={player.nickname} levels={view.levels} titles={view.titles} />
               </li>
             ))}
           </ul>
@@ -795,6 +795,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
       streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
       teams={view.teams}
       titles={view.titles}
+      levels={view.levels}
       gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
     />
   );

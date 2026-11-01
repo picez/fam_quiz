@@ -4022,6 +4022,11 @@ describe('PlayerScreen prizes (14a)', () => {
     show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], titles: { Оля: '👑 Король' } }));
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
   });
+  it('a level stands next to the nickname in the lobby list, only for who has one', () => {
+    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], levels: { Оля: { level: 12, color: 'sky', frame: null } } }));
+    expect(screen.getByText('Рів. 12').closest('li')?.textContent).toContain('Оля');
+    expect(screen.getAllByText(/Рів\./)).toHaveLength(1);
+  });
 });
 
 describe('PlayerScreen «Граємо за» at intros (14a)', () => {

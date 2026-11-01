@@ -29,6 +29,7 @@ import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
 import { MyPrize, PrizeResults, useQuizTitle } from './MyPrize';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { Standings } from './Standings';
+import { Nick } from './Nick';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
@@ -842,8 +843,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <ul className="chips">
             {view.lobby.map((nickname, index) => (
               <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined}>
-                {nickname}
-                {view.titles?.[nickname] !== undefined && <span className="nick-title">{view.titles[nickname]}</span>}
+                <Nick nickname={nickname} levels={view.levels} titles={view.titles} />
               </li>
             ))}
           </ul>
@@ -1293,7 +1293,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
-          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />
         </>
       )}
 
@@ -1304,7 +1304,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
-          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>
@@ -1325,7 +1325,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <PrizeResults prizes={view.prizes} role="player" />
             ))}
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
-          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />}
+          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />}
           <MenuLinks role="player" />
         </>
       )}

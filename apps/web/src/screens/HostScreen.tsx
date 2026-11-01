@@ -41,6 +41,7 @@ import { PrizePlaces } from './PrizePlaces';
 import { PrizeResults } from './MyPrize';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
+import { Nick } from './Nick';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { ScoreTable } from './ScoreTable';
@@ -1202,7 +1203,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'round_end' && round !== null && (
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
-          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} titles={view.titles} />
+          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} titles={view.titles} levels={view.levels} />
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
           {view.roundQuestions !== null && view.roundQuestions.length > 0 && (
             <ol className="round-shares" aria-label={t('roundSharesLabel')}>
@@ -1222,7 +1223,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'finished' ? (
         <section className="panel">
           <h2>{t('gameOver')}</h2>
-          <Standings standings={view.standings} teams={view.teams} titles={view.titles} />
+          <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
           {/* Призи (14a): церемонії на пульті немає — лише хто що взяв. */}
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
@@ -1250,8 +1251,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             {view.players.map((player) => (
               <li key={player.id} className="player-row">
                 <span className="name">
-                  {player.nickname}
-                  {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
+                  <Nick nickname={player.nickname} levels={view.levels} titles={view.titles} />
                 </span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 {player.debuff !== null && <span className="tag debuff-tag">{debuffTagText(player.debuff)}</span>}
