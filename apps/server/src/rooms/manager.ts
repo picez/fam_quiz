@@ -1623,6 +1623,8 @@ export class RoomManager {
       case 'adjust':
         return this.apply(room, adjustScore(state, action.playerId, action.points, this.now()));
       case 'undo':
+        // Після кінця гри з призами (14a) результат зафіксовано: скасування штрафу за вихід переставило б місця.
+        if (state.phase === 'finished' && room.prizes.length > 0) return { ok: false, error: 'prizes_final' };
         return this.apply(room, undoScore(state, action.target, this.now()));
       case 'debuff':
         return this.apply(room, setDebuff(state, action.playerId, action.kind));

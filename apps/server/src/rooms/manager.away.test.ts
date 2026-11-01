@@ -200,6 +200,41 @@ describe('player:away in a room (12e)', () => {
     expect(score()).toBe(1000);
   });
 
+  /** Гра до кінця (end просто з запитання): Олена виходила 3500 мс — штраф дописано на кінці; prizes — чи поставлено приз. */
+  function finishedWithPenalty(prizes: boolean) {
+    const ctx = setup(twoSingles({ awayPenalty: true }));
+    const olena = enter(ctx.manager, ctx.room, 'Олена');
+    const taras = enter(ctx.manager, ctx.room, 'Тарас');
+    if (prizes) {
+      const placed = { place: 1, id: '11111111-1111-4111-8111-111111111111', content: { name: 'Кубок', trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: null, diploma: false } } as const;
+      expect(ctx.manager.setPrizes(ctx.room, [placed])).toEqual({ ok: true });
+    }
+    ctx.manager.host(ctx.room, { type: 'start' });
+    ctx.manager.host(ctx.room, { type: 'next' });
+    ctx.manager.away(ctx.room, olena.playerId, true);
+    ctx.scheduler.advance(3500);
+    ctx.manager.away(ctx.room, olena.playerId, false, { ms: 3500 });
+    ctx.manager.answer(ctx.room, olena.playerId, right);
+    ctx.manager.answer(ctx.room, taras.playerId, right);
+    expect(ctx.manager.host(ctx.room, { type: 'end' })).toEqual({ ok: true });
+    expect(ctx.room.state.phase).toBe('finished');
+    const penalty = ctx.room.state.adjustments.find((a) => a.source === 'away');
+    expect(penalty).toMatchObject({ playerId: olena.playerId });
+    return { ...ctx, penalty: penalty! };
+  }
+
+  it('after the end of a prize game the penalty is final: prizes_final (14a)', () => {
+    const { manager, room, penalty } = finishedWithPenalty(true);
+    const before = room.state;
+    expect(manager.host(room, { type: 'undo', target: { seq: penalty.seq } })).toEqual({ ok: false, error: 'prizes_final' });
+    expect(room.state).toBe(before);
+  });
+
+  it('after the end of a game without prizes the penalty can still be undone', () => {
+    const { manager, room, penalty } = finishedWithPenalty(false);
+    expect(manager.host(room, { type: 'undo', target: { seq: penalty.seq } })).toEqual({ ok: true });
+  });
+
   it('autopilot: the same leave gives the penalty with no host, and the author cannot undo it', () => {
     const scheduler = new FakeScheduler();
     const manager = new RoomManager(scheduler, () => 0.5);

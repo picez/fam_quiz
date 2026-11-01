@@ -1962,6 +1962,7 @@ const uk = {
   err_partial_disabled: 'У цьому раунді часткова оцінка вимкнена.',
   err_not_found: 'Не знайдено.',
   err_already_undone: 'Ці бали вже скасовано.',
+  err_prizes_final: 'Призи вже вручено — результат зафіксовано.',
   err_autopilot_blocked: 'Цю вікторину бот провести не може.',
   err_no_players: 'Потрібен хоча б один гравець.',
   err_ladder_pick: 'Спершу виберіть учасника драбини.',

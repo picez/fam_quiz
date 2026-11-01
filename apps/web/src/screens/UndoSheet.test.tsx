@@ -130,6 +130,9 @@ describe('UndoButton', () => {
     send.mockResolvedValue({ ok: false, error: 'not_allowed' });
     await act(async () => fireEvent.click(rowButton(dialog, 'Оля +200')));
     expect(within(dialog).getByRole('alert').textContent).toBe('Ці бали скасувати не можна.');
+    send.mockResolvedValue({ ok: false, error: 'prizes_final' });
+    await act(async () => fireEvent.click(rowButton(dialog, 'Оля +200')));
+    expect(within(dialog).getByRole('alert').textContent).toBe('Призи вже вручено — результат зафіксовано.');
     send.mockResolvedValue({ ok: true });
     await act(async () => fireEvent.click(rowButton(dialog, 'Оля +200')));
     expect(within(dialog).queryByRole('alert')).toBeNull();
