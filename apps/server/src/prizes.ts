@@ -10,9 +10,9 @@ import {
   type PrizePlace,
   type Showcase,
 } from '@quiz/shared';
-import { and, count, desc, eq, gt, inArray, isNull, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, ne, not, notInArray, or, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { liveRoom, prize, prizeAward, userTitle } from './db/schema';
+import { game, liveRoom, prize, prizeAward, userTitle } from './db/schema';
 import type { RoomManager } from './rooms/manager';
 
 type Row = typeof prize.$inferSelect;
@@ -160,9 +160,30 @@ export async function releasePrizes(db: Db, gameId: string): Promise<void> {
     .where(and(eq(prize.status, 'reserved'), eq(prize.reservedGame, gameId)));
 }
 
-/** Старт сервера: reserved з reserved_game поза keep (і reserved без гри) → free; повертає, скільки повернуто. */
+/** Гра reserved_game лежить «Не завершеною» (13b): її резерв чекає на продовження. */
+const inSavedGame = sql`exists (select 1 from ${game} where ${game.id} = ${prize.reservedGame} and ${game.status} = 'saved')`;
+
+/** Резерви гри → free, якщо гра не 'saved' (збережену продовжують за ті самі призи). */
+export async function releaseUnsaved(db: Db, gameId: string): Promise<void> {
+  await db
+    .update(prize)
+    .set({ status: 'free', reservedGame: null, updatedAt: new Date() })
+    .where(and(eq(prize.status, 'reserved'), eq(prize.reservedGame, gameId), not(inSavedGame)));
+}
+
+/** id призів, що досі в резерві за грою. */
+export async function reservedFor(db: Db, gameId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: prize.id })
+    .from(prize)
+    .where(and(eq(prize.status, 'reserved'), eq(prize.reservedGame, gameId)));
+  return new Set(rows.map((row) => row.id));
+}
+
+/** Старт сервера: reserved з reserved_game поза keep і не за збереженою грою (і reserved без гри) → free; повертає, скільки повернуто. */
 export async function releaseStalePrizes(db: Db, keep: string[]): Promise<number> {
-  const stale = and(eq(prize.status, 'reserved'), keep.length === 0 ? sql`true` : or(isNull(prize.reservedGame), notInArray(prize.reservedGame, keep)));
+  const away = and(keep.length === 0 ? sql`true` : notInArray(prize.reservedGame, keep), not(inSavedGame));
+  const stale = and(eq(prize.status, 'reserved'), or(isNull(prize.reservedGame), away));
   const rows = await db
     .update(prize)
     .set({ status: 'free', reservedGame: null, updatedAt: new Date() })

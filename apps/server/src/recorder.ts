@@ -4,8 +4,10 @@ import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
+import { prizeOutcome } from './rooms/prizes';
 
 /** Транзакція бази. */
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -31,6 +33,13 @@ interface Snapshot {
   replaces: string | null;
   /** Точне продовження (13b): перший запис прибирає рядки після стану (trimToCheckpoint) — їх могло лишити продовження, що впало. */
   trim?: boolean;
+}
+
+/** Знімок запису рекордера: поза save ще й призи фінішу (14a). */
+interface RecordSnapshot extends Omit<Snapshot, 'fromQuestion' | 'trim'> {
+  /** Що дають місця (prizeOutcome) у finished — навіть [] (тоді awardPrizes повертає залишки резервів); поза finished — null. */
+  prizes: PrizeOutcome[] | null;
+  quizTitle: string;
 }
 
 /** Дебафи, побачені рекордером на відкритих запитаннях (12i): індекс запитання → гравець рушія → вид. */
@@ -508,6 +517,8 @@ export function attachRecorder(
   const debuffsSeen = new Map<string, DebuffsSeen>();
   /** Кімнати, чию завершену гру вже нагороджено ачівками (12i). */
   const awarded = new Set<string>();
+  /** Кімнати, чиї призи вже вручено (14a): повтор awardPrizes нічого б не змінив, але й не питаємо базу. */
+  const prized = new Set<string>();
   /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
   const sealed = new WeakSet<Room>();
   /** Кімната, що зараз веде кожен id (13b): точне продовження бере той самий id, що й збережена кімната. */
@@ -521,6 +532,7 @@ export function attachRecorder(
     for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen, current]) map.delete(roomId);
     closedRooms.delete(roomId);
     awarded.delete(roomId);
+    prized.delete(roomId);
     untrimmed.delete(roomId);
   };
 
@@ -536,6 +548,7 @@ export function attachRecorder(
     for (const map of [lastSignature, savedQuestions, failures, debuffsSeen]) map.delete(room.id);
     closedRooms.delete(room.id);
     awarded.delete(room.id);
+    prized.delete(room.id);
     if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
   };
 
@@ -566,7 +579,7 @@ export function attachRecorder(
     if (!startedAt.has(room.id)) startedAt.set(room.id, new Date());
 
     const closed = closedQuestions(state);
-    const snapshot = {
+    const snapshot: RecordSnapshot = {
       id: room.id,
       code: room.code,
       hostId,
@@ -576,6 +589,8 @@ export function attachRecorder(
       startedAt: startedAt.get(room.id) ?? new Date(),
       debuffs: debuffsSeen.get(room.id) ?? new Map(),
       replaces: room.continued?.replaces ?? null,
+      prizes: state.phase === 'finished' ? prizeOutcome(room) : null,
+      quizTitle: state.quiz.title,
     };
 
     const job = async () => {
@@ -590,6 +605,11 @@ export function attachRecorder(
       if (state.phase === 'finished' && !awarded.has(room.id)) {
         await awardGame(db, room.id, onError);
         awarded.add(room.id);
+      }
+      // Призи — після історії й ачівок (14a), у тій самій черзі й з тими самими повторами; повтор нічого не вручає двічі.
+      if (snapshot.prizes !== null && !prized.has(room.id)) {
+        await awardPrizes(db, { gameId: room.id, quizTitle: snapshot.quizTitle, at: new Date(), outcomes: snapshot.prizes });
+        prized.add(room.id);
       }
       failures.delete(room.id);
     };
@@ -652,6 +672,30 @@ export function attachRecorder(
     queues.set(room.id, queued);
   };
 
+  /** Кімнату закрито до фінішу (14a): резерви гри — на склад, крім гри, що лежить «Не завершеною»; та сама черга й повтори. */
+  const releaseLater = (room: Room) => {
+    const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
+      .then(async () => {
+        await releaseUnsaved(db, room.id);
+        failures.delete(room.id);
+      })
+      .catch((error) => {
+        onError(error);
+        const attempt = (failures.get(room.id) ?? 0) + 1;
+        failures.set(room.id, attempt);
+        if (attempt > maxRetries) {
+          failures.delete(room.id);
+          return;
+        }
+        const timer = setTimeout(() => releaseLater(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        timer.unref();
+      })
+      .then(() => {
+        if (closedRooms.has(room.id) && queues.get(room.id) === queued && !failures.has(room.id)) forget(room.id);
+      });
+    queues.set(room.id, queued);
+  };
+
   manager.onEvent((room, event) => {
     if (event.type === 'changed') {
       // Перехоплена кімната могла повернутися в цей процес: вона знову жива.
@@ -668,6 +712,9 @@ export function attachRecorder(
         // Збій попереднього запису більше не повторюється (sealed): його рядки пише збереження.
         failures.delete(room.id);
         persistSaved(room, event.saved);
+      } else if (event.type === 'closed' && room.state.phase !== 'finished' && room.hostUserId !== null) {
+        // Збережена гра (вище) лишає призи в резерві: продовження грає за них же.
+        releaseLater(room);
       }
       // Якщо останній запис не вдався, його повтор ще попереду; пам'ять звільнить він.
       if (failures.has(room.id)) return;

@@ -774,6 +774,8 @@ export class RoomManager {
     const room = this.open(continueFrom(saved.state, saved.at), hostUserId, saved.quizId, gameId);
     for (const [playerId, userId] of saved.playerUsers) room.playerUsers.set(playerId, userId);
     room.continued = { bound: new Set(), carry: null, replaces: null };
+    // Та сама гра — ті самі призи (14a): резерв за id гри лишився після збереження.
+    room.prizes = prizesOf(saved.prizes);
     room.tickedTo = this.now();
     let author: { token: string; playerId: string } | null = null;
     const authorId = room.state.autopilot?.authorId;
@@ -1779,6 +1781,7 @@ export class RoomManager {
       at: checkpoint.at,
       playerUsers: [...room.playerUsers].filter(([playerId]) => people.has(playerId)),
       quizId: room.quizId,
+      ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
     };
   }
 
