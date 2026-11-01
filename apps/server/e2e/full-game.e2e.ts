@@ -16403,13 +16403,14 @@ async function achievements12i() {
   const ownPage = async () => (await (await olya.request.get(`${base}/api/me/achievements`)).json()) as AchievementsPage;
   await expect.poll(async () => (await ownPage()).items.find((i) => i.id === 'fast_answer')?.earned, POLL).toBe(true);
 
-  // ── 3. Меню з п'ятьма пунктами. ──
+  // ── 3. Меню з шістьма пунктами (14a додав «Призи»). ──
   await olya.goto(base);
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
   expect((await olya.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual([
     'Приєднатися',
     'Мої вікторини',
     'Історія',
+    'Призи',
     'Досягнення',
     'Профіль',
   ]);

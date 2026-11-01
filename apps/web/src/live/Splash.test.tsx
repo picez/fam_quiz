@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CELL_SURPRISE_MS, SPLASH_MS, emptyBrief, type BoardInfo, type DuelInfo, type FinalInfo, type RoundInfo, type StageView } from '@quiz/shared';
 // Vitest підміняє CSS порожнім рядком (і з ?raw), тож стилі читаються з диска; типів node у вебі немає.
@@ -146,6 +147,25 @@ describe('Splash', () => {
     expect(container.querySelector('.splash')).not.toBeNull();
     lag.mockRestore();
     act(() => vi.advanceTimersByTime(1));
+    expect(container.querySelector('.splash')).toBeNull();
+  });
+
+  it('the clock ticking between the render and the effect does not leave the splash forever', () => {
+    // Рендер бачить 1 мс до кінця й показує шар; поки дійде до useEffect, годинник уже на until.
+    function Tick() {
+      useLayoutEffect(() => {
+        vi.setSystemTime(T + 1);
+      }, []);
+      return null;
+    }
+    const { container } = render(
+      <>
+        <Splash view={stage({ phase: 'question', questionIndex: 0, splash: { kind: 'question', at: T - 1799, until: T + 1 } })} offsetMs={0} size="stage" />
+        <Tick />
+      </>,
+    );
+    expect(container.querySelector('.splash')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(0));
     expect(container.querySelector('.splash')).toBeNull();
   });
 
