@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ACHIEVEMENTS, type OwnProfile } from '@quiz/shared';
+import { ACHIEVEMENTS, levelProgress, type OwnProfile } from '@quiz/shared';
 import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, searchProfiles, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
 import { Profile } from './Profile';
@@ -31,6 +31,7 @@ const mine: OwnProfile = {
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [] },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
 };
 
 beforeEach(() => {

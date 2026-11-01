@@ -12,6 +12,7 @@ import {
   type PublicProfile,
   type ProfileUpdate,
   type ProfileWin,
+  levelProgress,
 } from '@quiz/shared';
 import { and, asc, count, eq, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
@@ -209,6 +210,8 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     wins: facts.wins,
     friends: await friendsOf(db, current.id),
     showcase: await showcaseOf(db, current.id),
+    // Тимчасово (задача 1 плану 15a); справжній рівень — задача 6.
+    level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
   };
 }
 
@@ -218,7 +221,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id) };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: { level: 1, looks: { color: null, frame: null, badge: null } } };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

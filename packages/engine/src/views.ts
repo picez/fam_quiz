@@ -2106,6 +2106,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
       shop: null,
       duel: null,
       buffs: null,
+      perks: null,
       peekedBy: null,
       overtime: null,
       tip: null,
@@ -2267,6 +2268,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
+      perks: null,
       // Командна гра: зріз команди, тож сповіщення бачить уся команда-ціль.
       peekedBy: peekedBy(state, playerId),
       overtime: personalClock(state, playerId),
@@ -2342,7 +2344,7 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   const items = allowedDebuffs(state.quiz).map((kind) => ({ kind, price: debuffPrice(state.quiz, kind) }));
   const targets = state.players
     .filter((p) => p.id !== playerId && !ghostTarget(state, p.id))
-    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected }));
+    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected, warded: false }));
   if (items.length === 0 || targets.length === 0) return null;
   return { items, targets, block: shopBlock(state, playerId) };
 }

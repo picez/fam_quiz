@@ -69,7 +69,7 @@ export const ACHIEVEMENT_INFO: Record<AchievementId, { group: AchievementGroup; 
 };
 
 /** Скільки останніх значків показує профіль. */
-export const PROFILE_BADGES = 8;
+export const PROFILE_STRIP_BADGES = 8;
 
 /** Ачівка в профілі: earnedAt — ISO-мить отримання; null — не отримано або отримано «давно» (до 12i). */
 export interface Achievement {

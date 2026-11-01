@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
-import { PROFILE_BADGES, type Achievement } from '@quiz/shared';
+import { PROFILE_STRIP_BADGES, type Achievement } from '@quiz/shared';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
 import { recentBadges } from '../achievements';
 import { t, type TextKey } from '../i18n';
 
-/** Останні PROFILE_BADGES отриманих значків і посилання на сторінку ачівок (to). */
+/** Останні PROFILE_STRIP_BADGES отриманих значків і посилання на сторінку ачівок (to). */
 export function AchievementStrip({ achievements, to }: { achievements: Achievement[]; to: string }) {
   const earned = recentBadges(achievements);
-  const shown = earned.slice(0, PROFILE_BADGES);
+  const shown = earned.slice(0, PROFILE_STRIP_BADGES);
   const rest = earned.length - shown.length;
   return (
     <>

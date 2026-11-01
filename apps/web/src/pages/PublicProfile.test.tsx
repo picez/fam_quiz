@@ -16,6 +16,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
   showcase: { title: null, awards: [] },
+  level: { level: 1, looks: { color: null, frame: null, badge: null } },
   ...over,
 });
 

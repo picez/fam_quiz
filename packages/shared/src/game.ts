@@ -93,6 +93,12 @@ export const SORT_TILT_GAP_MS = 80;
 export type ShopBlock = 'phase' | 'paused' | 'bought';
 
 export type ErrorCode =
+  /** Бонус рівня вже використано (15a). */
+  | 'perk_used'
+  /** Бонус рівня тут не діє (15a). */
+  | 'perk_unfit'
+  /** Стікер ще закритий рівнем (15a). */
+  | 'sticker_locked'
   | 'wrong_phase'
   | 'paused'
   | 'not_found'

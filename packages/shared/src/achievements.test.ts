@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS, ACHIEVEMENT_INFO, PROFILE_BADGES } from './achievements';
+import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS, ACHIEVEMENT_INFO, PROFILE_STRIP_BADGES } from './achievements';
 import { QUESTION_TYPES, ROUND_TYPES } from './quiz';
 
 describe('the achievements catalog', () => {
@@ -32,6 +32,6 @@ describe('the achievements catalog', () => {
   });
 
   it('shows 8 badges in a profile', () => {
-    expect(PROFILE_BADGES).toBe(8);
+    expect(PROFILE_STRIP_BADGES).toBe(8);
   });
 });

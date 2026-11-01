@@ -27,8 +27,8 @@ const shop: PlayerShop = {
     { kind: 'mud', price: 300 },
   ],
   targets: [
-    { playerId: 'p2', nickname: 'Петро', busy: false, offline: false },
-    { playerId: 'p3', nickname: 'Іра', busy: true, offline: false },
+    { playerId: 'p2', nickname: 'Петро', busy: false, offline: false, warded: false },
+    { playerId: 'p3', nickname: 'Іра', busy: true, offline: false, warded: false },
   ],
   block: null,
 };
@@ -81,7 +81,7 @@ describe('DebuffShop', () => {
   });
 
   it('an offline rival is shown as «Не в грі» and cannot be picked', () => {
-    const away: PlayerShop = { ...shop, targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: true }] };
+    const away: PlayerShop = { ...shop, targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: true, warded: false }] };
     render(<DebuffShop shop={away} score={250} send={okSend()} onError={vi.fn()} />);
     fireEvent.click(button('Дебафи'));
     fireEvent.click(button(/Туман/));

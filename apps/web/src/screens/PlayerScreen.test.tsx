@@ -37,7 +37,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, perks: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -2127,7 +2127,7 @@ describe('PlayerScreen: table and menu', () => {
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
     cleanup();
-    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false }], block: null };
+    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false, warded: false }], block: null };
     const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, debuffNotice, me: { ...me, shop } }));
     const header = document.querySelector('header.bar')!;
@@ -3223,7 +3223,7 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
   const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
   const olya = { answererId: 'u3', answerer: false, answererMode: 'chosen' as const, canAct: false };
   const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null, peekable: [] } as unknown as PlayerView['me']['buffs'];
-  const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false }], block: null };
+  const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false, warded: false }], block: null };
 
   it('the answerer reads «Ти відповідаєш за команду» above the question and has the answer field', () => {
     show(asQuestion(petro));

@@ -8,6 +8,7 @@ import { LIFELINES, LIMITS } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
 import type { Reaction, ReactionItem } from './reactions';
+import { perkSchema } from './levels';
 import { ANSWERER_SCOPES, TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -298,6 +299,8 @@ export interface ClientToServerEvents {
   'host:awards': (ack: Ack) => void;
   /** Реакція (13a): швидке емодзі чи стікер; лише між запитаннями, не частіше ніж раз на REACTION_GAP_MS. */
   'player:react': (payload: ReactionItem, ack: Ack) => void;
+  /** Бонус рівня (15a): «+5 с» чи «Підказка рівня». */
+  'player:perk': (payload: z.infer<typeof perkSchema>, ack: Ack) => void;
   /** Реакція ведучого (13a): лише справжній пульт. */
   'host:react': (payload: ReactionItem, ack: Ack) => void;
 }
