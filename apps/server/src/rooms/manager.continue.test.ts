@@ -276,6 +276,40 @@ describe('freeing a slot (13b)', () => {
     expect(manager.host(room, { type: 'release', playerId: '00000000-0000-4000-8000-000000000000' })).toEqual({ ok: false, error: 'not_found' });
   });
 
+  it('a freed place does not hand the occupant’s away time to the next one (12e)', () => {
+    const ctx = continued();
+    const { manager, room } = ctx;
+    manager.connect(room, HOST);
+    const first = manager.claim(room.code, ctx.taras, null);
+    if (!first.ok) throw new Error('claim');
+    manager.connect(room, { role: 'player', playerId: ctx.taras });
+    expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    ctx.scheduler.advance(2_000);
+    expect(manager.away(room, ctx.taras, true)).toEqual({ ok: true });
+    expect(room.hidden.has(ctx.taras)).toBe(true);
+    expect(room.awayCredit.has(ctx.taras)).toBe(true);
+    expect(room.state.plays[room.state.questionIndex].away?.[ctx.taras]).toBeDefined();
+    // Хто звільнив, той і відключається; до звільнення ще й розрив.
+    manager.disconnect(room, { role: 'player', playerId: ctx.taras });
+    expect(room.gaps.has(ctx.taras)).toBe(true);
+    expect(manager.host(room, { type: 'release', playerId: ctx.taras })).toEqual({ ok: true });
+    expect(room.hidden.has(ctx.taras)).toBe(false);
+    expect(room.gaps.has(ctx.taras)).toBe(false);
+    expect(room.awayCredit.has(ctx.taras)).toBe(false);
+    expect(room.state.plays[room.state.questionIndex].away?.[ctx.taras]).toBeUndefined();
+
+    // Наступний займає місце, сторінка не ховається: штрафу немає.
+    const second = manager.claim(room.code, ctx.taras, null);
+    if (!second.ok) throw new Error('claim again');
+    manager.connect(room, { role: 'player', playerId: ctx.taras });
+    ctx.scheduler.advance(10_000);
+    expect(room.state.plays[room.state.questionIndex].away?.[ctx.taras]).toBeUndefined();
+    expect(manager.away(room, ctx.taras, false)).toEqual({ ok: true });
+    expect(room.state.plays[room.state.questionIndex].away?.[ctx.taras]?.ms ?? 0).toBe(0);
+  });
+
   it('in an ordinary room freeing is not allowed', () => {
     const w = world();
     const room = w.manager.create(quiz(), 'u1', null);

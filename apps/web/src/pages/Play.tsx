@@ -149,6 +149,8 @@ export function Play() {
   const { code = '' } = useParams();
   const [token, setToken] = useState<string | null>(() => loadPlayer(code));
   const [notice, setNotice] = useState<string | null>(null);
+  // Гру збережено (13b): форми входу немає — коду, за яким вона була, вже не існує; продовження матиме новий код.
+  const [saved, setSaved] = useState(false);
   const auth = useMemo<SocketAuth | null>(() => (token === null ? null : { code, role: 'player', token }), [code, token]);
   const game = useGame(auth);
   // Антигугл (12e): телефон гравця каже серверу, коли виходить із гри й повертається.
@@ -165,6 +167,7 @@ export function Play() {
   useEffect(() => {
     if (!lost) return;
     setNotice(t(lostText(game.closed, wasAutopilot.current)));
+    setSaved(game.closed === 'saved');
     clearPlayer(code);
     clearAuthor(code);
     setToken(null);
@@ -172,6 +175,20 @@ export function Play() {
 
   const author = loadAuthor(code);
   const stageUrl = author === null ? null : `${window.location.origin}/stage/${code}#${author.stageToken}`;
+
+  if (token === null && saved) {
+    return (
+      <div className="with-menu">
+        <Menu />
+        <main className="app narrow">
+          <p className="lead">{t('gameSaved')}</p>
+          <Link className="btn btn-primary" to="/">
+            {t('joinTitle')}
+          </Link>
+        </main>
+      </div>
+    );
+  }
 
   if (token === null) {
     return (

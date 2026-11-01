@@ -174,6 +174,8 @@ beforeAll(async () => {
 
 /** Поки сервер перезапускається, браузер журналює невдалі спроби WebSocket: це очікувано. */
 let restarting = false;
+/** Лише частини 13b і 9b (їхні сценарії ставлять і знімають): тихий 404 на /slots для коду, якого вже немає, там очікуваний. */
+let slots404Expected = false;
 
 /** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
 async function restart(between?: () => Promise<void>) {
@@ -245,11 +247,11 @@ async function open(name: string, width: number, height: number, options: { redu
   page.on('pageerror', (error) => problems.push(`${name}: ${error.message} @ ${page.url()}`));
   page.on('console', (message) => {
     // Відвідувач без акаунта отримує 401 на запит «хто я»: це очікувана відповідь, а не збій.
-    // Форма входу (13b) питає місця збереженої гри й для коду, якого вже немає: тихий 404 на /slots теж очікуваний.
+    // Частина 13b: форма входу питає місця збереженої гри й для коду, якого вже немає, — тихий 404 на /slots очікуваний лише там.
     const expected =
       message.text().includes('401 (Unauthorized)') ||
       (restarting && message.text().includes('WebSocket connection to')) ||
-      (message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
+      (slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
   page.on('dialog', (dialog) => void dialog.accept());
@@ -6386,11 +6388,15 @@ async function afterThirdGame() {
 }
 
 it('part 9b: the server restarts in the middle of a question — the phones, the stage and the host show «Сервер перезапускається…», come back to a paused question with the answers kept, the host resumes and the game finishes into the history', async () => {
+  // Крок 7: телефон на формі входу для коду, якого сервер не знає, тихо питає /slots — 404 там очікуваний.
+  slots404Expected = true;
   try {
     await restartGame();
   } catch (error) {
     await snapshot();
     throw error;
+  } finally {
+    slots404Expected = false;
   }
   // Два перезапуски й ціла гра: довше за типові 180 с на повільній машині.
 }, 300_000);
@@ -17008,7 +17014,7 @@ async function savedGames13b() {
   await savedCard.getByRole('button', { name: 'Продовжити', ...exact }).click();
   await host.waitForURL(/\/host\/\d{6}$/);
   const next = host.url().slice(-6);
-  expect(next, 'the continuation reuses the old code').not.toBe(code);
+  expect(next, 'the continuation opens a NEW code').not.toBe(code);
   await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
   const games = (await (await host.request.get(`${base}/api/games`)).json()) as { title: string; saved?: { open: boolean } }[];
   const listed = games.filter((game) => game.title === TITLE);
@@ -17106,10 +17112,13 @@ async function savedGames13b() {
 }
 
 it('part 13b: saved games — the host saves in the middle of question 2 and every screen says «Гру збережено — продовжимо пізніше»; «Історія ігор» lists it as «Не завершена»; «Продовжити» opens a new code where the signed-in Оля comes back by herself with her 100 points, Петро picks himself from «Хто ти?» and Ірина joins as a new player with 0; question 2 starts afresh, the game finishes, and the history shows one finished game', async () => {
+  slots404Expected = true;
   try {
     await savedGames13b();
   } catch (error) {
     await snapshot();
     throw error;
+  } finally {
+    slots404Expected = false;
   }
 });

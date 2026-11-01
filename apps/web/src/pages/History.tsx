@@ -4,7 +4,7 @@ import type { GameSummary, SavedInfo } from '@quiz/shared';
 import { continueGame, deleteSavedGame, listGames } from '../api';
 import { formatDate } from '../format';
 import { errorText, t } from '../i18n';
-import { saveAuthor, saveHost, saveLastGame, savePlayer } from '../storage';
+import { loadAuthor, loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame, savePlayer } from '../storage';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
 
@@ -31,12 +31,21 @@ function savedNote(saved: SavedInfo): string | null {
   return null;
 }
 
+/** Куди повернутися до відкритого продовження: код — останньої гри цього браузера, якщо ключі її пульта чи автора ще тут; інакше null. */
+function returnPath(): string | null {
+  const code = loadLastGame();
+  if (code === null) return null;
+  if (loadHost(code) !== null) return `/host/${code}`;
+  return loadAuthor(code) !== null ? `/play/${code}` : null;
+}
+
 /** Збережена гра (13b): «Продовжити» відкриває кімнату з новим кодом, «Видалити» прибирає запис. */
 function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: SavedInfo; onDeleted: () => void }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const note = savedNote(saved);
+  const back = saved.open ? returnPath() : null;
 
   const resume = async () => {
     setBusy(true);
@@ -70,6 +79,11 @@ function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: Saved
       <p className="saved-mark">{t('savedMark')}</p>
       <GameFacts game={game} />
       {note !== null && <p className="meta">{note}</p>}
+      {back !== null && (
+        <Link className="quiet-link" to={back}>
+          {t('savedBackToGame')}
+        </Link>
+      )}
       <div className="saved-actions">
         <button type="button" className="btn btn-primary" disabled={busy || saved.open || saved.mode === 'blocked'} onClick={() => void resume()}>
           {t('continueGame')}

@@ -245,6 +245,8 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     if (mode === 'exact') {
       const saved = found.data as SavedGameData;
       await trimToCheckpoint(db, row.id, saved.state);
+      // Поки обрізали, гру могли видалити чи завершити: тоді нічого не відкриваємо.
+      if ((await ownSaved(row.id, user.id)) === null) return reply.code(404).send(NOT_FOUND);
       result = manager.continueSaved(row.id, user.id, saved);
     } else {
       const quiz = snapshotOf(row.quizSnapshot);
@@ -273,6 +275,8 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     const found = await ownSaved(request.params.id, user.id);
     if (found === null) return reply.code(404).send(NOT_FOUND);
     if ((await openGameIds(db, manager)).has(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
+    // Перевірка вище чекала на базу: продовження могли відкрити за цей час — звіряємося ще раз без очікування перед самим видаленням.
+    if (manager.openFor(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
     await db.delete(game).where(and(eq(game.id, found.game.id), eq(game.status, 'saved')));
     return reply.code(200).send({});
   });

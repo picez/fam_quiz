@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
 import type { ContinueResponse, GameSummary, SlotsResponse } from '@quiz/shared';
@@ -10,6 +10,19 @@ import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 import { toEnd, toQuestion } from './testing/team-game';
 import { isSavedGameData } from './rooms/continuation';
+
+// Підміна лише для тесту «гонки» продовження: за замовчуванням справжній trimToCheckpoint.
+const trimHook = vi.hoisted(() => ({ after: null as null | (() => Promise<void>) }));
+vi.mock('./recorder', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./recorder')>();
+  return {
+    ...original,
+    trimToCheckpoint: async (...args: Parameters<typeof original.trimToCheckpoint>) => {
+      await original.trimToCheckpoint(...args);
+      await trimHook.after?.();
+    },
+  };
+});
 
 const quizOf = () =>
   makeRoundsQuiz([
@@ -111,6 +124,40 @@ describe('POST /api/games/:id/continue and DELETE', () => {
     const del = await call('DELETE', `/api/games/${saved.gameId}`, owner.cookie);
     expect(del.statusCode).toBe(409);
     expect(del.json()).toEqual({ error: 'continue_open' });
+  });
+
+  it('a delete is refused when a continuation opens between the first check and the delete', async () => {
+    const owner = await account('Ведуча');
+    const saved = await makeSaved(owner);
+    const [row] = await db.select().from(savedGame).where(eq(savedGame.gameId, saved.gameId));
+    const real = ctx.manager.rooms.bind(ctx.manager);
+    // Перша перевірка бачить порожньо, а продовження відкривається, поки вона йшла.
+    const spy = vi.spyOn(ctx.manager, 'rooms').mockImplementationOnce(() => {
+      const opened = ctx.manager.continueSaved(saved.gameId, 'ignored', row.data as never);
+      expect(opened.ok).toBe(true);
+      return [];
+    });
+    const del = await call('DELETE', `/api/games/${saved.gameId}`, owner.cookie);
+    spy.mockRestore();
+    expect(real().some((r) => r.id === saved.gameId)).toBe(true);
+    expect(del.statusCode).toBe(409);
+    expect(del.json()).toEqual({ error: 'continue_open' });
+    expect(await db.select().from(game).where(eq(game.id, saved.gameId))).toHaveLength(1);
+  });
+
+  it('a continue bails with 404 and opens nothing when the game stopped being saved while its answers were trimmed', async () => {
+    const owner = await account('Ведуча');
+    const saved = await makeSaved(owner);
+    trimHook.after = async () => {
+      await db.update(game).set({ status: 'finished', finishedAt: new Date() }).where(eq(game.id, saved.gameId));
+    };
+    try {
+      const res = await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie);
+      expect(res.statusCode).toBe(404);
+    } finally {
+      trimHook.after = null;
+    }
+    expect(ctx.manager.openFor(saved.gameId)).toBe(false);
   });
 
   it('refuses a stranger, a game that is not saved, a bad id and a missing session', async () => {

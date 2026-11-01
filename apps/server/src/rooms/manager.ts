@@ -870,8 +870,22 @@ export class RoomManager {
     // Прив'язка зі збереження лишається: місце акаунта — і далі його.
     if (continued.bound.delete(personId)) room.playerUsers.delete(personId);
     this.emit(room, { type: 'kicked', playerId: personId, reason: 'released' });
-    const offline = setConnected(room.state, personId, false, this.now());
-    this.commit(room, offline.ok ? offline.state : room.state);
+    // Антигугл (12e): вихід, що тривав у того, хто звільнив місце, не дістається наступному — ні в пам'яті менеджера, ні в записі запитання.
+    room.hidden.delete(personId);
+    room.gaps.delete(personId);
+    room.awayCredit.delete(personId);
+    room.awayRate.delete(personId);
+    let base = room.state;
+    const play = base.plays[base.questionIndex];
+    // Лише соло: запис команди спільний для всіх її людей.
+    if (play?.away?.[personId] !== undefined && awayParticipant(base, personId) === personId) {
+      const { [personId]: _dropped, ...rest } = play.away;
+      const plays = [...base.plays];
+      plays[base.questionIndex] = { ...play, away: rest };
+      base = { ...base, plays };
+    }
+    const offline = setConnected(base, personId, false, this.now());
+    this.commit(room, offline.ok ? offline.state : base);
     return { ok: true };
   }
 

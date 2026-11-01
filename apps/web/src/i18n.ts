@@ -1310,6 +1310,7 @@ const uk = {
   savedRestartNote: 'Продовжиться з початку раунду (оновлення застосунку)',
   savedBlocked: 'Не можна продовжити',
   savedOpen: 'Продовження вже відкрите',
+  savedBackToGame: 'Повернутися до гри',
   continueGame: 'Продовжити',
   deleteSaved: 'Видалити',
   deleteSavedConfirm: 'Видалити збережену гру «{title}»? Повернути її не вийде.',

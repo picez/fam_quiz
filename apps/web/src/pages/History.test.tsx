@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
-import { loadAuthor, loadHost, loadLastGame, loadPlayer } from '../storage';
+import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveHost, saveLastGame } from '../storage';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
 
@@ -1136,6 +1136,20 @@ describe('History: unfinished games (13b)', () => {
     expect(within(opened).getByText('Продовження вже відкрите')).toBeTruthy();
     expect(within(opened).getByRole('button', { name: 'Продовжити' }).hasAttribute('disabled')).toBe(true);
     expect(within(opened).getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('an open continuation links back to the host console when its tokens are still here; without them only the text', async () => {
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(within(savedItem()).queryByRole('link', { name: 'Повернутися до гри' })).toBeNull();
+    expect(within(savedItem()).getByText('Продовження вже відкрите')).toBeTruthy();
+    cleanup();
+    saveLastGame('654321');
+    saveHost('654321', { hostToken: 'h', stageToken: 's' });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(within(savedItem()).getByRole('link', { name: 'Повернутися до гри' }).getAttribute('href')).toBe('/host/654321');
   });
 
   it('«Продовжити» of a hosted game opens the console with the new tokens', async () => {

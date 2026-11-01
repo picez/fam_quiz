@@ -337,8 +337,15 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
     savePlayer('123456', 'old-token');
     open();
     act(() => sockets[0].fire('closed', 'saved'));
-    expect(await screen.findByText('Гру збережено — продовжимо пізніше.')).toBeTruthy();
+    const lead = await screen.findByText('Гру збережено — продовжимо пізніше.');
+    expect(lead.className).toBe('lead');
     expect(loadPlayer('123456')).toBeNull();
+    // Не форма входу: ні поля імені, ні «Увійти в гру», ні помилки; місця не читаються.
+    expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Увійти в гру' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Приєднатися до гри' }).getAttribute('href')).toBe('/');
+    expect(gameSlots).not.toHaveBeenCalled();
   });
 
   it('a released place asks the player to choose again', async () => {
