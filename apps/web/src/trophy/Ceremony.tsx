@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
-import { CEREMONY_MS, type Phase, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
+import { CEREMONY_MS, type Phase, type PrizeShown, type PrizesView } from '@quiz/shared';
 import { t } from '../i18n';
 import { reducedMotion } from '../motion';
 import { TrophyView } from './TrophyView';
-import { ceremonyOrder } from './trophy-meta';
+import { ceremonyOrder, podiumColumns, titleBadge } from './trophy-meta';
 
-/** Стовпці подіуму зліва направо: 2 — 1 — 3. */
-const COLUMNS: PrizePlace[] = [2, 1, 3];
 const CONFETTI = 24;
 const CONFETTI_COLORS = ['#E8B84A', '#F2545B', '#4FC3F7', '#7ED957', '#C9CED6', '#B794F6'];
 
@@ -37,7 +35,7 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
             <span>{content.real.text}</span>
           </div>
         )}
-        {content.title && <p className="podium-title">{`👑 ${content.title}`}</p>}
+        {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
       </div>
       <div className="podium-step" aria-hidden="true">
         {place}
@@ -50,6 +48,8 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
 export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void }): JSX.Element {
   const order = ceremonyOrder(prizes);
   const total = order.length;
+  // Стовпці зліва направо 2 — 1 — 3, лише місця церемонії: подіум без третього місця не з'їжджає вбік.
+  const columns = podiumColumns(order);
   // Менше руху: читається раз на церемонію, щоб посеред показу вона не перескакувала.
   const [calm] = useState(reducedMotion);
   // Скільки місць уже відкрито (з кінця черги 3 → 2 → 1).
@@ -85,8 +85,8 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
   return (
     <section className={`ceremony is-${size}`} aria-label={t('ceremonyTitle')}>
       <p className="meta ceremony-title">{t('ceremonyTitle')}</p>
-      <div className="podium" aria-live="polite">
-        {COLUMNS.map((place) => {
+      <div className="podium" aria-live="polite" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0,1fr))` }}>
+        {columns.map((place) => {
           const shown = open.find((item) => item.place === place);
           const classes = ['podium-col', `is-place-${place}`, shown ? 'is-shown' : '', place === now ? 'is-now' : ''].filter(Boolean).join(' ');
           return (

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import type { PrizesView, StageView, PlayerView } from '@quiz/shared';
 import { t } from '../i18n';
-import { TROPHY_EMOJI, prizeSummary, trophyLabel } from '../trophy/trophy-meta';
+import { TROPHY_EMOJI, prizeSummary, titleBadge, trophyLabel } from '../trophy/trophy-meta';
 
 /** «Граємо за»: сцена — блок із рядком на місце (без 3D), телефон — один рядок. */
 export function PlayingFor({ prizes, size }: { prizes: PrizesView; size: 'stage' | 'phone' }) {
@@ -16,7 +16,7 @@ export function PlayingFor({ prizes, size }: { prizes: PrizesView; size: 'stage'
             <span className="rank">{place}</span>
             {content.trophy && <span>{`${TROPHY_EMOJI[content.trophy.kind]} ${trophyLabel(content.trophy)}`}</span>}
             {content.real && <span>{content.real.text}</span>}
-            {content.title && <span>{`👑 ${content.title}`}</span>}
+            {content.title && <span>{titleBadge(content.title)}</span>}
             {!content.trophy && !content.real && !content.title && <span>{prizeSummary(content)}</span>}
           </li>
         ))}

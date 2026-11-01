@@ -4,6 +4,7 @@ import { checkCode } from '../api';
 import { t } from '../i18n';
 import { diplomaFileName, renderDiploma, shareDiploma } from '../trophy/diploma';
 import { TrophyView } from '../trophy/TrophyView';
+import { titleBadge } from '../trophy/trophy-meta';
 
 /** Телефон у finished: «Твій приз» для prizes.mine; кнопка «Диплом» — якщо content.diploma; гість — «Ти граєш як гість: у вітрину приз не потрапить.». */
 export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; nickname: string; quizTitle: string }): JSX.Element | null {
@@ -39,7 +40,7 @@ export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; n
           <span>{`🎁 ${content.real.text}`}</span>
         </div>
       )}
-      {content.title && <p className="podium-title">{`👑 ${content.title}`}</p>}
+      {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
       {!mine.account && <p className="meta">{t('myPrizeGuest')}</p>}
       {content.diploma && (
         <button type="button" className="btn" disabled={busy} onClick={() => void diploma()}>

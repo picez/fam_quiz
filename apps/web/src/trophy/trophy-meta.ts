@@ -1,4 +1,4 @@
-import type { PrizeContent, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 
 /** Значок трофея: запасний вигляд без WebGL, «Граємо за», диплом. */
@@ -49,4 +49,14 @@ export function ceremonyOrder(prizes: PrizesView | undefined): (PrizeShown & { w
   return prizes.places
     .filter((shown): shown is PrizeShown & { winner: NonNullable<PrizeShown['winner']> } => shown.winner !== null)
     .sort((a, b) => b.place - a.place);
+}
+
+/** Титул зі значком: 👑 попереду, лише якщо титул сам не починається з емодзі («👑 Король» не стане «👑 👑 Король»). */
+export function titleBadge(text: string): string {
+  return /^\p{Extended_Pictographic}/u.test(text) ? text : `👑 ${text}`;
+}
+
+/** Порядок стовпців подіуму зліва направо: 2 — 1 — 3, лише місця, що є в черзі церемонії. */
+export function podiumColumns(order: readonly { place: PrizePlace }[]): PrizePlace[] {
+  return ([2, 1, 3] as const).filter((place) => order.some((item) => item.place === place));
 }

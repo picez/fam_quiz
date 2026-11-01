@@ -55,6 +55,13 @@ describe('MyPrize', () => {
     expect(share).toHaveBeenCalledWith(blob, 'dyplom-Оля.png');
   });
 
+  it('a title that starts with an emoji gets no second crown', () => {
+    const view = prizes(true);
+    const crowned: PrizesView = { ...view, places: [{ ...view.places[0]!, content: { ...view.places[0]!.content, title: '👑 Король' } }] };
+    const { container } = render(<MyPrize prizes={crowned} nickname="Оля" quizTitle="Вікторина" />);
+    expect(container.querySelector('.podium-title')!.textContent).toBe('👑 Король');
+  });
+
   it('the button is off while the diploma is made and a failure says so', async () => {
     let fail: (error: Error) => void = () => {};
     render$.mockReturnValue(new Promise((_, reject) => (fail = reject)));

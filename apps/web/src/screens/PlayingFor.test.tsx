@@ -25,6 +25,13 @@ describe('PlayingFor', () => {
     expect(container.querySelector('model-viewer')).toBeNull();
   });
 
+  it('stage: a title that starts with an emoji gets no second crown', () => {
+    const crowned: PrizesView = { mine: null, places: [{ ...prizes.places[1]!, content: { ...prizes.places[1]!.content, title: '👑 Король' } }] };
+    render(<PlayingFor prizes={crowned} size="stage" />);
+    expect(screen.getByText('👑 Король')).toBeTruthy();
+    expect(screen.queryByText('👑 👑 Король')).toBeNull();
+  });
+
   it('phone: one line with the summaries', () => {
     render(<PlayingFor prizes={prizes} size="phone" />);
     expect(screen.getByText('Граємо за: 🏆 Золотий кубок · 🎁 Піца 🍕 · 🎗️ Титул «Король вікторини»')).toBeTruthy();

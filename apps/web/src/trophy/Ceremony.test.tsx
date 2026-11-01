@@ -98,7 +98,28 @@ describe('Ceremony', () => {
     const gap: PrizesView = { mine: null, places: [three.places[0]!, three.places[1]!, { ...three.places[2]!, winner: null }] };
     render(<Ceremony prizes={gap} size="stage" hold={false} onDone={vi.fn()} />);
     expect(shown()).toEqual([2]);
-    expect(column(3).textContent).toBe('');
+    expect(column(3)).toBeNull();
+  });
+
+  it('builds the podium from the places of the ceremony only: {1, 2} gives 2 — 1 in two columns, {1} one column', () => {
+    const columns = () => [...document.querySelectorAll('.podium-col')].map((col) => Number((col as HTMLElement).dataset.place));
+    const grid = () => (document.querySelector('.podium') as HTMLElement).style.gridTemplateColumns;
+    const two: PrizesView = { mine: null, places: [three.places[0]!, three.places[1]!] };
+    const { unmount } = render(<Ceremony prizes={two} size="stage" hold={false} onDone={vi.fn()} />);
+    // До першого відкриття стовпці вже стоять: шлях не стрибає, коли місця з'являються.
+    expect(columns()).toEqual([2, 1]);
+    expect(grid()).toBe('repeat(2, minmax(0,1fr))');
+    unmount();
+    render(<Ceremony prizes={{ mine: null, places: [three.places[0]!] }} size="phone" hold={false} onDone={vi.fn()} />);
+    expect(columns()).toEqual([1]);
+    expect(grid()).toBe('repeat(1, minmax(0,1fr))');
+  });
+
+  it('never doubles the crown of a title that starts with an emoji', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
+    const crowned: PrizesView = { mine: null, places: [{ ...three.places[0]!, content: content({ title: '👑 Король' }) }] };
+    render(<Ceremony prizes={crowned} size="stage" hold={false} onDone={vi.fn()} />);
+    expect(column(1).querySelector('.podium-title')!.textContent).toBe('👑 Король');
   });
 
   it('under reduced motion shows everything at once, no confetti and no current step', () => {
