@@ -12591,3 +12591,77 @@ button.wall-tile:disabled {
 .reaction-star[aria-pressed='true'] {
   color: var(--amber);
 }
+
+/* ---------- Збережені ігри (13b) ---------- */
+
+.saved-games {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.panel.is-saved {
+  border-color: var(--amber);
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+
+.saved-mark {
+  color: var(--amber);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8125rem;
+}
+
+.saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.saved-actions .btn {
+  flex: 1 1 9rem;
+}
+
+/* «Хто ти?» у формі входу: радіо в стовпчик, довгий нік переноситься, а не розпирає телефон. */
+.slot-list {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.slot-list legend {
+  margin-bottom: 0.5rem;
+  font-family: var(--display);
+  font-size: 1.125rem;
+}
+
+.slot-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.slot-option:has(input:checked) {
+  border-color: var(--amber);
+}
+
+.slot-option input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--amber);
+}
+
+.slot-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

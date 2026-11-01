@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { AchievementsPage, AutopilotCheck, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, Versus } from '@quiz/shared';
+import type { AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -138,6 +138,12 @@ export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);
 export const myHistory = () => fetchData<PlayedGame[]>('/api/me/history');
+/** «Продовжити» збережену гру (13b): нова кімната; ведучий отримує пульт і сцену, автор автопілота — сцену й свій токен гравця. */
+export const continueGame = (id: string) => request<ContinueResponse>(`/api/games/${encodeURIComponent(id)}/continue`, { body: {} });
+export const deleteSavedGame = (id: string) => request<object>(`/api/games/${encodeURIComponent(id)}`, { method: 'DELETE' });
+/** Вільні місця збереженої гри для форми входу й місце акаунта того, хто питає (13b). */
+export const gameSlots = (code: string) => fetchData<SlotsResponse>(`${gameUrl(code)}/slots`);
+export const claimSlot = (code: string, slotId: string) => request<{ token: string; playerId: string }>(`${gameUrl(code)}/claim`, { body: { slotId } });
 
 export const getMyProfile = () => fetchData<OwnProfile>('/api/me/profile');
 export const getMyCard = () => fetchData<ProfileCard>('/api/me/card');
