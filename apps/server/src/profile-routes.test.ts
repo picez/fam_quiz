@@ -4,6 +4,7 @@ import { makeQuiz, single } from '@quiz/engine/testing';
 import { STICKERS } from '@quiz/shared';
 import { buildApp } from './app';
 import { follow, profile, user } from './db/schema';
+import { awardPrizes, createPrize, reservePlaces } from './prizes';
 import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -321,5 +322,26 @@ describe('favorite stickers (13a)', () => {
 
   it('are separate for each player', async () => {
     expect((await request('GET', '/api/me/stickers', taras.cookie)).json()).toEqual({ favorites: [] });
+  });
+});
+
+describe('showcase in profiles (14a)', () => {
+  it('is empty at first and carries an award and the current title after awardPrizes', async () => {
+    const empty = { title: null, awards: [] };
+    expect((await request('GET', `/api/profiles/${tarasId}`)).json().showcase).toEqual(empty);
+    expect((await request('GET', '/api/me/profile', taras.cookie)).json().showcase).toEqual(empty);
+
+    const gameId = '00000000-0000-4000-8000-0000000000aa';
+    const made = await createPrize(db, olenaId, { name: 'Кубок', trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: 'Знавець', diploma: false });
+    if (!made.ok) throw new Error('create failed');
+    await reservePlaces(db, olenaId, gameId, [made.prize.id, null, null]);
+    await awardPrizes(db, { gameId, quizTitle: 'Україна', at: new Date(), outcomes: [{ place: 1, prizeId: made.prize.id, winners: [{ userId: tarasId, nickname: 'Тарас' }] }] });
+
+    for (const body of [(await request('GET', `/api/profiles/${tarasId}`)).json(), (await request('GET', '/api/me/profile', taras.cookie)).json()]) {
+      expect(body.showcase.title).toMatchObject({ text: 'Знавець' });
+      expect(body.showcase.awards).toHaveLength(1);
+      expect(body.showcase.awards[0]).toMatchObject({ place: 1, quizTitle: 'Україна', nickname: 'Тарас' });
+      expect('name' in body.showcase.awards[0].content).toBe(false);
+    }
   });
 });

@@ -19,21 +19,25 @@ type Row = typeof prize.$inferSelect;
 type Status = Row['status'];
 type Places = [string | null, string | null, string | null];
 
-const itemOf = (row: Row): PrizeItem => ({
+const itemOf = (row: Row, saved = false): PrizeItem => ({
   id: row.id,
   content: row.content,
   status: row.status === 'reserved' ? 'reserved' : 'free',
   createdAt: row.createdAt!.toISOString(),
+  ...(saved && row.status === 'reserved' ? { inSavedGame: true as const } : {}),
 });
+
+/** Гра reserved_game лежить «Не завершеною» (13b): її резерв чекає на продовження. */
+const inSavedGame = sql`exists (select 1 from ${game} where ${game.id} = ${prize.reservedGame} and ${game.status} = 'saved')`;
 
 /** Склад ведучого: free і reserved, найновіші першими. */
 export async function listPrizes(db: Db, ownerId: string): Promise<PrizeItem[]> {
   const rows = await db
-    .select()
+    .select({ row: prize, saved: inSavedGame })
     .from(prize)
     .where(and(eq(prize.ownerId, ownerId), ne(prize.status, 'awarded')))
     .orderBy(desc(prize.createdAt), desc(prize.id));
-  return rows.map(itemOf);
+  return rows.map(({ row, saved }) => itemOf(row, saved === true));
 }
 
 /** Адмінка: усі призи з власником і статусом (і awarded). */
@@ -159,9 +163,6 @@ export async function releasePrizes(db: Db, gameId: string): Promise<void> {
     .set({ status: 'free', reservedGame: null, updatedAt: new Date() })
     .where(and(eq(prize.status, 'reserved'), eq(prize.reservedGame, gameId)));
 }
-
-/** Гра reserved_game лежить «Не завершеною» (13b): її резерв чекає на продовження. */
-const inSavedGame = sql`exists (select 1 from ${game} where ${game.id} = ${prize.reservedGame} and ${game.status} = 'saved')`;
 
 /** Резерви гри → free, якщо гра не 'saved' (збережену продовжують за ті самі призи). */
 export async function releaseUnsaved(db: Db, gameId: string): Promise<void> {

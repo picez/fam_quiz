@@ -54,6 +54,8 @@ export interface PrizeItem {
   content: PrizeContent;
   status: PrizeStatus;
   createdAt: string;
+  /** Резерв належить збереженій (недограній) грі; поле є лише коли true. */
+  inSavedGame?: true;
 }
 
 type Places = [string | null, string | null, string | null];
