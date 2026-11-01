@@ -1,5 +1,6 @@
 import type { SurvivalInfo, SurvivalRow, SurvivalStatus } from '@quiz/shared';
 import { t } from '../i18n';
+import { RowReaction } from '../live/Reactions';
 
 type Size = 'stage' | 'host' | 'phone';
 
@@ -36,7 +37,10 @@ export function SurvivalBoard({ info, size, highlightId, hideEdge = false }: { i
                 return (
                   <li key={row.playerId} className={row.playerId === highlightId ? 'is-me' : undefined}>
                     {status === 'ghost' && <span aria-hidden="true">👻</span>}
-                    <span className="name">{row.nickname}</span>
+                    <span className="name">
+                      {row.nickname}
+                      <RowReaction rowId={row.playerId} />
+                    </span>
                     {status === 'ghost' && row.outAfter !== null && <span className="meta">{t('survivalOutAfterShort', { n: row.outAfter })}</span>}
                     {mark !== null && <span className={`survival-mark is-${row.trial}`}>{mark}</span>}
                   </li>

@@ -116,6 +116,7 @@ export function Host() {
         watch={watch}
         onWatch={setWatch}
         drafts={watch ? game.drafts : null}
+        reactions={game.reactions}
       />
     </>
   );

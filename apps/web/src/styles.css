@@ -12224,3 +12224,180 @@ button.wall-tile:disabled {
     font-size: 0.7rem;
   }
 }
+
+/* ---------- Реакції (13a) ----------
+   Бейдж біля ніка має сталий розмір (телефон і пульт 28 px, сцена 56 px) і від'ємні вертикальні поля: у рядку він займає
+   рівно 1em, тож висота рядка не змінюється. Смуга — шар position: fixed унизу зі сталою висотою --reaction-strip-h; у
+   REACTION_PHASES main має .has-reactions і тримає під нею такий самий запас (як .has-appeal), тож смуга нічого не накриває. */
+:root {
+  --reaction-strip-h: 3rem;
+}
+
+.app.stage {
+  --reaction-strip-h: 5rem;
+}
+
+.reaction-badge {
+  --reaction-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--reaction-size);
+  height: var(--reaction-size);
+  margin-block: calc(0.5em - var(--reaction-size) / 2);
+  margin-inline-start: 0.375em;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.stage .reaction-badge {
+  --reaction-size: 56px;
+}
+
+.reaction-badge img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reaction-badge.is-emoji {
+  font-size: calc(var(--reaction-size) * 0.8);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reaction-badge {
+    animation: reaction-pop 200ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-badge {
+    animation: none;
+  }
+}
+
+@keyframes reaction-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.row-reactions {
+  white-space: nowrap;
+}
+
+.reaction-by {
+  display: inline-block;
+  max-width: 7em;
+  margin-inline-start: 0.25em;
+  overflow: hidden;
+  color: var(--dim);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.reaction-strip {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  gap: 1rem;
+  height: var(--reaction-strip-h);
+  padding-inline: 1rem;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+  background: var(--notice-bg);
+  pointer-events: none;
+}
+
+/* Порожня смуга лишає свій запас, але не видна. */
+.reaction-strip:empty {
+  border-top-color: transparent;
+  background: none;
+}
+
+.reaction-strip-item {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  max-width: 14rem;
+  white-space: nowrap;
+}
+
+.reaction-strip-item b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reaction-strip.is-stage {
+  gap: 2rem;
+  font-size: 1.75rem;
+}
+
+.reaction-strip.is-stage .reaction-strip-item {
+  max-width: 24rem;
+}
+
+.app.has-reactions {
+  padding-bottom: calc(max(1.5rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
+}
+
+/* Телефон: запас під сповіщення плюс смуга; сповіщення стоять над смугою. */
+.app.player.has-reactions {
+  padding-bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--notice-room) + var(--reaction-strip-h));
+}
+
+.app.player.has-reactions:has(> .duel-banner) {
+  padding-bottom: calc(var(--banner-base) + var(--duel-banner-room) + var(--notice-room) + 0.5rem + var(--reaction-strip-h));
+}
+
+.app.player.has-reactions:has(> .appeal-sheet) {
+  padding-bottom: calc(var(--appeal-sheet-h, 45dvh) + 1rem);
+}
+
+.app.player.has-reactions .live-notices {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--reaction-strip-h));
+}
+
+/* Пульт: липка панель дій стоїть над смугою, а не під нею. */
+.app.host.has-reactions .actions {
+  bottom: var(--reaction-strip-h);
+}
+
+/* Сцена: смуга під сповіщеннями й значками; картка апеляції піднімається на висоту смуги. */
+.app.stage.has-reactions {
+  padding-bottom: calc(max(4vh, 4.75rem) + var(--reaction-strip-h));
+}
+
+.app.stage.has-reactions .live-notices,
+.app.stage.has-reactions .stage-tags {
+  bottom: calc(0.75rem + var(--reaction-strip-h));
+}
+
+.app.stage.has-appeal.has-reactions {
+  padding-bottom: calc(var(--appeal-room) + var(--reaction-strip-h));
+}
+
+.app.stage.has-appeal.has-reactions .live-notices,
+.app.stage.has-appeal.has-reactions .stage-tags {
+  bottom: calc(var(--appeal-room) - 0.25rem + var(--reaction-strip-h));
+}
+
+.app.stage.has-reactions .appeal-card.is-stage {
+  bottom: calc(0.75rem + var(--reaction-strip-h));
+}

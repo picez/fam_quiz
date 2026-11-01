@@ -2340,6 +2340,11 @@ const uk = {
   debuffGuide_sticky: 'Кнопки спрацьовують з другого дотику.',
   debuffGuide_noclock: 'Таймер зникає.',
   debuffGuide_bubbles: 'Бульбашки закривають відповіді — лопайте.',
+  // Реакції (13a)
+  reactionHost: 'Ведучий',
+  reactionStripLabel: 'Реакції',
+  reactionSticker: 'Стікер {name}',
+  reactionEmoji: 'Реакція {emoji}',
 } as const;
 
 export type TextKey = keyof typeof uk;

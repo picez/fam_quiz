@@ -3,6 +3,7 @@ import type { ScoreBreakdown, Standing, TeamsView } from '@quiz/shared';
 import { num, signed } from '../format';
 import { countText, t } from '../i18n';
 import { breakdownLines, roundHighlights } from '../score-table';
+import { RowReaction } from '../live/Reactions';
 
 /** Рядок таблиці 11f: Standing і GameStanding підходять обидва. */
 export interface ScoreRow {
@@ -123,6 +124,7 @@ export function ScoreTable({
                         {row.nickname}
                       </button>
                     )}
+                    <RowReaction rowId={row.participantId} />
                     {members.length > 0 && <span className="standing-members">{members.join(', ')}</span>}
                     {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
                   </th>
