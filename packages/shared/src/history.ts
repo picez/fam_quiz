@@ -4,11 +4,13 @@ import type { AppealOutcome, AppealReason } from './appeal';
 import type { AdjustmentSource, BuffKind, DebuffKind } from './game';
 import type { FactCard, FactTableRow } from './facts';
 import type { LadderOutcomeKind } from './ladder';
+import type { SavedInfo } from './saved';
 import type { CellKind, LifelineKind, Question, Round, TrialKind, WagerMode } from './quiz';
 import type { UndoTarget } from './undo';
 import type { WipeoutStatus } from './wipeout';
 
-export type GameStatus = 'running' | 'finished' | 'aborted';
+/** saved (13b) — гру збережено, щоб догра́ти пізніше. */
+export type GameStatus = 'running' | 'finished' | 'aborted' | 'saved';
 
 /** Рядок у списку ігор ведучого. */
 export interface GameSummary {
@@ -26,6 +28,8 @@ export interface GameSummary {
   teams: boolean;
   /** Гра без ведучого (11h): «Провів бот». */
   autopilot: boolean;
+  /** Збережена гра (13b): як продовжити, чи вже відкрито, коли збережено; лише для status 'saved'. */
+  saved?: SavedInfo;
 }
 
 export interface GameStanding {

@@ -19,7 +19,8 @@ export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' |
 export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode };
 export type Ack = (result: AckResult) => void;
 
-export type CloseReason = 'kicked' | 'expired';
+/** saved — гру збережено (13b); released — ведучий звільнив місце збереженої гри (13b). */
+export type CloseReason = 'kicked' | 'expired' | 'saved' | 'released';
 
 export const socketAuthSchema = z.object({
   code: z.string().min(1).max(16),
@@ -230,6 +231,10 @@ export interface ClientToServerEvents {
   'host:end': (ack: Ack) => void;
   'host:override': (payload: z.infer<typeof overrideSchema>, ack: Ack) => void;
   'host:kick': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
+  /** Зберегти гру й продовжити пізніше (13b). */
+  'host:save': (ack: Ack) => void;
+  /** Звільнити місце збереженої гри (13b): гравця відключено, бали лишаються. */
+  'host:release': (payload: z.infer<typeof kickSchema>, ack: Ack) => void;
   /** Бали від ведучого: додати або зняти будь-яку цілу суму. */
   'host:adjust': (payload: z.infer<typeof adjustSchema>, ack: Ack) => void;
   /** Скасувати бали чи «Повернути» скасоване (12a). */

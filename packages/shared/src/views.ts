@@ -10,6 +10,7 @@ import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
 import type { RoundBrief } from './round-brief';
+import type { ContinuedView } from './saved';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
 import type { AnswererMode, AnswererScope, TeamForm } from './teams';
@@ -1097,6 +1098,8 @@ export interface AuthorView {
   people: AuthorPerson[];
   /** Лобі «Продовжити гру» (12r): раунди й учасники; поза лобі null. */
   resume: ResumeLobby | null;
+  /** Кімната продовження збереженої гри (13b): місця; ставить сервер, рушій ключа не ставить. */
+  continued?: ContinuedView;
 }
 
 interface BaseView {
@@ -1542,6 +1545,8 @@ export interface HostView extends BaseView {
   resume: ResumeLobby | null;
   /** Запитання раунду з часткою правильних (12d): лише round_end; інакше null. Лише пульт. */
   roundQuestions: RoundShare[] | null;
+  /** Кімната продовження збереженої гри (13b): місця; ставить сервер, рушій ключа не ставить. */
+  continued?: ContinuedView;
 }
 
 export type GameView = StageView | PlayerView | HostView;

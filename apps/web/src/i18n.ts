@@ -1303,6 +1303,7 @@ const uk = {
   status_running: 'триває',
   status_finished: 'завершено',
   status_aborted: 'перервано',
+  status_saved: 'не завершена',
   playersCount: 'Гравців: {count}',
   questionsProgress: 'Запитань зіграно: {played} з {total}',
   standingsTitle: 'Підсумки',
