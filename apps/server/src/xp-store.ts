@@ -366,6 +366,8 @@ export async function publicLevel(db: Db, userId: string): Promise<PublicLevel> 
 
 /** Вбрання з відкритого рівнем; закрите → look_locked. */
 export async function saveLooks(db: Db, userId: string, looks: NickLooks): Promise<{ ok: true; looks: NickLooks } | { ok: false; error: 'look_locked' }> {
+  // Спершу наздогнати: без ретро користувач бачив би рівень 1 і хибне look_locked.
+  await synced(db, userId);
   const level = levelOf((await xpTotals(db, [userId])).get(userId) ?? 0);
   if (!looksAllowed(looks, level)) return { ok: false, error: 'look_locked' };
   await ensureProfile(db, userId);

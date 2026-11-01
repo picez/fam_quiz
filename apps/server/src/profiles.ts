@@ -12,7 +12,6 @@ import {
   type PublicProfile,
   type ProfileUpdate,
   type ProfileWin,
-  levelProgress,
 } from '@quiz/shared';
 import { and, asc, count, eq, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
@@ -21,6 +20,7 @@ import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
+import { ownLevel, publicLevel, syncXp } from './xp-store';
 
 export const DEFAULT_NICKNAME = 'Гравець';
 
@@ -199,6 +199,12 @@ export async function isFollowing(db: Db, followerId: string, followeeId: string
 export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfile> {
   const base = await ensureProfile(db, current.id);
   if (!base) throw new Error('profile of a signed-in user must exist');
+  // Ретро й наздоганяння досвіду (15a) мають бути раніше за читання; збій профіль не ламає.
+  try {
+    await syncXp(db, current.id);
+  } catch (error) {
+    console.error('Не вдалося нарахувати досвід:', error);
+  }
   const facts = await profileFacts(db, current.id);
   const quizzes = (await listQuizzes(db, current.id)).map(({ id, title }) => ({ id, title }));
   return {
@@ -210,8 +216,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     wins: facts.wins,
     friends: await friendsOf(db, current.id),
     showcase: await showcaseOf(db, current.id),
-    // Тимчасово (задача 1 плану 15a); справжній рівень — задача 6.
-    level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+    level: await ownLevel(db, current.id),
   };
 }
 
@@ -221,7 +226,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: { level: 1, looks: { color: null, frame: null, badge: null } } };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id) };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

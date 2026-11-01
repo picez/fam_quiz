@@ -8,6 +8,7 @@ import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
 import { prizeOutcome } from './rooms/prizes';
+import { creditGame } from './xp-store';
 
 /** Транзакція бази. */
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -519,6 +520,8 @@ export function attachRecorder(
   const awarded = new Set<string>();
   /** Кімнати, чиї призи вже вручено (14a): повтор awardPrizes нічого б не змінив, але й не питаємо базу. */
   const prized = new Set<string>();
+  /** Кімнати, чия завершена гра вже дала досвід (15a). */
+  const credited = new Set<string>();
   /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
   const sealed = new WeakSet<Room>();
   /** Кімната, що зараз веде кожен id (13b): точне продовження бере той самий id, що й збережена кімната. */
@@ -533,6 +536,7 @@ export function attachRecorder(
     closedRooms.delete(roomId);
     awarded.delete(roomId);
     prized.delete(roomId);
+    credited.delete(roomId);
     untrimmed.delete(roomId);
   };
 
@@ -549,6 +553,7 @@ export function attachRecorder(
     closedRooms.delete(room.id);
     awarded.delete(room.id);
     prized.delete(room.id);
+    credited.delete(room.id);
     if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
   };
 
@@ -610,6 +615,11 @@ export function attachRecorder(
       if (snapshot.prizes !== null && !prized.has(room.id)) {
         await awardPrizes(db, { gameId: room.id, quizTitle: snapshot.quizTitle, at: new Date(), outcomes: snapshot.prizes });
         prized.add(room.id);
+      }
+      // Досвід — останнім (15a): збій іде в повтор, а що не вдалося, наздожене syncXp.
+      if (state.phase === 'finished' && !credited.has(room.id)) {
+        await creditGame(db, room.id, onError);
+        credited.add(room.id);
       }
       failures.delete(room.id);
     };

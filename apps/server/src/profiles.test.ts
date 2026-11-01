@@ -10,7 +10,7 @@ import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
-import { ensureProfile, profileFacts, publicProfile, saveProfile } from './profiles';
+import { ensureProfile, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
 import { ACHIEVEMENTS, defaultTeams, questionsOf } from '@quiz/shared';
@@ -153,7 +153,15 @@ describe('profile facts', () => {
   }
 
   it('profileFacts counts played games, wins, accuracy, quizzes and hosted games', async () => {
-    const { hostId, olenaId, gameId } = await playedGame();
+    // Не залежить від годинника: після півночі гра дала б ще й night_owl.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-06-15T09:00:00Z') });
+    let played: Awaited<ReturnType<typeof playedGame>>;
+    try {
+      played = await playedGame();
+    } finally {
+      vi.useRealTimers();
+    }
+    const { hostId, olenaId, gameId } = played;
 
     const olena = await profileFacts(db, olenaId);
     expect(olena.stats).toEqual({
@@ -756,5 +764,45 @@ describe('games without a host (11h)', () => {
     const facts = await profileFacts(db, 'author');
     expect(hosted(facts.stats)).toBe(0);
     expect(earnedIds(facts.achievements)).not.toContain('host_10');
+  });
+});
+
+describe('level in the profile (15a)', () => {
+  async function oldGames() {
+    const db = await createTestDb();
+    const ids = ['host', 'me', 'b', 'c'];
+    await db.insert(user).values(ids.map((id) => ({ id, name: id, email: `${id}@example.com` })));
+    const rows = [0, 1, 2, 3, 4].map((questionIndex) => ({ questionIndex, accepted: true, points: 100 }));
+    for (const day of [1, 2]) {
+      await seedGame(db, {
+        hostId: 'host',
+        startedAt: new Date(Date.UTC(2026, 2, day, 12)),
+        questionsPlayed: 5,
+        players: [
+          { userId: 'me', nickname: 'Я', score: 500, rank: 1, rows },
+          { userId: 'b', nickname: 'Б', score: 100, rank: 2 },
+          { userId: 'c', nickname: 'В', score: 50, rank: 3 },
+        ],
+      });
+    }
+    return db;
+  }
+
+  it('the own profile replays the old games once and sets the mark', async () => {
+    const db = await oldGames();
+    const own = await ownProfile(db, { id: 'me', email: 'me@example.com' } as Parameters<typeof ownProfile>[1]);
+    expect(own.level.progress.xp).toBeGreaterThan(0);
+    expect(own.level.unlocked.length).toBeGreaterThanOrEqual(1);
+    const [row] = await db.select({ mark: profile.xpSyncedAt }).from(profile).where(eq(profile.userId, 'me'));
+    expect(row.mark).not.toBeNull();
+    const again = await ownProfile(db, { id: 'me', email: 'me@example.com' } as Parameters<typeof ownProfile>[1]);
+    expect(again.level.progress.xp).toBe(own.level.progress.xp);
+  });
+
+  it('a public profile shows the level and the looks (publicLevel syncs itself, so the retro level is there)', async () => {
+    const db = await oldGames();
+    const pub = await publicProfile(db, 'me', null);
+    expect(pub?.level.level).toBeGreaterThanOrEqual(2);
+    expect(pub?.level.looks).toEqual({ color: null, frame: null, badge: null });
   });
 });
