@@ -22,6 +22,7 @@ import {
   type BoardRound,
   type FinalRound,
   type LadderOutcomeKind,
+  type LevelPerk,
   type Round,
   type TeamForm,
   type TrialKind,
@@ -665,6 +666,15 @@ export interface GameState {
   autopilot?: AutopilotState;
   /** Апеляції гри (12f) у порядку відкриття; немає ключа — не було жодної. Голоси (votes) у зрізи не йдуть. */
   appeals?: Appeal[];
+  /** Бонуси рівня гравців на цю гру (15a): id гравця → видача; ключ є, лише коли хтось має бонус. Без ключа — бонусів немає (і стан до 15a). */
+  perks?: Record<string, PerkState>;
+}
+
+/** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
+export interface PerkState {
+  kinds: LevelPerk[];
+  timeMs: number;
+  used: { time?: number; hint?: number; ward?: number };
 }
 
 /** Апеляція гравця (12f): голосування залу за 30 с. Пояснення — план 12f, «Стан». */

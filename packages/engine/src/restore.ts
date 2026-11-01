@@ -23,8 +23,9 @@ import { pause, setConnected, tick, type GameState } from './game';
  * 19 — 12r: AutopilotState.resume (дані «Продовжити гру» до кінця туру кубиків), значення AdjustmentSource 'carry'.
  * 20 — 12g: TeamsState.answerers (вибір капітана), TeamsState.turns (черга) і TeamsState.current (вибір, чинний на запитанні), TeamsSettings.answerer.
  * 21 — 12h: значення BuffKind risk/letter/scope/guard/peek і DebuffKind flip/torch/sticky/noclock/bubbles, BuffPlay.peek, range і zoom (запис мовчання з «Ризиком» — наявні ключі AnswerRecord).
+ * 22 — 15a: GameState.perks (бонуси рівня), QuizSettings.levelBonuses.
  */
-export const GAME_STATE_VERSION = 21;
+export const GAME_STATE_VERSION = 22;
 
 /**
  * Версії збереженого стану, які читаються як поточна без перетворень.
@@ -66,8 +67,10 @@ export const GAME_STATE_VERSION = 21;
  * ні вибору відповідача, ні черги, ні режиму (без них — капітан): тож кімната, збережена до розгортання 12g, теж відновлюється.
  * 20 → 21 лише додала нові значення BuffKind і DebuffKind та необов'язкові BuffPlay.peek, range і zoom, а стан версій 2–20 не може містити
  * нових бафів чи дебафів; вікторина без settings.debuffs і далі має ті самі шість дебафів: тож кімната, збережена до розгортання 12h, теж відновлюється.
+ * 21 → 22 лише додала необов'язкові GameState.perks і QuizSettings.levelBonuses; стан v21 не має бонусів, а вимикач без поля — увімкнено.
+ * Бонуси такому стану видає сервер пізніше (setLevels → grantPerks), а дебафи без оберегу діють як до 15a: тож кімната, збережена до розгортання 15a, теж відновлюється.
  */
-export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, GAME_STATE_VERSION];
+export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 
 /**
  * Стан кімнати після перезапуску сервера: доведений до миті збереження `at`, на паузі саме з цієї миті

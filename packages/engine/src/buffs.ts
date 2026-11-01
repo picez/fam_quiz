@@ -40,8 +40,9 @@ import {
 } from './game';
 import { giveLadderHint, inLadderRound } from './ladder';
 import { normalizeText } from './normalize';
-import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
+import { grantOvertime, isTimed, limitMsOf, overtimeOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
+import { perkHintHere, perkTimeHere } from './perks';
 import { canMemberVote } from './team-act';
 import { memberOf, teamsOn } from './teams';
 
@@ -209,6 +210,8 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       return null;
     case 'hint':
       // Без ведучого підказку нікому сказати: вона працює лише там, де автор написав текст.
+      // «Підказка рівня» (15a) на цьому запитанні вже показала текст автора.
+      if (perkHintHere(state, playerId)) return 'taken';
       return state.autopilot !== undefined && question.hint === undefined ? 'unfit_host' : null;
     case 'audience':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
@@ -341,9 +344,11 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   };
   if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
-  if (kind === 'time') return ok(grantOvertime(taken, playerId, EXTRA_TIME_MS));
+  // «+5 с» рівня (15a) на цьому запитанні: баф часу додається до вже наданого, а не замінює його.
+  const held = perkTimeHere(state, playerId) ? overtimeOf(play, playerId) : 0;
+  if (kind === 'time') return ok(grantOvertime(taken, playerId, held + EXTRA_TIME_MS));
   // Поки зал голосує, гравець не втрачає часу: +15 с особистого, як «Додатковий час». Без таймера часу немає.
-  if (kind === 'audience' && isTimed(play.question)) return ok(grantOvertime(taken, playerId, AUDIENCE_MS));
+  if (kind === 'audience' && isTimed(play.question)) return ok(grantOvertime(taken, playerId, held + AUDIENCE_MS));
   return ok(taken);
 }
 

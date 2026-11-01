@@ -144,6 +144,7 @@ import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
+import { perksView, wardReady, wardsView } from './perks';
 import { hostLive, responseClue, spareOf } from './live';
 import { awayPenalized, awayPeople, lastAway, ownAway, stageAway } from './away';
 import { hostPace } from './pacing';
@@ -1692,6 +1693,8 @@ function base(state: GameState, forHost: boolean) {
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
     teams: teamsView(state),
+    // Вимикач бонусів рівнів (15a): ключ є лише тоді, коли ведучий їх вимкнув.
+    ...(state.quiz.settings.levelBonuses === false ? { levelBonuses: false as const } : {}),
   };
 }
 
@@ -2216,8 +2219,11 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
   const shared = base(state, false);
   const play = state.plays[state.questionIndex];
   const visible = finalVisiblePoints(state, playerId);
+  const wards = wardsView(state);
   return {
     ...shared,
+    // Обереги (15a): телефон бачить 🛡 біля суперників; без оберегів ключа немає.
+    ...(wards === undefined ? {} : { wards }),
     // Лобі (беклог 5): хто вже зайшов, у порядку входу.
     ...(state.phase === 'lobby' ? { lobby: state.players.map((p) => p.nickname) } : {}),
     question: shared.question === null ? null : withoutClip(ownClues(state, playerId, shared.question)),
@@ -2268,7 +2274,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       shop: playerShop(state, playerId),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
-      perks: null,
+      perks: perksView(state, playerId),
       // Командна гра: зріз команди, тож сповіщення бачить уся команда-ціль.
       peekedBy: peekedBy(state, playerId),
       overtime: personalClock(state, playerId),
@@ -2344,7 +2350,7 @@ function playerShop(state: GameState, playerId: string): PlayerShop | null {
   const items = allowedDebuffs(state.quiz).map((kind) => ({ kind, price: debuffPrice(state.quiz, kind) }));
   const targets = state.players
     .filter((p) => p.id !== playerId && !ghostTarget(state, p.id))
-    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected, warded: false }));
+    .map((p) => ({ ...blitzPlayer(state, p.id), busy: shownDebuff(state, p.id) !== null, offline: !p.connected, warded: wardReady(state, p.id) }));
   if (items.length === 0 || targets.length === 0) return null;
   return { items, targets, block: shopBlock(state, playerId) };
 }
@@ -2383,8 +2389,11 @@ export function hostView(state: GameState): HostView {
       },
     ];
   });
+  const wards = wardsView(state);
   return {
     ...base(state, true),
+    // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
+    ...(wards === undefined ? {} : { wards }),
     role: 'host',
     players: state.players.map((p) => ({
       id: p.id,
