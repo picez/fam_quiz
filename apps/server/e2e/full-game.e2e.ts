@@ -3,7 +3,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { DEFAULT_RULES, type AchievementsPage, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { DEFAULT_RULES, STICKERS, stickerPath, type AchievementsPage, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
@@ -167,7 +167,7 @@ beforeAll(async () => {
   base = `http://localhost:${port}`;
   db = await createTestDb();
   // Кімнати пишуться в базу, як у main.ts: усі сценарії йдуть із записом.
-  ctx = await buildApp({ db, auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true, pacing: true, persist: { instanceId: 'e2e-1' } });
+  ctx = await buildApp({ db, auth: { ...TEST_AUTH, baseURL: base }, webRoot: WEB, rng, transitions: true, pacing: true, persist: { instanceId: 'e2e-1' }, stickerFixtures: true });
   await ctx.app.listen({ port, host: '127.0.0.1' });
   browser = await chromium.launch({ channel: process.env.E2E_CHANNEL ?? 'chrome', headless: true });
 });
@@ -197,6 +197,7 @@ async function relisten() {
     transitions: true,
     pacing: true,
     persist: { instanceId: `e2e-${Date.now()}` },
+    stickerFixtures: true,
   });
   await ctx.app.listen({ port, host: '127.0.0.1' });
 }
@@ -12122,6 +12123,7 @@ async function socketPlayer(sockets: Socket[], code: string, nickname: string) {
   });
   return {
     nickname,
+    socket,
     answer: async (value: boolean) => {
       const ack = await new Promise<{ ok: boolean }>((done) => socket.emit('player:answer', { type: 'boolean', value }, done));
       expect(ack.ok, `${nickname} answers`).toBe(true);
@@ -16594,3 +16596,292 @@ it('backlog 3: blitz answer fields never move — a buzzer blitz keeps the queue
     throw error;
   }
 }, 300_000);
+
+const sticker13a = STICKERS[0]!;
+const src13a = stickerPath(sticker13a);
+/** Рядок гравця name у таблиці (13a). */
+const row13a = (page: Page, name: string) => page.locator('.standings li', { has: page.locator('.name', { hasText: name }) });
+/** Бейдж першого стікера в межах scope (13a). */
+const badgeImg13a = (scope: Locator) => scope.locator(`.reaction-badge img[src="${src13a}"]`);
+const reactionButton13a = (page: Page) => page.getByRole('button', { name: '😀 Реакція', ...exact });
+/** Картинка бейджа справді намалювалась (фікстура віддалась). */
+const drawn13a = (image: Locator) => image.evaluate((el) => { const img = el as unknown as { complete: boolean; naturalWidth: number }; return img.complete && img.naturalWidth > 0; });
+/** Телефон без прокрутки вбік — з цифрами в повідомленні. */
+async function expectFitsWidth13a(page: Page, name: string) {
+  const [scroll, client] = (await page.evaluate('[document.documentElement.scrollWidth, document.documentElement.clientWidth]')) as [number, number];
+  expect(scroll, `${name}: horizontal scroll (${scroll} > ${client})`).toBeLessThanOrEqual(client);
+}
+/** Сцена без прокрутки вниз — з цифрами. */
+async function expectFitsHeight13a(page: Page, name: string) {
+  const [scroll, client] = (await page.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight]')) as [number, number];
+  // Для розбору: та сама сцена без запасу під смугу (як до 13a).
+  const bare = await page.evaluate(`(() => { const m = document.querySelector('main.has-reactions'); if (!m) return -1; m.classList.remove('has-reactions'); const h = document.documentElement.scrollHeight; m.classList.add('has-reactions'); return h; })()`);
+  expect.soft(scroll, `${name}: the stage scrolls (${scroll} > ${client}; without the strip room ${bare})`).toBeLessThanOrEqual(client);
+}
+
+function reactionQuestions13a() {
+  const common = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'r1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Десна', 'Південний Буг'), correctId: 'a' },
+    { ...common, id: 'r2', type: 'single' as const, text: 'Яке місто — столиця Буковини?', options: options('Чернівці', 'Ужгород', 'Луцьк', 'Рівне'), correctId: 'a' },
+  ];
+}
+
+async function reactions13a() {
+  const host = await open('host13a', 1280, 800);
+  await register(host, 'host', 'Ганна Ведуча', 'host13a@example.com');
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', reactionQuestions13a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: 'Реакції 13a',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Реакції 13a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage13a', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya13a', 375, 812);
+  const petro = await open('petro13a', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await host.getByText('Петро', exact).first().waitFor();
+
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+
+  // ── 1. Гра й перше запитання: кнопки реакції немає. ──
+  await step('Почати гру');
+  await afterSplash(host, stage, olya, petro);
+  await step('Почати раунд');
+  await afterSplash(host, stage, olya, petro);
+  await olya.getByRole('button', { name: /Дніпро/ }).waitFor();
+  await petro.getByRole('button', { name: /Дністер/ }).waitFor();
+  expect(await reactionButton13a(olya).count(), 'a reaction button on Оля’s question').toBe(0);
+  expect(await reactionButton13a(host).count(), 'a reaction button on the host’s question').toBe(0);
+  await pickOption(olya, 'Дніпро');
+  await pickOption(petro, 'Дністер');
+  await step('Показати відповідь');
+  // Відкрита відповідь із чотирма варіантами на сцені 1280 × 720 із запасом під смугу.
+  await stage.locator('main.has-reactions').waitFor();
+  await expectFitsHeight13a(stage, 'p13a-stage-reveal');
+  await shot(stage, 'p13a-stage-reveal');
+  await step('Далі');
+  await stage.locator('.standings').waitFor();
+  await petro.locator('.standings').waitFor();
+
+  // ── 2. Стікер Олі. ──
+  const olyaButton = reactionButton13a(olya);
+  await olyaButton.click();
+  const olyaSheet = olya.getByRole('dialog', { name: 'Реакція', ...exact });
+  await olyaSheet.waitFor();
+  await olyaSheet.getByRole('group', { name: 'Усі стікери', ...exact }).getByRole('button', { name: `Стікер ${sticker13a.id}`, ...exact }).click();
+  await olyaSheet.waitFor({ state: 'detached' });
+  expect(await olyaButton.isDisabled(), 'Оля’s button rests after a sticker').toBe(true);
+
+  const stageBadge = badgeImg13a(row13a(stage, 'Оля'));
+  await stageBadge.waitFor();
+  await expect.poll(() => drawn13a(stageBadge), POLL).toBe(true);
+  const petroBadge = badgeImg13a(row13a(petro, 'Оля'));
+  await petroBadge.waitFor();
+  await expect.poll(() => drawn13a(petroBadge), POLL).toBe(true);
+  await expectFitsWidth13a(petro, 'p13a-petro');
+  await expectNoSideScroll(petro, 'p13a-petro');
+  await shot(stage, 'p13a-stage-badge');
+  await shot(petro, 'p13a-petro-badge');
+  await expectFitsHeight13a(stage, 'p13a-stage-badge');
+  expect(await stage.evaluate('document.documentElement.scrollHeight <= innerHeight'), 'the stage standings scroll').toBe(true);
+  // Бейдж стоїть поруч із ніком, а не поверх рахунку.
+  const badgeBox = (await stageBadge.boundingBox())!;
+  const scoreBox = (await row13a(stage, 'Оля').locator('.score').first().boundingBox())!;
+  expect(badgeBox.x + badgeBox.width, 'the badge covers the score').toBeLessThanOrEqual(scoreBox.x + 1);
+
+  await expect.poll(() => olyaButton.isDisabled(), { timeout: 3000 }).toBe(false);
+  await expect.poll(() => badgeImg13a(row13a(stage, 'Оля')).count(), { timeout: 6000 }).toBe(0);
+  expect(await badgeImg13a(row13a(petro, 'Оля')).count()).toBe(0);
+
+  // ── 3. Смуга ведучого. ──
+  await reactionButton13a(host).click();
+  const hostSheet = host.getByRole('dialog', { name: 'Реакція', ...exact });
+  await hostSheet.getByRole('button', { name: '👏', ...exact }).click();
+  await hostSheet.waitFor({ state: 'detached' });
+  for (const page of [stage, petro]) {
+    const strip = page.locator('.reaction-strip');
+    await strip.getByText('Ведучий', exact).waitFor();
+    expect(await strip.locator('.reaction-badge.is-emoji').getAttribute('aria-label')).toBe('Реакція 👏');
+    expect(await strip.innerText()).toContain('👏');
+    expect(await page.locator('.standings .reaction-badge').count(), 'the host badge in the table').toBe(0);
+  }
+  await expectFitsHeight13a(stage, 'p13a-stage-strip');
+  await shot(stage, 'p13a-stage-strip');
+  await shot(petro, 'p13a-petro-strip');
+
+  // ── 4. Улюблені гостя переживають перезавантаження. ──
+  await olyaButton.click();
+  await olyaSheet.waitFor();
+  await olyaSheet.getByRole('button', { name: `Додати ${sticker13a.id} в улюблені`, ...exact }).first().click();
+  const favorites = olyaSheet.getByRole('group', { name: '★ Мої улюблені', ...exact });
+  await favorites.getByRole('button', { name: `Стікер ${sticker13a.id}`, ...exact }).waitFor();
+  await olyaSheet.getByRole('button', { name: 'Закрити', ...exact }).click();
+  await olyaSheet.waitFor({ state: 'detached' });
+  await olya.reload();
+  await olya.locator('.standings').waitFor();
+  await reactionButton13a(olya).click();
+  await olyaSheet.waitFor();
+  await favorites.getByRole('button', { name: `Стікер ${sticker13a.id}`, ...exact }).waitFor();
+  expect(await favorites.getByRole('button', { name: `Прибрати ${sticker13a.id} з улюблених`, ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await shot(olya, 'p13a-sheet-phone');
+  await expectFitsWidth13a(olya, 'p13a-sheet-phone');
+  await expectNoSideScroll(olya, 'p13a-sheet-phone');
+  // Аркуш на 375 px вміщає три частини, а «Усі стікери» прокручуються всередині.
+  const all = olyaSheet.getByRole('group', { name: 'Усі стікери', ...exact }).locator('.reaction-grid.is-all');
+  const [inner, outer] = (await all.evaluate((el) => [el.scrollHeight, el.clientHeight])) as [number, number];
+  expect(inner, 'all stickers scroll inside their box').toBeGreaterThan(outer);
+  const sheetBox = (await olyaSheet.boundingBox())!;
+  expect(sheetBox.y + sheetBox.height, 'the sheet goes below the phone').toBeLessThanOrEqual(812 + 1);
+  await olyaSheet.getByRole('button', { name: 'Закрити', ...exact }).click();
+  await olyaSheet.waitFor({ state: 'detached' });
+
+  // ── 5. Друге запитання: ні кнопок, ні смуги. ──
+  await step('Наступне запитання');
+  await afterSplash(host, stage, olya, petro);
+  await olya.getByRole('button', { name: /Чернівці/ }).waitFor();
+  await petro.getByRole('button', { name: /Чернівці/ }).waitFor();
+  await stage.getByText('Яке місто — столиця Буковини?', exact).first().waitFor();
+  expect(await reactionButton13a(olya).count(), 'a reaction button on Оля’s second question').toBe(0);
+  expect(await reactionButton13a(petro).count(), 'a reaction button on Петро’s second question').toBe(0);
+  expect(await stage.locator('.reaction-strip').count(), 'the strip on the stage question').toBe(0);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 13a: reactions — between questions Оля on a 375 phone opens «😀 Реакція», sends the first cat sticker, and it shows beside «Оля» in the 1280 × 720 stage standings and on Петро’s phone for about 4 s while her button rests; the host’s 👏 lands in the strip as «Ведучий»; a ☆ favourite survives a reload for a guest; and no reaction button exists while a question is open', async () => {
+  try {
+    await reactions13a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Реакція гравця без браузера (13a): відповідь сервера. */
+const socketReact13a = (socket: Socket, item: ReactionItem) =>
+  new Promise<{ ok: boolean; error?: string }>((done) => socket.emit('player:react', item, done));
+
+async function reactionLayout13a(sockets: Socket[]) {
+  const host = await open('host13a-layout', 1280, 900);
+  await register(host, 'host', 'Марина Ведуча', 'host13a-layout@example.com');
+  const image = ((await (await host.request.post(`${base}/api/uploads`, { data: avatarPng(), headers: { 'content-type': 'image/png' } })).json()) as { url: string }).url;
+  const common = { video: null, timeLimit: 30, points: 100 };
+  const q1 = {
+    ...common,
+    imageUrl: image,
+    id: 'k1',
+    type: 'single' as const,
+    text: 'Яка річка тече через Київ?',
+    options: ['Дніпро', 'Дністер', 'Десна', 'Південний Буг'].map((text, i) => ({ id: 'abcd'[i]!, text })),
+    correctId: 'a',
+  };
+  const s1 = { ...common, imageUrl: null, id: 'k2', type: 'boolean' as const, text: 'Чернівці — столиця Буковини', correct: true };
+  const s2 = { ...common, imageUrl: null, id: 'k3', type: 'boolean' as const, text: 'Дніпро впадає в Чорне море', correct: true };
+  const s3 = { ...common, imageUrl: null, id: 'k6', type: 'boolean' as const, text: 'Ужгород стоїть на річці Уж', correct: true };
+  const t1 = { ...common, imageUrl: null, id: 'k4', type: 'boolean' as const, text: 'Говерла — найвища гора України', correct: true, timeLimit: 15 };
+  const last = { ...common, imageUrl: null, id: 'k5', type: 'boolean' as const, text: 'Київ — столиця України', correct: true };
+  const options = { speedBonus: false, shuffleOptions: false };
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('rk1', [q1] as never, { ...options, title: 'Розминка' }),
+        survivalRound('rk2', [s1, s2, s3] as never, [t1] as never, { title: 'Хто лишиться' }),
+        classicRound('rk3', [last] as never, { ...options, title: 'Фінал' }),
+      ],
+      { leaderboard: 'each' },
+    ),
+    title: 'Реакції 13a: макет',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Реакції 13a: макет' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage13a-layout', 1280, 720);
+  await stage.goto(stageUrl);
+
+  const names = ['Анастасія Мельник', 'Святослав Ткаченко', 'Ярослава Кравченко', 'Станіслав Олійник', 'Мирослава Петренко', 'Олександра Коваленко', 'Христина Бондаренко', 'Володимир Шевченко'];
+  const players: Awaited<ReturnType<typeof socketPlayer>>[] = [];
+  for (const name of names) players.push(await socketPlayer(sockets, code, name));
+  await stage.getByText(names[7]!).waitFor();
+  const sticker = { kind: 'sticker' as const, value: sticker13a.id };
+
+  // ── Відкрита відповідь: картинка, чотири варіанти й реакція в смузі. ──
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await stage.getByText(q1.text, exact).first().waitFor();
+  for (const [index, player] of players.entries()) {
+    const ack = await new Promise<{ ok: boolean }>((done) => player.socket.emit('player:answer', { type: 'single', optionId: index < 5 ? 'a' : 'b' }, done));
+    expect(ack.ok, `${player.nickname} answers`).toBe(true);
+  }
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await stage.locator('main.has-reactions').waitFor();
+  expect((await socketReact13a(players[0]!.socket, sticker)).ok).toBe(true);
+  await badgeImg13a(stage.locator('.reaction-strip')).waitFor();
+  await expectFitsHeight13a(stage, 'p13a-stage-reveal-image');
+  await shot(stage, 'p13a-stage-reveal-image');
+
+  // ── Підсумок раунду з повною таблицею: видимий рядок — бейдж, обрізаний «…і ще 2» — смуга. ──
+  await click(host, 'Далі');
+  await expect.poll(() => stage.locator('.standings-more').count(), POLL).toBe(1);
+  const shown = (await stage.locator('.standings li .name').allInnerTexts()).join('\n');
+  const visible = names.find((name) => shown.includes(name))!;
+  const hidden = names.find((name) => !shown.includes(name))!;
+  expect(hidden, 'a trimmed player').toBeTruthy();
+  expect((await socketReact13a(players[names.indexOf(visible)]!.socket, sticker)).ok).toBe(true);
+  expect((await socketReact13a(players[names.indexOf(hidden)]!.socket, { kind: 'emoji', value: '🔥' })).ok).toBe(true);
+  await badgeImg13a(row13a(stage, visible)).waitFor();
+  await stage.locator('.reaction-strip', { hasText: hidden }).waitFor();
+  await expectFitsHeight13a(stage, 'p13a-stage-round-end');
+  await shot(stage, 'p13a-stage-round-end');
+
+  // ── Вибування: таблиця живих із бейджем. ──
+  await click(host, 'Наступний раунд');
+  await afterSplash(host, stage);
+  await stage.locator('.survival-board').waitFor();
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await stage.getByText(s1.text, exact).first().waitFor();
+  for (const player of players) await player.answer(true);
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await click(host, 'Далі');
+  await stage.locator('main.has-reactions .survival-board').waitFor();
+  expect((await socketReact13a(players[2]!.socket, sticker)).ok).toBe(true);
+  await badgeImg13a(stage.locator('.survival-board')).waitFor();
+  await expectFitsHeight13a(stage, 'p13a-stage-survival');
+  await shot(stage, 'p13a-stage-survival');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 13a: reaction layout — on the 1280 × 720 stage an open answer with a picture and four options, a round end with eight long nicknames (a badge in a row and a trimmed player in the strip) and a survival board with a badge fit without scrolling', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await reactionLayout13a(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+});
