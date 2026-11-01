@@ -96,7 +96,29 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     return info;
   });
 
-  app.put<{ Params: { code: string } }>('/api/games/by-code/:code/prizes', { config: CODE_LIMIT.config }, async (request, reply) => {
+  /**
+   * Черга кімнати (за кодом): PUT місць ідуть по одному в порядку надходження, тож база й кімната
+   * завжди сходяться на останньому. Порожній хвіст прибирається.
+   */
+  const queues = new Map<string, Promise<void>>();
+  const inTurn = <T>(key: string, task: () => Promise<T>): Promise<T> => {
+    const run = (queues.get(key) ?? Promise.resolve()).then(task);
+    const tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    queues.set(key, tail);
+    void tail.then(() => {
+      if (queues.get(key) === tail) queues.delete(key);
+    });
+    return run;
+  };
+
+  app.put<{ Params: { code: string } }>('/api/games/by-code/:code/prizes', { config: CODE_LIMIT.config }, (request, reply) =>
+    inTurn(request.params.code, () => putPlaces(request, reply)),
+  );
+
+  const putPlaces = async (request: FastifyRequest<{ Params: { code: string } }>, reply: FastifyReply) => {
     const found = await ownRoom(request, reply);
     if (found === null) return;
     const { user, room } = found;
@@ -115,5 +137,5 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     const options = (await listPrizes(db, user.id)).filter((item) => item.status === 'free' || placed.has(item.id));
     const info: PrizePlacesInfo = { options, places: placesOf(room) };
     return info;
-  });
+  };
 }

@@ -174,4 +174,43 @@ describe('prizes of a lobby (14a)', () => {
     item = ((await call('GET', '/api/me/prizes', cookie)).json() as PrizeItem[])[0]!;
     expect(item).toMatchObject({ id: a.id, status: 'reserved', inSavedGame: true });
   });
+
+  it('applies overlapping PUTs of the places in order, even when the first one waits longer for the base', async () => {
+    // Окремий застосунок на тій самій базі: перша транзакція після «armed» чекає 50 мс, наступні — ні.
+    let armed = false;
+    const slowDb = new Proxy(db, {
+      get(target, key, receiver) {
+        const value = Reflect.get(target, key, receiver) as unknown;
+        if (key !== 'transaction' || typeof value !== 'function') return value;
+        return async (...args: unknown[]) => {
+          if (armed) {
+            armed = false;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    });
+    const slow = await buildApp({ db: slowDb, auth: TEST_AUTH });
+    try {
+      const put = (cookie: string, code: string, places: (string | null)[]) =>
+        slow.app.inject({ method: 'PUT', url: `/api/games/by-code/${code}/prizes`, payload: { places }, headers: { cookie } });
+      const { cookie } = await signUp(slow.app, 'Поспішає');
+      const make = async (name: string) => (await slow.app.inject({ method: 'POST', url: '/api/me/prizes', payload: content(name), headers: { cookie } })).json() as PrizeItem;
+      const a = await make('Перший');
+      const b = await make('Другий');
+      const { game: g } = await startGame(slow.app, quiz(), cookie);
+      armed = true;
+      const [first, second] = await Promise.all([put(cookie, g.code, [a.id, null, null]), put(cookie, g.code, [null, null, b.id])]);
+      expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
+      expect((first.json() as PrizePlacesInfo).places).toEqual([a.id, null, null]);
+      expect((second.json() as PrizePlacesInfo).places).toEqual([null, null, b.id]);
+      const room = slow.manager.get(g.code)!;
+      expect(room.prizes.map((p) => [p.place, p.id])).toEqual([[3, b.id]]);
+      const items = (await slow.app.inject({ method: 'GET', url: '/api/me/prizes', headers: { cookie } })).json() as PrizeItem[];
+      expect(Object.fromEntries(items.map((item) => [item.id, item.status]))).toEqual({ [a.id]: 'free', [b.id]: 'reserved' });
+    } finally {
+      await slow.app.close();
+    }
+  });
 });
