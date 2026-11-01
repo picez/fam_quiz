@@ -125,8 +125,9 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
+import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -209,6 +210,10 @@ export interface Room {
   checkpoint: { state: GameState; at: number } | null;
   /** Кімната продовження збереженої гри (13b); null — звичайна кімната. */
   continued: Continued | null;
+  /** Призи на місцях (10): кладе лише ведучий/автор у лобі; резерв — у базі. Іде в знімок кімнати. */
+  prizes: PlacedPrize[];
+  /** Чинні титули акаунтів кімнати (15): userId → текст. Лише в пам'яті; заповнює attachTitles. */
+  titles: Map<string, string>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -362,6 +367,8 @@ export interface SavedRoom {
   checkpoint?: { state: GameState; at: number };
   /** Продовження збереженої гри (13b); немає — звичайна кімната (старий сервер поле ігнорує: кімната встає без слотів). */
   continued?: { bound: string[]; carry: ResumeSetup | null; replaces: string | null };
+  /** Призи на місцях (14a); немає — призів немає (старий сервер поле ігнорує: кімната встає без призів, резерв знімає закриття чи прибирач). */
+  prizes?: PlacedPrize[];
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
@@ -391,6 +398,15 @@ function continuedOf(raw: unknown): Continued | null {
   const carry = raw.carry;
   const readable = isObject(carry) && typeof carry.roundIndex === 'number' && isObject(carry.points) && !Array.isArray(carry.points);
   return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces };
+}
+
+/** Призи з рядка бази (14a): лише елементи, що проходять placedPrizeSchema; не масив — []. */
+function prizesOf(raw: unknown): PlacedPrize[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    const parsed = placedPrizeSchema.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
 }
 
 /** Контрольна точка з рядка бази (13b): лише об'єкт зі state.players-масивом і числом at, інакше null. */
@@ -571,6 +587,8 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
+      prizes: [],
+      titles: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -595,6 +613,7 @@ export class RoomManager {
       savedAt: this.now(),
       ...(room.checkpoint === null ? {} : { checkpoint: room.checkpoint }),
       ...(room.continued === null ? {} : { continued: { bound: [...room.continued.bound], carry: room.continued.carry, replaces: room.continued.replaces } }),
+      ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
     };
   }
 
@@ -635,6 +654,8 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: checkpointOf(saved.checkpoint),
       continued: continuedOf(saved.continued),
+      prizes: prizesOf(saved.prizes),
+      titles: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -673,8 +694,35 @@ export class RoomManager {
     return [...this.live.values()];
   }
 
-  /** Знімає приз з місця кімнати (заглушка 14a/2: поле Room.prizes з'явиться в задачі 4). */
-  unplacePrize(_room: Room, _prizeId: string): void {}
+  /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */
+  setPrizes(room: Room, placed: PlacedPrize[]): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
+    room.prizes = [...placed].sort((a, b) => a.place - b.place);
+    this.emit(room, { type: 'changed' });
+    return { ok: true };
+  }
+
+  /** Будь-яка фаза: прибрати приз з місця; emit changed, якщо щось змінилось. */
+  unplacePrize(room: Room, prizeId: string): void {
+    const left = room.prizes.filter((p) => p.id !== prizeId);
+    if (left.length === room.prizes.length) return;
+    room.prizes = left;
+    this.emit(room, { type: 'changed' });
+  }
+
+  /** Злити титули (null — прибрати); emit changed, якщо щось змінилось. */
+  setTitles(room: Room, titles: Map<string, string | null>): void {
+    let changed = false;
+    for (const [userId, title] of titles) {
+      if (title === null) changed = room.titles.delete(userId) || changed;
+      else if (room.titles.get(userId) !== title) {
+        room.titles.set(userId, title);
+        changed = true;
+      }
+    }
+    if (changed) this.emit(room, { type: 'changed' });
+  }
 
   get(code: string): Room | undefined {
     return this.live.get(code);
@@ -1007,6 +1055,16 @@ export class RoomManager {
   }
 
   view(room: Room, identity: Identity): GameView | null {
+    const base = this.baseView(room, identity);
+    if (base === null) return null;
+    const prizes = prizesView(room, identity.role === 'player' ? { role: 'player', playerId: identity.playerId ?? '' } : { role: identity.role });
+    const titles = titlesView(room);
+    if (prizes === undefined && titles === undefined) return base;
+    // Як continued (13b): ключа немає, коли порожньо.
+    return { ...base, ...(prizes === undefined ? {} : { prizes }), ...(titles === undefined ? {} : { titles }) };
+  }
+
+  private baseView(room: Room, identity: Identity): GameView | null {
     const continued = room.continued;
     if (identity.role === 'host') return continued === null ? hostView(room.state) : { ...hostView(room.state), continued: this.continuedView(room, continued) };
     if (identity.role === 'stage') return stageView(room.state);
