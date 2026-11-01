@@ -2508,3 +2508,59 @@ describe('StageScreen «Граємо за» for a continued game (13b)', () => {
     expect(screen.queryByText('Граємо за')).toBeNull();
   });
 });
+
+describe('StageScreen: the prize ceremony (14a)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [
+    { participantId: 'p1', nickname: 'Оля', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p2', nickname: 'Петро', score: 400, totalTimeMs: 1, rank: 2 },
+  ];
+  const prizes = {
+    mine: null,
+    places: [
+      { place: 1 as const, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: 'Чемпіон', real: null, title: null, diploma: false }, winner: { name: 'Оля', members: [] } },
+      { place: 2 as const, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false }, winner: { name: 'Петро', members: [] } },
+    ],
+  };
+
+  it('finished with prizes: the ceremony first, then the podium and the awards', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes }));
+    expect(document.querySelector('.podium')).not.toBeNull();
+    expect(screen.queryByText('Переможці')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+
+  it('the ceremony waits for the «Підсумки» splash', () => {
+    vi.useFakeTimers();
+    const T = 1_000_000;
+    vi.setSystemTime(T);
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes, splash: { kind: 'podium', at: T, until: T + 2500 } }));
+    act(() => {
+      vi.advanceTimersByTime(2400);
+    });
+    expect(document.querySelectorAll('.podium-col.is-shown')).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(document.querySelectorAll('.podium-col.is-shown')).toHaveLength(1);
+  });
+
+  it('finished without prizes: the podium at once, as before', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings }));
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+
+  it('prizes without any winner do not hold the podium', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes: { mine: null, places: prizes.places.map((p) => ({ ...p, winner: null })) } }));
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+});

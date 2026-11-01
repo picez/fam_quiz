@@ -54,7 +54,24 @@ describe('TrophyView', () => {
     expect(viewer.hasAttribute('auto-rotate')).toBe(true);
     expect(viewer.hasAttribute('camera-controls')).toBe(true);
     expect(viewer.hasAttribute('disable-zoom')).toBe(true);
+  });
+
+  it('keeps the emoji until the model loads and brings it back on an error', async () => {
+    render(<TrophyView trophy={gold} size="stage" spin interactive={false} />);
+    await flush();
+    const viewer = document.querySelector('model-viewer')!;
+    expect(document.querySelector('.trophy-fallback')).not.toBeNull();
+    expect(viewer.classList.contains('is-loading')).toBe(true);
+    await act(async () => {
+      viewer.dispatchEvent(new Event('load'));
+    });
     expect(document.querySelector('.trophy-fallback')).toBeNull();
+    expect(viewer.classList.contains('is-loading')).toBe(false);
+    await act(async () => {
+      viewer.dispatchEvent(new Event('error'));
+    });
+    expect(document.querySelector('.trophy-fallback')).not.toBeNull();
+    expect(viewer.classList.contains('is-loading')).toBe(true);
   });
 
   it('does not spin under reduced motion and has no camera controls when not interactive', async () => {
@@ -75,7 +92,9 @@ describe('TrophyView', () => {
     });
     const materials = [material(), material()];
     viewer.model = { materials };
-    viewer.dispatchEvent(new Event('load'));
+    await act(async () => {
+      viewer.dispatchEvent(new Event('load'));
+    });
     for (const { pbrMetallicRoughness: pbr } of materials) {
       expect(pbr.setBaseColorFactor).toHaveBeenCalledWith('#B0703A');
       expect(pbr.setMetallicFactor).toHaveBeenCalledWith(1);

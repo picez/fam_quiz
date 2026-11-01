@@ -4046,3 +4046,40 @@ describe('PlayerScreen «Граємо за» at intros (14a)', () => {
     expect(screen.queryByText(/Граємо за/)).toBeNull();
   });
 });
+
+describe('PlayerScreen: the prize ceremony (14a)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const content = { trophy: null, engraving: 'Чемпіон', real: { text: 'Піца', photoUrl: null }, title: null, diploma: true };
+
+  it('finished with my prize: the ceremony, then «Твій приз» above the table', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, me: { ...me, score: 750, rank: 1 }, prizes: { mine: { place: 1, account: true }, places: [{ place: 1, content, winner: { name: 'Олена', members: [] } }] } }));
+    expect(document.querySelector('.podium')).not.toBeNull();
+    expect(screen.queryByText('Твій приз')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Твій приз')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Диплом' })).toBeTruthy();
+    expect(document.querySelector('.standings')).not.toBeNull();
+  });
+
+  it('finished without a prize of mine: after the ceremony, who got which place', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Тарас', members: [] } }, { place: 2, content, winner: null }] } }));
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(screen.queryByText('Твій приз')).toBeNull();
+    expect(screen.getByText('1 місце — Тарас')).toBeTruthy();
+    expect(screen.queryByText(/нікого/)).toBeNull();
+  });
+
+  it('finished without prizes: the table as before', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings }));
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.queryByText('Твій приз')).toBeNull();
+  });
+});

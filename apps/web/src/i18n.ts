@@ -2452,6 +2452,15 @@ const uk = {
   err_prize_taken: 'Цей приз уже лежить в іншій грі.',
   err_prize_in_game: 'Приз лежить у грі — зніми його з місця, щоб змінити.',
   err_too_many_prizes: 'На складі вже 50 призів.',
+  ceremonyTitle: 'Нагородження',
+  ceremonyPlace: '{place} місце',
+  myPrizeTitle: 'Твій приз',
+  diplomaButton: 'Диплом',
+  diplomaFailed: 'Не вдалося зробити диплом.',
+  myPrizeGuest: 'Ти граєш як гість: у вітрину приз не потрапить.',
+  prizeResultsTitle: 'Призи',
+  prizeResult: '{place} місце — {name}',
+  prizeNobody: '{place} місце — нікого, приз повернеться на склад',
 } as const;
 
 export type TextKey = keyof typeof uk;

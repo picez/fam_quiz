@@ -1,4 +1,4 @@
-import type { PrizeContent, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { PrizeContent, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 
 /** Значок трофея: запасний вигляд без WebGL, «Граємо за», диплом. */
@@ -41,4 +41,12 @@ export function prizeSummary(content: Omit<PrizeContent, 'name'>): string {
   if (content.diploma) parts.push(t('prizeSummaryDiploma'));
   if (parts.length === 0 && content.engraving) parts.push(t('prizeSummaryEngraving', { text: content.engraving }));
   return parts.join(' · ');
+}
+
+/** Місця церемонії: лише з переможцем, у порядку показу 3 → 2 → 1; порожньо — церемонії немає. */
+export function ceremonyOrder(prizes: PrizesView | undefined): (PrizeShown & { winner: NonNullable<PrizeShown['winner']> })[] {
+  if (prizes === undefined) return [];
+  return prizes.places
+    .filter((shown): shown is PrizeShown & { winner: NonNullable<PrizeShown['winner']> } => shown.winner !== null)
+    .sort((a, b) => b.place - a.place);
 }

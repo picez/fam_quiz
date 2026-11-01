@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { diplomaFileName, diplomaLines, shareDiploma, type DiplomaData } from './diploma';
+import { diplomaFileName, diplomaLines, renderDiploma, shareDiploma, type DiplomaData } from './diploma';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -29,6 +29,54 @@ describe('diplomaLines', () => {
       'Новорічна вікторина',
       '01.01.2027',
     ]);
+  });
+});
+
+describe('renderDiploma', () => {
+  /** Підроблений 2D-контекст: кожен fillText із тим fillStyle, що стояв у ту мить. */
+  function fakeCanvas() {
+    const texts: { text: string; y: number; fill: string }[] = [];
+    const context = {
+      fillStyle: '#000000',
+      strokeStyle: '#000000',
+      lineWidth: 1,
+      font: '',
+      textAlign: 'start',
+      textBaseline: 'alphabetic',
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      measureText: (text: string) => ({ width: text.length * 10 }),
+      fillText(text: string, _x: number, y: number) {
+        texts.push({ text, y, fill: this.fillStyle });
+      },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(new Blob(['png'], { type: 'image/png' })));
+    return texts;
+  }
+
+  it('draws every field in its own place and the emoji in a visible colour', async () => {
+    const texts = fakeCanvas();
+    await renderDiploma(data);
+    const at = (text: string) => texts.find((entry) => entry.text === text);
+    expect(at('🏆')!.fill).not.toBe('#FFFBF0');
+    expect(at('ДИПЛОМ')!.y).toBe(300);
+    expect(at('Оля')!.y).toBe(400);
+    expect(at('1 місце')!.y).toBe(480);
+    expect(at('Новорічна вікторина')).toBeDefined();
+    expect(at('«Чемпіон 2026»')).toBeDefined();
+    expect(at('01.01.2027')!.y).toBe(740);
+  });
+
+  it('without a quiz title the engraving and the date keep their places', async () => {
+    const texts = fakeCanvas();
+    await renderDiploma({ ...data, quizTitle: '  ' });
+    const at = (text: string) => texts.find((entry) => entry.text === text);
+    expect(at('Оля')!.y).toBe(400);
+    expect(at('1 місце')!.y).toBe(480);
+    expect(at('«Чемпіон 2026»')).toBeDefined();
+    expect(at('01.01.2027')!.y).toBe(740);
+    expect(texts.some((entry) => entry.text.trim() === '')).toBe(false);
   });
 });
 

@@ -12771,6 +12771,15 @@ button.wall-tile:disabled {
   background: transparent;
 }
 
+/* Значок і модель в одній клітинці: поки модель вантажиться (чи після помилки), вона прозора, а значок видно. */
+.trophy > * {
+  grid-area: 1 / 1;
+}
+
+.trophy-model.is-loading {
+  opacity: 0;
+}
+
 .trophy-fallback {
   font-size: calc(var(--trophy-icon, 1) * 3.5rem);
   line-height: 1;
@@ -12924,4 +12933,314 @@ button.wall-tile:disabled {
   .nick-title {
     max-width: 12ch;
   }
+}
+
+/* ---------- Церемонія призів (14a): подіум 2 — 1 — 3, конфеті, «Твій приз» ---------- */
+.ceremony {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  min-width: 0;
+}
+
+.ceremony-title {
+  text-align: center;
+  color: var(--amber);
+  font-family: var(--display);
+}
+
+.podium {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.5rem;
+  /* Конфеті падає лише в межах подіуму: ні прокрутки вбік, ні шару над смугою реакцій. */
+  overflow: hidden;
+  min-width: 0;
+}
+
+.podium-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.podium-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding-bottom: 0.4rem;
+  min-width: 0;
+}
+
+.podium-info > * {
+  margin: 0;
+  max-width: 100%;
+}
+
+.podium-place {
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.podium-name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.podium-col.is-place-1 .podium-name,
+.podium-col.is-now .podium-name {
+  color: var(--amber);
+}
+
+.podium-members {
+  color: var(--dim);
+  font-size: 0.8125rem;
+}
+
+.engraving {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--amber);
+  border-radius: 0.25rem;
+  background: rgb(255 179 0 / 0.08);
+  font-style: italic;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.podium-real {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.podium-real img {
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+  border-radius: 0.25rem;
+}
+
+.podium-step {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: var(--spot);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  transform-origin: bottom;
+}
+
+.podium-col.is-place-1 .podium-step {
+  height: 3.5rem;
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.podium-col.is-place-2 .podium-step {
+  height: 2.5rem;
+}
+
+.podium-col.is-place-3 .podium-step {
+  height: 1.75rem;
+}
+
+.podium .trophy {
+  width: min(100%, 6rem);
+}
+
+.podium .trophy .trophy-fallback {
+  font-size: 3rem;
+}
+
+.confetti {
+  display: none;
+}
+
+/* Сцена 1280 × 720: подіум уміщається без прокрутки; фото справжнього призу не вище 160 px. */
+.app.stage:has(.ceremony) {
+  padding-top: 2vh;
+}
+
+.stage .ceremony-title {
+  font-size: clamp(1.25rem, 2.4vw, 2.5rem);
+}
+
+.stage .podium {
+  gap: 2vw;
+}
+
+.stage .podium-info {
+  gap: 0.6vh;
+}
+
+.stage .podium-name {
+  font-size: clamp(1.25rem, 2.2vw, 2.25rem);
+}
+
+/* Сцена: довгі тексти обрізаються, щоб найповніший стовпець уміщався у 720 px. */
+.stage .podium-name,
+.stage .podium-real span,
+.stage .podium-members {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stage .podium-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage .podium-members,
+.stage .podium-place,
+.stage .podium-title,
+.stage .podium-real span {
+  font-size: clamp(0.95rem, 1.4vw, 1.5rem);
+}
+
+.stage .engraving {
+  font-size: clamp(0.9rem, 1.25vw, 1.35rem);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stage .podium-real img {
+  max-height: min(160px, 12vh);
+}
+
+.stage .podium .trophy {
+  width: min(100%, 16vh);
+}
+
+.stage .podium .trophy .trophy-fallback {
+  font-size: 10vh;
+}
+
+.stage .podium-col.is-place-1 .podium-step {
+  height: 8vh;
+  font-size: 4.5vh;
+}
+
+.stage .podium-col.is-place-2 .podium-step {
+  height: 5.5vh;
+  font-size: 3.5vh;
+}
+
+.stage .podium-col.is-place-3 .podium-step {
+  height: 3.5vh;
+  font-size: 2.5vh;
+}
+
+/* Телефон 375 px: три вузькі стовпці, усе переноситься. */
+.ceremony.is-phone .podium-name {
+  font-size: 0.95rem;
+}
+
+.ceremony.is-phone .engraving {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.3rem;
+}
+
+.ceremony.is-phone .podium-place,
+.ceremony.is-phone .podium-title,
+.ceremony.is-phone .podium-real span {
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .podium-col.is-shown .podium-step {
+    animation: podium-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .podium-col.is-shown .podium-info {
+    animation: podium-arrive 600ms ease-out 250ms both;
+  }
+
+  .podium-col.is-now .podium-step {
+    box-shadow: 0 0 2rem rgb(255 179 0 / 0.45);
+  }
+
+  .confetti {
+    display: block;
+    position: absolute;
+    top: -1rem;
+    left: var(--x);
+    width: 0.5rem;
+    height: 0.9rem;
+    background: var(--c);
+    border-radius: 0.1rem;
+    pointer-events: none;
+    transform: rotate(var(--r));
+    animation: confetti-fall var(--t) linear var(--d) infinite;
+  }
+
+  @keyframes podium-rise {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes podium-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes confetti-fall {
+    from {
+      transform: translateY(0) rotate(var(--r));
+    }
+    to {
+      transform: translateY(110vh) rotate(calc(var(--r) + 540deg));
+    }
+  }
+}
+
+.my-prize {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.my-prize > * {
+  margin: 0;
+  max-width: 100%;
+}
+
+.my-prize .podium-real img {
+  max-height: 120px;
+}
+
+.prize-results .rows li {
+  overflow-wrap: anywhere;
 }

@@ -26,6 +26,8 @@ import { SpotlightChoices } from './SpotlightChoices';
 import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
 import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
+import { MyPrize, PrizeResults, useQuizTitle } from './MyPrize';
+import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { Standings } from './Standings';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
@@ -619,6 +621,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
   const showPrizesAtIntro = useShowPrizesAtIntro(view);
+  // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.
+  const ceremony = useCeremony(view);
+  const quizTitle = useQuizTitle(code, phase === 'finished' && view.prizes?.mine != null);
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
@@ -1311,6 +1316,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {view.prizes !== undefined &&
+            (ceremony !== null ? (
+              <Ceremony prizes={view.prizes} size="phone" hold={splashUp} onDone={ceremony} />
+            ) : view.prizes.mine !== null ? (
+              <MyPrize prizes={view.prizes} nickname={(team !== null ? memberName(view, team.memberId) : '') || me.nickname} quizTitle={quizTitle} />
+            ) : (
+              <PrizeResults prizes={view.prizes} role="player" />
+            ))}
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />}
           <MenuLinks role="player" />

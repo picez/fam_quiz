@@ -3258,3 +3258,21 @@ describe('HostScreen titles (14a)', () => {
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Олена');
   });
 });
+
+describe('HostScreen: prize results (14a)', () => {
+  it('finished with prizes: «Призи» with who got each place, and nobody means back to the store', () => {
+    const standings = [{ participantId: 'p1', nickname: 'Оля', score: 750, totalTimeMs: 1, rank: 1 }];
+    const content = { trophy: null, engraving: null, real: null, title: 'Король', diploma: false };
+    show(
+      view({
+        phase: 'finished',
+        questionIndex: 1,
+        standings,
+        prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Оля', members: [] } }, { place: 2, content, winner: null }] },
+      }),
+    );
+    expect(screen.getByRole('heading', { name: 'Призи' })).toBeTruthy();
+    expect(screen.getByText('1 місце — Оля')).toBeTruthy();
+    expect(screen.getByText('2 місце — нікого, приз повернеться на склад')).toBeTruthy();
+  });
+});

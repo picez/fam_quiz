@@ -51,6 +51,7 @@ import { BluffBoard } from './BluffBoard';
 import { SurveyBoard } from './SurveyBoard';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { AwardsCarousel } from './AwardsCarousel';
+import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
 
@@ -769,7 +770,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
 const STAGE_ROWS_MAX = 16;
 
 /** Таблиця між запитаннями, підсумки раунду (12d: з картками — дві колонки) і п'єдестал з каруселлю «Нагороди гри». */
-function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: StageView; standings: NonNullable<StageView['standings']>; awardsSeq: number | null; splashing: boolean }) {
+function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null }: { view: StageView; standings: NonNullable<StageView['standings']>; awardsSeq: number | null; splashing: boolean; ceremony?: (() => void) | null }) {
   const { phase } = view;
   // Підсумки раунду (11f): з рядком «найкращий / ривок» показуємо 7 рядків, щоб сцена 1280 × 720 не прокручувалась.
   const roundEndIndex = phase === 'round_end' && view.round !== null ? view.round.index : null;
@@ -798,6 +799,9 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
     />
   );
   const best = roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />;
+  // Церемонія призів (14a): поки вона йде, п'єдестал і карусель не монтуються; ceremony — її onDone.
+  if (phase === 'finished' && ceremony !== null && view.prizes !== undefined)
+    return <Ceremony prizes={view.prizes} size="stage" hold={splashing} onDone={ceremony} />;
   if (phase === 'finished')
     return (
       // Поки йде заставка «Підсумки», карусель стоїть на п'єдесталі.
@@ -849,6 +853,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
   const showPrizes = useShowPrizesAtIntro(view);
+  const ceremony = useCeremony(view);
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
@@ -885,7 +890,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
-        <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} />
+        <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
       {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}
