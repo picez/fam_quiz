@@ -357,11 +357,15 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
   }
 
   // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.
-  const [{ saved }] = await tx
-    .select({ saved: max(scoreAdjustment.seq) })
-    .from(scoreAdjustment)
-    .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
-    .where(inGame);
+  // Контрольна точка (13b) пише всі свої: найбільший seq у базі може бути вже після неї, а вилучений після неї
+  // учасник повертається без своїх рядків (каскад) — їх треба відновити; наявні лишає onConflictDoNothing.
+  const [{ saved }] = saving
+    ? [{ saved: null }]
+    : await tx
+        .select({ saved: max(scoreAdjustment.seq) })
+        .from(scoreAdjustment)
+        .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
+        .where(inGame);
   const fresh = state.adjustments
     .filter((adjustment) => adjustment.seq > (saved ?? 0))
     .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target, undoes }) => ({
@@ -447,6 +451,7 @@ export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
     // Наявний рядок гри мить старту не змінює (її немає в set).
     startedAt: new Date(),
     fromQuestion: 0,
+    // Закриті запитання дебафів у стані вже не мають: рядки, відбудовані заново (учасник, вилучений після точки), — з debuff null.
     debuffs: new Map(),
     replaces: write.replaces,
   };

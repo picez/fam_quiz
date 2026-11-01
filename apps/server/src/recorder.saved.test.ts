@@ -176,6 +176,27 @@ describe('saved games in the database', () => {
     expect((await ctx.db.select().from(game)).map((row) => row.id).sort()).toEqual([next.room.id, third.room.id].sort());
   });
 
+  it('a player removed after the checkpoint and before the save comes back with the adjustments of the checkpoint', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const checkpoint = toCheckpoint(ctx, g);
+    g.host({ type: 'next' });
+    expect(g.room.state.phase).toBe('question');
+    g.host({ type: 'adjust', playerId: g.taras, points: 50 });
+    g.host({ type: 'kick', playerId: g.olena });
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(participant)).map((p) => p.id)).toEqual([g.taras]);
+
+    await saveSavedGame(ctx.db, writeOf(g.room, checkpoint));
+
+    const adjustments = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(adjustments.map((a) => [a.participantId, a.seq, a.points])).toEqual([[g.olena, 1, 20]]);
+    const [olena] = await ctx.db.select().from(participant).where(eq(participant.id, g.olena));
+    expect(olena.score).toBe(checkpoint.players.find((p) => p.id === g.olena)!.score);
+    expect((await ctx.db.select().from(answer).where(eq(answer.participantId, g.olena))).map((a) => a.questionIndex)).toEqual([0]);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it('trimToCheckpoint keeps the rows of the closed questions', async () => {
     const ctx = await setup();
     const g = ctx.open();
