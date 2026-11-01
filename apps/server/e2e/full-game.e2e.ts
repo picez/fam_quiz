@@ -245,8 +245,11 @@ async function open(name: string, width: number, height: number, options: { redu
   page.on('pageerror', (error) => problems.push(`${name}: ${error.message} @ ${page.url()}`));
   page.on('console', (message) => {
     // Відвідувач без акаунта отримує 401 на запит «хто я»: це очікувана відповідь, а не збій.
+    // Форма входу (13b) питає місця збереженої гри й для коду, якого вже немає: тихий 404 на /slots теж очікуваний.
     const expected =
-      message.text().includes('401 (Unauthorized)') || (restarting && message.text().includes('WebSocket connection to'));
+      message.text().includes('401 (Unauthorized)') ||
+      (restarting && message.text().includes('WebSocket connection to')) ||
+      (message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
   page.on('dialog', (dialog) => void dialog.accept());
@@ -16907,5 +16910,206 @@ it('part 13a: reaction layout — on the 1280 × 720 stage an open answer with a
     throw error;
   } finally {
     for (const socket of sockets) socket.close();
+  }
+});
+
+/** Рядок гравця name у таблиці (13b). */
+const row13b = (page: Page, name: string) => page.locator('.standings li', { has: page.locator('.name', { hasText: name }) });
+/** Телефон без прокрутки вбік (13b) — з цифрами в повідомленні. */
+async function expectFitsWidth13b(page: Page, name: string) {
+  const [scroll, client] = (await page.evaluate('[document.documentElement.scrollWidth, document.documentElement.clientWidth]')) as [number, number];
+  expect(scroll, `${name}: horizontal scroll (${scroll} > ${client})`).toBeLessThanOrEqual(client);
+}
+
+function savedQuestions13b() {
+  const common = { imageUrl: null, video: null, timeLimit: 30, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 's1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Десна', 'Південний Буг'), correctId: 'a' },
+    { ...common, id: 's2', type: 'single' as const, text: 'Яке місто — столиця Буковини?', options: options('Чернівці', 'Ужгород', 'Луцьк', 'Рівне'), correctId: 'a' },
+    { ...common, id: 's3', type: 'single' as const, text: 'Яка гора — найвища в Україні?', options: options('Говерла', 'Петрос', 'Піп Іван', 'Бребенескул'), correctId: 'a' },
+  ];
+}
+
+async function savedGames13b() {
+  const TITLE = 'Збережена гра 13b';
+  const host = await open('host13b', 1280, 800);
+  await register(host, 'host', 'Галина Ведуча', 'host13b@example.com');
+  const olya = await open('olya13b', 375, 812);
+  await register(olya, 'menu', 'Оля', 'olya13b@example.com');
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', savedQuestions13b() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stage = await open('stage13b', 1280, 720);
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  const petro = await open('petro13b', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await host.getByText('Петро', exact).first().waitFor();
+
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const SAVED = 'Гру збережено — продовжимо пізніше.';
+  const scoreOf = (page: Page, name: string) => row13b(page, name).locator('.score').first().textContent({ timeout: 1000 }).catch(() => null);
+
+  // ── 1. Перша частина: запитання 1, таблиця, посеред запитання 2. ──
+  await step('Почати гру');
+  await afterSplash(host, stage, olya, petro);
+  await step('Почати раунд');
+  await afterSplash(host, stage, olya, petro);
+  await olya.getByRole('button', { name: /Дніпро/ }).waitFor();
+  await petro.getByRole('button', { name: /Дністер/ }).waitFor();
+  await pickOption(olya, 'Дніпро');
+  await pickOption(petro, 'Дністер');
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Далі');
+  await stage.locator('.standings').waitFor();
+  await expect.poll(() => scoreOf(stage, 'Оля'), POLL).toBe('100');
+  await expect.poll(() => scoreOf(stage, 'Петро'), POLL).toBe('0');
+  await step('Наступне запитання');
+  await afterSplash(host, stage, olya, petro);
+  await olya.getByRole('button', { name: /Чернівці/ }).waitFor();
+  await pickOption(olya, 'Чернівці');
+
+  // ── 2. Збереження (діалог підтверджує обробник з open()). ──
+  await step('Зберегти й продовжити пізніше');
+  for (const page of [host, stage, olya, petro]) await page.getByText(SAVED, exact).first().waitFor();
+  await shot(stage, 'p13b-stage-saved');
+  await shot(olya, 'p13b-phone-saved');
+
+  // ── 3. Історія: «Не завершені» → «Продовжити». ──
+  await host.getByRole('link', { name: 'До історії ігор', ...exact }).click();
+  await host.waitForURL(/\/history$/);
+  const savedSection = host.locator('section.saved-games');
+  await savedSection.getByRole('heading', { name: 'Не завершені', ...exact }).waitFor();
+  const savedCard = savedSection.locator('li.is-saved', { hasText: TITLE });
+  await savedCard.waitFor();
+  expect(await savedCard.count()).toBe(1);
+  expect(await savedCard.locator('.saved-mark').textContent()).toBe('Не завершена');
+  await shot(host, 'p13b-history');
+  // Той самий список на телефоні 375 px.
+  await host.setViewportSize({ width: 375, height: 812 });
+  await expectFitsWidth13b(host, 'p13b-history-phone');
+  await expectNoSideScroll(host, 'p13b-history-phone');
+  await host.setViewportSize({ width: 1280, height: 800 });
+
+  await savedCard.getByRole('button', { name: 'Продовжити', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const next = host.url().slice(-6);
+  expect(next, 'the continuation reuses the old code').not.toBe(code);
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  const games = (await (await host.request.get(`${base}/api/games`)).json()) as { title: string; saved?: { open: boolean } }[];
+  const listed = games.filter((game) => game.title === TITLE);
+  expect(listed).toHaveLength(1);
+  expect(listed[0]!.saved?.open).toBe(true);
+
+  // ── 4. Повернення: Петро вибирає себе, Оля — сама, Ірина — новенька. ──
+  await petro.goto(`${base}/play/${next}`);
+  const who = petro.getByRole('group', { name: 'Хто ти?', ...exact });
+  await who.getByRole('radio', { name: 'Петро', ...exact }).waitFor();
+  await who.getByRole('radio', { name: 'Я новий гравець', ...exact }).waitFor();
+  expect(await who.getByRole('radio', { name: 'Оля', ...exact }).count(), 'Оля’s account slot is offered to a guest').toBe(0);
+  await expectFitsWidth13b(petro, 'p13b-who');
+  await expectNoSideScroll(petro, 'p13b-who');
+  // Ірина відкриває форму, поки місце Петра ще вільне: тоді «Хто ти?» є й у неї (без вільних місць форма звичайна).
+  const iryna = await open('iryna13b', 375, 812);
+  await iryna.goto(`${base}/play/${next}`);
+  await iryna.getByRole('radio', { name: 'Я новий гравець', ...exact }).check();
+  await who.getByRole('radio', { name: 'Петро', ...exact }).check();
+  await click(petro, 'Увійти в гру');
+  await who.waitFor({ state: 'detached' });
+
+  await olya.goto(`${base}/play/${next}`);
+  await expect.poll(() => scoreOf(olya, 'Оля'), { timeout: 10_000 }).toBe('100');
+  expect(await olya.getByRole('group', { name: 'Хто ти?', ...exact }).count(), 'Оля got the slot form').toBe(0);
+
+  await field(iryna, 'Ваше ім’я').fill('Ірина');
+  await click(iryna, 'Увійти в гру');
+  await iryna.getByRole('group', { name: 'Хто ти?', ...exact }).waitFor({ state: 'detached' });
+
+  const slots = host.locator('details.slots-panel');
+  await slots.getByText('Місця збереженої гри', exact).waitFor();
+  for (const name of ['Оля', 'Петро']) await expect.poll(() => slots.locator('li', { hasText: name }).textContent(), POLL).toContain('на місці');
+  await shot(host, 'p13b-host-slots');
+  // Панель місць не накриває кнопок пульта.
+  const panelBox = (await slots.boundingBox())!;
+  for (const button of await host.locator('footer.actions button').all()) {
+    const box = (await button.boundingBox())!;
+    expect(box.y >= panelBox.y + panelBox.height || box.y + box.height <= panelBox.y, 'the slots panel covers a console button').toBe(true);
+  }
+
+  // ── 5. Друга частина: запитання 2 з початку. ──
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).last().click();
+  await stage.locator('.standings').waitFor();
+  for (const [name, score] of [['Оля', '100'], ['Петро', '0'], ['Ірина', '0']] as const) {
+    await expect.poll(() => scoreOf(stage, name), POLL).toBe(score);
+  }
+  await step('Наступне запитання');
+  await afterSplash(host, stage, olya, petro, iryna);
+  await stage.getByText('Яке місто — столиця Буковини?', exact).first().waitFor();
+  await olya.getByRole('button', { name: /Чернівці/ }).waitFor();
+  expect(await olya.locator('[aria-pressed="true"], .is-picked').count(), 'Оля’s old answer survived the save').toBe(0);
+  await pickOption(olya, 'Чернівці');
+  await pickOption(petro, 'Ужгород');
+  await pickOption(iryna, 'Чернівці');
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Далі');
+  await step('Наступне запитання');
+  await afterSplash(host, stage, olya, petro, iryna);
+  for (const page of [olya, petro, iryna]) {
+    await page.getByRole('button', { name: /Говерла/ }).waitFor();
+    await pickOption(page, 'Говерла');
+  }
+  await host.getByText('Запитання закрите').waitFor();
+  await step('Показати відповідь');
+  await step('Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+
+  // ── 6. Одна гра в історії. ──
+  await host.goto(`${base}/history`);
+  const card = host.locator('.quiz-list li', { hasText: TITLE });
+  await card.first().waitFor();
+  expect(await host.getByRole('heading', { name: 'Не завершені', ...exact }).count()).toBe(0);
+  expect(await card.count()).toBe(1);
+  expect(await card.locator('.meta').first().textContent()).toContain('завершено');
+  expect(await card.innerText()).toContain('Запитань зіграно: 3 з 3');
+  await shot(host, 'p13b-history-finished');
+  await card.getByRole('link', { name: TITLE, ...exact }).click();
+  const standings = host.locator('.standings li');
+  await standings.first().waitFor();
+  const table: [string, string][] = [];
+  for (let i = 0; i < (await standings.count()); i++) {
+    table.push([(await standings.nth(i).locator('.name').textContent())!, (await standings.nth(i).locator('.score').textContent())!]);
+  }
+  expect(table).toEqual([
+    ['Оля', '300'],
+    ['Ірина', '200'],
+    ['Петро', '100'],
+  ]);
+  const mine = (await (await olya.request.get(`${base}/api/me/history`)).json()) as { title: string }[];
+  expect(mine.filter((game) => game.title === TITLE)).toHaveLength(1);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 13b: saved games — the host saves in the middle of question 2 and every screen says «Гру збережено — продовжимо пізніше»; «Історія ігор» lists it as «Не завершена»; «Продовжити» opens a new code where the signed-in Оля comes back by herself with her 100 points, Петро picks himself from «Хто ти?» and Ірина joins as a new player with 0; question 2 starts afresh, the game finishes, and the history shows one finished game', async () => {
+  try {
+    await savedGames13b();
+  } catch (error) {
+    await snapshot();
+    throw error;
   }
 });
