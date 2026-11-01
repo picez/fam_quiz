@@ -1,7 +1,7 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AchievementId, AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import type { AchievementId, AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, PrizeContent, PrizePlace, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
 import { sql } from 'drizzle-orm';
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -355,4 +355,52 @@ export const liveRoom = pgTable('live_room', {
   owner: text('owner'),
   heartbeatAt: at('heartbeat_at'),
   updatedAt: at('updated_at').notNull(),
+});
+
+/** Склад призів ведучого (беклог 10): free → reserved (за грою) → awarded. */
+export const prize = pgTable(
+  'prize',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    content: jsonb('content').$type<PrizeContent>().notNull(),
+    status: text('status').$type<'free' | 'reserved' | 'awarded'>().notNull().default('free'),
+    /** id гри (= room.id), за якою зарезервовано; null — не зарезервовано. */
+    reservedGame: uuid('reserved_game'),
+    createdAt: at('created_at').notNull(),
+    updatedAt: at('updated_at').notNull(),
+  },
+  (table) => [index('prize_owner_idx').on(table.ownerId), index('prize_reserved_idx').on(table.reservedGame)],
+);
+
+/** Вручений екземпляр призу (беклог 15): знімок змісту для вітрини; game_id і prize_id без FK, щоб вітрина пережила видалення. */
+export const prizeAward = pgTable(
+  'prize_award',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    prizeId: uuid('prize_id').notNull(),
+    gameId: uuid('game_id').notNull(),
+    place: integer('place').$type<PrizePlace>().notNull(),
+    content: jsonb('content').$type<PrizeContent>().notNull(),
+    quizTitle: text('quiz_title').notNull(),
+    nickname: text('nickname').notNull(),
+    awardedAt: at('awarded_at').notNull(),
+  },
+  (table) => [uniqueIndex('prize_award_once').on(table.gameId, table.place, table.userId), index('prize_award_user_idx').on(table.userId)],
+);
+
+/** Титул біля ніку (беклог 15): один на акаунт, діє до expires_at. */
+export const userTitle = pgTable('user_title', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  gameId: uuid('game_id').notNull(),
+  awardedAt: at('awarded_at').notNull(),
+  expiresAt: at('expires_at').notNull(),
 });

@@ -673,6 +673,9 @@ export class RoomManager {
     return [...this.live.values()];
   }
 
+  /** Знімає приз з місця кімнати (заглушка 14a/2: поле Room.prizes з'явиться в задачі 4). */
+  unplacePrize(_room: Room, _prizeId: string): void {}
+
   get(code: string): Room | undefined {
     return this.live.get(code);
   }
