@@ -30,6 +30,7 @@ const mine: OwnProfile = {
   quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
+  showcase: { title: null, awards: [] },
 };
 
 beforeEach(() => {

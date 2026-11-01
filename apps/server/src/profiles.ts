@@ -207,6 +207,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     quizzes,
     wins: facts.wins,
     friends: await friendsOf(db, current.id),
+    showcase: { title: null, awards: [] }, // справжнє значення — задача 6
   };
 }
 
@@ -216,7 +217,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: { title: null, awards: [] } };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

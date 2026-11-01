@@ -15,6 +15,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
+  showcase: { title: null, awards: [] },
   ...over,
 });
 
