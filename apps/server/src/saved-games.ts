@@ -125,19 +125,19 @@ export async function parkInterrupted(db: Db, except: string[]): Promise<void> {
   });
 }
 
-/** id ігор, продовження яких відкрите: кімнати в пам'яті (id чи continued.replaces) і рядки live_room (room_id чи data->continued->replaces). */
-export async function openGameIds(db: Db, manager: RoomManager): Promise<Set<string>> {
-  const open = new Set<string>();
+/** id ігор, продовження яких відкрите, з кодом відкритої кімнати: кімнати в пам'яті (id чи continued.replaces) і рядки live_room (room_id чи data->continued->replaces). */
+export async function openGameIds(db: Db, manager: RoomManager): Promise<Map<string, string>> {
+  const open = new Map<string, string>();
   for (const room of manager.rooms()) {
-    open.add(room.id);
-    if (room.continued?.replaces != null) open.add(room.continued.replaces);
+    open.set(room.id, room.code);
+    if (room.continued?.replaces != null) open.set(room.continued.replaces, room.code);
   }
   const rows = await db
-    .select({ roomId: liveRoom.roomId, replaces: sql<string | null>`${liveRoom.data}->'continued'->>'replaces'` })
+    .select({ code: liveRoom.code, roomId: liveRoom.roomId, replaces: sql<string | null>`${liveRoom.data}->'continued'->>'replaces'` })
     .from(liveRoom);
   for (const row of rows) {
-    open.add(row.roomId);
-    if (row.replaces !== null) open.add(row.replaces);
+    if (!open.has(row.roomId)) open.set(row.roomId, row.code);
+    if (row.replaces !== null && !open.has(row.replaces)) open.set(row.replaces, row.code);
   }
   return open;
 }
@@ -150,7 +150,7 @@ export function savedMode(input: { data: unknown; stateVersion: number | null; q
 }
 
 /** Усі 'saved' ведучого (без ліміту), найновіше збереження першим, як GameSummary + saved. */
-export async function savedSummaries(db: Db, hostId: string, open: Set<string>): Promise<GameSummary[]> {
+export async function savedSummaries(db: Db, hostId: string, open: Map<string, string>): Promise<GameSummary[]> {
   const rows = await db
     .select({ game, data: savedGame.data, stateVersion: savedGame.stateVersion, savedAt: savedGame.savedAt })
     .from(game)
@@ -182,6 +182,7 @@ export async function savedSummaries(db: Db, hostId: string, open: Set<string>):
     saved: {
       mode: savedMode({ data, stateVersion, quizSnapshot: row.quizSnapshot, autopilot: row.autopilot, hasAuthor: withAuthor.has(row.id) }),
       open: open.has(row.id),
+      openCode: open.get(row.id) ?? null,
       savedAt: (savedAt ?? row.startedAt).toISOString(),
     },
   }));

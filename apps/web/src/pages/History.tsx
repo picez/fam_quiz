@@ -4,7 +4,7 @@ import type { GameSummary, SavedInfo } from '@quiz/shared';
 import { continueGame, deleteSavedGame, listGames } from '../api';
 import { formatDate } from '../format';
 import { errorText, t } from '../i18n';
-import { loadAuthor, loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame, savePlayer } from '../storage';
+import { loadAuthor, loadHost, saveAuthor, saveHost, saveLastGame, savePlayer } from '../storage';
 import { usePrivateData } from '../usePrivateData';
 import { HistoryTabs } from './HistoryTabs';
 
@@ -31,12 +31,11 @@ function savedNote(saved: SavedInfo): string | null {
   return null;
 }
 
-/** Куди повернутися до відкритого продовження: код — останньої гри цього браузера, якщо ключі її пульта чи автора ще тут; інакше null. */
-function returnPath(): string | null {
-  const code = loadLastGame();
-  if (code === null) return null;
-  if (loadHost(code) !== null) return `/host/${code}`;
-  return loadAuthor(code) !== null ? `/play/${code}` : null;
+/** Куди повернутися до відкритого продовження: лише за кодом його кімнати й лише якщо ключі саме цього коду ще тут; інакше null. */
+function returnPath(openCode: string | null): string | null {
+  if (openCode === null) return null;
+  if (loadHost(openCode) !== null) return `/host/${openCode}`;
+  return loadAuthor(openCode) !== null ? `/play/${openCode}` : null;
 }
 
 /** Збережена гра (13b): «Продовжити» відкриває кімнату з новим кодом, «Видалити» прибирає запис. */
@@ -45,7 +44,7 @@ function SavedGame({ game, saved, onDeleted }: { game: GameSummary; saved: Saved
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const note = savedNote(saved);
-  const back = saved.open ? returnPath() : null;
+  const back = saved.open ? returnPath(saved.openCode) : null;
 
   const resume = async () => {
     setBusy(true);

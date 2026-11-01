@@ -90,7 +90,7 @@ describe('GET /api/games lists saved games first', () => {
     const fresh = await makeSaved(owner);
     const list = await listOf(owner.cookie);
     expect(list.map((g) => g.id)).toEqual([fresh.gameId, old.gameId]);
-    expect(list[0]).toMatchObject({ status: 'saved', questionsPlayed: 1, saved: { mode: 'exact', open: false } });
+    expect(list[0]).toMatchObject({ status: 'saved', questionsPlayed: 1, saved: { mode: 'exact', open: false, openCode: null } });
     expect(typeof list[0].saved!.savedAt).toBe('string');
     expect(list[1].status).toBe('finished');
     expect(list[1].saved).toBeUndefined();
@@ -117,7 +117,7 @@ describe('POST /api/games/:id/continue and DELETE', () => {
     expect(body).toHaveProperty('hostToken');
     expect(ctx.manager.get(body.code)?.id).toBe(saved.gameId);
 
-    expect((await listOf(owner.cookie))[0].saved).toMatchObject({ mode: 'exact', open: true });
+    expect((await listOf(owner.cookie))[0].saved).toMatchObject({ mode: 'exact', open: true, openCode: body.code });
     const again = await call('POST', `/api/games/${saved.gameId}/continue`, owner.cookie);
     expect(again.statusCode).toBe(409);
     expect(again.json()).toEqual({ error: 'continue_open' });

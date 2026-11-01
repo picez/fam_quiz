@@ -7,6 +7,8 @@ export type SavedMode = 'exact' | 'restart' | 'blocked';
 export interface SavedInfo {
   mode: SavedMode;
   open: boolean;
+  /** Код відкритої кімнати продовження (лише коли open); null — коду немає. */
+  openCode: string | null;
   savedAt: string;
 }
 

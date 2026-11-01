@@ -1083,7 +1083,7 @@ describe('History: unfinished games (13b)', () => {
     status: 'saved',
     finishedAt: null,
     questionsPlayed: 3,
-    saved: { mode: 'exact', open: false, savedAt: '2026-10-30T18:00:00.000Z' },
+    saved: { mode: 'exact', open: false, openCode: null, savedAt: '2026-10-30T18:00:00.000Z' },
   };
   const info = saved.saved as NonNullable<GameSummary['saved']>;
   const savedItem = () => screen.getByRole('link', { name: 'Річки' }).closest('li') as HTMLElement;
@@ -1138,18 +1138,26 @@ describe('History: unfinished games (13b)', () => {
     expect(within(opened).getByRole('button', { name: 'Видалити' }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('an open continuation links back to the host console when its tokens are still here; without them only the text', async () => {
-    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true } }] });
+  it('an open continuation links back only by its own code and only with that code’s tokens', async () => {
+    const link = () => within(savedItem()).queryByRole('link', { name: 'Повернутися до гри' });
+    // Токени чужої (останньої) гри не годяться, поки у списку немає коду продовження.
+    saveLastGame('111111');
+    saveHost('111111', { hostToken: 'x', stageToken: 'y' });
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true, openCode: '654321' } }] });
     open('/history');
     await screen.findByRole('link', { name: 'Річки' });
-    expect(within(savedItem()).queryByRole('link', { name: 'Повернутися до гри' })).toBeNull();
+    expect(link()).toBeNull();
     expect(within(savedItem()).getByText('Продовження вже відкрите')).toBeTruthy();
     cleanup();
-    saveLastGame('654321');
     saveHost('654321', { hostToken: 'h', stageToken: 's' });
     open('/history');
     await screen.findByRole('link', { name: 'Річки' });
-    expect(within(savedItem()).getByRole('link', { name: 'Повернутися до гри' }).getAttribute('href')).toBe('/host/654321');
+    expect(link()!.getAttribute('href')).toBe('/host/654321');
+    cleanup();
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, saved: { ...info, open: true, openCode: null } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(link()).toBeNull();
   });
 
   it('«Продовжити» of a hosted game opens the console with the new tokens', async () => {
