@@ -12443,14 +12443,34 @@ button.wall-tile:disabled {
   cursor: default;
 }
 
-/* Тісна шапка 375 px (ще одна пігулка: «Таблиця», крамниця, меню автора, «Наживо» чи «↶ Бали» пульта): лишається сам 😀 (aria-label «😀 Реакція»), щоб імені й коду було місце. */
+/* Телефон до 400 px (360 / 375): шапка в один рядок і без прокручування вбік за будь-яких сусідів («⚔ Дуель», крамниця,
+   «Таблиця», меню автора, «Наживо» чи «↶ Бали» пульта). Від «😀 Реакція» лишається сам 😀 (aria-label повний) з дотиковою зоною 44 px,
+   проміжки вужчі, а коли й так тісно — текстові пігулки («⚔ Дуель», «Таблиця») стискаються трикрапкою; значки й рахунок не стискаються. */
 @media (max-width: 400px) {
-  .bar:has(.table-button:not(.reaction-button), .live-toggle, .undo-button) .reaction-button-label {
+  .bar .reaction-button-label {
     display: none;
   }
 
-  .bar:has(.table-button:not(.reaction-button), .live-toggle, .undo-button) .reaction-button {
-    min-width: 2.75rem;
+  .bar .reaction-button {
+    position: relative;
+    padding-inline: 0.4rem;
+  }
+
+  .bar .reaction-button::after {
+    content: '';
+    position: absolute;
+    inset: -0.375rem -0.25rem;
+  }
+
+  .bar:has(.reaction-button) {
+    gap: 0.375rem;
+  }
+
+  .bar:has(.reaction-button) > :is(.duel-button, .table-button:not(.reaction-button, .shop-button, .author-menu-btn)) {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

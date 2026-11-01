@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QUICK_EMOJI, STICKERS } from '@quiz/shared';
@@ -153,5 +155,28 @@ describe('ReactionButton (13a)', () => {
     await tap(t('reactionButton'));
     await tap(t('reactionSticker', { name: a }));
     expect(send).toHaveBeenCalledWith('host:react', { kind: 'sticker', value: a });
+  });
+});
+
+describe('«😀 Реакція» fits a 360 px header (e2e 7g regression)', () => {
+  const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+  const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+  /** Усі блоки @media (max-width: 400px) разом. */
+  const narrow = css
+    .split('@media (max-width: 400px) {')
+    .slice(1)
+    .map((chunk: string) => chunk.slice(0, chunk.indexOf('\n}\n')))
+    .join('\n');
+
+  it('below 400 px the word is hidden whatever else stands in the header, e.g. «⚔ Дуель»', () => {
+    expect(narrow).toContain('\n  .bar .reaction-button-label {\n    display: none;');
+    expect(narrow).toContain('\n  .bar:has(.reaction-button) {\n    gap: 0.375rem;');
+    expect(narrow).toContain('.bar:has(.reaction-button) > :is(.duel-button, .table-button:not(.reaction-button, .shop-button, .author-menu-btn)) {\n    flex-shrink: 1;');
+  });
+
+  it('the word is a separate hideable span, the accessible name stays whole', () => {
+    render(<ReactionButton shown event="player:react" send={vi.fn<Send>()} />);
+    const button = screen.getByRole('button', { name: t('reactionButton') });
+    expect(button.querySelector('.reaction-button-label')?.textContent?.trim()).toBe('Реакція');
   });
 });
