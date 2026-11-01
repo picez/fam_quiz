@@ -63,6 +63,14 @@ describe('PublicProfile', () => {
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
+  it('shows the level and the badge of another player, without the bar', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ level: { level: 5, looks: { color: null, frame: null, badge: '⭐' } } }) });
+    const { container } = open();
+    expect(await screen.findByText('Рів. 5')).toBeTruthy();
+    expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');
+    expect(container.querySelector('progress')).toBeNull();
+  });
+
   it('the achievements link encodes the profile id', async () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
     open();

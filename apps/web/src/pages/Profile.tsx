@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
+import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
 import { ProfileEditor } from '../profile/ProfileEditor';
 import { InviteList } from '../profile/InviteList';
 import { Showcase } from '../profile/Showcase';
@@ -78,6 +79,7 @@ export function Profile() {
           <div>
             <h1 className="brand">
               {profile.nickname}
+              <ProfileLevelMark level={profile.level.progress.level} badge={profile.level.looks.badge} />
               {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
             </h1>
             <p className="meta">{profile.email}</p>
@@ -101,6 +103,7 @@ export function Profile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      <LevelCard level={profile.level} nickname={profile.nickname} onSaved={reload} />
       <Showcase showcase={profile.showcase} own />
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>

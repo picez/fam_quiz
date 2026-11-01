@@ -13421,3 +13421,51 @@ button.wall-tile:disabled {
 .ward-tag {
   margin-left: 0.25rem;
 }
+
+/* ---------- Розділ «Рівень» у профілі (15a) ---------- */
+.profile-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-inline-start: 0.4em;
+  vertical-align: middle;
+}
+.profile-mark .nick-level {
+  font-size: 0.4em;
+}
+.profile-badge {
+  font-size: 0.8em;
+}
+.level-card {
+  min-width: 0;
+}
+.level-card h3 {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+.level-card progress {
+  width: 100%;
+  max-width: 100%;
+}
+.level-list li {
+  overflow-wrap: anywhere;
+}
+.look-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+  gap: 0.4rem;
+  min-width: 0;
+}
+.look-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.look-preview {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}

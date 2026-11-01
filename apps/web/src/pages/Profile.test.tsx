@@ -18,6 +18,7 @@ vi.mock('../api', () => ({
   signOut: vi.fn(),
   getMyInvites: vi.fn(),
   dismissInvite: vi.fn(),
+  saveLooks: vi.fn(),
 }));
 
 const mine: OwnProfile = {
@@ -85,6 +86,16 @@ describe('Profile', () => {
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
+  it('shows the level section and the level badge next to the nickname', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, level: { ...mine.level, progress: levelProgress(600), looks: { color: null, frame: null, badge: '⭐' } } } });
+    const { container } = open();
+    expect(await screen.findByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
+    expect(container.querySelector('.profile-head .nick-level')?.textContent).toBe('Рів. 3');
+    expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');
+    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
+    expect(headings.indexOf('Рівень 3')).toBe(headings.indexOf('Статистика') + 1);
+  });
+
   it('shows a row of earned badges linking to the achievements page', async () => {
     open();
     expect(await screen.findByText('Олена')).toBeTruthy();
@@ -110,7 +121,7 @@ describe('Profile', () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Статистика', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
+    expect(headings).toEqual(['Статистика', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
     expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
