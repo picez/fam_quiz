@@ -34,7 +34,7 @@ const right = { type: 'single', optionId: 'b' } as const;
 const wrong = { type: 'single', optionId: 'a' } as const;
 const content = (name: string): PrizeContent => ({ name, trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: null, diploma: false });
 
-async function world(db?: Db) {
+async function world(db?: Db, maxRetries = 30) {
   const base = db ?? (await createTestDb());
   if (db === undefined) {
     await base.insert(user).values([
@@ -45,7 +45,7 @@ async function world(db?: Db) {
   const scheduler = new FakeScheduler();
   const manager = new RoomManager(scheduler, () => 0.5);
   const errors: unknown[] = [];
-  const recorder = attachRecorder(manager, base, (error) => errors.push(error), 1);
+  const recorder = attachRecorder(manager, base, (error) => errors.push(error), 1, maxRetries);
   return { db: base, scheduler, manager, recorder, errors };
 }
 
@@ -125,6 +125,30 @@ describe('prizes in the recorder', () => {
     expect(await w.db.select().from(prizeAward)).toHaveLength(1);
     expect(await gameStatus(w.db, g.room.id)).toBe('finished');
     expect(vi.mocked(achievements.awardGame)).toHaveBeenCalledTimes(1);
+  });
+
+  it('when the award retries run out it says so loudly with the game id', async () => {
+    const w = await world(undefined, 2);
+    const g = await lobby(w);
+    vi.mocked(prizes.awardPrizes).mockRejectedValue(new Error('db down'));
+    try {
+      playFirst(w, g);
+      toEnd(w.manager, g.room);
+      // Перша спроба й два повтори, а тоді — гучний запис про те, що призи гри не вручено.
+      await vi.waitFor(() => expect(w.errors).toHaveLength(4));
+      await w.recorder.idle();
+      expect(w.errors.slice(0, 3)).toEqual([new Error('db down'), new Error('db down'), new Error('db down')]);
+      const last = w.errors[3] as Error;
+      expect(last).toBeInstanceOf(Error);
+      expect(last.message).toContain(g.room.id);
+      expect(last.message).toContain('не вручено');
+      expect(last.cause).toEqual(new Error('db down'));
+      expect(await statusOf(w.db, g.cup)).toBe('reserved');
+    } finally {
+      vi.mocked(prizes.awardPrizes).mockReset();
+      const original = (await vi.importActual<typeof import('./prizes')>('./prizes')).awardPrizes;
+      vi.mocked(prizes.awardPrizes).mockImplementation(original);
+    }
   });
 
   it('a room restored already finished does not award again', async () => {

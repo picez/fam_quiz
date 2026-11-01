@@ -624,9 +624,13 @@ export function attachRecorder(
         failures.set(room.id, attempt);
         if (attempt > maxRetries) {
           failures.delete(room.id);
+          // Призи так і лишились у резерві: це має бути видно в журналі, з id гри, щоб вручити їх вручну.
+          if (snapshot.prizes !== null && !prized.has(room.id)) {
+            onError(new Error(`Призи гри ${room.id} не вручено: повтори запису вичерпано`, { cause: error }));
+          }
           return;
         }
-        const timer = setTimeout(() => record(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(() => record(room),Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {
