@@ -96,6 +96,7 @@ import {
   takeHint,
   teamsOn,
   memberOf,
+  teamOf,
   chainOf,
   wallOf,
   recordOf,
@@ -119,7 +120,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
 import type { Scheduler } from './scheduler';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
@@ -176,6 +177,10 @@ export interface Room {
   audioSeq: number;
   /** Номер слайда каруселі «Нагороди гри» (12d): у пам'яті кімнати, у знімок не йде. */
   awardsSeq: number;
+  /** Реакції (13a): людина → мить останньої прийнятої реакції. Лише в пам'яті. */
+  reactRate: Map<string, number>;
+  /** Реакції (13a): лічильник; стартує з Date.now(). Лише в пам'яті. */
+  reactionSeq: number;
   /** Антигугл (12e): люди, чий телефон сказав «пішов»; повернення чи розрив прибирає. Лише в пам'яті. */
   hidden: Set<string>;
   /** Антигугл (12e): людина → останній розрив (dropAt) і повернення (backAt, null — ще без зв'язку); звіт повернення прибирає. Лише в пам'яті. */
@@ -258,6 +263,8 @@ export type RoomEvent =
   | { type: 'moved' }
   | { type: 'audio'; action: 'replay' | 'stop'; seq: number }
   | { type: 'awards'; seq: number }
+  /** Реакція (13a): усім ролям кімнати; стан гри той самий. */
+  | { type: 'reaction'; reaction: Reaction }
   /** Чернетка змінилася: стан гри той самий; товаришам (teammates) — свіжий зріз, пульту — пакет host:drafts (socket.ts). */
   | { type: 'draft'; id: string; by: string; teammates: boolean }
   /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
@@ -507,6 +514,8 @@ export class RoomManager {
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
+      reactRate: new Map(),
+      reactionSeq: Date.now(),
       hidden: new Set(),
       gaps: new Map(),
       awayRate: new Map(),
@@ -565,6 +574,8 @@ export class RoomManager {
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
+      reactRate: new Map(),
+      reactionSeq: Date.now(),
       hidden: new Set(),
       gaps: new Map(),
       awayRate: new Map(),
@@ -717,6 +728,29 @@ export class RoomManager {
     if (room.state.phase !== 'finished' || (gameFacts(room.state, false)?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
     const seq = ++room.awardsSeq;
     this.emit(room, { type: 'awards', seq });
+    return { ok: true };
+  }
+
+  /** Реакція (13a): лише REACTION_PHASES; не частіше REACTION_GAP_MS від людини; стан гри не змінюється. */
+  react(room: Room, by: string, item: ReactionItem): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const state = room.state;
+    if (!reactionAllowed(state.phase)) return { ok: false, error: 'wrong_phase' };
+    const member = by === 'host' ? undefined : memberOf(state, by);
+    const player = by === 'host' || member !== undefined ? undefined : state.players.find((p) => p.id === by);
+    if (by !== 'host' && member === undefined && player === undefined) return { ok: false, error: 'not_found' };
+    const now = this.now();
+    const last = room.reactRate.get(by);
+    if (last !== undefined && now - last < REACTION_GAP_MS) return { ok: false, error: 'too_soon' };
+    room.reactRate.set(by, now);
+    const reaction: Reaction = {
+      seq: ++room.reactionSeq,
+      by,
+      nickname: by === 'host' ? null : (member?.nickname ?? player!.nickname),
+      rowId: by === 'host' ? null : (teamOf(state, by) ?? by),
+      item,
+    };
+    this.emit(room, { type: 'reaction', reaction });
     return { ok: true };
   }
 
