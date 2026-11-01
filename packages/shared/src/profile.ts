@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Achievement } from './achievements';
 import type { PlayedGame } from './history';
+import type { Showcase } from './prizes';
 import { LIMITS } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
 
@@ -55,6 +56,7 @@ export interface PublicProfile extends ProfileCard {
   achievements: Achievement[];
   /** Чи підписаний той, хто дивиться; null — не увійшов або це його власний профіль. */
   following: boolean | null;
+  showcase: Showcase;
 }
 
 export interface ProfileWin {
@@ -91,6 +93,7 @@ export interface OwnProfile extends ProfileCard {
   quizzes: { id: string; title: string }[];
   wins: ProfileWin[];
   friends: FriendCard[];
+  showcase: Showcase;
 }
 
 type Counted = Pick<PlayedGame, 'status' | 'rank' | 'score' | 'playerCount' | 'correct' | 'questionsPlayed'>;

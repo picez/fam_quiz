@@ -25,6 +25,9 @@ import { YouTubePlayer } from './YouTubePlayer';
 import { SpotlightChoices } from './SpotlightChoices';
 import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-blink';
 import { BlitzQueue } from './BlitzQueue';
+import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
+import { MyPrize, PrizeResults, useQuizTitle } from './MyPrize';
+import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { Standings } from './Standings';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
@@ -617,6 +620,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
   const { me, phase, question } = view;
+  const showPrizesAtIntro = useShowPrizesAtIntro(view);
+  // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.
+  const ceremony = useCeremony(view);
+  const quizTitle = useQuizTitle(code, phase === 'finished' && view.prizes?.mine != null);
   // Аркуш «Підглянути» (12h) відкрито на цьому запитанні; нове запитання закриває його само.
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
@@ -836,11 +843,13 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {view.lobby.map((nickname, index) => (
               <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined}>
                 {nickname}
+                {view.titles?.[nickname] !== undefined && <span className="nick-title">{view.titles[nickname]}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
+      {phase === 'lobby' && view.author === null && view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="phone" />}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 
@@ -852,6 +861,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
           <RoundFacts round={view.round} total={view.total} />
           <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} />
+          {showPrizesAtIntro && view.prizes !== undefined && <PlayingFor prizes={view.prizes} size="phone" />}
           {view.ladder !== null && me.ladder !== null && (
             <p className="lead ladder-intro" role="status">
               {view.ladder.contestant === null
@@ -1283,7 +1293,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
-          <Standings standings={view.standings} highlightId={me.id} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />
         </>
       )}
 
@@ -1294,7 +1304,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
-          <Standings standings={view.standings} highlightId={me.id} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>
@@ -1306,8 +1316,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
+          {view.prizes !== undefined &&
+            (ceremony !== null ? (
+              <Ceremony prizes={view.prizes} size="phone" hold={splashUp} onDone={ceremony} />
+            ) : view.prizes.mine !== null ? (
+              <MyPrize prizes={view.prizes} nickname={(team !== null ? memberName(view, team.memberId) : '') || me.nickname} quizTitle={quizTitle} />
+            ) : (
+              <PrizeResults prizes={view.prizes} role="player" />
+            ))}
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
-          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} />}
+          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />}
           <MenuLinks role="player" />
         </>
       )}

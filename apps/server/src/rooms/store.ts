@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { liveRoom } from '../db/schema';
+import { releaseStalePrizes } from '../prizes';
 import { abandonRooms, parkInterrupted } from '../saved-games';
 import { isSavedRoom, type Room, type RoomManager } from './manager';
 
@@ -89,6 +90,12 @@ export class RoomStore {
       kept.map((row) => row.roomId),
     );
     const adopted = await this.adopt();
+    // Резерви ігор без кімнати (процес упав до запису live_room, старий сервер) — на склад; збережені ігри свої лишають.
+    const live = await this.db.select({ roomId: liveRoom.roomId }).from(liveRoom);
+    await releaseStalePrizes(
+      this.db,
+      live.map((row) => row.roomId),
+    );
     await this.reserve();
     return adopted;
   }

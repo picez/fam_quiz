@@ -2463,3 +2463,104 @@ describe('StageScreen reactions (13a)', () => {
     expect(document.querySelector('main.app.stage')?.classList.contains('has-reactions')).toBe(false);
   });
 });
+
+describe('StageScreen prizes and titles (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const introRound: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+
+  it('the lobby shows «Граємо за» only when there are prizes', () => {
+    show(view({ phase: 'lobby', prizes }));
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+
+  it('the intro of the first round shows it, the second round does not', () => {
+    show(view({ phase: 'intro', round: introRound, questionIndex: 0, prizes }));
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round: { ...introRound, index: 1 }, questionIndex: 3, prizes }));
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+
+  it('a title stands next to the nickname in the lobby', () => {
+    const player = { id: 'p1', nickname: 'Оля', connected: true } as unknown as StageView['players'][number];
+    show(view({ phase: 'lobby', playerCount: 1, players: [player], titles: { Оля: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
+  });
+});
+
+describe('StageScreen «Граємо за» for a continued game (13b)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const later: RoundInfo = { index: 2, total: 4, title: 'Далі', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+  it('the first intro after the lobby shows it even when it is a later round, the next intro does not', () => {
+    const { rerender } = render(<StageScreen view={view({ phase: 'lobby', prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    rerender(<StageScreen view={view({ phase: 'intro', round: later, questionIndex: -1, prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    rerender(<StageScreen view={view({ phase: 'intro', round: { ...later, index: 3 }, questionIndex: -1, prizes })} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline />);
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+});
+
+describe('StageScreen: the prize ceremony (14a)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [
+    { participantId: 'p1', nickname: 'Оля', score: 900, totalTimeMs: 1, rank: 1 },
+    { participantId: 'p2', nickname: 'Петро', score: 400, totalTimeMs: 1, rank: 2 },
+  ];
+  const prizes = {
+    mine: null,
+    places: [
+      { place: 1 as const, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: 'Чемпіон', real: null, title: null, diploma: false }, winner: { name: 'Оля', members: [] } },
+      { place: 2 as const, content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false }, winner: { name: 'Петро', members: [] } },
+    ],
+  };
+
+  it('finished with prizes: the ceremony first, then the podium and the awards', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes }));
+    expect(document.querySelector('.podium')).not.toBeNull();
+    expect(screen.queryByText('Переможці')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+
+  it('the ceremony waits for the «Підсумки» splash', () => {
+    vi.useFakeTimers();
+    const T = 1_000_000;
+    vi.setSystemTime(T);
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes, splash: { kind: 'podium', at: T, until: T + 2500 } }));
+    act(() => {
+      vi.advanceTimersByTime(2400);
+    });
+    expect(document.querySelectorAll('.podium-col.is-shown')).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(document.querySelectorAll('.podium-col.is-shown')).toHaveLength(1);
+  });
+
+  it('finished without prizes: the podium at once, as before', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings }));
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+
+  it('prizes without any winner do not hold the podium', () => {
+    show(view({ phase: 'finished', questionIndex: 2, standings, prizes: { mine: null, places: prizes.places.map((p) => ({ ...p, winner: null })) } }));
+    expect(screen.getByText('Переможці')).toBeTruthy();
+  });
+});

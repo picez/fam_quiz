@@ -8,6 +8,11 @@ import { HostScreen } from './HostScreen';
 import { ladderInfo } from './ladder-fixtures';
 import { teamsView } from './team-test-view';
 
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
+  gamePrizes: vi.fn(async () => ({ ok: true as const, data: { options: [], places: [null, null, null] } })),
+}));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -3234,5 +3239,40 @@ describe('HostScreen: saved games (13b)', () => {
     expect(screen.getByText('Почнемо з «Раунд 2 · Річки» з балами збереженої гри.')).toBeTruthy();
     fireEvent.click(button('Почати гру'));
     expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+});
+
+describe('HostScreen prize places (14a)', () => {
+  it('«Призи гри» is only in the lobby', async () => {
+    show(view());
+    expect(await screen.findByText('Призи гри')).toBeTruthy();
+    cleanup();
+    show(during('question', single));
+    expect(screen.queryByText('Призи гри')).toBeNull();
+  });
+});
+
+describe('HostScreen titles (14a)', () => {
+  it('the main player list shows the title next to the nickname', async () => {
+    show(view({ titles: { Олена: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Олена');
+  });
+});
+
+describe('HostScreen: prize results (14a)', () => {
+  it('finished with prizes: «Призи» with who got each place, and nobody means back to the store', () => {
+    const standings = [{ participantId: 'p1', nickname: 'Оля', score: 750, totalTimeMs: 1, rank: 1 }];
+    const content = { trophy: null, engraving: null, real: null, title: 'Король', diploma: false };
+    show(
+      view({
+        phase: 'finished',
+        questionIndex: 1,
+        standings,
+        prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Оля', members: [] } }, { place: 2, content, winner: null }] },
+      }),
+    );
+    expect(screen.getByRole('heading', { name: 'Призи' })).toBeTruthy();
+    expect(screen.getByText('1 місце — Оля')).toBeTruthy();
+    expect(screen.getByText('2 місце — нікого, приз повернеться на склад')).toBeTruthy();
   });
 });

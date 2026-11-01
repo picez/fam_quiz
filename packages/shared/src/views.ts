@@ -9,6 +9,7 @@ import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundSh
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
+import type { PrizesView } from './prizes';
 import type { RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
 import type { Standing } from './standing';
@@ -1103,6 +1104,10 @@ export interface AuthorView {
 }
 
 interface BaseView {
+  /** Призи гри (ставить сервер, рушій ключа не ставить); немає — призів немає. */
+  prizes?: PrizesView;
+  /** Титули біля ніків: нік людини → титул (ставить сервер, рушій ключа не ставить). */
+  titles?: Record<string, string>;
   phase: Phase;
   paused: boolean;
   /** Раунд; null у лобі. */

@@ -8,12 +8,14 @@ import type { Db } from './db/client';
 import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerProfileRoutes } from './profile-routes';
+import { registerPrizeRoutes } from './prize-routes';
 import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
 import { registerStickerRoutes } from './sticker-routes';
+import { attachTitles } from './titles';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
 
@@ -49,6 +51,7 @@ const BODY_LIMIT = 512 * 1024;
 export async function buildApp(options: AppOptions) {
   const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false, pacing: options.pacing ?? false });
   const recorder = attachRecorder(manager, options.db);
+  const titles = attachTitles(manager, options.db);
   const store = options.persist === undefined ? null : new RoomStore(options.db, manager, options.persist);
   if (store !== null) {
     await store.boot();
@@ -89,6 +92,7 @@ export async function buildApp(options: AppOptions) {
   await registerUploadRoutes(app, { storage: imageStorage, currentUser });
   await registerStickerRoutes(app, { storage: imageStorage, fixtures: options.stickerFixtures ?? false });
   await registerProfileRoutes(app, { db: options.db, currentUser });
+  await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms });
@@ -145,6 +149,7 @@ export async function buildApp(options: AppOptions) {
     store?.stop();
     await app.close();
     await recorder.idle();
+    await titles.idle();
   };
 
   return { app, manager, io, recorder, invites, store, shutdown };

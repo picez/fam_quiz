@@ -1,5 +1,5 @@
 import { READABLE_STATE_VERSIONS, type GameState } from '@quiz/engine';
-import type { ErrorCode, Quiz } from '@quiz/shared';
+import type { ErrorCode, PlacedPrize, Quiz } from '@quiz/shared';
 import type { Room } from './manager';
 
 /** Версія формату saved_game.data (13b). */
@@ -16,6 +16,8 @@ export interface SavedGameData {
   /** Лише люди контрольної точки (slotsOf і гравці рушія). */
   playerUsers: [string, string][];
   quizId: string | null;
+  /** Призи лобі (14a): лишаються в резерві за грою, точне продовження грає за них же; немає — без призів. */
+  prizes?: PlacedPrize[];
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);

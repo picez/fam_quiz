@@ -11,14 +11,16 @@ export function useSplash(splash: SplashView | null, paused: boolean, offsetMs: 
   const at = splash?.at ?? null;
   const until = splash?.until ?? null;
 
+  // Видимість цього рендера: таймер стоїть, поки шар на екрані. Рішення ефекту за власним Date.now() не годиться —
+  // рендер міг показати шар за 1 мс до кінця, а ефект, що прийшов уже на until, не ставив таймера, і шар лишався назавжди.
+  const visible = splash !== null && !paused && splashLeft(splash, offsetMs, Date.now()) > 0;
+
   useEffect(() => {
-    if (until === null || paused) return;
-    const left = splashLeft({ until }, offsetMs, Date.now());
-    if (left <= 0) return;
-    // tick у залежностях: таймер, що спрацював на мить раніше за годинник, ставиться знову.
-    const id = setTimeout(() => setTick((value) => value + 1), left);
+    if (!visible || until === null) return;
+    // tick у залежностях: таймер, що спрацював на мить раніше за годинник, ставиться знову; уже минула — перемальовування одразу.
+    const id = setTimeout(() => setTick((value) => value + 1), splashLeft({ until }, offsetMs, Date.now()));
     return () => clearTimeout(id);
-  }, [until, paused, offsetMs, tick]);
+  }, [visible, until, offsetMs, tick]);
 
   // elapsed рахується раз на заставку: зміна animation-delay на живому шарі зсунула б анімацію вперед.
   // Від кінця, а не від at: після зсуву паузою анімація продовжується з місця зупинки.
@@ -27,9 +29,7 @@ export function useSplash(splash: SplashView | null, paused: boolean, offsetMs: 
     [at, until, offsetMs, paused],
   );
 
-  if (splash === null || paused) return null;
-  if (splashLeft(splash, offsetMs, Date.now()) <= 0) return null;
-  return { splash, elapsed };
+  return visible ? { splash, elapsed } : null;
 }
 
 /** Перегортання клітинки триває SPLASH_MS.cell; далі, ще CELL_SURPRISE_MS до кінця заставки, — штамп «×2!». */

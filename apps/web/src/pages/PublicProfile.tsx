@@ -5,6 +5,7 @@ import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { Avatar } from '../profile/Avatar';
+import { Showcase } from '../profile/Showcase';
 import { StatsView } from '../profile/StatsView';
 import { VersusBlock } from '../profile/VersusBlock';
 import { useAccount } from '../useAccount';
@@ -75,7 +76,10 @@ export function PublicProfile() {
       <header className="profile-head">
         <Avatar profile={profile} size="large" />
         <div>
-          <h1 className="brand">{profile.nickname}</h1>
+          <h1 className="brand">
+            {profile.nickname}
+            {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
+          </h1>
           <p className="meta">{t('emailHidden')}</p>
           {following === false && (
             <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
@@ -105,6 +109,7 @@ export function PublicProfile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      <Showcase showcase={profile.showcase} own={isOwner} />
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>

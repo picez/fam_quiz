@@ -15,9 +15,11 @@ interface Props {
   gains?: Record<string, number>;
   /** Скільки рядків не поміщається на сцені (11i): останній рядок «…і ще N». */
   more?: number;
+  /** Титули за ніком (14a); у командній таблиці не ставляться. */
+  titles?: Record<string, string>;
 }
 
-export function Standings({ standings, highlightId, limit, streaks, teams, gains, more }: Props) {
+export function Standings({ standings, highlightId, limit, streaks, teams, gains, more, titles }: Props) {
   const shown = limit === undefined ? standings : standings.slice(0, limit);
   return (
     <ol className="standings">
@@ -33,6 +35,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
             <span className="rank">{row.rank}</span>
             <span className="name">
               {row.nickname}
+              {team === null && titles?.[row.nickname] !== undefined && <span className="nick-title">{titles[row.nickname]}</span>}
               <RowReaction rowId={row.participantId} />
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>

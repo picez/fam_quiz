@@ -53,21 +53,43 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
-  it('a signed-in person sees join, quizzes, history, achievements and profile with the current one marked', async () => {
+  it('a signed-in person sees join, quizzes, history, prizes, achievements and profile with the current one marked', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
-    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🏅Досягнення', '👤Профіль']);
+    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🎁Призи', '🏅Досягнення', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Досягнення'), href('Профіль')]).toEqual([
+    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Призи'), href('Досягнення'), href('Профіль')]).toEqual([
       '/',
       '/quizzes',
       '/history',
+      '/prizes',
       '/achievements',
       '/profile',
     ]);
     expect(screen.getByRole('link', { name: 'Історія' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
+  });
+
+  it('every item keeps its full name for assistive tech and carries a short label for the narrow bar', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/');
+    await screen.findByRole('link', { name: 'Профіль' });
+    const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
+    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Вікторини', 'Історія', 'Призи', 'Ачівки', 'Профіль']);
+  });
+
+  it('prizes are marked on their page and a visitor does not see them', async () => {
+    vi.mocked(me).mockResolvedValue(OK);
+    show('/prizes');
+    await screen.findByRole('link', { name: 'Призи' });
+    expect(screen.getByRole('link', { name: 'Призи' }).getAttribute('aria-current')).toBe('page');
+    expect(items().indexOf('🎁Призи')).toBe(3);
+    cleanup();
+    vi.mocked(me).mockResolvedValue(OUT);
+    show('/prizes');
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
   });
 
   it('achievements are marked on their page, and another player’s achievements belong to the profile', async () => {
@@ -121,6 +143,7 @@ describe('Menu', () => {
       show('/quizzes');
       const badge = await screen.findByLabelText('Запрошень: 2');
       expect(badge.textContent).toBe('2');
+      expect(screen.getByRole('link', { name: 'Профіль, Запрошень: 2' })).toBeTruthy();
       cleanup();
 
       vi.mocked(getMyInvites).mockClear();

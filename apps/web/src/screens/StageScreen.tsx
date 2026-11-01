@@ -31,6 +31,7 @@ import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-
 import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
+import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
 import { StageTeams } from './StageTeams';
 import { StageAnswerers } from './StageAnswerers';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
@@ -50,6 +51,7 @@ import { BluffBoard } from './BluffBoard';
 import { SurveyBoard } from './SurveyBoard';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { AwardsCarousel } from './AwardsCarousel';
+import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
 
@@ -96,7 +98,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
       </div>
       {view.teams !== null ? (
         <div className="roster">
-          <StageTeams teams={view.teams} />
+          <StageTeams teams={view.teams} titles={view.titles} />
         </div>
       ) : (
         <div className="roster">
@@ -105,11 +107,13 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
             {view.players.map((player) => (
               <li key={player.id} className={player.connected ? undefined : 'is-away'}>
                 {player.nickname}
+                {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
+      {view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="stage" />}
     </div>
   );
 }
@@ -477,7 +481,7 @@ function FinalStage({ view }: { view: StageView }) {
   );
 }
 
-function Intro({ view }: { view: StageView }) {
+function Intro({ view, showPrizes }: { view: StageView; showPrizes: boolean }) {
   if (view.round === null) return null;
   if (view.round.type === 'final') return <FinalStage view={view} />;
   if (view.round.type === 'ladder' && view.ladder !== null) return <LadderIntro view={view} info={view.ladder} />;
@@ -487,6 +491,7 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />
+      {showPrizes && view.prizes !== undefined && <PlayingFor prizes={view.prizes} size="stage" />}
     </>
   );
   return (
@@ -765,7 +770,7 @@ function BoardStage({ board }: { board: BoardInfo }) {
 const STAGE_ROWS_MAX = 16;
 
 /** Таблиця між запитаннями, підсумки раунду (12d: з картками — дві колонки) і п'єдестал з каруселлю «Нагороди гри». */
-function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: StageView; standings: NonNullable<StageView['standings']>; awardsSeq: number | null; splashing: boolean }) {
+function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null }: { view: StageView; standings: NonNullable<StageView['standings']>; awardsSeq: number | null; splashing: boolean; ceremony?: (() => void) | null }) {
   const { phase } = view;
   // Підсумки раунду (11f): з рядком «найкращий / ривок» показуємо 7 рядків, щоб сцена 1280 × 720 не прокручувалась.
   const roundEndIndex = phase === 'round_end' && view.round !== null ? view.round.index : null;
@@ -789,10 +794,14 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
       more={standings.length > rows ? standings.length - (rows - 1) : undefined}
       streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
       teams={view.teams}
+      titles={view.titles}
       gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
     />
   );
   const best = roundEndIndex !== null && <RoundHighlights standings={standings} roundIndex={roundEndIndex} />;
+  // Церемонія призів (14a): поки вона йде, п'єдестал і карусель не монтуються; ceremony — її onDone.
+  if (phase === 'finished' && ceremony !== null && view.prizes !== undefined)
+    return <Ceremony prizes={view.prizes} size="stage" hold={splashing} onDone={ceremony} />;
   if (phase === 'finished')
     return (
       // Поки йде заставка «Підсумки», карусель стоїть на п'єдесталі.
@@ -843,6 +852,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const blink = useVerdictBlink(view.spotlight);
   const blinking = useBlinkingRows(view.blitz?.rows ?? [], view.questionIndex);
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
+  const showPrizes = useShowPrizesAtIntro(view);
+  const ceremony = useCeremony(view);
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
@@ -873,13 +884,13 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
-      {phase === 'intro' && <Intro view={view} />}
+      {phase === 'intro' && <Intro view={view} showPrizes={showPrizes} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
-        <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} />
+        <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
       {phase === 'finished' && splashNow === null && <MenuLinks role="stage" />}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -18,6 +18,32 @@ describe('api', () => {
   it('passes our own error codes through', async () => {
     respond(401, { error: 'unauthorized' });
     expect(await me()).toEqual({ ok: false, error: 'unauthorized' });
+  });
+
+  it('keeps the reason of an invalid payload so the page can say what is wrong', async () => {
+    respond(400, { error: 'invalid_payload', reason: 'prize_empty' });
+    expect(await createPrize({ name: 'x', trophy: null, engraving: null, real: null, title: null, diploma: false })).toEqual({
+      ok: false,
+      error: 'invalid_payload:prize_empty',
+    });
+    respond(400, { error: 'invalid_payload' });
+    expect(await me()).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('talks to the prize routes', async () => {
+    const content = { name: 'x', trophy: null, engraving: null, real: null, title: null, diploma: true };
+    const fetchMock = respond(200, []) as unknown as { mock: { calls: any[][] } };
+    await myPrizes();
+    expect(fetchMock.mock.calls[0]).toEqual(['/api/me/prizes', expect.objectContaining({ method: 'GET' })]);
+    await updatePrize('a b', content);
+    expect(fetchMock.mock.calls[1]![0]).toBe('/api/me/prizes/a%20b');
+    expect(fetchMock.mock.calls[1]![1]).toMatchObject({ method: 'PUT' });
+    await deletePrize('p1');
+    expect(fetchMock.mock.calls[2]![1]).toMatchObject({ method: 'DELETE' });
+    await gamePrizes('123456');
+    expect(fetchMock.mock.calls[3]![0]).toBe('/api/games/by-code/123456/prizes');
+    await placePrizes('123456', ['a', null, null]);
+    expect(fetchMock.mock.calls[4]![1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ places: ['a', null, null] }) });
   });
 
   it('translates sign-in and sign-up failures into our codes', async () => {

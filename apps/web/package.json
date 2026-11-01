@@ -11,6 +11,7 @@
   "dependencies": {
     "@fontsource-variable/onest": "^5.3.1",
     "@fontsource-variable/unbounded": "^5.3.0",
+    "@google/model-viewer": "^4.4.0",
     "@quiz/shared": "workspace:*",
     "qrcode.react": "^4.2.0",
     "react": "^19.3.0",

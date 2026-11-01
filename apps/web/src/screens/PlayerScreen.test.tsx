@@ -4005,3 +4005,81 @@ describe('PlayerScreen reactions (13a)', () => {
     expect(reactButton()).toBeNull();
   });
 });
+
+describe('PlayerScreen prizes (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  it('the lobby shows the «Граємо за» line, and nothing without prizes', () => {
+    show(view({ phase: 'lobby', prizes }));
+    expect(screen.getByText('Граємо за: 🏆 Золотий кубок')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+  it('a title stands next to the nickname in the lobby list', () => {
+    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], titles: { Оля: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
+  });
+});
+
+describe('PlayerScreen «Граємо за» at intros (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const round = (index: number): RoundInfo => ({ index, total: 4, title: 'Раунд', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null });
+  const screenOf = (current: PlayerView) => <PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />;
+  it('shows at the first round intro, not at a later one', () => {
+    show(view({ phase: 'intro', round: round(0), questionIndex: 0, prizes }));
+    expect(screen.getByText(/Граємо за/)).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round: round(1), questionIndex: 3, prizes }));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+  it('a continued game: the first intro after the lobby shows it at a later round', () => {
+    const { rerender } = render(screenOf(view({ phase: 'lobby', prizes })));
+    rerender(screenOf(view({ phase: 'intro', round: round(2), questionIndex: -1, prizes })));
+    expect(screen.getByText(/Граємо за/)).toBeTruthy();
+    rerender(screenOf(view({ phase: 'intro', round: round(3), questionIndex: -1, prizes })));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+});
+
+describe('PlayerScreen: the prize ceremony (14a)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const content = { trophy: null, engraving: 'Чемпіон', real: { text: 'Піца', photoUrl: null }, title: null, diploma: true };
+
+  it('finished with my prize: the ceremony, then «Твій приз» above the table', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, me: { ...me, score: 750, rank: 1 }, prizes: { mine: { place: 1, account: true }, places: [{ place: 1, content, winner: { name: 'Олена', members: [] } }] } }));
+    expect(document.querySelector('.podium')).not.toBeNull();
+    expect(screen.queryByText('Твій приз')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.getByText('Твій приз')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Диплом' })).toBeTruthy();
+    expect(document.querySelector('.standings')).not.toBeNull();
+  });
+
+  it('finished without a prize of mine: after the ceremony, who got which place', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Тарас', members: [] } }, { place: 2, content, winner: null }] } }));
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(screen.queryByText('Твій приз')).toBeNull();
+    expect(screen.getByText('1 місце — Тарас')).toBeTruthy();
+    expect(screen.queryByText(/нікого/)).toBeNull();
+  });
+
+  it('finished without prizes: the table as before', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings }));
+    expect(document.querySelector('.podium')).toBeNull();
+    expect(screen.queryByText('Твій приз')).toBeNull();
+  });
+});

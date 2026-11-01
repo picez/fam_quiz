@@ -30,6 +30,7 @@ const mine: OwnProfile = {
   quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
+  showcase: { title: null, awards: [] },
 };
 
 beforeEach(() => {
@@ -60,6 +61,29 @@ const open = () =>
   );
 
 describe('Profile', () => {
+  it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: {
+        ...mine,
+        showcase: {
+          title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={['/profile']}>
+        <Routes>
+          <Route path="/profile" element={<Profile />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
+    expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
+    expect(screen.getByText('🎁 Піца')).toBeTruthy();
+  });
+
   it('shows a row of earned badges linking to the achievements page', async () => {
     open();
     expect(await screen.findByText('Олена')).toBeTruthy();

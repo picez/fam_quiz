@@ -18,6 +18,7 @@ import type { CurrentUser } from './account-routes';
 import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
+import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
 
 export const DEFAULT_NICKNAME = 'Гравець';
@@ -207,6 +208,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     quizzes,
     wins: facts.wins,
     friends: await friendsOf(db, current.id),
+    showcase: await showcaseOf(db, current.id),
   };
 }
 
@@ -216,7 +218,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id) };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

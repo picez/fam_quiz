@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -36,11 +36,13 @@ const AUTH_CODES: [prefix: string, code: string][] = [
 
 function errorCode(data: unknown): string {
   if (typeof data !== 'object' || data === null) return 'unknown';
-  const { error, code } = data as Record<string, unknown>;
+  const { error, code, reason } = data as Record<string, unknown>;
   if (typeof code === 'string') {
     const known = AUTH_CODES.find(([prefix]) => code.startsWith(prefix));
     if (known !== undefined) return known[1];
   }
+  // Сервер може пояснити 400: «invalid_payload» + reason; сторінка знає читабельний текст причини.
+  if (error === 'invalid_payload' && typeof reason === 'string') return `${error}:${reason}`;
   return typeof error === 'string' ? error : 'unknown';
 }
 
@@ -134,6 +136,16 @@ export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }
   const result = await send('/api/uploads/audio', { method: 'POST', headers: { 'content-type': contentType }, body: file });
   return result.ok ? { ok: true, ...(result.data as { url: string }) } : result;
 }
+
+const prizeUrl = (id: string) => `/api/me/prizes/${encodeURIComponent(id)}`;
+export const myPrizes = () => fetchData<PrizeItem[]>('/api/me/prizes');
+export const createPrize = (content: PrizeContent) => request<PrizeItem>('/api/me/prizes', { body: content });
+export const updatePrize = (id: string, content: PrizeContent) => request<PrizeItem>(prizeUrl(id), { method: 'PUT', body: content });
+export const deletePrize = (id: string) => request<object>(prizeUrl(id), { method: 'DELETE' });
+/** Призи, які ведучий може покласти в лобі, і що лежить на місцях зараз. */
+export const gamePrizes = (code: string) => fetchData<PrizePlacesInfo>(`${gameUrl(code)}/prizes`);
+export const placePrizes = (code: string, places: (string | null)[]) =>
+  fetchData<PrizePlacesInfo>(`${gameUrl(code)}/prizes`, { method: 'PUT', body: { places } });
 
 export const listGames = () => fetchData<GameSummary[]>('/api/games');
 export const getGame = (id: string) => fetchData<GameDetail>(`/api/games/${encodeURIComponent(id)}`);

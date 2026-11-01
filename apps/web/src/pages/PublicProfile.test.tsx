@@ -15,6 +15,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
+  showcase: { title: null, awards: [] },
   ...over,
 });
 
@@ -43,6 +44,22 @@ describe('PublicProfile', () => {
     expect(await screen.findByText('Тарас')).toBeTruthy();
     expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/u2/achievements');
+  });
+
+  it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ok: true,
+      data: profile({
+        showcase: {
+          title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      }),
+    });
+    open();
+    expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
+    expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
+    expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
   it('the achievements link encodes the profile id', async () => {

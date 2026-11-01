@@ -1,11 +1,12 @@
 import { READABLE_STATE_VERSIONS, slotsOf, type GameState } from '@quiz/engine';
-import { claimSchema, type ContinueResponse, type GameSummary, type SavedMode } from '@quiz/shared';
+import { claimSchema, type ContinueResponse, type GameSummary, type PlacedPrize, type SavedMode } from '@quiz/shared';
 import { and, desc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { CODE_LIMIT, type CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { game, liveRoom, participant, savedGame } from './db/schema';
+import { releasePrizes, releaseUnsaved, reservedFor } from './prizes';
 import { playerCounts, questionCountOf, resumeRound, snapshotOf, teamGameIds } from './history';
 import { markAborted, saveSavedGame, trimToCheckpoint } from './recorder';
 import { isSavedGameData, SAVED_GAME_VERSION, type RestartParticipant, type SavedGameData } from './rooms/continuation';
@@ -33,6 +34,8 @@ function exactWrite(data: unknown) {
     at: checkpoint.at,
     playerUsers: data.playerUsers.filter(([playerId]) => people.has(playerId)),
     quizId: data.quizId,
+    // Призи лишаються в резерві за збереженою грою (14a): продовження грає за них же.
+    ...(data.prizes === undefined || data.prizes.length === 0 ? {} : { prizes: data.prizes }),
   };
   return { id: data.id, code: data.code, hostId: hostUserId, quizId: data.quizId, playerUsers: new Map(saved.playerUsers), saved, replaces: replacesOf(data) };
 }
@@ -51,6 +54,8 @@ function rawSaved(data: unknown): { data: SavedGameData | null; stateVersion: nu
       at: typeof checkpoint.at === 'number' ? checkpoint.at : 0,
       playerUsers: Array.isArray(data.playerUsers) ? (data.playerUsers as [string, string][]) : [],
       quizId: typeof data.quizId === 'string' ? data.quizId : null,
+      // Призи сирого запису перевіряє продовження (prizesOf).
+      ...(Array.isArray(data.prizes) ? { prizes: data.prizes as PlacedPrize[] } : {}),
     },
     stateVersion,
   };
@@ -81,6 +86,7 @@ async function saveRecorded(db: Db, roomId: string, data: unknown): Promise<bool
  * 1) isSavedRoom(data), є checkpoint, hostUserId != null, state.plays.length > 0 → saveSavedGame (SavedGameData з stateVersion запису, replaces — data.continued?.replaces ?? null);
  * 2) інакше гра 'running' з questions_played > 0 → status 'saved' + saved_game { data: сирий data.checkpoint як SavedGameData-конверт, якщо це об'єкт зі state; інакше null; stateVersion: data.stateVersion, якщо число, інакше null }; без знімка наявний рядок saved_game лишає свої data і stateVersion;
  * 3) решта → markAborted.
+ * Призи гри (14a): збережена гра лишає їх у резерві, решта повертає на склад (releaseUnsaved).
  * Збій одного рядка — onError і далі.
  */
 export async function abandonRooms(db: Db, rows: { roomId: string; data: unknown }[], onError: (error: unknown) => void): Promise<void> {
@@ -89,10 +95,10 @@ export async function abandonRooms(db: Db, rows: { roomId: string; data: unknown
       const write = exactWrite(row.data);
       if (write !== null && write.id === row.roomId && (await stillOpen(db, row.roomId))) {
         await saveSavedGame(db, write);
-        continue;
+      } else if (!(await saveRecorded(db, row.roomId, row.data))) {
+        await markAborted(db, [row.roomId]);
       }
-      if (await saveRecorded(db, row.roomId, row.data)) continue;
-      await markAborted(db, [row.roomId]);
+      await releaseUnsaved(db, row.roomId);
     } catch (error) {
       onError(error);
     }
@@ -244,7 +250,10 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     if (mode === 'blocked') return reply.code(409).send({ error: 'cannot_continue' });
     let result;
     if (mode === 'exact') {
-      const saved = found.data as SavedGameData;
+      const stored = found.data as SavedGameData;
+      // Призи, яких уже немає в резерві за грою (приз видалили, поки гра лежала), не повертаються на місця.
+      const kept = await reservedFor(db, row.id);
+      const saved: SavedGameData = { ...stored, prizes: (stored.prizes ?? []).filter((p) => kept.has(p.id)) };
       await trimToCheckpoint(db, row.id, saved.state);
       // Поки обрізали, гру могли видалити чи завершити (інший запит, інший процес): тоді нічого не відкриваємо — 404, як для чужої чи вже не збереженої гри.
       if ((await ownSaved(row.id, user.id)) === null) return reply.code(404).send(NOT_FOUND);
@@ -262,6 +271,8 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
       });
     }
     if (!result.ok) return reply.code(result.error === 'restarting' ? 503 : 409).send({ error: result.error });
+    // Шлях 12r: нове лобі — нові місця; резерви старої гри повертаються на склад (14a).
+    if (mode === 'restart') await releasePrizes(db, row.id);
     const { room, author } = result;
     const body: ContinueResponse =
       author === null
@@ -280,7 +291,12 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     if (manager.openFor(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
     // І рядок live_room (продовження в іншому процесі) — теж безпосередньо перед видаленням.
     if ((await openGameIds(db, manager)).has(found.game.id)) return reply.code(409).send({ error: 'continue_open' });
-    await db.delete(game).where(and(eq(game.id, found.game.id), eq(game.status, 'saved')));
+    const removed = await db
+      .delete(game)
+      .where(and(eq(game.id, found.game.id), eq(game.status, 'saved')))
+      .returning({ id: game.id });
+    // Гри більше немає — її призи повертаються на склад (14a). Не видалилося нічого (гру тим часом продовжили) — резерви лишаються.
+    if (removed.length > 0) await releaseUnsaved(db, found.game.id);
     return reply.code(200).send({});
   });
 
