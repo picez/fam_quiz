@@ -49,7 +49,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     return { favorites: await saveFavoriteStickers(db, user.id, body.data.favorites) };
   });
 
-  app.put('/api/me/looks', async (request, reply) => {
+  app.put('/api/me/looks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const body = looksSchema.safeParse(request.body);
