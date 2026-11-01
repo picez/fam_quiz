@@ -83,6 +83,22 @@ describe('awardPrizes', () => {
     expect((await showcaseOf(db, 'u2', at)).title?.text).toBe('🧠 Ерудит');
   });
 
+  it('a delayed award of an older game never overwrites a newer title', async () => {
+    const g2 = randomUUID();
+    const newer = await make('Новий', '🧠 Ерудит');
+    await reservePlaces(db, 'u1', g2, [newer, null, null]);
+    const later = new Date(at.getTime() + 60_000);
+    await awardPrizes(db, { gameId: g2, quizTitle: 'Q', at: later, outcomes: [{ place: 1, prizeId: newer, winners: [{ userId: 'u2', nickname: 'Оля' }] }] });
+    // Гра g1 скінчилася раніше, але її запис дійшов лише тепер.
+    const older = await make('Старий', '👑 Король вікторини');
+    await reservePlaces(db, 'u1', g1, [older, null, null]);
+    await run([{ place: 1, prizeId: older, winners: [{ userId: 'u2', nickname: 'Оля' }] }]);
+    const [title] = await db.select().from(userTitle).where(eq(userTitle.userId, 'u2'));
+    expect(title).toMatchObject({ text: '🧠 Ерудит', gameId: g2, awardedAt: later });
+    // Сам приз старої гри все одно вручено.
+    expect((await rowOf(older)).status).toBe('awarded');
+  });
+
   it('returns reserved prizes that are not among the outcomes', async () => {
     const a = await make('A');
     const b = await make('B');

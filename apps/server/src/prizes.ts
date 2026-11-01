@@ -10,7 +10,7 @@ import {
   type PrizePlace,
   type Showcase,
 } from '@quiz/shared';
-import { and, count, desc, eq, gt, inArray, isNull, ne, not, notInArray, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, lt, ne, not, notInArray, or, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { game, liveRoom, prize, prizeAward, userTitle } from './db/schema';
 import type { RoomManager } from './rooms/manager';
@@ -243,7 +243,8 @@ export async function awardPrizes(db: Db, input: AwardInput): Promise<void> {
           await tx
             .insert(userTitle)
             .values({ userId: winner.userId, text: content.title, gameId, awardedAt: at, expiresAt })
-            .onConflictDoUpdate({ target: userTitle.userId, set: { text: content.title, gameId, awardedAt: at, expiresAt } });
+            // Лише новіший титул: запізнілий запис старшої гри не перекриває титул новішої.
+            .onConflictDoUpdate({ target: userTitle.userId, set: { text: content.title, gameId, awardedAt: at, expiresAt }, setWhere: lt(userTitle.awardedAt, at) });
         }
       }
     });
