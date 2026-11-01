@@ -45,14 +45,14 @@ export function prizeOutcome(room: Room): PrizeOutcome[] {
     });
 }
 
-/** Зріз призів для ролі; undefined — призів немає. winner лише у finished; mine — лише гравцеві у finished. */
+/** Зріз призів для ролі; undefined — призів немає. winner і mine (гравцеві) — лише коли гра дає призи (awarding). */
 export function prizesView(
   room: Room,
   viewer: { role: 'host' | 'stage' } | { role: 'player'; playerId: string },
 ): PrizesView | undefined {
   if (room.prizes.length === 0) return undefined;
-  const finished = room.state.phase === 'finished';
-  const holders = finished ? placeHolders(room.state) : [];
+  const awarded = awarding(room.state);
+  const holders = awarded ? placeHolders(room.state) : [];
   const teams = teamsOn(room.state);
   const places: PrizeShown[] = [...room.prizes]
     .sort((a, b) => a.place - b.place)
@@ -65,7 +65,7 @@ export function prizesView(
       };
     });
   let mine: PrizesView['mine'] = null;
-  if (finished && viewer.role === 'player') {
+  if (awarded && viewer.role === 'player') {
     const holder = holders.find((h) => h.people.some((p) => p.id === viewer.playerId));
     if (holder !== undefined && room.prizes.some((p) => p.place === holder.place)) {
       mine = { place: holder.place, account: room.playerUsers.has(viewer.playerId) };

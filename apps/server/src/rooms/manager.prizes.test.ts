@@ -150,6 +150,19 @@ describe('manager prizes (14a)', () => {
     expect(prizeOutcome(setup.room)).toEqual([]);
   });
 
+  it('a finish without a single played question shows no winner and no mine', () => {
+    const setup = lobby(['Оля', 'Петро']);
+    setup.manager.setPrizes(setup.room, [FIRST, SECOND]);
+    setup.manager.host(setup.room, { type: 'start' });
+    setup.manager.host(setup.room, { type: 'end' });
+    expect(setup.room.state.phase).toBe('finished');
+    const stage = setup.manager.view(setup.room, { role: 'stage', playerId: null })!.prizes!;
+    expect(stage.places.map((p) => p.winner)).toEqual([null, null]);
+    for (const name of ['Оля', 'Петро']) {
+      expect(setup.manager.view(setup.room, player(setup.room, setup.ids[name]!))?.prizes?.mine).toBeNull();
+    }
+  });
+
   it('team game: members by nickname, accounts of every person, mine of a winning member', () => {
     const scheduler = new FakeScheduler();
     const manager = new RoomManager(scheduler, () => 0.5);
