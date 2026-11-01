@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
-import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveHost, saveLastGame } from '../storage';
+import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
 
@@ -1158,6 +1158,14 @@ describe('History: unfinished games (13b)', () => {
     open('/history');
     await screen.findByRole('link', { name: 'Річки' });
     expect(link()).toBeNull();
+  });
+
+  it('a bot game’s open continuation links to the author’s phone when the author key for its code is here', async () => {
+    saveAuthor('654321', { stageToken: 's' });
+    vi.mocked(listGames).mockResolvedValue({ ok: true, data: [{ ...saved, autopilot: true, saved: { ...info, open: true, openCode: '654321' } }] });
+    open('/history');
+    await screen.findByRole('link', { name: 'Річки' });
+    expect(within(savedItem()).getByRole('link', { name: 'Повернутися до гри' }).getAttribute('href')).toBe('/play/654321');
   });
 
   it('«Продовжити» of a hosted game opens the console with the new tokens', async () => {

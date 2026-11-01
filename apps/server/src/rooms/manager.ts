@@ -927,6 +927,8 @@ export class RoomManager {
   disconnect(room: Room, identity: Identity): void {
     if (!this.alive(room)) return;
     const key = identity.playerId ?? identity.role;
+    // Людину вилучили чи звільнили (release / kick стирають її з'єднання): сокет, що закривається після цього, розриву не лишає.
+    if (identity.playerId !== null && !room.connections.has(key)) return;
     const count = (room.connections.get(key) ?? 0) - 1;
     if (count > 0) {
       room.connections.set(key, count);

@@ -291,10 +291,10 @@ describe('freeing a slot (13b)', () => {
     expect(room.hidden.has(ctx.taras)).toBe(true);
     expect(room.awayCredit.has(ctx.taras)).toBe(true);
     expect(room.state.plays[room.state.questionIndex].away?.[ctx.taras]).toBeDefined();
-    // Хто звільнив, той і відключається; до звільнення ще й розрив.
-    manager.disconnect(room, { role: 'player', playerId: ctx.taras });
-    expect(room.gaps.has(ctx.taras)).toBe(true);
+    // Як на проді: спершу звільнення, потім сокет, що закривається, кличе disconnect.
     expect(manager.host(room, { type: 'release', playerId: ctx.taras })).toEqual({ ok: true });
+    manager.disconnect(room, { role: 'player', playerId: ctx.taras });
+    expect(room.gaps.has(ctx.taras)).toBe(false);
     expect(room.hidden.has(ctx.taras)).toBe(false);
     expect(room.gaps.has(ctx.taras)).toBe(false);
     expect(room.awayCredit.has(ctx.taras)).toBe(false);
