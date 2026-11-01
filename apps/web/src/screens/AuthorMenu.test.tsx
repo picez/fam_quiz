@@ -279,3 +279,52 @@ describe('AuthorMenu', () => {
     expect((await within(sheet).findByRole('alert')).textContent).not.toBe('');
   });
 });
+
+describe('AuthorMenu: saved games (13b)', () => {
+  const continued = {
+    slots: [
+      { id: 'p1', nickname: 'Автор', team: null, taken: true, account: true },
+      { id: 'p2', nickname: 'Оля', team: null, taken: true, account: false },
+      { id: 'p3', nickname: 'Петро', team: null, taken: false, account: false },
+    ],
+    carryRound: null,
+  };
+  const me = { ...soloView().me, id: 'p1', nickname: 'Автор' };
+
+  it('«Зберегти й продовжити пізніше» asks, sends host:save and closes; not in the lobby', async () => {
+    const { send } = show(soloView({ phase: 'leaderboard', me }));
+    fireEvent.click(within(openMenu()).getByRole('button', { name: 'Зберегти й продовжити пізніше' }));
+    expect(confirmSpy).toHaveBeenCalledWith('Зберегти гру й закрити кімнату? Недогране запитання почнеться заново. Продовжиш з «Історії ігор».');
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:save', undefined));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    cleanup();
+    show(soloView({ me }));
+    expect(within(openMenu()).queryByRole('button', { name: 'Зберегти й продовжити пізніше' })).toBeNull();
+  });
+
+  it('a «no» to the save sends nothing', () => {
+    const { send } = show(soloView({ phase: 'question', me }));
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.click(within(openMenu()).getByRole('button', { name: 'Зберегти й продовжити пізніше' }));
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('«Місця збереженої гри» lists the seats; no «Звільнити» next to the author; a release sends host:release', async () => {
+    const { send } = show(soloView({ phase: 'leaderboard', paused: true, me, author: author({ continued }) }));
+    fireEvent.click(within(openMenu()).getByRole('button', { name: 'Місця збереженої гри' }));
+    const sheet = screen.getByRole('dialog');
+    expect(within(sheet).getByRole('heading', { name: 'Місця збереженої гри' })).toBeTruthy();
+    const rowOf = (name: string) => within(sheet).getByText(name).closest('li') as HTMLElement;
+    expect(within(rowOf('Автор')).queryByRole('button', { name: 'Звільнити' })).toBeNull();
+    expect(within(rowOf('Петро')).queryByRole('button', { name: 'Звільнити' })).toBeNull();
+    fireEvent.click(within(rowOf('Оля')).getByRole('button', { name: 'Звільнити' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:release', { playerId: 'p2' }));
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Назад' }));
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'Меню автора' })).toBeTruthy();
+  });
+
+  it('no «Місця збереженої гри» without a continued game', () => {
+    show(soloView({ phase: 'leaderboard', me }));
+    expect(within(openMenu()).queryByRole('button', { name: 'Місця збереженої гри' })).toBeNull();
+  });
+});

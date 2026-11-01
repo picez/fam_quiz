@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import type { ResumeLobby } from '@quiz/shared';
+import type { ContinuedView, ResumeLobby } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
-import { emptyDraft, resumePayload } from '../resume';
+import { emptyDraft, restartNoteText, resumePayload } from '../resume';
 import { ResumePanel } from './ResumePanel';
 
 const COPIED_MS = 2000;
@@ -17,6 +17,7 @@ export function AuthorLobby({
   send,
   onError,
   resume = null,
+  continued,
 }: {
   code: string;
   /** null — токена сцени на цьому пристрої немає: посилання не показано. */
@@ -26,11 +27,13 @@ export function AuthorLobby({
   onError: (message: string | null) => void;
   /** «Продовжити попередню гру» (12r): раунди й учасники; null — панелі немає. */
   resume?: ResumeLobby | null;
+  /** Кімната продовження збереженої гри (13b): бали переносить сервер — замість панелі 12r лише рядок про стартовий раунд. */
+  continued?: ContinuedView;
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
   const [resumeDraft, setResumeDraft] = useState(emptyDraft);
-  const resumeSend = resume === null ? undefined : resumePayload(resumeDraft, resume);
+  const resumeSend = resume === null || continued !== undefined ? undefined : resumePayload(resumeDraft, resume);
   const [copyFailed, setCopyFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
@@ -80,7 +83,8 @@ export function AuthorLobby({
           </div>
         )}
       </section>
-      {resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
+      {continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
+      {continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
       <p className="lead">{t('authorStartHint')}</p>
       <button
         type="button"

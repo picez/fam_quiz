@@ -57,6 +57,7 @@ import { cellHelpId } from '../help/host-help';
 import { UndoButton } from './UndoSheet';
 import { AppealCard } from './AppealCard';
 import { ResumePanel } from './ResumePanel';
+import { SlotsPanel } from './SlotsPanel';
 import { emptyDraft, resumePayload } from '../resume';
 
 export { STAGE_GONE_MS };
@@ -384,6 +385,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
   const endGame = () => {
     if (window.confirm(t('endConfirm'))) void act('host:end');
+  };
+
+  const saveGame = () => {
+    if (window.confirm(t('saveConfirm'))) void act('host:save');
   };
 
   const endRound = () => {
@@ -1291,7 +1296,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <span className="meta">{`${t('joinLink')}: ${joinUrl}`}</span>
       </nav>
 
-      {phase === 'lobby' && view.resume !== null && view.resume.rounds.length > 0 && <ResumePanel code={code} info={view.resume} draft={resumeDraft} onChange={setResumeDraft} />}
+      {/* Продовження збереженої гри (13b): бали переносить сервер, тож «Продовжити попередню гру» не потрібна. */}
+      {phase === 'lobby' && view.continued === undefined && view.resume !== null && view.resume.rounds.length > 0 && (
+        <ResumePanel code={code} info={view.resume} draft={resumeDraft} onChange={setResumeDraft} />
+      )}
+      {view.continued !== undefined && <SlotsPanel continued={view.continued} send={send} paused={view.paused} phase={phase} resume={view.resume} />}
 
       {error !== null && (
         <p className="error" role="alert">
@@ -1308,6 +1317,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 {t('endRound')}
               </button>
             )}
+            <button type="button" className="btn" onClick={saveGame}>
+              {t('saveLater')}
+            </button>
             <button type="button" className="btn btn-danger" onClick={inRound && lastRound ? endRound : endGame}>
               {t('end')}
             </button>

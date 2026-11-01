@@ -86,3 +86,9 @@ export function resumeRoundText(info: ResumeLobby, index: number): string {
   const label = round === undefined ? number : roundLabel(round.title, index, round.type);
   return label === number ? number : t('resumeRoundOption', { n: index + 1, title: label });
 }
+
+/** «Почнемо з «Раунд 2 · Річки» з балами збереженої гри.» (13b, шлях 12r); без раундів лобі — лише «Раунд N». */
+export function restartNoteText(carryRound: number, info: ResumeLobby | null): string {
+  const round = info === null ? t('roundN', { index: carryRound + 1 }) : resumeRoundText(info, carryRound);
+  return t('restartNote', { round });
+}
