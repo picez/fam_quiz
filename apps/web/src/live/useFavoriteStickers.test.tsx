@@ -100,4 +100,18 @@ describe('useFavoriteStickers (13a)', () => {
     expect(sent[0]).toBe(a);
     expect(sent).not.toContain(forty[39]);
   });
+
+  it('a list that could not be read is never saved anywhere', async () => {
+    const fetchMock = stubFetch({ status: 500, body: { error: 'internal' } }, { status: 200, body: { favorites: [a] } });
+    const { result } = renderHook(() => useFavoriteStickers());
+    act(() => result.current.load());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => result.current.toggle(a));
+    // Дотик ☆ пробує прочитати ще раз; знову 500 — нічого не змінюється.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+    expect(localStorage.getItem(GUEST_FAVORITES_KEY)).toBeNull();
+    expect(result.current.favorites).toEqual([]);
+  });
 });

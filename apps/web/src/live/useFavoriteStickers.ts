@@ -4,7 +4,8 @@ import { getFavoriteStickers, saveFavoriteStickers } from '../api';
 
 export const GUEST_FAVORITES_KEY = 'quiz:stickers:favorites';
 
-type Owner = 'guest' | 'account';
+/** unknown — список не вдалося прочитати (мережа, 5xx): такий список не зберігається ніде. */
+type Owner = 'guest' | 'account' | 'unknown';
 
 /** Список гостя з localStorage: JSON-масив рядків, інакше (сміття, немає сховища) — []. */
 function readGuest(): string[] {
@@ -25,8 +26,8 @@ function writeGuest(list: string[]): void {
 }
 
 /**
- * Улюблені стікери (13a). Вантажить на першому load(): 401 — гість (localStorage, JSON-масив, normalizeFavorites), інакше — акаунт
- * (/api/me/stickers). toggle одразу оновлює список через toggleFavorite (не більше 40); збій збереження акаунта мовчки повертає попередній.
+ * Улюблені стікери (13a). Вантажить на першому load(): 401 — гість (localStorage, JSON-масив, normalizeFavorites), ok — акаунт
+ * (/api/me/stickers), інший збій — невідомо: ☆ нічого не міняє й не зберігає, доки список не прочитано. toggle одразу оновлює список через toggleFavorite (не більше 40); збій збереження акаунта мовчки повертає попередній.
  */
 export function useFavoriteStickers(): { favorites: string[]; load: () => void; toggle: (id: string) => void } {
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -49,9 +50,9 @@ export function useFavoriteStickers(): { favorites: string[]; load: () => void; 
         set(readGuest());
         return 'guest';
       }
-      // Збій мережі: наступне відкриття аркуша спробує ще раз.
+      // Збій мережі чи сервера: наступне відкриття аркуша (чи дотик ☆) спробує ще раз.
       ownerRef.current = null;
-      return 'account';
+      return 'unknown';
     });
     ownerRef.current = pending;
     return pending;
@@ -64,6 +65,8 @@ export function useFavoriteStickers(): { favorites: string[]; load: () => void; 
   const toggle = useCallback(
     (id: string) => {
       void start().then(async (owner) => {
+        // Список, який не прочитали з сервера, не можна зберегти: PUT [id] затер би до 40 улюблених профілю.
+        if (owner === 'unknown') return;
         const previous = listRef.current;
         const next = toggleFavorite(previous, id);
         set(next);
