@@ -12861,3 +12861,57 @@ button.wall-tile:disabled {
   font-size: 0.8125rem;
   font-weight: 600;
 }
+
+/* Призи гри (14a): панель в лобі, «Граємо за» на сцені й телефоні, титул біля ніку */
+.prize-places .prize-place {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block: 0.4rem;
+}
+.prize-places select {
+  min-width: 0;
+  max-width: 60%;
+  flex: 1 1 auto;
+}
+.playing-for {
+  margin-block: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.playing-for.is-stage {
+  max-width: 100%;
+}
+.playing-for.is-stage ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.playing-for.is-stage li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  font-size: 1.4rem;
+}
+.playing-for.is-stage .rank {
+  font-weight: 700;
+}
+.nick-title {
+  display: inline-block;
+  margin-inline-start: 0.4em;
+  font-size: 0.7em;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24ch;
+  opacity: 0.85;
+}
+@media (max-width: 480px) {
+  .nick-title {
+    max-width: 12ch;
+  }
+}

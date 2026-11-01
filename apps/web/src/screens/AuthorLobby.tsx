@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
 import { emptyDraft, restartNoteText, resumePayload } from '../resume';
+import { PrizePlaces } from './PrizePlaces';
 import { ResumePanel } from './ResumePanel';
 
 const COPIED_MS = 2000;
@@ -83,6 +84,7 @@ export function AuthorLobby({
           </div>
         )}
       </section>
+      <PrizePlaces code={code} />
       {continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
       {continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
       <p className="lead">{t('authorStartHint')}</p>

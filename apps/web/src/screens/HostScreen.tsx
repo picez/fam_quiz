@@ -37,6 +37,7 @@ import { LiveAnswers } from './LiveAnswers';
 import { draftsById } from '../live-drafts';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
+import { PrizePlaces } from './PrizePlaces';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
 import { FactCards, RevealFactsLine } from './FactCards';
@@ -1129,7 +1130,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   .filter((player) => !view.responses.some((response) => response.playerId === player.id))
                   .map((player) => (
                     <li key={`silent-${player.id}`}>
-                      <span className="name">{player.nickname}</span>
+                      <span className="name">
+                  {player.nickname}
+                  {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
+                </span>
                       <span className="given">{t(phase === 'question' ? 'finalThinking' : 'finalSilent')}</span>
                     </li>
                   ))}
@@ -1200,7 +1204,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'round_end' && round !== null && (
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
-          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} />
+          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} titles={view.titles} />
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
           {view.roundQuestions !== null && view.roundQuestions.length > 0 && (
             <ol className="round-shares" aria-label={t('roundSharesLabel')}>
@@ -1220,7 +1224,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'finished' ? (
         <section className="panel">
           <h2>{t('gameOver')}</h2>
-          <Standings standings={view.standings} teams={view.teams} />
+          <Standings standings={view.standings} teams={view.teams} titles={view.titles} />
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
           {(view.facts?.awards?.length ?? 0) > 0 && (
             <>
@@ -1285,6 +1289,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 
       {phase === 'lobby' && <InviteFriends code={code} />}
+      {phase === 'lobby' && <PrizePlaces code={code} />}
 
       <nav className="links">
         <a href={stageUrl} target="_blank" rel="noreferrer">

@@ -8,6 +8,11 @@ import { HostScreen } from './HostScreen';
 import { ladderInfo } from './ladder-fixtures';
 import { teamsView } from './team-test-view';
 
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
+  gamePrizes: vi.fn(async () => ({ ok: true as const, data: { options: [], places: [null, null, null] } })),
+}));
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -3234,5 +3239,15 @@ describe('HostScreen: saved games (13b)', () => {
     expect(screen.getByText('Почнемо з «Раунд 2 · Річки» з балами збереженої гри.')).toBeTruthy();
     fireEvent.click(button('Почати гру'));
     expect(send).toHaveBeenCalledWith('host:start', undefined);
+  });
+});
+
+describe('HostScreen prize places (14a)', () => {
+  it('«Призи гри» is only in the lobby', async () => {
+    show(view());
+    expect(await screen.findByText('Призи гри')).toBeTruthy();
+    cleanup();
+    show(during('question', single));
+    expect(screen.queryByText('Призи гри')).toBeNull();
   });
 });

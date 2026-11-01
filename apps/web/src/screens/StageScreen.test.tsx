@@ -2463,3 +2463,33 @@ describe('StageScreen reactions (13a)', () => {
     expect(document.querySelector('main.app.stage')?.classList.contains('has-reactions')).toBe(false);
   });
 });
+
+describe('StageScreen prizes and titles (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  const introRound: RoundInfo = { index: 0, total: 2, title: 'Розминка', type: 'classic', partial: false, description: '', brief: emptyBrief('classic'), times: null };
+
+  it('the lobby shows «Граємо за» only when there are prizes', () => {
+    show(view({ phase: 'lobby', prizes }));
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+
+  it('the intro of the first round shows it, the second round does not', () => {
+    show(view({ phase: 'intro', round: introRound, questionIndex: 0, prizes }));
+    expect(screen.getByText('Граємо за')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round: { ...introRound, index: 1 }, questionIndex: 3, prizes }));
+    expect(screen.queryByText('Граємо за')).toBeNull();
+  });
+
+  it('a title stands next to the nickname in the lobby', () => {
+    const player = { id: 'p1', nickname: 'Оля', connected: true } as unknown as StageView['players'][number];
+    show(view({ phase: 'lobby', playerCount: 1, players: [player], titles: { Оля: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
+  });
+});

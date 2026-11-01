@@ -4005,3 +4005,21 @@ describe('PlayerScreen reactions (13a)', () => {
     expect(reactButton()).toBeNull();
   });
 });
+
+describe('PlayerScreen prizes (14a)', () => {
+  const prizes = {
+    mine: null,
+    places: [{ place: 1 as const, winner: null, content: { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: null, real: null, title: null, diploma: false } }],
+  };
+  it('the lobby shows the «Граємо за» line, and nothing without prizes', () => {
+    show(view({ phase: 'lobby', prizes }));
+    expect(screen.getByText('Граємо за: 🏆 Золотий кубок')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText(/Граємо за/)).toBeNull();
+  });
+  it('a title stands next to the nickname in the lobby list', () => {
+    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], titles: { Оля: '👑 Король' } }));
+    expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
+  });
+});

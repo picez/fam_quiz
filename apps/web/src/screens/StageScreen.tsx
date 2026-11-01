@@ -31,6 +31,7 @@ import { useBlinkingRows, useVerdictBlink, useVerdictSuspense } from './verdict-
 import { Standings } from './Standings';
 import { RoundHighlights } from './ScoreTable';
 import { roundGains, roundHighlights } from '../score-table';
+import { PlayingFor } from './PlayingFor';
 import { StageTeams } from './StageTeams';
 import { StageAnswerers } from './StageAnswerers';
 import { WipeoutLadder, WipeoutSide } from './WipeoutLadder';
@@ -96,7 +97,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
       </div>
       {view.teams !== null ? (
         <div className="roster">
-          <StageTeams teams={view.teams} />
+          <StageTeams teams={view.teams} titles={view.titles} />
         </div>
       ) : (
         <div className="roster">
@@ -105,11 +106,13 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
             {view.players.map((player) => (
               <li key={player.id} className={player.connected ? undefined : 'is-away'}>
                 {player.nickname}
+                {view.titles?.[player.nickname] !== undefined && <span className="nick-title">{view.titles[player.nickname]}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
+      {view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="stage" />}
     </div>
   );
 }
@@ -487,6 +490,7 @@ function Intro({ view }: { view: StageView }) {
       <h1 className="question">{roundLabel(view.round.title, view.round.index, view.round.type)}</h1>
       <RoundFacts round={view.round} total={view.total} />
       <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} fit />
+      {view.prizes !== undefined && view.prizes.places.length > 0 && view.round.index === 0 && view.questionIndex === 0 && <PlayingFor prizes={view.prizes} size="stage" />}
     </>
   );
   return (
@@ -789,6 +793,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing }: { view: Stage
       more={standings.length > rows ? standings.length - (rows - 1) : undefined}
       streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
       teams={view.teams}
+      titles={view.titles}
       gains={roundEndIndex !== null ? roundGains(standings, roundEndIndex) : undefined}
     />
   );
