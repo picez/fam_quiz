@@ -282,3 +282,159 @@ describe('saved games in the database', () => {
     }
   });
 });
+
+describe('continuations in the database (13b)', () => {
+  /** Ведуча зберігає гру руками; повертає те, що пішло в saved_game. */
+  function saveByHand(ctx: { manager: RoomManager }, g: Opened): SavedGameData {
+    let saved: SavedGameData | undefined;
+    const off = ctx.manager.onEvent((_room, event) => {
+      if (event.type === 'closed' && event.saved !== undefined) saved = event.saved;
+    });
+    g.host({ type: 'save' });
+    off();
+    if (saved === undefined) throw new Error('not saved');
+    return saved;
+  }
+
+  /** Обидва місця зайняті й на зв'язку, «Продовжити», запитання 2; adjust — коригування Тарасу на запитанні; до блокування. */
+  function playQuestion2(manager: RoomManager, room: Room, ids: { olena: string; taras: string }, adjust = false) {
+    for (const id of [ids.olena, ids.taras]) {
+      expect(manager.claim(room.code, id, null)).toMatchObject({ ok: true });
+      manager.connect(room, { role: 'player', playerId: id });
+    }
+    expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    if (adjust) expect(manager.host(room, { type: 'adjust', playerId: ids.taras, points: 50 })).toEqual({ ok: true });
+    manager.answer(room, ids.olena, { type: 'text', value: 'Одеса' });
+    manager.answer(room, ids.taras, { type: 'text', value: 'Львів' });
+    expect(room.state.phase).toBe('locked');
+  }
+
+  it('an exact continuation starts with fresh recorder memory: a stale retry of the old save does not trim the new rows', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const original = db.transaction.bind(db);
+    let failNext = false;
+    const flaky = new Proxy(db, {
+      get(target, key, receiver) {
+        if (key === 'transaction') {
+          return (...args: Parameters<typeof db.transaction>) => {
+            if (failNext) {
+              failNext = false;
+              return Promise.reject(new Error('db down'));
+            }
+            return original(...args);
+          };
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const errors: unknown[] = [];
+    const recorder = attachRecorder(manager, flaky, (error) => errors.push(error), 20);
+    const ctx = { manager };
+    const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname, null);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const g: Opened = { room, olena: enter('Олена'), taras: enter('Тарас'), host: (command) => expect(manager.host(room, command)).toEqual({ ok: true }) };
+    toCheckpoint(ctx, g);
+    await recorder.idle();
+    failNext = true;
+    const saved = saveByHand(ctx, g);
+    const result = manager.continueSaved(room.id, HOST, saved);
+    if (!result.ok) throw new Error(result.error);
+    playQuestion2(manager, result.room, g);
+    await recorder.idle();
+    // Повтор старого збереження мав би спрацювати за 20 мс.
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await recorder.idle();
+    expect(errors).toHaveLength(1);
+    expect((await db.select().from(answer)).filter((a) => a.questionIndex === 1)).toHaveLength(2);
+    expect((await db.select().from(game))[0].questionsPlayed).toBe(2);
+  });
+
+  it('an exact continuation trims the rows a crashed continuation left past the stored checkpoint', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    toCheckpoint(ctx, g);
+    const saved = saveByHand(ctx, g);
+    await ctx.recorder.idle();
+
+    // Перше продовження грає запитання 2 (з коригуванням) і «падає» без live_room: рядки лишаються в базі.
+    const first = ctx.manager.continueSaved(g.room.id, HOST, saved);
+    if (!first.ok) throw new Error(first.error);
+    playQuestion2(ctx.manager, first.room, g, true);
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(answer)).some((a) => a.questionIndex === 1)).toBe(true);
+    expect((await ctx.db.select().from(game))[0].questionsPlayed).toBe(2);
+
+    // Новий процес: та сама база, продовження із saved_game.
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, ctx.db, (error) => ctx.errors.push(error));
+    const [row] = await ctx.db.select().from(savedGame);
+    const again = manager.continueSaved(g.room.id, HOST, row.data as SavedGameData);
+    if (!again.ok) throw new Error(again.error);
+    await recorder.idle();
+    expect((await ctx.db.select().from(answer)).filter((a) => a.questionIndex === 1)).toEqual([]);
+    expect((await ctx.db.select().from(answer)).filter((a) => a.questionIndex === 0)).toHaveLength(2);
+    expect((await ctx.db.select().from(scoreAdjustment)).map((a) => a.points)).toEqual([20]);
+    const [gameRow] = await ctx.db.select().from(game);
+    expect(gameRow).toMatchObject({ status: 'saved', questionsPlayed: 1 });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a 12r restart replaces the old saved game on its first closed question, but never a finished one', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    toCheckpoint(ctx, g);
+    saveByHand(ctx, g);
+    const done = ctx.open();
+    toCheckpoint(ctx, done);
+    // Кімната завершеної гри вже закрита (у пам'яті її немає), а гра в історії — finished.
+    saveByHand(ctx, done);
+    await ctx.recorder.idle();
+    await ctx.db.update(game).set({ status: 'finished' }).where(eq(game.id, done.room.id));
+    expect((await ctx.db.select().from(game)).map((r) => [r.id, r.status]).sort()).toEqual([[g.room.id, 'saved'], [done.room.id, 'finished']].sort());
+
+    const restart = (gameId: string) => {
+      const result = ctx.manager.restartSaved({
+        gameId,
+        quiz: makeQuiz([single, text], { speedBonus: false }),
+        quizId: null,
+        hostUserId: HOST,
+        autopilot: false,
+        roundIndex: 0,
+        participants: [{ id: 'old', nickname: 'Олена', userId: null, score: 100, isTeam: false, teamId: null }],
+      });
+      if (!result.ok) throw new Error(result.error);
+      const { room } = result;
+      const olena = room.state.players[0].id;
+      expect(ctx.manager.claim(room.code, olena, null)).toMatchObject({ ok: true });
+      ctx.manager.connect(room, { role: 'player', playerId: olena });
+      expect(ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+      return { room, olena };
+    };
+
+    const fresh = restart(g.room.id);
+    await ctx.recorder.idle();
+    // Заставка — ще не закрите запитання: старий запис на місці.
+    expect((await ctx.db.select().from(game)).some((r) => r.id === g.room.id)).toBe(true);
+    expect(ctx.manager.host(fresh.room, { type: 'next' })).toEqual({ ok: true });
+    ctx.manager.answer(fresh.room, fresh.olena, correct);
+    expect(fresh.room.state.phase).toBe('locked');
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(game)).some((r) => r.id === g.room.id)).toBe(false);
+    expect((await ctx.db.select().from(participant)).some((p) => p.gameId === g.room.id)).toBe(false);
+
+    const overFinished = restart(done.room.id);
+    expect(ctx.manager.host(overFinished.room, { type: 'next' })).toEqual({ ok: true });
+    ctx.manager.answer(overFinished.room, overFinished.olena, correct);
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(game)).find((r) => r.id === done.room.id)?.status).toBe('finished');
+    expect(ctx.errors).toEqual([]);
+  });
+});

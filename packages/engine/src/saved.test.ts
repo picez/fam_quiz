@@ -3,13 +3,14 @@ import { LIMITS, type Answer, type Quiz } from '@quiz/shared';
 import { openAppeal } from './appeal';
 import { authorResume, autopilotStart, createAutopilotGame, planAutopilot } from './autopilot';
 import { declareDuel } from './duel';
-import { addPlayer, lock, next, resume, start, submitAnswer, type GameState } from './game';
+import { addPlayer, lock, next, resume, start, submitAnswer, tick, type GameState } from './game';
 import { addLatePlayer, continueFrom, REST_PHASES, restPoint, slotsOf } from './saved';
 import { trialOpen } from './survival';
+import { decisionOpen } from './wipeout';
 import { assignTeam } from './teams';
-import { boardRound, classicRound, finalRound, makeRoundsQuiz, single, survivalQuestions, survivalRound, survivalTrials, text, withId } from './testing/fixtures';
+import { boardRound, classicRound, finalRound, makeRoundsQuiz, single, survivalQuestions, survivalRound, survivalTrials, text, wipeoutLadder, wipeoutRound, withId } from './testing/fixtures';
 import { toDeclarable, toDuelQuestion } from './testing/duel';
-import { lobbyWith, lobbyWithGuide, must, startRound } from './testing/helpers';
+import { lobbyWith, lobbyWithGuide, lobbyWithSplash, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
 const T0 = 1_000_000;
@@ -131,7 +132,39 @@ describe('restPoint', () => {
   });
 });
 
+describe('restPoint: «Ва-банк»', () => {
+  it('a leaderboard with an open stay/take window is not a rest point; after the window closes it is', () => {
+    const quiz = makeRoundsQuiz([wipeoutRound('rw', wipeoutLadder)]);
+    let s = startRound(lobbyWith(quiz, 'Оля', 'Петро'), T0, rng);
+    s = must(submitAnswer(s, 'p1', KYIV, T0 + 1000));
+    s = must(submitAnswer(s, 'p2', KYIV, T0 + 1000));
+    if (s.phase === 'question') s = must(lock(s));
+    while (!decisionOpen(s)) s = must(next(s, T0 + 2000, rng));
+    expect(s.phase).toBe('leaderboard');
+    expect(restPoint(s)).toBe(false);
+    const closed = tick(s, s.endsAt ?? T0 + 999_999);
+    expect(decisionOpen(closed)).toBe(false);
+    expect(closed.phase).toBe('leaderboard');
+    expect(restPoint(closed)).toBe(true);
+  });
+});
+
 describe('continueFrom', () => {
+  it('at the checkpoint moment: the round splash still playing at the checkpoint plays out after a resume a day later', () => {
+    const cp = must(start(lobbyWithSplash(twoRounds, 'Оля', 'Петро'), T0));
+    expect(cp.phase).toBe('intro');
+    const until = cp.splash?.until ?? 0;
+    expect(until).toBeGreaterThan(T0);
+    const later = T0 + 86_400_000;
+    // Мить контрольної точки: заставка зсувається на всю паузу й дограє з того самого залишку.
+    const back = must(resume(continueFrom(cp, T0), later));
+    expect(back.splash?.until).toBe(later + (until - T0));
+    // «Зараз» замість миті точки — заставка вже минула б.
+    const wrong = must(resume(continueFrom(cp, later), later + 1000));
+    expect(wrong.splash?.until).toBe(until);
+  });
+
+
   it('pauses at the checkpoint with everyone offline and nobody awaited; phase, plays and scores stay', () => {
     const cp = leaderboard();
     expect(cp.players.every((p) => p.connected)).toBe(true);
@@ -209,6 +242,19 @@ describe('addLatePlayer', () => {
     const added = must(addLatePlayer(s, { id: 'n1', nickname: 'Гліб' }));
     expect(added.teams?.members.at(-1)).toMatchObject({ id: 'n1', teamId: 't1' });
     expect(addLatePlayer(s, { id: 'n2', nickname: 'іра' })).toEqual({ ok: false, error: 'nickname_taken' });
+  });
+});
+
+describe('addLatePlayer on the board', () => {
+  it('a solo newcomer during a board round joins the turn circle', () => {
+    const boardQuiz = makeRoundsQuiz([boardRound('g1', [{ title: 'Ріки', cells: [withId(single, 'b1'), withId(single, 'b2')] }])]);
+    const board = must(next(must(start(lobbyWith(boardQuiz, 'Оля', 'Петро'))), T0, rng));
+    expect(board.board?.circle).toEqual(['p1', 'p2']);
+    const added = must(addLatePlayer(board, { id: 'p9', nickname: 'Іра' }));
+    expect(added.board?.circle).toEqual(['p1', 'p2', 'p9']);
+    expect(added.board?.done).toBe(board.board?.done);
+    // Поза раундом поля кола немає.
+    expect(must(addLatePlayer(leaderboard(), { id: 'p9', nickname: 'Іра' })).board).toBeNull();
   });
 });
 

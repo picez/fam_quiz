@@ -276,7 +276,7 @@ export function attachSockets(
     if (event.type === 'closed') dropDrafts(room);
     const leaving =
       event.type === 'kicked' ? members.filter((s) => s.data.identity.playerId === event.playerId) : members;
-    const reason = event.type === 'kicked' ? 'kicked' : event.saved !== undefined ? 'saved' : 'expired';
+    const reason = event.type === 'kicked' ? (event.reason ?? 'kicked') : event.saved !== undefined ? 'saved' : 'expired';
     for (const socket of leaving) {
       socket.emit('closed', reason);
       // Збереження (13b) закриває кімнату посеред обробника host:save: розрив — після ack, інакше відповідь не дійде.
@@ -591,6 +591,13 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = kickSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'kick', ...payload.data }) : INVALID;
+    });
+
+    // Звільнити місце збереженої гри (13b): та сама форма, що й host:kick.
+    on('host:release', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = kickSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'release', ...payload.data }) : INVALID;
     });
 
     on('host:adjust', (args) => {

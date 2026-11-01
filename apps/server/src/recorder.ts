@@ -29,6 +29,8 @@ interface Snapshot {
   debuffs: DebuffsSeen;
   /** Шлях 12r: старий збережений запис, який ця гра замінює; null — немає. */
   replaces: string | null;
+  /** Точне продовження (13b): перший запис прибирає рядки після стану (trimToCheckpoint) — їх могло лишити продовження, що впало. */
+  trim?: boolean;
 }
 
 /** Дебафи, побачені рекордером на відкритих запитаннях (12i): індекс запитання → гравець рушія → вид. */
@@ -411,6 +413,8 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
   const finished = snapshot.state.phase === 'finished';
   await db.transaction(async (tx) => {
     await writeGame(tx, snapshot, false);
+    // Точне продовження: рядки після стану (запитання, коригування, апеляції продовження, що впало без live_room) — геть.
+    if (snapshot.trim === true) await trimToCheckpoint(tx, snapshot.id, snapshot.state);
     // Фініш: гра більше не «Не завершена».
     if (finished) await tx.delete(savedGame).where(eq(savedGame.gameId, snapshot.id));
     // Шлях 12r: нова гра закрила перше запитання — старий збережений запис геть (одна гра в історії).
@@ -506,11 +510,33 @@ export function attachRecorder(
   const awarded = new Set<string>();
   /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
   const sealed = new WeakSet<Room>();
+  /** Кімната, що зараз веде кожен id (13b): точне продовження бере той самий id, що й збережена кімната. */
+  const current = new Map<string, Room>();
+  /** Кімнати, яких заступила нова кімната з тим самим id: їхні повтори нічого не пишуть. */
+  const superseded = new WeakSet<Room>();
+  /** Точні продовження, чий перший запис ще має прибрати рядки після стану (trimToCheckpoint). */
+  const untrimmed = new Set<string>();
 
   const forget = (roomId: string) => {
-    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen]) map.delete(roomId);
+    for (const map of [queues, lastSignature, startedAt, savedQuestions, failures, debuffsSeen, current]) map.delete(roomId);
     closedRooms.delete(roomId);
     awarded.delete(roomId);
+    untrimmed.delete(roomId);
+  };
+
+  /**
+   * Нова кімната під id (точне продовження, кімната, піднята після перезапуску): пам'ять про id — з нуля (крім черги: записи йдуть
+   * далі по черзі), стара кімната більше не пише. Точне продовження ще й прибирає рядки після свого стану першим записом.
+   */
+  const adopt = (room: Room) => {
+    const known = current.get(room.id);
+    if (known === room) return;
+    if (known !== undefined) superseded.add(known);
+    current.set(room.id, room);
+    for (const map of [lastSignature, savedQuestions, failures, debuffsSeen]) map.delete(room.id);
+    closedRooms.delete(room.id);
+    awarded.delete(room.id);
+    if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
   };
 
   /** Запам'ятати дебафи, що діють на відкритому запитанні: після закриття їх у стані вже немає. */
@@ -532,7 +558,7 @@ export function attachRecorder(
   const record = (room: Room) => {
     const { state } = room;
     const hostId = room.hostUserId;
-    if (hostId === null || state.phase === 'lobby' || sealed.has(room)) return;
+    if (hostId === null || state.phase === 'lobby' || sealed.has(room) || superseded.has(room)) return;
     seeDebuffs(room);
     const current = signature(state);
     if (lastSignature.get(room.id) === current) return;
@@ -549,14 +575,15 @@ export function attachRecorder(
       playerUsers: new Map(room.playerUsers),
       startedAt: startedAt.get(room.id) ?? new Date(),
       debuffs: debuffsSeen.get(room.id) ?? new Map(),
-      // Значення прийде з room.continued (задача 5).
-      replaces: null,
+      replaces: room.continued?.replaces ?? null,
     };
 
     const job = async () => {
       // Останнє закрите запитання записується повторно: його оцінки могли змінити вручну.
       const fromQuestion = Math.max(0, Math.min(savedQuestions.get(room.id) ?? 0, closed - 1));
-      await save(db, { ...snapshot, fromQuestion });
+      const trim = untrimmed.has(room.id);
+      await save(db, { ...snapshot, fromQuestion, trim });
+      if (trim) untrimmed.delete(room.id);
       savedQuestions.set(room.id, closed);
       // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
       // Збій одного користувача awardGame сам віддає в журнал і йде далі; його ачівки наздожене наступне читання.
@@ -592,8 +619,17 @@ export function attachRecorder(
   /** Збереження (13b): та сама черга й ті самі повтори, що в record; запис цілий (fromQuestion 0), тож давніший збій він заступає. */
   const persistSaved = (room: Room, saved: SavedGameData) => {
     const hostId = room.hostUserId;
-    if (hostId === null) return;
-    const write: SavedWrite = { id: room.id, code: room.code, hostId, quizId: room.quizId, playerUsers: new Map(saved.playerUsers), saved, replaces: null };
+    // Повтор збереження кімнати, яку вже заступило продовження, переписав би новіші рядки старою точкою.
+    if (hostId === null || superseded.has(room)) return;
+    const write: SavedWrite = {
+      id: room.id,
+      code: room.code,
+      hostId,
+      quizId: room.quizId,
+      playerUsers: new Map(saved.playerUsers),
+      saved,
+      replaces: room.continued?.replaces ?? null,
+    };
     const queued: Promise<void> = (queues.get(room.id) ?? Promise.resolve())
       .then(async () => {
         await saveSavedGame(db, write);
@@ -620,6 +656,7 @@ export function attachRecorder(
     if (event.type === 'changed') {
       // Перехоплена кімната могла повернутися в цей процес: вона знову жива.
       closedRooms.delete(room.id);
+      adopt(room);
       record(room);
       return;
     }

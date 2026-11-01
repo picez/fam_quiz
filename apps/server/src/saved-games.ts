@@ -64,7 +64,8 @@ async function saveRecorded(db: Db, roomId: string, data: unknown): Promise<bool
     await tx
       .insert(savedGame)
       .values({ gameId: roomId, data: saved, stateVersion, savedAt })
-      .onConflictDoUpdate({ target: savedGame.gameId, set: { data: saved, stateVersion, savedAt } });
+      // Без знімка в записі (сміття) — читабельний знімок, що вже лежить у saved_game, лишається: продовження ним і почнеться.
+      .onConflictDoUpdate({ target: savedGame.gameId, set: saved === null ? { savedAt } : { data: saved, stateVersion, savedAt } });
     return true;
   });
 }
@@ -72,7 +73,7 @@ async function saveRecorded(db: Db, roomId: string, data: unknown): Promise<bool
 /**
  * Кімнати, що більше не піднімуться (purge, broken), по одній:
  * 1) isSavedRoom(data), є checkpoint, hostUserId != null, state.plays.length > 0 → saveSavedGame (SavedGameData з stateVersion запису, replaces — data.continued?.replaces ?? null);
- * 2) інакше гра 'running' з questions_played > 0 → status 'saved' + saved_game { data: сирий data.checkpoint як SavedGameData-конверт, якщо це об'єкт зі state; інакше null; stateVersion: data.stateVersion, якщо число, інакше null };
+ * 2) інакше гра 'running' з questions_played > 0 → status 'saved' + saved_game { data: сирий data.checkpoint як SavedGameData-конверт, якщо це об'єкт зі state; інакше null; stateVersion: data.stateVersion, якщо число, інакше null }; без знімка наявний рядок saved_game лишає свої data і stateVersion;
  * 3) решта → markAborted.
  * Збій одного рядка — onError і далі.
  */

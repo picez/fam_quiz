@@ -4,19 +4,24 @@ import { normalizeText } from './normalize';
 import { suspend } from './restore';
 import { trialOpen } from './survival';
 import { teamsOn } from './teams';
+import { decisionOpen } from './wipeout';
 
 /** Етапи між запитаннями (13b): тут гру можна зберегти й продовжити з того самого місця. */
 export const REST_PHASES: readonly Phase[] = ['intro', 'reveal', 'board', 'leaderboard', 'round_end'];
 
-/** Межа між запитаннями: REST_PHASES, duel === null, !trialOpen, жодної апеляції з outcome === null. */
+/** Межа між запитаннями: REST_PHASES, duel === null, !trialOpen, !decisionOpen («Ва-банк»: вікно «Далі»/«Забрати» продовження грає з повним вікном), жодної апеляції з outcome === null. */
 export function restPoint(state: GameState): boolean {
   if (!REST_PHASES.includes(state.phase)) return false;
   if (state.duel !== null) return false;
-  if (trialOpen(state)) return false;
+  if (trialOpen(state) || decisionOpen(state)) return false;
   return !(state.appeals ?? []).some((a) => a.outcome === null);
 }
 
-/** Стан кімнати продовження: suspend(checkpoint, at), awaiting [], автопілот — paused з hold 'author' і at null. */
+/**
+ * Стан кімнати продовження: suspend(checkpoint, at), awaiting [], автопілот — paused з hold 'author' і at null.
+ * at — мить самої контрольної точки (checkpoint.at), а не «зараз»: resume зсуває дедлайни на паузу від at, тож заставка, хід поля
+ * чи інший таймер стартує з того самого місця, де стояв у мить точки; «зараз» застосувало б дедлайни, що минули після точки.
+ */
 export function continueFrom(checkpoint: GameState, at: number): GameState {
   // Відсутніх не чекають: хто повернеться, той і грає; пауза — лише пауза збору.
   const s: GameState = { ...suspend(checkpoint, at), awaiting: [] };
@@ -24,7 +29,7 @@ export function continueFrom(checkpoint: GameState, at: number): GameState {
   return { ...s, autopilot: { ...s.autopilot, hold: 'author', at: null } };
 }
 
-/** Новенький у точному продовженні: лише restPoint (інакше wrong_phase); перевірки ніка й місткості як addPlayer / addMember; команда — найменша. */
+/** Новенький у точному продовженні: лише restPoint (інакше wrong_phase); перевірки ніка й місткості як addPlayer / addMember; команда — найменша; соло на полі — у кінець кола. */
 export function addLatePlayer(state: GameState, player: { id: string; nickname: string }): Result {
   if (!restPoint(state)) return fail('wrong_phase');
   const nickname = player.nickname.replace(/\s+/g, ' ').trim();
@@ -43,7 +48,10 @@ export function addLatePlayer(state: GameState, player: { id: string; nickname: 
   }
   if (state.players.length >= LIMITS.maxPlayers) return fail('room_full');
   if (state.players.some((p) => normalizeText(p.nickname) === key)) return fail('nickname_taken');
-  return ok({ ...state, players: [...state.players, { id: player.id, nickname, connected: true, score: 0, totalTimeMs: 0, streak: 0 }] });
+  const players = [...state.players, { id: player.id, nickname, connected: true, score: 0, totalTimeMs: 0, streak: 0 }];
+  // Раунд поля: новенький стає в кінець кола й ходить уже в цьому раунді.
+  const board = state.board === null ? null : { ...state.board, circle: [...state.board.circle, player.id] };
+  return ok({ ...state, players, board });
 }
 
 /** Люди гри: соло — players; командна гра — members з teamId (team — назва команди); у порядку стану. */

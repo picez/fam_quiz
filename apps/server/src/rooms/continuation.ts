@@ -1,4 +1,6 @@
 import { READABLE_STATE_VERSIONS, type GameState } from '@quiz/engine';
+import type { ErrorCode, Quiz } from '@quiz/shared';
+import type { Room } from './manager';
 
 /** Версія формату saved_game.data (13b). */
 export const SAVED_GAME_VERSION = 1;
@@ -35,3 +37,28 @@ export function isSavedGameData(raw: unknown): raw is SavedGameData {
 export function exactSaved(raw: unknown): raw is SavedGameData {
   return isSavedGameData(raw) && READABLE_STATE_VERSIONS.includes(raw.stateVersion);
 }
+
+/** Учасник старої гри для шляху 12r (рядок participant). */
+export interface RestartParticipant {
+  id: string;
+  nickname: string;
+  userId: string | null;
+  score: number;
+  isTeam: boolean;
+  teamId: string | null;
+}
+
+export interface RestartInput {
+  /** Старий збережений запис: стане continued.replaces. */
+  gameId: string;
+  quiz: Quiz;
+  quizId: string | null;
+  hostUserId: string;
+  autopilot: boolean;
+  roundIndex: number;
+  participants: RestartParticipant[];
+}
+
+export type ContinueResult =
+  | { ok: true; room: Room; author: { token: string; playerId: string } | null }
+  | { ok: false; error: ErrorCode | 'restarting' };

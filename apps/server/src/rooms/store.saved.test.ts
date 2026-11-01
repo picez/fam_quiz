@@ -5,6 +5,7 @@ import { bool, makeQuiz, multi, single, text } from '@quiz/engine/testing';
 import type { Db } from '../db/client';
 import { game, liveRoom, savedGame, user } from '../db/schema';
 import { attachRecorder } from '../recorder';
+import { abandonRooms } from '../saved-games';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { createTestDb } from '../testing/test-db';
 import { RoomManager, type Identity } from './manager';
@@ -141,6 +142,25 @@ describe('a game that loses its room', () => {
     await b.recorder.idle();
     expect(await statusOf(w.db, kept.id)).toBe('running');
     expect(await savedOf(w.db, kept.id)).toBeUndefined();
+  });
+
+  it('a garbled record of a continuation keeps the readable snapshot already in saved_game', async () => {
+    const w = await world();
+    const a = w.make('a');
+    const room = playing(a.manager, w.scheduler, 1, true);
+    expect(a.manager.save(room)).toEqual({ ok: true });
+    await a.recorder.idle();
+    await a.store.idle();
+    const before = await savedOf(w.db, room.id);
+    expect(before?.data).not.toBeNull();
+
+    const errors: unknown[] = [];
+    await abandonRooms(w.db, [{ roomId: room.id, data: 'not a room' }], (error) => errors.push(error));
+    expect(errors).toEqual([]);
+    expect(await statusOf(w.db, room.id)).toBe('saved');
+    const after = await savedOf(w.db, room.id);
+    expect(after?.data).toEqual(before?.data);
+    expect(after?.stateVersion).toBe(GAME_STATE_VERSION);
   });
 
   it('a saved game has no expiry: a month-old one survives the purge', async () => {
