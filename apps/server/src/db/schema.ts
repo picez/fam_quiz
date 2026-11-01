@@ -158,6 +158,18 @@ export const game = pgTable(
   (table) => [index('game_host_idx').on(table.hostId)],
 );
 
+/** Збережена гра (13b): контрольна точка між запитаннями; data null — знімка немає, продовження шляхом 12r. Без терміну давності. */
+export const savedGame = pgTable('saved_game', {
+  gameId: uuid('game_id')
+    .primaryKey()
+    .references(() => game.id, { onDelete: 'cascade' }),
+  /** SavedGameData (rooms/continuation.ts); null — знімка немає. */
+  data: jsonb('data').$type<unknown>(),
+  /** GAME_STATE_VERSION знімка; null — знімка немає. */
+  stateVersion: integer('state_version'),
+  savedAt: at('saved_at').notNull(),
+});
+
 /** Гравець у грі. id збігається з id гравця в кімнаті; у командній грі — рядок команди (id команди) або людини. */
 export const participant = pgTable(
   'participant',

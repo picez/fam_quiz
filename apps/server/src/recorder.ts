@@ -1,10 +1,14 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
-import { and, eq, inArray, max, notInArray, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
-import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
+
+/** Транзакція бази. */
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export interface Recorder {
   /** Завершується, коли всі поставлені в чергу записи виконано. */
@@ -23,6 +27,8 @@ interface Snapshot {
   fromQuestion: number;
   /** Дебафи, що спрацювали на запитаннях кімнати: закриття запитання прибирає їх зі стану раніше за запис. */
   debuffs: DebuffsSeen;
+  /** Шлях 12r: старий збережений запис, який ця гра замінює; null — немає. */
+  replaces: string | null;
 }
 
 /** Дебафи, побачені рекордером на відкритих запитаннях (12i): індекс запитання → гравець рушія → вид. */
@@ -231,13 +237,13 @@ function ladderRef(ladder: LadderPlay, question: Question): NonNullable<PlayRef[
   };
 }
 
-async function save(db: Db, snapshot: Snapshot): Promise<void> {
+/** Пише гру в транзакції. saving — запис контрольної точки (13b): статус 'saved', без фінішу. */
+async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<void> {
   const { state } = snapshot;
-  const finished = state.phase === 'finished';
+  const finished = !saving && state.phase === 'finished';
   const closed = closedQuestions(state);
   const ranks = new Map(finished ? rankPlayers(state.players).map((row) => [row.participantId, row.rank]) : []);
   const progress = {
-    status: finished ? ('finished' as const) : ('running' as const),
     questionsPlayed: closed,
     plays: state.plays.slice(0, closed).map((play) => ({
       roundIndex: play.roundIndex,
@@ -254,144 +260,217 @@ async function save(db: Db, snapshot: Snapshot): Promise<void> {
     })),
     finishedAt: finished ? new Date() : null,
   };
+  const status = saving ? ('saved' as const) : finished ? ('finished' as const) : ('running' as const);
+  // Збережена гра, яку продовжують, лишається «Не завершена», доки не фінішує.
+  const nextStatus = saving || finished ? status : sql`case when ${game.status} = 'saved' then 'saved' else 'running' end`;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(game)
-      .values({
-        id: snapshot.id,
-        quizId: snapshot.quizId,
-        hostId: snapshot.hostId,
-        code: snapshot.code,
-        title: state.quiz.title,
-        quizSnapshot: state.quiz,
-        startedAt: snapshot.startedAt,
-        autopilot: state.autopilot !== undefined,
-        ...progress,
-      })
-      // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.
-      .onConflictDoUpdate({
-        target: game.id,
-        set: { ...progress, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
-      });
+  await tx
+    .insert(game)
+    .values({
+      id: snapshot.id,
+      quizId: snapshot.quizId,
+      hostId: snapshot.hostId,
+      code: snapshot.code,
+      title: state.quiz.title,
+      quizSnapshot: state.quiz,
+      startedAt: snapshot.startedAt,
+      autopilot: state.autopilot !== undefined,
+      status,
+      ...progress,
+    })
+    // Кімната, піднята після перезапуску вже завершеною, пише гру ще раз: мить фінішу лишається першою.
+    .onConflictDoUpdate({
+      target: game.id,
+      set: { ...progress, status: nextStatus, finishedAt: finished ? sql`coalesce(${game.finishedAt}, excluded.finished_at)` : null },
+    });
 
-    // Командна гра: гравці рушія — команди, люди — окремі рядки з посиланням на свою команду.
-    const teamGame = state.teams !== undefined;
-    const members = (state.teams?.members ?? []).filter((m) => m.teamId !== null && state.players.some((p) => p.id === m.teamId));
-    // Вилучених гравців (команди й людей) прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
-    const ids = [...state.players.map((player) => player.id), ...members.map((m) => m.id)];
-    const inGame = eq(participant.gameId, snapshot.id);
-    await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
+  // Командна гра: гравці рушія — команди, люди — окремі рядки з посиланням на свою команду.
+  const teamGame = state.teams !== undefined;
+  const members = (state.teams?.members ?? []).filter((m) => m.teamId !== null && state.players.some((p) => p.id === m.teamId));
+  // Вилучених гравців (команди й людей) прибираємо разом з їхніми відповідями й коригуваннями (каскадом).
+  const ids = [...state.players.map((player) => player.id), ...members.map((m) => m.id)];
+  const inGame = eq(participant.gameId, snapshot.id);
+  await tx.delete(participant).where(ids.length === 0 ? inGame : and(inGame, notInArray(participant.id, ids)));
 
-    const saveAnswers = async (participantId: string, engineParticipant: boolean) => {
-      for (let index = snapshot.fromQuestion; index < closed; index++) {
-        for (const row of answerRows(state, snapshot.debuffs, index, participantId, engineParticipant)) {
-          const { attempt, payload, timeMs, debuff, clue, answeredBy, ...grade } = row;
-          await tx
-            .insert(answer)
-            .values({
-              participantId,
-              questionIndex: index,
-              attempt,
-              roundIndex: state.plays[index].roundIndex,
-              payload,
-              timeMs,
-              ...grade,
-              debuff,
-              clue,
-              answeredBy,
-            })
-            // Дебаф і відповідач видно, лише поки запитання поточне: повторний запис останнього закритого їх не затирає;
-            // відповідач — перший записаний (на розкритті той, хто відповідав, міг піти зі зв'язку, і answererOf дав би капітана).
-            .onConflictDoUpdate({
-              target: [answer.participantId, answer.questionIndex, answer.attempt],
-              set: { ...grade, debuff: sql`coalesce(excluded.debuff, ${answer.debuff})`, clue, answeredBy: sql`coalesce(${answer.answeredBy}, excluded.answered_by)` },
-            });
-        }
+  const saveAnswers = async (participantId: string, engineParticipant: boolean) => {
+    for (let index = snapshot.fromQuestion; index < closed; index++) {
+      for (const row of answerRows(state, snapshot.debuffs, index, participantId, engineParticipant)) {
+        const { attempt, payload, timeMs, debuff, clue, answeredBy, ...grade } = row;
+        await tx
+          .insert(answer)
+          .values({
+            participantId,
+            questionIndex: index,
+            attempt,
+            roundIndex: state.plays[index].roundIndex,
+            payload,
+            timeMs,
+            ...grade,
+            debuff,
+            clue,
+            answeredBy,
+          })
+          // Дебаф і відповідач видно, лише поки запитання поточне: повторний запис останнього закритого їх не затирає;
+          // відповідач — перший записаний (на розкритті той, хто відповідав, міг піти зі зв'язку, і answererOf дав би капітана).
+          .onConflictDoUpdate({
+            target: [answer.participantId, answer.questionIndex, answer.attempt],
+            set: { ...grade, debuff: sql`coalesce(excluded.debuff, ${answer.debuff})`, clue, answeredBy: sql`coalesce(${answer.answeredBy}, excluded.answered_by)` },
+          });
       }
-    };
+    }
+  };
 
-    for (const player of state.players) {
-      const result = { score: player.score, totalTimeMs: player.totalTimeMs, rank: ranks.get(player.id) ?? null };
-      await tx
-        .insert(participant)
-        .values({
-          id: player.id,
+  for (const player of state.players) {
+    const result = { score: player.score, totalTimeMs: player.totalTimeMs, rank: ranks.get(player.id) ?? null };
+    await tx
+      .insert(participant)
+      .values({
+        id: player.id,
+        gameId: snapshot.id,
+        nickname: player.nickname,
+        userId: snapshot.playerUsers.get(player.id) ?? null,
+        isTeam: teamGame,
+        ...result,
+      })
+      // Акаунт оновлюється на кожному записі: гостьовий слот, який зайняв акаунт (13b), потрапляє в його профіль.
+      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id` } });
+    await saveAnswers(player.id, true);
+  }
+
+  // Рядки людей — після рядків команд (зовнішній ключ): бали, час і місце — копія командних; відповіді — лише власні голоси.
+  for (const member of members) {
+    const team = state.players.find((p) => p.id === member.teamId);
+    if (team === undefined) continue;
+    const result = { score: team.score, totalTimeMs: team.totalTimeMs, rank: ranks.get(team.id) ?? null };
+    await tx
+      .insert(participant)
+      .values({
+        id: member.id,
+        gameId: snapshot.id,
+        nickname: member.nickname,
+        userId: snapshot.playerUsers.get(member.id) ?? null,
+        teamId: team.id,
+        ...result,
+      })
+      .onConflictDoUpdate({ target: participant.id, set: { ...result, userId: sql`excluded.user_id` } });
+    await saveAnswers(member.id, false);
+  }
+
+  // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.
+  const [{ saved }] = await tx
+    .select({ saved: max(scoreAdjustment.seq) })
+    .from(scoreAdjustment)
+    .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
+    .where(inGame);
+  const fresh = state.adjustments
+    .filter((adjustment) => adjustment.seq > (saved ?? 0))
+    .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target, undoes }) => ({
+      participantId: playerId,
+      seq,
+      roundIndex,
+      afterQuestion,
+      points,
+      source,
+      debuff: debuff ?? null,
+      // Ціль могли вилучити до запису: тоді нікнейма вже немає.
+      targetNickname: target === undefined ? null : (state.players.find((p) => p.id === target)?.nickname ?? null),
+      // batch у базу не пишеться: він потрібен лише живому сповіщенню.
+      undoesQuestion: undoes !== undefined && 'question' in undoes ? undoes.question : null,
+      undoesSeq: undoes !== undefined && 'seq' in undoes ? undoes.seq : null,
+    }));
+  if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
+
+  // Апеляції (12f): лише закриті й лише учасників, що є в грі (вилучених прибирає каскад); закрита незмінна.
+  // Скасованих (кінець раунду чи гри, вилучення) історія не показує й цікавинки не рахують — у базу вони не йдуть.
+  const closedAppeals = (state.appeals ?? []).filter((a) => a.outcome !== null && a.outcome !== 'cancelled' && state.players.some((p) => p.id === a.by));
+  if (closedAppeals.length > 0) {
+    await tx
+      .insert(appeal)
+      .values(
+        closedAppeals.map((a) => ({
           gameId: snapshot.id,
-          nickname: player.nickname,
-          userId: snapshot.playerUsers.get(player.id) ?? null,
-          isTeam: teamGame,
-          ...result,
-        })
-        .onConflictDoUpdate({ target: participant.id, set: result });
-      await saveAnswers(player.id, true);
-    }
+          seq: a.id,
+          participantId: a.by,
+          questionIndex: a.questionIndex,
+          reason: a.reason,
+          // Лічильники, збережені на мить рішення (appealTally закритої): вилучення виборця потім їх не змінює, тож база й жива гра однакові.
+          ...appealTally(state, a),
+          outcome: a.outcome!,
+          adjustmentSeq: a.adjustmentSeq ?? null,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+}
 
-    // Рядки людей — після рядків команд (зовнішній ключ): бали, час і місце — копія командних; відповіді — лише власні голоси.
-    for (const member of members) {
-      const team = state.players.find((p) => p.id === member.teamId);
-      if (team === undefined) continue;
-      const result = { score: team.score, totalTimeMs: team.totalTimeMs, rank: ranks.get(team.id) ?? null };
-      await tx
-        .insert(participant)
-        .values({
-          id: member.id,
-          gameId: snapshot.id,
-          nickname: member.nickname,
-          userId: snapshot.playerUsers.get(member.id) ?? null,
-          teamId: team.id,
-          ...result,
-        })
-        .onConflictDoUpdate({ target: participant.id, set: result });
-      await saveAnswers(member.id, false);
-    }
-
-    // Коригування незмінні, а seq зростає в межах гри: дописуємо лише новіші за вже збережені, одним запитом.
-    const [{ saved }] = await tx
-      .select({ saved: max(scoreAdjustment.seq) })
-      .from(scoreAdjustment)
-      .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
-      .where(inGame);
-    const fresh = state.adjustments
-      .filter((adjustment) => adjustment.seq > (saved ?? 0))
-      .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target, undoes }) => ({
-        participantId: playerId,
-        seq,
-        roundIndex,
-        afterQuestion,
-        points,
-        source,
-        debuff: debuff ?? null,
-        // Ціль могли вилучити до запису: тоді нікнейма вже немає.
-        targetNickname: target === undefined ? null : (state.players.find((p) => p.id === target)?.nickname ?? null),
-        // batch у базу не пишеться: він потрібен лише живому сповіщенню.
-        undoesQuestion: undoes !== undefined && 'question' in undoes ? undoes.question : null,
-        undoesSeq: undoes !== undefined && 'seq' in undoes ? undoes.seq : null,
-      }));
-    if (fresh.length > 0) await tx.insert(scoreAdjustment).values(fresh).onConflictDoNothing();
-
-    // Апеляції (12f): лише закриті й лише учасників, що є в грі (вилучених прибирає каскад); закрита незмінна.
-    // Скасованих (кінець раунду чи гри, вилучення) історія не показує й цікавинки не рахують — у базу вони не йдуть.
-    const closedAppeals = (state.appeals ?? []).filter((a) => a.outcome !== null && a.outcome !== 'cancelled' && state.players.some((p) => p.id === a.by));
-    if (closedAppeals.length > 0) {
-      await tx
-        .insert(appeal)
-        .values(
-          closedAppeals.map((a) => ({
-            gameId: snapshot.id,
-            seq: a.id,
-            participantId: a.by,
-            questionIndex: a.questionIndex,
-            reason: a.reason,
-            // Лічильники, збережені на мить рішення (appealTally закритої): вилучення виборця потім їх не змінює, тож база й жива гра однакові.
-            ...appealTally(state, a),
-            outcome: a.outcome!,
-            adjustmentSeq: a.adjustmentSeq ?? null,
-          })),
-        )
-        .onConflictDoNothing();
-    }
+async function save(db: Db, snapshot: Snapshot): Promise<void> {
+  const finished = snapshot.state.phase === 'finished';
+  await db.transaction(async (tx) => {
+    await writeGame(tx, snapshot, false);
+    // Фініш: гра більше не «Не завершена».
+    if (finished) await tx.delete(savedGame).where(eq(savedGame.gameId, snapshot.id));
+    // Шлях 12r: нова гра закрила перше запитання — старий збережений запис геть (одна гра в історії).
+    if (snapshot.replaces !== null && closedQuestions(snapshot.state) >= 1) await dropReplaced(tx, snapshot.replaces);
   });
+}
+
+/** Видаляє гру, яку замінило продовження шляхом 12r, лише якщо вона ще 'saved' (учасники й відповіді — каскадом). */
+async function dropReplaced(tx: Tx, gameId: string): Promise<void> {
+  await tx.delete(game).where(and(eq(game.id, gameId), eq(game.status, 'saved')));
+}
+
+/** Запис збереженої гри (13b). */
+export interface SavedWrite {
+  id: string;
+  code: string;
+  hostId: string;
+  quizId: string | null;
+  playerUsers: Map<string, string>;
+  saved: SavedGameData;
+  /** Шлях 12r: старий збережений запис, який ця гра замінює; null — немає. */
+  replaces: string | null;
+}
+
+/**
+ * Одна транзакція: рядки гри за saved.state (fromQuestion 0, дебафи — порожня мапа), status 'saved', finishedAt null;
+ * trimToCheckpoint; upsert saved_game (data, stateVersion, savedAt now); replaces → видалити той запис, якщо він 'saved'.
+ */
+export async function saveSavedGame(db: Db, write: SavedWrite): Promise<void> {
+  const { saved } = write;
+  const snapshot: Snapshot = {
+    id: write.id,
+    code: write.code,
+    hostId: write.hostId,
+    quizId: write.quizId,
+    state: saved.state,
+    playerUsers: write.playerUsers,
+    // Наявний рядок гри мить старту не змінює (її немає в set).
+    startedAt: new Date(),
+    fromQuestion: 0,
+    debuffs: new Map(),
+    replaces: write.replaces,
+  };
+  await db.transaction(async (tx) => {
+    await writeGame(tx, snapshot, true);
+    await trimToCheckpoint(tx, write.id, saved.state);
+    const savedAt = new Date();
+    await tx
+      .insert(savedGame)
+      .values({ gameId: write.id, data: saved, stateVersion: saved.stateVersion, savedAt })
+      .onConflictDoUpdate({ target: savedGame.gameId, set: { data: saved, stateVersion: saved.stateVersion, savedAt } });
+    if (write.replaces !== null && write.replaces !== write.id) await dropReplaced(tx, write.replaces);
+  });
+}
+
+/**
+ * Видаляє рядки після контрольної точки: answer з question_index ≥ closedQuestions(state),
+ * score_adjustment з seq > state.adjustmentSeq, appeal з seq > (state.appeals?.length ?? 0).
+ */
+export async function trimToCheckpoint(db: Db | Tx, gameId: string, state: GameState): Promise<void> {
+  const people = db.select({ id: participant.id }).from(participant).where(eq(participant.gameId, gameId));
+  await db.delete(answer).where(and(inArray(answer.participantId, people), gte(answer.questionIndex, closedQuestions(state))));
+  await db.delete(scoreAdjustment).where(and(inArray(scoreAdjustment.participantId, people), gt(scoreAdjustment.seq, state.adjustmentSeq)));
+  await db.delete(appeal).where(and(eq(appeal.gameId, gameId), gt(appeal.seq, state.appeals?.length ?? 0)));
 }
 
 const MAX_RETRY_DELAY_MS = 60_000;
@@ -463,6 +542,8 @@ export function attachRecorder(
       playerUsers: new Map(room.playerUsers),
       startedAt: startedAt.get(room.id) ?? new Date(),
       debuffs: debuffsSeen.get(room.id) ?? new Map(),
+      // Значення прийде з room.continued (задача 5).
+      replaces: null,
     };
 
     const job = async () => {

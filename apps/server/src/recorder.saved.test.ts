@@ -1,0 +1,202 @@
+import { asc, eq } from 'drizzle-orm';
+import { describe, expect, it, vi } from 'vitest';
+import { GAME_STATE_VERSION, type GameState } from '@quiz/engine';
+import { makeQuiz, single, text } from '@quiz/engine/testing';
+import * as store from './achievement-store';
+import { answer, appeal, game, participant, savedGame, scoreAdjustment, user } from './db/schema';
+import { attachRecorder, saveSavedGame, trimToCheckpoint, type SavedWrite } from './recorder';
+import { exactSaved, isSavedGameData, SAVED_GAME_VERSION, type SavedGameData } from './rooms/continuation';
+import { RoomManager, type Room } from './rooms/manager';
+import { FakeScheduler } from './testing/fake-scheduler';
+import { createTestDb } from './testing/test-db';
+
+vi.mock('./achievement-store', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./achievement-store')>();
+  return { ...original, awardGame: vi.fn(original.awardGame) };
+});
+
+const HOST = 'u1';
+const correct = { type: 'single', optionId: 'b' } as const;
+const wrong = { type: 'single', optionId: 'a' } as const;
+
+async function setup() {
+  const db = await createTestDb();
+  await db.insert(user).values([
+    { id: HOST, name: 'Ведуча', email: 'host@example.com' },
+    { id: 'u2', name: 'Тарас', email: 'taras@example.com' },
+  ]);
+  const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+  const errors: unknown[] = [];
+  const recorder = attachRecorder(manager, db, (error) => errors.push(error));
+  const open = () => {
+    const room = manager.create(makeQuiz([single, text], { speedBonus: false }), HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname, null);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const olena = enter('Олена');
+    const taras = enter('Тарас');
+    const host = (command: Parameters<RoomManager['host']>[1]) => expect(manager.host(room, command)).toEqual({ ok: true });
+    return { room, olena, taras, host };
+  };
+  return { db, manager, recorder, errors, open };
+}
+
+type Opened = ReturnType<Awaited<ReturnType<typeof setup>>['open']>;
+
+/** Запитання 1 зіграно, +20 Олені на розкритті; повертає стан на таблиці після нього (контрольна точка). */
+function toCheckpoint(ctx: { manager: RoomManager }, g: Opened): GameState {
+  g.host({ type: 'start' });
+  g.host({ type: 'next' });
+  ctx.manager.answer(g.room, g.olena, correct);
+  ctx.manager.answer(g.room, g.taras, wrong);
+  g.host({ type: 'next' });
+  expect(g.room.state.phase).toBe('reveal');
+  g.host({ type: 'adjust', playerId: g.olena, points: 20 });
+  g.host({ type: 'next' });
+  expect(g.room.state.phase).toBe('leaderboard');
+  return g.room.state;
+}
+
+function savedData(state: GameState, stateVersion = GAME_STATE_VERSION): SavedGameData {
+  return { v: SAVED_GAME_VERSION, stateVersion, state, at: 0, playerUsers: [], quizId: null };
+}
+
+function writeOf(room: Room, state: GameState, replaces: string | null = null): SavedWrite {
+  return { id: room.id, code: room.code, hostId: HOST, quizId: null, playerUsers: new Map(room.playerUsers), saved: savedData(state), replaces };
+}
+
+describe('saved games in the database', () => {
+  it('a checkpoint on the leaderboard after question 1 drops the rows of question 2 written while it was locked', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const checkpoint = toCheckpoint(ctx, g);
+    g.host({ type: 'next' });
+    expect(g.room.state.phase).toBe('question');
+    g.host({ type: 'adjust', playerId: g.taras, points: 50 });
+    ctx.manager.answer(g.room, g.olena, { type: 'text', value: 'Київ' });
+    ctx.manager.answer(g.room, g.taras, { type: 'text', value: 'Львів' });
+    expect(g.room.state.phase).toBe('locked');
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(answer)).some((a) => a.questionIndex === 1)).toBe(true);
+    // Апеляція після контрольної точки (у стані точки апеляцій немає).
+    await ctx.db.insert(appeal).values({ gameId: g.room.id, seq: 1, participantId: g.olena, questionIndex: 1, reason: 'grade', yes: 1, no: 0, outcome: 'yes', adjustmentSeq: null });
+
+    await saveSavedGame(ctx.db, writeOf(g.room, checkpoint));
+
+    const [row] = await ctx.db.select().from(game);
+    expect(row).toMatchObject({ status: 'saved', questionsPlayed: 1, finishedAt: null });
+    expect(row.plays).toHaveLength(1);
+    const answers = await ctx.db.select().from(answer);
+    expect(answers.filter((a) => a.questionIndex === 1)).toEqual([]);
+    expect(answers.filter((a) => a.questionIndex === 0)).toHaveLength(2);
+    const adjustments = await ctx.db.select().from(scoreAdjustment).orderBy(asc(scoreAdjustment.seq));
+    expect(checkpoint.adjustmentSeq).toBe(1);
+    expect(adjustments.map((a) => [a.participantId, a.seq, a.points])).toEqual([[g.olena, 1, 20]]);
+    expect(await ctx.db.select().from(appeal)).toEqual([]);
+    const participants = await ctx.db.select().from(participant);
+    for (const p of participants) expect(p.score).toBe(checkpoint.players.find((player) => player.id === p.id)!.score);
+    const [saved] = await ctx.db.select().from(savedGame);
+    expect(saved.gameId).toBe(g.room.id);
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
+    expect((saved.data as SavedGameData).state.questionIndex).toBe(0);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a second save of the same game updates its one saved_game row', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const checkpoint = toCheckpoint(ctx, g);
+    await ctx.recorder.idle();
+    await saveSavedGame(ctx.db, writeOf(g.room, checkpoint));
+    const [first] = await ctx.db.select().from(savedGame);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await saveSavedGame(ctx.db, writeOf(g.room, checkpoint));
+    const rows = await ctx.db.select().from(savedGame);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].savedAt.getTime()).toBeGreaterThan(first.savedAt.getTime());
+  });
+
+  it('a saved game stays «saved» while the room goes on, and the finish makes it finished, removes saved_game and awards once', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const checkpoint = toCheckpoint(ctx, g);
+    await ctx.recorder.idle();
+    await saveSavedGame(ctx.db, writeOf(g.room, checkpoint));
+    vi.mocked(store.awardGame).mockClear();
+
+    g.host({ type: 'next' });
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(game))[0].status).toBe('saved');
+
+    g.host({ type: 'end' });
+    expect(g.room.state.phase).toBe('finished');
+    await ctx.recorder.idle();
+    expect((await ctx.db.select().from(game))[0].status).toBe('finished');
+    expect(await ctx.db.select().from(savedGame)).toEqual([]);
+    expect(vi.mocked(store.awardGame)).toHaveBeenCalledTimes(1);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a participant gets the account the room bound to it on the next write', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    g.host({ type: 'start' });
+    await ctx.recorder.idle();
+    const taras = async () => (await ctx.db.select().from(participant).where(eq(participant.id, g.taras)))[0];
+    expect((await taras()).userId).toBeNull();
+    g.room.playerUsers.set(g.taras, 'u2');
+    g.host({ type: 'next' });
+    await ctx.recorder.idle();
+    expect((await taras()).userId).toBe('u2');
+  });
+
+  it('replaces removes the old saved game with its participants, but never a finished one', async () => {
+    const ctx = await setup();
+    const old = ctx.open();
+    const oldCheckpoint = toCheckpoint(ctx, old);
+    await ctx.recorder.idle();
+    await saveSavedGame(ctx.db, writeOf(old.room, oldCheckpoint));
+
+    const next = ctx.open();
+    const nextCheckpoint = toCheckpoint(ctx, next);
+    await ctx.recorder.idle();
+    await saveSavedGame(ctx.db, writeOf(next.room, nextCheckpoint, old.room.id));
+    expect((await ctx.db.select().from(game)).map((row) => row.id)).toEqual([next.room.id]);
+    expect((await ctx.db.select().from(participant)).every((p) => p.gameId === next.room.id)).toBe(true);
+    expect((await ctx.db.select().from(savedGame)).map((row) => row.gameId)).toEqual([next.room.id]);
+
+    const third = ctx.open();
+    const thirdCheckpoint = toCheckpoint(ctx, third);
+    await ctx.recorder.idle();
+    await ctx.db.update(game).set({ status: 'finished' }).where(eq(game.id, next.room.id));
+    await saveSavedGame(ctx.db, writeOf(third.room, thirdCheckpoint, next.room.id));
+    expect((await ctx.db.select().from(game)).map((row) => row.id).sort()).toEqual([next.room.id, third.room.id].sort());
+  });
+
+  it('trimToCheckpoint keeps the rows of the closed questions', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const checkpoint = toCheckpoint(ctx, g);
+    await ctx.recorder.idle();
+    await trimToCheckpoint(ctx.db, g.room.id, checkpoint);
+    expect(await ctx.db.select().from(answer)).toHaveLength(2);
+    expect(await ctx.db.select().from(scoreAdjustment)).toHaveLength(1);
+  });
+
+  it('exactSaved reads only a known state version; isSavedGameData does not check it', async () => {
+    const ctx = await setup();
+    const g = ctx.open();
+    const state = toCheckpoint(ctx, g);
+    expect(exactSaved(savedData(state))).toBe(true);
+    expect(isSavedGameData(savedData(state))).toBe(true);
+    expect(exactSaved(savedData(state, 999))).toBe(false);
+    expect(isSavedGameData(savedData(state, 999))).toBe(true);
+    for (const raw of [null, {}, { v: 2 }]) {
+      expect(exactSaved(raw)).toBe(false);
+      expect(isSavedGameData(raw)).toBe(false);
+    }
+  });
+});
