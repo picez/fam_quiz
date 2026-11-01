@@ -12255,6 +12255,32 @@ button.wall-tile:disabled {
   --reaction-size: 56px;
 }
 
+/* Тісні дошки сцени («Вибування», «Ва-банк»): рядок ≈ 1.5em з полями 0.125rem, тож бейдж іде за шрифтом і не лізе
+   в сусідні рядки (і не обрізається overflow: hidden дошки в першому й останньому). */
+.survival-board.is-stage .reaction-badge,
+.wipeout-players.is-stage .reaction-badge {
+  --reaction-size: min(56px, 1.5em);
+}
+
+/* Таблиця балів: нік — власний span з трикрапкою (min-width: 0), бейдж поруч не стискається, тож завжди видно;
+   ширину колонки й далі тримає max-width .score-table .name — довгий нік лише коротшає. */
+.score-name-line {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.score-name-line .score-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.score-name-line .row-reactions {
+  flex: none;
+}
+
 .reaction-badge img {
   display: block;
   width: 100%;

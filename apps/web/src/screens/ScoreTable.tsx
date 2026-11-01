@@ -117,14 +117,19 @@ export function ScoreTable({
                 <tr className={classes} onClick={toggle}>
                   <td className="rank">{row.rank ?? '–'}</td>
                   <th scope="row" className="name">
-                    {breakdown === undefined ? (
-                      row.nickname
-                    ) : (
-                      <button type="button" className="score-row-toggle" aria-expanded={open} aria-label={t('scoreOpen', { name: row.nickname })}>
-                        {row.nickname}
-                      </button>
-                    )}
-                    <RowReaction rowId={row.participantId} />
+                    {/* Нік обрізається трикрапкою у власному span, а бейдж реакції (13a) стоїть поза ним: довге ім'я його не ховає. */}
+                    <span className="score-name-line">
+                      <span className="score-name">
+                        {breakdown === undefined ? (
+                          row.nickname
+                        ) : (
+                          <button type="button" className="score-row-toggle" aria-expanded={open} aria-label={t('scoreOpen', { name: row.nickname })}>
+                            {row.nickname}
+                          </button>
+                        )}
+                      </span>
+                      <RowReaction rowId={row.participantId} />
+                    </span>
                     {members.length > 0 && <span className="standing-members">{members.join(', ')}</span>}
                     {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
                   </th>

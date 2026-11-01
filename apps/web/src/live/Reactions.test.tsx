@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import type { Reaction, Standing, SurvivalInfo } from '@quiz/shared';
 import { ReactionStrip, ReactionsProvider } from './Reactions';
 import { Standings } from '../screens/Standings';
@@ -132,5 +135,42 @@ describe('reactions beside the names', () => {
     const items = strip().querySelectorAll('.reaction-strip-item');
     expect(items).toHaveLength(1);
     expect(items[0].textContent).toContain('Тарас');
+  });
+});
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+/** Тіло першого правила з точно цим селектором у styles.css. */
+function rule(selector: string): string {
+  const start = css.indexOf(`\n${selector} {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  return css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+}
+
+describe('reaction badges fit dense rows (fix round 1)', () => {
+  it('on the stage survival and wipeout boards the badge follows the font, not a fixed 56 px', () => {
+    const body = rule('.survival-board.is-stage .reaction-badge,\n.wipeout-players.is-stage .reaction-badge');
+    expect(body).toContain('--reaction-size: min(56px, 1.5em)');
+  });
+
+  it('ScoreTable: the badge stands outside the ellipsised nickname, so a long name never hides it', () => {
+    const rows = [row('p1', 'Дуже-довге-ім’я-гравчині', 900, 1), row('p2', 'Тарас', 500, 2)];
+    render(
+      <ReactionsProvider reactions={[reaction()]} size="phone">
+        <ScoreTable rows={rows} size="phone" breakdowns={{ p1: { plus: 0, minus: 0, parts: [] } }} />
+        <ReactionStrip />
+      </ReactionsProvider>,
+    );
+    const cell = document.querySelector('.score-table tbody th.name') as HTMLElement;
+    const line = cell.querySelector('.score-name-line') as HTMLElement;
+    const nick = line.querySelector('.score-name') as HTMLElement;
+    expect(nick.textContent).toBe('Дуже-довге-ім’я-гравчині');
+    expect(nick.querySelector('.reaction-badge')).toBeNull();
+    expect(line.querySelector(':scope > .row-reactions .reaction-badge')).not.toBeNull();
+    const body = rule('.score-name-line .score-name');
+    expect(body).toContain('min-width: 0');
+    expect(body).toContain('text-overflow: ellipsis');
+    expect(rule('.score-name-line .row-reactions')).toContain('flex: none');
   });
 });
