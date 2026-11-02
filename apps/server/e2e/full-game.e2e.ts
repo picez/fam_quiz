@@ -17209,7 +17209,10 @@ async function prizes14a() {
   };
   /** Телефон без Web Share: «Диплом» гарантовано завантажує файл (canShare живе на прототипі, не на самому navigator). */
   const noShare = (page: Page) =>
-    page.addInitScript({ content: 'delete window.PushManager; delete window.Notification;' });
+    page.addInitScript(() => {
+      delete (Navigator.prototype as unknown as { canShare?: unknown }).canShare;
+      delete (navigator as unknown as { canShare?: unknown }).canShare;
+    });
 
   // ── 1. Склад: ведучий на телефонному вікні створює два призи. ──
   const host = await open('host14a', 1280, 800);
@@ -19307,6 +19310,7 @@ async function push20a() {
     const claimed = await ctx.push!.remindDue(new Date());
     expect(claimed).toBeLessThanOrEqual(1);
     await ctx.push!.idle();
+    await expect.poll(() => sentTo('reminder').length, POLL).toBe(2);
     const reminders = sentTo('reminder');
     expect(reminders.map((o) => o.endpoint).sort(), 'reminder recipients').toEqual([endpointOf('host20a'), endpointOf('olya20a')]);
     const startsAt = (reminders[0]!.payload as { startsAt: string }).startsAt;
