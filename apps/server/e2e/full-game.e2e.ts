@@ -180,8 +180,6 @@ beforeAll(async () => {
 let restarting = false;
 /** Лише частини 13b і 9b (їхні сценарії ставлять і знімають): тихий 404 на /slots для коду, якого вже немає, там очікуваний. */
 let slots404Expected = false;
-/** 19a: сценарій десятки разів перезавантажує сторінки Олі за хвилину, тож 429 на опитуванні бейджа (60 за хвилину на людину) очікуваний. */
-let badge429Expected = false;
 
 /** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
 async function restart(between?: () => Promise<void>) {
@@ -257,7 +255,6 @@ async function open(name: string, width: number, height: number, options: { redu
     const expected =
       message.text().includes('401 (Unauthorized)') ||
       (restarting && message.text().includes('WebSocket connection to')) ||
-      (badge429Expected && message.text().includes('429 (Too Many Requests)') && message.location().url.endsWith('/api/me/feed/badge')) ||
       (slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
@@ -18781,14 +18778,16 @@ const CALENDAR_FITS_19A = `(() => {
 
 async function calendar19a() {
   const KYIV = 'Europe/Kyiv';
-  badge429Expected = true;
   const TITLE = 'Календар 19a';
   const EVENT = 'Вечір загадок';
   const SPARE = 'Запасний вечір';
   const MISSED = 'Не відбулась 19a';
   const kyivDate = (ms: number) => new Intl.DateTimeFormat('en-CA', { timeZone: KYIV }).format(ms);
-  const tomorrow = kyivDate(Date.now() + 86_400_000);
-  const afterTomorrow = kyivDate(Date.now() + 2 * 86_400_000);
+  // «Завтра» — від сьогоднішньої дати за Києвом плюс день у UTC-арифметиці дат (без +24 год: зміна часу її ламає).
+  const [ky, km, kd] = kyivDate(Date.now()).split('-').map(Number) as [number, number, number];
+  const kyivDay = (plus: number) => Date.UTC(ky, km - 1, kd + plus, 12);
+  const tomorrow = new Date(kyivDay(1)).toISOString().slice(0, 10);
+  const afterTomorrow = new Date(kyivDay(2)).toISOString().slice(0, 10);
   const monthOf = (ms: number) => new Intl.DateTimeFormat('uk-UA', { timeZone: KYIV, month: 'long' }).format(ms);
   const clock = (value: Date) => new Intl.DateTimeFormat('uk-UA', { timeZone: KYIV, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(value);
 
@@ -18814,6 +18813,16 @@ async function calendar19a() {
   const apiBadge = async (page: Page) => {
     const b = (await (await page.request.get(`${base}/api/me/feed/badge`)).json()) as { requests: number; decisions: number };
     return b.requests + b.decisions;
+  };
+  /** Перезавантажити й дочекатися першої відповіді бейджа (та кадру після неї): лише тоді «бейджа немає» щось означає. */
+  const reloadWithBadge = async (page: Page) => {
+    const answered = page.waitForResponse((r) => r.url().endsWith('/api/me/feed/badge') && r.request().method() === 'GET');
+    await page.reload();
+    const response = await answered;
+    expect(response.ok(), 'the badge answers').toBe(true);
+    const body = (await response.json()) as { requests: number; decisions: number };
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
+    return body.requests + body.decisions;
   };
   /** Опитування бейджа раз на 30 с: перезавантажуємо сторінку, доки вкладка не покаже очікуване. */
   const reloadUntilTab = (page: Page, expected: string) =>
@@ -18866,7 +18875,7 @@ async function calendar19a() {
   await host.waitForURL(`${base}/feed/calendar`);
   await plan(EVENT, tomorrow, '19:00');
   const dayHeading = host.locator('section.calendar-day', { has: card(host, EVENT) }).locator('h2');
-  expect((await dayHeading.textContent())!.toLowerCase()).toContain(monthOf(Date.now() + 86_400_000));
+  expect((await dayHeading.textContent())!.toLowerCase()).toContain(monthOf(kyivDay(1)));
   expect(await card(host, EVENT).locator('.calendar-when').innerText()).toContain('19:00');
   const eventRow = async () => (await db.select().from(calendarEvent)).find((r) => r.title === EVENT);
   await expect.poll(async () => (await eventRow()) !== undefined, POLL).toBe(true);
@@ -18896,6 +18905,10 @@ async function calendar19a() {
   await vira.goto(`${base}/feed`);
   await vira.locator('.feed-empty').waitFor();
   expect(await vira.locator('.feed-card', { hasText: 'запланував(-ла)' }).count(), 'Віра sees a planned card').toBe(0);
+  const viraCalendar = (await (await vira.request.get(`${base}/api/me/calendar`)).json()) as { events: unknown[] };
+  expect(viraCalendar.events, 'Віра’s calendar API').toEqual([]);
+  const viraFeed = (await (await vira.request.get(`${base}/api/me/feed`)).json()) as { events: { data: { kind: string } }[] };
+  expect(viraFeed.events.filter((e) => e.data.kind === 'planned'), 'Віра’s feed API has planned cards').toEqual([]);
   const viraAsk = await vira.request.post(`${base}/api/calendar/${eventId}/request`);
   expect(viraAsk.status(), 'Віра asks for a friend’s event').toBe(404);
 
@@ -18925,9 +18938,8 @@ async function calendar19a() {
   await requestRow(host, 'Петро').getByRole('button', { name: 'Відхилити', ...exact }).click();
   await requestRow(host, 'Петро').getByText('Відхилено', exact).waitFor();
   await expect.poll(() => apiBadge(host), POLL).toBe(0);
-  await host.reload();
+  expect(await reloadWithBadge(host), 'the host’s badge answer after the decisions').toBe(0);
   await card(host, EVENT).waitFor();
-  await host.waitForTimeout(800);
   expect(await tabBadge(host), 'the host’s tab badge after the decisions').toBeNull();
 
   // ── 6. Рішення. ──
@@ -18949,9 +18961,8 @@ async function calendar19a() {
   await olya.waitForURL(`${base}/feed/calendar`);
   await card(olya, EVENT).getByText('Підтверджено', exact).waitFor();
   await expect.poll(() => apiBadge(olya), POLL).toBe(0);
-  await olya.reload();
+  expect(await reloadWithBadge(olya), 'Оля’s badge answer after seeing the decision').toBe(0);
   await card(olya, EVENT).waitFor();
-  await olya.waitForTimeout(800);
   expect(await tabBadge(olya), 'Оля’s tab badge after seeing the decision').toBeNull();
   await petro.reload();
   await card(petro, EVENT).getByText('Відхилено', exact).waitFor();
@@ -18980,6 +18991,8 @@ async function calendar19a() {
   await expect.poll(async () => (await eventRow())?.gameCode, POLL).toBe(code);
   const stage = await open('stage19a', 1280, 720, { timezoneId: KYIV });
   await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  const olyaList = (await (await olya.request.get(`${base}/api/me/calendar`)).json()) as { events: { id: string; joinCode: string | null }[] };
+  expect(olyaList.events.find((e) => e.id === eventId)?.joinCode, 'Оля gets the code once open').toBe(code);
   await olya.goto(`${base}/feed/calendar`);
   await card(olya, EVENT).getByRole('link', { name: 'Приєднатися', ...exact }).click();
   await olya.waitForURL(`${base}/play/${code}`);
@@ -19051,11 +19064,23 @@ async function calendar19a() {
   await host.reload();
   await card(host, SPARE).locator('.calendar-request', { hasText: 'Оля' }).getByRole('button', { name: 'Підтвердити', ...exact }).click();
   await card(host, SPARE).locator('.calendar-request', { hasText: 'Оля' }).getByText('Підтверджено', exact).waitFor();
-  // Діалог підтвердження приймає обробник за замовчуванням з open().
+  // Оля бачить підтвердження в календарі (позначено переглянутим): після скасування «1» — саме скасування, а не підтвердження.
+  await olya.goto(`${base}/feed/calendar`);
+  await card(olya, SPARE).getByText('Підтверджено', exact).waitFor();
+  await expect.poll(() => apiBadge(olya), POLL).toBe(0);
+  // Діалог підтвердження приймає обробник за замовчуванням з open(); тут перевіряємо його текст.
+  const confirmShown = host.waitForEvent('dialog');
   await card(host, SPARE).getByRole('button', { name: 'Скасувати подію', ...exact }).click();
+  const confirmDialog = await confirmShown;
+  expect(confirmDialog.type()).toBe('confirm');
+  expect(confirmDialog.message()).toBe(`Скасувати «${SPARE}»? Учасники побачать, що гри не буде.`);
   await expect.poll(async () => (await db.select().from(calendarEvent)).find((r) => r.title === SPARE)?.cancelledAt != null, POLL).toBe(true);
   await olya.goto(`${base}/feed`);
   await reloadUntilTab(olya, '1');
+  const olyaFeed = (await (await olya.request.get(`${base}/api/me/feed`)).json()) as { events: { data: { kind: string; title?: string } }[] };
+  expect(olyaFeed.events.some((e) => e.data.kind === 'planned' && e.data.title === EVENT), 'Оля’s feed API still has the first planned card').toBe(true);
+  expect(olyaFeed.events.some((e) => e.data.title === SPARE), 'a cancelled event stays in the feed API').toBe(false);
+  await olya.locator('.feed-card').first().waitFor();
   expect(await olya.locator('.feed-card', { hasText: SPARE }).count(), 'a cancelled event stays in the feed').toBe(0);
   await tabLink(olya).click();
   await olya.waitForURL(`${base}/feed/calendar`);
@@ -19082,7 +19107,5 @@ it('part 19a: calendar — the menu keeps seven items, the host plans a game for
   } catch (error) {
     await snapshot();
     throw error;
-  } finally {
-    badge429Expected = false;
   }
 });
