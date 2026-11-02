@@ -2,7 +2,7 @@ import { FEED_BADGE_CAP, FEED_PAGE_SIZE, FEED_RETENTION_DAYS, feedCursor, type F
 import { and, eq, inArray, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
-import { feedEvent, follow, game, profile, userLike } from './db/schema';
+import { feedEvent, follow, game, profile, user, userLike } from './db/schema';
 import { ensureProfile } from './profiles';
 
 const DAY_MS = 86_400_000;
@@ -50,9 +50,10 @@ async function eventRows(db: Db, viewerId: string, cursor: Cursor | null, now: D
   const at = ms(feedEvent.at);
   const id = sql`${feedEvent.id}::text collate "C"`;
   return db
-    .select({ event: feedEvent, nickname: profile.nickname, avatar: profile.avatar })
+    .select({ event: feedEvent, nickname: sql<string>`coalesce(${profile.nickname}, ${user.name}, '')`, avatar: profile.avatar })
     .from(feedEvent)
-    .innerJoin(profile, eq(profile.userId, feedEvent.userId))
+    .leftJoin(profile, eq(profile.userId, feedEvent.userId))
+    .innerJoin(user, eq(user.id, feedEvent.userId))
     .where(and(feedVisibility(db, viewerId, now), cursor ? below(at, id, cursor) : undefined))
     .orderBy(sql`${at} desc`, sql`${id} desc`)
     .limit(FEED_PAGE_SIZE + 1);
@@ -72,11 +73,12 @@ async function likeGroups(db: Db, viewerId: string, cursor: Cursor | null, now: 
       host: sql<boolean>`bool_or(${userLike.kind} = 'host')`,
       player: sql<boolean>`bool_or(${userLike.kind} = 'player')`,
       title: game.title,
-      nickname: profile.nickname,
+      nickname: sql<string>`coalesce(${profile.nickname}, ${user.name}, '')`,
       avatar: profile.avatar,
     })
     .from(userLike)
-    .innerJoin(profile, eq(profile.userId, userLike.userId))
+    .leftJoin(profile, eq(profile.userId, userLike.userId))
+    .innerJoin(user, eq(user.id, userLike.userId))
     .leftJoin(game, eq(game.id, userLike.gameId))
     .where(
       and(
@@ -89,7 +91,7 @@ async function likeGroups(db: Db, viewerId: string, cursor: Cursor | null, now: 
         notHidden(userLike.userId),
       ),
     )
-    .groupBy(userLike.userId, userLike.gameId, game.title, profile.nickname, profile.avatar)
+    .groupBy(userLike.userId, userLike.gameId, game.title, profile.nickname, user.name, profile.avatar)
     .having(cursor ? below(at, id, cursor) : undefined)
     .orderBy(sql`${at} desc`, sql`${id} desc`)
     .limit(FEED_PAGE_SIZE + 1);
@@ -201,7 +203,6 @@ export async function feedBadge(db: Db, viewerId: string, now: Date): Promise<Fe
   const capped = db
     .select({ one: sql`1` })
     .from(feedEvent)
-    .innerJoin(profile, eq(profile.userId, feedEvent.userId))
     .where(and(feedVisibility(db, viewerId, now), ne(feedEvent.userId, viewerId), sql`${ms(feedEvent.createdAt)} > ${seen}`))
     .limit(FEED_BADGE_CAP + 1)
     .as('capped');

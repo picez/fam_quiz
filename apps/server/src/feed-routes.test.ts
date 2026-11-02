@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { buildApp } from './app';
-import { feedEvent, follow, userLike } from './db/schema';
+import { feedEvent, follow, user, userLike } from './db/schema';
 import * as store from './feed-store';
 import { startFeedPrune } from './feed-routes';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -123,5 +123,21 @@ describe('startFeedPrune', () => {
       spy.mockRestore();
       vi.useRealTimers();
     }
+  });
+});
+
+describe('owner without a profile row', () => {
+  it('still shows in the feed, named from the account and without an avatar', async () => {
+    const id = 'noprofile-user';
+    await db.insert(user).values({ id, name: 'Старий акаунт', email: 'old@example.com' });
+    await db.insert(follow).values([
+      { followerId: olyaId, followeeId: id },
+      { followerId: id, followeeId: olyaId },
+    ]);
+    const at = new Date(Date.now() - 30_000);
+    await db.insert(feedEvent).values({ key: `level:${id}:2`, userId: id, kind: 'level', gameId: null, data: { kind: 'level', level: 2 }, at, createdAt: new Date() });
+    const page = (await request('GET', '/api/me/feed', olya.cookie)).json() as { events: { who: { id: string; nickname: string; avatar: string | null } }[] };
+    expect(page.events.find((e) => e.who.id === id)?.who).toEqual({ id, nickname: 'Старий акаунт', avatar: null });
+    expect(((await request('GET', '/api/me/feed/badge', olya.cookie)).json() as { events: number }).events).toBeGreaterThanOrEqual(1);
   });
 });
