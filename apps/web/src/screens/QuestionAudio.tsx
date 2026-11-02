@@ -16,6 +16,12 @@ interface Props {
   elapsedMs?: number | (() => number);
   /** Іде заставка: команди «ще раз» у цей час ігноруються. */
   splash?: boolean;
+  /** Сам вмикається, коли ready (типово так); false — лише за дотиком до «Прослухати» (16b: телефон, коли сцена відкрита). */
+  autoplay?: boolean;
+  /** Кнопка «Прослухати» / «Зупинити» на телефоні (16b): 'again' — на розкритті, «Прослухати ще раз». Без неї кнопки немає. */
+  listen?: 'first' | 'again';
+  /** Запитання ще йде: коли стає false, фрагмент, увімкнений дотиком, зупиняється. */
+  live?: boolean;
 }
 
 type PlayState = 'idle' | 'playing' | 'stopped' | 'blocked' | 'failed';
@@ -40,7 +46,7 @@ interface Command {
  * пауза гри ставить звук на паузу; через duration с від старту (без пауз) фрагмент зупиняється.
  * YouTube: команди чекають, поки плеєр відгукнеться, а «не заграло» за 2 с — це заблокований звук.
  */
-export function QuestionAudio({ clip, questionKey, ready, paused, command, elapsedMs = 0, splash = false }: Props) {
+export function QuestionAudio({ clip, questionKey, ready, paused, command, elapsedMs = 0, splash = false, autoplay = true, listen, live = true }: Props) {
   const media = useRef<HTMLAudioElement | null>(null);
   // React відв'язує ref до очищення ефектів: останній елемент тримаємо окремо, щоб при виході його можна було зупинити.
   const lastMedia = useRef<HTMLAudioElement | null>(null);
@@ -70,6 +76,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
   const fromAuto = useRef(false);
   const splashRef = useRef(splash);
   splashRef.current = splash;
+  // Хто ввімкнув поточне відтворення: автостарт (його зупиняє відкрита сцена) чи дотик до «Прослухати» (його — кінець запитання).
+  const startedBy = useRef<'auto' | 'tap' | null>(null);
   // YouTube: плеєр відповів, черга команд до цього, чи підтвердив він «грає», таймер перевірки.
   const yt = useRef({ ready: false, queue: [] as Command[], state: -1, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
   // Таймер блокування звертається до halt, оголошеного нижче.
@@ -275,8 +283,10 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
 
   // Автостарт: раз на ключ запитання, коли можна починати; без того, що вже минуло.
   useEffect(() => {
-    if (!ready || startedKey.current === questionKey) return;
+    if (!ready || !autoplay || startedKey.current === questionKey) return;
     startedKey.current = questionKey;
+    // Фрагмент, який уже грає за дотиком, автостарт не перебиває.
+    if (run.current.active) return;
     setPlays(0);
     const offset = elapsedNow();
     fromAuto.current = true;
@@ -290,8 +300,22 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       setState('blocked');
       return;
     }
+    startedBy.current = 'auto';
     begin(true, offset);
-  }, [ready, questionKey, begin]);
+  }, [ready, autoplay, questionKey, begin]);
+
+  // Сцена відкрилась (autoplay → false): автостартований звук замовкає — грає лише сцена; увімкнений дотиком грає далі.
+  // Заблокований автостарт теж знімається: замість «Увімкнути звук» — звичайне «Прослухати».
+  useEffect(() => {
+    if (autoplay || startedBy.current === 'tap') return;
+    if (run.current.active) halt('stopped');
+    else setState((current) => (current === 'blocked' ? 'idle' : current));
+  }, [autoplay, halt]);
+
+  // Запитання скінчилось: фрагмент, увімкнений дотиком, зупиняється.
+  useEffect(() => {
+    if (!live && startedBy.current === 'tap' && run.current.active) halt('stopped');
+  }, [live, halt]);
 
   // Нова команда ведучого.
   useEffect(() => {
@@ -304,7 +328,10 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       halt('stopped');
     } else if (splashRef.current) return;
     else if (needsTouch()) halt('blocked');
-    else begin(true);
+    else {
+      startedBy.current = 'auto';
+      begin(true);
+    }
   }, [command, begin, halt, questionKey]);
 
   // Пауза гри.
@@ -319,14 +346,30 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
 
   const unlock = () => {
     const offset = fromAuto.current && readyRef.current ? elapsedNow() : 0;
+    startedBy.current = 'auto';
     if (offset >= clipRef.current.duration * 1000) halt('stopped');
     else begin(true, offset);
   };
 
+  /** «Прослухати» — фрагмент з початку (той самий start і duration, що на сцені); «Зупинити» — тиша. Дотик і є жестом для звуку. */
+  const toggle = () => {
+    if (run.current.active) {
+      halt('stopped');
+      return;
+    }
+    fromAuto.current = false;
+    startedBy.current = 'tap';
+    begin(true);
+  };
+
   const playing = state === 'playing';
-  const quiet = state === 'idle' || state === 'stopped';
+  // З кнопкою картка не згортається: кнопка завжди на своєму місці й однакового розміру.
+  const quiet = listen === undefined && (state === 'idle' || state === 'stopped');
+  // Автостарт, заблокований браузером, і далі просить «Увімкнути звук» (продовжує з поточного часу); з кнопкою це вона сама.
+  const unlockShown = state === 'blocked' && (listen === undefined || (autoplay && startedBy.current !== 'tap'));
+  const toggleShown = listen !== undefined && state !== 'failed' && !unlockShown;
   return (
-    <div className={`audio-card${playing ? ' is-playing' : ''}${quiet ? ' is-quiet' : ''}`} data-state={state} data-plays={plays}>
+    <div className={`audio-card${playing ? ' is-playing' : ''}${quiet ? ' is-quiet' : ''}${listen !== undefined ? ' has-toggle' : ''}`} data-state={state} data-plays={plays}>
       {clip.source === 'file' ? (
         <audio
           ref={setMedia}
@@ -358,9 +401,14 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       <span className="sr-only" role="status">
         {state === 'blocked' ? t('audioBlocked') : ''}
       </span>
-      {state === 'blocked' && (
+      {unlockShown && (
         <button type="button" className="btn btn-primary" onClick={unlock}>
           {t('audioUnlock')}
+        </button>
+      )}
+      {toggleShown && (
+        <button type="button" className="btn audio-toggle" aria-pressed={playing} disabled={splash} onClick={toggle}>
+          {playing ? t('audioToggleStop') : listen === 'again' ? t('audioToggleAgain') : t('audioToggleListen')}
         </button>
       )}
       {state === 'failed' && (

@@ -7681,6 +7681,26 @@ label.powers-price {
   margin-top: 0.75rem;
 }
 
+/* «Прослухати» на телефоні (16b): картка сталої висоти в будь-якому стані, в один рядок — дотик нічого не зсуває. */
+.audio-card.has-toggle {
+  min-height: 4rem;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.audio-toggle {
+  flex: none;
+  min-width: 10.5rem;
+  white-space: nowrap;
+}
+
+.audio-card.has-toggle .audio-listen {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ladder-lifeline-off {
   margin: 0.25rem 0 0;
   text-align: center;

@@ -7558,7 +7558,12 @@ async function sliderAudioRevealGame() {
   await shot(host, 'p10b-audio-host-local');
   await click(host, 'Програти ще раз');
   await expect.poll(() => host.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('2');
-  for (const phone of [olya, petro]) expect(await phone.locator('audio, .audio-card, .audio-only-frame, iframe').count()).toBe(0);
+  // 16b: телефон гри з ведучим сам не грає, лише пропонує «Прослухати».
+  for (const phone of [olya, petro]) {
+    await phone.getByRole('button', { name: '🔊 Прослухати', ...exact }).waitFor();
+    expect(await phone.locator('.audio-card').getAttribute('data-plays')).toBe('0');
+    expect(await phone.locator('.audio-card').getAttribute('data-state')).toBe('idle');
+  }
   await olya.getByRole('button', { name: /Тиша/ }).click();
   await petro.getByRole('button', { name: /Дзвін/ }).click();
   await click(host, 'Показати відповідь');
@@ -13205,16 +13210,15 @@ async function noStageInterface11h(sockets: Socket[]) {
   await expectNoHost(vira, 'player audio question');
   await expectPhonePlay(vira, 'p11h-phone-audio-375');
 
-  // 4. Сцена відкрилась: у кадрах Віри clip стає null, а звук зникає з телефонів.
+  // 4. Сцена відкрилась: телефони замовкають (звук грає сцена), але джерело лишається — «Прослухати» (16b).
   const stage = await open('stage11h-b', 1280, 720);
   const opened = viraFrames.length;
   await stage.goto(stageHref);
   await stage.getByText('Що звучить?', exact).waitFor({ timeout: 30_000 });
-  await expect
-    .poll(() => stateViews(viraFrames.slice(opened)).some((v) => v.question?.audio != null && v.question.audio.clip === null), { timeout: 2000 })
-    .toBe(true);
-  for (const page of phones) await expect.poll(() => page.locator('audio').count(), { timeout: 2000 }).toBe(0);
-  for (const view of stateViews(viraFrames.slice(opened)).filter((v) => v.question?.audio != null)) expect(view.question!.audio!.clip, 'a phone never gets the source while a stage is open').toBeNull();
+  for (const page of phones) await expect.poll(() => page.locator('.audio-card').getAttribute('data-state'), { timeout: 5000 }).not.toBe('playing');
+  for (const page of phones) expect(await page.locator('audio').evaluate((el) => (el as unknown as { paused: boolean }).paused)).toBe(true);
+  for (const page of phones) await page.getByRole('button', { name: '🔊 Прослухати', ...exact }).waitFor();
+  for (const view of stateViews(viraFrames.slice(opened)).filter((v) => v.question?.audio != null)) expect(view.question!.audio!.clip, 'a phone keeps the source for «Прослухати»').toEqual({ source: 'file', url: audioUrl, start: 0, duration: 2 });
 
   // 5. Сцену закрито. a1 і a2 → кінець раунду → жереб «Мільйонера» без «ведучого».
   await stage.close();
@@ -13283,7 +13287,7 @@ async function noStageInterface11h(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
-it('part 11h: with no stage the question sound plays on the 375 phones and stops coming once a stage opens, a ladder hint lifeline that is off says why in visible text, and team lobby texts name the bot', async () => {
+it('part 11h: with no stage the question sound plays on the 375 phones and falls silent once a stage opens, a ladder hint lifeline that is off says why in visible text, and team lobby texts name the bot', async () => {
   const sockets: Socket[] = [];
   try {
     await noStageInterface11h(sockets);
@@ -17993,3 +17997,145 @@ async function survivalWatch16a() {
   await shot(stage, 'p16a-stage-outcome');
   expect(await survivalGroupOf(stage, 'Оля')).toBe('Живі');
 }
+
+/** Стан звуку телефона (16b): справжній <audio> — грає чи ні, і що каже картка. */
+async function phoneSound16b(page: Page) {
+  const playing = await page.locator('.player-audio audio').evaluate((audio) => !(audio as unknown as { paused: boolean }).paused);
+  const card = page.locator('.player-audio .audio-card');
+  return { playing, state: await card.getAttribute('data-state'), plays: await card.getAttribute('data-plays') };
+}
+
+/** Верхні краї варіантів відповіді (16b): дотик до «Прослухати» не має їх зсунути. */
+async function answerTops16b(page: Page, names: RegExp[]) {
+  return Promise.all(names.map(async (name) => Math.round((await page.getByRole('button', { name }).boundingBox())!.y)));
+}
+
+async function listenOnPhone16b() {
+  const host = await open('host16b', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host16b@example.com');
+  // 10 секунд тиші: фрагмент 8 с справді грає, поки ми дивимось.
+  const upload = await host.request.post(`${base}/api/uploads/audio`, { data: silentMp3(380), headers: { 'content-type': 'audio/mpeg' } });
+  expect(upload.status(), await upload.text()).toBe(201);
+  const audioUrl = ((await upload.json()) as { url: string }).url;
+  const common = { imageUrl: null, video: null, points: 100 };
+  const q1 = {
+    ...common,
+    id: 'q1',
+    type: 'single' as const,
+    text: 'Який інструмент звучить?',
+    timeLimit: 30,
+    options: [
+      { id: 'q1-a', text: 'Бандура' },
+      { id: 'q1-b', text: 'Скрипка' },
+      { id: 'q1-c', text: 'Трембіта' },
+      { id: 'q1-d', text: 'Сопілка' },
+    ],
+    correctId: 'q1-a',
+    audio: { source: 'file' as const, url: audioUrl, start: 1, duration: 8 },
+  };
+  const q2 = { ...common, id: 'q2', type: 'boolean' as const, text: 'Скрипка має смичок', timeLimit: 20, correct: true };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [q1, q2] as never, { title: 'Звуки', speedBonus: false, shuffleOptions: false })], { leaderboard: 'end' }),
+    title: 'Прослухати 16b',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Прослухати 16b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage16b', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya16b', 375, 812);
+  const petro = await open('petro16b', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  const phones = [olya, petro];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. Сцена відкрита: звук грає там, телефони мовчать і пропонують «Прослухати».
+  await stage.getByText('Який інструмент звучить?', exact).waitFor();
+  const stageUnlock = stage.getByRole('button', { name: '🔊 Увімкнути звук', ...exact });
+  if (await stageUnlock.isVisible()) await stageUnlock.click();
+  await expect.poll(() => stage.locator('[data-plays]').getAttribute('data-plays'), POLL).toBe('1');
+  const options = [/Бандура/, /Скрипка/, /Трембіта/, /Сопілка/];
+  for (const page of phones) {
+    await page.getByRole('button', { name: '🔊 Прослухати', ...exact }).waitFor();
+    expect(await phoneSound16b(page), 'a phone plays by itself while the stage is open').toEqual({ playing: false, state: 'idle', plays: '0' });
+  }
+  const toggle = olya.locator('.audio-toggle');
+  const box = (await toggle.boundingBox())!;
+  expect(box.x, 'p16b: the button leaves the phone on the left').toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, 'p16b: the button leaves the phone on the right').toBeLessThanOrEqual(375 + 0.5);
+  const before = await answerTops16b(olya, options);
+  const cardHeight = (await olya.locator('.player-audio .audio-card').boundingBox())!.height;
+  await shot(olya, 'p16b-phone-listen-375');
+  await expectNoSideScroll(olya, 'p16b-phone-listen-375');
+
+  // 2. Дотик: фрагмент грає на телефоні Олі (справжній <audio> не на паузі), кнопка — «Зупинити»; варіанти на місці.
+  await toggle.click();
+  await expect.poll(async () => (await phoneSound16b(olya)).playing, POLL).toBe(true);
+  expect(await phoneSound16b(olya)).toEqual({ playing: true, state: 'playing', plays: '1' });
+  await expect.poll(() => olya.locator('.player-audio audio').evaluate((a) => (a as unknown as { currentTime: number }).currentTime), POLL).toBeGreaterThan(1);
+  expect(await toggle.textContent()).toBe('⏹ Зупинити');
+  expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+  await olya.getByText('🎵 Слухайте', exact).waitFor();
+  expect(await answerTops16b(olya, options), 'p16b: «Прослухати» moves the answers').toEqual(before);
+  expect((await olya.locator('.player-audio .audio-card').boundingBox())!.height, 'p16b: the audio card changes height').toBe(cardHeight);
+  expect(await phoneSound16b(petro), 'a tap plays on that one phone only').toEqual({ playing: false, state: 'idle', plays: '0' });
+  await shot(olya, 'p16b-phone-playing-375');
+  await expectNoSideScroll(olya, 'p16b-phone-playing-375');
+
+  // 3. Ще дотик — тиша; варіанти й далі на місці.
+  await toggle.click();
+  await expect.poll(async () => (await phoneSound16b(olya)).playing, POLL).toBe(false);
+  expect((await phoneSound16b(olya)).state).toBe('stopped');
+  expect(await toggle.textContent()).toBe('🔊 Прослухати');
+  expect(await answerTops16b(olya, options), 'p16b: «Зупинити» moves the answers').toEqual(before);
+  expect((await olya.locator('.player-audio .audio-card').boundingBox())!.height).toBe(cardHeight);
+
+  // 4. Знову грає, а кінець запитання (усі відповіли — закрито) зупиняє його сам.
+  await toggle.click();
+  await expect.poll(async () => (await phoneSound16b(olya)).playing, POLL).toBe(true);
+  await pickOption(olya, 'Бандура');
+  await pickOption(petro, 'Трембіта');
+  await host.getByText('Запитання закрите').waitFor();
+  await expect.poll(async () => (await phoneSound16b(olya)).playing, POLL).toBe(false);
+  await click(host, 'Показати відповідь');
+
+  // 5. Розкриття: «Прослухати ще раз» — над смугою реакцій, без бічної прокрутки.
+  const again = olya.getByRole('button', { name: '🔊 Прослухати ще раз', ...exact });
+  await again.waitFor();
+  await olya.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const strip = await olya.locator('.reaction-strip').boundingBox();
+  const againBox = (await again.boundingBox())!;
+  if (strip !== null) expect(againBox.y + againBox.height, 'p16b: «Прослухати ще раз» runs under the reaction strip').toBeLessThanOrEqual(strip.y + 0.5);
+  await again.click();
+  await expect.poll(async () => (await phoneSound16b(olya)).playing, POLL).toBe(true);
+  expect(await olya.locator('.audio-toggle').textContent()).toBe('⏹ Зупинити');
+  await shot(olya, 'p16b-phone-reveal-again-375');
+  await expectNoSideScroll(olya, 'p16b-phone-reveal-again-375');
+  await olya.evaluate('window.scrollTo(0, 0)');
+
+  // 6. Наступне запитання без звуку: картки звуку немає.
+  await toNextQuestion(host);
+  await afterSplash(...all);
+  await olya.getByText('Скрипка має смичок', exact).waitFor();
+  expect(await olya.locator('.player-audio').count()).toBe(0);
+  expect(problems).toEqual([]);
+}
+
+it('part 16b: every phone can listen — with the stage open the 375 phones stay silent and show «🔊 Прослухати»; a tap plays the clip on that phone only, «⏹ Зупинити» stops it, the answers never move; the question end stops it and the reveal offers «Прослухати ще раз» clear of the reaction strip', async () => {
+  try {
+    await listenOnPhone16b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});

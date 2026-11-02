@@ -659,9 +659,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const locked = view.paused || notStarted;
   // Під будь-якою заставкою (раунд, фінал, підсумки) кнопки шапки й вступу вимкнені: крізь шар їх не натиснути наосліп.
   const splashUp = splashNow !== null;
-  // Гра без ведучого й без сцени: звук запитання грає на телефонах (сервер шле джерело лише тоді).
+  // Джерело звуку сервер шле кожному телефону (16b): кнопка «Прослухати» грає його тут, зі сценою чи без.
+  // Сам звук вмикається лише в грі без ведучого й без сцени (11h): коли сцена відкрита, звук — її справа.
   const stageGone = useStageGone(stageOnline);
-  const clip = view.autopilot ? (question?.audio?.clip ?? null) : null;
+  const clip = question?.audio?.clip ?? null;
+  const autoAudio = view.autopilot && stageGone;
   // Власне запасне (заміна): свій фрагмент із нового програвача, час — від появи запасного (особистий годинник).
   const onSpare = me.buffs?.active?.kind === 'swap';
 
@@ -1338,7 +1340,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
-      {clip !== null && stageGone && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
+      {/* Під полем відповіді: кнопка «Прослухати» нічого не зсуває, а main тримає запас під смугою реакцій. */}
+      {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <div className="player-audio">
           <QuestionAudio
             key={`${view.round?.index ?? 0}:${view.questionIndex}:${onSpare ? 'spare' : 'main'}`}
@@ -1349,6 +1352,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             command={null}
             elapsedMs={() => questionElapsedMs(onSpare && myClock !== null ? { ...view, ...myClock } : view, Date.now() + offsetMs)}
             splash={notStarted}
+            autoplay={autoAudio}
+            listen={phase === 'question' ? 'first' : 'again'}
+            live={phase === 'question'}
           />
         </div>
       )}
