@@ -172,14 +172,26 @@ describe('Ceremony', () => {
     const { unmount } = render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} onView={onView} />);
     advance(3500);
     advance(3500);
-    const buttons = screen.getAllByRole('button', { name: 'Кубок' });
-    expect(buttons).toHaveLength(3);
+    // Назва кнопки — з виду трофея: кубок, медаль, зірка.
+    expect(screen.getAllByRole('button', { name: /^(Кубок|Медаль|Зірка)$/ })).toHaveLength(3);
+    expect(column(2).querySelector('button')!.textContent).toBe('Медаль');
+    expect(column(3).querySelector('button')!.textContent).toBe('Зірка');
     fireEvent.click(column(2).querySelector('button')!);
     expect(onView).toHaveBeenCalledWith(2);
     unmount();
     render(<Ceremony prizes={three} size="stage" hold={false} onDone={vi.fn()} />);
     advance(3500);
     advance(3500);
-    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^(Кубок|Медаль|Зірка)$/ })).toBeNull();
+  });
+
+  it('the confetti stops CEREMONY_MS.winner after the winner, even if the podium stays up (the host)', () => {
+    render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} />);
+    advance(3500);
+    advance(3500);
+    expect(document.querySelector('.confetti')).not.toBeNull();
+    advance(6000);
+    expect(document.querySelector('.confetti')).toBeNull();
+    expect(shown().sort()).toEqual([1, 2, 3]);
   });
 });

@@ -109,7 +109,7 @@ describe('MyPrize', () => {
       places: [{ ...view.places[0]!, content: { ...view.places[0]!.content, real: { text: 'Кубок сім’ї', photoUrl: 'https://img/cup.jpg' } } }],
     };
     render(<MyPrize prizes={photo} nickname="Оля" quizTitle="Вікторина" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото призу' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото: Кубок' }));
     const img = screen.getByRole('dialog').querySelector('img.prize-view-photo') as HTMLImageElement;
     expect(img.src).toBe('https://img/cup.jpg');
   });
@@ -118,7 +118,7 @@ describe('MyPrize', () => {
     const view = prizes(true);
     const plain: PrizesView = { ...view, mine: { place: 2, account: true } };
     render(<MyPrize prizes={plain} nickname="Петро" quizTitle="Вікторина" />);
-    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^(Кубок|Медаль|Приз)$/ })).toBeNull();
   });
 
   it('nothing without a prize of mine', () => {

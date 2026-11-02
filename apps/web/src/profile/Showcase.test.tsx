@@ -143,14 +143,29 @@ describe('Showcase', () => {
     expect(dialog.textContent).toContain('Чемпіон');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото призу' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото: Кубок' }));
     expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('a medal is opened by «Медаль», a photo alone by «Приз»', () => {
+    const data: ShowcaseData = {
+      title: null,
+      awards: [
+        award({ id: 'm', content: { trophy: { kind: 'medal', material: 'silver' } } }),
+        award({ id: 'p', content: { trophy: null, real: { text: 'Піца', photoUrl: 'https://img/p.jpg' } } }),
+      ],
+    };
+    render(<Showcase showcase={data} own={false} />);
+    expect(screen.getByRole('button', { name: 'Медаль' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Приз' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Переглянути фото: Приз' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
   });
 
   it('no «Кубок» for an award with neither a trophy nor a photo', () => {
     const data: ShowcaseData = { title: null, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] };
     render(<Showcase showcase={data} own={false} />);
-    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^(Кубок|Приз)$/ })).toBeNull();
   });
 
   it('renders nothing for an empty showcase', () => {

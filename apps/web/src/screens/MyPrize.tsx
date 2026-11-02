@@ -3,12 +3,12 @@ import type { PrizesView } from '@quiz/shared';
 import { checkCode } from '../api';
 import { t } from '../i18n';
 import { diplomaFileName, renderDiploma, shareDiploma } from '../trophy/diploma';
-import { PrizeViewer, canViewPrize } from '../trophy/PrizeViewer';
+import { PrizeViewer, canViewPrize, prizeViewLabel } from '../trophy/PrizeViewer';
 import { TrophyView } from '../trophy/TrophyView';
 import { titleBadge } from '../trophy/trophy-meta';
 
 /**
- * Телефон у finished: «Твій приз» для prizes.mine; кнопка «Диплом» — якщо content.diploma; «Кубок» і дотик фото відкривають
+ * Телефон у finished: «Твій приз» для prizes.mine; кнопка «Диплом» — якщо content.diploma; кнопка з видом трофея («Кубок», «Медаль», … чи «Приз») і дотик фото відкривають
  * перегляд призу (PrizeViewer); гість — «Ти граєш як гість: у вітрину приз не потрапить.».
  */
 export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; nickname: string; quizTitle: string }): JSX.Element | null {
@@ -42,7 +42,7 @@ export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; n
       {content.real && (
         <div className="podium-real">
           {content.real.photoUrl !== null && (
-            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto')} onClick={() => setViewing(true)}>
+            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing(true)}>
               <img src={content.real.photoUrl} alt="" />
             </button>
           )}
@@ -55,7 +55,7 @@ export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; n
         <div className="prize-actions">
           {canViewPrize(content) && (
             <button type="button" className="btn" onClick={() => setViewing(true)}>
-              {t('prizeViewButton')}
+              {prizeViewLabel(content)}
             </button>
           )}
           {content.diploma && (

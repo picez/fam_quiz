@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PrizeContent } from '@quiz/shared';
-import { PrizeViewer, canViewPrize } from './PrizeViewer';
+import { PrizeViewer, canViewPrize, prizeViewLabel } from './PrizeViewer';
 
 vi.mock('./TrophyView', () => ({
   TrophyView: (props: { size: string; interactive: boolean }) => <span className="trophy-mock" data-size={props.size} data-interactive={String(props.interactive)} />,
@@ -46,7 +46,56 @@ describe('canViewPrize', () => {
   });
 });
 
+describe('prizeViewLabel', () => {
+  it('names the trophy kind, and «Приз» for a photo alone', () => {
+    const named = (['cup', 'medal', 'crown', 'star', 'statuette'] as const).map((kind) => prizeViewLabel(content({ trophy: { kind, material: 'gold' } })));
+    expect(named).toEqual(['Кубок', 'Медаль', 'Корона', 'Зірка', 'Статуетка']);
+    expect(prizeViewLabel(content({ trophy: null, real: { text: 'Піца', photoUrl: 'https://img/x.jpg' } }))).toBe('Приз');
+  });
+});
+
 describe('PrizeViewer', () => {
+  it('locks the page scroll and makes the app root inert while open, and restores both on close', () => {
+    const root = document.createElement('div');
+    root.id = 'root';
+    document.body.append(root);
+    document.body.style.overflow = 'clip';
+    const { unmount } = render(<PrizeViewer content={content()} place={1} onClose={() => {}} />);
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(root.hasAttribute('inert')).toBe(true);
+    // Сам діалог поза #root — не inert.
+    expect(screen.getByRole('dialog').closest('[inert]')).toBeNull();
+    unmount();
+    expect(document.body.style.overflow).toBe('clip');
+    expect(root.hasAttribute('inert')).toBe(false);
+    document.body.style.overflow = '';
+    root.remove();
+  });
+
+  it('a root that was already inert stays inert after close', () => {
+    const root = document.createElement('div');
+    root.id = 'root';
+    root.setAttribute('inert', '');
+    document.body.append(root);
+    const { unmount } = render(<PrizeViewer content={content()} place={1} onClose={() => {}} />);
+    unmount();
+    expect(root.hasAttribute('inert')).toBe(true);
+    root.remove();
+  });
+
+  it('the focus trap includes the 3D model-viewer', () => {
+    render(<PrizeViewer content={content()} place={1} onClose={() => {}} />);
+    const dialog = screen.getByRole('dialog');
+    const viewer = document.createElement('model-viewer');
+    dialog.append(viewer);
+    const close = screen.getByRole('button', { name: 'Закрити' });
+    // × перший, model-viewer (без власного tabindex) останній: Shift+Tab з × веде на нього.
+    const focus = vi.spyOn(viewer, 'focus');
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(focus).toHaveBeenCalled();
+  });
+
   it('a modal dialog with the photo large, the engraving, the caption and the title', () => {
     const value = content({ real: { text: 'Кубок з гравіюванням', photoUrl: 'https://img/cup.jpg' }, title: 'Король' });
     render(<PrizeViewer content={value} place={2} onClose={() => {}} />);

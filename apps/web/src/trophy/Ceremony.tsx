@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX 
 import { CEREMONY_MS, type Phase, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
 import { t } from '../i18n';
 import { reducedMotion } from '../motion';
-import { canViewPrize } from './PrizeViewer';
+import { canViewPrize, prizeViewLabel } from './PrizeViewer';
 import { TrophyView } from './TrophyView';
 import { ceremonyOrder, podiumColumns, titleBadge } from './trophy-meta';
 
@@ -39,7 +39,7 @@ function Column({ shown, size, onView }: { shown: PrizeShown & { winner: NonNull
         {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
         {onView !== undefined && canViewPrize(content) && (
           <button type="button" className="btn btn-small podium-view" onClick={() => onView(place)}>
-            {t('prizeViewButton')}
+            {prizeViewLabel(content)}
           </button>
         )}
       </div>
@@ -52,7 +52,8 @@ function Column({ shown, size, onView }: { shown: PrizeShown & { winner: NonNull
 
 /**
  * Місця з winner по черзі 3 → 2 → 1 (CEREMONY_MS.step, переможець — winner); hold — заставка ще йде, таймери стоять; onDone — раз.
- * onView (пульт) — під кожним відкритим місцем «Кубок», що відкриває перегляд призу цього місця.
+ * onView (пульт) — під кожним відкритим місцем кнопка з видом трофея («Кубок», …), що відкриває перегляд призу цього місця.
+ * Конфеті — CEREMONY_MS.winner після переможця, і стоп: пульт тримає подіум, доки ведучий його не сховає.
  */
 export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void; onView?: (place: PrizePlace) => void }): JSX.Element {
   const order = ceremonyOrder(prizes);
@@ -64,6 +65,8 @@ export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: Prize
   // Скільки місць уже відкрито (з кінця черги 3 → 2 → 1).
   const [count, setCount] = useState(0);
   const finished = useRef(false);
+  // Час переможця сплив: конфеті більше не сиплеться (подіум на пульті лишається).
+  const [over, setOver] = useState(false);
   const latest = useRef(onDone);
   latest.current = onDone;
 
@@ -71,6 +74,7 @@ export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: Prize
     const finish = () => {
       if (finished.current) return;
       finished.current = true;
+      setOver(true);
       latest.current();
     };
     if (total === 0) {
@@ -90,7 +94,7 @@ export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: Prize
   if (total === 0) return <></>;
   const open = order.slice(0, Math.min(count, total));
   const now = !calm && open.length > 0 ? open[open.length - 1]!.place : null;
-  const climax = !calm && count >= total;
+  const climax = !calm && count >= total && !over;
   return (
     <section className={`ceremony is-${size}`} aria-label={t('ceremonyTitle')}>
       <p className="meta ceremony-title">{t('ceremonyTitle')}</p>

@@ -3322,13 +3322,13 @@ describe('HostScreen: prize results (14a)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сховати церемонію' }));
     expect(document.querySelector('.ceremony')).toBeNull();
     // Сцена на місці — підказки про неї немає.
-    expect(screen.queryByText(/Сцени немає/)).toBeNull();
+    expect(screen.queryByText(/Сцену не підключено:/)).toBeNull();
   });
 
   it('without the stage the finished panel says the ceremony is here and offers the stage link again', () => {
     won(false);
     const panel = screen.getByRole('heading', { name: 'Гру завершено' }).closest('section')!;
-    expect(within(panel).getByText(/Сцени немає/)).toBeTruthy();
+    expect(within(panel).getByText('Сцену не підключено: покажи нагородження тут або відкрий сцену знову — там церемонія почнеться спочатку.')).toBeTruthy();
     const again = within(panel).getByRole('link', { name: 'Відкрити сцену знову' }) as HTMLAnchorElement;
     expect(again.href).toBe('http://quiz.test/stage/123456#s');
     expect(within(panel).getByRole('button', { name: 'Церемонія тут' })).toBeTruthy();

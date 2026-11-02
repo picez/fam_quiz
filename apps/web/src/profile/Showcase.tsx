@@ -4,7 +4,7 @@ import { formatDate } from '../format';
 import { t } from '../i18n';
 import { diplomaFileName, renderDiploma, shareDiploma } from '../trophy/diploma';
 import { TROPHY_EMOJI, trophyLabel } from '../trophy/trophy-meta';
-import { PrizeViewer, canViewPrize } from '../trophy/PrizeViewer';
+import { PrizeViewer, canViewPrize, prizeViewLabel } from '../trophy/PrizeViewer';
 import { TrophyView } from '../trophy/TrophyView';
 
 /** Скільки 3D-карток живе одночасно; решта лишається значком, доки на неї не натиснуть. */
@@ -38,7 +38,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
   }, [seen, live, onLive]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  // Перегляд призу на весь екран: «Кубок» або дотик фото.
+  // Перегляд призу на весь екран: кнопка з видом трофея («Кубок», …) або дотик фото.
   const [viewing, setViewing] = useState(false);
   const { content } = award;
 
@@ -77,7 +77,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
       {content.real && (
         <div className="podium-real">
           {content.real.photoUrl !== null && (
-            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto')} onClick={() => setViewing(true)}>
+            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing(true)}>
               <img src={content.real.photoUrl} alt="" loading="lazy" />
             </button>
           )}
@@ -88,7 +88,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
         <div className="prize-actions">
           {canViewPrize(content) && (
             <button type="button" className="btn btn-small" onClick={() => setViewing(true)}>
-              {t('prizeViewButton')}
+              {prizeViewLabel(content)}
             </button>
           )}
           {content.diploma && (

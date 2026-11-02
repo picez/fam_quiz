@@ -17197,7 +17197,7 @@ function prizeQuestions14a() {
 /** Запити до 3D: файли моделей і чанк model-viewer. */
 const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/model-viewer[^/]*\.js/.test(url);
 
-/** Перегляд призу («Кубок»): модальний діалог у межах вузького екрана, × не менше 44 px; закривається Escape, тоді тлом, тоді ×. */
+/** Перегляд призу (кнопка з видом трофея, тут «Кубок»): модальний діалог у межах вузького екрана, × не менше 44 px; закривається Escape, тоді тлом, тоді ×. */
 async function expectPrizeViewer(page: Page, opener: Locator, label: string, engraving: string) {
   await opener.click();
   const dialog = page.getByRole('dialog', { name: /^Приз за \d місце$/ });
