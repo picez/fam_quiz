@@ -18809,7 +18809,7 @@ async function calendar19a() {
   await register(host, 'host', 'Марко Ведучий', 'host19a@example.com');
   const ids = new Map<Page, string>();
   for (const page of [host, olya, petro, vira]) ids.set(page, await myId(page));
-  for (const [page, nickname] of [[host, 'Марко Ведучий'], [olya, 'Оля'], [petro, 'Петро'], [vira, 'Віра']] as const) {
+  for (const [page, nickname] of [[host, 'Марко Ведучий К'], [olya, 'Оля Календарна'], [petro, 'Петро Календарний'], [vira, 'Віра Календарна']] as const) {
     const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
     expect(saved.ok(), await saved.text()).toBe(true);
   }
@@ -18828,7 +18828,8 @@ async function calendar19a() {
     await page.reload();
     const response = await answered;
     expect(response.ok(), 'the badge answers').toBe(true);
-    const body = (await response.json()) as { requests: number; decisions: number };
+    // Тіло читаємо окремим запитом: тіло відповіді старого документа після перезавантаження браузер уже не віддає.
+    const body = (await (await page.request.get(`${base}/api/me/feed/badge`)).json()) as { requests: number; decisions: number };
     await page.evaluate(() => new Promise((resolve) => setTimeout(() => resolve(null), 50)));
     return body.requests + body.decisions;
   };
@@ -19201,7 +19202,7 @@ async function push20a() {
     await register(host, 'host', 'Марко Ведучий', 'host20a@example.com');
     const ids = new Map<Page, string>();
     for (const page of [host, olya, petro]) ids.set(page, await myId(page));
-    for (const [page, nickname] of [[host, 'Марко Ведучий'], [olya, 'Оля'], [petro, 'Петро'], [ira, 'Іра']] as const) {
+    for (const [page, nickname] of [[host, 'Марко Сповіщувач'], [olya, 'Оля Пушова'], [petro, 'Петро Пушовий'], [ira, 'Іра']] as const) {
       const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
       expect(saved.ok(), await saved.text()).toBe(true);
     }
