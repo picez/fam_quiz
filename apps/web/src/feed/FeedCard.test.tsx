@@ -54,6 +54,11 @@ describe('FeedCard', () => {
     expect(screen.getByText('Петро')).toBeTruthy();
   });
 
+  it('the card carries the event id for paging checks', () => {
+    const { container } = show(event({ id: 'like:g1:u2' }));
+    expect(container.querySelector('li.feed-card')!.getAttribute('data-id')).toBe('like:g1:u2');
+  });
+
   it('a win has is-win', () => {
     const { container } = show(event({ data: { kind: 'game', title: 'Писанки', place: 1, of: 5, team: null } }));
     expect(container.querySelector('li.is-win')).not.toBeNull();

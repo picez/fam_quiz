@@ -47,12 +47,12 @@ export function Menu() {
           <span aria-hidden="true">{item.icon}</span>
           <span className="menu-full">{t(item.label)}</span>
           {item === PROFILE && invites.length > 0 && (
-            <span className="menu-badge" aria-label={t('invitesBadge', { count: invites.length })}>
+            <span className="menu-badge" aria-hidden="true">
               {invites.length}
             </span>
           )}
           {item === FEED && feedLabel && (
-            <span className="menu-badge" aria-label={t('feedBadge', { count: feedTotal })}>
+            <span className="menu-badge" aria-hidden="true">
               {feedLabel}
             </span>
           )}

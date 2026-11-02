@@ -153,13 +153,16 @@ describe('Menu', () => {
       vi.mocked(me).mockResolvedValue(OK);
       vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 3, requests: 0, decisions: 0 });
       show('/quizzes');
-      const badge = await screen.findByLabelText('Нових подій: 3');
+      const link = await screen.findByRole('link', { name: 'Стрічка, Нових подій: 3' });
+      const badge = link.querySelector('.menu-badge')!;
       expect(badge.textContent).toBe('3');
-      expect(screen.getByRole('link', { name: 'Стрічка, Нових подій: 3' })).toBeTruthy();
+      // Число вже в aria-label пункту: бейдж читачеві екрана не повторюється.
+      expect(badge.getAttribute('aria-hidden')).toBe('true');
+      expect(screen.queryByLabelText('Нових подій: 3')).toBeNull();
       cleanup();
       vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 120, requests: 0, decisions: 0 });
       show('/quizzes');
-      expect((await screen.findByLabelText('Нових подій: 120')).textContent).toBe('99+');
+      expect((await screen.findByRole('link', { name: 'Стрічка, Нових подій: 120' })).querySelector('.menu-badge')!.textContent).toBe('99+');
       cleanup();
       vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
       show('/quizzes');
@@ -182,9 +185,10 @@ describe('Menu', () => {
       vi.mocked(me).mockResolvedValue(OK);
       vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [invite('111111'), invite('222222')] });
       show('/quizzes');
-      const badge = await screen.findByLabelText('Запрошень: 2');
+      const link = await screen.findByRole('link', { name: 'Профіль, Запрошень: 2' });
+      const badge = link.querySelector('.menu-badge')!;
       expect(badge.textContent).toBe('2');
-      expect(screen.getByRole('link', { name: 'Профіль, Запрошень: 2' })).toBeTruthy();
+      expect(badge.getAttribute('aria-hidden')).toBe('true');
       cleanup();
 
       vi.mocked(getMyInvites).mockClear();
@@ -198,10 +202,11 @@ describe('Menu', () => {
       vi.mocked(me).mockResolvedValue(OK);
       vi.mocked(getMyInvites).mockResolvedValueOnce({ ok: true, data: [invite('111111')] });
       show('/quizzes');
-      await screen.findByLabelText('Запрошень: 1');
+      await screen.findByRole('link', { name: 'Профіль, Запрошень: 1' });
       vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
       announceInvitesChanged();
-      await vi.waitFor(() => expect(screen.queryByLabelText('Запрошень: 1')).toBeNull());
+      await vi.waitFor(() => expect(screen.queryByRole('link', { name: 'Профіль, Запрошень: 1' })).toBeNull());
+      expect(document.querySelectorAll('.menu-badge').length).toBe(0);
     });
   });
 });

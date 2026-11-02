@@ -12,7 +12,7 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
   const own = event.mine && data.kind !== 'like';
   const win = data.kind === 'game' && data.place === 1;
   return (
-    <li className={win ? 'feed-card is-win' : 'feed-card'}>
+    <li className={win ? 'feed-card is-win' : 'feed-card'} data-id={event.id}>
       {own ? (
         <Avatar profile={who} size="small" />
       ) : (
