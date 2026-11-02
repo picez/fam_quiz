@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { FEED_POLL_MS } from '@quiz/shared';
 import type { CalendarEvent } from '@quiz/shared';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -159,6 +160,63 @@ describe('Calendar', () => {
     await waitFor(() => expect(createCalendarEvent).toHaveBeenCalledWith({ title: 'Вечір', startsAt: '2099-11-07T17:00:00.000Z', quizId: 'q1' }));
     await waitFor(() => expect(getCalendar).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByLabelText('Назва')).toBeNull());
+  });
+
+  describe('while the page stays open', () => {
+    const setVisibility = (value: 'visible' | 'hidden') =>
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value });
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(new Date('2026-11-02T10:00:00.000Z'));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      setVisibility('visible');
+    });
+
+    it('asks again every poll while a game starts within six hours, so «Приєднатися» appears', async () => {
+      vi.mocked(getCalendar).mockResolvedValue(page([ev('e1', '2026-11-02T12:00:00.000Z', { myRequest: 'approved' })]));
+      show();
+      await screen.findByText('Подія e1');
+      expect(getCalendar).toHaveBeenCalledTimes(1);
+      vi.mocked(getCalendar).mockResolvedValue(page([ev('e1', '2026-11-02T12:00:00.000Z', { myRequest: 'approved', state: 'open', joinCode: '123456' })]));
+      await act(async () => {
+        vi.advanceTimersByTime(FEED_POLL_MS);
+      });
+      await waitFor(() => expect(getCalendar).toHaveBeenCalledTimes(2));
+      expect(await screen.findByRole('link', { name: 'Приєднатися' })).toBeTruthy();
+    });
+
+    it('does not poll when every game is far away, but asks on coming back to the tab', async () => {
+      show();
+      await screen.findByText('Подія e1');
+      await act(async () => {
+        vi.advanceTimersByTime(FEED_POLL_MS * 2);
+      });
+      expect(getCalendar).toHaveBeenCalledTimes(1);
+      setVisibility('hidden');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(getCalendar).toHaveBeenCalledTimes(1);
+      setVisibility('visible');
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await waitFor(() => expect(getCalendar).toHaveBeenCalledTimes(2));
+    });
+
+    it('a decision that lights the badge while open is reloaded and marked seen', async () => {
+      show();
+      await screen.findByText('Подія e1');
+      await waitFor(() => expect(markCalendarSeen).toHaveBeenCalledTimes(1));
+      vi.mocked(getCalendar).mockResolvedValue({ ...page([ev('e1', '2026-11-07T17:00:00.000Z')]), asOf: '2026-11-02T10:01:00.000Z' });
+      vi.mocked(getFeedBadge).mockResolvedValueOnce({ ok: true, events: 0, requests: 0, decisions: 1 });
+      await act(async () => {
+        vi.advanceTimersByTime(FEED_POLL_MS);
+      });
+      await waitFor(() => expect(markCalendarSeen).toHaveBeenCalledWith('2026-11-02T10:01:00.000Z'));
+    });
   });
 
   it('a guest goes to login', async () => {

@@ -8,7 +8,6 @@ function joinParts(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')}${t('feedAnd')}${parts[parts.length - 1]}`;
 }
 
-/** Текст картки без ніку (нік — посиланням перед ним): «зіграв(-ла) «Писанки» — 2 місце з 5». */
 const WEEKDAY_ACCUSATIVE: Record<string, string> = { середа: 'середу', 'пʼятниця': 'пʼятницю', "п'ятниця": "п'ятницю", 'п’ятниця': 'п’ятницю', субота: 'суботу', неділя: 'неділю' };
 
 /** «субота, 7 листопада» → «суботу, 7 листопада» (після «на» потрібен знахідний). */
@@ -17,6 +16,7 @@ function accusativeDay(heading: string): string {
   return [WEEKDAY_ACCUSATIVE[word.trim()] ?? word.trim(), ...rest].join(',');
 }
 
+/** Текст картки без ніку (нік — посиланням перед ним): «зіграв(-ла) «Писанки» — 2 місце з 5». */
 export function feedText(data: FeedData, zone: string = viewerZone()): string {
   switch (data.kind) {
     case 'game': {

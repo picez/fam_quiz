@@ -97,7 +97,7 @@ export async function registerCalendarRoutes(app: FastifyInstance, deps: Calenda
     if (!body.success) return reply.code(400).send(INVALID);
     const at = now();
     const made = await createEvent(db, user.id, body.data, at);
-    if (!made.ok) return reply.code(made.error === 'quiz_not_found' ? 404 : 400).send({ error: made.error });
+    if (!made.ok) return reply.code(made.error === 'quiz_not_found' ? 404 : made.error === 'calendar_limit' ? 409 : 400).send({ error: made.error });
     const event = await calendarEventFor(db, user.id, made.id, at, probe);
     return reply.code(201).send(event);
   });
@@ -136,7 +136,7 @@ export async function registerCalendarRoutes(app: FastifyInstance, deps: Calenda
   app.delete<{ Params: { id: string } }>('/api/calendar/:id/request', write, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    const done = await withdrawRequest(db, user.id, request.params.id, now());
+    const done = await withdrawRequest(db, user.id, request.params.id);
     if (!done.ok) return reply.code(done.error === 'not_found' ? 404 : 409).send({ error: done.error });
     return reply.code(204).send();
   });

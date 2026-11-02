@@ -1,5 +1,5 @@
 import { makeQuiz, single } from '@quiz/engine/testing';
-import type { CalendarEvent, CalendarPage } from '@quiz/shared';
+import { CALENDAR_ACTIVE_CAP, type CalendarEvent, type CalendarPage } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from './app';
@@ -102,6 +102,19 @@ describe('calendar routes', () => {
     const extra = await call('POST', '/api/calendar', who.h.cookie, input(who.quizId, { extra: 1 }));
     expect(extra.statusCode).toBe(400);
     expect(extra.json()).toEqual({ error: 'invalid_payload' });
+  });
+
+  it('answers 409 calendar_limit past twenty planned games', async () => {
+    const { person } = driver(ctx);
+    const busy = await person('Зайнятий');
+    const own = ((await call('POST', '/api/quizzes', busy.cookie, { ...makeQuiz([single]), title: 'Багато' })).json() as { id: string }).id;
+    const startsAt = new Date(Date.now() + 3 * DAY);
+    await db.insert(calendarEvent).values(
+      Array.from({ length: CALENDAR_ACTIVE_CAP }, () => ({ hostId: busy.id, title: 'Гра', quizId: own, startsAt, createdAt: new Date() })),
+    );
+    const refused = await call('POST', '/api/calendar', busy.cookie, input(own));
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toEqual({ error: 'calendar_limit' });
   });
 
   it('lists the event for a friend and not for a stranger', async () => {

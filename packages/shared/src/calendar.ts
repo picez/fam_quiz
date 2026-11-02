@@ -7,6 +7,8 @@ export const CALENDAR_MISSED_AFTER_MS = 6 * 3_600_000;
 export const CALENDAR_MAX_AHEAD_DAYS = 365;
 export const CALENDAR_TITLE_MAX = 80;
 export const CALENDAR_LIST_CAP = 100;
+/** Скільки живих майбутніх (не скасованих, ще не почалися) подій може мати один ведучий. */
+export const CALENDAR_ACTIVE_CAP = 20;
 
 export const CALENDAR_STATES = ['planned', 'open', 'played', 'missed', 'cancelled'] as const;
 export type CalendarState = (typeof CALENDAR_STATES)[number];

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeQuiz, single } from '@quiz/engine/testing';
+import { CALENDAR_ACTIVE_CAP } from '@quiz/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -149,6 +150,26 @@ describe('calendar store', () => {
     const other = await createQuiz(db, o, { ...makeQuiz([single]), title: 'Чужа' });
     expect(await createEvent(db, h, input({ quizId: other }), NOW)).toEqual({ ok: false, error: 'quiz_not_found' });
     expect(await createEvent(db, h, input({ startsAt: '2026-11-01T10:00:00.000Z' }), NOW)).toEqual({ ok: false, error: 'calendar_time' });
+  });
+
+  it('caps a host at twenty live future events; cancelled and started ones do not count', async () => {
+    const host = await person();
+    const own = await createQuiz(db, host, { ...makeQuiz([single]), title: 'Ліміт' });
+    const plan = (startsAt = '2026-11-20T17:00:00.000Z') => createEvent(db, host, { title: 'Гра', startsAt, quizId: own }, NOW);
+    await db.insert(calendarEvent).values([
+      { hostId: host, title: 'Минула', quizId: own, startsAt: new Date(NOW.getTime() - 3_600_000), createdAt: NOW },
+      { hostId: host, title: 'Скасована', quizId: own, startsAt: new Date('2026-11-21T17:00:00.000Z'), createdAt: NOW, cancelledAt: NOW },
+    ]);
+    const ids: string[] = [];
+    for (let i = 0; i < CALENDAR_ACTIVE_CAP; i += 1) {
+      const r = await plan();
+      if (!r.ok) throw new Error(r.error);
+      ids.push(r.id);
+    }
+    expect(await plan()).toEqual({ ok: false, error: 'calendar_limit' });
+    expect((await cancelEvent(db, host, ids[0], NOW, noRooms)).ok).toBe(true);
+    expect((await plan()).ok).toBe(true);
+    expect(await plan()).toEqual({ ok: false, error: 'calendar_limit' });
   });
 
   it('shows the event to the host and to the people the host follows, not to others', async () => {

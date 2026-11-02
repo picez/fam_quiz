@@ -1,5 +1,5 @@
-import type { CalendarEvent, CalendarInput, CalendarPage } from '@quiz/shared';
-import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import { CALENDAR_MISSED_AFTER_MS, FEED_POLL_MS, type CalendarEvent, type CalendarInput, type CalendarPage } from '@quiz/shared';
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import {
   cancelCalendarEvent,
@@ -20,10 +20,14 @@ import { CalendarForm } from '../calendar/CalendarForm';
 import { FeedTabs } from '../feed/FeedTabs';
 import { errorText, t } from '../i18n';
 import { saveHost, saveLastGame } from '../storage';
-import { announceFeedSeen, useFeedBadge } from '../useFeedBadge';
+import { announceFeedSeen, feedBadgeNow, useFeedBadge } from '../useFeedBadge';
 import { usePrivateData } from '../usePrivateData';
 
 const LOGIN = '/login?next=%2Ffeed%2Fcalendar';
+
+/** Є подія, що почалась чи почнеться в межах ±6 год: тоді сторінка сама перечитується (ведучий може відкрити гру). */
+const nearNow = (events: CalendarEvent[], at: number) =>
+  events.some((e) => e.state !== 'cancelled' && e.state !== 'played' && Math.abs(Date.parse(e.startsAt) - at) <= CALENDAR_MISSED_AFTER_MS);
 
 /** Календар (/feed/calendar): заплановані ігри мої й друзів. */
 export function Calendar(): JSX.Element {
@@ -68,12 +72,16 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
   const zone = useMemo(() => viewerZone(), []);
   const now = useMemo(() => new Date(), []);
   const marked = useRef(false);
+  /** Перша позначка «переглянуто» завершилась: до того бейдж ще показує старе. */
+  const [settled, setSettled] = useState(false);
+  const loading = useRef(false);
 
   useEffect(() => {
     if (marked.current) return;
     marked.current = true;
     void markCalendarSeen(first.asOf).then((result) => {
-      if (result.ok) announceFeedSeen();
+      if (result.ok) announceFeedSeen({ decisions: 0 });
+      setSettled(true);
     });
   }, [first.asOf]);
 
@@ -82,13 +90,50 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
     document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView?.({ block: 'center' });
   }, [hash]);
 
-  const reload = async () => {
-    const result = await getCalendar();
-    if (result.ok) {
+  /** Перечитати список; quiet — фонове (опитування, повернення на вкладку): помилку не показуємо. */
+  const reload = useCallback(async (quiet = false) => {
+    if (quiet && loading.current) return;
+    loading.current = true;
+    try {
+      const result = await getCalendar();
+      if (!result.ok) {
+        if (!quiet) setError(errorText(result.error));
+        return;
+      }
       setEvents(result.events);
-      announceFeedSeen();
-    } else setError(errorText(result.error));
-  };
+      // Позначаємо лише коли є що гасити: «seen» ділить ліміт записів календаря з діями.
+      if (feedBadgeNow().decisions > 0) {
+        const seen = await markCalendarSeen(result.asOf);
+        if (seen.ok) announceFeedSeen({ decisions: 0 });
+      }
+    } finally {
+      loading.current = false;
+    }
+  }, []);
+
+  // Рішення чи зміна прийшли, поки сторінка відкрита: бейдж засвітився — перечитуємо й гасимо.
+  const lit = badge.decisions > 0;
+  useEffect(() => {
+    if (settled && lit) void reload(true);
+  }, [settled, lit, reload]);
+
+  // Повернення на вкладку — перечитати; поки гра близько (±6 год) — ще й кожні FEED_POLL_MS.
+  const near = nearNow(events, Date.now());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void reload(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = near
+      ? setInterval(() => {
+          if (document.visibilityState !== 'hidden') void reload(true);
+        }, FEED_POLL_MS)
+      : null;
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      if (timer !== null) clearInterval(timer);
+    };
+  }, [near, reload]);
 
   const openForm = async (event?: CalendarEvent) => {
     setError(null);

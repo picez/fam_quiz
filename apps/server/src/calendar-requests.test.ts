@@ -60,13 +60,13 @@ describe('calendar requests', () => {
 
   it('withdraws only while pending', async () => {
     await requestToJoin(db, o, E, NOW, noRooms);
-    expect(await withdrawRequest(db, o, E, NOW)).toEqual({ ok: true });
+    expect(await withdrawRequest(db, o, E)).toEqual({ ok: true });
     expect(await rows()).toHaveLength(0);
-    expect(await withdrawRequest(db, o, E, NOW)).toEqual({ ok: false, error: 'not_found' });
+    expect(await withdrawRequest(db, o, E)).toEqual({ ok: false, error: 'not_found' });
     expect(await requestToJoin(db, o, E, NOW, noRooms)).toEqual({ ok: true, status: 'pending' });
     expect(await decideRequest(db, h, E, o, 'approved', NOW, noRooms)).toEqual({ ok: true });
     expect((await rows())[0].decidedAt).toEqual(NOW);
-    expect(await withdrawRequest(db, o, E, NOW)).toEqual({ ok: false, error: 'request_approved' });
+    expect(await withdrawRequest(db, o, E)).toEqual({ ok: false, error: 'request_approved' });
     expect(await requestToJoin(db, o, E, NOW, noRooms)).toEqual({ ok: true, status: 'approved' });
     expect(await decideRequest(db, o, E, p, 'approved', NOW, noRooms)).toEqual({ ok: false, error: 'not_found' });
   });
@@ -114,7 +114,7 @@ describe('calendar requests', () => {
     await db.delete(follow).where(and(eq(follow.followerId, h), eq(follow.followeeId, o)));
     expect(await mineOf(o)).toBeUndefined();
     expect(await requestToJoin(db, o, E, NOW, noRooms)).toEqual({ ok: false, error: 'not_found' });
-    expect(await withdrawRequest(db, o, E, NOW)).toEqual({ ok: false, error: 'not_found' });
+    expect(await withdrawRequest(db, o, E)).toEqual({ ok: false, error: 'not_found' });
     expect((await mineOf(h))?.requests?.map((r) => r.user.id)).toEqual([o]);
     expect(await decideRequest(db, h, E, o, 'rejected', NOW, noRooms)).toEqual({ ok: true });
   });

@@ -1,4 +1,5 @@
 import {
+  CALENDAR_ACTIVE_CAP,
   CALENDAR_LIST_CAP,
   CALENDAR_MAX_AHEAD_DAYS,
   CALENDAR_MISSED_AFTER_MS,
@@ -11,7 +12,7 @@ import {
   type CalendarState,
   type FeedData,
 } from '@quiz/shared';
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { calendarEvent, calendarRequest, feedEvent, follow, game, profile, quiz, user } from './db/schema';
 import { notHidden } from './feed-store';
@@ -189,11 +190,27 @@ export async function hostedEvent(db: Db, hostId: string, eventId: string, now: 
 
 const plannedKey = (eventId: string) => `planned:${eventId}`;
 
-/** Вікторина — своя (getQuiz); пише calendar_event і feed_event planned:<id> в одній транзакції. */
-export async function createEvent(db: Db, hostId: string, input: CalendarInput, now: Date): Promise<{ ok: true; id: string } | Fail<'quiz_not_found' | 'calendar_time'>> {
+/** Живі майбутні події ведучого: не скасовані й ще не почалися. */
+async function activeFutureCount(db: Db, hostId: string, now: Date): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(calendarEvent)
+    .where(and(eq(calendarEvent.hostId, hostId), isNull(calendarEvent.cancelledAt), gt(calendarEvent.startsAt, now)));
+  return row?.count ?? 0;
+}
+
+/** Вікторина — своя (getQuiz); не більше CALENDAR_ACTIVE_CAP живих майбутніх; пише calendar_event і feed_event planned:<id> в одній транзакції. */
+export async function createEvent(
+  db: Db,
+  hostId: string,
+  input: CalendarInput,
+  now: Date,
+): Promise<{ ok: true; id: string } | Fail<'quiz_not_found' | 'calendar_time' | 'calendar_limit'>> {
   if ((await getQuiz(db, hostId, input.quizId)) === null) return { ok: false, error: 'quiz_not_found' };
   const startsAt = new Date(input.startsAt);
   if (!startsAtAllowed(startsAt, now)) return { ok: false, error: 'calendar_time' };
+  // Два одночасні запити можуть разом трохи перевищити межу — прийнято.
+  if ((await activeFutureCount(db, hostId, now)) >= CALENDAR_ACTIVE_CAP) return { ok: false, error: 'calendar_limit' };
   const id = await db.transaction(async (tx) => {
     const [row] = await tx
       .insert(calendarEvent)
@@ -315,8 +332,7 @@ export async function requestToJoin(
 }
 
 /** Видаляє лише pending; запиту немає чи подія не видна → not_found. */
-export async function withdrawRequest(db: Db, userId: string, eventId: string, now: Date): Promise<{ ok: true } | Fail<'not_found' | 'request_approved'>> {
-  void now;
+export async function withdrawRequest(db: Db, userId: string, eventId: string): Promise<{ ok: true } | Fail<'not_found' | 'request_approved'>> {
   if (!UUID.test(eventId)) return { ok: false, error: 'not_found' };
   const [found] = await db
     .select({ status: calendarRequest.status })

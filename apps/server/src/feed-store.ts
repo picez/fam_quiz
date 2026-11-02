@@ -40,9 +40,11 @@ export function notHidden(column: AnyPgColumn): SQL {
 
 /** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff. */
 export function feedVisibility(db: Db, viewerId: string, now: Date): SQL {
-  const planned = sql`(${feedEvent.kind} = 'planned' and (${feedEvent.userId} = ${viewerId} or exists (select 1 from ${follow} where ${follow.followerId} = ${feedEvent.userId} and ${follow.followeeId} = ${viewerId})))`;
-  const other = sql`(${feedEvent.kind} <> 'planned' and (${feedEvent.userId} = ${viewerId} or ${feedEvent.userId} in ${mutualFriendIds(db, viewerId)}))`;
-  return sql`((${planned} or ${other}) and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
+  // Взаємні друзі покривають і planned (вони теж мене додали), тож planned лише розширює коло: ті, хто додав мене.
+  const followers = sql`(select ${follow.followerId} from ${follow} where ${follow.followeeId} = ${viewerId})`;
+  const planned = sql`(${feedEvent.kind} = 'planned' and ${feedEvent.userId} in ${followers})`;
+  const whose = sql`(${feedEvent.userId} = ${viewerId} or ${feedEvent.userId} in ${mutualFriendIds(db, viewerId)} or ${planned})`;
+  return sql`(${whose} and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
 }
 
 /** (мітка до мс, id побайтно) нижче курсора. */

@@ -70,6 +70,15 @@ describe('CalendarForm', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it('a title of spaces only is refused without a request', async () => {
+    const { onSubmit } = show();
+    fireEvent.change(screen.getByLabelText('Назва'), { target: { value: '   ' } });
+    fireEvent.change(screen.getByLabelText('Дата й час'), { target: { value: '2026-11-07T19:00' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Зберегти' }).closest('form')!);
+    expect((await screen.findByRole('alert')).textContent).toBe('Напиши назву');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('a missing quiz of the event falls back to the first one in the select and the state', async () => {
     const initial = { title: 'Старе', startsAt: '2026-11-07T17:00:00.000Z', quiz: { id: 'gone', title: null } } as CalendarEvent;
     const { onSubmit } = show({ initial });

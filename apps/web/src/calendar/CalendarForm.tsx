@@ -42,6 +42,7 @@ export function CalendarForm({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (title.trim() === '') return setError(t('calendarTitleEmpty'));
     const startsAt = localInputToIso(when, zone);
     if (startsAt === null) return setError(errorText('calendar_time'));
     if (Date.parse(startsAt) <= now.getTime()) return setError(errorText('calendar_time'));

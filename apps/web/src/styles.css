@@ -13756,7 +13756,11 @@ button.wall-tile:disabled {
 .calendar-day h2 {
   margin: 1.25rem 0 0;
   font-size: 1.1rem;
-  text-transform: capitalize;
+}
+
+/* «Субота, 7 листопада»: велика лише перша літера. */
+.calendar-day h2::first-letter {
+  text-transform: uppercase;
 }
 
 .calendar-day .feed-list {
@@ -13813,6 +13817,16 @@ button.wall-tile:disabled {
 .calendar-actions button,
 .calendar-actions a,
 .calendar-request button {
+  min-height: 44px;
+}
+
+.feed-link {
+  margin: 0.25rem 0 0;
+}
+
+.feed-link a {
+  display: inline-flex;
+  align-items: center;
   min-height: 44px;
 }
 
