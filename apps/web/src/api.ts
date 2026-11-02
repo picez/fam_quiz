@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -182,6 +182,16 @@ export const getMyInvites = () => fetchData<GameInvite[]>('/api/me/invites');
 export const getFeed = (cursor?: string) => request<FeedPage>(`/api/me/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
 export const getFeedBadge = () => request<FeedBadge>('/api/me/feed/badge');
 export const markFeedSeen = (upTo: string) => request<object>('/api/me/feed/seen', { method: 'POST', body: { upTo } });
+export const getCalendar = () => request<CalendarPage>('/api/me/calendar');
+export const markCalendarSeen = (upTo: string) => request<object>('/api/me/calendar/seen', { method: 'POST', body: { upTo } });
+export const createCalendarEvent = (input: CalendarInput) => request<CalendarEvent>('/api/calendar', { method: 'POST', body: input });
+export const updateCalendarEvent = (id: string, input: CalendarInput) => request<CalendarEvent>(`/api/calendar/${encodeURIComponent(id)}`, { method: 'PUT', body: input });
+export const cancelCalendarEvent = (id: string) => request<object>(`/api/calendar/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const requestCalendarEvent = (id: string) => request<{ status: CalendarRequestStatus }>(`/api/calendar/${encodeURIComponent(id)}/request`, { method: 'POST' });
+export const withdrawCalendarRequest = (id: string) => request<object>(`/api/calendar/${encodeURIComponent(id)}/request`, { method: 'DELETE' });
+export const decideCalendarRequest = (id: string, userId: string, decision: 'approved' | 'rejected') =>
+  request<object>(`/api/calendar/${encodeURIComponent(id)}/requests/${encodeURIComponent(userId)}`, { method: 'POST', body: { decision } });
+export const openCalendarGame = (id: string) => request<{ gameId: string; code: string } & HostTokens>(`/api/calendar/${encodeURIComponent(id)}/open`, { method: 'POST' });
 export const likeFeedEvent = (id: string, liked: boolean) =>
   request<{ liked: boolean; likes: number }>(`/api/feed/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } });
 export const dismissInvite = (code: string) => request<object>(`/api/me/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });

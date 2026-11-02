@@ -52,6 +52,62 @@ describe('useFeedBadge', () => {
     expect(getFeedBadge).toHaveBeenCalledTimes(2);
   });
 
+  it('two subscribers share one request on start and on each poll', async () => {
+    renderHook(() => useFeedBadge(true));
+    renderHook(() => useFeedBadge(true));
+    await act(async () => {});
+    expect(getFeedBadge).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(FEED_POLL_MS);
+    });
+    expect(getFeedBadge).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses the request in flight and asks once more after it when forced meanwhile', async () => {
+    let release: (value: Awaited<ReturnType<typeof getFeedBadge>>) => void = () => {};
+    vi.mocked(getFeedBadge).mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    renderHook(() => useFeedBadge(true));
+    await act(async () => {});
+    expect(getFeedBadge).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      announceFeedSeen();
+      announceFeedSeen();
+      announceFeedSeen();
+    });
+    expect(getFeedBadge).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      release({ ok: true, events: 1, requests: 0, decisions: 0 });
+    });
+    expect(getFeedBadge).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips a visibility refresh within five seconds of the last one, not after', async () => {
+    renderHook(() => useFeedBadge(true));
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(getFeedBadge).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(4_000);
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(getFeedBadge).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies the patch at once when the page marks something seen', async () => {
+    vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 2, requests: 1, decisions: 3 });
+    const { result } = renderHook(() => useFeedBadge(true));
+    await act(async () => {});
+    expect(result.current).toEqual({ events: 2, requests: 1, decisions: 3 });
+    vi.mocked(getFeedBadge).mockImplementation(() => new Promise(() => {}));
+    act(() => {
+      announceFeedSeen({ decisions: 0 });
+    });
+    expect(result.current).toEqual({ events: 2, requests: 1, decisions: 0 });
+  });
+
   it('keeps the previous value on an error', async () => {
     const { result } = renderHook(() => useFeedBadge(true));
     await act(async () => {});

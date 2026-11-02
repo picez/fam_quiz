@@ -38,9 +38,13 @@ export function notHidden(column: AnyPgColumn): SQL {
   return sql`true`;
 }
 
-/** feed_event, які бачить viewer: свої чи взаємних друзів, notHidden(user_id), at >= cutoff. */
+/** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff. */
 export function feedVisibility(db: Db, viewerId: string, now: Date): SQL {
-  return sql`((${feedEvent.userId} = ${viewerId} or ${feedEvent.userId} in ${mutualFriendIds(db, viewerId)}) and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
+  // Взаємні друзі покривають і planned (вони теж мене додали), тож planned лише розширює коло: ті, хто додав мене.
+  const followers = sql`(select ${follow.followerId} from ${follow} where ${follow.followeeId} = ${viewerId})`;
+  const planned = sql`(${feedEvent.kind} = 'planned' and ${feedEvent.userId} in ${followers})`;
+  const whose = sql`(${feedEvent.userId} = ${viewerId} or ${feedEvent.userId} in ${mutualFriendIds(db, viewerId)} or ${planned})`;
+  return sql`(${whose} and ${notHidden(feedEvent.userId)} and ${feedEvent.at} >= ${iso(feedCutoff(now))})`;
 }
 
 /** (мітка до мс, id побайтно) нижче курсора. */
@@ -197,7 +201,7 @@ export async function feedPage(db: Db, viewerId: string, cursor: Cursor | null, 
   return page;
 }
 
-/** events — чужі видимі з created_at > feed_seen_at, до FEED_BADGE_CAP + 1; requests / decisions = 0 (// 21: календар). */
+/** events — чужі видимі з created_at > feed_seen_at, до FEED_BADGE_CAP + 1; requests / decisions = 0 (їх заповнює маршрут через calendarBadge). */
 export async function feedBadge(db: Db, viewerId: string, now: Date): Promise<FeedBadge> {
   const seen = sql`coalesce((select ${profile.feedSeenAt} from ${profile} where ${profile.userId} = ${viewerId}), '-infinity'::timestamptz)`;
   const capped = db
@@ -207,7 +211,6 @@ export async function feedBadge(db: Db, viewerId: string, now: Date): Promise<Fe
     .limit(FEED_BADGE_CAP + 1)
     .as('capped');
   const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(capped);
-  // 21: календар — запити до моїх подій і рішення за моїми запитами.
   return { events: row?.n ?? 0, requests: 0, decisions: 0 };
 }
 

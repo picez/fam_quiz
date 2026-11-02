@@ -63,4 +63,10 @@ describe('FeedCard', () => {
     const { container } = show(event({ data: { kind: 'game', title: 'Писанки', place: 1, of: 5, team: null } }));
     expect(container.querySelector('li.is-win')).not.toBeNull();
   });
+
+  it('a planned card links to the calendar and keeps the heart of a friend', () => {
+    show(event({ data: { kind: 'planned', eventId: 'e1', title: 'Вечір загадок', startsAt: '2026-11-07T17:00:00.000Z' } }));
+    expect(screen.getByRole('link', { name: 'До календаря' }).getAttribute('href')).toBe('/feed/calendar#event-e1');
+    expect(screen.getByRole('button', { name: 'Вподобати подію' })).toBeTruthy();
+  });
 });

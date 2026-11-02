@@ -4,6 +4,7 @@ import type {
   AdjustmentSource,
   AppealOutcome,
   AppealReason,
+  CalendarRequestStatus,
   Answer,
   BuffKind,
   DebuffKind,
@@ -349,6 +350,8 @@ export const profile = pgTable('profile', {
   feedSeenAt: at('feed_seen_at'),
   /** Найвищий оголошений у стрічці рівень (18a); null = 1. */
   feedLevel: integer('feed_level'),
+  /** Календар переглянуто до цієї миті (19a): decisions рахує зміни пізніше; null — ще ні. */
+  calendarSeenAt: at('calendar_seen_at'),
   ...stamps,
 });
 
@@ -533,5 +536,50 @@ export const feedEvent = pgTable(
     index('feed_event_user_at_idx').on(table.userId, table.at),
     index('feed_event_user_created_idx').on(table.userId, table.createdAt),
     index('feed_event_at_idx').on(table.at),
+  ],
+);
+
+/** Запланована гра (19a). Стан обчислюється (calendarState), не зберігається. */
+export const calendarEvent = pgTable(
+  'calendar_event',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    hostId: text('host_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    /** Вікторину видалили — null, подія лишається («Вікторину видалено»). */
+    quizId: uuid('quiz_id').references(() => quiz.id, { onDelete: 'set null' }),
+    startsAt: at('starts_at').notNull(),
+    /** Остання кімната події: room.id і room.code; без FK (гра пишеться лише після лобі). */
+    gameId: uuid('game_id'),
+    gameCode: text('game_code'),
+    editedAt: at('edited_at'),
+    cancelledAt: at('cancelled_at'),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [
+    index('calendar_event_host_starts_idx').on(table.hostId, table.startsAt),
+    index('calendar_event_starts_idx').on(table.startsAt),
+  ],
+);
+
+/** Запит на участь; ключ — (подія, людина). */
+export const calendarRequest = pgTable(
+  'calendar_request',
+  {
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => calendarEvent.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    status: text('status').$type<CalendarRequestStatus>().notNull(),
+    requestedAt: at('requested_at').notNull(),
+    decidedAt: at('decided_at'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.eventId, table.userId] }),
+    index('calendar_request_user_idx').on(table.userId),
   ],
 );

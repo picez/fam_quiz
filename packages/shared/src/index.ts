@@ -32,3 +32,4 @@ export * from './prizes';
 export * from './levels';
 export * from './likes';
 export * from './feed';
+export * from './calendar';

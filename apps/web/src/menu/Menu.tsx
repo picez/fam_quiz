@@ -21,7 +21,7 @@ export function Menu() {
   const location = useLocation();
   const account = useAccount(location.key);
   const invites = useInvites(account.status === 'signed-in', location.key);
-  const feed = useFeedBadge(account.status === 'signed-in', location.key);
+  const feed = useFeedBadge(account.status === 'signed-in');
   const feedTotal = feedBadgeTotal(feed);
   const feedLabel = feedBadgeLabel(feedTotal);
   const signIn: Item = {

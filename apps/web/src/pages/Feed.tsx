@@ -49,7 +49,7 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
     if (marked.current || first.asOf === undefined) return;
     marked.current = true;
     void markFeedSeen(first.asOf).then((result) => {
-      if (result.ok) announceFeedSeen();
+      if (result.ok) announceFeedSeen({ events: 0 });
     });
   }, [first.asOf]);
 

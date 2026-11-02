@@ -4,8 +4,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { me } from './api';
 import { AppRoutes } from './AppRoutes';
+import { FeedTabs } from './feed/FeedTabs';
 
-vi.mock('./api', () => ({ me: vi.fn() }));
+vi.mock('./api', () => ({
+  me: vi.fn(),
+  getMyInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getFeedBadge: vi.fn().mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 }),
+}));
+vi.mock('./pages/Calendar', () => ({ Calendar: () => <FeedTabs badge={{ events: 0, requests: 0, decisions: 0 }} /> }));
 vi.mock('./pages/EditQuiz', () => ({ EditQuiz: () => <p>EditQuiz</p> }));
 vi.mock('./pages/Feed', () => ({ Feed: () => <p>Feed</p> }));
 vi.mock('./pages/GameHistory', () => ({ GameHistory: () => <p>GameHistory</p> }));
@@ -59,5 +65,14 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/help');
     expect(await screen.findByText('HostHelp')).toBeTruthy();
+  });
+
+  it('/feed/calendar draws the two tabs with the calendar current and the menu item «Стрічка» active', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    open('/feed/calendar');
+    const calendar = await screen.findByRole('link', { name: 'Календар' });
+    expect(calendar.getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Події друзів' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Стрічка' }).getAttribute('aria-current')).toBe('page');
   });
 });

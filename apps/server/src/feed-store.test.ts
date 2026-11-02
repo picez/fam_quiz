@@ -171,6 +171,44 @@ describe('visibility (Review Focus 2)', () => {
   });
 });
 
+describe('planned events (19a)', () => {
+  const planned = async (userId: string) => {
+    keys += 1;
+    const [row] = await db
+      .insert(feedEvent)
+      .values({
+        key: `planned:test:${keys}`,
+        userId,
+        kind: 'planned',
+        data: { kind: 'planned', eventId: randomUUID(), title: 'Вечір', startsAt: NOW.toISOString() },
+        at: ago(60_000),
+        createdAt: ago(60_000),
+      })
+      .returning();
+    return row;
+  };
+
+  it('shows the host planned row to the people the host follows, one-way', async () => {
+    const { o, v } = await people();
+    await befriend('h', o);
+    await befriend(v, 'h');
+    const row = await planned('h');
+    expect(await idsOf(o)).toContain(row.id);
+    expect(await idsOf(v)).not.toContain(row.id);
+    expect(await idsOf('h')).toContain(row.id);
+    expect((await feedBadge(db, o, NOW)).events).toBeGreaterThanOrEqual(1);
+    expect(await visibleEvent(db, o, row.id, NOW)).not.toBeNull();
+    expect(await visibleEvent(db, v, row.id, NOW)).toBeNull();
+  });
+
+  it('keeps an ordinary game row of a one-way host invisible', async () => {
+    const { o } = await people();
+    await befriend('h', o);
+    const row = await event('h');
+    expect(await idsOf(o)).not.toContain(row.id);
+  });
+});
+
 describe('feedPage events', () => {
   it('own events without friends are mine with an empty like counter; who is the current profile', async () => {
     const { o } = await people();

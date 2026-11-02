@@ -8,8 +8,10 @@ export interface FeedTab {
   badge: (b: FeedBadge) => number;
 }
 
-/** #21 допише вкладку «Календар». */
-export const FEED_TABS: FeedTab[] = [{ to: '/feed', label: 'feedTabFriends', badge: (b) => b.events }];
+export const FEED_TABS: FeedTab[] = [
+  { to: '/feed', label: 'feedTabFriends', badge: (b) => b.events },
+  { to: '/feed/calendar', label: 'feedTabCalendar', badge: (b) => b.requests + b.decisions },
+];
 
 export function FeedTabs({ badge }: { badge: FeedBadge }) {
   return (

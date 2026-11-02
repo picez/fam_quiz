@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
+import { registerCalendarRoutes, type CalendarNotify } from './calendar-routes';
 import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
@@ -27,6 +28,8 @@ export interface AppOptions {
   auth: AuthOptions;
   scheduler?: Scheduler;
   rng?: () => number;
+  /** Куди календар повідомляє про відкриту й скасовану подію (Web Push, підпроєкт 4); типово нікуди. */
+  calendarNotify?: CalendarNotify;
   /**
    * Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render).
    * Число означає кількість проксі перед сервером; true довіряє заголовку повністю.
@@ -101,6 +104,7 @@ export async function buildApp(options: AppOptions) {
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
+  await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: options.calendarNotify });
   const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms });
 

@@ -9,7 +9,7 @@ export const FEED_POLL_MS = 30_000;
 /** Бейдж показує щонайбільше 99, далі «99+». */
 export const FEED_BADGE_CAP = 99;
 
-export const FEED_KINDS = ['game', 'achievement', 'level', 'prize', 'like'] as const;
+export const FEED_KINDS = ['game', 'achievement', 'level', 'prize', 'like', 'planned'] as const;
 export type FeedKind = (typeof FEED_KINDS)[number];
 
 export type FeedData =
@@ -17,7 +17,8 @@ export type FeedData =
   | { kind: 'achievement'; achievementId: AchievementId }
   | { kind: 'level'; level: number }
   | { kind: 'prize'; place: PrizePlace; name: string; title: string; nickTitle: string | null }
-  | { kind: 'like'; title: string | null; questions: number; quiz: boolean; host: boolean; player: boolean };
+  | { kind: 'like'; title: string | null; questions: number; quiz: boolean; host: boolean; player: boolean }
+  | { kind: 'planned'; eventId: string; title: string; startsAt: string };
 
 export interface FeedEvent {
   /** uuid feed_event або `like:<gameId>:<likerId>`. */
@@ -39,7 +40,7 @@ export interface FeedPage {
   asOf?: string;
 }
 
-/** requests / decisions — календар (#21), поки 0. */
+/** requests — запити до моїх подій, decisions — рішення й зміни за моїми запитами (19a). */
 export interface FeedBadge {
   events: number;
   requests: number;
