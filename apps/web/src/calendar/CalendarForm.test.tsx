@@ -61,6 +61,23 @@ describe('CalendarForm', () => {
     expect(screen.getByLabelText('Назва')).toBeTruthy();
   });
 
+  it('a time in the past is refused without a request', async () => {
+    const { onSubmit } = show();
+    fireEvent.change(screen.getByLabelText('Назва'), { target: { value: 'А' } });
+    fireEvent.change(screen.getByLabelText('Дата й час'), { target: { value: '2026-11-01T19:00' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Зберегти' }).closest('form')!);
+    expect((await screen.findByRole('alert')).textContent).toBe('Обери час у майбутньому, не далі ніж за рік.');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a missing quiz of the event falls back to the first one in the select and the state', async () => {
+    const initial = { title: 'Старе', startsAt: '2026-11-07T17:00:00.000Z', quiz: { id: 'gone', title: null } } as CalendarEvent;
+    const { onSubmit } = show({ initial });
+    expect((screen.getByLabelText('Вікторина') as HTMLSelectElement).value).toBe('q1');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ quizId: 'q1' })));
+  });
+
   it('cancel calls onCancel', () => {
     const { onCancel } = show();
     fireEvent.click(screen.getByRole('button', { name: 'Не зберігати' }));

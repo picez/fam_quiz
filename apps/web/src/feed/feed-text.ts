@@ -9,6 +9,14 @@ function joinParts(parts: string[]): string {
 }
 
 /** Текст картки без ніку (нік — посиланням перед ним): «зіграв(-ла) «Писанки» — 2 місце з 5». */
+const WEEKDAY_ACCUSATIVE: Record<string, string> = { середа: 'середу', 'пʼятниця': 'пʼятницю', "п'ятниця": "п'ятницю", 'п’ятниця': 'п’ятницю', субота: 'суботу', неділя: 'неділю' };
+
+/** «субота, 7 листопада» → «суботу, 7 листопада» (після «на» потрібен знахідний). */
+function accusativeDay(heading: string): string {
+  const [word = '', ...rest] = heading.split(',');
+  return [WEEKDAY_ACCUSATIVE[word.trim()] ?? word.trim(), ...rest].join(',');
+}
+
 export function feedText(data: FeedData, zone: string = viewerZone()): string {
   switch (data.kind) {
     case 'game': {
@@ -27,7 +35,7 @@ export function feedText(data: FeedData, zone: string = viewerZone()): string {
         (data.nickTitle === null ? '' : t('feedPrizeTitle', { nickTitle: data.nickTitle }))
       );
     case 'planned':
-      return t('feedPlanned', { title: data.title, when: `${dayHeading(data.startsAt, zone)}, ${timeText(data.startsAt, zone)}` });
+      return t('feedPlanned', { title: data.title, when: `${accusativeDay(dayHeading(data.startsAt, zone))}, ${timeText(data.startsAt, zone)}` });
     case 'like': {
       const parts: string[] = [];
       if (data.questions > 0) parts.push(countText('feedLikeQuestions', data.questions, { count: data.questions }));

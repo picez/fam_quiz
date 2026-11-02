@@ -32,7 +32,7 @@ describe('feedText', () => {
 
   it('writes a planned game in the zone of the viewer', () => {
     const data = { kind: 'planned', eventId: 'e1', title: 'Вечір загадок', startsAt: '2026-11-07T17:00:00.000Z' } as const;
-    expect(feedText(data, 'Europe/Kyiv')).toBe('запланував(-ла) «Вечір загадок» на субота, 7 листопада, 19:00');
+    expect(feedText(data, 'Europe/Kyiv')).toBe('запланував(-ла) «Вечір загадок» на суботу, 7 листопада, 19:00');
     expect(feedIcon(data)).toBe('📅');
   });
 });

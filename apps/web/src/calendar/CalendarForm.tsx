@@ -23,7 +23,7 @@ export function CalendarForm({
 }): JSX.Element {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [when, setWhen] = useState(initial ? isoToLocalInput(initial.startsAt, zone) : '');
-  const [quizId, setQuizId] = useState(initial?.quiz.id ?? quizzes[0]?.id ?? '');
+  const [quizId, setQuizId] = useState(initial?.quiz.id && quizzes.some((q) => q.id === initial.quiz.id) ? initial.quiz.id : (quizzes[0]?.id ?? ''));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,6 +44,7 @@ export function CalendarForm({
     e.preventDefault();
     const startsAt = localInputToIso(when, zone);
     if (startsAt === null) return setError(errorText('calendar_time'));
+    if (Date.parse(startsAt) <= now.getTime()) return setError(errorText('calendar_time'));
     setSaving(true);
     setError(null);
     const refusal = await onSubmit({ title: title.trim(), startsAt, quizId });

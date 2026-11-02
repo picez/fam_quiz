@@ -14,7 +14,7 @@ import {
   openCalendarGame,
   requestCalendarEvent,
 } from '../api';
-import { loadHost } from '../storage';
+import { loadHost, loadLastGame } from '../storage';
 import { FEED_CHANGED } from '../useFeedBadge';
 import { Calendar } from './Calendar';
 
@@ -118,6 +118,7 @@ describe('Calendar', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Відкрити гру' }));
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/host/123456'));
     expect(loadHost('123456')).toEqual({ hostToken: 'H', stageToken: 'S' });
+    expect(loadLastGame()).toBe('123456');
   });
 
   it('cancelling needs a confirm', async () => {

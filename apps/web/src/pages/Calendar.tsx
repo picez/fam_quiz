@@ -19,7 +19,7 @@ import { CalendarCard, type CalendarAction } from '../calendar/CalendarCard';
 import { CalendarForm } from '../calendar/CalendarForm';
 import { FeedTabs } from '../feed/FeedTabs';
 import { errorText, t } from '../i18n';
-import { saveHost } from '../storage';
+import { saveHost, saveLastGame } from '../storage';
 import { announceFeedSeen, useFeedBadge } from '../useFeedBadge';
 import { usePrivateData } from '../usePrivateData';
 
@@ -104,6 +104,7 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
     const result = editing ? await updateCalendarEvent(editing.id, input) : await createCalendarEvent(input);
     if (!result.ok) return errorText(result.error);
     setForm(null);
+    setError(null);
     await reload();
     return null;
   };
@@ -121,6 +122,7 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
         return void reload();
       }
       saveHost(result.code, { hostToken: result.hostToken, stageToken: result.stageToken });
+      saveLastGame(result.code);
       return navigate(`/host/${result.code}`);
     }
     const result =
