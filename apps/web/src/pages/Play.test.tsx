@@ -155,14 +155,14 @@ describe('Play: whether the game will be kept', () => {
   });
 
   it('tells a signed-in player that the game will be kept', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
     open();
     expect(await screen.findByText('Ви увійшли як Олена: гра потрапить у «Мої ігри».')).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Увійти, щоб гра збереглась/ })).toBeNull();
   });
 
   it('fills the name from the profile nickname for a signed-in player, who can still change it (backlog 4)', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена Петренко', email: 'o@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена Петренко', email: 'o@example.com', admin: false });
     vi.mocked(getMyCard).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: 'Оленка', avatar: null } });
     vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
     open();
@@ -305,7 +305,7 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
   });
 
   it('a signed-in player with their own place takes it without a click', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Оля', email: 'olya@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Оля', email: 'olya@example.com', admin: false });
     vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro], mine: olya } });
     vi.mocked(claimSlot).mockResolvedValue({ ok: true, token: 'olya-token', playerId: olya.id });
     open();

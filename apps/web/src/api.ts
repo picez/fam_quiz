@@ -9,6 +9,7 @@ export interface Account {
   id: string;
   name: string;
   email: string;
+  admin: boolean;
 }
 
 export interface QuizSummary {
@@ -32,6 +33,7 @@ const AUTH_CODES: [prefix: string, code: string][] = [
   ['INVALID_EMAIL', 'bad_email'],
   ['INVALID_ORIGIN', 'wrong_address'],
   ['MISSING_OR_NULL_ORIGIN', 'wrong_address'],
+  ['ACCOUNT_BANNED', 'account_banned'],
 ];
 
 function errorCode(data: unknown): string {
@@ -68,13 +70,13 @@ function call(url: string, options: Options): Promise<ApiData<unknown>> {
 }
 
 /** Запит, відповідь якого є об'єктом: його поля лежать поруч з ok. */
-async function request<T>(url: string, options: Options = {}): Promise<ApiResult<T>> {
+export async function request<T>(url: string, options: Options = {}): Promise<ApiResult<T>> {
   const result = await call(url, options);
   return result.ok ? { ok: true, ...(result.data as T) } : result;
 }
 
 /** Запит, відповідь якого потрібна цілою (наприклад, список). */
-async function fetchData<T>(url: string, options: Options = {}): Promise<ApiData<T>> {
+export async function fetchData<T>(url: string, options: Options = {}): Promise<ApiData<T>> {
   const result = await call(url, options);
   return result.ok ? { ok: true, data: result.data as T } : result;
 }

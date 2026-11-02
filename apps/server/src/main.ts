@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
-import { baseUrl, localOrigins, proxyTrust, pushKeys, secretProblem } from './config';
+import { adminEmails, baseUrl, localOrigins, proxyTrust, pushKeys, secretProblem } from './config';
 import { connectDb } from './db/client';
 import { backfillFeed, settleFeedLevels } from './feed-publish';
 import { diskStorage, type ImageStorage } from './storage/images';
@@ -92,6 +92,13 @@ function webPush() {
 }
 
 const push = webPush();
+/** Адміни лише з ADMIN_EMAILS; самі адреси в журнал не пишуться. */
+const admins = adminEmails(process.env);
+if (admins.size === 0) {
+  if (process.env.NODE_ENV === 'production') console.warn('Не задано ADMIN_EMAILS: адмінка вимкнена.');
+} else {
+  console.log(`Адмінів у ADMIN_EMAILS: ${admins.size}.`);
+}
 const address = baseUrl(process.env, port);
 if (process.env.NODE_ENV === 'production' && address.startsWith('http://localhost')) {
   console.warn('Не задано BETTER_AUTH_URL: вхід працюватиме лише за адресою цього комп’ютера.');
@@ -123,6 +130,7 @@ const { app, shutdown } = await buildApp({
   pacing: true,
   persist: { instanceId: randomUUID() },
   push,
+  adminEmails: admins,
 });
 await app.listen({ port, host: '0.0.0.0' });
 // Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному

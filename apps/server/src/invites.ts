@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CurrentUser } from './account-routes';
+import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { follow } from './db/schema';
 import { ensureProfile, isFollowing } from './profiles';
@@ -150,6 +151,8 @@ export async function registerInviteRoutes(app: FastifyInstance, deps: InviteDep
       const hostId = room.hostUserId;
       // Ведучий, який прибрав запрошеного з друзів, уже не запрошує його.
       if (hostId === null || !(await isFollowing(db, hostId, user.id))) continue;
+      // Заблокованого ведучого (бан #23) інші не бачать.
+      if (await isBanned(db, hostId)) continue;
       const host = await ensureProfile(db, hostId);
       if (host === null) continue;
       list.push({

@@ -13,6 +13,7 @@ import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
+import { registerAdminRoutes } from './admin-routes';
 import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
@@ -53,6 +54,8 @@ export interface AppOptions {
   pacing?: boolean;
   /** Зберігати живі кімнати в базі й піднімати їх після перезапуску (9b). main.ts і наскрізні тести вмикають. */
   persist?: { instanceId: string; saveDelayMs?: number };
+  /** Адреси адмінів (config.adminEmails); типово порожній набір — адмінки немає. */
+  adminEmails?: ReadonlySet<string>;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -98,6 +101,7 @@ export async function buildApp(options: AppOptions) {
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
     google: options.auth.google !== undefined,
+    adminEmails: options.adminEmails ?? new Set<string>(),
   });
 
   const imageStorage = options.storage ?? memoryStorage();
@@ -105,6 +109,7 @@ export async function buildApp(options: AppOptions) {
   await registerStickerRoutes(app, { storage: imageStorage, fixtures: options.stickerFixtures ?? false });
   await registerProfileRoutes(app, { db: options.db, currentUser });
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });

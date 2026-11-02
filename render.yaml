@@ -33,7 +33,8 @@ services:
       # BETTER_AUTH_URL (власний домен), GOOGLE_CLIENT_ID і GOOGLE_CLIENT_SECRET (вхід через Google),
       # R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (зображення в Cloudflare R2;
       # без них зображення лежать на диску сервісу і зникають після кожного розгортання),
-      # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (Web Push; без них сповіщення вимкнені).
+      # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (Web Push; без них сповіщення вимкнені),
+      # ADMIN_EMAILS (адміни через кому; без неї адмінки немає).
 
 databases:
   - name: fam-quiz-db

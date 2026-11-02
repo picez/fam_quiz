@@ -16,8 +16,10 @@ import {
 import { and, asc, count, eq, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
 import { achievementList, careerInputs, syncAchievements } from './achievement-store';
+import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
+import { notHidden } from './feed-store';
 import { likeTotals } from './like-store';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
@@ -137,12 +139,15 @@ export async function friendsOf(db: Db, userId: string): Promise<FriendCard[]> {
     .select({ id: follow.followeeId, nickname: profile.nickname, avatar: profile.avatar, lastSeenAt: profile.lastSeenAt })
     .from(follow)
     .innerJoin(profile, eq(profile.userId, follow.followeeId))
-    .where(eq(follow.followerId, userId))
+    .where(and(eq(follow.followerId, userId), notHidden(follow.followeeId)))
     .orderBy(asc(profile.nickname));
   const rows: FriendCard[] = found.map((row) => ({ ...row, lastSeenAt: row.lastSeenAt?.toISOString() ?? null }));
   // Друг, якому профіль ще не створювали, теж має бути в списку.
   const withProfile = new Set(rows.map((row) => row.id));
-  const all = await db.select({ id: follow.followeeId }).from(follow).where(eq(follow.followerId, userId));
+  const all = await db
+    .select({ id: follow.followeeId })
+    .from(follow)
+    .where(and(eq(follow.followerId, userId), notHidden(follow.followeeId)));
   for (const { id } of all) {
     if (withProfile.has(id)) continue;
     const created = await ensureProfile(db, id);
@@ -168,14 +173,17 @@ export async function searchProfiles(db: Db, query: string, viewerId: string): P
   return db
     .select({ id: profile.userId, nickname: profile.nickname, avatar: profile.avatar })
     .from(profile)
-    .where(and(like(profile.nicknameKey, `${escaped}%`), ne(profile.userId, viewerId)))
+    .where(and(like(profile.nicknameKey, `${escaped}%`), ne(profile.userId, viewerId), notHidden(profile.userId)))
     .orderBy(asc(profile.nickname))
     .limit(SEARCH_LIMIT);
 }
 
-/** Профіль за точним нікнеймом (через nickname_key); null — немає. */
+/** Профіль за точним нікнеймом (через nickname_key); null — немає або людину заблоковано. */
 export async function findByNickname(db: Db, nickname: string): Promise<ProfileCard | null> {
-  const [row] = await db.select().from(profile).where(eq(profile.nicknameKey, nicknameKey(nickname)));
+  const [row] = await db
+    .select()
+    .from(profile)
+    .where(and(eq(profile.nicknameKey, nicknameKey(nickname)), notHidden(profile.userId)));
   return row ? card(row) : null;
 }
 
@@ -217,8 +225,9 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
   };
 }
 
-/** Публічна частина профілю; поля перелічено явно, щоб приватне не потрапило сюди випадково. null — такого користувача немає. */
+/** Публічна частина профілю; поля перелічено явно, щоб приватне не потрапило сюди випадково. null — такого користувача немає або його заблоковано. */
 export async function publicProfile(db: Db, id: string, viewerId: string | null): Promise<PublicProfile | null> {
+  if (await isBanned(db, id)) return null;
   const base = await ensureProfile(db, id);
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);

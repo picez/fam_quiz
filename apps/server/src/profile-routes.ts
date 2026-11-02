@@ -2,6 +2,7 @@ import { favoriteStickersSchema, looksSchema, profileUpdateSchema } from '@quiz/
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { achievementsPage } from './achievement-store';
+import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
 import { saveLooks } from './xp-store';
@@ -19,6 +20,8 @@ const MAX_QUERY_LENGTH = 100;
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
+  /** Немає такої людини або її заблоковано (бан #23): для інших — однаково 404. */
+  const hidden = async (id: string) => (await isBanned(db, id)) || (await ensureProfile(db, id)) === null;
 
   app.get('/api/me/profile', async (request, reply) => {
     const user = await currentUser(request);
@@ -96,7 +99,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } },
     async (request, reply) => {
       const { id } = request.params;
-      if (id.length > MAX_ID_LENGTH) return reply.code(404).send(NOT_FOUND);
+      if (id.length > MAX_ID_LENGTH || (await isBanned(db, id))) return reply.code(404).send(NOT_FOUND);
       const found = await achievementsPage(db, id, false);
       return found ?? reply.code(404).send(NOT_FOUND);
     },
@@ -162,7 +165,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       if (user === null) return reply.code(401).send(UNAUTHORIZED);
       const { id } = request.params;
       if (id === user.id) return reply.code(400).send({ error: 'self_versus' });
-      if (id.length > MAX_ID_LENGTH || (await ensureProfile(db, id)) === null) return reply.code(404).send(NOT_FOUND);
+      if (id.length > MAX_ID_LENGTH || (await hidden(id))) return reply.code(404).send(NOT_FOUND);
       return versusOf(db, user.id, id);
     },
   );
@@ -178,7 +181,7 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const { id } = request.params;
     if (id === user.id) return reply.code(400).send({ error: 'self_follow' });
-    if (id.length > MAX_ID_LENGTH || (await ensureProfile(db, id)) === null) return reply.code(404).send(NOT_FOUND);
+    if (id.length > MAX_ID_LENGTH || (await hidden(id))) return reply.code(404).send(NOT_FOUND);
     await setFollow(db, user.id, id, true);
     return reply.code(204).send();
   });

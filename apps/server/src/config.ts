@@ -78,3 +78,13 @@ export function pushKeys(env: Record<string, string | undefined>): { ok: true; k
   if (!subject!.startsWith('mailto:') && !subject!.startsWith('https://')) return { ok: false, problem: 'VAPID_SUBJECT має починатися з mailto: або https://.' };
   return { ok: true, keys: { publicKey: publicKey!, privateKey: privateKey!, subject: subject! } };
 }
+
+/** ADMIN_EMAILS: через кому, trim, toLowerCase, без порожніх; немає змінної → порожній набір. */
+export function adminEmails(env: Record<string, string | undefined>): ReadonlySet<string> {
+  return new Set(
+    (env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => email !== ''),
+  );
+}

@@ -28,7 +28,7 @@ const show = () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
   vi.mocked(markFeedSeen).mockResolvedValue({ ok: true });
   vi.mocked(getFeed).mockResolvedValue({ ok: true, events: [ev('e1')], next: null, asOf: '2026-11-02T10:00:00.000Z' });

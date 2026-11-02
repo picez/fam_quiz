@@ -5,6 +5,7 @@ import {
   attachGame, calendarBadge, cancelEvent, createEvent, decideRequest, listCalendar, markCalendarSeen, noRooms,
   requestToJoin, updateEvent, withdrawRequest,
 } from './calendar-store';
+import { banUser } from './bans';
 import type { Db } from './db/client';
 import { calendarRequest, follow, profile, user } from './db/schema';
 import { createQuiz } from './quizzes';
@@ -140,6 +141,18 @@ describe('calendar requests', () => {
     expect(await code(o)).toBe('123456');
     expect(await code(p)).toBeNull();
     expect(await code(h)).toBe('123456');
+  });
+
+  it('a banned requester counts neither in the host badge nor in the approved count', async () => {
+    await requestToJoin(db, o, E, NOW, noRooms);
+    await requestToJoin(db, p, E, NOW, noRooms);
+    await decideRequest(db, h, E, p, 'approved', NOW, noRooms);
+    expect((await calendarBadge(db, h, NOW)).requests).toBe(1);
+    expect((await mineOf(h))?.approved).toBe(1);
+    await banUser(db, { adminId: h, targetId: o, reason: null, now: NOW });
+    await banUser(db, { adminId: h, targetId: p, reason: null, now: NOW });
+    expect((await calendarBadge(db, h, NOW)).requests).toBe(0);
+    expect((await mineOf(h))?.approved).toBe(0);
   });
 
   describe('badge', () => {

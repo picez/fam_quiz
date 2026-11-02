@@ -714,6 +714,26 @@ export class RoomManager {
     return [...this.live.values()];
   }
 
+  /**
+   * Бан ведучого (21a). Кімнати з hostUserId === userId (і автопілот): lobby → close (подія 'closed'), гра йде → end() рушія
+   * (finished), finished — без змін. Повертає кількість змінених.
+   */
+  closeHostedBy(userId: string): number {
+    let changed = 0;
+    for (const room of [...this.live.values()]) {
+      if (room.hostUserId !== userId) continue;
+      const { phase } = room.state;
+      if (phase === 'finished') continue;
+      if (phase === 'lobby') {
+        this.close(room);
+        changed += 1;
+      } else if (this.apply(room, end(room.state, this.now())).ok) {
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
   /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */
   setPrizes(room: Room, placed: PlacedPrize[]): AckResult {
     if (!this.alive(room)) return this.gone();

@@ -16,7 +16,7 @@ export function useAccount(refresh?: unknown): AccountState {
     let current = true;
     void me().then((result) => {
       if (!current) return;
-      if (result.ok) setState({ status: 'signed-in', account: { id: result.id, name: result.name, email: result.email } });
+      if (result.ok) setState({ status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true } });
       // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
       else if (result.error === 'unauthorized') setState({ status: 'anonymous' });
       else setState({ status: 'unknown', error: result.error });

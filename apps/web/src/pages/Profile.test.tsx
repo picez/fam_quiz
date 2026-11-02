@@ -50,7 +50,7 @@ const mine: OwnProfile = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: mine });
   vi.mocked(saveMyProfile).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: 'Зірка', avatar: null } });
   vi.mocked(follow).mockResolvedValue({ ok: true });
@@ -76,6 +76,17 @@ const open = () =>
   );
 
 describe('Profile', () => {
+  it('links to the admin panel for admins only', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: true });
+    open();
+    expect((await screen.findByRole('link', { name: 'Адмінка' })).getAttribute('href')).toBe('/admin');
+    cleanup();
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+    open();
+    await screen.findByRole('heading', { name: 'Статистика' });
+    expect(screen.queryByRole('link', { name: 'Адмінка' })).toBeNull();
+  });
+
   it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
     vi.mocked(getMyProfile).mockResolvedValue({
       ok: true,

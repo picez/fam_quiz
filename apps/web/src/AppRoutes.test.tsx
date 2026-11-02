@@ -68,7 +68,7 @@ describe('AppRoutes', () => {
   });
 
   it('/feed/calendar draws the two tabs with the calendar current and the menu item «Стрічка» active', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
     open('/feed/calendar');
     const calendar = await screen.findByRole('link', { name: 'Календар' });
     expect(calendar.getAttribute('aria-current')).toBe('page');

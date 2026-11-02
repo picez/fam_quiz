@@ -95,7 +95,7 @@ async function toCalendarEvents(db: Db, viewerId: string, selected: Selected, no
   const counts = await db
     .select({ eventId: calendarRequest.eventId, n: sql<number>`(count(*) filter (where ${calendarRequest.status} = 'approved'))::int` })
     .from(calendarRequest)
-    .where(inArray(calendarRequest.eventId, ids))
+    .where(and(inArray(calendarRequest.eventId, ids), notHidden(calendarRequest.userId)))
     .groupBy(calendarRequest.eventId);
   const mine = await db
     .select({ eventId: calendarRequest.eventId, status: calendarRequest.status })
@@ -118,7 +118,7 @@ async function toCalendarEvents(db: Db, viewerId: string, selected: Selected, no
       .from(calendarRequest)
       .innerJoin(user, eq(user.id, calendarRequest.userId))
       .leftJoin(profile, eq(profile.userId, calendarRequest.userId))
-      .where(inArray(calendarRequest.eventId, hosted))
+      .where(and(inArray(calendarRequest.eventId, hosted), notHidden(calendarRequest.userId)))
       .orderBy(sql`(${calendarRequest.status} = 'pending') desc`, asc(calendarRequest.requestedAt), asc(calendarRequest.userId));
     for (const r of rows) {
       const list = requests.get(r.eventId) ?? [];
@@ -396,6 +396,7 @@ export async function calendarBadge(db: Db, viewerId: string, now: Date): Promis
       and(
         eq(calendarEvent.hostId, viewerId),
         eq(calendarRequest.status, 'pending'),
+        notHidden(calendarRequest.userId),
         sql`${calendarEvent.cancelledAt} is null`,
         sql`${calendarEvent.startsAt} > ${edge}`,
         sql`coalesce(${game.status} = 'finished', false) = false`,

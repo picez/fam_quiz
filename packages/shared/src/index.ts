@@ -34,3 +34,4 @@ export * from './likes';
 export * from './feed';
 export * from './calendar';
 export * from './push';
+export * from './admin';
