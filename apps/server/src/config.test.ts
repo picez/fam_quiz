@@ -1,5 +1,6 @@
+import webpush from 'web-push';
 import { describe, expect, it } from 'vitest';
-import { baseUrl, proxyTrust, localOrigins, secretProblem } from './config';
+import { baseUrl, proxyTrust, localOrigins, pushKeys, secretProblem } from './config';
 
 describe('secretProblem', () => {
   it('accepts a long random secret', () => {
@@ -67,5 +68,42 @@ describe('proxyTrust', () => {
   it('keeps the old switch and is off by default or for nonsense', () => {
     expect(proxyTrust('true')).toBe(true);
     for (const value of [undefined, '', 'false', '0', '-1', 'yes', '1.5']) expect(proxyTrust(value), String(value)).toBe(false);
+  });
+});
+
+describe('pushKeys', () => {
+  const pair = webpush.generateVAPIDKeys();
+  const full = { VAPID_PUBLIC_KEY: pair.publicKey, VAPID_PRIVATE_KEY: pair.privateKey, VAPID_SUBJECT: 'mailto:owner@example.com' };
+
+  it('is off with none of the three, also when empty', () => {
+    expect(pushKeys({})).toEqual({ ok: true, keys: null });
+    expect(pushKeys({ VAPID_PUBLIC_KEY: '', VAPID_PRIVATE_KEY: '', VAPID_SUBJECT: '' })).toEqual({ ok: true, keys: null });
+  });
+
+  it('returns the keys when all three are right', () => {
+    expect(pushKeys(full)).toEqual({ ok: true, keys: { publicKey: pair.publicKey, privateKey: pair.privateKey, subject: 'mailto:owner@example.com' } });
+    expect(pushKeys({ ...full, VAPID_SUBJECT: 'https://quiz.example.com' }).ok).toBe(true);
+  });
+
+  it('names the missing variables', () => {
+    const result = pushKeys({ VAPID_PUBLIC_KEY: pair.publicKey });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.problem).toContain('VAPID_PRIVATE_KEY');
+      expect(result.problem).toContain('VAPID_SUBJECT');
+    }
+  });
+
+  it('refuses a subject that is neither mailto: nor https://', () => {
+    const result = pushKeys({ ...full, VAPID_SUBJECT: 'owner@example.com' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.problem).toContain('mailto:');
+  });
+
+  it('refuses keys of the wrong length', () => {
+    expect(pushKeys({ ...full, VAPID_PUBLIC_KEY: pair.publicKey + 'A' }).ok).toBe(false);
+    expect(pushKeys({ ...full, VAPID_PUBLIC_KEY: pair.publicKey.slice(0, 86) }).ok).toBe(false);
+    expect(pushKeys({ ...full, VAPID_PRIVATE_KEY: pair.privateKey + 'A' }).ok).toBe(false);
+    expect(pushKeys({ ...full, VAPID_PRIVATE_KEY: pair.privateKey.slice(0, 42) }).ok).toBe(false);
   });
 });
