@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { xpForLevel, type GameStatus, type PrizeContent } from '@quiz/shared';
-import { and, eq, like, sql } from 'drizzle-orm';
+import { and, eq, isNull, like, sql } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { feedEvent, prizeAward, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
-import { announceLevels, backfillFeed, publishGameFeed, writeAchievementEvents, writeGameEvents, writePrizeEvents } from './feed-publish';
+import { feedEvent, follow, prizeAward, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
+import { announceLevels, backfillFeed, publishGameFeed, settleFeedLevels, writeAchievementEvents, writeGameEvents, writePrizeEvents } from './feed-publish';
+import { feedBadge } from './feed-store';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
 
@@ -264,8 +265,55 @@ describe('publishGameFeed', () => {
   });
 });
 
+describe('settleFeedLevels', () => {
+  it('quietly sets feed_level from XP for profiles without one, writes no events, and keeps announced levels', async () => {
+    const fresh = await createTestDb();
+    const prev = db;
+    db = fresh;
+    try {
+      await db.insert(user).values({ id: 'h', name: 'Ведучий', email: 'h@example.com' });
+      const { o, p } = await people();
+      const { o: v } = await people();
+      await giveXp(o, xpForLevel(4));
+      await giveXp(v, xpForLevel(6));
+      await db.update(profile).set({ feedLevel: 7 }).where(eq(profile.userId, v));
+      const g = await game([solo(o, 1), solo(p, 2)]);
+
+      await settleFeedLevels(db);
+      const levels = new Map((await db.select({ id: profile.userId, l: profile.feedLevel }).from(profile)).map((r) => [r.id, r.l]));
+      expect(levels.get(o)).toBe(4);
+      expect(levels.get(p)).toBe(1);
+      expect(levels.get(v)).toBe(7);
+      expect(await db.select().from(feedEvent)).toEqual([]);
+
+      // Кімната, піднята в finished після settle, давнього рівня не оголошує.
+      await publishGameFeed(db, g.gameId);
+      expect(await db.select().from(feedEvent).where(like(feedEvent.key, 'level:%'))).toEqual([]);
+      await settleFeedLevels(db);
+      expect(new Map((await db.select({ id: profile.userId, l: profile.feedLevel }).from(profile)).map((r) => [r.id, r.l]))).toEqual(levels);
+    } finally {
+      db = prev;
+    }
+  });
+
+  it('walks more profiles than one batch', async () => {
+    const fresh = await createTestDb();
+    const prev = db;
+    db = fresh;
+    try {
+      const ids = Array.from({ length: 520 }, (_, i) => `s${String(i).padStart(4, '0')}`);
+      await db.insert(user).values(ids.map((id) => ({ id, name: id, email: `${id}@example.com` })));
+      await db.insert(profile).values(ids.map((id) => ({ userId: id, nickname: id, nicknameKey: id })));
+      await settleFeedLevels(db);
+      expect(await db.select().from(profile).where(isNull(profile.feedLevel))).toEqual([]);
+    } finally {
+      db = prev;
+    }
+  });
+});
+
 describe('backfillFeed', () => {
-  it('fills 90 days without lighting the badge and quietly sets feed_level', async () => {
+  it('fills 90 days without lighting the badge, and leaves levels to settleFeedLevels', async () => {
     const fresh = await createTestDb();
     const now = new Date('2026-11-02T10:00:00.000Z');
     const prev = db;
@@ -273,6 +321,9 @@ describe('backfillFeed', () => {
     try {
       await db.insert(user).values({ id: 'h', name: 'Ведучий', email: 'h@example.com' });
       const { o, p } = await people();
+      // Як після міграції 0024: наявні профілі вже «переглянули» стрічку; Оля й Петро — взаємні друзі.
+      await db.update(profile).set({ feedSeenAt: now });
+      await db.insert(follow).values([{ followerId: o, followeeId: p }, { followerId: p, followeeId: o }]);
       const old = await game([solo(o, 1), solo(p, 2)], { finishedAt: new Date(now.getTime() - 100 * DAY) });
       const recent = await game([solo(o, 2), solo(p, 1)], { finishedAt: new Date(now.getTime() - 10 * DAY) });
       await db.insert(userAchievement).values({ userId: p, achievementId: 'first_win', earnedAt: recent.finishedAt, gameId: recent.gameId });
@@ -285,16 +336,19 @@ describe('backfillFeed', () => {
       expect(rows.map((r) => r.kind).sort()).toEqual(['achievement', 'game', 'game', 'prize']);
       for (const r of rows) expect(r.createdAt.toISOString()).toBe(r.at.toISOString());
       expect(await db.select().from(feedEvent).where(like(feedEvent.key, 'level:%'))).toEqual([]);
-      const levels = new Map((await db.select({ id: profile.userId, l: profile.feedLevel }).from(profile)).map((r) => [r.id, r.l]));
-      expect(levels.get(o)).toBe(4);
-      expect(levels.get(p)).toBe(1);
+      // Рівні — не справа дописування: feed_level лишається null.
+      expect((await db.select({ l: profile.feedLevel }).from(profile)).map((r) => r.l)).toEqual([null, null]);
+
+      // Бейдж темний: історія записана з created_at = at, раніше за мітку перегляду.
+      expect((await feedBadge(db, o, now)).events).toBe(0);
+      expect((await feedBadge(db, p, now)).events).toBe(0);
+      // Контроль: профіль без мітки (новий) бачить у бейджі всі три події Петра.
+      await db.update(profile).set({ feedSeenAt: null }).where(eq(profile.userId, o));
+      expect((await feedBadge(db, o, now)).events).toBe(3);
 
       const total = (await db.select().from(feedEvent)).length;
       await backfillFeed(db, now);
       expect(await db.select().from(feedEvent)).toHaveLength(total);
-      // Рівень, уже записаний, після тихого feed_level не оголошується.
-      await publishGameFeed(db, recent.gameId);
-      expect(await db.select().from(feedEvent).where(like(feedEvent.key, 'level:%'))).toEqual([]);
     } finally {
       db = prev;
     }

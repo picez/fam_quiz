@@ -46,7 +46,10 @@ const finishedIn = (ids: string[]): SQL =>
     sql`, `,
   )})`;
 
-/** created_at: для історії — сам at (бейдж не світиться), для живої гри — мить запису (з точністю до мілісекунд). */
+/**
+ * created_at: для історії — сам at (бейдж не світиться), для живої гри — мить запису (з точністю до мілісекунд).
+ * Живу мить беремо навмисно раз на порцію (один insert … select), а не now() бази: усі рядки порції мають ту саму мілісекундну мітку.
+ */
 const createdAt = (history: boolean, at: SQL): SQL => (history ? at : sql`${new Date().toISOString()}::timestamptz`);
 
 async function each(db: Db, scope: Scope, write: (ids: string[]) => SQL): Promise<void> {
@@ -181,13 +184,22 @@ export async function publishGameFeed(db: Db, gameId: string): Promise<void> {
   await announceLevels(db, candidates, gameId, row.finishedAt);
 }
 
-/** На старті: write*({ since: now − 90 д }, true); потім feed_level = levelOf(xp) профілям з feed_level null (без подій). */
+/**
+ * На старті, у фоні після listen: write*({ since: now − 90 д }, true) — події завершених ігор за 90 днів з created_at = at (бейдж не світиться).
+ * Ідемпотентно (ключі): обірване зупинкою дописування наступний старт продовжить. Рівнів не пише — це settleFeedLevels.
+ */
 export async function backfillFeed(db: Db, now: Date): Promise<void> {
   const scope = { since: new Date(now.getTime() - FEED_RETENTION_DAYS * DAY_MS) };
   await writeGameEvents(db, scope, true);
   await writeAchievementEvents(db, scope, true);
   await writePrizeEvents(db, scope, true);
-  // Тихо: наявні рівні не оголошуються всі разом. Рівні історії не дописуються.
+}
+
+/**
+ * На старті, до підняття кімнат: feed_level = levelOf(xp) профілям з feed_level null, без подій — наявні рівні не оголошуються всі разом.
+ * До boot, щоб кімната, піднята в finished, не оголосила давнього рівня. Порціями по PROFILE_BATCH, по одному оновленню на порцію.
+ */
+export async function settleFeedLevels(db: Db): Promise<void> {
   let after = '';
   for (;;) {
     const rows = await db
