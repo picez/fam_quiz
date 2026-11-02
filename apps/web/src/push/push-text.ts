@@ -1,6 +1,6 @@
 import type { PushPayload } from '@quiz/shared';
 import { dayHeading, timeText } from '../calendar/calendar-time';
-import { t } from '../i18n';
+import { pushString as t } from './push-strings';
 
 export interface PushNotice {
   title: string;
