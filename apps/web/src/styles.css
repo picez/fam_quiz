@@ -13752,3 +13752,100 @@ button.wall-tile:disabled {
   flex: none;
   color: var(--dim);
 }
+
+.calendar-day h2 {
+  margin: 1.25rem 0 0;
+  font-size: 1.1rem;
+  text-transform: capitalize;
+}
+
+.calendar-day .feed-list {
+  margin-top: 0.5rem;
+}
+
+.calendar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calendar-card[data-state='open'] {
+  border-color: var(--amber);
+}
+
+.calendar-card[data-state='cancelled'],
+.calendar-card[data-state='played'] {
+  opacity: 0.75;
+}
+
+.calendar-card p,
+.calendar-card h3,
+.calendar-card h4 {
+  margin: 0;
+}
+
+.calendar-title {
+  font-size: 1.05rem;
+}
+
+.calendar-marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.calendar-mark {
+  color: var(--amber);
+}
+
+.calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-actions button,
+.calendar-actions a,
+.calendar-request button {
+  min-height: 44px;
+}
+
+.calendar-actions a.button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 1rem;
+}
+
+.calendar-requests ul {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.calendar-request {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.calendar-request-who {
+  flex: 1 1 6rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calendar-form {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
