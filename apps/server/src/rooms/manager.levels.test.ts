@@ -136,7 +136,7 @@ describe('levels in the room (15a)', () => {
     expect(w.manager.claim(next.code, taras, 'u3').ok).toBe(true);
     w.manager.setLevels(next, new Map([['u3', lv(15)]]));
     expect(next.state.perks?.[taras]?.kinds).toEqual(['time', 'hint', 'ward']);
-    expect(w.manager.view(next, HOST)?.wards).toEqual({ [taras]: 'ready' });
+    expect(w.manager.view(next, HOST)).toHaveProperty('wards', { [taras]: 'ready' });
     // Ведучий звільняє місце, його займає гість.
     expect(w.manager.host(next, { type: 'release', playerId: taras })).toEqual({ ok: true });
     expect(w.manager.claim(next.code, taras, null).ok).toBe(true);
