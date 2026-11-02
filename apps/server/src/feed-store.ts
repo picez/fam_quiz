@@ -96,7 +96,7 @@ async function likeGroups(db: Db, viewerId: string, cursor: Cursor | null, now: 
 }
 
 /** Лічильники ❤️ під подіями сторінки: два групові запити на всю сторінку. */
-async function eventLikes(db: Db, viewerId: string, events: (typeof feedEvent.$inferSelect)[]) {
+export async function eventLikes(db: Db, viewerId: string, events: (typeof feedEvent.$inferSelect)[]) {
   const games = events.filter((e) => e.kind === 'game' && e.gameId !== null);
   const others = events.filter((e) => e.kind !== 'game');
   const players = new Map<string, { count: number; liked: boolean }>();

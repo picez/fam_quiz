@@ -5,6 +5,7 @@ import Fastify from 'fastify';
 import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
+import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerProfileRoutes } from './profile-routes';
@@ -99,6 +100,8 @@ export async function buildApp(options: AppOptions) {
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
+  await registerFeedRoutes(app, { db: options.db, currentUser });
+  const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
@@ -151,6 +154,7 @@ export async function buildApp(options: AppOptions) {
     io.emit('restarting');
     await store?.flushAll({ release: true });
     store?.stop();
+    stopPrune();
     await app.close();
     await recorder.idle();
     await titles.idle();
