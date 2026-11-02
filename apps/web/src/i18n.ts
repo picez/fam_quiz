@@ -1735,6 +1735,7 @@ const uk = {
   err_like_guest: 'Вподобати можна лише з акаунтом',
   err_like_self: 'Себе й своє вподобати не можна',
   err_like_unavailable: 'Зараз це вподобати не можна',
+  err_like_rate: 'Забагато вподобань — зачекай кілька секунд',
   likeQuestion: 'Вподобати запитання',
   unlikeQuestion: 'Прибрати вподобання',
   likesPanelTitle: 'Сподобалось?',

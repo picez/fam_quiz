@@ -823,7 +823,7 @@ export class RoomManager {
     const now = this.now();
     const rate = room.likeRate.get(by);
     if (rate === undefined || now - rate.from >= LIKE_RATE.windowMs) room.likeRate.set(by, { from: now, count: 1 });
-    else if (rate.count + 1 > LIKE_RATE.max) return { ok: false, error: 'too_soon' };
+    else if (rate.count + 1 > LIKE_RATE.max) return { ok: false, error: 'like_rate' };
     else rate.count += 1;
     if (mine.has(key) === payload.liked) return { ok: true };
     if (payload.liked) mine.add(key);

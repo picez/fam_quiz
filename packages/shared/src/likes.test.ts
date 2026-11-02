@@ -21,6 +21,6 @@ describe('likeSchema', () => {
 
   it('lists the four kinds and a rate window', () => {
     expect([...LIKE_KINDS]).toEqual(['question', 'quiz', 'host', 'player']);
-    expect(LIKE_RATE).toEqual({ windowMs: 10_000, max: 12 });
+    expect(LIKE_RATE).toEqual({ windowMs: 10_000, max: 60 });
   });
 });

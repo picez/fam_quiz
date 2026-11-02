@@ -4225,4 +4225,11 @@ describe('PlayerScreen: likes (17a)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Вподобати запитання' }));
     expect(await screen.findByText('Вподобати можна лише з акаунтом')).toBeTruthy();
   });
+
+  it('too many likes show a text about likes, not about the screen', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'like_rate' }));
+    show(view({ ...reveal, likes: { question: false } }), { send });
+    fireEvent.click(screen.getByRole('button', { name: 'Вподобати запитання' }));
+    expect(await screen.findByText('Забагато вподобань — зачекай кілька секунд')).toBeTruthy();
+  });
 });

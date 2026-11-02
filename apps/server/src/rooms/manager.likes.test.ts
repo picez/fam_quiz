@@ -221,13 +221,13 @@ describe('likes in the room (17a)', () => {
     expect(likesView(room, members['Віра'])).toBeUndefined();
   });
 
-  it('13 toggles within 10 s: the thirteenth is too soon; after 10 s it works again', () => {
+  it('61 toggles within 10 s: the sixty-first is like_rate; after 10 s it works again', () => {
     const w = world();
     w.ready();
     w.start();
     w.to('reveal', 0);
-    for (let i = 0; i < 12; i++) expect(w.like(w.olya, { target: 'question', liked: i % 2 === 0 })).toEqual({ ok: true });
-    expect(w.like(w.olya, { target: 'question', liked: true })).toEqual({ ok: false, error: 'too_soon' });
+    for (let i = 0; i < 60; i++) expect(w.like(w.olya, { target: 'question', liked: i % 2 === 0 })).toEqual({ ok: true });
+    expect(w.like(w.olya, { target: 'question', liked: true })).toEqual({ ok: false, error: 'like_rate' });
     expect(w.like(w.petro, { target: 'question', liked: true })).toEqual({ ok: true });
     w.scheduler.advance(10_000);
     expect(w.room.state.phase).toBe('reveal');

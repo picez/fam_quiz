@@ -4,7 +4,7 @@ export const LIKE_KINDS = ['question', 'quiz', 'host', 'player'] as const;
 export type LikeKind = (typeof LIKE_KINDS)[number];
 
 /** Частота player:like на людину. */
-export const LIKE_RATE = { windowMs: 10_000, max: 12 } as const;
+export const LIKE_RATE = { windowMs: 10_000, max: 60 } as const;
 
 /** Подія player:like: бажаний стан, а не перемикач. */
 export const likeSchema = z.discriminatedUnion('target', [
