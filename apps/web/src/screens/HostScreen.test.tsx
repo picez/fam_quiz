@@ -3286,4 +3286,65 @@ describe('HostScreen: prize results (14a)', () => {
     expect(screen.getByText('1 місце — Оля')).toBeTruthy();
     expect(screen.getByText('2 місце — нікого, приз повернеться на склад')).toBeTruthy();
   });
+
+  const cup = { trophy: { kind: 'cup' as const, material: 'gold' as const }, engraving: 'Чемпіонка', real: null, title: 'Королева', diploma: false };
+  const won = (online: boolean) =>
+    render(
+      <HostScreen
+        view={view({
+          phase: 'finished',
+          questionIndex: 1,
+          standings: [{ participantId: 'p1', nickname: 'Ася', score: 750, totalTimeMs: 1, rank: 1 }],
+          prizes: { mine: null, places: [{ place: 1, content: cup, winner: { name: 'Ася', members: [] } }] },
+        })}
+        code="123456"
+        stageUrl="http://quiz.test/stage/123456#s"
+        joinUrl="y"
+        send={vi.fn(async () => ({ ok: true as const }))}
+        stageOnline={online}
+      />,
+    );
+
+  it('«Церемонія тут» plays the prize ceremony on the host and «Кубок» opens the prize', () => {
+    won(true);
+    expect(document.querySelector('.ceremony')).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Церемонія тут' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    const ceremony = document.querySelector('.ceremony')!;
+    expect(ceremony.textContent).toContain('Ася');
+    expect(ceremony.textContent).toContain('Чемпіонка');
+    expect(ceremony.textContent).toContain('👑 Королева');
+    fireEvent.click(within(ceremony as HTMLElement).getByRole('button', { name: 'Кубок' }));
+    expect(screen.getByRole('dialog', { name: 'Приз за 1 місце' }).textContent).toContain('Чемпіонка');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Сховати церемонію' }));
+    expect(document.querySelector('.ceremony')).toBeNull();
+    // Сцена на місці — підказки про неї немає.
+    expect(screen.queryByText(/Сцени немає/)).toBeNull();
+  });
+
+  it('without the stage the finished panel says the ceremony is here and offers the stage link again', () => {
+    won(false);
+    const panel = screen.getByRole('heading', { name: 'Гру завершено' }).closest('section')!;
+    expect(within(panel).getByText(/Сцени немає/)).toBeTruthy();
+    const again = within(panel).getByRole('link', { name: 'Відкрити сцену знову' }) as HTMLAnchorElement;
+    expect(again.href).toBe('http://quiz.test/stage/123456#s');
+    expect(within(panel).getByRole('button', { name: 'Церемонія тут' })).toBeTruthy();
+  });
+
+  it('no ceremony button when no place has a winner', () => {
+    render(
+      <HostScreen
+        view={view({ phase: 'finished', questionIndex: 1, standings: [], prizes: { mine: null, places: [{ place: 1, content: cup, winner: null }] } })}
+        code="123456"
+        stageUrl="x"
+        joinUrl="y"
+        send={vi.fn(async () => ({ ok: true as const }))}
+        stageOnline={false}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Церемонія тут' })).toBeNull();
+  });
 });

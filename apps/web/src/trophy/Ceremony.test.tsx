@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrizeShown, PrizesView } from '@quiz/shared';
 import { Ceremony } from './Ceremony';
@@ -165,5 +165,21 @@ describe('Ceremony', () => {
     unmount();
     render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} />);
     expect(document.querySelector('.trophy-mock')!.getAttribute('data-interactive')).toBe('true');
+  });
+
+  it('with onView each shown place gets «Кубок» that opens that place; without onView there is none', () => {
+    const onView = vi.fn();
+    const { unmount } = render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} onView={onView} />);
+    advance(3500);
+    advance(3500);
+    const buttons = screen.getAllByRole('button', { name: 'Кубок' });
+    expect(buttons).toHaveLength(3);
+    fireEvent.click(column(2).querySelector('button')!);
+    expect(onView).toHaveBeenCalledWith(2);
+    unmount();
+    render(<Ceremony prizes={three} size="stage" hold={false} onDone={vi.fn()} />);
+    advance(3500);
+    advance(3500);
+    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
   });
 });

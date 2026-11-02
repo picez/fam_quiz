@@ -3,6 +3,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import type { SocketAuth } from '@quiz/shared';
 import { t } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
+import { useWakeLock } from '../live/useWakeLock';
 import { StageScreen } from '../screens/StageScreen';
 
 export function Stage() {
@@ -10,6 +11,9 @@ export function Stage() {
   const token = useLocation().hash.slice(1);
   const auth = useMemo<SocketAuth | null>(() => (token === '' ? null : { code, role: 'stage', token }), [code, token]);
   const game = useGame(auth);
+  // Сцена (планшет, телефон, ноутбук) за довгу гру гасне й засинає: сокет рветься, пульт бачить «сцена не підключена»
+  // і не може показати нагороди. Екран тримається, поки йде гра, і в finished — там церемонія й нагороди.
+  useWakeLock(game.view !== null && game.view.role === 'stage');
 
   if (token === '' || game.status === 'unauthorized' || game.closed !== null) {
     return (

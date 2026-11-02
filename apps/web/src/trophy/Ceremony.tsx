@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
-import { CEREMONY_MS, type Phase, type PrizeShown, type PrizesView } from '@quiz/shared';
+import { CEREMONY_MS, type Phase, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
 import { t } from '../i18n';
 import { reducedMotion } from '../motion';
+import { canViewPrize } from './PrizeViewer';
 import { TrophyView } from './TrophyView';
 import { ceremonyOrder, podiumColumns, titleBadge } from './trophy-meta';
 
@@ -19,7 +20,7 @@ function confettiStyle(index: number): CSSProperties {
   } as CSSProperties;
 }
 
-function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<PrizeShown['winner']> }; size: 'stage' | 'phone' }) {
+function Column({ shown, size, onView }: { shown: PrizeShown & { winner: NonNullable<PrizeShown['winner']> }; size: 'stage' | 'phone'; onView?: (place: PrizePlace) => void }) {
   const { place, content, winner } = shown;
   return (
     <>
@@ -36,6 +37,11 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
           </div>
         )}
         {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
+        {onView !== undefined && canViewPrize(content) && (
+          <button type="button" className="btn btn-small podium-view" onClick={() => onView(place)}>
+            {t('prizeViewButton')}
+          </button>
+        )}
       </div>
       <div className="podium-step" aria-hidden="true">
         {place}
@@ -44,8 +50,11 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
   );
 }
 
-/** Місця з winner по черзі 3 → 2 → 1 (CEREMONY_MS.step, переможець — winner); hold — заставка ще йде, таймери стоять; onDone — раз. */
-export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void }): JSX.Element {
+/**
+ * Місця з winner по черзі 3 → 2 → 1 (CEREMONY_MS.step, переможець — winner); hold — заставка ще йде, таймери стоять; onDone — раз.
+ * onView (пульт) — під кожним відкритим місцем «Кубок», що відкриває перегляд призу цього місця.
+ */
+export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void; onView?: (place: PrizePlace) => void }): JSX.Element {
   const order = ceremonyOrder(prizes);
   const total = order.length;
   // Стовпці зліва направо 2 — 1 — 3, лише місця церемонії: подіум без третього місця не з'їжджає вбік.
@@ -91,7 +100,7 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
           const classes = ['podium-col', `is-place-${place}`, shown ? 'is-shown' : '', place === now ? 'is-now' : ''].filter(Boolean).join(' ');
           return (
             <div key={place} className={classes} data-place={place}>
-              {shown && <Column shown={shown} size={size} />}
+              {shown && <Column shown={shown} size={size} onView={onView} />}
             </div>
           );
         })}
