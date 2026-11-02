@@ -2,7 +2,6 @@ import { questionIdsOf, type LikeKind, type LikeTotals, type Quiz, type QuizLike
 import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz, userLike } from './db/schema';
-import { quizById } from './quizzes';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -29,50 +28,81 @@ function keyOf(row: { kind: LikeKind; questionId: string | null; targetUserId: s
   return row.kind;
 }
 
-/** Рядок, який має бути (чи не бути) для цієї зміни; null — писати нічого (немає вікторини, себе чи своє). */
-async function resolve(db: Db, change: LikeChange): Promise<{ targetUserId: string; hidden: boolean; key: SQL } | null> {
-  const mine = and(eq(userLike.userId, change.userId), eq(userLike.kind, change.kind));
-  if (change.kind === 'question' || change.kind === 'quiz') {
-    if (change.quizId === null) return null;
-    if (change.kind === 'question' && change.questionId === undefined) return null;
-    const found = await quizById(db, change.quizId);
-    if (found === null || found.ownerId === change.userId) return null;
-    if (change.kind === 'quiz') return { targetUserId: found.ownerId, hidden: false, key: and(mine, eq(userLike.quizId, change.quizId))! };
-    const questionId = change.questionId!;
-    return {
-      targetUserId: found.ownerId,
-      hidden: !questionIdsOf(found.quiz).has(questionId),
-      key: and(mine, eq(userLike.quizId, change.quizId), eq(userLike.questionId, questionId))!,
-    };
+const FK_VIOLATION = '23503';
+
+function isFkViolation(error: unknown): boolean {
+  for (let current = error; current && typeof current === 'object'; current = (current as { cause?: unknown }).cause) {
+    if ((current as { code?: unknown }).code === FK_VIOLATION) return true;
   }
-  const target = change.targetUserId;
-  if (target === undefined || target === change.userId || !UUID.test(change.gameId)) return null;
-  const key = change.kind === 'host' ? and(mine, eq(userLike.gameId, change.gameId)) : and(mine, eq(userLike.gameId, change.gameId), eq(userLike.targetUserId, target));
-  return { targetUserId: target, hidden: false, key: key! };
+  return false;
 }
 
-/** liked → insert onConflictDoNothing (hidden для question — за questionIdsOf вікторини в базі); інакше delete за ключем виду. Вікторини немає (question/quiz) або user = target — нічого. */
-export async function saveLike(db: Db, change: LikeChange): Promise<void> {
-  const row = await resolve(db, change);
-  if (row === null) return;
-  if (!change.liked) {
-    await db.delete(userLike).where(row.key);
-    return;
+/** Ключ рядка цієї зміни в базі. */
+function keyWhere(change: LikeChange): SQL {
+  const mine = and(eq(userLike.userId, change.userId), eq(userLike.kind, change.kind))!;
+  if (change.kind === 'question') return and(mine, eq(userLike.quizId, change.quizId!), eq(userLike.questionId, change.questionId!))!;
+  if (change.kind === 'quiz') return and(mine, eq(userLike.quizId, change.quizId!))!;
+  if (change.kind === 'host') return and(mine, eq(userLike.gameId, change.gameId))!;
+  return and(mine, eq(userLike.gameId, change.gameId), eq(userLike.targetUserId, change.targetUserId!))!;
+}
+
+/**
+ * Рядок, який має бути (чи не бути) для цієї зміни; null — писати нічого (немає вікторини, себе чи своє).
+ * Вікторину читає під FOR SHARE: паралельне збереження чи видалення вікторини чекає кінця транзакції лайка (і навпаки), тож hidden не застаріє.
+ * Вікторину видалено, а liked = false — ключ без цілі: прихований рядок ще можна зняти.
+ */
+async function resolve(tx: Tx, change: LikeChange): Promise<{ targetUserId: string | null; hidden: boolean } | null> {
+  if (change.kind === 'question' || change.kind === 'quiz') {
+    if (change.quizId === null || !UUID.test(change.quizId)) return null;
+    if (change.kind === 'question' && change.questionId === undefined) return null;
+    const [found] = await tx
+      .select({ ownerId: quiz.ownerId, rounds: quiz.rounds, settings: quiz.settings })
+      .from(quiz)
+      .where(eq(quiz.id, change.quizId))
+      .for('share');
+    if (found === undefined) return change.liked ? null : { targetUserId: null, hidden: true };
+    if (found.ownerId === change.userId) return null;
+    if (change.kind === 'quiz') return { targetUserId: found.ownerId, hidden: false };
+    const ids = questionIdsOf({ rounds: found.rounds, spares: found.settings.spares });
+    return { targetUserId: found.ownerId, hidden: !ids.has(change.questionId!) };
   }
-  const own = change.kind === 'question' || change.kind === 'quiz';
-  await db
-    .insert(userLike)
-    .values({
-      userId: change.userId,
-      kind: change.kind,
-      targetUserId: row.targetUserId,
-      quizId: change.quizId,
-      questionId: change.kind === 'question' ? change.questionId! : null,
-      gameId: change.gameId,
-      hidden: own ? row.hidden : false,
-      createdAt: new Date(),
-    })
-    .onConflictDoNothing();
+  const target = change.targetUserId;
+  if (target === undefined || target === change.userId) return null;
+  return { targetUserId: target, hidden: false };
+}
+
+/**
+ * liked → insert onConflictDoNothing (hidden для question — за questionIdsOf вікторини в базі); інакше delete за ключем виду.
+ * Нічого не пише: gameId не uuid, user = target, вікторини немає (question/quiz, liked = true), акаунта цілі чи того, хто лайкає, уже немає (23503).
+ */
+export async function saveLike(db: Db, change: LikeChange): Promise<void> {
+  if (!UUID.test(change.gameId)) return;
+  try {
+    await db.transaction(async (tx) => {
+      const row = await resolve(tx, change);
+      if (row === null) return;
+      if (!change.liked) {
+        await tx.delete(userLike).where(keyWhere(change));
+        return;
+      }
+      await tx
+        .insert(userLike)
+        .values({
+          userId: change.userId,
+          kind: change.kind,
+          targetUserId: row.targetUserId!,
+          quizId: change.quizId,
+          questionId: change.kind === 'question' ? change.questionId! : null,
+          gameId: change.gameId,
+          hidden: row.hidden,
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing();
+    });
+  } catch (error) {
+    if (isFkViolation(error)) return;
+    throw error;
+  }
 }
 
 /** Власник вікторини (null — вікторини немає) і LikeKey кожного з userIds у цій грі: question/quiz за quizId (будь-яка гра), host/player за gameId. */

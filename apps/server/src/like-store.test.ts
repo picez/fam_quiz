@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { bool, makeQuiz, single, text, withId } from '@quiz/engine/testing';
 import type { Quiz } from '@quiz/shared';
 import { eq, sql } from 'drizzle-orm';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from './db/client';
 import { quiz, user, userLike } from './db/schema';
 import { likeTotals, quizLikes, roomLikes, saveLike, type LikeChange } from './like-store';
@@ -100,6 +100,57 @@ describe('saveLike', () => {
     const left = await rows();
     expect(left).toHaveLength(1);
     expect(left[0]).toMatchObject({ userId: P, kind: 'quiz' });
+  });
+});
+
+describe('saveLike: транзакція, зниклі цілі, видалена вікторина, gameId', () => {
+  it('пише в одній транзакції (вікторину читає під FOR SHARE)', async () => {
+    const spy = vi.spyOn(db, 'transaction');
+    try {
+      await like({ userId: O, kind: 'question', questionId: 'q1' });
+      await like({ userId: O, kind: 'host', targetUserId: A });
+      await like({ userId: O, kind: 'host', targetUserId: A, liked: false });
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await rows()).toHaveLength(1);
+  });
+
+  it('лайк і збереження вікторини разом — hidden відповідає вікторині, що лишилась', async () => {
+    await Promise.all([like({ userId: O, kind: 'question', questionId: 'q2' }), updateQuiz(db, A, quizId, withoutQ2())]);
+    expect((await rows()).find((r) => r.questionId === 'q2')?.hidden).toBe(true);
+    await Promise.all([updateQuiz(db, A, quizId, full()), like({ userId: P, kind: 'question', questionId: 'q2' })]);
+    expect((await rows()).filter((r) => r.questionId === 'q2').map((r) => r.hidden)).toEqual([false, false]);
+  });
+
+  it('ціль чи лайкач без акаунта — нічого, без помилки', async () => {
+    await expect(like({ userId: O, kind: 'host', targetUserId: 'gone-account' })).resolves.toBeUndefined();
+    await expect(like({ userId: O, kind: 'player', targetUserId: 'gone-account' })).resolves.toBeUndefined();
+    await expect(like({ userId: 'gone-account', kind: 'quiz' })).resolves.toBeUndefined();
+    await expect(like({ userId: 'gone-account', kind: 'player', targetUserId: P })).resolves.toBeUndefined();
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('вікторину видалено — liked: false усе ще знімає прихований лайк', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'quiz' });
+    await like({ userId: P, kind: 'quiz' });
+    await deleteQuiz(db, A, quizId);
+    expect((await rows()).every((r) => r.hidden)).toBe(true);
+    await like({ userId: O, kind: 'question', questionId: 'q1', liked: false });
+    await like({ userId: O, kind: 'quiz', liked: false });
+    const left = await rows();
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ userId: P, kind: 'quiz', hidden: true });
+  });
+
+  it('gameId не uuid — нічого для будь-якого виду, без помилки', async () => {
+    await expect(like({ userId: O, kind: 'question', questionId: 'q1', gameId: 'room-1' })).resolves.toBeUndefined();
+    await expect(like({ userId: O, kind: 'quiz', gameId: 'room-1' })).resolves.toBeUndefined();
+    await expect(like({ userId: O, kind: 'host', targetUserId: A, gameId: 'room-1' })).resolves.toBeUndefined();
+    await expect(like({ userId: O, kind: 'player', targetUserId: P, gameId: 'room-1' })).resolves.toBeUndefined();
+    expect(await rows()).toHaveLength(0);
   });
 });
 
