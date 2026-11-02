@@ -18333,6 +18333,15 @@ async function likes17a() {
   }
   await expectNoSideScroll(olya, 'p17a-phone-final');
   await olya.evaluate('window.scrollTo(0, 0)');
+  // Фінал на 360 і 375 px з 20-символьним ніком (❤️ у шапці вже немає): «Таблиця» ціла — місце віддає нік, шапка в один рядок.
+  for (const width of [360, 375]) {
+    await olya.setViewportSize({ width, height: 812 });
+    expect(await olya.locator('header.bar').getByRole('button', { name: /Таблиця/ }).count(), `p17a-phone-final-${width}: «Таблиця» in the header`).toBe(1);
+    expect(await heart(olya).count(), `p17a-phone-final-${width}: a heart in the header`).toBe(0);
+    await expect.poll(() => olya.evaluate(BAR_FITS_17A), POLL).toEqual([]);
+    await shot(olya, `p17a-phone-final-header-${width}`);
+    await expectNoSideScroll(olya, `p17a-phone-final-${width}`);
+  }
   await panel(petro).waitFor();
   await chip(petro, OLYA).click();
   await expect.poll(() => chip(petro, OLYA).getAttribute('aria-pressed'), POLL).toBe('true');

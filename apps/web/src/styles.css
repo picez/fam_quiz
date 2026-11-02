@@ -12540,7 +12540,7 @@ button.wall-tile:disabled {
 
 /* Телефон до 400 px (360 / 375): шапка в один рядок і без прокручування вбік за будь-яких сусідів («⚔ Дуель», крамниця,
    «Таблиця», меню автора, «Наживо» чи «↶ Бали» пульта). Від «😀 Реакція» лишається сам 😀 (aria-label повний) з дотиковою зоною 44 px,
-   проміжки вужчі, а коли й так тісно — текстові пігулки («⚔ Дуель», «Таблиця») стискаються трикрапкою; значки й рахунок не стискаються. */
+   проміжки вужчі, а коли й так тісно — «⚔ Дуель» стискається трикрапкою; значки, «Таблиця» (17a) і рахунок не стискаються. */
 @media (max-width: 400px) {
   .bar .reaction-button-label {
     display: none;
@@ -12561,7 +12561,7 @@ button.wall-tile:disabled {
     gap: 0.375rem;
   }
 
-  .bar:has(.reaction-button) > :is(.duel-button, .table-button:not(.reaction-button, .shop-button, .author-menu-btn)) {
+  .bar:has(.reaction-button) > .duel-button {
     flex-shrink: 1;
     min-width: 0;
     overflow: hidden;
@@ -13569,6 +13569,17 @@ button.wall-tile:disabled {
   padding-inline: 0.6rem;
 }
 
+/* Дотикова зона ❤️ — щонайменше 44 px, як у «😀» (13a): невидимий ::after ширший за пігулку, шапку не зсуває. */
+.bar .like-button {
+  position: relative;
+}
+
+.bar .like-button::after {
+  content: '';
+  position: absolute;
+  inset: -0.375rem -0.25rem;
+}
+
 .table-button.like-button[aria-pressed='true'] {
   border-color: var(--accent, currentColor);
 }
@@ -13623,21 +13634,16 @@ button.wall-tile:disabled {
   white-space: nowrap;
 }
 
-/* Вужча шапка: ❤️ не стискається трикрапкою, як текстові пігулки (правило пізніше й не слабше за правило «Таблиці»).
-   З ❤️ на 375 px (нік, крамниця, «Таблиця», ❤️, 😀, бали) місце віддає нік (трикрапкою), а «Таблиця» не стискається зовсім:
-   навіть частка пікселя від спільного стискання вже малює «Табли…». Тісніше — поступається «⚔ Дуель» (правило 13a). */
+/* Вужча шапка (до 400 px) у будь-якій фазі, з ❤️ чи без (нік, «⚔ Дуель», крамниця, «⋯», «Таблиця», ❤️, 😀, бали):
+   місце спершу віддає нік (трикрапкою), а «Таблиця» не стискається зовсім — навіть частка пікселя від спільного стискання
+   вже малює «Табли…». Тісніше — поступається «⚔ Дуель», єдина текстова пігулка з трикрапкою (правило 13a). */
 @media (max-width: 400px) {
-  .bar:has(.reaction-button) > .table-button.like-button {
-    flex-shrink: 0;
-    min-width: auto;
-    overflow: visible;
-  }
-
-  .bar:has(.like-button) > span:first-child {
+  .bar > span:first-child {
     flex-shrink: 1000;
+    min-width: 0;
   }
 
-  .bar:has(.like-button) > .table-button:not(.like-button, .reaction-button, .shop-button, .author-menu-btn) {
+  .bar > .table-button:not(.reaction-button, .shop-button, .author-menu-btn, .like-button) {
     flex-shrink: 0;
   }
 }

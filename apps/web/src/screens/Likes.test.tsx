@@ -63,15 +63,38 @@ describe('LikePanel', () => {
 });
 
 describe('the phone header with a heart', () => {
-  // 375 px: нік, крамниця, «Таблиця», ❤️, 😀 і бали. Стискається спершу нік (трикрапкою), а «Таблиця» лишається цілою.
-  it('on a narrow phone the nickname gives way before «Таблиця»', () => {
-    const narrow = [...css.matchAll(/@media \(max-width: 400px\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]!).join('\n');
-    const body = narrow.match(/\.bar:has\(\.like-button\) > span:first-child \{([^}]*)\}/)?.[1];
+  const narrow = [...css.matchAll(/@media \(max-width: 400px\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]!).join('\n');
+  /** Тіло правила, чий рядок — рівно цей селектор (з відступом чи без). */
+  const rule = (source: string, selector: string) => {
+    const head = source.split('\n').findIndex((line) => line.trim() === `${selector} {`);
+    if (head < 0) return undefined;
+    const rest = source.split('\n').slice(head + 1).join('\n');
+    return rest.slice(0, rest.indexOf('}'));
+  };
+
+  it('the heart has a touch area of at least 44 px, like «😀»', () => {
+    expect(rule(css, '.bar .like-button')).toMatch(/position:\s*relative;/);
+    const after = rule(css, '.bar .like-button::after');
+    expect(after).toMatch(/content:\s*'';/);
+    expect(after).toMatch(/position:\s*absolute;/);
+    expect(after).toMatch(/inset:\s*-0\.375rem -0\.25rem;/);
+  });
+
+  // 360 / 375 px, будь-яка фаза (і finished без ❤️ у шапці): спершу стискається нік (трикрапкою), «Таблиця» лишається цілою.
+  it('on a narrow phone the nickname gives way before «Таблиця» in every phase, not only with a heart', () => {
+    const body = rule(narrow, '.bar > span:first-child');
     expect(body).toBeDefined();
-    const shrink = Number(body!.match(/flex-shrink:\s*(\d+)/)?.[1]);
-    expect(shrink).toBeGreaterThanOrEqual(100);
-    // «Таблиця» (звичайна .table-button) не стискається: навіть частка пікселя малює «Табли…».
-    const table = narrow.match(/\.bar:has\(\.like-button\) > \.table-button:not\(\.like-button, \.reaction-button, \.shop-button, \.author-menu-btn\) \{([^}]*)\}/)?.[1];
-    expect(table).toMatch(/flex-shrink:\s*0;/);
+    expect(Number(body!.match(/flex-shrink:\s*(\d+)/)?.[1])).toBeGreaterThanOrEqual(100);
+    expect(body).toMatch(/min-width:\s*0;/);
+    expect(rule(narrow, '.bar > .table-button:not(.reaction-button, .shop-button, .author-menu-btn, .like-button)')).toMatch(/flex-shrink:\s*0;/);
+    expect(narrow).not.toContain(':has(.like-button)');
+  });
+
+  it('«⚔ Дуель» stays the only text pill that ellipsizes; «Таблиця» is never squeezed', () => {
+    const duel = rule(narrow, '.bar:has(.reaction-button) > .duel-button');
+    expect(duel).toMatch(/flex-shrink:\s*1;/);
+    expect(duel).toMatch(/text-overflow:\s*ellipsis;/);
+    const squeezed = [...narrow.matchAll(/([^{}\n][^{}]*)\{([^}]*)\}/g)].filter((m) => /flex-shrink:\s*[1-9]/.test(m[2]!) || /text-overflow/.test(m[2]!)).map((m) => m[1]!.trim());
+    expect(squeezed.filter((selector) => selector.includes('table-button'))).toEqual([]);
   });
 });
