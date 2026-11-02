@@ -43,6 +43,22 @@ describe('EditQuiz', () => {
     expect(createQuiz).not.toHaveBeenCalled();
   });
 
+  it('gives a repeated question id a fresh one when the quiz is opened (17a)', async () => {
+    const first = demoQuiz.rounds[0]!;
+    if (first.type === 'board') throw new Error('demo quiz starts with a board');
+    const [a, b] = first.questions;
+    const repeated = { ...demoQuiz, rounds: [{ ...first, questions: [a!, { ...b!, id: a!.id }] }] };
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: repeated });
+    vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });
+    open('/quizzes/q1');
+    await screen.findByLabelText('Назва вікторини');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    const sent = vi.mocked(updateQuiz).mock.calls[0]![1].rounds[0] as { questions: { id: string }[] };
+    expect(sent.questions[0]!.id).toBe(a!.id);
+    expect(sent.questions[1]!.id).not.toBe(a!.id);
+  });
+
   it('creates a new quiz', async () => {
     vi.mocked(createQuiz).mockResolvedValue({ ok: true, id: 'q9' });
     open('/quizzes/new');

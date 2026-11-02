@@ -52,6 +52,15 @@ describe('quizzes', () => {
     expect(response.json()).toEqual({ id, ...makeQuiz([single, text]), title: 'Географія' });
   });
 
+  it('keeps question ids when the quiz is edited (17a)', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const id = await createQuiz(cookie);
+    const edited = makeQuiz([{ ...single, text: 'Інший текст' }, { ...bool, id: text.id, text: 'Тепер так/ні' }]);
+    expect((await call('PUT', `/api/quizzes/${id}`, cookie, edited)).statusCode).toBe(200);
+    const saved = (await call('GET', `/api/quizzes/${id}`, cookie)).json() as { rounds: { questions: { id: string; type: string }[] }[] };
+    expect(saved.rounds[0]!.questions.map((q) => [q.id, q.type])).toEqual([[single.id, 'single'], [text.id, 'boolean']]);
+  });
+
   it('lists the owner’s quizzes with question counts, newest first', async () => {
     const { cookie } = await signUp(ctx.app, 'Олена');
     const first = await createQuiz(cookie, 'Перша');

@@ -53,6 +53,8 @@ import {
   revealShare,
   sliderShare,
   allSpares,
+  questionIdsOf,
+  withUniqueQuestionIds,
   boardSpareSource,
   categorySparesOf,
   quizSchema,
@@ -1937,5 +1939,56 @@ describe('team settings (10j)', () => {
     expect(pickAnswererSchema.safeParse({ memberId: '', scope: 'question' }).success).toBe(false);
     expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(64), scope: 'question' }).success).toBe(true);
     expect(pickAnswererSchema.safeParse({ memberId: 'x'.repeat(65), scope: 'question' }).success).toBe(false);
+  });
+});
+
+describe('question ids (17a)', () => {
+  const single = (id: string) => ({
+    id, type: 'single', text: 'Т', imageUrl: null, video: null, timeLimit: 20, points: 1000,
+    options: [{ id: 'a', text: 'a' }, { id: 'b', text: 'b' }], correctId: 'a',
+  });
+  const quizOf = (rounds: object[], spares?: object[]) =>
+    ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...(spares ? { spares } : {}) }) as unknown as Quiz;
+  const classic = (id: string, questions: object[]) => ({ id, type: 'classic', title: '', speedBonus: true, shuffleOptions: false, rules: DEFAULT_RULES, questions });
+  const board = (id: string, cells: object[], spares?: object[]) => ({
+    id, type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+    categories: [{ id: 'cat', title: 'К', cells: cells.map((question) => ({ question })), ...(spares ? { spares } : {}) }],
+  });
+  const survival = (id: string, questions: object[], trials: object[]) => ({
+    id, type: 'survival', title: '', shuffleOptions: false, rules: DEFAULT_RULES, trial: 'question', questions, trials,
+  });
+
+  it('questionIdsOf lists questions, cells and all spares, without survival trials', () => {
+    const quiz = quizOf(
+      [classic('r1', [single('q1'), single('q2')]), board('r2', [single('c1')], [single('cs1')]), survival('r3', [single('p1')], [single('t1')])],
+      [single('s1')],
+    );
+    expect(questionIdsOf(quiz)).toEqual(new Set(['q1', 'q2', 'c1', 'p1', 's1', 'cs1']));
+  });
+
+  it('withUniqueQuestionIds renames the second and later repeats only', () => {
+    let n = 0;
+    const quiz = quizOf(
+      [classic('r1', [single('q1')]), classic('r2', [single('q1')]), board('r3', [single('q1')], [single('q1')]), survival('r4', [single('x')], [single('q1')])],
+      [single('q1')],
+    );
+    const fixed = withUniqueQuestionIds(quiz, () => `fresh-${++n}`);
+    const ids = [...(fixed.rounds[0] as { questions: { id: string }[] }).questions, ...(fixed.rounds[1] as { questions: { id: string }[] }).questions].map((q) => q.id);
+    expect(ids).toEqual(['q1', 'fresh-1']);
+    const all = [
+      ...fixed.rounds.flatMap(roundQuestions),
+      ...fixed.rounds.flatMap((r) => (r.type === 'survival' ? r.trials : [])),
+      ...allSpares(fixed),
+    ].map((q) => q.id);
+    expect(new Set(all).size).toBe(all.length);
+    expect(n).toBe(5);
+    const renamed = (fixed.rounds[1] as { questions: { id: string; options: unknown; correctId: string }[] }).questions[0]!;
+    expect(renamed.options).toEqual([{ id: 'a', text: 'a' }, { id: 'b', text: 'b' }]);
+    expect(renamed.correctId).toBe('a');
+  });
+
+  it('withUniqueQuestionIds returns the same quiz when nothing repeats', () => {
+    const quiz = quizOf([classic('r1', [single('q1'), single('q2')])], [single('s1')]);
+    expect(withUniqueQuestionIds(quiz, () => 'never')).toBe(quiz);
   });
 });
