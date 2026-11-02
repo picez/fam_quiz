@@ -121,6 +121,7 @@ import {
   openClue,
   openAppeal,
   grantPerks,
+  revokePerks,
   usePerk,
   type GameState,
   type PacedAction,
@@ -957,7 +958,8 @@ export class RoomManager {
     }
     room.connections.delete(personId);
     // Прив'язка зі збереження лишається: місце акаунта — і далі його.
-    if (continued.bound.delete(personId)) room.playerUsers.delete(personId);
+    const unbound = continued.bound.delete(personId);
+    if (unbound) room.playerUsers.delete(personId);
     this.emit(room, { type: 'kicked', playerId: personId, reason: 'released' });
     // Антигугл (12e): вихід, що тривав у того, хто звільнив місце, не дістається наступному — ні в пам'яті менеджера, ні в записі запитання.
     room.hidden.delete(personId);
@@ -973,6 +975,8 @@ export class RoomManager {
       plays[base.questionIndex] = { ...play, away: rest };
       base = { ...base, plays };
     }
+    // Бонуси рівня (15a) належали акаунту, що відв'язався: місце до кінця гри без них — наступний (гість чи інший акаунт) їх не успадкує.
+    if (unbound) base = revokePerks(base, personId);
     const offline = setConnected(base, personId, false, this.now());
     this.commit(room, offline.ok ? offline.state : base);
     return { ok: true };

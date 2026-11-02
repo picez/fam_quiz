@@ -115,6 +115,43 @@ describe('levels in the room (15a)', () => {
     expect(next.state.perks?.[late]).toEqual({ kinds: ['time', 'hint'], timeMs: 5000, used: {} });
   });
 
+  it('a released continuation slot keeps no perks: the next occupant (a guest) has no ward and no perks', () => {
+    const w = world(levelQuiz({ leaderboard: 'each' }));
+    const olena = w.enter('Олена', 'u2');
+    const taras = w.enter('Тарас', null);
+    expect(w.manager.host(w.room, { type: 'start' })).toEqual({ ok: true });
+    w.toQuestion();
+    w.manager.answer(w.room, olena, { type: 'single', optionId: 'b' });
+    w.manager.answer(w.room, taras, { type: 'single', optionId: 'b' });
+    while (w.room.state.phase !== 'leaderboard') expect(w.manager.host(w.room, { type: 'next' })).toEqual({ ok: true });
+    w.scheduler.advance(60_000);
+    expect(w.manager.host(w.room, { type: 'save' })).toEqual({ ok: true });
+    const last = w.events.at(-1)?.event;
+    if (last?.type !== 'closed' || last.saved === undefined) throw new Error('not saved');
+    const result = w.manager.continueSaved(w.room.id, 'host-user', viaJson(last.saved));
+    if (!result.ok) throw new Error(result.error);
+    const next = result.room;
+    w.manager.connect(next, HOST);
+    // Гостьове місце Тараса займає акаунт з рівнем 15 — бонуси й оберіг.
+    expect(w.manager.claim(next.code, taras, 'u3').ok).toBe(true);
+    w.manager.setLevels(next, new Map([['u3', lv(15)]]));
+    expect(next.state.perks?.[taras]?.kinds).toEqual(['time', 'hint', 'ward']);
+    expect(w.manager.view(next, HOST)?.wards).toEqual({ [taras]: 'ready' });
+    // Ведучий звільняє місце, його займає гість.
+    expect(w.manager.host(next, { type: 'release', playerId: taras })).toEqual({ ok: true });
+    expect(w.manager.claim(next.code, taras, null).ok).toBe(true);
+    w.manager.connect(next, { role: 'player', playerId: taras });
+    expect(next.state.perks?.[taras]).toEqual({ kinds: [], timeMs: 0, used: {} });
+    expect(w.manager.view(next, HOST)).not.toHaveProperty('wards');
+    const phone = w.manager.view(next, { role: 'player', playerId: taras });
+    expect(phone).not.toHaveProperty('wards');
+    if (phone === null || !('me' in phone)) throw new Error('no phone view');
+    expect(phone.me?.perks).toBeNull();
+    // Рівні, що прийдуть пізніше, місце знову не обдаровують.
+    w.manager.setLevels(next, new Map([['u3', lv(16)]]));
+    expect(next.state.perks?.[taras]).toEqual({ kinds: [], timeMs: 0, used: {} });
+  });
+
   it('levelBonuses: false — no perks at the start nor after setLevels', () => {
     const w = world(levelQuiz({ levelBonuses: false }));
     w.enter('Оля', 'u1');

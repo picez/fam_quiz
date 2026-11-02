@@ -88,6 +88,15 @@ export function grantPerks(state: GameState, grants: Record<string, PerkGrant>):
   return next;
 }
 
+/**
+ * Місце звільнено (13b): до кінця гри воно без бонусів — порожній запис, тож grantPerks його вже не обдарує.
+ * Бонуси не діють (perksOn false) — стан без змін: тоді в стані немає жодного perks.
+ */
+export function revokePerks(state: GameState, playerId: string): GameState {
+  if (!perksOn(state) || !state.players.some((p) => p.id === playerId)) return state;
+  return withPerk(state, playerId, { kinds: [], timeMs: 0, used: {} });
+}
+
 /** Поточне запитання, якщо етап question; інакше undefined. */
 function openPlay(state: GameState): Play | undefined {
   return state.phase === 'question' ? state.plays[state.questionIndex] : undefined;

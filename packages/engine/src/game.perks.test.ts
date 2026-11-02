@@ -4,7 +4,7 @@ import { adjustScore } from './adjust';
 import { buffBlock, takeBuff } from './buffs';
 import { buyDebuff, setDebuff } from './debuffs';
 import { lock, next, pause, start, submitAnswer, type GameState } from './game';
-import { grantPerks, perkBlock, perkFits, perksApply, perksOn, perksView, usePerk, wardReady } from './perks';
+import { grantPerks, perkBlock, perkFits, perksApply, perksOn, perksView, revokePerks, usePerk, wardReady, wardsView } from './perks';
 import { blitzRound, boardRound, chain, classicRound, finalRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { teamGame } from './testing/teams';
@@ -84,6 +84,20 @@ describe('granting level perks', () => {
     expect(perkFits(board('blitz'), 'hint')).toBe(false);
     // та сама вікторина — та сама відповідь (кеш за об'єктом)
     expect(perkFits(offRounds, 'hint')).toBe(false);
+  });
+
+  it('revokePerks leaves an inert record that no later grant refills; off — no record at all', () => {
+    const s = grantPerks(must(start(lobbyWith(perkQuiz(), 'Оля', 'Петро'))), { p1: ALL });
+    const revoked = revokePerks(s, 'p1');
+    expect(revoked.perks?.p1).toEqual({ kinds: [], timeMs: 0, used: {} });
+    expect(wardReady(revoked, 'p1')).toBe(false);
+    expect(wardsView(revoked)).toBeUndefined();
+    expect(perksView(revoked, 'p1')).toBeNull();
+    expect(grantPerks(revoked, { p1: ALL }).perks?.p1).toEqual({ kinds: [], timeMs: 0, used: {} });
+    // ще без видачі — теж порожній запис
+    expect(revokePerks(s, 'p2').perks?.p2).toEqual({ kinds: [], timeMs: 0, used: {} });
+    const off = must(start(lobbyWith(perkQuiz(undefined, { levelBonuses: false }), 'Оля')));
+    expect(revokePerks(off, 'p1')).toBe(off);
   });
 
   it('perksApply: on, not teams, and at least one perk fits', () => {
