@@ -239,8 +239,6 @@ export function attachSockets(
       scheduleDrafts(room);
       return;
     }
-    // Лайк (17a) — справа attachLikes; телефони дізнаються з наступного changed.
-    if (event.type === 'like') return;
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
@@ -275,6 +273,14 @@ export function attachSockets(
         socket.emit('restarting');
         socket.disconnect(true);
       }
+      return;
+    }
+    // Далі — лише закриття кімнати й вилучення гравця: будь-яка інша подія не має права розірвати кімнату.
+    if (event.type !== 'closed' && event.type !== 'kicked') {
+      // Лайк (17a) — справа attachLikes; телефони дізнаються з наступного changed.
+      if (event.type === 'like') return;
+      const never: never = event;
+      void never;
       return;
     }
     if (event.type === 'closed') dropDrafts(room);

@@ -819,6 +819,7 @@ export class RoomManager {
         change = { ...base, kind: 'question', questionId };
       }
     }
+    // Вікно частоти рахує й дотик без зміни (той самий стан нижче): повтор теж займає місце у вікні.
     const now = this.now();
     const rate = room.likeRate.get(by);
     if (rate === undefined || now - rate.from >= LIKE_RATE.windowMs) room.likeRate.set(by, { from: now, count: 1 });

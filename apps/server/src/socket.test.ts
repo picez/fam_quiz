@@ -1007,6 +1007,37 @@ describe('award carousel over sockets (12d)', () => {
   });
 });
 
+describe('likes over sockets (17a)', () => {
+  it('player:like hearts the revealed question; the like event disconnects nobody', async () => {
+    const created = await createGame();
+    const account = await signUp(ctx.app, 'Олена');
+    const joined = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/games/by-code/${created.code}/join`,
+      payload: { nickname: 'Олена' },
+      headers: { cookie: account.cookie },
+    });
+    const olenaJoin = joined.json() as { token: string; playerId: string };
+    const tarasJoin = await join(created.code, 'Тарас');
+    const host = open({ code: created.code, role: 'host', token: created.hostToken });
+    const stage = open({ code: created.code, role: 'stage', token: created.stageToken });
+    const olena = open({ code: created.code, role: 'player', token: olenaJoin.token });
+    const taras = open({ code: created.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+    const room = ctx.manager.get(created.code)!;
+    await send(host, 'host:start');
+    for (let guard = 0; guard < 20 && room.state.phase !== 'reveal'; guard++) await send(host, room.state.phase === 'question' ? 'host:lock' : 'host:next');
+    await until(olena, (view) => view.role === 'player' && view.likes?.question === false);
+    expect(await send(taras, 'player:like', { target: 'question', liked: true })).toEqual({ ok: false, error: 'like_guest' });
+    expect(await send(olena, 'player:like', { target: 'question', liked: 'yes' })).toMatchObject({ ok: false });
+    expect(await send(olena, 'player:like', { target: 'question', liked: true })).toEqual({ ok: true });
+    await until(olena, (view) => view.role === 'player' && view.likes?.question === true);
+    await pause(200);
+    for (const tracked of [host, stage, olena, taras]) expect(tracked.socket.connected).toBe(true);
+    expect(room.likes.mine.get(room.playerUsers.get(olenaJoin.playerId)!)).toEqual(new Set(['q:q1']));
+  });
+});
+
 describe('clues over sockets', () => {
   const filler = (prefix: string) => [1, 2, 3].map((n) => ({ ...withId(single, `${prefix}${n}`), points: 100 * n }));
   const voiceBoard = () =>

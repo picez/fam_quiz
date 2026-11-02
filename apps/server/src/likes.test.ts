@@ -53,8 +53,12 @@ async function world() {
     if (into.state.phase === 'lobby') expect(using.host(into, { type: 'start' })).toEqual({ ok: true });
     while (into.state.phase !== 'reveal') expect(using.host(into, { type: into.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
   };
+  const toFinished = () => {
+    if (room.state.phase === 'lobby') expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    while (room.state.phase !== 'finished') expect(manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
+  };
   const rows = () => db.select().from(userLike);
-  return { db, quiz, quizId, scheduler, manager, likes, errors, room, enter, toReveal, rows };
+  return { db, quiz, quizId, scheduler, manager, likes, errors, room, enter, toReveal, toFinished, rows };
 }
 
 describe('likes of accounts in the room', () => {
@@ -149,6 +153,46 @@ describe('likes of accounts in the room', () => {
     expect(next.like(room, olya, { target: 'question', liked: false })).toEqual({ ok: true });
     await likes.idle();
     expect(await w.rows()).toEqual([]);
+  });
+
+  it('a failed write for one key is re-read even when a later write for another key of the account succeeds', async () => {
+    const w = await world();
+    const olya = w.enter('Оля', 'o');
+    await w.likes.idle();
+    w.toFinished();
+    vi.mocked(store.saveLike).mockRejectedValueOnce(new Error('db down'));
+    expect(w.manager.like(w.room, olya, { target: 'quiz', liked: true })).toEqual({ ok: true });
+    expect(w.manager.like(w.room, olya, { target: 'host', liked: true })).toEqual({ ok: true });
+    await w.likes.idle();
+    expect(w.errors).toHaveLength(1);
+    expect(await w.rows()).toMatchObject([{ kind: 'host' }]);
+    expect(likesOf(w.manager.view(w.room, { role: 'player', playerId: olya }))).toMatchObject({ quiz: false, host: true });
+  });
+
+  it('a tap during the re-read after a failure is not overwritten by that read', async () => {
+    const w = await world();
+    const olya = w.enter('Оля', 'o');
+    await w.likes.idle();
+    w.toFinished();
+    vi.mocked(store.saveLike).mockRejectedValueOnce(new Error('db down'));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const original = vi.mocked(store.roomLikes).getMockImplementation()!;
+    vi.mocked(store.roomLikes).mockImplementationOnce(async (...args) => {
+      const load = await original(...args);
+      await gate;
+      return load;
+    });
+    const reads = vi.mocked(store.roomLikes).mock.calls.length;
+    expect(w.manager.like(w.room, olya, { target: 'quiz', liked: true })).toEqual({ ok: true });
+    await vi.waitFor(() => expect(vi.mocked(store.roomLikes).mock.calls.length).toBe(reads + 1));
+    expect(w.manager.like(w.room, olya, { target: 'host', liked: true })).toEqual({ ok: true });
+    release();
+    await w.likes.idle();
+    expect(w.errors).toHaveLength(1);
+    expect(await w.rows()).toMatchObject([{ kind: 'host' }]);
+    expect(likesOf(w.manager.view(w.room, { role: 'player', playerId: olya }))).toMatchObject({ quiz: false, host: true });
+    expect(w.room.likes.mine.get('o')).toEqual(new Set(['host']));
   });
 
   it('a closed room does not get setLikes', async () => {
