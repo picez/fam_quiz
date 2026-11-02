@@ -4,14 +4,16 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
-import { buildApp } from '../src/app';
-import { calendarEvent, feedEvent, game as gameRow, userLike, xpEntry } from '../src/db/schema';
+import webpush from 'web-push';
+import { buildApp, type AppOptions } from '../src/app';
+import type { PushOptions } from '../src/push';
+import { calendarEvent, feedEvent, game as gameRow, pushSubscription, userLike, xpEntry } from '../src/db/schema';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
@@ -194,7 +196,7 @@ async function restart(between?: () => Promise<void>) {
 }
 
 /** Нова версія сервера на тій самій базі й порті. */
-async function relisten() {
+async function relisten(extra: Partial<AppOptions> = {}) {
   ctx = await buildApp({
     db,
     auth: { ...TEST_AUTH, baseURL: base },
@@ -204,6 +206,7 @@ async function relisten() {
     pacing: true,
     persist: { instanceId: `e2e-${Date.now()}` },
     stickerFixtures: true,
+    ...extra,
   });
   await ctx.app.listen({ port, host: '127.0.0.1' });
 }
@@ -240,7 +243,12 @@ afterAll(async () => {
   await ctx?.app.close();
 });
 
-async function open(name: string, width: number, height: number, options: { reducedMotion?: 'reduce'; timezoneId?: string } = {}): Promise<Page> {
+async function open(
+  name: string,
+  width: number,
+  height: number,
+  options: { reducedMotion?: 'reduce'; timezoneId?: string; permissions?: string[]; userAgent?: string } = {},
+): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
   // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
@@ -17201,10 +17209,7 @@ async function prizes14a() {
   };
   /** Телефон без Web Share: «Диплом» гарантовано завантажує файл (canShare живе на прототипі, не на самому navigator). */
   const noShare = (page: Page) =>
-    page.addInitScript(() => {
-      delete (Navigator.prototype as unknown as { canShare?: unknown }).canShare;
-      delete (navigator as unknown as { canShare?: unknown }).canShare;
-    });
+    page.addInitScript({ content: 'delete window.PushManager; delete window.Notification;' });
 
   // ── 1. Склад: ведучий на телефонному вікні створює два призи. ──
   const host = await open('host14a', 1280, 800);
@@ -19104,6 +19109,289 @@ async function calendar19a() {
 it('part 19a: calendar — the menu keeps seven items, the host plans a game for tomorrow 19:00 Kyiv time, friends see it in the calendar tab and the feed while a one-way follower does not, Оля asks and is approved, Петро is rejected, an edit lights the badge, the host opens the game from the event and Оля joins from «Приєднатися», the event ends as played, and a cancelled event shows as cancelled to its participant', async () => {
   try {
     await calendar19a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+function pushQuestions20a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'p1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Південний Буг', 'Десна'), correctId: 'a' },
+    { ...common, id: 'p2', type: 'boolean' as const, text: 'Говерла — найвища гора України?', correct: true },
+    { ...common, id: 'p3', type: 'boolean' as const, text: 'Львів стоїть на березі моря?', correct: false },
+  ];
+}
+
+/** Підміна справжнього push-сервісу в браузері: підписка живе в localStorage, ключ — з аргументу subscribe. */
+const fakePushSubscription = (name: string) => `(() => {
+  const endpoint = 'https://fcm.googleapis.com/fcm/send/e2e-${name}';
+  const make = (key) => ({
+    endpoint,
+    options: { applicationServerKey: new Uint8Array(key).buffer },
+    toJSON: () => ({ endpoint, expirationTime: null, keys: { p256dh: 'BPe2e', auth: 'aue2e' } }),
+    unsubscribe: async () => {
+      localStorage.removeItem('e2e-sub');
+      localStorage['e2e-unsub'] = '1';
+      return true;
+    },
+  });
+  const stored = () => {
+    const raw = localStorage.getItem('e2e-sub');
+    return raw === null ? null : make(JSON.parse(raw));
+  };
+  PushManager.prototype.subscribe = async function (options) {
+    const k = options.applicationServerKey;
+    const bytes = ArrayBuffer.isView(k) ? new Uint8Array(k.buffer, k.byteOffset, k.byteLength) : new Uint8Array(k);
+    localStorage.setItem('e2e-sub', JSON.stringify(Array.from(bytes)));
+    return stored();
+  };
+  PushManager.prototype.getSubscription = async function () {
+    return stored();
+  };
+})()`;
+
+/** Телефон (20a): без прокрутки вбік, кнопки не нижчі за 44 px, блок «Сповіщення» не виходить за екран. */
+const PHONE_FITS_20A = `(() => {
+  const bad = [];
+  for (const el of document.querySelectorAll('.push-settings button')) {
+    if (el.getBoundingClientRect().height < 43.5) bad.push('a button is under 44 px');
+  }
+  for (const el of document.querySelectorAll('.push-settings')) {
+    const r = el.getBoundingClientRect();
+    if (r.right > innerWidth + 0.5 || r.left < -0.5 || el.scrollWidth > el.clientWidth + 1) bad.push('the block is clipped');
+  }
+  if (document.documentElement.scrollWidth > innerWidth) bad.push('horizontal scroll');
+  return bad;
+})()`;
+
+/** Web Push (20a): заглушка замість справжньої доставки, фейкові підписки в браузері, сервіс-воркер показує сповіщення. */
+async function push20a() {
+  const KYIV = 'Europe/Kyiv';
+  const EVENT = 'Вечір над Дніпром';
+  const SPARE = 'Запасний вечір';
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
+  const endpointOf = (name: string) => `https://fcm.googleapis.com/fcm/send/e2e-${name}`;
+  const { publicKey } = webpush.generateVAPIDKeys();
+  const outbox: { endpoint: string; payload: PushPayload; options: PushOptions }[] = [];
+  const gone = new Set<string>();
+  const send = async (target: { endpoint: string }, payload: string, options: PushOptions) => {
+    outbox.push({ endpoint: target.endpoint, payload: JSON.parse(payload) as PushPayload, options });
+    return { status: gone.has(target.endpoint) ? 410 : 201 };
+  };
+  const rows = () => db.select().from(pushSubscription);
+  const sentTo = (kind: PushPayload['kind'], endpoint?: string) => outbox.filter((o) => o.payload.kind === kind && (endpoint === undefined || o.endpoint === endpoint));
+
+  try {
+    const olya = await open('olya20a', 375, 812, { timezoneId: KYIV, permissions: ['notifications'] });
+    await olya.context().addInitScript({ content: fakePushSubscription('olya20a') });
+    await register(olya, 'menu', 'Оля Сповіщена', 'olya20a@example.com');
+    const petro = await open('petro20a', 375, 812, { timezoneId: KYIV, permissions: ['notifications'] });
+    await petro.context().addInitScript({ content: fakePushSubscription('petro20a') });
+    await register(petro, 'menu', 'Петро Сповіщений', 'petro20a@example.com');
+    const ira = await open('ira20a', 375, 812, { timezoneId: KYIV, userAgent: IPHONE });
+    await ira.context().addInitScript({ content: "delete window.PushManager; delete window.Notification;" });
+    await register(ira, 'menu', 'Іра Айфонна', 'ira20a@example.com');
+    const host = await open('host20a', 1280, 800, { timezoneId: KYIV });
+    await register(host, 'host', 'Марко Ведучий', 'host20a@example.com');
+    const ids = new Map<Page, string>();
+    for (const page of [host, olya, petro]) ids.set(page, await myId(page));
+    for (const [page, nickname] of [[host, 'Марко Ведучий'], [olya, 'Оля'], [petro, 'Петро'], [ira, 'Іра']] as const) {
+      const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
+      expect(saved.ok(), await saved.text()).toBe(true);
+    }
+    const follow = async (target: Page) => {
+      await host.goto(`${base}/profile/${ids.get(target)!}`);
+      await host.getByRole('button', { name: 'Додати в друзі', ...exact }).click();
+      await host.getByText('У друзях', exact).waitFor();
+    };
+    await follow(olya);
+    await follow(petro);
+    const created = await host.request.post(`${base}/api/quizzes`, {
+      data: { ...makeRoundsQuiz([classicRound('r1', pushQuestions20a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]), title: 'Пуші 20a' },
+    });
+    expect(created.ok(), await created.text()).toBe(true);
+    const quizId = ((await created.json()) as { id: string }).id;
+    const notificationsHeading = (page: Page) => page.getByRole('heading', { name: 'Сповіщення', ...exact });
+
+    // ── 1. Без ключів: ключа немає, блок «Сповіщення» прихований. ──
+    expect(await (await olya.request.get(`${base}/api/push/key`)).json()).toEqual({ publicKey: null });
+    const keyAnswered = olya.waitForResponse((r) => r.url().endsWith('/api/push/key'));
+    await olya.goto(`${base}/profile`);
+    await keyAnswered;
+    await olya.getByRole('button', { name: 'Вийти', ...exact }).waitFor();
+    await olya.waitForTimeout(500);
+    expect(await notificationsHeading(olya).count(), 'the block without keys').toBe(0);
+
+    // ── 2. Пуші ввімкнено: новий сервер із ключем і заглушкою. ──
+    restarting = true;
+    await ctx.shutdown();
+    await relisten({ push: { publicKey, send } });
+    restarting = false;
+    expect(await (await olya.request.get(`${base}/api/push/key`)).json()).toEqual({ publicKey });
+
+    // ── 3. Меню: сім пунктів. ──
+    await olya.goto(base);
+    await olya.locator(MENU).getByRole('link', { name: /^Стрічка/ }).waitFor();
+    expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+    for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+
+    // ── 4. Сервіс-воркер: без fetch, зареєстрований на /. ──
+    const sw = await fetch(`${base}/sw.js`);
+    expect(sw.status).toBe(200);
+    expect(sw.headers.get('content-type')).toContain('javascript');
+    const swText = await sw.text();
+    expect(swText).toContain('notificationclick');
+    expect(swText).not.toContain('addEventListener("fetch"');
+    expect(swText).not.toContain("addEventListener('fetch'");
+    await expect
+      .poll(() => olya.evaluate(`navigator.serviceWorker.getRegistration().then((r) => r?.active?.scriptURL ?? null)`), { timeout: 10_000 })
+      .toBe(`${base}/sw.js`);
+
+    // ── 5. Оля й Петро вмикають, Марко — через API. ──
+    const enable = async (page: Page, name: string, shotName?: string) => {
+      await page.goto(`${base}/profile`);
+      await click(page, 'Увімкнути сповіщення');
+      await page.getByText('Сповіщення увімкнено на цьому пристрої.', exact).waitFor();
+      await expect.poll(async () => (await rows()).find((r) => r.endpoint === endpointOf(name))?.userId, POLL).toBe(ids.get(page));
+      if (shotName !== undefined) await shot(page, shotName);
+    };
+    await enable(olya, 'olya20a', 'p20a-profile-on');
+    expect(await olya.evaluate(PHONE_FITS_20A), 'p20a-profile-on').toEqual([]);
+    await enable(petro, 'petro20a');
+    const hostSaved = await host.request.post(`${base}/api/me/push`, {
+      data: { endpoint: endpointOf('host20a'), expirationTime: null, keys: { p256dh: 'BPe2e', auth: 'aue2e' } },
+    });
+    expect(hostSaved.status(), await hostSaved.text()).toBeLessThan(300);
+    await expect.poll(async () => (await rows()).find((r) => r.endpoint === endpointOf('host20a'))?.userId, POLL).toBe(ids.get(host));
+
+    // ── 6. iPhone: лише підказка, кнопки немає. ──
+    await ira.goto(`${base}/profile`);
+    await notificationsHeading(ira).waitFor();
+    expect(await ira.locator('.push-settings').innerText()).toContain('На початковий екран');
+    expect(await ira.getByRole('button', { name: 'Увімкнути сповіщення', ...exact }).count(), 'iPhone has a button').toBe(0);
+    expect(await ira.evaluate(PHONE_FITS_20A), 'p20a-ios-hint').toEqual([]);
+    await shot(ira, 'p20a-ios-hint');
+    await ira.goto(`${base}/feed/calendar`);
+    await ira.locator('.push-settings.is-compact').waitFor();
+    expect(await ira.locator('.push-settings.is-compact').innerText()).toContain('На початковий екран');
+    expect(await ira.getByRole('button', { name: 'Увімкнути сповіщення', ...exact }).count()).toBe(0);
+    expect(await ira.evaluate(PHONE_FITS_20A), 'p20a-ios-calendar').toEqual([]);
+    await shot(ira, 'p20a-ios-calendar');
+
+    // ── 7. Подія: Оля просить, Петро просить; Марко підтверджує Олю, Петро лишається в очікуванні. ──
+    // Спершу далеко від початку, щоб щохвилинний тікер не нагадав раніше за мій виклик; потім «через 50 хв».
+    const later = (ms: number) => new Date(Date.now() + ms).toISOString();
+    const planned = await host.request.post(`${base}/api/calendar`, { data: { title: EVENT, startsAt: later(3 * 3_600_000), quizId } });
+    expect(planned.status(), await planned.text()).toBe(201);
+    const eventId = ((await planned.json()) as { id: string }).id;
+    await olya.goto(`${base}/feed/calendar`);
+    const card = (page: Page, title: string) => page.locator('.calendar-card', { hasText: title });
+    await card(olya, EVENT).waitFor();
+    await click(olya, 'Хочу взяти участь');
+    await card(olya, EVENT).getByText('Запит надіслано', exact).waitFor();
+    const petroAsk = await petro.request.post(`${base}/api/calendar/${eventId}/request`);
+    expect(petroAsk.ok(), await petroAsk.text()).toBe(true);
+    const decide = async (userId: string, decision: 'approved' | 'rejected', event = eventId) => {
+      const done = await host.request.post(`${base}/api/calendar/${event}/requests/${userId}`, { data: { decision } });
+      expect(done.status(), await done.text()).toBe(204);
+    };
+    await decide(ids.get(olya)!, 'approved');
+    const moved = await host.request.put(`${base}/api/calendar/${eventId}`, { data: { title: EVENT, startsAt: later(50 * 60_000), quizId } });
+    expect(moved.ok(), await moved.text()).toBe(true);
+
+    // ── 8. Нагадування за годину: ведучому й підтвердженій Олі, один раз. ──
+    // Тікер міг устигнути першим (раз на хвилину): тоді повертається 0, а пуші все одно рівно по одному.
+    const claimed = await ctx.push!.remindDue(new Date());
+    expect(claimed).toBeLessThanOrEqual(1);
+    await ctx.push!.idle();
+    const reminders = sentTo('reminder');
+    expect(reminders.map((o) => o.endpoint).sort(), 'reminder recipients').toEqual([endpointOf('host20a'), endpointOf('olya20a')]);
+    const startsAt = (reminders[0]!.payload as { startsAt: string }).startsAt;
+    for (const r of reminders) {
+      expect(r.payload).toEqual({ kind: 'reminder', eventId, title: EVENT, startsAt });
+      expect(r.options.ttl).toBe(3600);
+    }
+    const before = outbox.length;
+    expect(await ctx.push!.remindDue(new Date()), 'a second reminder').toBe(0);
+    await ctx.push!.idle();
+    expect(outbox.length).toBe(before);
+
+    // ── 9. «Відкрити гру»: пуш із кодом лише підтвердженій Олі. ──
+    await host.goto(`${base}/feed/calendar`);
+    await card(host, EVENT).waitFor();
+    await click(host, 'Відкрити гру');
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    await expect.poll(() => sentTo('opened').length, POLL).toBe(1);
+    await ctx.push!.idle();
+    const openedPush = sentTo('opened');
+    expect(openedPush.map((o) => o.endpoint), 'opened recipients').toEqual([endpointOf('olya20a')]);
+    expect(openedPush[0]!.payload).toEqual({ kind: 'opened', eventId, title: EVENT, code });
+    expect(openedPush[0]!.options.ttl).toBe(21_600);
+
+    // ── 10. Сервіс-воркер показує українське сповіщення. ──
+    const cdp = await olya.context().newCDPSession(olya);
+    const registrationId = new Promise<string>((done) => {
+      cdp.on('ServiceWorker.workerRegistrationUpdated', (event: { registrations: { registrationId: string; scopeURL: string }[] }) => {
+        const found = event.registrations.find((r) => r.scopeURL === `${base}/`);
+        if (found !== undefined) done(found.registrationId);
+      });
+    });
+    await cdp.send('ServiceWorker.enable');
+    await cdp.send('ServiceWorker.deliverPushMessage', { origin: base, registrationId: await registrationId, data: JSON.stringify(openedPush[0]!.payload) });
+    await expect
+      .poll(() => olya.evaluate(`navigator.serviceWorker.ready.then((r) => r.getNotifications()).then((list) => list.map((n) => n.title))`), { timeout: 10_000 })
+      .toContain('Гра «Вечір над Дніпром» почалась');
+    await cdp.send('ServiceWorker.disable').catch(() => undefined);
+
+    // ── 11. Скасування й 410. ──
+    const kyivNow = new Intl.DateTimeFormat('en-CA', { timeZone: KYIV }).format(Date.now()).split('-').map(Number) as [number, number, number];
+    const spareStart = new Date(Date.UTC(kyivNow[0], kyivNow[1] - 1, kyivNow[2] + 2, 12)).toISOString();
+    const spare = await host.request.post(`${base}/api/calendar`, { data: { title: SPARE, startsAt: spareStart, quizId } });
+    expect(spare.status(), await spare.text()).toBe(201);
+    const spareId = ((await spare.json()) as { id: string }).id;
+    for (const page of [olya, petro]) {
+      const asked = await page.request.post(`${base}/api/calendar/${spareId}/request`);
+      expect(asked.ok(), await asked.text()).toBe(true);
+    }
+    await decide(ids.get(petro)!, 'approved', spareId);
+    gone.add(endpointOf('petro20a'));
+    await host.goto(`${base}/feed/calendar`);
+    await card(host, SPARE).getByRole('button', { name: 'Скасувати подію', ...exact }).click();
+    await expect.poll(() => sentTo('cancelled').length, POLL).toBe(2);
+    expect(sentTo('cancelled').map((o) => o.endpoint).sort(), 'cancel recipients').toEqual([endpointOf('olya20a'), endpointOf('petro20a')]);
+    expect(sentTo('cancelled')[0]!.payload).toMatchObject({ kind: 'cancelled', eventId: spareId, title: SPARE });
+    expect(sentTo('cancelled')[0]!.options.ttl).toBe(86_400);
+    await expect.poll(async () => (await rows()).some((r) => r.endpoint === endpointOf('petro20a')), POLL).toBe(false);
+    expect((await rows()).some((r) => r.endpoint === endpointOf('olya20a')), 'Оля keeps her subscription').toBe(true);
+
+    // ── 12. Чужа підписка не видаляється. ──
+    const foreign = await petro.request.delete(`${base}/api/me/push`, { data: { endpoint: endpointOf('olya20a') } });
+    expect(foreign.status()).toBe(204);
+    expect((await rows()).some((r) => r.endpoint === endpointOf('olya20a')), 'foreign delete').toBe(true);
+
+    // ── 13. Вихід прибирає підписку пристрою. ──
+    await olya.goto(`${base}/profile`);
+    await click(olya, 'Вийти');
+    await olya.waitForURL(`${base}/`);
+    await expect.poll(async () => (await rows()).some((r) => r.endpoint === endpointOf('olya20a')), POLL).toBe(false);
+    expect(await olya.evaluate(`localStorage['e2e-unsub']`)).toBe('1');
+
+    expect(problems).toEqual([]);
+  } finally {
+    restarting = true;
+    await ctx.shutdown();
+    await relisten();
+    restarting = false;
+  }
+}
+
+it('part 20a: web push — without VAPID keys the notifications block is hidden; with keys Оля and Петро enable notifications, an iPhone tab sees the home-screen hint, the one-hour reminder goes once to the host and the approved friend, «game opened» carries the room code to the approved friend only, a cancel reaches those who asked, a 410 drops a subscription, sign-out removes the device subscription, and the menu keeps seven items', async () => {
+  try {
+    await push20a();
   } catch (error) {
     await snapshot();
     throw error;
