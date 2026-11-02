@@ -16,16 +16,19 @@ export async function saveSubscription(db: Db, userId: string, input: PushSubscr
     .insert(pushSubscription)
     .values({ endpoint: input.endpoint, ...values })
     .onConflictDoUpdate({ target: pushSubscription.endpoint, set: values });
-  const keep = await db
-    .select({ endpoint: pushSubscription.endpoint })
-    .from(pushSubscription)
-    .where(eq(pushSubscription.userId, userId))
-    .orderBy(desc(pushSubscription.createdAt), desc(pushSubscription.endpoint))
-    .limit(PUSH_MAX_SUBSCRIPTIONS);
+  // Одним оператором: паралельне збереження не губиться, а порожнього keep-списку немає.
   await db.delete(pushSubscription).where(
     and(
       eq(pushSubscription.userId, userId),
-      notInArray(pushSubscription.endpoint, keep.map((row) => row.endpoint)),
+      notInArray(
+        pushSubscription.endpoint,
+        db
+          .select({ endpoint: pushSubscription.endpoint })
+          .from(pushSubscription)
+          .where(eq(pushSubscription.userId, userId))
+          .orderBy(desc(pushSubscription.createdAt), desc(pushSubscription.endpoint))
+          .limit(PUSH_MAX_SUBSCRIPTIONS),
+      ),
     ),
   );
 }

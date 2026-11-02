@@ -55,6 +55,22 @@ describe('push store', () => {
     expect(endpoints).toContain(URL + '210');
   });
 
+  it('does not touch other rows when the saved endpoint just moved away', async () => {
+    const o = await person();
+    const p = await person();
+    await saveSubscription(db, o, sub(300), NOW);
+    await saveSubscription(db, o, sub(301), NOW);
+    await saveSubscription(db, p, sub(300), new Date(NOW.getTime() + 1000));
+    expect((await rowsOf(o)).map((r) => r.endpoint)).toEqual([URL + '301']);
+    expect((await rowsOf(p)).map((r) => r.endpoint)).toEqual([URL + '300']);
+  });
+
+  it('keeps the cap under concurrent saves for one person', async () => {
+    const o = await person();
+    await Promise.all(Array.from({ length: 12 }, (_, i) => saveSubscription(db, o, sub(400 + i), new Date(NOW.getTime() + i * 1000))));
+    expect(await rowsOf(o)).toHaveLength(10);
+  });
+
   it('deletes only own subscriptions', async () => {
     const o = await person();
     const p = await person();
