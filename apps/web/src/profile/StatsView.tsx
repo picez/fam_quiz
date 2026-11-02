@@ -1,6 +1,7 @@
 import type { PodiumStats as PodiumNumbers, ProfileStats } from '@quiz/shared';
 import { num } from '../format';
 import { countText, t } from '../i18n';
+import { decimalText } from '../locales/grammar';
 
 /** Шість чисел п'єдесталу (11f): 1-е, 2-е, 3-є місце, «у трійці», найкращий рахунок, середнє місце; null — «–». */
 export function PodiumStats({ stats }: { stats: PodiumNumbers }) {
@@ -11,7 +12,7 @@ export function PodiumStats({ stats }: { stats: PodiumNumbers }) {
     [String(podium.third), t('statThird')],
     [top3 === null ? '–' : `${top3}%`, t('statTop3')],
     [bestScore === null ? '–' : num(bestScore), t('statBestScore')],
-    [avgPlace === null ? '–' : String(avgPlace).replace('.', ','), t('statAvgPlace')],
+    [avgPlace === null ? '–' : decimalText(avgPlace, Number.isInteger(avgPlace) ? 0 : 1), t('statAvgPlace')],
   ];
   return (
     <dl className="stats podium-stats" aria-label={t('statPodiumLabel')}>

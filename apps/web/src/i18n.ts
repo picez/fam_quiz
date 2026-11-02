@@ -502,6 +502,9 @@ const uk = {
   powersAll: 'Усі',
   powersNone: 'Жодного',
   powersSwapNeedsSpares: 'Заміна запитання: додайте запасні запитання',
+  // Значки-літери: тип «текст» і баф «літера» — літерами мови інтерфейсу
+  iconTypeText: 'Аа',
+  iconBuffLetter: 'А…',
   buff_fifty: '50/50',
   buff_double: 'Подвійні бали',
   buff_retry: 'Друга спроба',
@@ -1601,8 +1604,6 @@ const uk = {
   friendsTitle: 'Друзі',
   friendOnline: 'онлайн',
   friendSeen: 'був(-ла) {when}',
-  agoMinutes: '{count} хв тому',
-  agoHours: '{count} год тому',
   noFriendsYet: 'Друзів поки немає.',
   friendNickname: 'Нікнейм друга',
   addFriendButton: 'Додати друга',

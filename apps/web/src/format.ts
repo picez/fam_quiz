@@ -1,5 +1,7 @@
 import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
+import { currentLocale, intlTag } from './locales/current';
+import { agoText, decimalText } from './locales/grammar';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
@@ -21,10 +23,9 @@ export function stepDecimals(step: number): number {
   return fraction + (exponent === undefined ? 0 : Number(exponent));
 }
 
-/** Число повзунка за правилами uk-UA, знаків після коми — як у кроці. */
+/** Число повзунка за правилами мови інтерфейсу, знаків після коми — як у кроці. */
 export function sliderNumber(value: number, step: number): string {
-  const digits = Math.min(stepDecimals(step), 20);
-  return value.toLocaleString('uk-UA', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+  return decimalText(value, Math.min(stepDecimals(step), 20));
 }
 
 /** Значення повзунка з одиницею: «57 %», «2,5 км». */
@@ -141,9 +142,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
   }
 }
 
-/** Мілісекунди як секунди з однією цифрою після коми: 23400 → «23,4». */
+/** Мілісекунди як секунди з однією цифрою після коми: 23400 → «23,4» (en «23.4»). */
 export function secondsText(ms: number): string {
-  return (Math.round(ms / 100) / 10).toFixed(1).replace('.', ',');
+  return decimalText(Math.round(ms / 100) / 10, 1);
 }
 
 /**
@@ -213,31 +214,46 @@ export function answerText(answer: Answer | null, question: Question | null, pre
   }
 }
 
-const dateFormat = new Intl.DateTimeFormat('uk-UA', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+/** Формати дат на мову: Intl-об'єкти дорогі, тож один на тег. */
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+
+function dateFormat(tag: string): Intl.DateTimeFormat {
+  let format = dateFormats.get(tag);
+  if (!format) {
+    format = new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    dateFormats.set(tag, format);
+  }
+  return format;
+}
 
 /** Дата й час гри словами; порожній рядок, якщо значення не є датою. */
 export function formatDate(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '' : dateFormat.format(date);
+  return Number.isNaN(date.getTime()) ? '' : dateFormat(intlTag()).format(date);
 }
 
 const dayOptions: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
 
 /** Київський час; ICU без Europe/Kyiv знає лише давню назву Europe/Kiev. */
-function kyivDayFormat(): Intl.DateTimeFormat {
+function kyivDayFormat(tag: string): Intl.DateTimeFormat {
+  let format = dayFormats.get(tag);
+  if (format) return format;
   try {
-    return new Intl.DateTimeFormat('uk-UA', { ...dayOptions, timeZone: 'Europe/Kyiv' });
+    format = new Intl.DateTimeFormat(tag, { ...dayOptions, timeZone: 'Europe/Kyiv' });
   } catch {
-    return new Intl.DateTimeFormat('uk-UA', { ...dayOptions, timeZone: 'Europe/Kiev' });
+    format = new Intl.DateTimeFormat(tag, { ...dayOptions, timeZone: 'Europe/Kiev' });
   }
+  dayFormats.set(tag, format);
+  return format;
 }
 
-const dayFormat = kyivDayFormat();
-
-/** Дата без часу словами за київським часом («29 жовтня 2026», без «р.», яке дописує uk-UA); порожній рядок, якщо значення не є датою. */
+/** Дата без часу словами за київським часом («29 жовтня 2026»; « р.», яке дописує uk-UA, відрізається лише в uk); порожній рядок, якщо значення не є датою. */
 export function formatDay(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '' : dayFormat.format(date).replace(/\s*р\.$/, '');
+  if (Number.isNaN(date.getTime())) return '';
+  const text = kyivDayFormat(intlTag()).format(date);
+  return currentLocale() === 'uk' ? text.replace(/\s*р\.$/, '') : text;
 }
 
 /** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */
@@ -321,7 +337,7 @@ export function pickedText(answer: Answer, choices: Choice[], slider: PublicSlid
 
 /** Відстань точки від правильної, % довшої сторони, з одним знаком після коми. */
 export function pinDistanceText(question: Parameters<typeof pinDistance>[0], x: number, y: number): string {
-  return pinDistance(question, x, y).toLocaleString('uk-UA', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return pinDistance(question, x, y).toLocaleString(intlTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 /** Коли друга бачили (беклог 9): «онлайн» до ONLINE_MS, далі хвилини, години, потім дата; null — ще не бачили. */
@@ -330,7 +346,6 @@ export function seenText(lastSeenAt: string | null, now = Date.now()): string | 
   const ago = now - Date.parse(lastSeenAt);
   if (Number.isNaN(ago)) return null;
   if (ago < ONLINE_MS) return t('friendOnline');
-  if (ago < 3_600_000) return t('friendSeen', { when: t('agoMinutes', { count: Math.floor(ago / 60_000) }) });
-  if (ago < 86_400_000) return t('friendSeen', { when: t('agoHours', { count: Math.floor(ago / 3_600_000) }) });
+  if (ago < 86_400_000) return t('friendSeen', { when: agoText(ago) });
   return t('friendSeen', { when: formatDate(lastSeenAt) });
 }

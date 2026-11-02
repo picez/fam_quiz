@@ -63,7 +63,7 @@ describe('points in words', () => {
 
 describe('uk golden (22a)', () => {
   /** Ключі, які 22a свідомо прибирає з uk. Задача 4 дописує 'agoMinutes' і 'agoHours'. */
-  const REMOVED: string[] = [];
+  const REMOVED: string[] = ['agoMinutes', 'agoHours'];
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
 

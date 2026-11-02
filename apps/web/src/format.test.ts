@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
 import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, seenText, sliderNumber } from './format';
+import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
 const options = [
@@ -276,5 +277,40 @@ describe('seenText (backlog 9)', () => {
     expect(seenText(ago(12 * 60_000), now)).toBe('був(-ла) 12 хв тому');
     expect(seenText(ago(3 * 3_600_000), now)).toBe('був(-ла) 3 год тому');
     expect(seenText(ago(3 * 86_400_000), now)).toMatch(/^був\(-ла\) 28 жовтня 2026/);
+  });
+});
+
+describe('formats follow the interface locale', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+  const ISO = '2026-10-29T12:00:00Z';
+
+  it('uk stays as it was', () => {
+    expect(formatDay(ISO)).toBe('29 жовтня 2026');
+    expect(secondsText(23400)).toBe('23,4');
+    expect(secondsText(23000)).toBe('23,0');
+    expect(sliderNumber(2.5, 0.5)).toBe('2,5');
+  });
+
+  it('en', () => {
+    activateLocaleForTests('en', { ui: {} });
+    expect(formatDay(ISO)).toBe('29 October 2026');
+    expect(secondsText(23400)).toBe('23.4');
+  });
+
+  it('de and pl', () => {
+    activateLocaleForTests('de', { ui: {} });
+    expect(formatDay(ISO)).toBe('29. Oktober 2026');
+    expect(sliderNumber(2.5, 0.5)).toBe('2,5');
+    activateLocaleForTests('pl', { ui: {} });
+    expect(formatDay(ISO)).toBe('29 października 2026');
+  });
+
+  it('ar uses Western digits', () => {
+    activateLocaleForTests('ar', { ui: {} });
+    for (const text of [formatDay(ISO), formatDate(ISO)]) {
+      expect(text).toMatch(/2026|7/);
+      expect(text).not.toMatch(/[٠-٩]/);
+    }
+    expect(secondsText(23400)).toMatch(/^23[.,٫]4$/);
   });
 });

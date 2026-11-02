@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { dayHeading, dayKey, isoToLocalInput, localInputToIso, timeText } from './calendar-time';
+import { activateLocaleForTests } from '../i18n';
 
 const KYIV = 'Europe/Kyiv';
 
@@ -39,5 +40,22 @@ describe('calendar-time', () => {
     const now = new Date('2026-11-02T10:00:00Z');
     expect(dayHeading('2026-11-07T17:00:00.000Z', KYIV, now)).toBe('субота, 7 листопада');
     expect(dayHeading('2026-11-07T17:00:00.000Z', KYIV, new Date('2025-11-02T10:00:00Z'))).toContain('2026');
+  });
+});
+
+describe('dayHeading in the interface locale', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+  const now = new Date('2026-11-01T00:00:00Z');
+
+  it('takes the locale from the parameter or the active one', () => {
+    expect(dayHeading('2026-11-07T17:00:00Z', KYIV, now, 'en')).toBe('Saturday 7 November');
+    activateLocaleForTests('de', { ui: {} });
+    expect(dayHeading('2026-11-07T17:00:00Z', KYIV, now)).toBe('Samstag, 7. November');
+  });
+
+  it('ar uses Western digits', () => {
+    const text = dayHeading('2026-11-07T17:00:00Z', 'Europe/Kyiv', now, 'ar');
+    expect(text).toMatch(/2026|7/);
+    expect(text).not.toMatch(/[٠-٩]/);
   });
 });

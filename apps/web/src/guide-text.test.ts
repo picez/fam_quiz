@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type GuidePage } from '@quiz/shared';
-import { guidePageText, lowerFirst, roundHow, typeHow } from './guide-text';
+import { guidePageText, lowerFirst, roundHow, typeHow, typeIcon, TYPE_ICONS } from './guide-text';
+import { buffIcon, BUFF_ICONS } from './buff-meta';
+import { activateLocaleForTests } from './i18n';
 import { roundSummary } from './round-summary';
 
 describe('guide texts', () => {
@@ -80,5 +82,21 @@ describe('guide texts without a host', () => {
     expect(guidePageText({ kind: 'debuffs', debuffs: ['mirror'] } as GuidePage, true).lead).toEqual(['Перешкоду на одне запитання можна купити суперникові за бали (кнопка 😈). Відповісти все одно можна.']);
     expect(guidePageText({ kind: 'buffs', buffs: ['hint'] } as GuidePage, true).items[0].line).toBe('Підказка з вікторини лише вам.');
     expect(guidePageText({ kind: 'buffs', buffs: ['hint'] } as GuidePage).items[0].line).toBe('Підказка від ведучого лише вам.');
+  });
+});
+
+describe('letter icons follow the interface locale', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('uk Аа / А…, en Aa / A…', () => {
+    expect(typeIcon('text')).toBe('Аа');
+    expect(TYPE_ICONS.text).toBe('Аа');
+    expect(buffIcon('letter')).toBe('А…');
+    expect(typeIcon('single')).toBe('◉');
+    activateLocaleForTests('en', { ui: { iconTypeText: 'Aa', iconBuffLetter: 'A…' } });
+    expect(typeIcon('text')).toBe('Aa');
+    expect(TYPE_ICONS.text).toBe('Aa');
+    expect(buffIcon('letter')).toBe('A…');
+    expect(BUFF_ICONS.letter).toBe('A…');
   });
 });

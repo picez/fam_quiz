@@ -1,24 +1,9 @@
 import { factPercent, type FactCard, type GameCard, type OwnRevealFact, type RevealFacts, type RoundCard } from '@quiz/shared';
 import { num, secondsText } from './format';
 import { countText, t, type TextKey } from './i18n';
+import { namesText, ordinal } from './locales/grammar';
 
-const VOWEL_END = /[аеєиіїоуюяaeiouy]$/i;
-const SOFT_START = /^[іїйєюя]/i;
-
-/** Імена через кому, останнє — через «і» чи «й» за милозвучністю: «Оля, Петро й Тарас», «Тарас і Оля». */
-export function namesText(names: string[]): string {
-  if (names.length <= 1) return names[0] ?? '';
-  const rest = names.slice(0, -1).join(', ');
-  const last = names[names.length - 1];
-  const short = VOWEL_END.test(rest.trim()) && !SOFT_START.test(last.trim());
-  return t(short ? 'factNamesAndShort' : 'factNamesAnd', { rest, last });
-}
-
-/** Порядковий числівник цифрами за правописом 2019: f — «2-а», «3-я»; n — «2-е», «3-є» (але «13-а», «13-е»). */
-export function ordinal(n: number, gender: 'f' | 'n'): string {
-  const third = n % 10 === 3 && n % 100 !== 13;
-  return `${n}-${gender === 'f' ? (third ? 'я' : 'а') : third ? 'є' : 'е'}`;
-}
+export { namesText, ordinal } from './locales/grammar';
 
 /** Заголовок картки: «⚡ Блискавка». */
 export function factTitle(card: FactCard): string {

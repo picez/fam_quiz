@@ -5,6 +5,7 @@ import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { t, type TextKey } from '../i18n';
+import { compareText } from '../locales/grammar';
 import { PairList } from '../screens/MatchView';
 import { BuffBadge, SpareMark } from '../screens/Buffs';
 import { PinBoard, type PinBoardMark } from '../screens/PinBoard';
@@ -108,7 +109,7 @@ export function historyCloudWords(question: GameQuestionResult): { key: string; 
       for (const [spelling, times] of spellings) if (times > best) [text, best] = [spelling, times];
       return { key, text, count, hidden: hidden.has(key) };
     })
-    .sort((x, y) => y.count - x.count || x.text.localeCompare(y.text, 'uk'));
+    .sort((x, y) => y.count - x.count || compareText(x.text, y.text));
 }
 
 /** Слова однієї відповіді хмари; сховані ведучим замінені на «приховано». */
