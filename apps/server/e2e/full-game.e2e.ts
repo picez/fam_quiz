@@ -11,7 +11,7 @@ import { chromium, type Browser, type BrowserContext, type Locator, type Page } 
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
-import { feedEvent, userLike, xpEntry } from '../src/db/schema';
+import { calendarEvent, feedEvent, game as gameRow, userLike, xpEntry } from '../src/db/schema';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
@@ -180,6 +180,8 @@ beforeAll(async () => {
 let restarting = false;
 /** Лише частини 13b і 9b (їхні сценарії ставлять і знімають): тихий 404 на /slots для коду, якого вже немає, там очікуваний. */
 let slots404Expected = false;
+/** 19a: сценарій десятки разів перезавантажує сторінки Олі за хвилину, тож 429 на опитуванні бейджа (60 за хвилину на людину) очікуваний. */
+let badge429Expected = false;
 
 /** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
 async function restart(between?: () => Promise<void>) {
@@ -240,7 +242,7 @@ afterAll(async () => {
   await ctx?.app.close();
 });
 
-async function open(name: string, width: number, height: number, options: { reducedMotion?: 'reduce' } = {}): Promise<Page> {
+async function open(name: string, width: number, height: number, options: { reducedMotion?: 'reduce'; timezoneId?: string } = {}): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
   // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
@@ -255,6 +257,7 @@ async function open(name: string, width: number, height: number, options: { redu
     const expected =
       message.text().includes('401 (Unauthorized)') ||
       (restarting && message.text().includes('WebSocket connection to')) ||
+      (badge429Expected && message.text().includes('429 (Too Many Requests)') && message.location().url.endsWith('/api/me/feed/badge')) ||
       (slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
@@ -18732,5 +18735,354 @@ it('part 18a: feed — the seventh menu item fits 360 and 375 px, Оля and П�
   } catch (error) {
     await snapshot();
     throw error;
+  }
+});
+
+function calendarQuestions19a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'c1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Південний Буг', 'Десна'), correctId: 'a' },
+    { ...common, id: 'c2', type: 'boolean' as const, text: 'Говерла — найвища гора України?', correct: true },
+    { ...common, id: 'c3', type: 'boolean' as const, text: 'Одеса — столиця України?', correct: false },
+  ];
+}
+
+/** Календар на телефоні (19a): дві вкладки в одному рядку, бейдж вкладки не налазить на текст, кнопки не нижчі за 44 px, без прокрутки вбік. */
+const CALENDAR_FITS_19A = `(() => {
+  const bad = [];
+  const tabs = [...document.querySelectorAll('.history-tabs a')];
+  if (tabs.length !== 2) bad.push('tabs: ' + tabs.length);
+  if (new Set(tabs.map((a) => Math.round(a.getBoundingClientRect().top))).size > 1) bad.push('the tabs are not in one row');
+  for (const a of tabs) {
+    if (a.scrollWidth > a.clientWidth) bad.push('a tab is wider than itself');
+    const badge = a.querySelector('.menu-badge');
+    if (!badge) continue;
+    const b = badge.getBoundingClientRect();
+    const r = a.getBoundingClientRect();
+    if (b.left < r.left - 0.5 || b.right > r.right + 0.5) bad.push('the badge leaves its tab');
+    const text = document.createRange();
+    text.selectNodeContents(a.firstChild);
+    const t = text.getBoundingClientRect();
+    if (t.width > 0 && b.left < t.right - 0.5 && t.left < b.right - 0.5 && b.top < t.bottom && t.top < b.bottom) bad.push('the badge covers the tab text');
+  }
+  for (const el of document.querySelectorAll('.calendar-card button, .calendar-card a.button, .calendar-form button')) {
+    const r = el.getBoundingClientRect();
+    if (r.height < 43.5) bad.push('a short button: ' + el.textContent + ' ' + r.height.toFixed(1));
+    if (r.right > innerWidth + 0.5 || r.left < -0.5) bad.push('a button leaves the phone: ' + el.textContent);
+  }
+  for (const el of document.querySelectorAll('.calendar-card')) {
+    const r = el.getBoundingClientRect();
+    if (r.right > innerWidth + 0.5 || el.scrollWidth > el.clientWidth + 1) bad.push('a card is clipped');
+  }
+  if (document.documentElement.scrollWidth > innerWidth) bad.push('horizontal scroll');
+  return bad;
+})()`;
+
+async function calendar19a() {
+  const KYIV = 'Europe/Kyiv';
+  badge429Expected = true;
+  const TITLE = 'Календар 19a';
+  const EVENT = 'Вечір загадок';
+  const SPARE = 'Запасний вечір';
+  const MISSED = 'Не відбулась 19a';
+  const kyivDate = (ms: number) => new Intl.DateTimeFormat('en-CA', { timeZone: KYIV }).format(ms);
+  const tomorrow = kyivDate(Date.now() + 86_400_000);
+  const afterTomorrow = kyivDate(Date.now() + 2 * 86_400_000);
+  const monthOf = (ms: number) => new Intl.DateTimeFormat('uk-UA', { timeZone: KYIV, month: 'long' }).format(ms);
+  const clock = (value: Date) => new Intl.DateTimeFormat('uk-UA', { timeZone: KYIV, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(value);
+
+  const olya = await open('olya19a', 375, 812, { timezoneId: KYIV });
+  await register(olya, 'menu', 'Оля Календарна', 'olya19a@example.com');
+  const petro = await open('petro19a', 375, 812, { timezoneId: KYIV });
+  await register(petro, 'menu', 'Петро Календарний', 'petro19a@example.com');
+  const vira = await open('vira19a', 375, 812, { timezoneId: KYIV });
+  await register(vira, 'menu', 'Віра Слухачка', 'vira19a@example.com');
+  const host = await open('host19a', 1280, 800, { timezoneId: KYIV });
+  await register(host, 'host', 'Марко Ведучий', 'host19a@example.com');
+  const ids = new Map<Page, string>();
+  for (const page of [host, olya, petro, vira]) ids.set(page, await myId(page));
+  for (const [page, nickname] of [[host, 'Марко Ведучий'], [olya, 'Оля'], [petro, 'Петро'], [vira, 'Віра']] as const) {
+    const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
+    expect(saved.ok(), await saved.text()).toBe(true);
+  }
+  const tabLink = (page: Page) => page.locator('.history-tabs a', { hasText: 'Календар' });
+  const tabBadge = async (page: Page) => (await tabLink(page).locator('.menu-badge').textContent({ timeout: 500 }).catch(() => null)) ?? null;
+  const feedLink = (page: Page) => page.locator(MENU).getByRole('link', { name: /^Стрічка/ });
+  const menuBadge = (page: Page) => feedLink(page).locator('.menu-badge');
+  const card = (page: Page, title: string) => page.locator('.calendar-card', { hasText: title });
+  const apiBadge = async (page: Page) => {
+    const b = (await (await page.request.get(`${base}/api/me/feed/badge`)).json()) as { requests: number; decisions: number };
+    return b.requests + b.decisions;
+  };
+  /** Опитування бейджа раз на 30 с: перезавантажуємо сторінку, доки вкладка не покаже очікуване. */
+  const reloadUntilTab = (page: Page, expected: string) =>
+    expect
+      .poll(
+        async () => {
+          await page.reload();
+          await tabLink(page).waitFor();
+          await page.waitForTimeout(700);
+          return tabBadge(page);
+        },
+        { timeout: 40_000, interval: 2500 },
+      )
+      .toBe(expected);
+
+  // ── 1. Меню не змінилось: сім пунктів на 360 і 375 px. ──
+  await olya.goto(base);
+  await feedLink(olya).waitFor();
+  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+  for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+
+  // ── 2. Дружба: Марко → Оля, Марко → Петро, Віра → Марко (в один бік), Оля → Марко (взаємно). ──
+  const follow = async (page: Page, target: Page) => {
+    await page.goto(`${base}/profile/${ids.get(target)!}`);
+    await page.getByRole('button', { name: 'Додати в друзі', ...exact }).click();
+    await page.getByText('У друзях', exact).waitFor();
+  };
+  await follow(host, olya);
+  await follow(host, petro);
+  await follow(vira, host);
+  await follow(olya, host);
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', calendarQuestions19a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+
+  // ── 3. План: «Вечір загадок» завтра о 19:00 за Києвом. ──
+  const plan = async (title: string, date: string, time: string) => {
+    await click(host, 'Запланувати гру');
+    await field(host, 'Назва').fill(title);
+    await field(host, 'Дата й час').fill(`${date}T${time}`);
+    await host.locator('.calendar-form select').selectOption({ label: TITLE });
+    await click(host, 'Зберегти');
+    await card(host, title).waitFor();
+  };
+  await host.goto(`${base}/feed`);
+  await host.locator('.history-tabs a', { hasText: 'Календар' }).click();
+  await host.waitForURL(`${base}/feed/calendar`);
+  await plan(EVENT, tomorrow, '19:00');
+  const dayHeading = host.locator('section.calendar-day', { has: card(host, EVENT) }).locator('h2');
+  expect((await dayHeading.textContent())!.toLowerCase()).toContain(monthOf(Date.now() + 86_400_000));
+  expect(await card(host, EVENT).locator('.calendar-when').innerText()).toContain('19:00');
+  const eventRow = async () => (await db.select().from(calendarEvent)).find((r) => r.title === EVENT);
+  await expect.poll(async () => (await eventRow()) !== undefined, POLL).toBe(true);
+  const eventId = (await eventRow())!.id;
+  expect(clock((await eventRow())!.startsAt), 'starts_at is 19:00 Kyiv time').toBe('19:00');
+  await expect
+    .poll(async () => (await db.select().from(feedEvent)).some((r) => r.key === `planned:${eventId}` && r.userId === ids.get(host)), POLL)
+    .toBe(true);
+  await shot(host, 'p19a-host-calendar');
+
+  // ── 4. Друзі бачать, Віра (стежить в один бік) — ні. ──
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(`${base}/feed`);
+  const planned = olya.locator('.feed-card', { hasText: 'запланував(-ла)' });
+  await planned.waitFor();
+  const plannedText = await planned.innerText();
+  expect(plannedText).toContain('Марко Ведучий');
+  expect(plannedText).toContain(`запланував(-ла) «${EVENT}» на`);
+  expect(plannedText).toMatch(/, 19:00/);
+  await shot(olya, 'p19a-olya-feed');
+  await planned.getByRole('link', { name: 'До календаря', ...exact }).click();
+  await olya.waitForURL(`${base}/feed/calendar#event-${eventId}`);
+  await card(olya, EVENT).waitFor();
+  await vira.goto(`${base}/feed/calendar`);
+  await vira.locator('.feed-empty').waitFor();
+  expect(await vira.locator('.calendar-card').count(), 'Віра sees an event').toBe(0);
+  await vira.goto(`${base}/feed`);
+  await vira.locator('.feed-empty').waitFor();
+  expect(await vira.locator('.feed-card', { hasText: 'запланував(-ла)' }).count(), 'Віра sees a planned card').toBe(0);
+  const viraAsk = await vira.request.post(`${base}/api/calendar/${eventId}/request`);
+  expect(viraAsk.status(), 'Віра asks for a friend’s event').toBe(404);
+
+  // ── 5. Запити: Оля просить, скасовує, просить знову; Петро просить. ──
+  await olya.goto(`${base}/feed/calendar`);
+  await card(olya, EVENT).waitFor();
+  await click(olya, 'Хочу взяти участь');
+  await card(olya, EVENT).getByText('Запит надіслано', exact).waitFor();
+  await click(olya, 'Скасувати запит');
+  await card(olya, EVENT).getByRole('button', { name: 'Хочу взяти участь', ...exact }).waitFor();
+  await click(olya, 'Хочу взяти участь');
+  await card(olya, EVENT).getByText('Запит надіслано', exact).waitFor();
+  await petro.goto(`${base}/feed/calendar`);
+  await card(petro, EVENT).waitFor();
+  await click(petro, 'Хочу взяти участь');
+  await card(petro, EVENT).getByText('Запит надіслано', exact).waitFor();
+  await host.goto(`${base}/feed/calendar`);
+  await reloadUntilTab(host, '2');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await card(host, EVENT).locator('.calendar-request').nth(1).waitFor();
+  expect(await host.evaluate(CALENDAR_FITS_19A), 'p19a-host-requests').toEqual([]);
+  await shot(host, 'p19a-host-requests');
+  await host.setViewportSize({ width: 1280, height: 800 });
+  const requestRow = (page: Page, name: string) => card(page, EVENT).locator('.calendar-request', { hasText: name });
+  await requestRow(host, 'Оля').getByRole('button', { name: 'Підтвердити', ...exact }).click();
+  await requestRow(host, 'Оля').getByText('Підтверджено', exact).waitFor();
+  await requestRow(host, 'Петро').getByRole('button', { name: 'Відхилити', ...exact }).click();
+  await requestRow(host, 'Петро').getByText('Відхилено', exact).waitFor();
+  await expect.poll(() => apiBadge(host), POLL).toBe(0);
+  await host.reload();
+  await card(host, EVENT).waitFor();
+  await host.waitForTimeout(800);
+  expect(await tabBadge(host), 'the host’s tab badge after the decisions').toBeNull();
+
+  // ── 6. Рішення. ──
+  await olya.goto(`${base}/quizzes`);
+  await expect
+    .poll(
+      async () => {
+        await olya.reload();
+        await feedLink(olya).waitFor();
+        await olya.waitForTimeout(700);
+        return Number(((await menuBadge(olya).textContent({ timeout: 500 }).catch(() => null)) ?? '').replace(/\D/g, '') || 0);
+      },
+      { timeout: 40_000, interval: 2500 },
+    )
+    .toBeGreaterThanOrEqual(1);
+  await feedLink(olya).click();
+  await olya.waitForURL(`${base}/feed`);
+  await olya.locator('.history-tabs a', { hasText: 'Календар' }).click();
+  await olya.waitForURL(`${base}/feed/calendar`);
+  await card(olya, EVENT).getByText('Підтверджено', exact).waitFor();
+  await expect.poll(() => apiBadge(olya), POLL).toBe(0);
+  await olya.reload();
+  await card(olya, EVENT).waitFor();
+  await olya.waitForTimeout(800);
+  expect(await tabBadge(olya), 'Оля’s tab badge after seeing the decision').toBeNull();
+  await petro.reload();
+  await card(petro, EVENT).getByText('Відхилено', exact).waitFor();
+  expect(await card(petro, EVENT).getByRole('button', { name: 'Хочу взяти участь', ...exact }).count(), 'Петро can ask again').toBe(0);
+  expect(await olya.evaluate(CALENDAR_FITS_19A), 'p19a-olya-approved').toEqual([]);
+  await expectPhoneFit(olya, 'p19a-olya-approved');
+
+  // ── 7. Зміна: 20:30 запалює бейдж Олі. ──
+  await click(host, 'Змінити');
+  await field(host, 'Дата й час').fill(`${tomorrow}T20:30`);
+  await click(host, 'Зберегти');
+  await card(host, EVENT).getByText('Змінено', exact).waitFor();
+  await olya.goto(`${base}/feed`);
+  await reloadUntilTab(olya, '1');
+  await tabLink(olya).click();
+  await olya.waitForURL(`${base}/feed/calendar`);
+  await card(olya, EVENT).getByText('Змінено', exact).waitFor();
+  expect(await card(olya, EVENT).locator('.calendar-when').innerText()).toContain('20:30');
+  expect(await card(olya, EVENT).getByText('Підтверджено', exact).count()).toBe(1);
+  expect(await olya.evaluate(CALENDAR_FITS_19A), 'p19a-olya-edited').toEqual([]);
+
+  // ── 8. Гра з події. ──
+  await click(host, 'Відкрити гру');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  await expect.poll(async () => (await eventRow())?.gameCode, POLL).toBe(code);
+  const stage = await open('stage19a', 1280, 720, { timezoneId: KYIV });
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  await olya.goto(`${base}/feed/calendar`);
+  await card(olya, EVENT).getByRole('link', { name: 'Приєднатися', ...exact }).click();
+  await olya.waitForURL(`${base}/play/${code}`);
+  const input = field(olya, 'Ваше ім’я');
+  await input.fill('Оля');
+  if ((await input.inputValue()) !== 'Оля') await input.fill('Оля');
+  await click(olya, 'Увійти в гру');
+  await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  await petro.goto(`${base}/feed/calendar`);
+  await card(petro, EVENT).getByText('Гра йде', exact).waitFor();
+  expect(await card(petro, EVENT).getByRole('link', { name: 'Приєднатися', ...exact }).count(), 'Петро has a join link').toBe(0);
+  expect(await card(petro, EVENT).innerText()).not.toContain(code);
+  const petroList = (await (await petro.request.get(`${base}/api/me/calendar`)).json()) as { events: { joinCode?: string | null }[] };
+  expect(petroList.events.map((e) => e.joinCode ?? null), 'Петро gets no code').toEqual([null]);
+  await join(petro, code, 'Петро', false);
+  // Друга вкладка ведучого: «До пульта» веде в ту саму кімнату.
+  const host2 = await host.context().newPage();
+  await host2.goto(`${base}/feed/calendar`);
+  await card(host2, EVENT).waitFor();
+  await host2.getByRole('button', { name: 'До пульта', ...exact }).click();
+  await host2.waitForURL(`${base}/host/${code}`);
+  expect((await eventRow())!.gameCode, 'the same room').toBe(code);
+  await host2.close();
+  await host.getByText('Петро', exact).first().waitFor();
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const answer = async (page: Page, text: string) => {
+    const button = text === 'Так' || text === 'Ні' ? page.getByRole('button', { name: text, ...exact }) : page.getByRole('button', { name: new RegExp(text) });
+    await button.waitFor();
+    await button.click();
+  };
+  const phones = [olya, petro];
+  const toReveal = async (picks: [Page, string][]) => {
+    for (const [page, text] of picks) await answer(page, text);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+  };
+  const toNext = async () => {
+    await step('Далі');
+    await step('Наступне запитання');
+    await afterSplash(host, stage, ...phones);
+  };
+  await step('Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await toReveal([[olya, 'Дніпро'], [petro, 'Десна']]);
+  await toNext();
+  await toReveal([[olya, 'Так'], [petro, 'Ні']]);
+  await toNext();
+  await toReveal([[olya, 'Ні'], [petro, 'Так']]);
+  await step('Завершити гру');
+  await expect
+    .poll(async () => (await db.select().from(gameRow).where(eq(gameRow.code, code)))[0]?.status, { timeout: 15_000 })
+    .toBe('finished');
+  await host.goto(`${base}/feed/calendar`);
+  await card(host, EVENT).getByText('Зіграно', exact).waitFor();
+  expect(await card(host, EVENT).getByRole('button', { name: 'Відкрити гру', ...exact }).count(), 'a played event opens again').toBe(0);
+
+  // ── 9. Скасування: «Запасний вечір» післязавтра о 18:00. ──
+  await plan(SPARE, afterTomorrow, '18:00');
+  await olya.goto(`${base}/feed/calendar`);
+  await card(olya, SPARE).waitFor();
+  await card(olya, SPARE).getByRole('button', { name: 'Хочу взяти участь', ...exact }).click();
+  await card(olya, SPARE).getByText('Запит надіслано', exact).waitFor();
+  await host.reload();
+  await card(host, SPARE).locator('.calendar-request', { hasText: 'Оля' }).getByRole('button', { name: 'Підтвердити', ...exact }).click();
+  await card(host, SPARE).locator('.calendar-request', { hasText: 'Оля' }).getByText('Підтверджено', exact).waitFor();
+  // Діалог підтвердження приймає обробник за замовчуванням з open().
+  await card(host, SPARE).getByRole('button', { name: 'Скасувати подію', ...exact }).click();
+  await expect.poll(async () => (await db.select().from(calendarEvent)).find((r) => r.title === SPARE)?.cancelledAt != null, POLL).toBe(true);
+  await olya.goto(`${base}/feed`);
+  await reloadUntilTab(olya, '1');
+  expect(await olya.locator('.feed-card', { hasText: SPARE }).count(), 'a cancelled event stays in the feed').toBe(0);
+  await tabLink(olya).click();
+  await olya.waitForURL(`${base}/feed/calendar`);
+  await card(olya, SPARE).getByText('Скасовано', exact).waitFor();
+  expect(await card(olya, SPARE).getByRole('button').count(), 'a cancelled event has buttons').toBe(0);
+  expect(await olya.evaluate(CALENDAR_FITS_19A), 'p19a-cancelled').toEqual([]);
+  await shot(olya, 'p19a-cancelled');
+  await vira.goto(`${base}/feed/calendar`);
+  await vira.locator('.feed-empty').waitFor();
+  expect(await vira.locator('.calendar-card').count(), 'Віра sees the spare event').toBe(0);
+
+  // ── 10. Не відбулась: подія без гри, що почалася 7 годин тому, зникає. ──
+  await db.insert(calendarEvent).values({ hostId: ids.get(host)!, title: MISSED, quizId: null, startsAt: new Date(Date.now() - 7 * 3_600_000), createdAt: new Date() });
+  await host.goto(`${base}/feed/calendar`);
+  await card(host, EVENT).waitFor();
+  expect(await card(host, MISSED).count(), 'a missed event is listed').toBe(0);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 19a: calendar — the menu keeps seven items, the host plans a game for tomorrow 19:00 Kyiv time, friends see it in the calendar tab and the feed while a one-way follower does not, Оля asks and is approved, Петро is rejected, an edit lights the badge, the host opens the game from the event and Оля joins from «Приєднатися», the event ends as played, and a cancelled event shows as cancelled to its participant', async () => {
+  try {
+    await calendar19a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    badge429Expected = false;
   }
 });
