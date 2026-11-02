@@ -17,6 +17,7 @@ vi.mock('../api', () => ({
   uploadImage: vi.fn(),
   signOut: vi.fn(),
   getMyInvites: vi.fn(),
+  getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
 }));

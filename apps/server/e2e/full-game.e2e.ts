@@ -1650,7 +1650,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 

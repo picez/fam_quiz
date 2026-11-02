@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -179,6 +179,11 @@ export const getMyFriends = () => fetchData<ProfileCard[]>('/api/me/friends');
 export const inviteFriends = (code: string, userIds: string[]) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`, { body: { userIds } });
 export const getRoomInvites = (code: string) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`);
 export const getMyInvites = () => fetchData<GameInvite[]>('/api/me/invites');
+export const getFeed = (cursor?: string) => request<FeedPage>(`/api/me/feed${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+export const getFeedBadge = () => request<FeedBadge>('/api/me/feed/badge');
+export const markFeedSeen = (upTo: string) => request<object>('/api/me/feed/seen', { method: 'POST', body: { upTo } });
+export const likeFeedEvent = (id: string, liked: boolean) =>
+  request<{ liked: boolean; likes: number }>(`/api/feed/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } });
 export const dismissInvite = (code: string) => request<object>(`/api/me/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
 
 /** Улюблені стікери власного профілю (13a); гість отримує unauthorized. */

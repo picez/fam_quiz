@@ -12305,7 +12305,7 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Шість пунктів нижнього меню на 375 px: кожному по 62 px, тож підпис короткий (data-short), а не дрібніший. */
+/* Сім пунктів нижнього меню: на 360 px по 51 px, короткі підписи (data-short) до 7 літер, а не дрібніший шрифт. */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
