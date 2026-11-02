@@ -1126,9 +1126,12 @@ export class RoomManager {
     return this.withPhoneClip(room, draft === null ? view : { ...view, team: { ...team, draft } });
   }
 
-  /** Автопілот без сцени (11h): звук нема де грати, крім телефонів — гравці дістають джерело поточного запитання. */
+  /**
+   * Джерело звуку поточного запитання на телефоні: кожен гравець може прослухати фрагмент сам (16b, кнопка «Прослухати»),
+   * зі сценою чи без. Сам вмикається він лише в автопілоті без сцени (11h) — це вирішує телефон.
+   */
   private withPhoneClip(room: Room, view: PlayerView): PlayerView {
-    if (room.state.autopilot === undefined || this.stageOnline(room) || view.question?.audio == null) return view;
+    if (view.question?.audio == null) return view;
     // Гравець на власному запасному чує його звук, а не звук основного запитання.
     const clip = phoneAudioOf(room.state, view.me.id);
     if (clip === null) return view;

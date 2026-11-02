@@ -90,10 +90,69 @@ describe('SurvivalTrial', () => {
     expect(screen.getByRole('button', { name: 'Двері 2' }).hasAttribute('disabled')).toBe(true);
   });
 
-  it('someone not on the edge watches and sees the nicknames', () => {
-    render(<SurvivalTrial view={makeView({ own: { status: 'alive', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+  it('someone not on the edge watches the survival question read-only, with who answers it (16a)', () => {
+    const image = { ...trialQuestion, imageUrl: 'https://img.example/spider.png' } as PublicQuestion;
+    const { container } = render(<SurvivalTrial view={makeView({ own: { status: 'alive', canAnswerTrial: false }, trial: { question: image } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByRole('heading', { name: 'Питання на виживання для: Олена, Іван' })).toBeTruthy();
+    expect(screen.getByText('Скільки ніг у павука?')).toBeTruthy();
+    expect(container.querySelector('img.question-image')?.getAttribute('src')).toBe('https://img.example/spider.png');
+    expect(screen.getByText('Вісім')).toBeTruthy();
+    expect(screen.getByText('Шість')).toBeTruthy();
+    expect(container.querySelector('.choice.is-correct')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(container.querySelector('input, textarea, fieldset')).toBeNull();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.getByRole('timer')).toBeTruthy();
+  });
+
+  it('the spectator options are marked as not for tapping, under a «you are watching» line', () => {
+    const { container } = render(<SurvivalTrial view={makeView({ own: { status: 'ghost', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    const list = container.querySelector('ul.survival-watch-choices');
+    expect(list?.getAttribute('aria-disabled')).toBe('true');
+    const line = screen.getByText('Ти дивишся — відповідають інші');
+    expect(line.classList.contains('meta')).toBe(true);
+    expect(line.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('on the edge the options stay real buttons with no spectator line', () => {
+    const { container } = render(<SurvivalTrial view={makeView()} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(container.querySelector('[aria-disabled]')).toBeNull();
+    expect(screen.queryByText('Ти дивишся — відповідають інші')).toBeNull();
+  });
+
+  it('a ghost watches too, and luck still says whose trial it is', () => {
+    render(<SurvivalTrial view={makeView({ own: { status: 'ghost', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByText('Питання на виживання для: Олена, Іван')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    cleanup();
+    render(<SurvivalTrial view={makeView({ trial: { kind: 'luck', question: null }, own: { status: 'alive', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
     expect(screen.getByText('Випробування для: Олена, Іван')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('after the close a watcher sees the correct answer and who survived and who became a ghost (16a)', () => {
+    const rows = [
+      row({ playerId: 'p1', nickname: 'Олена', status: 'alive', trial: 'safe', answer: { type: 'single', optionId: 'a' } }),
+      row({ playerId: 'p2', nickname: 'Іван', status: 'ghost', trial: 'out', answer: { type: 'single', optionId: 'b' } }),
+      row({ playerId: 'p3', nickname: 'Марко' }),
+    ];
+    const reveal = { id: 't1', type: 'single', text: trialQuestion.text, options: [{ id: 'a', text: 'Вісім' }, { id: 'b', text: 'Шість' }], correctId: 'a' };
+    const view = makeView({ rows, trial: { stage: 'closed', endsAt: null, reveal: reveal as never }, own: { status: 'alive', canAnswerTrial: false, result: null } });
+    (view.me as { id: string }).id = 'p3';
+    const { container } = render(<SurvivalTrial view={view} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByText('Скільки ніг у павука?')).toBeTruthy();
+    expect(container.querySelector('.choice.is-correct')?.textContent).toContain('Вісім');
+    expect(screen.getByText('Правильна відповідь: A. Вісім')).toBeTruthy();
+    const outcome = [...container.querySelectorAll('.survival-watch-outcome li')].map((li) => li.textContent);
+    expect(outcome).toEqual(['Олена — вижив(-ла)', 'Іван — вибуває']);
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('after the close the player on the edge also sees the correct answer', () => {
+    const reveal = { id: 't1', type: 'single', text: trialQuestion.text, options: [{ id: 'a', text: 'Вісім' }, { id: 'b', text: 'Шість' }], correctId: 'a' };
+    render(<SurvivalTrial view={makeView({ trial: { stage: 'closed', endsAt: null, reveal: reveal as never }, own: { status: 'ghost', canAnswerTrial: false, result: 'out' } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(screen.getByText('Ти вибуваєш — тепер ти привид.')).toBeTruthy();
+    expect(screen.getByText('Правильна відповідь: A. Вісім')).toBeTruthy();
   });
 
   it('after the close says safe or out', () => {

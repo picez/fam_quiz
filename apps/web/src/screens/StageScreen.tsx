@@ -17,6 +17,7 @@ import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { BoardIntro } from './Dice';
 import { TurnSchedule } from './TurnSchedule';
 import { RevealImage } from './RevealImage';
+import { QuestionImage } from './QuestionImage';
 import { QuestionAudio } from './QuestionAudio';
 import { SliderScale } from './SliderScale';
 import { PinBoard } from './PinBoard';
@@ -709,6 +710,7 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
       <div className="survival-body">
         {trial !== null && (
           <div className="survival-trial-area">
+            {question !== null && <QuestionImage url={question.imageUrl} />}
             {question !== null && question.choices.length > 0 && (
               <ul className={choicesClass(question.choices)}>
                 {question.choices.map((choice, index) => (

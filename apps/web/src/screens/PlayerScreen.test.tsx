@@ -118,29 +118,32 @@ describe('PlayerScreen audio without a stage', () => {
 
   it('plays the clip after the stage has been gone for STAGE_GONE_MS, not before', () => {
     vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     const current = withClip();
     const { rerender } = render(screenOf(current, true));
-    expect(audioEl()).toBeNull();
+    expect(audioEl()?.getAttribute('src')).toBe(clip.url);
     rerender(screenOf(current, false));
     act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 100));
-    expect(audioEl()).toBeNull();
+    expect(play).not.toHaveBeenCalled();
     act(() => void vi.advanceTimersByTime(200));
-    expect(audioEl()?.getAttribute('src')).toBe(clip.url);
+    expect(play).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.player-audio')).not.toBeNull();
   });
 
-  it('is silent while the stage is online, without a clip, and in a hosted game', () => {
+  it('never starts by itself while the stage is online or in a hosted game; no clip, no player', () => {
     vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     const online = render(screenOf(withClip(), true));
     act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
-    expect(audioEl()).toBeNull();
+    expect(play).not.toHaveBeenCalled();
     online.unmount();
     render(screenOf(withClip({}, null), false));
     expect(audioEl()).toBeNull();
+    expect(document.querySelector('.audio-toggle')).toBeNull();
     cleanup();
     render(screenOf(withClip({ autopilot: false }), false));
     act(() => void vi.advanceTimersByTime(STAGE_GONE_MS * 2));
-    expect(audioEl()).toBeNull();
+    expect(play).not.toHaveBeenCalled();
   });
 
   it('under the question splash the audio is mounted but does not start', () => {
@@ -172,15 +175,15 @@ describe('PlayerScreen audio without a stage', () => {
     expect(play).toHaveBeenCalledTimes(2);
   });
 
-  it('goes away when the stage comes back, at the leaderboard and on unmount', () => {
+  it('falls silent when the stage comes back, goes away at the leaderboard and on unmount', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
     const current = withClip();
     const { rerender } = render(screenOf(current, false));
     expect(audioEl()).not.toBeNull();
     rerender(screenOf(current, true));
-    expect(audioEl()).toBeNull();
     expect(pause).toHaveBeenCalled();
+    expect(document.querySelector('.audio-card')?.getAttribute('data-state')).toBe('stopped');
     cleanup();
     const again = render(screenOf(current, false));
     again.rerender(screenOf({ ...current, phase: 'leaderboard', question: null }, false));
@@ -195,6 +198,7 @@ describe('PlayerScreen audio without a stage', () => {
 
   it('a stage that flaps back for a moment restarts the 3 s wait', () => {
     vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     const current = withClip();
     const { rerender } = render(screenOf(current, true));
     rerender(screenOf(current, false));
@@ -202,9 +206,9 @@ describe('PlayerScreen audio without a stage', () => {
     rerender(screenOf(current, true));
     rerender(screenOf(current, false));
     act(() => void vi.advanceTimersByTime(STAGE_GONE_MS - 500));
-    expect(audioEl()).toBeNull();
+    expect(play).not.toHaveBeenCalled();
     act(() => void vi.advanceTimersByTime(600));
-    expect(audioEl()).not.toBeNull();
+    expect(play).toHaveBeenCalledTimes(1);
   });
 
   it('a blocked browser shows «Увімкнути звук» and says so to a screen reader; a tap plays', async () => {
@@ -229,6 +233,63 @@ describe('PlayerScreen audio without a stage', () => {
     rerender(screenOf(swapped, false));
     expect(audioEl()?.getAttribute('src')).toBe(spareClip.url);
     expect(audioEl()).not.toBe(first);
+  });
+});
+
+describe('PlayerScreen «Прослухати» (16b)', () => {
+  const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 4, duration: 10 };
+  const withClip = (over: Partial<PlayerView> = {}) => onQuestion({ question: { ...publicQuestion, audio: { duration: 10, clip } } as never, ...over });
+  const screenOf = (current: PlayerView, stageOnline: boolean) => (
+    <PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} stageOnline={stageOnline} />
+  );
+  const toggle = () => document.querySelector('.audio-toggle') as HTMLButtonElement;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('with a stage open the phone stays silent, shows «Прослухати», plays on the tap and stops on the next', async () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    render(screenOf(withClip(), true));
+    await act(async () => {});
+    expect(play).not.toHaveBeenCalled();
+    expect(toggle().textContent).toBe('🔊 Прослухати');
+    fireEvent.click(toggle());
+    await act(async () => {});
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('audio')?.currentTime).toBe(4);
+    expect(toggle().textContent).toBe('⏹ Зупинити');
+    fireEvent.click(toggle());
+    expect(pause).toHaveBeenCalled();
+    expect(toggle().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('a hosted game without a stage offers the button too', () => {
+    render(screenOf(withClip(), false));
+    expect(toggle().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('the question end stops the tapped clip; the reveal offers «Прослухати ще раз»', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+    const current = withClip();
+    const { rerender } = render(screenOf(current, true));
+    fireEvent.click(toggle());
+    await act(async () => {});
+    expect(toggle().textContent).toBe('⏹ Зупинити');
+    rerender(screenOf({ ...current, phase: 'reveal', endsAt: null }, true));
+    expect(pause).toHaveBeenCalled();
+    expect(toggle().textContent).toBe('🔊 Прослухати ще раз');
+  });
+
+  it('the button comes after the question and its answers in the page', () => {
+    render(screenOf(withClip(), true));
+    const heading = screen.getByRole('heading', { level: 1 });
+    const answer = screen.getAllByRole('button').find((b) => !b.classList.contains('audio-toggle')) as HTMLElement;
+    expect(heading.compareDocumentPosition(toggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(answer.compareDocumentPosition(toggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

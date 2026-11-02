@@ -281,3 +281,210 @@ describe('QuestionAudio on YouTube', () => {
     expect(card().dataset.state).toBe('failed');
   });
 });
+
+describe('QuestionAudio «Прослухати» on the phone (16b)', () => {
+  const button = () => document.querySelector('.audio-toggle') as HTMLButtonElement;
+
+  it('without autoplay it stays silent until the tap, then plays from the clip start and the tap again stops it', async () => {
+    mount({ autoplay: false, listen: 'first' });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    expect(card().dataset.state).toBe('idle');
+    expect(button().textContent).toBe('🔊 Прослухати');
+    expect(button().getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(button());
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('audio')?.currentTime).toBe(12);
+    expect(card().dataset.state).toBe('playing');
+    expect(button().textContent).toBe('⏹ Зупинити');
+    expect(button().getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(button());
+    expect(pause).toHaveBeenCalled();
+    expect(card().dataset.state).toBe('stopped');
+    expect(button().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('a tap plays the whole clip from its start even late in the question, and stops after the duration', async () => {
+    mount({ autoplay: false, listen: 'first', elapsedMs: 7000 });
+    fireEvent.click(button());
+    await flush();
+    expect(document.querySelector('audio')?.currentTime).toBe(12);
+    act(() => void vi.advanceTimersByTime(9_900));
+    expect(card().dataset.state).toBe('playing');
+    act(() => void vi.advanceTimersByTime(200));
+    expect(card().dataset.state).toBe('stopped');
+    expect(button().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('a tapped clip stops when the question ends (live goes false); the reveal offers «Прослухати ще раз»', async () => {
+    const view = mount({ autoplay: false, listen: 'first', live: true });
+    fireEvent.click(button());
+    await flush();
+    expect(card().dataset.state).toBe('playing');
+    view.again({ autoplay: false, listen: 'again', live: false, ready: false });
+    expect(card().dataset.state).toBe('stopped');
+    expect(pause).toHaveBeenCalled();
+    expect(button().textContent).toBe('🔊 Прослухати ще раз');
+    fireEvent.click(button());
+    await flush();
+    expect(card().dataset.state).toBe('playing');
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it('the button keeps one place and size: the card never collapses to quiet', async () => {
+    mount({ autoplay: false, listen: 'first' });
+    expect(card().classList.contains('is-quiet')).toBe(false);
+    expect(card().classList.contains('has-toggle')).toBe(true);
+  });
+
+  it('is disabled under the question splash', async () => {
+    const view = mount({ autoplay: false, listen: 'first', splash: true, ready: false });
+    expect(button().disabled).toBe(true);
+    view.again({ autoplay: false, listen: 'first', splash: false, ready: true });
+    expect(button().disabled).toBe(false);
+  });
+
+  it('with autoplay the button stops the running clip and a new tap replays it from the start', async () => {
+    mount({ listen: 'first', elapsedMs: 4000 });
+    await flush();
+    expect(card().dataset.state).toBe('playing');
+    expect(document.querySelector('audio')?.currentTime).toBe(16);
+    fireEvent.click(button());
+    expect(card().dataset.state).toBe('stopped');
+    fireEvent.click(button());
+    await flush();
+    expect(document.querySelector('audio')?.currentTime).toBe(12);
+    expect(card().dataset.state).toBe('playing');
+  });
+
+  it('autoplay switched off mid-clip (a stage opened) stops the auto-started clip; a tapped one goes on', async () => {
+    const view = mount({ listen: 'first' });
+    await flush();
+    expect(card().dataset.state).toBe('playing');
+    view.again({ listen: 'first', autoplay: false });
+    expect(card().dataset.state).toBe('stopped');
+    fireEvent.click(button());
+    await flush();
+    expect(card().dataset.state).toBe('playing');
+    view.again({ listen: 'first', autoplay: false, paused: false });
+    expect(card().dataset.state).toBe('playing');
+  });
+
+  it('autoplay switched on later (the stage left) starts with the rest of the clip, unless a tap already plays it', async () => {
+    const view = mount({ autoplay: false, listen: 'first', elapsedMs: 3000 });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    view.again({ autoplay: true, listen: 'first', elapsedMs: 3000 });
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('audio')?.currentTime).toBe(15);
+    cleanup();
+    play.mockClear();
+    const tapped = mount({ autoplay: false, listen: 'first', elapsedMs: 3000 });
+    fireEvent.click(button());
+    await flush();
+    tapped.again({ autoplay: true, listen: 'first', elapsedMs: 3000 });
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('audio')?.currentTime).toBe(12);
+  });
+
+  it('a blocked tap shows the button again with the screen-reader note', async () => {
+    play.mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotAllowedError' }));
+    mount({ autoplay: false, listen: 'first' });
+    fireEvent.click(button());
+    await flush();
+    expect(card().dataset.state).toBe('blocked');
+    expect(button().textContent).toBe('🔊 Прослухати');
+    expect(screen.queryByRole('button', { name: '🔊 Увімкнути звук' })).toBeNull();
+    expect(document.querySelector('.audio-card [role="status"]')?.textContent).toBe('Браузер не дав увімкнути звук — торкніться кнопки.');
+  });
+
+  it('a blocked autostart offers «Увімкнути звук»; once a stage opens that turns back into a plain «Прослухати»', async () => {
+    play.mockRejectedValueOnce(Object.assign(new Error('no'), { name: 'NotAllowedError' }));
+    const view = mount({ listen: 'first' });
+    await flush();
+    expect(card().dataset.state).toBe('blocked');
+    expect(screen.getByRole('button', { name: '🔊 Увімкнути звук' })).toBeTruthy();
+    expect(document.querySelector('.audio-toggle')).toBeNull();
+    view.again({ listen: 'first', autoplay: false });
+    expect(card().dataset.state).toBe('idle');
+    expect(screen.queryByRole('button', { name: '🔊 Увімкнути звук' })).toBeNull();
+    expect(button().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('a tapped clip that was stopped no longer counts as tapped: a later blocked autostart asks «Увімкнути звук» and a stage resets it', async () => {
+    const view = mount({ autoplay: false, listen: 'first' });
+    fireEvent.click(button());
+    await flush();
+    fireEvent.click(button());
+    expect(card().dataset.state).toBe('stopped');
+    Object.defineProperty(navigator, 'userActivation', { value: { hasBeenActive: false }, configurable: true });
+    try {
+      view.again({ autoplay: true, listen: 'first' });
+      await flush();
+      expect(card().dataset.state).toBe('blocked');
+      expect(screen.getByRole('button', { name: '🔊 Увімкнути звук' })).toBeTruthy();
+      view.again({ autoplay: false, listen: 'first' });
+      expect(card().dataset.state).toBe('idle');
+      expect(button().textContent).toBe('🔊 Прослухати');
+    } finally {
+      delete (navigator as unknown as { userActivation?: unknown }).userActivation;
+    }
+  });
+
+  it('a clip tapped and then stopped falls silent when the stage opens after an autostart', async () => {
+    const view = mount({ listen: 'first' });
+    await flush();
+    fireEvent.click(button());
+    expect(card().dataset.state).toBe('stopped');
+    fireEvent.click(button());
+    await flush();
+    fireEvent.click(button());
+    view.again({ listen: 'first', autoplay: false });
+    expect(card().dataset.state).toBe('stopped');
+    expect(button().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('is disabled while the game is paused, so a tap cannot hold a clip that would start on resume', async () => {
+    const view = mount({ autoplay: false, listen: 'first', paused: true });
+    expect(button().disabled).toBe(true);
+    fireEvent.click(button());
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    view.again({ autoplay: false, listen: 'first', paused: false });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    expect(card().dataset.state).toBe('idle');
+    expect(button().disabled).toBe(false);
+  });
+
+  it('without listen there is no toggle (the stage and the host keep their own controls)', async () => {
+    mount();
+    await flush();
+    expect(document.querySelector('.audio-toggle')).toBeNull();
+  });
+
+  it('YouTube: the tap seeks to the clip start and plays inside the hidden frame', async () => {
+    mount({ clip: tube, autoplay: false, listen: 'first' });
+    const frame = document.querySelector('iframe') as HTMLIFrameElement;
+    const spy = vi.spyOn(frame.contentWindow as Window, 'postMessage');
+    fireEvent.load(frame);
+    act(() => void window.dispatchEvent(new MessageEvent('message', { data: JSON.stringify({ event: 'initialDelivery' }), origin: YOUTUBE_ORIGIN, source: frame.contentWindow })));
+    const commands = () =>
+      spy.mock.calls.flatMap(([message]) => {
+        const data = JSON.parse(String(message)) as { func?: string; args?: unknown[] };
+        return data.func === 'seekTo' || data.func === 'playVideo' || data.func === 'pauseVideo' ? [[data.func, data.args]] : [];
+      });
+    expect(commands()).toEqual([]);
+    fireEvent.click(button());
+    await flush();
+    expect(commands()).toEqual([
+      ['seekTo', [30, true]],
+      ['playVideo', []],
+    ]);
+    fireEvent.click(button());
+    expect(commands().at(-1)?.[0]).toBe('pauseVideo');
+  });
+});
