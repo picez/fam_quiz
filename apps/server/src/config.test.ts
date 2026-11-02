@@ -1,6 +1,6 @@
 import webpush from 'web-push';
 import { describe, expect, it } from 'vitest';
-import { baseUrl, proxyTrust, localOrigins, pushKeys, secretProblem } from './config';
+import { adminEmails, baseUrl, proxyTrust, localOrigins, pushKeys, secretProblem } from './config';
 
 describe('secretProblem', () => {
   it('accepts a long random secret', () => {
@@ -111,5 +111,16 @@ describe('pushKeys', () => {
     expect(pushKeys({ ...full, VAPID_PUBLIC_KEY: pair.publicKey.slice(0, 86) }).ok).toBe(false);
     expect(pushKeys({ ...full, VAPID_PRIVATE_KEY: pair.privateKey + 'A' }).ok).toBe(false);
     expect(pushKeys({ ...full, VAPID_PRIVATE_KEY: pair.privateKey.slice(0, 42) }).ok).toBe(false);
+  });
+});
+
+describe('adminEmails', () => {
+  it('splits, trims, lowercases and drops empties', () => {
+    expect([...adminEmails({ ADMIN_EMAILS: ' A@Example.com , b@example.com,, ' })].sort()).toEqual(['a@example.com', 'b@example.com']);
+  });
+
+  it('is empty without the variable or with only separators', () => {
+    expect(adminEmails({}).size).toBe(0);
+    expect(adminEmails({ ADMIN_EMAILS: ' , ' }).size).toBe(0);
   });
 });

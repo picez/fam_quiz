@@ -2,7 +2,7 @@ import { FEED_BADGE_CAP, FEED_PAGE_SIZE, FEED_RETENTION_DAYS, feedCursor, type F
 import { and, eq, inArray, isNotNull, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Db } from './db/client';
-import { feedEvent, follow, game, profile, user, userLike } from './db/schema';
+import { feedEvent, follow, game, profile, user, userBan, userLike } from './db/schema';
 import { ensureProfile } from './profiles';
 
 const DAY_MS = 86_400_000;
@@ -32,10 +32,9 @@ export function mutualFriendIds(db: Db, viewerId: string): SQL {
   return sql`${query}`;
 }
 
-/** Єдина точка приховування людей (бан #23 допише сюди): зараз sql`true`. */
+/** Єдина точка приховування людей (бан #23). */
 export function notHidden(column: AnyPgColumn): SQL {
-  void column;
-  return sql`true`;
+  return sql`not exists (select 1 from ${userBan} where ${userBan.userId} = ${column})`;
 }
 
 /** feed_event, які бачить viewer: свої чи взаємних друзів (planned — ще й ті, кого user_id додав у друзі), notHidden(user_id), at >= cutoff. */

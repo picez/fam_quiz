@@ -1,6 +1,8 @@
 import type { BluffOption } from '@quiz/engine';
 import type {
   AchievementId,
+  AdminActionKind,
+  AdminLogDetails,
   AdjustmentSource,
   AppealOutcome,
   AppealReason,
@@ -601,4 +603,28 @@ export const pushSubscription = pgTable(
     createdAt: at('created_at').notNull(),
   },
   (table) => [index('push_subscription_user_idx').on(table.userId)],
+);
+
+export const userBan = pgTable('user_ban', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  bannedBy: text('banned_by').references(() => user.id, { onDelete: 'set null' }),
+  bannedAt: at('banned_at').notNull(),
+});
+
+export const adminAction = pgTable(
+  'admin_action',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    at: at('at').notNull(),
+    adminId: text('admin_id').references(() => user.id, { onDelete: 'set null' }),
+    adminLabel: text('admin_label').notNull(),
+    kind: text('kind').$type<AdminActionKind>().notNull(),
+    targetUserId: text('target_user_id'),
+    targetLabel: text('target_label').notNull(),
+    details: jsonb('details').$type<AdminLogDetails>().notNull(),
+  },
+  (table) => [index('admin_action_at_idx').on(table.at)],
 );
