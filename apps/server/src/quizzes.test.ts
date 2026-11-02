@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { quizSchema } from '@quiz/shared';
-import { sql } from 'drizzle-orm';
+import { questionsOf, quizSchema } from '@quiz/shared';
+import { eq, sql } from 'drizzle-orm';
 import { bool, boardRound, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
-import { answer, game, user } from './db/schema';
-import { createQuiz as saveQuiz, getQuiz, listQuizzes } from './quizzes';
+import { answer, game, quiz, user, userLike } from './db/schema';
+import { createQuiz as saveQuiz, deleteQuestionAsAdmin, deleteQuiz, getQuiz, listQuizzes } from './quizzes';
 import { TEST_AUTH, signUp } from './testing/accounts';
 import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
@@ -296,5 +296,69 @@ describe('spares of board categories', () => {
     const first = (quiz: Awaited<ReturnType<typeof getQuiz>>) => (quiz?.rounds[0].type === 'board' ? quiz.rounds[0].categories : []);
     expect(first(await getQuiz(db, 'u1', withSpares))[0].spares).toEqual([spare]);
     for (const category of first(await getQuiz(db, 'u1', plain))) expect('spares' in category).toBe(false);
+  });
+});
+
+describe('admin reads and deletes without the owner check (21a)', () => {
+  async function setup() {
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'owner', name: 'Олена', email: 'olena@example.com' },
+      { id: 'fan', name: 'Тарас', email: 'taras@example.com' },
+    ]);
+    const data = makeQuiz([withId(single, 'q1'), withId(text, 'q2')]);
+    const id = await saveQuiz(db, 'owner', data);
+    await db.insert(userLike).values({ userId: 'fan', kind: 'question', targetUserId: 'owner', quizId: id, questionId: 'q1', gameId: null, hidden: false, createdAt: new Date() });
+    const likeHidden = async () => (await db.select({ hidden: userLike.hidden }).from(userLike).where(eq(userLike.quizId, id)))[0]!.hidden;
+    return { db, id, likeHidden };
+  }
+
+  it('getQuiz with a null owner reads anyone’s quiz; another owner gets null', async () => {
+    const { db, id } = await setup();
+    expect((await getQuiz(db, null, id))?.title).toBe('Тестова вікторина');
+    expect(await getQuiz(db, 'other', id)).toBeNull();
+  });
+
+  it('deleteQuiz with a null owner deletes anyone’s quiz and hides its likes', async () => {
+    const { db, id, likeHidden } = await setup();
+    const done: unknown[] = [];
+    expect(await deleteQuiz(db, null, id, async (_tx, row) => void done.push(row))).toBe(true);
+    expect(done).toEqual([{ ownerId: 'owner', title: 'Тестова вікторина' }]);
+    expect(await getQuiz(db, 'owner', id)).toBeNull();
+    expect(await likeHidden()).toBe(true);
+  });
+
+  it('deleteQuestionAsAdmin removes one question, hides its likes and bumps updated_at', async () => {
+    const { db, id, likeHidden } = await setup();
+    const [before] = await db.select({ at: quiz.updatedAt }).from(quiz).where(eq(quiz.id, id));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const done: string[] = [];
+    const result = await deleteQuestionAsAdmin(db, id, 'q1', async (_tx, r) => void done.push(r.removedText));
+    expect(result).toMatchObject({ ok: true, ownerId: 'owner', removedText: single.text, title: 'Тестова вікторина' });
+    expect(done).toEqual([single.text]);
+    expect(quizSchema.safeParse(result.ok && result.quiz).success).toBe(true);
+    expect(questionsOf((await getQuiz(db, 'owner', id))!).map((q) => q.id)).toEqual(['q2']);
+    expect(await likeHidden()).toBe(true);
+    const [after] = await db.select({ at: quiz.updatedAt }).from(quiz).where(eq(quiz.id, id));
+    expect(after!.at.getTime()).toBeGreaterThan(before!.at.getTime());
+  });
+
+  it('keeps the last question and answers not_found for an unknown quiz', async () => {
+    const { db } = await setup();
+    const lone = await saveQuiz(db, 'owner', makeQuiz([withId(single, 'q1')]));
+    const [before] = await db.select().from(quiz).where(eq(quiz.id, lone));
+    expect(await deleteQuestionAsAdmin(db, lone, 'q1')).toEqual({ ok: false, error: 'last_question' });
+    expect((await db.select().from(quiz).where(eq(quiz.id, lone)))[0]).toEqual(before);
+    expect(await deleteQuestionAsAdmin(db, '11111111-1111-4111-8111-111111111111', 'q1')).toEqual({ ok: false, error: 'not_found' });
+    expect(await deleteQuestionAsAdmin(db, 'abc', 'q1')).toEqual({ ok: false, error: 'not_found' });
+  });
+
+  it('answers question_locked when the rest would fail the schema, and writes nothing', async () => {
+    const { db } = await setup();
+    const plain = makeQuiz([withId(single, 'q1')]);
+    const locked = await saveQuiz(db, 'owner', { ...plain, settings: { ...plain.settings, buffs: ['swap'] }, spares: [withId(text, 's1')] });
+    const [before] = await db.select().from(quiz).where(eq(quiz.id, locked));
+    expect(await deleteQuestionAsAdmin(db, locked, 's1')).toEqual({ ok: false, error: 'question_locked' });
+    expect((await db.select().from(quiz).where(eq(quiz.id, locked)))[0]).toEqual(before);
   });
 });
