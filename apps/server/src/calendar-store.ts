@@ -2,10 +2,12 @@ import {
   CALENDAR_LIST_CAP,
   CALENDAR_MAX_AHEAD_DAYS,
   CALENDAR_MISSED_AFTER_MS,
+  FEED_BADGE_CAP,
   type CalendarEvent,
   type CalendarInput,
   type CalendarPage,
   type CalendarRequest,
+  type CalendarRequestStatus,
   type CalendarState,
   type FeedData,
 } from '@quiz/shared';
@@ -13,6 +15,7 @@ import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { calendarEvent, calendarRequest, feedEvent, follow, game, profile, quiz, user } from './db/schema';
 import { notHidden } from './feed-store';
+import { ensureProfile } from './profiles';
 import { getQuiz } from './quizzes';
 
 const DAY_MS = 86_400_000;
@@ -230,4 +233,128 @@ export async function cancelEvent(db: Db, hostId: string, eventId: string, now: 
 /** Запам'ятати кімнату події. */
 export async function attachGame(db: Db, eventId: string, gameId: string, code: string): Promise<void> {
   await db.update(calendarEvent).set({ gameId, gameCode: code }).where(eq(calendarEvent.id, eventId));
+}
+
+/** Видима подія (calendarVisibility, скасовані теж) із сирим рядком і обчисленим станом; інакше null. */
+async function visibleRow(db: Db, viewerId: string, eventId: string, now: Date, probe: CalendarProbe): Promise<{ row: EventRow; state: CalendarState } | null> {
+  if (!UUID.test(eventId)) return null;
+  const [found] = await db
+    .select({ row: calendarEvent, finished: sql<boolean>`coalesce(${game.status} = 'finished', false)` })
+    .from(calendarEvent)
+    .leftJoin(game, eq(game.id, calendarEvent.gameId))
+    .where(and(eq(calendarEvent.id, eventId), calendarVisibility(viewerId)));
+  if (found === undefined) return null;
+  return { row: found.row, state: calendarState(found.row, now, probe, found.finished) };
+}
+
+/** Видима подія в стані planned|open; не ведучий; ідемпотентно для pending/approved. */
+export async function requestToJoin(
+  db: Db,
+  userId: string,
+  eventId: string,
+  now: Date,
+  probe: CalendarProbe,
+): Promise<{ ok: true; status: CalendarRequestStatus } | Fail<'not_found' | 'own_event' | 'event_closed' | 'request_rejected'>> {
+  const found = await visibleRow(db, userId, eventId, now, probe);
+  if (found === null) return { ok: false, error: 'not_found' };
+  if (found.row.hostId === userId) return { ok: false, error: 'own_event' };
+  if (found.state !== 'planned' && found.state !== 'open') return { ok: false, error: 'event_closed' };
+  await db.insert(calendarRequest).values({ eventId, userId, status: 'pending', requestedAt: now }).onConflictDoNothing();
+  const [mine] = await db
+    .select({ status: calendarRequest.status })
+    .from(calendarRequest)
+    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId)));
+  if (mine === undefined) return { ok: false, error: 'not_found' };
+  if (mine.status === 'rejected') return { ok: false, error: 'request_rejected' };
+  return { ok: true, status: mine.status };
+}
+
+/** Видаляє лише pending; запиту немає чи подія не видна → not_found. */
+export async function withdrawRequest(db: Db, userId: string, eventId: string, now: Date): Promise<{ ok: true } | Fail<'not_found' | 'request_approved'>> {
+  void now;
+  if (!UUID.test(eventId)) return { ok: false, error: 'not_found' };
+  const [found] = await db
+    .select({ status: calendarRequest.status })
+    .from(calendarRequest)
+    .innerJoin(calendarEvent, eq(calendarEvent.id, calendarRequest.eventId))
+    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId), calendarVisibility(userId)));
+  if (found === undefined || found.status === 'rejected') return { ok: false, error: 'not_found' };
+  if (found.status === 'approved') return { ok: false, error: 'request_approved' };
+  await db.delete(calendarRequest).where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId), eq(calendarRequest.status, 'pending')));
+  return { ok: true };
+}
+
+/** Лише ведучий; подія не played / cancelled; status і decided_at = now. */
+export async function decideRequest(
+  db: Db,
+  hostId: string,
+  eventId: string,
+  userId: string,
+  decision: 'approved' | 'rejected',
+  now: Date,
+  probe: CalendarProbe,
+): Promise<{ ok: true } | Fail<'not_found' | 'event_locked'>> {
+  const found = await hostedEvent(db, hostId, eventId, now, probe);
+  if (found === null) return { ok: false, error: 'not_found' };
+  if (found.state === 'played' || found.state === 'cancelled') return { ok: false, error: 'event_locked' };
+  const updated = await db
+    .update(calendarRequest)
+    .set({ status: decision, decidedAt: now })
+    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId)))
+    .returning({ userId: calendarRequest.userId });
+  return updated.length === 0 ? { ok: false, error: 'not_found' } : { ok: true };
+}
+
+/** Обидва до FEED_BADGE_CAP + 1; правила — «Рішення → Бейдж». */
+export async function calendarBadge(db: Db, viewerId: string, now: Date): Promise<{ requests: number; decisions: number }> {
+  const edge = iso(new Date(now.getTime() - CALENDAR_MISSED_AFTER_MS));
+  const pending = db
+    .select({ one: sql`1` })
+    .from(calendarRequest)
+    .innerJoin(calendarEvent, eq(calendarEvent.id, calendarRequest.eventId))
+    .leftJoin(game, eq(game.id, calendarEvent.gameId))
+    .where(
+      and(
+        eq(calendarEvent.hostId, viewerId),
+        eq(calendarRequest.status, 'pending'),
+        sql`${calendarEvent.cancelledAt} is null`,
+        sql`${calendarEvent.startsAt} > ${edge}`,
+        sql`coalesce(${game.status} = 'finished', false) = false`,
+      ),
+    )
+    .limit(FEED_BADGE_CAP + 1)
+    .as('pending_requests');
+
+  const seen = sql`coalesce((select ${profile.calendarSeenAt} from ${profile} where ${profile.userId} = ${viewerId}), '-infinity'::timestamptz)`;
+  const decided = db
+    .select({ one: sql`1` })
+    .from(calendarRequest)
+    .innerJoin(calendarEvent, eq(calendarEvent.id, calendarRequest.eventId))
+    .where(
+      and(
+        eq(calendarRequest.userId, viewerId),
+        calendarVisibility(viewerId),
+        sql`${calendarEvent.startsAt} > ${edge}`,
+        sql`((${calendarRequest.status} in ('pending', 'approved') and (${calendarRequest.decidedAt} > ${seen} or ${calendarEvent.editedAt} > ${seen} or ${calendarEvent.cancelledAt} > ${seen})) or (${calendarRequest.status} = 'rejected' and ${calendarRequest.decidedAt} > ${seen}))`,
+      ),
+    )
+    .limit(FEED_BADGE_CAP + 1)
+    .as('decided_requests');
+
+  const [[requests], [decisions]] = await Promise.all([
+    db.select({ n: sql<number>`count(*)::int` }).from(pending),
+    db.select({ n: sql<number>`count(*)::int` }).from(decided),
+  ]);
+  return { requests: requests?.n ?? 0, decisions: decisions?.n ?? 0 };
+}
+
+/** calendar_seen_at = greatest(coalesce(…, '-infinity'), least(upTo, now)); ensureProfile. */
+export async function markCalendarSeen(db: Db, viewerId: string, upTo: Date, now: Date): Promise<void> {
+  if (Number.isNaN(upTo.getTime())) return;
+  if ((await ensureProfile(db, viewerId)) === null) return;
+  const mark = upTo.getTime() > now.getTime() ? now : upTo;
+  await db
+    .update(profile)
+    .set({ calendarSeenAt: sql`greatest(coalesce(${profile.calendarSeenAt}, '-infinity'::timestamptz), ${iso(mark)})` })
+    .where(eq(profile.userId, viewerId));
 }
