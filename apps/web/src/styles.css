@@ -13617,3 +13617,34 @@ button.wall-tile:disabled {
     overflow: visible;
   }
 }
+
+.likes-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.likes-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 1rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--panel);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.likes-tile strong {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.likes-tile span:last-child {
+  color: var(--dim);
+  font-size: 0.85rem;
+}

@@ -5,6 +5,7 @@ import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { Avatar } from '../profile/Avatar';
+import { LikesCard } from '../profile/LikesCard';
 import { ProfileLevelMark } from '../profile/LevelCard';
 import { Showcase } from '../profile/Showcase';
 import { StatsView } from '../profile/StatsView';
@@ -111,6 +112,7 @@ export function PublicProfile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      <LikesCard likes={profile.likes} />
       <Showcase showcase={profile.showcase} own={isOwner} />
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
       <section className="profile-section">
