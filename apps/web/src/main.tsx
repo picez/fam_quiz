@@ -10,6 +10,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 const root = document.getElementById('root');
 if (root === null) throw new Error('root element is missing');
 
+// Сервіс-воркер лише для пушів і лише в збірці: у vite dev файла sw.js немає.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+
 createRoot(root).render(
   <StrictMode>
     <ErrorBoundary>

@@ -2621,6 +2621,22 @@ const uk = {
   showcaseUntil: 'титул до {date}',
   awardLine: '{place} місце · {quiz} · {date}',
   prizeNobody: '{place} місце — нікого, приз повернеться на склад',
+  pushTitle: 'Сповіщення',
+  pushIntro: 'Нагадаємо за годину до запланованої гри і коли ведучий її відкриє.',
+  pushEnable: 'Увімкнути сповіщення',
+  pushDisable: 'Вимкнути',
+  pushOn: 'Сповіщення увімкнено на цьому пристрої.',
+  pushDenied: 'Сповіщення заборонено в налаштуваннях браузера. Дозволь їх для цього сайту, щоб отримувати нагадування.',
+  pushIosHint:
+    'На iPhone сповіщення працюють, лише коли застосунок додано на головний екран: «Поділитися» → «На початковий екран». Відкрий його звідти й увімкни сповіщення.',
+  pushFailed: 'Не вдалося увімкнути сповіщення. Спробуй ще раз.',
+  pushReminderTitle: 'Скоро гра «{title}»',
+  pushReminderBody: 'Початок о {time}. Не запізнюйся!',
+  pushOpenedTitle: 'Гра «{title}» почалась',
+  pushOpenedBody: 'Ведучий відкрив гру. Торкнися, щоб приєднатися.',
+  pushCancelledTitle: 'Гру «{title}» скасовано',
+  pushCancelledBody: 'Ведучий скасував гру {when}.',
+  err_push_disabled: 'Сповіщення на сервері вимкнені.',
 } as const;
 
 export type TextKey = keyof typeof uk;
