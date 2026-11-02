@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, lte, gt, sql } from 'drizzle-orm';
 import type { CalendarNotify } from './calendar-routes';
 import type { Db } from './db/client';
 import { calendarEvent, calendarRequest, follow, game } from './db/schema';
+import { notHidden } from './feed-store';
 import { dropEndpoint, subscriptionsOf } from './push-store';
 
 export interface PushTarget {
@@ -40,6 +41,8 @@ async function participants(db: Db, eventId: string, hostId: string, statuses: C
         eq(calendarRequest.eventId, eventId),
         inArray(calendarRequest.status, statuses),
         sql`exists (select 1 from ${follow} where ${follow.followerId} = ${hostId} and ${follow.followeeId} = ${calendarRequest.userId})`,
+        // Заблокованим (бан #23) пушів не шлемо.
+        notHidden(calendarRequest.userId),
       ),
     );
   return rows.map((r) => r.userId);
@@ -94,6 +97,7 @@ export function createPushService(deps: {
           isNull(calendarEvent.openedPushedAt),
           isNull(calendarEvent.cancelledAt),
           isNotNull(calendarEvent.gameCode),
+          notHidden(calendarEvent.hostId),
         ),
       )
       .returning({ id: calendarEvent.id, hostId: calendarEvent.hostId, title: calendarEvent.title, code: calendarEvent.gameCode });
@@ -125,6 +129,8 @@ export function createPushService(deps: {
           gt(calendarEvent.startsAt, at),
           lte(calendarEvent.startsAt, new Date(at.getTime() + PUSH_REMINDER_BEFORE_MS)),
           sql`not exists (select 1 from ${game} where ${game.id} = ${calendarEvent.gameId} and ${game.status} = 'finished')`,
+          // Подія заблокованого ведучого (бан #23) нікому не нагадує.
+          notHidden(calendarEvent.hostId),
         ),
       )
       .returning({ id: calendarEvent.id, hostId: calendarEvent.hostId, title: calendarEvent.title, startsAt: calendarEvent.startsAt });

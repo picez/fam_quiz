@@ -118,7 +118,7 @@ async function toCalendarEvents(db: Db, viewerId: string, selected: Selected, no
       .from(calendarRequest)
       .innerJoin(user, eq(user.id, calendarRequest.userId))
       .leftJoin(profile, eq(profile.userId, calendarRequest.userId))
-      .where(inArray(calendarRequest.eventId, hosted))
+      .where(and(inArray(calendarRequest.eventId, hosted), notHidden(calendarRequest.userId)))
       .orderBy(sql`(${calendarRequest.status} = 'pending') desc`, asc(calendarRequest.requestedAt), asc(calendarRequest.userId));
     for (const r of rows) {
       const list = requests.get(r.eventId) ?? [];
