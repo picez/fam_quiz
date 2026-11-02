@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+// Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PerksView } from '@quiz/shared';
@@ -75,8 +77,8 @@ describe('Perks', () => {
   });
 
   it('a long hint is clamped to its reserved lines and scrolls inside: the answers below stay put (375 px)', () => {
-    const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path))!;
-    const css = readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
+    const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+    const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
     const start = css.indexOf('\n.perk-hint {');
     expect(start).toBeGreaterThanOrEqual(0);
     const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));

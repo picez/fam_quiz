@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, stickerPath, xpForLevel, type AchievementsPage, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -17646,9 +17646,13 @@ async function levels15a() {
   expect(await chip('Гість').locator('.nick-level').count(), 'a level badge next to the guest').toBe(0);
   expect(await chip('Ірина').locator('.nick-level').count(), 'a level badge next to the level 1 Ірина').toBe(0);
   expect(await stage.evaluate('document.scrollingElement.scrollHeight <= innerHeight'), 'p15a-stage-lobby: the stage scrolls').toBe(true);
+  await expectFramesFit15a(stage, 'p15a-stage-lobby');
   await shot(stage, 'p15a-stage-lobby');
   await host.getByText('Бонуси рівнів увімкнено', exact).waitFor();
   await row('Оля').locator('.nick-level').getByText('Рів. 10', exact).waitFor();
+  // Рамка Олі в рядку гравця на пульті не виходить за межі рядка.
+  await row('Оля').locator('.nick.nick-f-bronze').waitFor();
+  await expectFramesFit15a(host, 'p15a-host-lobby');
   await expectNoSideScroll(olya, 'p15a-phone-lobby');
 
   // ── 3. Бонуси рівня: підказка й +5 с у Олі, оберіг Петра гасить Туман ведучого. ──
@@ -17669,6 +17673,7 @@ async function levels15a() {
   const before = await answerY(olya, /Дніпро/);
   await hintButton.click();
   await olya.locator('.perk-hint').getByText('💡 Найдовша річка України', exact).waitFor();
+  await expect.poll(() => hintButton.isDisabled(), { timeout: 5000 }).toBe(true);
   expect(await answerY(olya, /Дніпро/), 'the level hint moves the answers').toBe(before);
   const secondsBefore = await seconds(olya);
   await expect.poll(() => timeButton.isDisabled(), { timeout: 5000 }).toBe(false);
@@ -17676,13 +17681,8 @@ async function levels15a() {
   await expect.poll(() => timeButton.isDisabled(), { timeout: 5000 }).toBe(true);
   await expect.poll(() => seconds(olya), { timeout: 3000 }).toBeGreaterThanOrEqual(secondsBefore + 3);
   expect(await answerY(olya, /Дніпро/), '+5 s moves the answers').toBe(before);
-  // Реакцій під час запитання немає; якщо смуга є, вона не накриває бонусів.
-  const strip = olya.locator('.reaction-strip');
-  if ((await strip.count()) > 0) {
-    const s = (await strip.boundingBox())!;
-    const p = (await olya.locator('.perk-bar').boundingBox())!;
-    expect(s.y >= p.y + p.height || s.y + s.height <= p.y, 'the reaction strip covers the perk row').toBe(true);
-  }
+  // Реакцій під час запитання немає: смуга не накриває бонусів, бо її немає зовсім.
+  expect(await olya.locator('.reaction-strip').count(), 'a reaction strip during a question').toBe(0);
   await expectNoSideScroll(olya, 'p15a-phone-perks');
 
   await row('Петро').locator('.ward-tag').waitFor();
@@ -17757,8 +17757,19 @@ async function levels15a() {
   const irynaAchievements = () => db.select().from(xpEntry).where(and(eq(xpEntry.userId, ids.get(iryna)!), eq(xpEntry.source, 'achievement')));
   await expect.poll(async () => (await irynaAchievements()).map((r) => r.achievementId), { timeout: 15_000 }).toContain('first_game');
   for (const r of await irynaAchievements()) expect(r.amount, r.achievementId!).toBe(ACHIEVEMENT_XP[achievementRarity(r.achievementId!)]);
+  // Картка «Рівень» Олі: 3200 із сіду + 200 за гру + досягнення гри — рівно сума її журналу.
+  const olyaXp = async () => (await db.select().from(xpEntry).where(eq(xpEntry.userId, ids.get(olya)!))).reduce((sum, r) => sum + r.amount, 0);
+  await expect
+    .poll(async () => {
+      const own = ((await (await olya.request.get(`${base}/api/me/profile`)).json()) as { level: OwnLevel }).level.progress.xp;
+      return own === (await olyaXp()) ? own : -1;
+    }, { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(3200 + 200);
+  const olyaTotal = await olyaXp();
   await olya.goto(`${base}/profile`);
-  await olya.locator('section.level-card').waitFor();
+  const after = olya.locator('section.level-card');
+  await after.waitFor();
+  expect(await after.locator('p.meta').first().textContent()).toBe(`${olyaTotal} / ${xpForLevel(levelOf(olyaTotal) + 1)} досвіду`);
   await expectNoSideScroll(olya, 'p15a-profile-after');
 
   // ── 6. Повтор тієї самої вікторини: усім трьом 0 з repeat_quiz. ──
