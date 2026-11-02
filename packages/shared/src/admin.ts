@@ -7,7 +7,7 @@ export const ADMIN_REASON_MAX = 500;
 export const ADMIN_QUERY_MAX = 100;
 export const ADMIN_ACTION_KINDS = ['ban', 'unban', 'quiz_delete', 'question_delete', 'prize_delete', 'award_delete'] as const;
 export type AdminActionKind = (typeof ADMIN_ACTION_KINDS)[number];
-export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found';
+export type RemovalEffect = 'question' | 'category' | 'round' | 'last_question' | 'not_found' | 'locked';
 
 export interface AdminStats {
   users: { total: number; new7: number; new30: number; online: number };

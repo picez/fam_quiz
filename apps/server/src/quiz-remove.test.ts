@@ -4,6 +4,7 @@ import {
   boardRound,
   bool,
   classicRound,
+  cloud,
   duels,
   finalRound,
   ladderQuestions,
@@ -14,6 +15,7 @@ import {
   survivalQuestions,
   survivalRound,
   survivalTrials,
+  surveyCloud,
   text,
   withId,
 } from '@quiz/engine/testing';
@@ -178,5 +180,28 @@ describe('removalEffects', () => {
     expect(effects.q1).toBe('round');
     expect(effects['g-0-0']).toBe('round');
     expect(effects.t1).toBe('question');
+  });
+});
+
+describe('removalEffect: locked when the rest fails the schema', () => {
+  it('the last survival trial of a question-trial round', () => {
+    const quiz = makeRoundsQuiz([survivalRound('v', survivalQuestions, [survivalTrials[0]!], { trial: 'question' })]);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(removeQuestion(quiz, survivalTrials[0]!.id).ok).toBe(true);
+    expect(removalEffect(quiz, survivalTrials[0]!.id)).toBe('locked');
+    expect(removalEffects(quiz)[survivalTrials[0]!.id]).toBe('locked');
+  });
+
+  it('the last spare while the swap buff is on', () => {
+    const quiz: Quiz = { ...makeRoundsQuiz([classicRound('r1', [withId(single, 'q1')])], { buffs: ['swap'] }), spares: [withId(text, 's1')] };
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(removalEffect(quiz, 's1')).toBe('locked');
+  });
+
+  it('a word cloud that a later survey reads from', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [cloud, surveyCloud, withId(single, 'q1')])]);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(removalEffect(quiz, cloud.id)).toBe('locked');
+    expect(removalEffect(quiz, surveyCloud.id)).toBe('question');
   });
 });

@@ -1,4 +1,4 @@
-import { LIMITS, allSpares, questionsOf, roundTrials, type BoardCategory, type Question, type Quiz, type RemovalEffect, type Round } from '@quiz/shared';
+import { LIMITS, allSpares, questionsOf, quizSchema, roundTrials, type BoardCategory, type Question, type Quiz, type RemovalEffect, type Round } from '@quiz/shared';
 
 export type RemoveResult =
   | { ok: true; quiz: Quiz; effect: 'question' | 'category' | 'round' }
@@ -78,10 +78,11 @@ export function removeQuestion(quiz: Quiz, questionId: string): RemoveResult {
   return { ok: true, quiz: next, effect };
 }
 
-/** Що станеться, якщо видалити запитання (мінімуми схеми; дуелі → not_found). */
+/** Що станеться, якщо видалити запитання (мінімуми схеми; дуелі → not_found; решта не проходить quizSchema → locked). */
 export function removalEffect(quiz: Quiz, questionId: string): RemovalEffect {
   const result = removeQuestion(quiz, questionId);
-  return result.ok ? result.effect : result.error;
+  if (!result.ok) return result.error;
+  return quizSchema.safeParse(result.quiz).success ? result.effect : 'locked';
 }
 
 /** removalEffect для кожного видимого id запитання (раунди, клітинки, trials, spares, category.spares). */
