@@ -1111,8 +1111,8 @@ interface BaseView {
   titles?: Record<string, string>;
   /** Рівні біля ніків: нік людини → рівень і вбрання (ставить сервер, рушій ключа не ставить). */
   levels?: Record<string, NickLevel>;
-  /** Ведучий вимкнув бонуси рівнів (ставить рушій, лише коли вимкнено). */
-  levelBonuses?: false;
+  /** Бонуси рівнів (ставить рушій): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден не пасує вікторині. */
+  levelBonuses?: 'off' | 'none';
   phase: Phase;
   paused: boolean;
   /** Раунд; null у лобі. */

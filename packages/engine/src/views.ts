@@ -144,7 +144,7 @@ import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
 import { cluesByHost, cluesBySelf, cluesOpen, cluesOpenBy, cluesSeenBy, nextClueAt } from './clues';
 import { pendingOf } from './hold';
-import { perksView, wardReady, wardsView } from './perks';
+import { anyPerkFits, perksView, wardReady, wardsView } from './perks';
 import { hostLive, responseClue, spareOf } from './live';
 import { awayPenalized, awayPeople, lastAway, ownAway, stageAway } from './away';
 import { hostPace } from './pacing';
@@ -1693,9 +1693,15 @@ function base(state: GameState, forHost: boolean) {
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
     teams: teamsView(state),
-    // Вимикач бонусів рівнів (15a): ключ є лише тоді, коли ведучий їх вимкнув.
-    ...(state.quiz.settings.levelBonuses === false ? { levelBonuses: false as const } : {}),
+    // Бонуси рівнів (15a): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден бонус не пасує (переважає 'off').
+    ...levelBonusesView(state),
   };
+}
+
+/** Рядок «Бонуси рівнів» у лобі: ключ лише тоді, коли бонуси не діють. */
+function levelBonusesView(state: GameState): { levelBonuses?: 'off' | 'none' } {
+  if (teamsOn(state) || !anyPerkFits(state.quiz)) return { levelBonuses: 'none' };
+  return state.quiz.settings.levelBonuses === false ? { levelBonuses: 'off' } : {};
 }
 
 /** Етапи запитання, на яких лічильник голосу без балів рахує людей. */

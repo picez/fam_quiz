@@ -838,7 +838,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'lobby' && view.author !== null && (
         <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} />
       )}
-      {phase === 'lobby' && view.author === null && view.levelBonuses === false && <p className="meta">{t('levelBonusesOffByHost')}</p>}
+      {phase === 'lobby' && view.author === null && view.levelBonuses === 'off' && <p className="meta">{t('levelBonusesOffByHost')}</p>}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
       {/* Хто вже в лобі (беклог 5); у командній грі склад видно в командах. */}
       {phase === 'lobby' && view.team === null && view.lobby !== undefined && (

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { Quiz, QuizSettings } from '@quiz/shared';
+import { defaultTeams, type Quiz, type QuizSettings } from '@quiz/shared';
 import { setDebuff } from './debuffs';
 import { next, start, type GameState } from './game';
 import { grantPerks } from './perks';
-import { classicRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { blitzRound, classicRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
+import { teamGame } from './testing/teams';
 import { lobbyWith, must } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -55,17 +56,29 @@ describe('level perks in views', () => {
     expect(playerView(opened(), 'p1')?.me.shop?.targets).toEqual([expect.objectContaining({ playerId: 'p2', warded: false })]);
   });
 
-  it('the switch off shows on every view; on — no key', () => {
+  it('the switch off shows on every view as off; on and applicable — no key', () => {
     const off = opened({ levelBonuses: false });
-    expect(stageView(off).levelBonuses).toBe(false);
-    expect(hostView(off).levelBonuses).toBe(false);
-    expect(playerView(off, 'p1')?.levelBonuses).toBe(false);
+    expect(stageView(off).levelBonuses).toBe('off');
+    expect(hostView(off).levelBonuses).toBe('off');
+    expect(playerView(off, 'p1')?.levelBonuses).toBe('off');
     expect(playerView(off, 'p1')?.me.perks).toBeNull();
     const lobby = lobbyWith(quiz({ levelBonuses: false }), 'Оля');
-    expect(playerView(lobby, 'p1')?.levelBonuses).toBe(false);
+    expect(playerView(lobby, 'p1')?.levelBonuses).toBe('off');
+    expect(hostView(lobbyWith(quiz(), 'Оля'))).not.toHaveProperty('levelBonuses');
     const on = opened();
     expect(stageView(on)).not.toHaveProperty('levelBonuses');
     expect(hostView(on)).not.toHaveProperty('levelBonuses');
     expect(playerView(on, 'p1')).not.toHaveProperty('levelBonuses');
+  });
+
+  it('none: nothing fits or a team game, and none wins over off', () => {
+    const bare = (settings: Partial<QuizSettings>) => makeRoundsQuiz([classicRound('r1', [withVideo(single)])], { debuffs: [], ...settings });
+    expect(hostView(lobbyWith(bare({}), 'Оля')).levelBonuses).toBe('none');
+    expect(stageView(lobbyWith(bare({ levelBonuses: false }), 'Оля')).levelBonuses).toBe('none');
+    const blitzOnly = makeRoundsQuiz([blitzRound('r1', [{ ...single, hint: 'Місто Лева' }])], { debuffs: [] });
+    expect(hostView(lobbyWith(blitzOnly, 'Оля')).levelBonuses).toBe('none');
+    const team = teamGame(makeRoundsQuiz([classicRound('r1', [{ ...single, hint: 'Місто Лева' }])], { teams: defaultTeams(2), levelBonuses: false }), [['Оля'], ['Петро']]);
+    expect(hostView(team).levelBonuses).toBe('none');
+    expect(playerView(team, 'm1')?.levelBonuses).toBe('none');
   });
 });

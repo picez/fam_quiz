@@ -310,10 +310,13 @@ describe('PlayerScreen', () => {
   });
 
   it('the lobby says the host turned level bonuses off, and says nothing when they are on (15a)', () => {
-    show(view({ levelBonuses: false }));
+    show(view({ levelBonuses: 'off' }));
     expect(screen.getByText('Бонуси рівнів вимкнено ведучим')).toBeTruthy();
     cleanup();
     show(view());
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
+    cleanup();
+    show(view({ levelBonuses: 'none' }));
     expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
   });
 

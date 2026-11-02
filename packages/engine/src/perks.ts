@@ -1,7 +1,7 @@
 import {
   allSpares,
   allowedDebuffs,
-  questionsOf,
+  LEVEL_PERKS,
   type ActivePerk,
   type LevelPerk,
   type PerkBlock,
@@ -11,7 +11,7 @@ import {
 } from '@quiz/shared';
 // buffs.ts і debuffs.ts викликають цей файл, а цей — їх і game.ts; усі звертаються одне до одного лише під час виклику.
 import { fail, ok, type GameState, type PerkState, type Play, type Result } from './game';
-import { buffOf, buffsHere, hasAnswered, questionFor } from './buffs';
+import { buffOf, buffQuestions, buffsHere, hasAnswered, questionFor } from './buffs';
 import { notStarted } from './splash';
 import { teamsOn } from './teams';
 import { grantOvertime, isTimed, overtimeOf, timedPlay, timeOverFor } from './timing';
@@ -24,17 +24,41 @@ export function perksOn(state: GameState): boolean {
   return state.quiz.settings.levelBonuses !== false && !teamsOn(state);
 }
 
-/** Чи механіка бонусу є у вікторині: time — запитання з таймером; hint — запитання з hint (разом із запасними); ward — дозволені дебафи. */
+/** Кеш perkFits за об'єктом вікторини (вікторина в стані незмінна). */
+const fitsCache = new WeakMap<Quiz, Partial<Record<LevelPerk, boolean>>>();
+
+/**
+ * Чи механіка бонусу є у вікторині: time — запитання з таймером; hint — запитання з hint (разом із запасними); ward — дозволені дебафи.
+ * Рахуються лише запитання там, де діють бафи 12h (buffQuestions); запасні — лише коли таке місце є.
+ */
 export function perkFits(quiz: Quiz, kind: LevelPerk): boolean {
-  const questions = [...questionsOf(quiz), ...allSpares(quiz)];
-  switch (kind) {
-    case 'time':
-      return questions.some(isTimed);
-    case 'hint':
-      return questions.some((q) => q.hint !== undefined);
-    case 'ward':
-      return allowedDebuffs(quiz).length > 0;
+  let cached = fitsCache.get(quiz);
+  if (cached === undefined) {
+    cached = {};
+    fitsCache.set(quiz, cached);
   }
+  const hit = cached[kind];
+  if (hit !== undefined) return hit;
+  const fits = computeFits(quiz, kind);
+  cached[kind] = fits;
+  return fits;
+}
+
+function computeFits(quiz: Quiz, kind: LevelPerk): boolean {
+  if (kind === 'ward') return allowedDebuffs(quiz).length > 0;
+  const here = buffQuestions(quiz);
+  const questions = here.length === 0 ? [] : [...here, ...allSpares(quiz)];
+  return kind === 'time' ? questions.some(isTimed) : questions.some((q) => q.hint !== undefined);
+}
+
+/** Чи бонуси рівня справді щось дають у цій грі: увімкнені, не командна гра, і хоч один бонус пасує вікторині. */
+export function perksApply(state: GameState): boolean {
+  return perksOn(state) && anyPerkFits(state.quiz);
+}
+
+/** Чи хоч один бонус рівня пасує вікторині. */
+export function anyPerkFits(quiz: Quiz): boolean {
+  return LEVEL_PERKS.some((kind) => perkFits(quiz, kind));
 }
 
 /** Видача гравця; undefined — немає. */

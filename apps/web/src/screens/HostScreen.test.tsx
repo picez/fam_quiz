@@ -124,8 +124,11 @@ describe('HostScreen', () => {
     show(view());
     expect(screen.getByText('Бонуси рівнів увімкнено')).toBeTruthy();
     cleanup();
-    show(view({ levelBonuses: false }));
+    show(view({ levelBonuses: 'off' }));
     expect(screen.getByText('Бонуси рівнів вимкнено')).toBeTruthy();
+    cleanup();
+    show(view({ levelBonuses: 'none' }));
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
   });
 
   it('the invite button is only in the lobby', () => {

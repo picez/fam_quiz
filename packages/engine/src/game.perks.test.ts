@@ -4,8 +4,8 @@ import { adjustScore } from './adjust';
 import { buffBlock, takeBuff } from './buffs';
 import { buyDebuff, setDebuff } from './debuffs';
 import { lock, next, pause, start, submitAnswer, type GameState } from './game';
-import { grantPerks, perkBlock, perkFits, perksOn, perksView, usePerk, wardReady } from './perks';
-import { blitzRound, classicRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
+import { grantPerks, perkBlock, perkFits, perksApply, perksOn, perksView, usePerk, wardReady } from './perks';
+import { blitzRound, boardRound, chain, classicRound, finalRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { teamGame } from './testing/teams';
 import { overtimeOf } from './timing';
@@ -68,6 +68,32 @@ describe('granting level perks', () => {
     const bare = perkQuiz([withVideo(single)], { debuffs: [] });
     expect(grantPerks(must(start(lobbyWith(bare, 'Оля'))), { p1: ALL }).perks).toBeUndefined();
   });
+
+  it('perkFits counts only questions where 12h buffs can apply (rounds and question types)', () => {
+    // підказка й таймер лише в бліці та фіналі — бонусам там нема де діяти
+    const offRounds = makeRoundsQuiz([blitzRound('r1', [hinted]), finalRound('r2', withId(hinted, 'q2'))], { debuffs: [] });
+    expect(perkFits(offRounds, 'hint')).toBe(false);
+    expect(perkFits(offRounds, 'time')).toBe(false);
+    // запасні не рахуються, коли бафам нема де діяти
+    expect(perkFits({ ...offRounds, spares: [{ ...withId(single, 's1'), hint: 'Запасна' }] }, 'hint')).toBe(false);
+    // ланцюжок рахується окремо — бафів там немає
+    expect(perkFits(makeRoundsQuiz([classicRound('r1', [{ ...chain, hint: 'Ланцюжок' } as Question])]), 'hint')).toBe(false);
+    // звичайна клітинка поля пасує, бліц-клітинка — ні
+    const board = (kind: 'normal' | 'blitz') => makeRoundsQuiz([boardRound('r1', [{ title: 'Міста', cells: [{ question: hinted, kind }] }])]);
+    expect(perkFits(board('normal'), 'hint')).toBe(true);
+    expect(perkFits(board('blitz'), 'hint')).toBe(false);
+    // та сама вікторина — та сама відповідь (кеш за об'єктом)
+    expect(perkFits(offRounds, 'hint')).toBe(false);
+  });
+
+  it('perksApply: on, not teams, and at least one perk fits', () => {
+    const started = (quiz: Quiz) => must(start(lobbyWith(quiz, 'Оля')));
+    expect(perksApply(started(perkQuiz()))).toBe(true);
+    expect(perksApply(started(perkQuiz(undefined, { levelBonuses: false })))).toBe(false);
+    expect(perksApply(started(perkQuiz([withVideo(single)], { debuffs: [] })))).toBe(false);
+    const team = teamGame(makeRoundsQuiz([classicRound('r1', [hinted])], { teams: defaultTeams(2) }), [['Оля'], ['Петро']]);
+    expect(perksApply(team)).toBe(false);
+  });
 });
 
 describe('using level perks', () => {
@@ -114,7 +140,8 @@ describe('using level perks', () => {
   });
 
   it('blocks: blitz, pause, answered, video, no grant', () => {
-    const blitz = makeRoundsQuiz([blitzRound('b1', [hinted])], { buffs: ['time'] });
+    // бліц першим, далі класика: бонуси видано, але в бліці їх не натиснути
+    const blitz = makeRoundsQuiz([blitzRound('b1', [hinted]), classicRound('r2', [withId(hinted, 'q2')])], { buffs: ['time'] });
     const inBlitz = opened(blitz);
     expect(perkBlock(inBlitz, 'p1', 'time')).toBe('elsewhere');
     expect(usePerk(inBlitz, 'p1', 'time', T0 + 1000)).toEqual({ ok: false, error: 'wrong_phase' });
