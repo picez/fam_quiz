@@ -5,8 +5,7 @@ import { debuffName } from '../debuff-meta';
 import { ROUND_NAMES } from '../guide-text';
 import { t, type TextKey } from '../i18n';
 import { MIRROR_SWAP_MS, freezeMs } from '../screens/Debuffs';
-import { SETTING_HELP_KEYS } from './settings';
-import { HELP_TOPICS, cellHelpId, helpAnchor, helpEntry, helpIds, helpTopic, searchHelp, type HelpId } from './host-help';
+import { HELP_TOPICS, SETTING_HELP_KEYS, cellHelpId, helpAnchor, helpEntry, helpIds, helpTopic, searchHelp, type HelpId } from './host-help';
 
 const SENTENCE_END = /[.!?…](?=\s|$)/g;
 const filled = (id: HelpId) => {

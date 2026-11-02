@@ -1,6 +1,7 @@
 import type { Locale } from '@quiz/shared';
 import { intlTag, setCurrentLocale } from './locales/current';
 import { loadMessages, type Messages } from './locales/load';
+import { helpUk } from './help/help-uk';
 import { isEnabled } from './locales/locales';
 import { pushStrings } from './push/push-strings';
 
@@ -2733,8 +2734,7 @@ export type TextKey = keyof typeof uk;
 
 type Dictionaries = { ui: Messages; help: Messages };
 
-/** uk-довідка з'являється в задачі 5; до того — порожня. */
-const UK: Dictionaries = { ui: uk, help: {} };
+const UK: Dictionaries = { ui: uk, help: helpUk };
 const loaded = new Map<Locale, Dictionaries>([['uk', UK]]);
 let active: Dictionaries = UK;
 
@@ -2772,6 +2772,16 @@ export function activeMessages(): { ui: Messages; help: Messages } {
 /** Текст активною мовою; нема ключа в її словнику — uk. */
 export function t(key: TextKey, vars: Record<string, string | number> = {}): string {
   return fill(own(active.ui, key) ? active.ui[key]! : uk[key], vars);
+}
+
+/** Текст довідки ведучого активною мовою; нема ключа в її словнику — uk. Плейсхолдери {ім'я} — з vars. */
+export function helpText(key: string, vars: Record<string, string> = {}): string {
+  return fill(own(active.help, key) ? active.help[key]! : helpUk[key]!, vars);
+}
+
+/** Чи є ключ у словнику довідки активної мови (не в uk-запасному). */
+export function hasActiveHelp(key: string): boolean {
+  return own(active.help, key);
 }
 
 /** Чи є такий ключ у словнику. */

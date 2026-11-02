@@ -1,32 +1,33 @@
-import { BUFF_KINDS, DEBUFF_KINDS, ROUND_TYPES, QUESTION_TYPES, type AnswerMode, type CellKind, type CellMark } from '@quiz/shared';
-import { CELL_HELP, CELL_HELP_KEYS } from './cells';
-import { BUFF_HELP, DEBUFF_HELP } from './powers';
-import { QUESTION_HELP } from './questions';
-import { ROUND_HELP } from './rounds';
-import { SETTING_HELP, SETTING_HELP_KEYS } from './settings';
-import { TEAM_HELP, TEAM_HELP_KEYS } from './teams';
+import { BUFF_KINDS, CELL_KINDS, DEBUFF_KINDS, ROUND_TYPES, QUESTION_TYPES, TEAM_FORMS, type AnswerMode, type CellKind, type CellMark } from '@quiz/shared';
+import { hasActiveHelp, helpText } from '../i18n';
+import { searchNormalize } from '../locales/grammar';
+import { helpUk } from './help-uk';
+import { helpVars } from './help-vars';
 import type { HelpEntry } from './types';
 
 /** Теми довідника в порядку сторінки. */
 export const HELP_TOPICS = ['rounds', 'questions', 'cells', 'buffs', 'debuffs', 'settings', 'teams'] as const;
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
+export const CELL_HELP_KEYS = [...CELL_KINDS, 'voice', 'marks'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'undo', 'away', 'appeal', 'description', 'speedBonus', 'spares', 'debuffShop', 'levelBonuses', 'duels', 'penalty', 'partial', 'streak', 'multiplier', 'audio', 'reveal', 'autopilot'] as const;
+export const TEAM_HELP_KEYS = ['play', ...TEAM_FORMS, 'captain', 'answerer', 'formats'] as const;
+
 interface Topic<P extends string, K extends string> {
   prefix: P;
   keys: readonly K[];
-  entries: Record<K, HelpEntry>;
 }
-const topic = <P extends string, K extends string>(prefix: P, keys: readonly K[], entries: Record<K, HelpEntry>): Topic<P, K> => ({ prefix, keys, entries });
+const topic = <P extends string, K extends string>(prefix: P, keys: readonly K[]): Topic<P, K> => ({ prefix, keys });
 
 /** Таблиця тем: новий тип у переліку shared без запису не пройде typecheck. */
 const TOPICS = {
-  rounds: topic('round', ROUND_TYPES, ROUND_HELP),
-  questions: topic('question', QUESTION_TYPES, QUESTION_HELP),
-  cells: topic('cell', CELL_HELP_KEYS, CELL_HELP),
-  buffs: topic('buff', BUFF_KINDS, BUFF_HELP),
-  debuffs: topic('debuff', DEBUFF_KINDS, DEBUFF_HELP),
-  settings: topic('setting', SETTING_HELP_KEYS, SETTING_HELP),
-  teams: topic('team', TEAM_HELP_KEYS, TEAM_HELP),
+  rounds: topic('round', ROUND_TYPES),
+  questions: topic('question', QUESTION_TYPES),
+  cells: topic('cell', CELL_HELP_KEYS),
+  buffs: topic('buff', BUFF_KINDS),
+  debuffs: topic('debuff', DEBUFF_KINDS),
+  settings: topic('setting', SETTING_HELP_KEYS),
+  teams: topic('team', TEAM_HELP_KEYS),
 } satisfies Record<HelpTopic, Topic<string, string>>;
 
 type Topics = typeof TOPICS;
@@ -47,11 +48,29 @@ export function helpTopic(id: HelpId): HelpTopic {
   return found;
 }
 
+const hasUkHelp = (key: string) => Object.prototype.hasOwnProperty.call(helpUk, key);
+
+/** Рядки списку розділу: довжина — за ключами `<base>.0…n` того словника, що має список (активний; немає в ньому — uk). */
+function helpList(base: string, vars: Record<string, string>): string[] {
+  const own = hasActiveHelp(`${base}.0`);
+  const out: string[] = [];
+  for (let i = 0; own ? hasActiveHelp(`${base}.${i}`) : hasUkHelp(`${base}.${i}`); i++) out.push(helpText(`${base}.${i}`, vars));
+  return out;
+}
+
+/** Запис довідки активною мовою; чого нема в її словнику — uk. */
 export function helpEntry(id: HelpId): HelpEntry {
-  const { entries } = TOPICS[helpTopic(id)] as Topic<string, string>;
-  const entry = (entries as Record<string, HelpEntry | undefined>)[id.slice(id.indexOf('.') + 1)];
-  if (entry === undefined) throw new Error(`Unknown help id: ${id}`);
-  return entry;
+  if (!hasUkHelp(`${id}.title`)) throw new Error(`Unknown help id: ${id}`);
+  const vars = helpVars();
+  const limits = helpList(`${id}.limits`, vars);
+  return {
+    title: helpText(`${id}.title`, vars),
+    what: helpText(`${id}.what`, vars),
+    how: helpList(`${id}.how`, vars),
+    points: helpList(`${id}.points`, vars),
+    tip: helpList(`${id}.tip`, vars),
+    ...(limits.length > 0 ? { limits } : {}),
+  };
 }
 
 /** Якір запису в довіднику: 'buff.swap' → 'help-buff-swap'. */
@@ -59,7 +78,7 @@ export function helpAnchor(id: HelpId): string {
   return `help-${id.replace('.', '-')}`;
 }
 
-const normalize = (s: string) => s.trim().toLocaleLowerCase('uk').replace(/[’ʼ`]/g, "'");
+const normalize = (s: string) => searchNormalize(s.trim()).replace(/[’ʼ`]/g, "'");
 
 /** Усі записи в порядку тем; query — за назвою, без регістру й виду апострофа; '' — усе. */
 export function searchHelp(query: string): HelpId[] {
