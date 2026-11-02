@@ -1,6 +1,6 @@
 import type { FeedEvent, FeedPage } from '@quiz/shared';
 import { useEffect, useRef, useState, type JSX } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { getFeed, likeFeedEvent, markFeedSeen } from '../api';
 import { FeedCard } from '../feed/FeedCard';
 import { FeedTabs } from '../feed/FeedTabs';
@@ -12,23 +12,28 @@ const LOGIN = '/login?next=%2Ffeed';
 
 /** Стрічка (/feed): події друзів. */
 export function Feed(): JSX.Element {
+  const { key } = useLocation();
+  const [attempt, setAttempt] = useState(0);
   const state = usePrivateData(async () => {
     const result = await getFeed();
     if (!result.ok) return result;
     const { ok: _ok, ...data } = result;
     return { ok: true as const, data: data as FeedPage };
-  });
+  }, `${key}:${attempt}`);
   if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
   if (state.status === 'loading') return <main className="app wide"><p className="meta">{t('loading')}</p></main>;
   if (state.status === 'error')
     return (
       <main className="app wide">
         <p className="error" role="alert">
-          {state.message}
+          {t('feedError')}
         </p>
+        <button type="button" className="secondary" onClick={() => setAttempt((n) => n + 1)}>
+          {t('prizesRetry')}
+        </button>
       </main>
     );
-  return <FeedList first={state.data} />;
+  return <FeedList key={state.data.asOf ?? ''} first={state.data} />;
 }
 
 function FeedList({ first }: { first: FeedPage }): JSX.Element {
@@ -83,11 +88,6 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
   return (
     <main className="app wide feed-page">
       <FeedTabs badge={badge} />
-      {error !== null && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
       {events.length === 0 ? (
         <p className="meta feed-empty">
           {t('feedEmpty')} <Link to="/profile">{t('feedEmptyLink')}</Link>
@@ -98,6 +98,11 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
             <FeedCard key={event.id} event={event} onLike={like} pending={pending.has(event.id)} />
           ))}
         </ol>
+      )}
+      {error !== null && (
+        <p className="error" role="alert">
+          {error}
+        </p>
       )}
       {next !== null && (
         <button type="button" className="secondary" disabled={busy} onClick={more}>

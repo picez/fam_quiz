@@ -13739,6 +13739,15 @@ button.wall-tile:disabled {
   border-color: var(--amber);
 }
 
+.feed-like:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.history-tabs .menu-badge {
+  margin-left: 0.35rem;
+}
+
 .feed-like-count {
   flex: none;
   color: var(--dim);

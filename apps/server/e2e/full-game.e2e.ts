@@ -18509,6 +18509,7 @@ async function feed18a() {
   await feedLink(olya).waitFor();
   expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
   for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+  // The «99+» and 42 badges are stubbed here; the real badge is checked in step 4.
   for (const [count, label] of [[120, '99+'], [42, '42']] as const) {
     await olya.route('**/api/me/feed/badge', (route) => route.fulfill({ json: { events: count, requests: 0, decisions: 0 } }));
     await olya.reload();
@@ -18718,6 +18719,7 @@ async function feed18a() {
   // Усі події Олі й Петра плюс картки лайків Олі (Петро вподобав її як гравця).
   const likeCards = allIds.filter((id) => id!.startsWith('like:')).length;
   expect(likeCards, 'Оля’s likes card from Петро').toBe(1);
+  // `visible` assumes every seeded event lies inside the 30/90-day retention window.
   expect(allIds.length - likeCards, 'events of Оля and Петро').toBe(visible);
   await expectPhoneFit(olya, 'p18a-feed-more');
 

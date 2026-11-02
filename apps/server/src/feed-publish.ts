@@ -186,6 +186,7 @@ export async function publishGameFeed(db: Db, gameId: string): Promise<void> {
 
 /**
  * На старті, у фоні після listen: write*({ since: now − 90 д }, true) — події завершених ігор за 90 днів з created_at = at (бейдж не світиться).
+ * Дописування може записати події щойно завершеної гри з created_at = at, тож другу, чия позначка «переглянуто» пізніша за finished_at, бейдж за неї не покаже (подія в стрічці лишається) — прийнято.
  * Ідемпотентно (ключі): обірване зупинкою дописування наступний старт продовжить. Рівнів не пише — це settleFeedLevels.
  */
 export async function backfillFeed(db: Db, now: Date): Promise<void> {

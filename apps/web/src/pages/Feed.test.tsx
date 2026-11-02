@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { FeedEvent } from '@quiz/shared';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getFeed, getFeedBadge, likeFeedEvent, markFeedSeen, me } from '../api';
 import { FEED_CHANGED } from '../useFeedBadge';
@@ -74,6 +74,41 @@ describe('Feed', () => {
     const back = screen.getByRole('button', { name: 'Прибрати вподобання' });
     expect(back.getAttribute('aria-pressed')).toBe('true');
     expect(back.textContent).toContain('3');
+  });
+
+  it('re-navigating to /feed refetches and marks the new asOf seen', async () => {
+    render(
+      <MemoryRouter initialEntries={['/feed']}>
+        <Link to="/feed">again</Link>
+        <Feed />
+      </MemoryRouter>,
+    );
+    await screen.findByText(/Гра e1/);
+    await waitFor(() => expect(markFeedSeen).toHaveBeenCalledTimes(1));
+    vi.mocked(getFeed).mockResolvedValue({ ok: true, events: [ev('e9')], next: null, asOf: '2026-11-03T10:00:00.000Z' });
+    fireEvent.click(screen.getByRole('link', { name: 'again' }));
+    await screen.findByText(/Гра e9/);
+    await waitFor(() => expect(markFeedSeen).toHaveBeenLastCalledWith('2026-11-03T10:00:00.000Z'));
+    expect(getFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it('a failed first load shows the text and a retry button', async () => {
+    vi.mocked(getFeed).mockResolvedValueOnce({ ok: false, error: 'network' });
+    show();
+    expect(await screen.findByText('Не вдалося завантажити стрічку')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
+    await screen.findByText(/Гра e1/);
+    expect(getFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it('a «Показати ще» failure shows the error right above the button', async () => {
+    vi.mocked(getFeed).mockResolvedValueOnce({ ok: true, events: [ev('e1')], next: 'c1', asOf: 'x' });
+    vi.mocked(getFeed).mockResolvedValueOnce({ ok: false, error: 'network' });
+    show();
+    const more = await screen.findByRole('button', { name: 'Показати ще' });
+    fireEvent.click(more);
+    const alert = await screen.findByRole('alert');
+    expect(alert.nextElementSibling).toBe(screen.getByRole('button', { name: 'Показати ще' }));
   });
 
   it('an empty feed explains how to add friends', async () => {
