@@ -91,6 +91,36 @@ describe('MyPrize', () => {
     expect(screen.queryByRole('button', { name: 'Диплом' })).toBeNull();
   });
 
+  it('«Кубок» opens the trophy viewer next to «Диплом», × closes it', () => {
+    render(<MyPrize prizes={prizes(true)} nickname="Оля" quizTitle="Вікторина" />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Кубок' }));
+    const dialog = screen.getByRole('dialog', { name: 'Приз за 1 місце' });
+    expect(dialog.querySelector('.trophy-mock')).toBeTruthy();
+    expect(dialog.textContent).toContain('Чемпіон 2026');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрити' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a tap on the real-prize photo opens it large', () => {
+    const view = prizes(true);
+    const photo: PrizesView = {
+      ...view,
+      places: [{ ...view.places[0]!, content: { ...view.places[0]!.content, real: { text: 'Кубок сім’ї', photoUrl: 'https://img/cup.jpg' } } }],
+    };
+    render(<MyPrize prizes={photo} nickname="Оля" quizTitle="Вікторина" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото призу' }));
+    const img = screen.getByRole('dialog').querySelector('img.prize-view-photo') as HTMLImageElement;
+    expect(img.src).toBe('https://img/cup.jpg');
+  });
+
+  it('no «Кубок» when there is neither a trophy nor a photo', () => {
+    const view = prizes(true);
+    const plain: PrizesView = { ...view, mine: { place: 2, account: true } };
+    render(<MyPrize prizes={plain} nickname="Петро" quizTitle="Вікторина" />);
+    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
+  });
+
   it('nothing without a prize of mine', () => {
     const { container } = render(<MyPrize prizes={{ ...prizes(true), mine: null }} nickname="Оля" quizTitle="Вікторина" />);
     expect(container.textContent).toBe('');

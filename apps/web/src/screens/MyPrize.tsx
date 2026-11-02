@@ -3,13 +3,18 @@ import type { PrizesView } from '@quiz/shared';
 import { checkCode } from '../api';
 import { t } from '../i18n';
 import { diplomaFileName, renderDiploma, shareDiploma } from '../trophy/diploma';
+import { PrizeViewer, canViewPrize } from '../trophy/PrizeViewer';
 import { TrophyView } from '../trophy/TrophyView';
 import { titleBadge } from '../trophy/trophy-meta';
 
-/** Телефон у finished: «Твій приз» для prizes.mine; кнопка «Диплом» — якщо content.diploma; гість — «Ти граєш як гість: у вітрину приз не потрапить.». */
+/**
+ * Телефон у finished: «Твій приз» для prizes.mine; кнопка «Диплом» — якщо content.diploma; «Кубок» і дотик фото відкривають
+ * перегляд призу (PrizeViewer); гість — «Ти граєш як гість: у вітрину приз не потрапить.».
+ */
 export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; nickname: string; quizTitle: string }): JSX.Element | null {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const mine = prizes.mine;
   const shown = mine === null ? undefined : prizes.places.find((item) => item.place === mine.place);
   if (mine === null || shown === undefined) return null;
@@ -36,17 +41,31 @@ export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; n
       {content.engraving && <p className="engraving">{content.engraving}</p>}
       {content.real && (
         <div className="podium-real">
-          {content.real.photoUrl !== null && <img src={content.real.photoUrl} alt="" />}
+          {content.real.photoUrl !== null && (
+            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto')} onClick={() => setViewing(true)}>
+              <img src={content.real.photoUrl} alt="" />
+            </button>
+          )}
           <span>{`🎁 ${content.real.text}`}</span>
         </div>
       )}
       {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
       {!mine.account && <p className="meta">{t('myPrizeGuest')}</p>}
-      {content.diploma && (
-        <button type="button" className="btn" disabled={busy} onClick={() => void diploma()}>
-          {t('diplomaButton')}
-        </button>
+      {(content.diploma || canViewPrize(content)) && (
+        <div className="prize-actions">
+          {canViewPrize(content) && (
+            <button type="button" className="btn" onClick={() => setViewing(true)}>
+              {t('prizeViewButton')}
+            </button>
+          )}
+          {content.diploma && (
+            <button type="button" className="btn" disabled={busy} onClick={() => void diploma()}>
+              {t('diplomaButton')}
+            </button>
+          )}
+        </div>
       )}
+      {viewing && <PrizeViewer content={content} place={mine.place} onClose={() => setViewing(false)} />}
       {failed && (
         <p className="error" role="alert">
           {t('diplomaFailed')}

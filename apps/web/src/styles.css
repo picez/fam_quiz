@@ -12870,6 +12870,15 @@ button.wall-tile:disabled {
   width: 96px;
 }
 
+/* Перегляд призу (кнопка «Кубок»): великий трофей, але не вище за екран. */
+.trophy-view {
+  width: min(80vw, 55vh, 420px);
+}
+
+.trophy-view .trophy-fallback {
+  font-size: 8rem;
+}
+
 .trophy-model {
   width: 100%;
   height: 100%;
@@ -13888,4 +13897,119 @@ button.wall-tile:disabled {
   .push-settings .btn {
     width: 100%;
   }
+}
+
+/* ---------- Перегляд призу на весь екран («Кубок», 14a) ---------- */
+.prize-view-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  background: rgb(0 0 0 / 0.75);
+}
+
+.prize-view {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 97;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(calc(100vw - 1rem), 720px);
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100dvh - 1rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: var(--stage);
+  color: var(--paper);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.prize-view > * {
+  margin: 0;
+  max-width: 100%;
+}
+
+.prize-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: start;
+}
+
+.prize-view-head h2 {
+  margin: 0;
+  min-width: 0;
+  font-size: 1.1rem;
+}
+
+.prize-view-close {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prize-view-photo {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.prize-view-caption {
+  font-size: 1rem;
+}
+
+/* Мініатюра фото призу — кнопка, що відкриває перегляд. */
+.prize-photo-open {
+  display: block;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.prize-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.prize-actions .btn {
+  min-height: 44px;
+}
+
+.host-ceremony {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.podium-view {
+  min-height: 44px;
+  margin-top: 0.25rem;
 }
