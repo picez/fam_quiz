@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { buildApp } from './app';
 import { baseUrl, localOrigins, proxyTrust, secretProblem } from './config';
 import { connectDb } from './db/client';
+import { backfillFeed } from './feed-publish';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage } from './storage/r2';
 
@@ -100,6 +101,9 @@ const { app, shutdown } = await buildApp({
   pacing: true,
   persist: { instanceId: randomUUID() },
 });
+// Стрічка (18a): дописати події завершених ігор за 90 днів. Ідемпотентно (ключі), тож іде на кожному старті;
+// дописана історія бейджа не запалює (created_at = at). Збій лише журналюється: сервер стартує й без неї.
+await backfillFeed(db, new Date()).catch((error: unknown) => console.error('Не вдалося дописати стрічку:', error));
 await app.listen({ port, host: '0.0.0.0' });
 console.log(`Quiz server is listening on port ${port}`);
 for (const origin of local.lan) console.log(`У локальній мережі: ${origin}`);
