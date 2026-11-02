@@ -13548,3 +13548,72 @@ button.wall-tile:disabled {
   max-width: 100%;
   overflow: hidden;
 }
+
+/* Лайки (17a): ❤️ у шапці тієї ж висоти, що «Таблиця» (не росте й не стискається); блок фіналу — у потоці, чипи переносяться. */
+.table-button.like-button {
+  flex-shrink: 0;
+  padding-inline: 0.6rem;
+}
+
+.table-button.like-button[aria-pressed='true'] {
+  border-color: var(--accent, currentColor);
+}
+
+.table-button.like-button:disabled,
+.like-chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.like-panel {
+  min-width: 0;
+  margin-block: 1rem;
+}
+
+.like-panel-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.like-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.like-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.4rem 0.8rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.like-chip[aria-pressed='true'] {
+  border-color: var(--accent, currentColor);
+}
+
+.like-chip-name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Вужча шапка: ❤️ не стискається трикрапкою, як текстові пігулки (правило пізніше й не слабше за правило «Таблиці»). */
+@media (max-width: 400px) {
+  .bar:has(.reaction-button) > .table-button.like-button {
+    flex-shrink: 0;
+    min-width: auto;
+    overflow: visible;
+  }
+}

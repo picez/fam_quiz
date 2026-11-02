@@ -72,6 +72,7 @@ import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
 import { ReactionMain } from '../live/Reactions';
 import { ReactionButton } from './ReactionSheet';
+import { LikeButton, LikePanel } from './Likes';
 import { canReact } from '../reactions';
 
 interface Props {
@@ -633,6 +634,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const perkGuard = useGuardedSend(send, setError);
   const ward = view.wards?.[me.id];
   const resumeGuard = useGuardedSend(send, setError);
+  const likeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
   const team = view.team;
@@ -816,6 +818,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
+        {/* Лайк (17a): пігулка тієї ж висоти, що «Таблиця»; ключа немає без акаунта чи поки не прочитано. */}
+        {phase === 'reveal' && <LikeButton liked={view.likes?.question} busy={likeGuard.busy} onToggle={(liked) => void likeGuard.run('player:like', { target: 'question', liked })} />}
         {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
         <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
         <strong className="score">{num(me.score)}</strong>
@@ -1336,6 +1340,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ))}
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />}
+          {/* Лайки (17a): у потоці, лише після церемонії 14a. */}
+          {ceremony === null && <LikePanel likes={view.likes} busy={likeGuard.busy} onLike={(payload) => void likeGuard.run('player:like', payload)} />}
           <MenuLinks role="player" />
         </>
       )}
