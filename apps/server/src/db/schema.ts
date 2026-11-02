@@ -9,6 +9,7 @@ import type {
   DebuffKind,
   Duels,
   GameStatus,
+  LikeKind,
   LadderOutcomeKind,
   NickColor,
   NickFrame,
@@ -461,5 +462,39 @@ export const xpEntry = pgTable(
     uniqueIndex('xp_entry_game_once').on(table.userId, table.gameId).where(sql`source = 'game'`),
     uniqueIndex('xp_entry_achievement_once').on(table.userId, table.achievementId).where(sql`source = 'achievement'`),
     index('xp_entry_user_day_idx').on(table.userId, table.day),
+  ],
+);
+
+/** Лайки (беклог #22): хто кому за що; один лайк людини на об'єкт (часткові унікальні індекси за видом). */
+export const userLike = pgTable(
+  'user_like',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Хто лайкнув. */
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<LikeKind>().notNull(),
+    /** Кому зараховано: власник вікторини (question / quiz), ведучий (host) чи гравець (player). */
+    targetUserId: text('target_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** Без FK: лайки переживають видалення вікторини. */
+    quizId: uuid('quiz_id'),
+    questionId: text('question_id'),
+    /** Без FK; = room.id. */
+    gameId: uuid('game_id').notNull(),
+    /** Запитання видалено з вікторини чи вікторину видалено: рядок лишається, але не рахується. */
+    hidden: boolean('hidden').notNull().default(false),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('user_like_question_once').on(table.userId, table.quizId, table.questionId).where(sql`kind = 'question'`),
+    uniqueIndex('user_like_quiz_once').on(table.userId, table.quizId).where(sql`kind = 'quiz'`),
+    uniqueIndex('user_like_host_once').on(table.userId, table.gameId).where(sql`kind = 'host'`),
+    uniqueIndex('user_like_player_once').on(table.userId, table.gameId, table.targetUserId).where(sql`kind = 'player'`),
+    index('user_like_target_idx').on(table.targetUserId, table.kind, table.createdAt),
+    index('user_like_user_idx').on(table.userId),
+    index('user_like_quiz_idx').on(table.quizId),
   ],
 );
