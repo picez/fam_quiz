@@ -1,3 +1,5 @@
+import { pushStrings } from './push/push-strings';
+
 const uk = {
   appName: 'Вікторина',
   // Головна
@@ -2630,12 +2632,7 @@ const uk = {
   pushIosHint:
     'На iPhone сповіщення працюють, лише коли застосунок додано на головний екран: «Поділитися» → «На початковий екран». Відкрий його звідти й увімкни сповіщення.',
   pushFailed: 'Не вдалося увімкнути сповіщення. Спробуй ще раз.',
-  pushReminderTitle: 'Скоро гра «{title}»',
-  pushReminderBody: 'Початок о {time}. Не запізнюйся!',
-  pushOpenedTitle: 'Гра «{title}» почалась',
-  pushOpenedBody: 'Ведучий відкрив гру. Торкнися, щоб приєднатися.',
-  pushCancelledTitle: 'Гру «{title}» скасовано',
-  pushCancelledBody: 'Ведучий скасував гру {when}.',
+  ...pushStrings,
   err_push_disabled: 'Сповіщення на сервері вимкнені.',
 } as const;
 

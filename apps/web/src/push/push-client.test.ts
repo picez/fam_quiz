@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deletePushSubscription } from '../api';
-import { disablePush, keyToBytes, pushSupport, type BrowserEnv } from './push-client';
+import { disablePush, enablePush, keyToBytes, pushSupport, sameKey, type BrowserEnv } from './push-client';
 
 vi.mock('../api', () => ({ deletePushSubscription: vi.fn(), savePushSubscription: vi.fn() }));
 
@@ -61,5 +61,44 @@ describe('disablePush', () => {
     vi.mocked(deletePushSubscription).mockResolvedValue({ ok: false, error: 'offline' });
     await disablePush();
     expect(sub.unsubscribe).toHaveBeenCalled();
+  });
+});
+
+describe('sameKey', () => {
+  const sub = (key: ArrayBuffer | null) => ({ options: { applicationServerKey: key } }) as unknown as PushSubscription;
+  it('compares the bytes', () => {
+    expect(sameKey(sub(keyToBytes('AQAB').buffer), 'AQAB')).toBe(true);
+    expect(sameKey(sub(keyToBytes('AQAC').buffer), 'AQAB')).toBe(false);
+  });
+  it('keeps a subscription whose browser does not report the key', () => expect(sameKey(sub(null), 'AQAB')).toBe(true));
+});
+
+describe('enablePush', () => {
+  const setPermission = (answer: NotificationPermission) =>
+    Object.defineProperty(window, 'Notification', { configurable: true, value: { requestPermission: vi.fn(async () => answer) } });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('says dismissed when the prompt is closed without an answer', async () => {
+    setPermission('default');
+    expect(await enablePush('AQAB')).toBe('dismissed');
+  });
+
+  it('says denied when the person blocks', async () => {
+    setPermission('denied');
+    expect(await enablePush('AQAB')).toBe('denied');
+  });
+
+  it('gives up after 10 s when the service worker never gets ready', async () => {
+    vi.useFakeTimers();
+    setPermission('granted');
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: new Promise(() => undefined) } });
+    let result: string | undefined;
+    void enablePush('AQAB').then((r) => (result = r));
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(result).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(result).toBe('failed');
   });
 });

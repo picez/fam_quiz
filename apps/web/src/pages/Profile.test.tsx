@@ -287,6 +287,23 @@ describe('Profile', () => {
     expect(signOut).toHaveBeenCalled();
   });
 
+  it('signs out after 3 s even when removing the subscription hangs', async () => {
+    vi.mocked(disablePush).mockReturnValueOnce(new Promise(() => undefined));
+    open();
+    const out = await screen.findByRole('button', { name: 'Вийти' });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(out);
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(signOut).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signOut).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(await screen.findByText('на /')).toBeTruthy();
+  });
+
   it('sends a visitor to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();

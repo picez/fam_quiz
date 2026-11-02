@@ -61,8 +61,8 @@ export function Profile() {
   const leave = async () => {
     if (leaving) return;
     setLeaving(true);
-    // Спершу прибираємо підписку цього пристрою, поки сесія жива; збій виходу не блокує.
-    await disablePush().catch(() => undefined);
+    // Спершу прибираємо підписку цього пристрою, поки сесія жива; збій чи зависання (понад 3 с) виходу не блокує.
+    await Promise.race([disablePush().catch(() => undefined), new Promise<void>((done) => setTimeout(done, 3_000))]);
     await signOut();
     navigate('/');
   };

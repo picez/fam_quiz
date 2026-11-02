@@ -75,6 +75,25 @@ describe('PushSettings', () => {
     expect(await screen.findByText(/заборонено в налаштуваннях браузера/)).toBeTruthy();
   });
 
+  it('stays quietly off when the prompt is dismissed', async () => {
+    vi.mocked(enablePush).mockResolvedValue('dismissed');
+    render(<PushSettings />);
+    const button = await screen.findByRole('button', { name: 'Увімкнути сповіщення' });
+    fireEvent.click(button);
+    await waitFor(() => expect(enablePush).toHaveBeenCalled());
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Увімкнути сповіщення' })).toBeTruthy();
+  });
+
+  it('styles «Вимкнути» as a secondary button', async () => {
+    vi.mocked(currentSubscription).mockResolvedValue({} as PushSubscription);
+    setPermission('granted');
+    render(<PushSettings />);
+    const off = await screen.findByRole('button', { name: 'Вимкнути' });
+    expect(off.className).toBe('btn btn-quiet');
+  });
+
   it('shows the denied note at once when the browser already denies', async () => {
     setPermission('denied');
     render(<PushSettings />);

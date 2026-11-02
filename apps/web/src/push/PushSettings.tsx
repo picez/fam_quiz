@@ -56,7 +56,8 @@ export function PushSettings({ compact = false }: { compact?: boolean }): JSX.El
     setBusy(false);
     if (result === 'on') setView('on');
     else if (result === 'denied') setView('denied');
-    else setFailed(true);
+    // Вікно дозволу закрили без відповіді — просто лишаємо «вимкнено», без червоної помилки.
+    else if (result === 'failed') setFailed(true);
   };
   const turnOff = async () => {
     if (busy) return;
@@ -87,7 +88,7 @@ export function PushSettings({ compact = false }: { compact?: boolean }): JSX.El
       {view === 'on' && (
         <>
           <p className="meta">{t('pushOn')}</p>
-          <button type="button" className="btn secondary" disabled={busy} onClick={() => void turnOff()}>
+          <button type="button" className="btn btn-quiet" disabled={busy} onClick={() => void turnOff()}>
             {t('pushDisable')}
           </button>
         </>

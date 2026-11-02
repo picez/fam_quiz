@@ -50,22 +50,33 @@ export async function currentSubscription(): Promise<PushSubscription | null> {
   return (await registration?.pushManager.getSubscription()) ?? null;
 }
 
-/** Ключ підписки (options.applicationServerKey) збігається з publicKey. */
+/** Ключ підписки (options.applicationServerKey) збігається з publicKey. Браузер не повідомив ключ (null) → вважаємо тим самим, підписку лишаємо. */
 export function sameKey(sub: PushSubscription, publicKey: string): boolean {
   const key = sub.options.applicationServerKey;
-  if (key === null) return false;
+  if (key === null) return true;
   const have = new Uint8Array(key);
   const want = keyToBytes(publicKey);
   return have.length === want.length && have.every((byte, i) => byte === want[i]);
 }
 
-/** requestPermission (лише з дотику) → ready → subscribe → savePushSubscription. */
-export async function enablePush(publicKey: string): Promise<'on' | 'denied' | 'failed'> {
+export const SW_READY_TIMEOUT_MS = 10_000;
+
+/** serviceWorker.ready, але не довше за SW_READY_TIMEOUT_MS (воркер може так і не стати активним). */
+function readyWithin(ms: number): Promise<ServiceWorkerRegistration> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('service worker is not ready')), ms);
+  });
+  return Promise.race([navigator.serviceWorker.ready, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** requestPermission (лише з дотику) → ready (≤10 с) → subscribe → savePushSubscription. Закрите вікно дозволу → 'dismissed'. */
+export async function enablePush(publicKey: string): Promise<'on' | 'denied' | 'dismissed' | 'failed'> {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'denied') return 'denied';
-    if (permission !== 'granted') return 'failed';
-    const registration = await navigator.serviceWorker.ready;
+    if (permission !== 'granted') return 'dismissed';
+    const registration = await readyWithin(SW_READY_TIMEOUT_MS);
     const sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) });
     const json = sub.toJSON();
     const saved = await savePushSubscription({
