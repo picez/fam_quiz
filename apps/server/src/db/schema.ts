@@ -8,6 +8,8 @@ import type {
   BuffKind,
   DebuffKind,
   Duels,
+  FeedData,
+  FeedKind,
   GameStatus,
   LikeKind,
   LadderOutcomeKind,
@@ -343,6 +345,10 @@ export const profile = pgTable('profile', {
   nickColor: text('nick_color').$type<NickColor>(),
   nickFrame: text('nick_frame').$type<NickFrame>(),
   badge: text('badge').$type<ProfileBadge>(),
+  /** Стрічку переглянуто до цієї миті (18a): бейдж рахує події з created_at пізніше; null — ще ні (усі події друзів за 90 днів нові). */
+  feedSeenAt: at('feed_seen_at'),
+  /** Найвищий оголошений у стрічці рівень (18a); null = 1. */
+  feedLevel: integer('feed_level'),
   ...stamps,
 });
 
@@ -482,8 +488,10 @@ export const userLike = pgTable(
     /** Без FK: лайки переживають видалення вікторини. */
     quizId: uuid('quiz_id'),
     questionId: text('question_id'),
-    /** Без FK; = room.id. */
-    gameId: uuid('game_id').notNull(),
+    /** Без FK; = room.id. null — лише event без гри. */
+    gameId: uuid('game_id'),
+    /** Лише event: feed_event.key. */
+    eventKey: text('event_key'),
     /** Запитання видалено з вікторини чи вікторину видалено: рядок лишається, але не рахується. */
     hidden: boolean('hidden').notNull().default(false),
     createdAt: at('created_at').notNull(),
@@ -493,8 +501,37 @@ export const userLike = pgTable(
     uniqueIndex('user_like_quiz_once').on(table.userId, table.quizId).where(sql`kind = 'quiz'`),
     uniqueIndex('user_like_host_once').on(table.userId, table.gameId).where(sql`kind = 'host'`),
     uniqueIndex('user_like_player_once').on(table.userId, table.gameId, table.targetUserId).where(sql`kind = 'player'`),
+    uniqueIndex('user_like_event_once').on(table.userId, table.eventKey).where(sql`kind = 'event'`),
     index('user_like_target_idx').on(table.targetUserId, table.kind, table.createdAt),
     index('user_like_user_idx').on(table.userId),
     index('user_like_quiz_idx').on(table.quizId),
+  ],
+);
+
+/** Подія стрічки друзів (18a); лайки до мене не матеріалізуються — їх читають з user_like. */
+export const feedEvent = pgTable(
+  'feed_event',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Ідемпотентний ключ: game:<gameId>:<userId> | achievement:<userId>:<id> | prize:<awardId> | level:<userId>:<n>. */
+    key: text('key').notNull().unique(),
+    /** Чия подія. */
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<Exclude<FeedKind, 'like'>>().notNull(),
+    /** Без FK: подія переживає видалення гри. */
+    gameId: uuid('game_id'),
+    /** FeedData без лайків; kind дублюється всередині. */
+    data: jsonb('data').$type<FeedData>().notNull(),
+    /** Пишіть з точністю до мілісекунд (Date з JS): курсор сторінок — ISO з мілісекундами. */
+    at: at('at').notNull(),
+    /** Коли записано: за ним рахує бейдж. Теж до мілісекунд. */
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [
+    index('feed_event_user_at_idx').on(table.userId, table.at),
+    index('feed_event_user_created_idx').on(table.userId, table.createdAt),
+    index('feed_event_at_idx').on(table.at),
   ],
 );

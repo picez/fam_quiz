@@ -4,6 +4,7 @@ import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { publishGameFeed } from './feed-publish';
 import { awardPrizes, releaseUnsaved, type PrizeOutcome } from './prizes';
 import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
@@ -522,6 +523,8 @@ export function attachRecorder(
   const prized = new Set<string>();
   /** Кімнати, чия завершена гра вже дала досвід (15a). */
   const credited = new Set<string>();
+  /** Кімнати, чия завершена гра вже потрапила в стрічку (18a). */
+  const published = new Set<string>();
   /** Збережені кімнати (13b): їхній запис робить лише persistSaved; запізнілий повтор record нічого не дописує. */
   const sealed = new WeakSet<Room>();
   /** Кімната, що зараз веде кожен id (13b): точне продовження бере той самий id, що й збережена кімната. */
@@ -537,12 +540,16 @@ export function attachRecorder(
     awarded.delete(roomId);
     prized.delete(roomId);
     credited.delete(roomId);
+    published.delete(roomId);
     untrimmed.delete(roomId);
   };
 
   /**
    * Нова кімната під id (точне продовження, кімната, піднята після перезапуску): пам'ять про id — з нуля (крім черги: записи йдуть
    * далі по черзі), стара кімната більше не пише. Точне продовження ще й прибирає рядки після свого стану першим записом.
+   * Стрічка (18a): кімната, піднята в finished, публікується ще раз (published скинуто). Нових рядків це не дає (ключі), але якщо
+   * рекордер випередив backfillFeed, події гри отримають created_at = now і друзі раз побачать їх у бейджі — свідомо прийнято:
+   * гра закінчилась щойно, перед розгортанням.
    */
   const adopt = (room: Room) => {
     const known = current.get(room.id);
@@ -554,6 +561,7 @@ export function attachRecorder(
     awarded.delete(room.id);
     prized.delete(room.id);
     credited.delete(room.id);
+    published.delete(room.id);
     if (room.continued !== null && room.continued.replaces === null) untrimmed.add(room.id);
   };
 
@@ -616,10 +624,15 @@ export function attachRecorder(
         await awardPrizes(db, { gameId: room.id, quizTitle: snapshot.quizTitle, at: new Date(), outcomes: snapshot.prizes });
         prized.add(room.id);
       }
-      // Досвід — останнім (15a): збій іде в повтор, а що не вдалося, наздожене syncXp.
+      // Досвід — після призів (15a): збій іде в повтор, а що не вдалося, наздожене syncXp.
       if (state.phase === 'finished' && !credited.has(room.id)) {
         await creditGame(db, room.id, onError);
         credited.add(room.id);
+      }
+      // Стрічка (18a) — після досвіду: події читають уже записані рядки, а рівень — суму досвіду. Повтор нічого не дублює (ключі).
+      if (state.phase === 'finished' && !published.has(room.id)) {
+        await publishGameFeed(db, room.id);
+        published.add(room.id);
       }
       failures.delete(room.id);
     };

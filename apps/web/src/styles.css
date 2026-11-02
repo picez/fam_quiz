@@ -12305,7 +12305,7 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Шість пунктів нижнього меню на 375 px: кожному по 62 px, тож підпис короткий (data-short), а не дрібніший. */
+/* Сім пунктів нижнього меню: на 360 px по 51 px, короткі підписи (data-short) до 7 літер, а не дрібніший шрифт. */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
@@ -12322,6 +12322,9 @@ button.wall-tile:disabled {
     content: attr(data-short);
     content: attr(data-short) / '';
   }
+
+  /* Бейдж у вужчому пункті (51 px на 360): у правому верхньому куті і менший, тож «99+» не виходить за пункт і не накриває сусіда. */
+  .menu a .menu-badge { left: auto; right: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
 /* ---------- Реакції (13a) ----------
@@ -13677,4 +13680,75 @@ button.wall-tile:disabled {
 .likes-tile span:last-child {
   color: var(--dim);
   font-size: 0.85rem;
+}
+
+.feed-list {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.feed-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  min-width: 0;
+}
+
+.feed-card.is-win {
+  border-color: var(--amber);
+}
+
+.feed-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feed-text,
+.feed-time {
+  margin: 0;
+}
+
+.feed-who {
+  display: inline-flex;
+}
+
+.feed-like {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.feed-like[aria-pressed='true'] {
+  border-color: var(--amber);
+}
+
+.feed-like:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.history-tabs .menu-badge {
+  margin-left: 0.35rem;
+}
+
+.feed-like-count {
+  flex: none;
+  color: var(--dim);
 }

@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { bool, makeQuiz, single, text, withId } from '@quiz/engine/testing';
 import type { Quiz } from '@quiz/shared';
 import { eq, sql } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Db } from './db/client';
-import { quiz, user, userLike } from './db/schema';
+import { MIGRATIONS, type Db } from './db/client';
+import { profile, quiz, user, userLike } from './db/schema';
 import { likeTotals, quizLikes, roomLikes, saveLike, type LikeChange } from './like-store';
 import { createQuiz, deleteQuiz, updateQuiz } from './quizzes';
-import { createTestDb } from './testing/test-db';
+import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
 const A = 'like-author';
 const O = 'like-olia';
@@ -241,5 +243,85 @@ describe('roomLikes', () => {
     const loaded = await roomLikes(db, { quizId, gameId: g1, userIds: [] });
     expect(loaded.author).toBe(A);
     expect(loaded.mine.size).toBe(0);
+  });
+});
+
+describe('лайк події стрічки (event)', () => {
+  const event = (change: Partial<LikeChange>) =>
+    saveLike(db, { userId: O, kind: 'event', eventKey: 'level:p:3', gameId: null, targetUserId: P, quizId: null, liked: true, ...change });
+
+  it('один рядок на (людина, подія) з game_id null; liked: false знімає', async () => {
+    await event({});
+    await event({});
+    const all = await rows();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ userId: O, kind: 'event', eventKey: 'level:p:3', gameId: null, targetUserId: P, quizId: null, questionId: null, hidden: false });
+    await event({ liked: false });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('різні події — різні рядки; gameId-uuid зберігається', async () => {
+    await event({ eventKey: 'prize:x', gameId: g1 });
+    await event({ eventKey: 'achievement:p:first' });
+    const all = await rows();
+    expect(all).toHaveLength(2);
+    expect(all.find((r) => r.eventKey === 'prize:x')?.gameId).toBe(g1);
+  });
+
+  it('liked: false знімає лише свою подію (ключ — event_key), а не лайк player тієї ж гри', async () => {
+    await event({ eventKey: 'prize:x', gameId: g1 });
+    await event({ eventKey: 'prize:y', gameId: g1 });
+    await like({ userId: O, kind: 'player', targetUserId: P, gameId: g1 });
+    await event({ eventKey: 'prize:x', gameId: g1, liked: false });
+    expect((await rows()).map((r) => r.eventKey ?? r.kind).sort()).toEqual(['player', 'prize:y']);
+  });
+
+  it('себе — ні; без eventKey — ні; gameId не uuid — ні', async () => {
+    await event({ targetUserId: O });
+    await event({ eventKey: undefined });
+    await event({ gameId: 'not-a-uuid' });
+    expect(await rows()).toHaveLength(0);
+  });
+
+  it('likeTotals зараховує event у player', async () => {
+    await like({ userId: O, kind: 'player', targetUserId: P, gameId: g1 });
+    await event({});
+    expect(await likeTotals(db, P)).toEqual({ author: 0, host: 0, player: 2 });
+  });
+
+  it('roomLikes і quizLikes рядка event не бачать', async () => {
+    await event({ gameId: g1, quizId });
+    const loaded = await roomLikes(db, { quizId, gameId: g1, userIds: [O] });
+    expect(loaded.mine.get(O)).toEqual(new Set());
+    expect(await quizLikes(db, A, quizId)).toEqual({ quiz: 0, questions: {} });
+  });
+});
+
+describe('міграція 0024_feed', () => {
+  it('позначає наявні профілі переглянутими одним UPDATE', () => {
+    const text = readFileSync(join(MIGRATIONS, '0024_feed.sql'), 'utf8');
+    expect(text).toContain('UPDATE "profile" SET "feed_seen_at" = now();');
+  });
+
+  it('наявний профіль дістає feed_seen_at, наявний лайк лишається; новий профіль — null', async () => {
+    const { db: old, migrateRest } = await createTestDbUpTo('0023_likes');
+    await old.insert(user).values([
+      { id: 'u-old', name: 'Old', email: 'old@example.com' },
+      { id: 'u-new', name: 'New', email: 'new@example.com' },
+    ]);
+    await old.execute(sql`insert into profile (user_id, nickname, nickname_key) values ('u-old', 'Old', 'old')`);
+    await old.execute(
+      sql`insert into user_like (user_id, kind, target_user_id, game_id, created_at) values ('u-old', 'player', 'u-new', ${g1}, now())`,
+    );
+    await migrateRest();
+    await old.insert(profile).values({ userId: 'u-new', nickname: 'New', nicknameKey: 'new' });
+    const all = await old.select().from(profile);
+    const oldRow = all.find((r) => r.userId === 'u-old')!;
+    const newRow = all.find((r) => r.userId === 'u-new')!;
+    expect(oldRow.feedSeenAt).toBeInstanceOf(Date);
+    expect(oldRow.feedLevel).toBeNull();
+    expect(newRow.feedSeenAt).toBeNull();
+    expect(newRow.feedLevel).toBeNull();
+    expect(await old.select().from(userLike)).toMatchObject([{ userId: 'u-old', kind: 'player', gameId: g1, eventKey: null }]);
   });
 });

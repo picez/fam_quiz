@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const LIKE_KINDS = ['question', 'quiz', 'host', 'player'] as const;
+export const LIKE_KINDS = ['question', 'quiz', 'host', 'player', 'event'] as const;
 export type LikeKind = (typeof LIKE_KINDS)[number];
 
 /** Частота player:like на людину. */

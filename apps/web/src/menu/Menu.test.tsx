@@ -2,11 +2,11 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getMyInvites, me } from '../api';
+import { getFeedBadge, getMyInvites, me } from '../api';
 import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn() }));
 
 const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;
@@ -15,6 +15,8 @@ beforeEach(() => {
   vi.mocked(me).mockReset();
   vi.mocked(getMyInvites).mockReset();
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(getFeedBadge).mockReset();
+  vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
 });
 afterEach(cleanup);
 
@@ -53,14 +55,15 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
-  it('a signed-in person sees join, quizzes, history, prizes, achievements and profile with the current one marked', async () => {
+  it('a signed-in person sees join, feed, quizzes, history, prizes, achievements and profile with the current one marked', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
-    expect(items()).toEqual(['🎮Приєднатися', '📝Мої вікторини', '🕘Історія', '🎁Призи', '🏅Досягнення', '👤Профіль']);
+    expect(items()).toEqual(['🎮Приєднатися', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '🎁Призи', '🏅Досягнення', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Мої вікторини'), href('Історія'), href('Призи'), href('Досягнення'), href('Профіль')]).toEqual([
+    expect([href('Приєднатися'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Призи'), href('Досягнення'), href('Профіль')]).toEqual([
       '/',
+      '/feed',
       '/quizzes',
       '/history',
       '/prizes',
@@ -76,8 +79,8 @@ describe('Menu', () => {
     show('/');
     await screen.findByRole('link', { name: 'Профіль' });
     const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
-    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
-    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Вікторини', 'Історія', 'Призи', 'Ачівки', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Стрічка', 'Квізи', 'Історія', 'Призи', 'Ачівки', 'Профіль']);
   });
 
   it('prizes are marked on their page and a visitor does not see them', async () => {
@@ -85,7 +88,7 @@ describe('Menu', () => {
     show('/prizes');
     await screen.findByRole('link', { name: 'Призи' });
     expect(screen.getByRole('link', { name: 'Призи' }).getAttribute('aria-current')).toBe('page');
-    expect(items().indexOf('🎁Призи')).toBe(3);
+    expect(items().indexOf('🎁Призи')).toBe(4);
     cleanup();
     vi.mocked(me).mockResolvedValue(OUT);
     show('/prizes');
@@ -134,6 +137,47 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fquizzes');
   });
 
+  describe('feed item', () => {
+    it('is marked on the feed and its sub-pages', async () => {
+      vi.mocked(me).mockResolvedValue(OK);
+      show('/feed');
+      await screen.findByRole('link', { name: 'Стрічка' });
+      expect(screen.getByRole('link', { name: 'Стрічка' }).getAttribute('aria-current')).toBe('page');
+      cleanup();
+      show('/feed/calendar');
+      await screen.findByRole('link', { name: 'Стрічка' });
+      expect(screen.getByRole('link', { name: 'Стрічка' }).getAttribute('aria-current')).toBe('page');
+    });
+
+    it('shows the total of new events as a badge, capped at 99+, and none for zero', async () => {
+      vi.mocked(me).mockResolvedValue(OK);
+      vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 3, requests: 0, decisions: 0 });
+      show('/quizzes');
+      const link = await screen.findByRole('link', { name: 'Стрічка, Нових подій: 3' });
+      const badge = link.querySelector('.menu-badge')!;
+      expect(badge.textContent).toBe('3');
+      // Число вже в aria-label пункту: бейдж читачеві екрана не повторюється.
+      expect(badge.getAttribute('aria-hidden')).toBe('true');
+      expect(screen.queryByLabelText('Нових подій: 3')).toBeNull();
+      cleanup();
+      vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 120, requests: 0, decisions: 0 });
+      show('/quizzes');
+      expect((await screen.findByRole('link', { name: 'Стрічка, Нових подій: 120' })).querySelector('.menu-badge')!.textContent).toBe('99+');
+      cleanup();
+      vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
+      show('/quizzes');
+      await screen.findByRole('link', { name: 'Стрічка' });
+      expect(document.querySelectorAll('.menu-badge').length).toBe(0);
+    });
+
+    it('a visitor does not see the feed and the badge is not requested', async () => {
+      vi.mocked(me).mockResolvedValue(OUT);
+      show('/quizzes');
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+      expect(getFeedBadge).not.toHaveBeenCalled();
+    });
+  });
+
   describe('invites badge', () => {
     const invite = (code: string) => ({ code, title: 'Кіно', host: { id: 'h', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' });
 
@@ -141,9 +185,10 @@ describe('Menu', () => {
       vi.mocked(me).mockResolvedValue(OK);
       vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [invite('111111'), invite('222222')] });
       show('/quizzes');
-      const badge = await screen.findByLabelText('Запрошень: 2');
+      const link = await screen.findByRole('link', { name: 'Профіль, Запрошень: 2' });
+      const badge = link.querySelector('.menu-badge')!;
       expect(badge.textContent).toBe('2');
-      expect(screen.getByRole('link', { name: 'Профіль, Запрошень: 2' })).toBeTruthy();
+      expect(badge.getAttribute('aria-hidden')).toBe('true');
       cleanup();
 
       vi.mocked(getMyInvites).mockClear();
@@ -157,10 +202,11 @@ describe('Menu', () => {
       vi.mocked(me).mockResolvedValue(OK);
       vi.mocked(getMyInvites).mockResolvedValueOnce({ ok: true, data: [invite('111111')] });
       show('/quizzes');
-      await screen.findByLabelText('Запрошень: 1');
+      await screen.findByRole('link', { name: 'Профіль, Запрошень: 1' });
       vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
       announceInvitesChanged();
-      await vi.waitFor(() => expect(screen.queryByLabelText('Запрошень: 1')).toBeNull());
+      await vi.waitFor(() => expect(screen.queryByRole('link', { name: 'Профіль, Запрошень: 1' })).toBeNull());
+      expect(document.querySelectorAll('.menu-badge').length).toBe(0);
     });
   });
 });

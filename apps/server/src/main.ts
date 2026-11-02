@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { buildApp } from './app';
 import { baseUrl, localOrigins, proxyTrust, secretProblem } from './config';
 import { connectDb } from './db/client';
+import { backfillFeed, settleFeedLevels } from './feed-publish';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage } from './storage/r2';
 
@@ -80,6 +81,9 @@ const { db, close: closeDb } = await connectDb(databaseUrl);
 // Кімнати живуть у пам'яті й у таблиці live_room: після перезапуску вони піднімаються з бази, а «в процесі»
 // з минулого запуску перериваються лише ігри кімнат, яких там немає (це робить сховище кімнат на старті).
 // Кілька екземплярів одночасно не підтримуються: оренда лише не дає двом версіям вести ту саму кімнату під час розгортання.
+// Стрічка (18a): тихо записати наявні рівні до підняття кімнат, щоб кімната, піднята в finished, не оголосила давнього рівня.
+// Одне оновлення на порцію профілів; збій лише журналюється.
+await settleFeedLevels(db).catch((error: unknown) => console.error('Не вдалося записати рівні стрічки:', error));
 const { app, shutdown } = await buildApp({
   db,
   auth: {
@@ -101,6 +105,9 @@ const { app, shutdown } = await buildApp({
   persist: { instanceId: randomUUID() },
 });
 await app.listen({ port, host: '0.0.0.0' });
+// Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному
+// старті, і обірване зупинкою дописування продовжить наступний; бейджа не запалює (created_at = at). Збій лише журналюється.
+void backfillFeed(db, new Date()).catch((error: unknown) => console.error('Не вдалося дописати стрічку:', error));
 console.log(`Quiz server is listening on port ${port}`);
 for (const origin of local.lan) console.log(`У локальній мережі: ${origin}`);
 

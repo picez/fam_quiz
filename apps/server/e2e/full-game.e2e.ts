@@ -11,7 +11,7 @@ import { chromium, type Browser, type BrowserContext, type Locator, type Page } 
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
-import { userLike, xpEntry } from '../src/db/schema';
+import { feedEvent, userLike, xpEntry } from '../src/db/schema';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
@@ -1650,7 +1650,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 
@@ -2008,7 +2008,7 @@ async function invitesAndVersus() {
 
   // Позначка в меню на телефоні.
   await olya.goto(base);
-  const badge = olya.getByLabel('Запрошень: 1', exact);
+  const badge = olya.locator(MENU).getByRole('link', { name: 'Профіль, Запрошень: 1', ...exact }).locator('.menu-badge');
   await badge.waitFor();
   const item = (await olya.locator(MENU).getByRole('link', { name: /Профіль/ }).boundingBox())!;
   const mark = (await badge.boundingBox())!;
@@ -16412,11 +16412,12 @@ async function achievements12i() {
   const ownPage = async () => (await (await olya.request.get(`${base}/api/me/achievements`)).json()) as AchievementsPage;
   await expect.poll(async () => (await ownPage()).items.find((i) => i.id === 'fast_answer')?.earned, POLL).toBe(true);
 
-  // ── 3. Меню з шістьма пунктами (14a додав «Призи»). ──
+  // ── 3. Меню з сімома пунктами (14a додав «Призи», 18a — «Стрічку»). ──
   await olya.goto(base);
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
   expect((await olya.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual([
     'Приєднатися',
+    'Стрічка',
     'Мої вікторини',
     'Історія',
     'Призи',
@@ -17164,11 +17165,11 @@ const MENU_FITS_14A = `(() => {
   };
 })()`;
 
-/** Меню з шістьма пунктами на ширині width: не вище 60 px, без прокрутки вбік, жоден короткий підпис не обрізано. */
+/** Меню з сімома пунктами (з 18a — і «Стрічка») на ширині width: не вище 60 px, без прокрутки вбік, жоден короткий підпис не обрізано. */
 async function expectPhoneMenu14a(page: Page, width: number) {
   await page.setViewportSize({ width, height: 812 });
   const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
-  expect(fit.count, `menu ${width}: items`).toBe(6);
+  expect(fit.count, `menu ${width}: items`).toBe(7);
   expect(fit.height, `menu ${width}: height`).toBeLessThanOrEqual(60);
   expect(fit.wide, `menu ${width}: horizontal scroll`).toBe(true);
   expect(fit.clipped, `menu ${width}: clipped labels`).toEqual([]);
@@ -17254,7 +17255,7 @@ async function prizes14a() {
   await hostPhone.locator('.prize-list li', { hasText: 'Друге місце' }).waitFor();
   expect(await hostPhone.locator('.prize-list li').count()).toBe(2);
   await expectNoSideScroll(hostPhone, 'p14a-prizes');
-  // Меню з шістьма пунктами: 375 і 360 px.
+  // Меню з сімома пунктами: 375 і 360 px.
   await expectPhoneMenu14a(hostPhone, 375);
   await expectPhoneMenu14a(hostPhone, 360);
   await hostPhone.close();
@@ -18428,6 +18429,306 @@ async function likes17a() {
 it('part 17a: likes — Оля hearts questions 1 and 2 on the reveal without moving anything, Петро’s double tap leaves nothing, the guest has no heart, after the game Оля likes the quiz, the host and Петро and Петро likes Оля, the profiles count likes as author, host and player, the editor shows a heart per question, and a deleted question stops counting', async () => {
   try {
     await likes17a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+function feedQuestions18a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'f1', type: 'single' as const, text: 'Яке місто — столиця України?', options: options('Київ', 'Львів', 'Одеса', 'Харків'), correctId: 'a' },
+    { ...common, id: 'f2', type: 'boolean' as const, text: 'Чорне море омиває Україну?', correct: true },
+    { ...common, id: 'f3', type: 'boolean' as const, text: 'Карпати — найвищі гори Європи?', correct: false },
+  ];
+}
+
+/**
+ * Бейдж «Стрічки» в меню телефона (18a): пункт «Стрічка» (другий) містить бейдж цілком, бейдж не налазить на сусідні пункти,
+ * сторінка не гортається вбік. Повертає список порушень.
+ */
+const FEED_BADGE_FITS_18A = `(() => {
+  const links = [...document.querySelectorAll('nav[aria-label="Меню"] a')];
+  const badge = links[1]?.querySelector('.menu-badge');
+  if (!badge) return ['no badge on the second item'];
+  const bad = [];
+  const b = badge.getBoundingClientRect();
+  const own = links[1].getBoundingClientRect();
+  if (b.left < own.left - 0.5 || b.right > own.right + 0.5 || b.top < own.top - 0.5 || b.bottom > own.bottom + 0.5)
+    bad.push('the badge leaves its item: ' + [b.left, b.right, b.top, b.bottom].map((n) => n.toFixed(1)).join(',') + ' in ' + [own.left, own.right, own.top, own.bottom].map((n) => n.toFixed(1)).join(','));
+  for (const i of [0, 2]) {
+    const r = links[i].getBoundingClientRect();
+    if (b.left < r.right - 0.5 && r.left < b.right - 0.5 && b.top < r.bottom && r.top < b.bottom) bad.push('the badge overlaps item ' + i);
+  }
+  if (document.documentElement.scrollWidth > innerWidth) bad.push('horizontal scroll');
+  return bad;
+})()`;
+
+/** Сім пунктів меню на ширині width: ≤ 60 px заввишки, усі в одному рядку, жоден короткий підпис не ширший за пункт. */
+async function expectSevenItems18a(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 812 });
+  const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
+  expect(fit.count, `p18a-menu-${width}: items`).toBe(7);
+  expect((await page.locator(MENU).boundingBox())!.height, `p18a-menu-${width}: height`).toBeLessThanOrEqual(60);
+  expect(fit.wide, `p18a-menu-${width}: horizontal scroll`).toBe(true);
+  expect(fit.clipped, `p18a-menu-${width}: clipped labels`).toEqual([]);
+  const rows = await page.locator(`${MENU} a`).evaluateAll((links) =>
+    links.map((a) => ({ y: Math.round(a.getBoundingClientRect().top), over: a.scrollWidth > a.clientWidth })),
+  );
+  expect(new Set(rows.map((r) => r.y)).size, `p18a-menu-${width}: the items are not in one row`).toBe(1);
+  expect(rows.filter((r) => r.over), `p18a-menu-${width}: a label is wider than its item`).toEqual([]);
+}
+
+async function feed18a() {
+  const TITLE = 'Стрічка 18a';
+  const OLYA = 'Оля Смерічка-Яблунів';
+  const PETRO = 'Петро Ковальчук';
+  expect(OLYA.length, 'Оля has a 20-character nickname').toBe(20);
+  const olya = await open('olya18a', 375, 812);
+  await register(olya, 'menu', OLYA, 'olya18a@example.com');
+  const petro = await open('petro18a', 375, 812);
+  await register(petro, 'menu', PETRO, 'petro18a@example.com');
+  const vira = await open('vira18a', 375, 812);
+  await register(vira, 'menu', 'Віра Слухачка', 'vira18a@example.com');
+  const host = await open('host18a', 1280, 800);
+  await register(host, 'host', 'Марко Ведучий', 'host18a@example.com');
+  const ids = new Map<Page, string>();
+  for (const page of [host, olya, petro, vira]) ids.set(page, await myId(page));
+  // Нік у стрічці — з профілю (за замовчуванням лише перше слово імені): Олі — повний, 20 символів.
+  for (const [page, nickname] of [[olya, OLYA], [petro, PETRO]] as const) {
+    const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
+    expect(saved.ok(), await saved.text()).toBe(true);
+  }
+  const feedLink = (page: Page) => page.locator(MENU).getByRole('link', { name: /^Стрічка/ });
+  const menuBadge = (page: Page) => feedLink(page).locator('.menu-badge');
+
+  // ── 1. Меню: сім пунктів на 360 і 375 px; бейдж «99+» і двоцифровий не виходять за пункт. ──
+  await olya.goto(base);
+  await feedLink(olya).waitFor();
+  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+  for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+  // The «99+» and 42 badges are stubbed here; the real badge is checked in step 4.
+  for (const [count, label] of [[120, '99+'], [42, '42']] as const) {
+    await olya.route('**/api/me/feed/badge', (route) => route.fulfill({ json: { events: count, requests: 0, decisions: 0 } }));
+    await olya.reload();
+    await expect.poll(() => menuBadge(olya).textContent({ timeout: 500 }).catch(() => null), POLL).toBe(label);
+    expect(await feedLink(olya).getAttribute('aria-label')).toBe(`Стрічка, Нових подій: ${count}`);
+    expect(await menuBadge(olya).getAttribute('aria-hidden'), 'the badge repeats the count to a screen reader').toBe('true');
+    for (const width of [360, 375]) {
+      await expectSevenItems18a(olya, width);
+      expect(await olya.evaluate(FEED_BADGE_FITS_18A), `p18a-menu-${width} with «${label}»`).toEqual([]);
+      await shot(olya, label === '99+' ? `p18a-menu-${width}` : `p18a-menu-${width}-two-digit`);
+    }
+    await olya.unroute('**/api/me/feed/badge');
+  }
+  await olya.reload();
+  await feedLink(olya).waitFor();
+
+  // ── 2. Дружба: Оля ↔ Петро взаємно, Віра → Петро в один бік. Ведучий — нікому. ──
+  const follow = async (page: Page, target: Page) => {
+    await page.goto(`${base}/profile/${ids.get(target)!}`);
+    await page.getByRole('button', { name: 'Додати в друзі', ...exact }).click();
+    await page.getByText('У друзях', exact).waitFor();
+  };
+  await follow(olya, petro);
+  await follow(petro, olya);
+  await follow(vira, petro);
+
+  // ── 3. Гра: Оля — 3 з 3, Петро — 1 з 3; Петро вподобав запитання 1 і вікторину. ──
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', feedQuestions18a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+  const stage = await open('stage18a', 1280, 720);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  await join(olya, code, OLYA, false);
+  await join(petro, code, PETRO, false);
+  await host.getByText(PETRO, exact).first().waitFor();
+  const phones = [olya, petro];
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const answer = async (page: Page, text: string) => {
+    const button = text === 'Так' || text === 'Ні' ? page.getByRole('button', { name: text, ...exact }) : page.getByRole('button', { name: new RegExp(text) });
+    await button.waitFor();
+    await button.click();
+  };
+  const toReveal = async (picks: [Page, string][]) => {
+    for (const [page, text] of picks) await answer(page, text);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+  };
+  const toNext = async () => {
+    await step('Далі');
+    await step('Наступне запитання');
+    await afterSplash(host, stage, ...phones);
+  };
+  await step('Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await toReveal([[olya, 'Київ'], [petro, 'Київ']]);
+  await petro.getByRole('button', { name: 'Вподобати запитання', ...exact }).click();
+  await petro.getByRole('button', { name: 'Прибрати вподобання', ...exact }).waitFor();
+  await toNext();
+  await toReveal([[olya, 'Так'], [petro, 'Ні']]);
+  await toNext();
+  await toReveal([[olya, 'Ні'], [petro, 'Так']]);
+  await step('Завершити гру');
+  const panel = (page: Page) => page.locator('section.like-panel');
+  await petro.getByText('Гру завершено').first().waitFor();
+  const quizChip = panel(petro).getByRole('button', { name: 'Вікторина', ...exact });
+  await quizChip.click();
+  await expect.poll(() => quizChip.getAttribute('aria-pressed'), POLL).toBe('true');
+
+  const who = new Map([[ids.get(host)!, 'host'], [ids.get(olya)!, 'olya'], [ids.get(petro)!, 'petro'], [ids.get(vira)!, 'vira']]);
+  const events = async () => (await db.select().from(feedEvent)).filter((r) => who.has(r.userId));
+  const describeEvent = (r: Awaited<ReturnType<typeof events>>[number]) =>
+    r.data.kind === 'game'
+      ? `game ${who.get(r.userId)} ${r.data.place} of ${r.data.of}`
+      : r.data.kind === 'achievement'
+        ? `achievement ${who.get(r.userId)} ${r.data.achievementId}`
+        : `${r.kind} ${who.get(r.userId)}`;
+  await expect
+    .poll(async () => (await events()).map(describeEvent), { timeout: 15_000 })
+    .toEqual(expect.arrayContaining(['game olya 1 of 2', 'game petro 2 of 2', 'achievement olya first_win']));
+  const all = await events();
+  const olyaGame = all.find((r) => r.kind === 'game' && who.get(r.userId) === 'olya')!;
+  const petroGame = all.find((r) => r.kind === 'game' && who.get(r.userId) === 'petro')!;
+  expect(olyaGame.key).toBe(`game:${olyaGame.gameId}:${ids.get(olya)!}`);
+  expect(all.some((r) => r.key === `achievement:${ids.get(olya)!}:first_win`), 'the key of Оля’s first win').toBe(true);
+  expect(all.filter((r) => who.get(r.userId) === 'vira'), 'Віра did not play').toEqual([]);
+  const gameId = olyaGame.gameId!;
+
+  // ── 4. Бейдж Петра: нові події Олі (гра й досягнення). ──
+  await petro.goto(`${base}/quizzes`);
+  const badgeCount = async () => Number(((await menuBadge(petro).textContent({ timeout: 500 }).catch(() => null)) ?? '').replace(/\D/g, '') || 0);
+  await expect.poll(badgeCount, { timeout: 35_000 }).toBeGreaterThanOrEqual(2);
+  expect(await petro.evaluate(FEED_BADGE_FITS_18A), 'p18a-badge').toEqual([]);
+  await shot(petro, 'p18a-badge');
+
+  // ── 5. Стрічка Петра: перемога й досягнення Олі, своя гра; бейдж гасне. ──
+  await feedLink(petro).click();
+  await petro.waitForURL(`${base}/feed`);
+  const tab = petro.locator('.history-tabs a', { hasText: 'Події друзів' });
+  await tab.waitFor();
+  expect(await tab.getAttribute('aria-current')).toBe('page');
+  const olyaWin = petro.locator('.feed-card.is-win', { hasText: OLYA });
+  await olyaWin.waitFor();
+  expect(await olyaWin.innerText()).toContain(`виграв(-ла) «${TITLE}»!`);
+  await petro.locator('.feed-card', { hasText: OLYA }).filter({ hasText: 'отримав(-ла) досягнення «Перша перемога»' }).waitFor();
+  const ownGame = petro.locator('.feed-card', { hasText: `зіграв(-ла) «${TITLE}» — 2 місце з 2` });
+  await ownGame.waitFor();
+  expect(await ownGame.locator('.feed-text strong').first().innerText()).toBe('Ти');
+  expect(await ownGame.locator('.feed-like').count(), 'own event has a heart button').toBe(0);
+  expect(await ownGame.evaluate((el) => el.classList.contains('is-win')), 'the second place looks like a win').toBe(false);
+  await expect.poll(() => menuBadge(petro).count(), { timeout: 10_000 }).toBe(0);
+  await expectPhoneFit(petro, 'p18a-feed-375');
+  await petro.evaluate('window.scrollTo(0, 0)');
+
+  // ── 6. ❤️ під грою Олі — той самий рядок player, що й ❤️ гравця на фіналі. ──
+  const playerLikes = async () =>
+    (await db.select().from(userLike)).filter((r) => r.kind === 'player' && r.gameId === gameId && r.userId === ids.get(petro) && r.targetUserId === ids.get(olya)).length;
+  const heart = olyaWin.locator('.feed-like');
+  expect(await heart.getAttribute('aria-pressed')).toBe('false');
+  await olyaWin.getByRole('button', { name: 'Вподобати подію', ...exact }).click();
+  await expect.poll(() => heart.getAttribute('aria-pressed'), POLL).toBe('true');
+  expect((await heart.innerText()).replace(/\D/g, '')).toBe('1');
+  expect(await heart.getAttribute('aria-label')).toBe('Прибрати вподобання');
+  await expect.poll(playerLikes, POLL).toBe(1);
+  await shot(petro, 'p18a-feed-liked');
+  await olyaWin.getByRole('button', { name: 'Прибрати вподобання', ...exact }).click();
+  await expect.poll(() => heart.getAttribute('aria-pressed'), POLL).toBe('false');
+  await expect.poll(playerLikes, POLL).toBe(0);
+  expect((await heart.innerText()).replace(/\D/g, '')).toBe('');
+  await olyaWin.getByRole('button', { name: 'Вподобати подію', ...exact }).click();
+  await expect.poll(() => heart.getAttribute('aria-pressed'), POLL).toBe('true');
+  await expect.poll(playerLikes, POLL).toBe(1);
+  // Своєї події не вподобати й через API.
+  const self = await petro.request.post(`${base}/api/feed/${petroGame.id}/like`, { data: { liked: true } });
+  expect(self.status(), 'Петро likes his own event').toBe(403);
+  expect(await self.json()).toEqual({ error: 'like_self' });
+
+  // ── 7. Стрічка Олі: гра Петра з ❤️, своя перемога з лічильником «❤️ 1» без кнопки. ──
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(`${base}/feed`);
+  const petroCard = olya.locator('.feed-card', { hasText: PETRO }).filter({ hasText: `зіграв(-ла) «${TITLE}» — 2 місце з 2` });
+  await petroCard.waitFor();
+  expect(await petroCard.getByRole('button', { name: 'Вподобати подію', ...exact }).count()).toBe(1);
+  const ownWin = olya.locator('.feed-card.is-win', { hasText: `виграв(-ла) «${TITLE}»!` });
+  await ownWin.waitFor();
+  expect(await ownWin.locator('.feed-text strong').first().innerText()).toBe('Ти');
+  expect(await ownWin.locator('.feed-like').count(), 'Оля can like her own win').toBe(0);
+  expect(await ownWin.locator('.feed-like-count').innerText()).toBe('❤️ 1');
+  await expectNoSideScroll(olya, 'p18a-feed-olya');
+
+  // ── 8. Віра стежить за Петром лише в один бік: нічого не бачить і не вподобає. ──
+  await vira.goto(`${base}/feed`);
+  await vira.locator('.feed-empty').waitFor();
+  expect(await vira.locator('.feed-card').count(), 'Віра sees events').toBe(0);
+  const viraLike = await vira.request.post(`${base}/api/feed/${petroGame.id}/like`, { data: { liked: true } });
+  expect(viraLike.status(), 'Віра likes Петро’s event').toBe(404);
+  const viraPage = (await (await vira.request.get(`${base}/api/me/feed`)).json()) as { events: unknown[] };
+  expect(viraPage.events, 'Віра’s feed through the API').toEqual([]);
+  await expectNoSideScroll(vira, 'p18a-feed-vira');
+
+  // ── 9. Ведучий: одна картка лайків Петра, без ❤️; подій Олі й Петра немає. ──
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.goto(`${base}/feed`);
+  const likeCard = host.locator('.feed-card', { hasText: PETRO });
+  await likeCard.first().waitFor();
+  expect(await likeCard.count(), 'one likes card from Петро').toBe(1);
+  expect(await likeCard.innerText()).toContain(`вподобав(-ла) 1 твоє запитання і твою вікторину у «${TITLE}»`);
+  expect(await likeCard.locator('.feed-like, .feed-like-count').count(), 'a heart under a likes card').toBe(0);
+  expect(await host.locator('.feed-card', { hasText: OLYA }).count(), 'the host sees Оля').toBe(0);
+  expect(await host.locator('.feed-card', { hasText: 'місце з' }).count(), 'the host sees a game').toBe(0);
+  await expectNoSideScroll(host, 'p18a-feed-host');
+
+  // ── 10. Сторінки: 25 подій рівня Петра за 30 днів → 20 карток і «Показати ще», далі решта без повторів. ──
+  const now = Date.now();
+  await db.insert(feedEvent).values(
+    Array.from({ length: 25 }, (_, i) => {
+      const at = new Date(now - (i + 1) * 26 * 3_600_000);
+      return { key: `level:${ids.get(petro)!}:${100 + i}`, userId: ids.get(petro)!, kind: 'level' as const, gameId: null, data: { kind: 'level' as const, level: 100 + i }, at, createdAt: at };
+    }),
+  );
+  const visible = (await events()).filter((r) => who.get(r.userId) === 'olya' || who.get(r.userId) === 'petro').length;
+  await olya.reload();
+  await olya.locator('.feed-card').first().waitFor();
+  expect(await olya.locator('.feed-card').count()).toBe(20);
+  await olya.getByRole('button', { name: 'Показати ще', ...exact }).waitFor();
+  const firstIds = await olya.locator('.feed-card').evaluateAll((cards) => cards.map((c) => c.getAttribute('data-id')));
+  await click(olya, 'Показати ще');
+  await expect.poll(() => olya.getByRole('button', { name: 'Показати ще', ...exact }).count(), POLL).toBe(0);
+  const allIds = await olya.locator('.feed-card').evaluateAll((cards) => cards.map((c) => c.getAttribute('data-id')));
+  expect(allIds.length, 'the second page').toBeGreaterThan(20);
+  expect(allIds.length, 'the second page').toBeLessThanOrEqual(40);
+  expect(allIds.slice(0, 20)).toEqual(firstIds);
+  expect(new Set(allIds).size, 'repeated cards').toBe(allIds.length);
+  expect(allIds.every((id) => id !== null && id !== '')).toBe(true);
+  // Усі події Олі й Петра плюс картки лайків Олі (Петро вподобав її як гравця).
+  const likeCards = allIds.filter((id) => id!.startsWith('like:')).length;
+  expect(likeCards, 'Оля’s likes card from Петро').toBe(1);
+  // `visible` assumes every seeded event lies inside the 30/90-day retention window.
+  expect(allIds.length - likeCards, 'events of Оля and Петро').toBe(visible);
+  await expectPhoneFit(olya, 'p18a-feed-more');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 18a: feed — the seventh menu item fits 360 and 375 px, Оля and Петро as mutual friends see each other’s game, win and achievement, Віра who only follows Петро sees none of it, the badge counts new events and clears on opening, a heart under Петро’s game is the final screen’s player like, likes to the author show as one card, and «Показати ще» pages on', async () => {
+  try {
+    await feed18a();
   } catch (error) {
     await snapshot();
     throw error;
