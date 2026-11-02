@@ -57,4 +57,11 @@ describe('webPushSender', () => {
     };
     expect(await webPushSender(keys)(target, '{}', { ttl: 1, urgency: 'normal' })).toEqual({ status: 0 });
   });
+
+  it('never sends to an endpoint outside the allowlist and answers 410 so the row is dropped', async () => {
+    lib.impl = async () => ({ statusCode: 201 });
+    const bad = { ...target, endpoint: 'https://localhost;.push.apple.com/' };
+    expect(await webPushSender(keys)(bad, '{}', { ttl: 1, urgency: 'normal' })).toEqual({ status: 410 });
+    expect(lib.calls).toHaveLength(0);
+  });
 });

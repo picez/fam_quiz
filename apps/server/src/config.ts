@@ -67,8 +67,10 @@ const VAPID_PRIVATE = /^[A-Za-z0-9_-]{43}$/;
  */
 export function pushKeys(env: Record<string, string | undefined>): { ok: true; keys: VapidKeys | null } | { ok: false; problem: string } {
   const names = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
-  const [publicKey, privateKey, subject] = names.map((name) => env[name] ?? '');
-  const missing = names.filter((name) => (env[name] ?? '') === '');
+  // trim: власник вставляє ключі в Render, зайвий перенос рядка не має ламати запуск.
+  const value = (name: (typeof names)[number]) => env[name]?.trim() ?? '';
+  const [publicKey, privateKey, subject] = names.map(value);
+  const missing = names.filter((name) => value(name) === '');
   if (missing.length === names.length) return { ok: true, keys: null };
   if (missing.length > 0) return { ok: false, problem: `Для Web Push потрібні всі три змінні: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY і VAPID_SUBJECT. Не задано: ${missing.join(', ')}.` };
   if (!VAPID_PUBLIC.test(publicKey!)) return { ok: false, problem: 'VAPID_PUBLIC_KEY має бути рядком base64url з 87 символів (pnpm --filter @quiz/server exec web-push generate-vapid-keys).' };

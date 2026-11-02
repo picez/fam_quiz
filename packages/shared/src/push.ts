@@ -23,8 +23,14 @@ export type PushPayload =
   | { kind: 'opened'; eventId: string; title: string; code: string }
   | { kind: 'cancelled'; eventId: string; title: string; startsAt: string };
 
-/** https і хост = h або закінчується на '.' + h для h з PUSH_HOSTS; інакше false (також для не-URL). */
+/**
+ * Лише https://хост[/шлях] з друкованих ASCII без пробілів: без userinfo, порту, `;`, `{`, лапок, `\` тощо в хості,
+ * бо web-push надсилає через застарілий url.parse, який читає такі рядки як інший хост.
+ * Далі хост = h або закінчується на '.' + h для h з PUSH_HOSTS; інакше false (також для не-URL).
+ */
+const PUSH_ENDPOINT_SHAPE = /^https:\/\/[a-z0-9.-]+(\/[!-~]*)?$/i;
 export function pushEndpointAllowed(endpoint: string): boolean {
+  if (!PUSH_ENDPOINT_SHAPE.test(endpoint)) return false;
   let url: { protocol: string; hostname: string };
   try {
     url = new URL(endpoint);

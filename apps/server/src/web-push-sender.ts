@@ -1,3 +1,4 @@
+import { pushEndpointAllowed } from '@quiz/shared';
 import webpush from 'web-push';
 import type { VapidKeys } from './config';
 import type { PushSend } from './push';
@@ -6,6 +7,8 @@ import type { PushSend } from './push';
 export function webPushSender(keys: VapidKeys): PushSend {
   const vapidDetails = { subject: keys.subject, publicKey: keys.publicKey, privateKey: keys.privateKey };
   return async (target, payload, options) => {
+    // Захист у глибину: рядок, що не проходить перевірку, не надсилаємо; 410 — і підписку буде видалено.
+    if (!pushEndpointAllowed(target.endpoint)) return { status: 410 };
     try {
       const res = await webpush.sendNotification({ endpoint: target.endpoint, keys: target.keys }, payload, {
         vapidDetails,

@@ -67,7 +67,7 @@ export function createPushService(deps: {
         try {
           const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, body, options);
           if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
-          else if (status < 200 || status >= 300) log(`push to a subscription answered ${status}`);
+          else if (status < 200 || status >= 300) log(`push ${payload.kind} answered ${status}`);
         } catch (error) {
           log('push send failed', error);
         }
@@ -120,6 +120,8 @@ export function createPushService(deps: {
         and(
           isNull(calendarEvent.cancelledAt),
           isNull(calendarEvent.remindedAt),
+          // Після «Гра почалась» нагадування з тим самим тегом замінило б його.
+          isNull(calendarEvent.openedPushedAt),
           gt(calendarEvent.startsAt, at),
           lte(calendarEvent.startsAt, new Date(at.getTime() + PUSH_REMINDER_BEFORE_MS)),
           sql`not exists (select 1 from ${game} where ${game.id} = ${calendarEvent.gameId} and ${game.status} = 'finished')`,
@@ -144,7 +146,12 @@ export function createPushService(deps: {
       opened: (eventId) => track(opened(eventId)),
       cancelled: (eventId) => track(cancelled(eventId)),
     },
-    remindDue,
+    remindDue(at) {
+      // У наборі для idle(), щоб shutdown дочекався прогону тікера; помилку бачить лише викликач (без подвійного логу).
+      const run = remindDue(at);
+      track(run.catch(() => undefined));
+      return run;
+    },
     async idle() {
       while (inFlight.size > 0) await Promise.allSettled([...inFlight]);
     },

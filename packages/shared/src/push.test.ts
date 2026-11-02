@@ -18,6 +18,28 @@ describe('pushEndpointAllowed', () => {
     expect(pushEndpointAllowed('https://127.0.0.1/x')).toBe(false);
     expect(pushEndpointAllowed('не адреса')).toBe(false);
   });
+  it('rejects strings that legacy url.parse reads as another host', () => {
+    expect(pushEndpointAllowed('https://localhost;.push.apple.com/')).toBe(false);
+    expect(pushEndpointAllowed('https://169.254.169.254;.notify.windows.com/')).toBe(false);
+    expect(pushEndpointAllowed('https://localhost{.push.apple.com/')).toBe(false);
+    expect(pushEndpointAllowed('https://localhost".push.apple.com/')).toBe(false);
+    expect(pushEndpointAllowed("https://localhost'.push.apple.com/")).toBe(false);
+    expect(pushEndpointAllowed('https://localhost`.push.apple.com/')).toBe(false);
+    expect(pushEndpointAllowed('https://localhost\\.push.apple.com/')).toBe(false);
+    expect(pushEndpointAllowed('https://user@fcm.googleapis.com/x')).toBe(false);
+    expect(pushEndpointAllowed('https://evil.example@fcm.googleapis.com/x')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com:8443/x')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com\t/x')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com/x y')).toBe(false);
+    expect(pushEndpointAllowed(' https://fcm.googleapis.com/x')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com/x\n')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com/x\u0000')).toBe(false);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com\\@localhost/x')).toBe(false);
+  });
+  it('allows an uppercase host and a host without a path', () => {
+    expect(pushEndpointAllowed('https://FCM.GoogleApis.com/fcm/send/abc')).toBe(true);
+    expect(pushEndpointAllowed('https://fcm.googleapis.com')).toBe(true);
+  });
 });
 
 describe('pushSubscriptionSchema', () => {

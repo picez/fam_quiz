@@ -130,6 +130,19 @@ describe('reminders', () => {
     expect(calls).toEqual([]);
   });
 
+  it('does not remind after «Гра почалась» was sent (same tag would replace it)', async () => {
+    await db.update(calendarEvent).set({ openedPushedAt: NOW }).where(eq(calendarEvent.id, E));
+    expect(await service.remindDue(NOW)).toBe(0);
+    expect(calls).toEqual([]);
+    expect((await row(E)).remindedAt).toBeNull();
+  });
+
+  it('idle() waits for a reminder run in flight', async () => {
+    void service.remindDue(NOW);
+    await service.idle();
+    expect(who(calls)).toEqual([h, o].sort());
+  });
+
   it('claims once under two parallel runs', async () => {
     const counts = await Promise.all([service.remindDue(NOW), service.remindDue(NOW)]);
     expect(counts[0] + counts[1]).toBe(1);
@@ -205,7 +218,9 @@ describe('delivery', () => {
     await service.deliver([o, p], payload);
     expect(await left(o)).toBe(1);
     expect(await left(p)).toBe(1);
-    expect(log).toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith('push cancelled answered 500');
+    expect(log).toHaveBeenCalledWith('push cancelled answered 0');
+    for (const [message] of log.mock.calls) expect(message).not.toContain('https://');
   });
 
   it('does not throw when send throws', async () => {

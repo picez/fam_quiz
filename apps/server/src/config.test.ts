@@ -85,6 +85,12 @@ describe('pushKeys', () => {
     expect(pushKeys({ ...full, VAPID_SUBJECT: 'https://quiz.example.com' }).ok).toBe(true);
   });
 
+  it('trims pasted values (a trailing newline or spaces)', () => {
+    const pasted = { VAPID_PUBLIC_KEY: pair.publicKey + '\n', VAPID_PRIVATE_KEY: ' ' + pair.privateKey + '\r\n', VAPID_SUBJECT: 'mailto:owner@example.com\n' };
+    expect(pushKeys(pasted)).toEqual({ ok: true, keys: { publicKey: pair.publicKey, privateKey: pair.privateKey, subject: 'mailto:owner@example.com' } });
+    expect(pushKeys({ VAPID_PUBLIC_KEY: '\n', VAPID_PRIVATE_KEY: ' ', VAPID_SUBJECT: '' })).toEqual({ ok: true, keys: null });
+  });
+
   it('names the missing variables', () => {
     const result = pushKeys({ VAPID_PUBLIC_KEY: pair.publicKey });
     expect(result.ok).toBe(false);

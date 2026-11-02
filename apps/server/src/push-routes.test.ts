@@ -105,7 +105,11 @@ describe('push routes with keys', () => {
     expect(JSON.parse(body)).toMatchObject({ kind: 'opened' });
     expect(calendarNotify.opened).toHaveBeenCalledWith(eventId);
 
+    // Відкрита подія вже отримала «Гра почалась» — нагадування їй не йде; перевіряємо на ще не відкритій.
     await db.update(calendarEvent).set({ startsAt: new Date(Date.now() + 30 * 60_000) }).where(eq(calendarEvent.id, eventId));
+    expect(await ctx.push!.remindDue(new Date())).toBe(0);
+    const next = await call(ctx, 'POST', '/api/calendar', h.cookie, { title: 'Ще вечір', startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(), quizId });
+    await db.update(calendarEvent).set({ startsAt: new Date(Date.now() + 30 * 60_000) }).where(eq(calendarEvent.id, (next.json() as { id: string }).id));
     expect(await ctx.push!.remindDue(new Date())).toBe(1);
   });
 
