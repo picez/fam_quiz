@@ -49,6 +49,7 @@ import {
   type LadderPlay,
   type LadderState,
   type Play,
+  type PerkHint,
   type PerkState,
   type PlayerState,
   type ScoreAdjustment,
@@ -350,6 +351,7 @@ const STATE_SHAPE: Record<string, string> = {
   Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq', 'yes', 'no'], true),
   PerkState: keysOf<PerkState>()(['kinds', 'timeMs', 'used'], true),
   PerkUsed: keysOf<PerkState['used']>()(['time', 'hint', 'ward'], true),
+  PerkHint: keysOf<PerkHint>()(['q', 'text'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -1186,6 +1188,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
     PerkState: 'kinds,timeMs,used',
     PerkUsed: 'hint,time,ward',
+    PerkHint: 'q,text',
   },
 };
 
@@ -1444,7 +1447,14 @@ function representative(): GameState[] {
     answering(),
     powered(),
     perked(),
+    hintPerked(),
   ];
+}
+
+/** 15a: Оля взяла «Підказку рівня» на q1 — у стані індекс запитання й показаний текст. */
+function hintPerked(): GameState {
+  const started = grantPerks(must(start(lobbyWith(makeQuiz([{ ...single, hint: 'Місто Лева' }, withId(single, 'q2')], { buffs: ['time'] }), 'Оля'))), { p1: { kinds: ['hint'], timeMs: 5000 } });
+  return must(usePerk(must(next(started, T0, () => 0)), 'p1', 'hint', T0 + 1000));
 }
 
 /** 15a: Оля з бонусами рівня — «+5 с» узято на q1, оберіг погасив дебаф ведучого; вимикач у вікторині без поля (увімкнено). */
@@ -1848,6 +1858,7 @@ describe('the saved state', () => {
       add('Appeal', s.appeals ?? []);
       add('PerkState', Object.values(s.perks ?? {}));
       add('PerkUsed', Object.values(s.perks ?? {}).map((p) => p.used));
+      add('PerkHint', Object.values(s.perks ?? {}).map((p) => p.used.hint));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

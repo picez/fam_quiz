@@ -125,7 +125,7 @@ export function perkBlock(state: GameState, playerId: string, kind: ActivePerk, 
 
 /**
  * Натиснути бонус рівня на поточному запитанні. time — особистий час overtime + timeMs (додається до «Додаткового часу»);
- * hint — лише позначка used.hint (текст бере perksView). Помилки: not_found, not_allowed (немає видачі цього виду),
+ * hint — used.hint з індексом запитання й показаним текстом (perksView бере його звідти). Помилки: not_found, not_allowed (немає видачі цього виду),
  * perk_used, wrong_phase, paused, not_started, already_answered, time_over, perk_unfit.
  */
 export function usePerk(state: GameState, playerId: string, kind: ActivePerk, now: number): Result {
@@ -140,8 +140,13 @@ export function usePerk(state: GameState, playerId: string, kind: ActivePerk, no
   if (hasAnswered(state, play, playerId)) return fail('already_answered');
   if (timeOverFor(state, play, playerId, now)) return fail('time_over');
   if (unfit(state, play, playerId, kind)) return fail('perk_unfit');
-  const used = withPerk(state, playerId, { ...perk, used: { ...perk.used, [kind]: state.questionIndex } });
-  return ok(kind === 'time' ? grantOvertime(used, playerId, overtimeOf(play, playerId) + perk.timeMs) : used);
+  if (kind === 'time') {
+    const used = withPerk(state, playerId, { ...perk, used: { ...perk.used, time: state.questionIndex } });
+    return ok(grantOvertime(used, playerId, overtimeOf(play, playerId) + perk.timeMs));
+  }
+  // Текст запам'ятовується: заміна після підказки не відкриває підказку запасного й не губить показану. unfit гарантує, що текст є.
+  const text = questionFor(state, play, playerId).hint ?? '';
+  return ok(withPerk(state, playerId, { ...perk, used: { ...perk.used, hint: { q: state.questionIndex, text } } }));
 }
 
 /** «+5 с» узято на поточному запитанні: тоді баф часу додається до вже наданого особистого часу, а не замінює його. */
@@ -151,7 +156,7 @@ export function perkTimeHere(state: GameState, playerId: string): boolean {
 
 /** Підказка рівня на поточному запитанні: баф «Підказка» на ньому вже не пасує. */
 export function perkHintHere(state: GameState, playerId: string): boolean {
-  return perkOf(state, playerId)?.used.hint === state.questionIndex;
+  return perkOf(state, playerId)?.used.hint?.q === state.questionIndex;
 }
 
 /** Готовий оберіг: видано й ще не спрацював. */
@@ -173,9 +178,9 @@ export function perksView(state: GameState, playerId: string, now?: number): Per
   if (perk === undefined) return null;
   const items = ACTIVE.filter((kind) => perk.kinds.includes(kind)).map((kind) => ({ kind, block: perkBlock(state, playerId, kind, now) }));
   if (items.length === 0) return null;
-  const play = state.plays[state.questionIndex];
-  const shown = play !== undefined && state.phase !== 'finished' && perk.used.hint === state.questionIndex;
-  return { items, timeMs: perk.timeMs, hint: shown ? (questionFor(state, play, playerId).hint ?? null) : null };
+  const used = perk.used.hint;
+  const shown = state.plays[state.questionIndex] !== undefined && state.phase !== 'finished' && used?.q === state.questionIndex;
+  return { items, timeMs: perk.timeMs, hint: shown ? used.text : null };
 }
 
 /** Обереги гравців стану: готовий чи спрацював; undefined — жодного оберегу. */

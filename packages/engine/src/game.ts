@@ -674,7 +674,13 @@ export interface GameState {
 export interface PerkState {
   kinds: LevelPerk[];
   timeMs: number;
-  used: { time?: number; hint?: number; ward?: number };
+  used: { time?: number; hint?: PerkHint; ward?: number };
+}
+
+/** Узята підказка рівня: q — індекс запитання, text — показаний текст (заміна після неї його не змінює й не відкриває підказку запасного). */
+export interface PerkHint {
+  q: number;
+  text: string;
 }
 
 /** Апеляція гравця (12f): голосування залу за 30 с. Пояснення — план 12f, «Стан». */

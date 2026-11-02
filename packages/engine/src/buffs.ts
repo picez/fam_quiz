@@ -396,7 +396,9 @@ function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPla
     { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
     { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },
   );
-  return timed ? grantOvertime(taken, playerId, Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
+  // «+5 с» рівня (15a), уже взятий на цьому запитанні, лишається понад час заміни.
+  const held = perkTimeHere(state, playerId) ? overtimeOf(play, playerId) : 0;
+  return timed ? grantOvertime(taken, playerId, held + Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
 }
 
 /** Змінює баф гравця на поточному запитанні; без бафу стан без змін. */

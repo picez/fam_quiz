@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultTeams, type Question, type Quiz, type QuizSettings } from '@quiz/shared';
 import { adjustScore } from './adjust';
-import { buffBlock, takeBuff } from './buffs';
+import { buffBlock, SWAP_MIN_MS, takeBuff } from './buffs';
 import { buyDebuff, setDebuff } from './debuffs';
 import { lock, next, pause, start, submitAnswer, type GameState } from './game';
 import { grantPerks, perkBlock, perkFits, perksApply, perksOn, perksView, revokePerks, usePerk, wardReady, wardsView } from './perks';
@@ -145,6 +145,32 @@ describe('using level perks', () => {
     // без підказки автора — unfit
     const second = toNext(opened(), T0 + 5000);
     expect(perkBlock(second, 'p1', 'hint')).toBe('unfit');
+  });
+
+  it('a swap keeps the +5 s already taken on top of the swap time', () => {
+    const quiz = { ...perkQuiz(undefined, { buffs: ['swap'] }), spares: [{ ...withId(single, 's1'), hint: 'Запасна' }] };
+    const timed = must(usePerk(opened(quiz), 'p1', 'time', T0 + 1000));
+    expect(overtimeOf(timed.plays[0], 'p1')).toBe(5000);
+    const swapped = must(takeBuff(timed, 'p1', 'swap', T0 + 2000, rng0));
+    expect(overtimeOf(swapped.plays[0], 'p1')).toBe(5000 + Math.max(0, T0 + 2000 + SWAP_MIN_MS - timed.endsAt!));
+    // без бонуса — лише час заміни
+    const plain = must(takeBuff(opened(quiz), 'p1', 'swap', T0 + 2000, rng0));
+    expect(overtimeOf(plain.plays[0], 'p1')).toBe(Math.max(0, T0 + 2000 + SWAP_MIN_MS - timed.endsAt!));
+  });
+
+  it('the level hint stays the one shown: a swap neither reveals the spare hint nor loses the used one', () => {
+    const quiz = { ...perkQuiz(undefined, { buffs: ['swap'] }), spares: [{ ...withId(single, 's1'), hint: 'Запасна' }] };
+    const hinted1 = must(usePerk(opened(quiz), 'p1', 'hint', T0 + 1000));
+    expect(perksView(hinted1, 'p1')?.hint).toBe('Місто Лева');
+    const swapped = must(takeBuff(hinted1, 'p1', 'swap', T0 + 2000, rng0));
+    expect(perksView(swapped, 'p1')?.hint).toBe('Місто Лева');
+    // спершу заміна — підказка запасного
+    const swappedFirst = must(takeBuff(opened(quiz), 'p1', 'swap', T0 + 1000, rng0));
+    expect(perksView(must(usePerk(swappedFirst, 'p1', 'hint', T0 + 2000)), 'p1')?.hint).toBe('Запасна');
+    // запасне без підказки: використана лишається, а нова не з'являється
+    const bare = { ...quiz, spares: [withId(single, 's1')] };
+    const lost = must(takeBuff(must(usePerk(opened(bare), 'p1', 'hint', T0 + 1000)), 'p1', 'swap', T0 + 2000, rng0));
+    expect(perksView(lost, 'p1')?.hint).toBe('Місто Лева');
   });
 
   it('a perk does not take the buff slot', () => {
