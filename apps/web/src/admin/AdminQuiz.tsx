@@ -118,7 +118,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
       <h2 className="admin-title">{quiz.title}</h2>
       <p className="meta">
         {t('adminAuthor', { name: '' })}
-        <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{view.author.nickname}</Link>
+        <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>
       </p>
       {error !== null && (
         <p className="error" role="alert">

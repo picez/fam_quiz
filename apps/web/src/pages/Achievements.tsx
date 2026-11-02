@@ -7,6 +7,7 @@ import { groupCards } from '../achievements';
 import { formatDay } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { usePrivateData } from '../usePrivateData';
+import { nickText } from '../nick';
 
 const LOGIN = '/login?next=%2Fachievements';
 const NAME = '\u0000';
@@ -71,7 +72,7 @@ function PageView({ page }: { page: AchievementsPage }) {
       ) : (
         <h1 className="brand">
           {before}
-          <Link to={`/profile/${encodeURIComponent(profile.id)}`}>{profile.nickname}</Link>
+          <Link to={`/profile/${encodeURIComponent(profile.id)}`}>{nickText(profile.nickname)}</Link>
           {after}
         </h1>
       )}

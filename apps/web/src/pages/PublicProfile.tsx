@@ -80,7 +80,7 @@ export function PublicProfile() {
         <Avatar profile={profile} size="large" />
         <div>
           <h1 className="brand">
-            {profile.nickname}
+            {nickText(profile.nickname)}
             <ProfileLevelMark level={profile.level.level} badge={profile.level.looks.badge} />
             {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
           </h1>

@@ -87,6 +87,7 @@ async function userRows(db: Db, emails: ReadonlySet<string>, where: SQL | undefi
       verified: user.emailVerified,
       createdAt: user.createdAt,
       nickname: profile.nickname,
+      hasProfile: profile.userId,
       games: sql<number>`(select count(distinct p.game_id)::int from participant p join game g on g.id = p.game_id where p.user_id = ${user.id} and g.status = 'finished')`,
       quizzes: sql<number>`(select count(*)::int from ${quiz} where ${quiz.ownerId} = ${user.id})`,
       bannedAt: userBan.bannedAt,
@@ -101,7 +102,7 @@ async function userRows(db: Db, emails: ReadonlySet<string>, where: SQL | undefi
     .offset(offset);
   const result: AdminUserRow[] = [];
   for (const r of rows) {
-    const nickname = r.nickname ?? (await ensureProfile(db, r.id))?.nickname ?? '';
+    const nickname = r.hasProfile !== null ? (r.nickname ?? '') : ((await ensureProfile(db, r.id))?.nickname ?? '');
     result.push({
       id: r.id,
       nickname,
@@ -160,6 +161,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
     .select({
       row: quiz,
       nickname: profile.nickname,
+      hasProfile: profile.userId,
       banned: sql<boolean>`exists (select 1 from ${userBan} where ${userBan.userId} = ${quiz.ownerId})`,
       games: sql<number>`(select count(*)::int from ${game} where ${game.quizId} = ${quiz.id} and ${game.status} = 'finished')`,
     })
@@ -171,7 +173,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
     .offset((query.page - 1) * ADMIN_PAGE_SIZE);
   const result: AdminQuizRow[] = [];
   for (const r of rows) {
-    const nickname = r.nickname ?? (await ensureProfile(db, r.row.ownerId))?.nickname ?? '';
+    const nickname = r.hasProfile !== null ? (r.nickname ?? '') : ((await ensureProfile(db, r.row.ownerId))?.nickname ?? '');
     result.push({
       id: r.row.id,
       title: r.row.title,
