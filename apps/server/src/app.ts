@@ -13,6 +13,7 @@ import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
+import { registerAdminRoutes } from './admin-routes';
 import { attachRecorder } from './recorder';
 import { RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
@@ -108,6 +109,7 @@ export async function buildApp(options: AppOptions) {
   await registerStickerRoutes(app, { storage: imageStorage, fixtures: options.stickerFixtures ?? false });
   await registerProfileRoutes(app, { db: options.db, currentUser });
   await registerPrizeRoutes(app, { db: options.db, manager, locate, currentUser });
+  await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });

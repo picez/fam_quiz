@@ -289,8 +289,21 @@ export async function showcaseOf(db: Db, userId: string, now: Date = new Date())
   return { title: titleRow === undefined ? null : { text: titleRow.text, until: titleRow.expiresAt!.toISOString() }, awards };
 }
 
-/** Адмінка: прибрати рядок вітрини. */
-export async function deleteAward(db: Db, awardId: string): Promise<boolean> {
-  const rows = await db.delete(prizeAward).where(eq(prizeAward.id, awardId)).returning({ id: prizeAward.id });
-  return rows.length > 0;
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * Адмінка: прибрати рядок вітрини; повертає видалене (знімок для журналу) чи null.
+ * Титул власника з тим самим текстом, що й content.title нагороди, іде разом із нею.
+ */
+export async function deleteAward(
+  db: Db | Tx,
+  awardId: string,
+): Promise<{ userId: string; content: PrizeContent; quizTitle: string } | null> {
+  const [row] = await db
+    .delete(prizeAward)
+    .where(eq(prizeAward.id, awardId))
+    .returning({ userId: prizeAward.userId, content: prizeAward.content, quizTitle: prizeAward.quizTitle });
+  if (row === undefined) return null;
+  if (row.content.title !== null) await db.delete(userTitle).where(and(eq(userTitle.userId, row.userId), eq(userTitle.text, row.content.title)));
+  return row;
 }

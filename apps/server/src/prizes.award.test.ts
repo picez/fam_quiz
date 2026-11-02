@@ -130,7 +130,7 @@ describe('showcase', () => {
     const { awards: list } = await showcaseOf(db, 'u2');
     expect(list).toHaveLength(60);
     expect(list[0]!.quizTitle).toBe('Q60');
-    expect(await deleteAward(db, list[0]!.id)).toBe(true);
-    expect(await deleteAward(db, list[0]!.id)).toBe(false);
+    expect(await deleteAward(db, list[0]!.id)).toEqual({ userId: 'u2', content: content('X'), quizTitle: 'Q60' });
+    expect(await deleteAward(db, list[0]!.id)).toBeNull();
   });
 });
