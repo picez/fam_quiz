@@ -14115,3 +14115,31 @@ button.wall-tile:disabled {
   justify-content: space-between;
   gap: 0.5rem;
 }
+
+.admin-title {
+  overflow-wrap: anywhere;
+}
+
+.admin-thumb {
+  max-width: 8rem;
+  max-height: 6rem;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+}
+
+.admin-card .btn:disabled {
+  opacity: 0.55;
+}

@@ -2,14 +2,12 @@ import type { JSX } from 'react';
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { t } from '../i18n';
 import { useAccount } from '../useAccount';
+import { AdminLog } from './AdminLog';
+import { AdminQuiz } from './AdminQuiz';
+import { AdminQuizzes } from './AdminQuizzes';
 import { AdminStats } from './AdminStats';
 import { AdminUser } from './AdminUser';
 import { AdminUsers } from './AdminUsers';
-
-// Вкладки задачі 9 поки порожні.
-const AdminQuizzes = (): null => null;
-const AdminQuiz = (): null => null;
-const AdminLog = (): null => null;
 
 const TABS = [
   { to: '/admin', key: 'adminTabStats', end: true },
