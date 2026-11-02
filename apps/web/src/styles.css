@@ -9718,6 +9718,14 @@ button.wall-tile:disabled {
   cursor: default;
 }
 
+/* Глядач: варіанти не схожі на кнопки — приглушена рамка, напівпрозорість, без натискань і виділення; правильний після закриття — на повну. */
+.survival-watch-choices .choice:not(.is-correct) {
+  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}
+
 .survival-trial.is-watch > .meta,
 .survival-watch-answer {
   text-align: center;

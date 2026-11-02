@@ -17962,6 +17962,9 @@ async function survivalWatch16a() {
     await panel.getByRole('heading', { name: 'Питання на виживання для: Оля', ...exact }).waitFor();
     await panel.getByText('Яка річка тече через Київ?', exact).waitFor();
     expect(await panel.locator('img.question-image').count(), `${who} sees the picture`).toBe(1);
+    await panel.getByText('Ти дивишся — відповідають інші', exact).waitFor();
+    expect(await panel.locator('ul.survival-watch-choices').getAttribute('aria-disabled'), `${who}: the options are not for tapping`).toBe('true');
+    expect(await panel.locator('.choice').first().evaluate((el) => (globalThis as unknown as { getComputedStyle: (e: unknown) => { pointerEvents: string } }).getComputedStyle(el).pointerEvents), `${who}: an option takes no taps`).toBe('none');
     const options = await panel.locator('.choice').allInnerTexts();
     expect(options.length, `${who} sees three options`).toBe(3);
     for (const [i, text] of ['Дніпро', 'Дністер', 'Десна'].entries()) expect(options[i], `${who}: option ${i + 1}`).toContain(text);

@@ -845,6 +845,7 @@ const uk = {
   survivalWatchTrial: 'Випробування для: {names}',
   survivalTrialFor: 'Питання на виживання для: {names}',
   survivalWatchOutcome: '{name} — {mark}',
+  survivalWatchNote: 'Ти дивишся — відповідають інші',
   survivalSafe: 'Пронесло! Ти живий(-а).',
   survivalOut: 'Ти вибуваєш — тепер ти привид.',
   survivalAllWrong: 'Помилилися всі — ніхто не вибуває.',

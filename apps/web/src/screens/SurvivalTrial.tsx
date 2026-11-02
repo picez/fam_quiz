@@ -13,7 +13,8 @@ function TrialChoices({ question, reveal }: { question: PublicQuestion; reveal: 
   if (question.choices.length === 0) return null;
   const correctId = reveal?.type === 'single' ? reveal.correctId : null;
   return (
-    <ul className={`${choicesClass(question.choices)} survival-watch-choices`}>
+    // Лише глядачам: варіанти не натискаються — aria-disabled і приглушений вигляд (див. .survival-watch-choices).
+    <ul className={`${choicesClass(question.choices)} survival-watch-choices`} aria-disabled="true">
       {question.choices.map((choice, index) => (
         <li key={choice.id} className={choice.id === correctId ? 'choice is-correct' : 'choice'}>
           <ChoiceFace choice={choice} letter={LETTERS[index]} />
@@ -168,6 +169,7 @@ export function SurvivalTrial({
         <Timer view={trial} offsetMs={offsetMs} status={view.paused ? 'paused' : null} />
         <h1 className="question">{trial.question.text}</h1>
         <QuestionImage url={trial.question.imageUrl} />
+        <p className="meta survival-watch-note">{t('survivalWatchNote')}</p>
         <TrialChoices question={trial.question} reveal={null} />
         {done}
       </section>

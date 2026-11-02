@@ -105,6 +105,21 @@ describe('SurvivalTrial', () => {
     expect(screen.getByRole('timer')).toBeTruthy();
   });
 
+  it('the spectator options are marked as not for tapping, under a «you are watching» line', () => {
+    const { container } = render(<SurvivalTrial view={makeView({ own: { status: 'ghost', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    const list = container.querySelector('ul.survival-watch-choices');
+    expect(list?.getAttribute('aria-disabled')).toBe('true');
+    const line = screen.getByText('Ти дивишся — відповідають інші');
+    expect(line.classList.contains('meta')).toBe(true);
+    expect(line.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('on the edge the options stay real buttons with no spectator line', () => {
+    const { container } = render(<SurvivalTrial view={makeView()} offsetMs={0} onAnswer={noop} onDoor={noop} />);
+    expect(container.querySelector('[aria-disabled]')).toBeNull();
+    expect(screen.queryByText('Ти дивишся — відповідають інші')).toBeNull();
+  });
+
   it('a ghost watches too, and luck still says whose trial it is', () => {
     render(<SurvivalTrial view={makeView({ own: { status: 'ghost', canAnswerTrial: false } })} offsetMs={0} onAnswer={noop} onDoor={noop} />);
     expect(screen.getByText('Питання на виживання для: Олена, Іван')).toBeTruthy();
