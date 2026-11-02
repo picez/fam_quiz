@@ -1,8 +1,9 @@
 import { makeQuiz, single } from '@quiz/engine/testing';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
 import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
+import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
 import { creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, syncXp, unlockTimes, xpTotals } from './xp-store';
@@ -44,6 +45,7 @@ async function newQuiz(owner = AUTHOR): Promise<string> {
 /** Завершена гра: у кожного гравця correct правильних запитань (0…correct−1); guests — гравці без акаунта. */
 async function finishedGame(spec: {
   quizId?: string | null;
+  hostId?: string;
   players: { userId: string | null; rank: number | null; correct: number }[];
   questions: number;
   finishedAt: Date;
@@ -56,7 +58,7 @@ async function finishedGame(spec: {
     rows: Array.from({ length: p.correct }, (_, q) => ({ questionIndex: q, accepted: true, points: 10 })),
   }));
   const { gameId } = await seedGame(db, {
-    hostId: HOST,
+    hostId: spec.hostId ?? HOST,
     quizId: spec.quizId ?? undefined,
     startedAt: new Date(spec.finishedAt.getTime() - 30 * 60_000),
     finishedAt: spec.finishedAt,
@@ -64,6 +66,28 @@ async function finishedGame(spec: {
     players,
   });
   return gameId;
+}
+
+/**
+ * db, у якого n-та транзакція (від 1) поводиться інакше: before виконується перед нею, а fail — замість неї кидає збій.
+ * Решта викликів іде до справжньої бази.
+ */
+function hooked(n: number, hook: { before?: () => Promise<void>; fail?: boolean }): Db {
+  let calls = 0;
+  return new Proxy(db, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target) as unknown;
+      if (prop !== 'transaction' || typeof value !== 'function') return typeof value === 'function' ? value.bind(target) : value;
+      return async (...args: unknown[]) => {
+        calls += 1;
+        if (calls === n) {
+          if (hook.fail === true) throw new Error('збій транзакції');
+          await hook.before?.();
+        }
+        return (value as (...a: unknown[]) => unknown).apply(target, args);
+      };
+    },
+  });
 }
 
 const rowsOf = (userId: string) => db.select().from(xpEntry).where(eq(xpEntry.userId, userId));
@@ -301,6 +325,94 @@ describe('retro and catching up', () => {
     await creditGame(db, full);
     expect(await gameRow(author, full)).toMatchObject({ amount: 0, reason: 'author' });
     expect(await gameRow(a, full)).toMatchObject({ amount: 110, counted: true });
+  });
+});
+
+describe('races and failures', () => {
+  it('a mark already past the game (set by a racing first sync that missed it) still gets the game credited, exactly once', async () => {
+    const accountsHere = await accounts(3);
+    for (const id of accountsHere) await ensureProfile(db, id);
+    const finishedAt = new Date('2026-10-20T18:00:00Z');
+    const gameId = await finishedGame({
+      questions: 5,
+      finishedAt,
+      players: accountsHere.map((userId, i) => ({ userId, rank: i + 1, correct: 1 })),
+    });
+    // Перед першою транзакцією (ретро першого гравця) інший прохід уже поставив мітку пізніше за гру, не побачивши її.
+    const raced = hooked(1, {
+      before: async () => {
+        await db.update(profile).set({ xpSyncedAt: new Date('2026-10-20T19:00:00Z') }).where(inArray(profile.userId, accountsHere));
+      },
+    });
+    await creditGame(raced, gameId);
+    for (const id of accountsHere) expect((await rowsOf(id)).filter((r) => r.gameId === gameId)).toHaveLength(1);
+    await creditGame(db, gameId);
+    for (const id of accountsHere) await syncXp(db, id);
+    for (const id of accountsHere) expect((await rowsOf(id)).filter((r) => r.gameId === gameId)).toHaveLength(1);
+  });
+
+  it('catch-up credits each game on its own and moves the mark only up to the last game before a failure', async () => {
+    const [me, x, y] = await accounts(3);
+    await synced(me, new Date('2026-10-01T00:00:00Z'));
+    const players = [
+      { userId: me, rank: 1, correct: 1 },
+      { userId: x, rank: 2, correct: 0 },
+      { userId: y, rank: 3, correct: 0 },
+    ];
+    const g1 = await finishedGame({ questions: 5, finishedAt: new Date('2026-10-06T08:00:00Z'), players });
+    const g2 = await finishedGame({ questions: 5, finishedAt: new Date('2026-10-07T08:00:00Z'), players });
+    const g3 = await finishedGame({ questions: 5, finishedAt: new Date('2026-10-08T08:00:00Z'), players });
+    const errors: unknown[] = [];
+    // Друга транзакція — нарахування g2 — падає.
+    await syncXp(hooked(2, { fail: true }), me, (e) => errors.push(e));
+    expect(errors).toHaveLength(1);
+    expect(await gameRow(me, g1)).toBeDefined();
+    expect(await gameRow(me, g2)).toBeUndefined();
+    expect(await gameRow(me, g3)).toBeDefined();
+    const mark = async () => (await db.select({ at: profile.xpSyncedAt }).from(profile).where(eq(profile.userId, me)))[0].at;
+    expect(await mark()).toEqual(new Date('2026-10-06T08:00:00Z'));
+    // Наступне наздоганяння підбирає g2, g1 і g3 не дублює, мітка — на найпізнішій.
+    await syncXp(db, me);
+    expect(await gameRow(me, g2)).toBeDefined();
+    expect((await rowsOf(me)).filter((r) => r.source === 'game')).toHaveLength(3);
+    // g3 уже має власний рядок: наздоганяння його не бере, мітка — на g2
+    expect(await mark()).toEqual(new Date('2026-10-07T08:00:00Z'));
+    await syncXp(db, me);
+    expect((await rowsOf(me)).filter((r) => r.source === 'game')).toHaveLength(3);
+  });
+
+  it('the author of a deleted quiz who hosted the game still gets the author zero', async () => {
+    const [author, a, b, c] = await accounts(4);
+    const quizId = await newQuiz(author);
+    const gameId = await finishedGame({
+      quizId,
+      hostId: author,
+      questions: 5,
+      finishedAt: new Date('2026-10-21T18:00:00Z'),
+      players: [
+        { userId: author, rank: 1, correct: 5 },
+        { userId: a, rank: 2, correct: 0 },
+        { userId: b, rank: 3, correct: 0 },
+        { userId: c, rank: 4, correct: 0 },
+      ],
+    });
+    await db.delete(quiz).where(eq(quiz.id, quizId));
+    await creditGame(db, gameId);
+    expect(await gameRow(author, gameId)).toMatchObject({ amount: 0, reason: 'author' });
+    expect(await gameRow(a, gameId)).toMatchObject({ amount: 50 + 60, counted: true });
+    // ретро (без мітки) так само
+    const [author2, d, e, f] = await accounts(4);
+    const quiz2 = await newQuiz(author2);
+    const old = await finishedGame({
+      quizId: quiz2,
+      hostId: author2,
+      questions: 5,
+      finishedAt: new Date('2026-09-21T18:00:00Z'),
+      players: [author2, d, e, f].map((userId, i) => ({ userId, rank: i + 1, correct: 0 })),
+    });
+    await db.delete(quiz).where(eq(quiz.id, quiz2));
+    await syncXp(db, author2);
+    expect(await gameRow(author2, old)).toMatchObject({ amount: 0, reason: 'author' });
   });
 });
 

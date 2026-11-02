@@ -29,7 +29,10 @@ const KNOWN: ReadonlySet<string> = new Set(ACHIEVEMENTS);
 
 const logError = (error: unknown) => console.error('Не вдалося нарахувати досвід:', error);
 
-/** Вікторина гри й її автор (null — гра без вікторини чи вікторину видалено). */
+/** Автор вікторини гри; вікторину видалено (чи її не було) — ведучий гри, що й був автором: правило author діє й далі. */
+const authorOf = sql<string>`coalesce(${quiz.ownerId}, ${game.hostId})`;
+
+/** Вікторина гри й її автор (автор — власник вікторини, а коли її видалено — ведучий гри). */
 interface GameMeta {
   quizId: string | null;
   ownerId: string | null;
@@ -95,7 +98,7 @@ async function creditCapped(db: Db, userId: string, loaded: AchievementGame, met
 /** Ігри користувача-гравця (рядок з місцем), завершені; since — лише після мітки й без власного рядка. Від найранішої. */
 async function playedGames(db: Db, userId: string, since: Date | null): Promise<{ gameId: string; finishedAt: Date | null; meta: GameMeta }[]> {
   const rows = await db
-    .select({ id: game.id, finishedAt: game.finishedAt, quizId: game.quizId, ownerId: quiz.ownerId })
+    .select({ id: game.id, finishedAt: game.finishedAt, quizId: game.quizId, ownerId: authorOf })
     .from(participant)
     .innerJoin(game, eq(game.id, participant.gameId))
     .leftJoin(quiz, eq(quiz.id, game.quizId))
@@ -160,32 +163,29 @@ async function retro(db: Db, userId: string): Promise<Date | null> {
   });
 }
 
-/** Ігри після мітки без власного рядка — зі стелею; мітка переходить на найпізнішу (і після збою: інакше вічні повтори). */
+/**
+ * Ігри після мітки без власного рядка — зі стелею, кожна у власному try (збій — onError, решта йде далі).
+ * Мітка переходить лише на останню гру перед першим збоєм: збійну підбере наступне наздоганяння, а зараховані після неї мають власний рядок і не дублюються.
+ */
 async function catchUp(db: Db, userId: string, mark: Date, onError: (e: unknown) => void): Promise<void> {
   const missed = await playedGames(db, userId, mark);
-  if (missed.length === 0) return;
-  const metaOf = new Map(missed.map((g) => [g.gameId, g.meta]));
-  for (let i = 0; i < missed.length; i += BATCH) {
+  let reached: Date | null = null;
+  let failed = false;
+  for (const { gameId, finishedAt, meta } of missed) {
     try {
-      for (const loaded of await loadAchievementGames(
-        db,
-        missed.slice(i, i + BATCH).map((g) => g.gameId),
-      )) {
-        await creditCapped(db, userId, loaded, metaOf.get(loaded.gameId)!);
-      }
+      const [loaded] = await loadAchievementGames(db, [gameId]);
+      if (loaded !== undefined) await creditCapped(db, userId, loaded, meta);
+      // Від найранішої: поки збою не було, мітка йде за грою.
+      if (!failed && finishedAt !== null) reached = finishedAt;
     } catch (error) {
+      failed = true;
       onError(error);
     }
   }
-  // Від найранішої: остання з датою — найпізніша.
-  const last = missed
-    .map((g) => g.finishedAt)
-    .filter((at): at is Date => at !== null)
-    .at(-1);
-  if (last !== undefined) {
+  if (reached !== null) {
     await db
       .update(profile)
-      .set({ xpSyncedAt: sql`greatest(${profile.xpSyncedAt}, ${last})` })
+      .set({ xpSyncedAt: sql`greatest(${profile.xpSyncedAt}, ${reached})` })
       .where(eq(profile.userId, userId));
   }
 }
@@ -241,7 +241,7 @@ export async function syncXp(db: Db, userId: string, onError: (e: unknown) => vo
 export async function creditGame(db: Db, gameId: string, onError: (e: unknown) => void = logError): Promise<void> {
   const [loaded] = await loadAchievementGames(db, [gameId]);
   if (loaded === undefined) return;
-  const [roles] = await db.select({ quizId: game.quizId, hostId: game.hostId, ownerId: quiz.ownerId }).from(game).leftJoin(quiz, eq(quiz.id, game.quizId)).where(eq(game.id, gameId));
+  const [roles] = await db.select({ quizId: game.quizId, hostId: game.hostId, ownerId: authorOf }).from(game).leftJoin(quiz, eq(quiz.id, game.quizId)).where(eq(game.id, gameId));
   const meta: GameMeta = { quizId: roles?.quizId ?? null, ownerId: roles?.ownerId ?? null };
   const players = gameXp(loaded, meta.ownerId, () => false).map((a) => a.userId);
   for (const userId of players) {
@@ -249,6 +249,9 @@ export async function creditGame(db: Db, gameId: string, onError: (e: unknown) =
       const [row] = await db.select({ mark: profile.xpSyncedAt }).from(profile).where(eq(profile.userId, userId));
       if (row === undefined || row.mark === null) {
         await syncXp(db, userId, onError);
+        // Ретро, що поставило мітку раніше за запис цієї гри, могло її не побачити, а наздоганяння бере лише ігри після мітки.
+        // Рядок власний і унікальний: якщо ретро гру вже взяло, тут нічого не допишеться.
+        await creditCapped(db, userId, loaded, meta);
       } else {
         await creditCapped(db, userId, loaded, meta);
         await creditAchievements(db, userId);
