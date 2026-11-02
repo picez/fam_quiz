@@ -31,6 +31,6 @@ describe('feed', () => {
     expect(feedSeenSchema.safeParse({ upTo: '2026-11-02T10:00:00.000Z', x: 1 }).success).toBe(false);
   });
   it('lists the kinds', () => {
-    expect([...FEED_KINDS]).toEqual(['game', 'achievement', 'level', 'prize', 'like']);
+    expect([...FEED_KINDS]).toEqual(['game', 'achievement', 'level', 'prize', 'like', 'planned']);
   });
 });

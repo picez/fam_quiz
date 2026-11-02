@@ -25,6 +25,8 @@ export function feedText(data: FeedData): string {
         t('feedPrize', { name: data.name, place: data.place, title: data.title }) +
         (data.nickTitle === null ? '' : t('feedPrizeTitle', { nickTitle: data.nickTitle }))
       );
+    case 'planned':
+      return data.title; // 19a: задача 6
     case 'like': {
       const parts: string[] = [];
       if (data.questions > 0) parts.push(countText('feedLikeQuestions', data.questions, { count: data.questions }));
@@ -49,5 +51,7 @@ export function feedIcon(data: FeedData): string {
       return '🎁';
     case 'like':
       return '❤️';
+    case 'planned':
+      return '📅'; // 19a: задача 6
   }
 }
