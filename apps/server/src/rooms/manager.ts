@@ -128,9 +128,11 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload } from '@quiz/shared';
+import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
+import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
 
@@ -220,6 +222,10 @@ export interface Room {
   titles: Map<string, string>;
   /** Рівні акаунтів кімнати (15a): userId → рівень і вбрання біля ніку. Лише в пам'яті; заповнює attachLevels. */
   levels: Map<string, NickLevel>;
+  /** Лайки (17a): власник вікторини й прочитані вподобання акаунтів кімнати. Лише в пам'яті; заповнює attachLikes. */
+  likes: RoomLikes;
+  /** Вікно частоти player:like (17a), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
+  likeRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -304,7 +310,9 @@ export type RoomEvent =
   /** Чернетка змінилася: стан гри той самий; товаришам (teammates) — свіжий зріз, пульту — пакет host:drafts (socket.ts). */
   | { type: 'draft'; id: string; by: string; teammates: boolean }
   /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
-  | { type: 'tilt'; tilt: SortTilt; by: string; audience: 'all' | 'team' };
+  | { type: 'tilt'; tilt: SortTilt; by: string; audience: 'all' | 'team' }
+  /** Лайк (17a): бажаний стан для бази (attachLikes); стан гри той самий, сокетам нічого. */
+  | { type: 'like'; change: LikeChange };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -596,6 +604,8 @@ export class RoomManager {
       prizes: [],
       titles: new Map(),
       levels: new Map(),
+      likes: { mine: new Map() },
+      likeRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -664,6 +674,8 @@ export class RoomManager {
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
       levels: new Map(),
+      likes: { mine: new Map() },
+      likeRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -747,6 +759,77 @@ export class RoomManager {
     // Межа між запитаннями: продовження (13b) бере контрольну точку, тож видача потрапляє й туди.
     if (room.state !== before && room.checkpoint?.state === before) room.checkpoint = { ...room.checkpoint, state: room.state };
     this.emit(room, { type: 'changed' });
+  }
+
+  /** Злити прочитані лайки (17a): author — якщо є, акаунти mine замінюються; emit changed, лише якщо щось змінилось. */
+  setLikes(room: Room, load: { author?: string | null; mine: Map<string, Set<LikeKey>> }): void {
+    let changed = false;
+    if (load.author !== undefined && room.likes.author !== load.author) {
+      room.likes.author = load.author;
+      changed = true;
+    }
+    for (const [userId, keys] of load.mine) {
+      const was = room.likes.mine.get(userId);
+      if (was !== undefined && was.size === keys.size && [...keys].every((key) => was.has(key))) continue;
+      room.likes.mine.set(userId, new Set(keys));
+      changed = true;
+    }
+    if (changed) this.emit(room, { type: 'changed' });
+  }
+
+  /**
+   * Лайк (17a) людини by: бажаний стан, а не перемикач. Перевірки по черзі (див. план 17a); той самий стан — ok без події.
+   * Синхронно: room.likes.mine змінюється одразу, база — в attachLikes за подією 'like'.
+   */
+  like(room: Room, by: string, payload: LikePayload): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const state = room.state;
+    if (personOf(state, by) === undefined) return { ok: false, error: 'not_found' };
+    const me = room.playerUsers.get(by);
+    if (me === undefined) return { ok: false, error: 'like_guest' };
+    const mine = room.likes.mine.get(me);
+    if (room.quizId === null || room.hostUserId === null || mine === undefined) return { ok: false, error: 'like_unavailable' };
+    if (state.phase !== (payload.target === 'question' ? 'reveal' : 'finished')) return { ok: false, error: 'wrong_phase' };
+    const base = { userId: me, liked: payload.liked, gameId: room.id, quizId: room.quizId };
+    let key: LikeKey;
+    let change: LikeChange;
+    if (payload.target === 'player') {
+      if (personOf(state, payload.id) === undefined) return { ok: false, error: 'not_found' };
+      const target = room.playerUsers.get(payload.id);
+      if (target === undefined) return { ok: false, error: 'like_unavailable' };
+      if (target === me) return { ok: false, error: 'like_self' };
+      key = `p:${target}`;
+      change = { ...base, kind: 'player', targetUserId: target };
+    } else if (payload.target === 'host') {
+      if (state.autopilot !== undefined) return { ok: false, error: 'like_unavailable' };
+      if (room.hostUserId === me) return { ok: false, error: 'like_self' };
+      key = 'host';
+      change = { ...base, kind: 'host', targetUserId: room.hostUserId };
+    } else {
+      const author = room.likes.author;
+      if (author === undefined || author === null) return { ok: false, error: 'like_unavailable' };
+      if (author === me) return { ok: false, error: 'like_self' };
+      if (payload.target === 'quiz') {
+        key = 'quiz';
+        change = { ...base, kind: 'quiz' };
+      } else {
+        const questionId = likedQuestionId(state, by);
+        if (questionId === undefined) return { ok: false, error: 'like_unavailable' };
+        key = `q:${questionId}`;
+        change = { ...base, kind: 'question', questionId };
+      }
+    }
+    const now = this.now();
+    const rate = room.likeRate.get(by);
+    if (rate === undefined || now - rate.from >= LIKE_RATE.windowMs) room.likeRate.set(by, { from: now, count: 1 });
+    else if (rate.count + 1 > LIKE_RATE.max) return { ok: false, error: 'too_soon' };
+    else rate.count += 1;
+    if (mine.has(key) === payload.liked) return { ok: true };
+    if (payload.liked) mine.add(key);
+    else mine.delete(key);
+    this.emit(room, { type: 'like', change });
+    this.emit(room, { type: 'changed' });
+    return { ok: true };
   }
 
   /** Видача бонусів рівня (15a) гравцям стану з рівнем у room.levels; grantPerks сам пропускає лобі, вимикач, командну гру й тих, хто вже має запис. */
@@ -1106,9 +1189,17 @@ export class RoomManager {
     const prizes = prizesView(room, identity.role === 'player' ? { role: 'player', playerId: identity.playerId ?? '' } : { role: identity.role });
     const titles = titlesView(room);
     const levels = levelsView(room);
-    if (prizes === undefined && titles === undefined && levels === undefined) return base;
+    // Лайки (17a) — лише телефону гравця; сцена й пульт їх не мають.
+    const likes = identity.role === 'player' && identity.playerId !== null ? likesView(room, identity.playerId) : undefined;
+    if (prizes === undefined && titles === undefined && levels === undefined && likes === undefined) return base;
     // Як continued (13b): ключа немає, коли порожньо.
-    return { ...base, ...(prizes === undefined ? {} : { prizes }), ...(titles === undefined ? {} : { titles }), ...(levels === undefined ? {} : { levels }) };
+    return {
+      ...base,
+      ...(prizes === undefined ? {} : { prizes }),
+      ...(titles === undefined ? {} : { titles }),
+      ...(levels === undefined ? {} : { levels }),
+      ...(likes === undefined ? {} : { likes }),
+    };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {

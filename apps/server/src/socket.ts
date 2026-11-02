@@ -50,6 +50,7 @@ import {
   liveWatchSchema,
   startSchema,
   reactSchema,
+  likeSchema,
   perkSchema,
   HOST_DRAFTS_MS,
   type AckResult,
@@ -238,6 +239,8 @@ export function attachSockets(
       scheduleDrafts(room);
       return;
     }
+    // Лайк (17a) — справа attachLikes; телефони дізнаються з наступного changed.
+    if (event.type === 'like') return;
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
@@ -413,6 +416,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = reactSchema.safeParse(payloadOf(args));
       return payload.success ? manager.react(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:like', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = likeSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.like(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:perk', (args) => {
