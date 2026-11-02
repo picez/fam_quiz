@@ -556,6 +556,10 @@ export const calendarEvent = pgTable(
     gameCode: text('game_code'),
     editedAt: at('edited_at'),
     cancelledAt: at('cancelled_at'),
+    /** Пуш «за годину» уже ішов (20a); ставиться атомарно до відправки. */
+    remindedAt: at('reminded_at'),
+    /** Пуш «гру відкрито» уже ішов (20a). */
+    openedPushedAt: at('opened_pushed_at'),
     createdAt: at('created_at').notNull(),
   },
   (table) => [
@@ -582,4 +586,19 @@ export const calendarRequest = pgTable(
     primaryKey({ columns: [table.eventId, table.userId] }),
     index('calendar_request_user_idx').on(table.userId),
   ],
+);
+
+/** Підписка Web Push одного пристрою (20a); endpoint унікальний на весь світ. */
+export const pushSubscription = pgTable(
+  'push_subscription',
+  {
+    endpoint: text('endpoint').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [index('push_subscription_user_idx').on(table.userId)],
 );
