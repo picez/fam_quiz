@@ -1,13 +1,53 @@
-import { LIMITS, type Answer, type PlayerView, type SubmittedAnswer } from '@quiz/shared';
+import { LIMITS, type Answer, type PlayerView, type PublicQuestion, type Question, type SubmittedAnswer, type SurvivalRow } from '@quiz/shared';
+import { LETTERS, correctText } from '../format';
 import { t } from '../i18n';
+import { ChoiceFace, choicesClass } from './ChoiceFace';
+import { QuestionImage } from './QuestionImage';
 import { Timer, useTimeOver } from '../live/Timer';
 import { useSplash } from '../live/Splash';
 import { AnswerInput } from './AnswerInput';
 import { SurvivalDoors } from './SurvivalDoors';
 
+/** Варіанти питання на виживання лише для читання; після закриття правильний підсвічено. */
+function TrialChoices({ question, reveal }: { question: PublicQuestion; reveal: Question | null }) {
+  if (question.choices.length === 0) return null;
+  const correctId = reveal?.type === 'single' ? reveal.correctId : null;
+  return (
+    <ul className={`${choicesClass(question.choices)} survival-watch-choices`}>
+      {question.choices.map((choice, index) => (
+        <li key={choice.id} className={choice.id === correctId ? 'choice is-correct' : 'choice'}>
+          <ChoiceFace choice={choice} letter={LETTERS[index]} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** «Правильна відповідь: …» після закриття питання на виживання; інакше нічого. */
+function TrialAnswer({ question, reveal }: { question: PublicQuestion | null; reveal: Question | null }) {
+  if (question === null || reveal === null) return null;
+  return <p className="lead answer survival-watch-answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>;
+}
+
+/** Хто вижив, а хто став привидом після закриття випробування. */
+function TrialOutcome({ rows }: { rows: SurvivalRow[] }) {
+  const decided = rows.filter((row) => row.trial === 'safe' || row.trial === 'out');
+  if (decided.length === 0) return null;
+  return (
+    <ul className="survival-watch-outcome">
+      {decided.map((row) => (
+        <li key={row.playerId} className={row.trial === 'out' ? 'is-out' : 'is-safe'}>
+          {t('survivalWatchOutcome', { name: row.nickname, mark: t(row.trial === 'out' ? 'survivalOutMark' : 'survivalSafeMark') })}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * Випробування на телефоні: «на межі» — питання на виживання чи троє дверей; решта — рядок «Випробування для …»;
- * після закриття — «Пронесло!» / «Ти вибуваєш». Керування вимкнене на паузі й під заставкою `trial`
+ * Випробування на телефоні: «на межі» — питання на виживання чи троє дверей; решта (живі, привиди, нові гравці) —
+ * те саме питання лише для читання з підписом «Питання на виживання для: …» (16a), без жодного керування;
+ * після закриття — «Пронесло!» / «Ти вибуваєш», а глядачам — правильна відповідь і хто вижив. Керування вимкнене на паузі й під заставкою `trial`
  * (canAnswerTrial / canPickDoor заставки не знають, тож її відстежує клієнт).
  */
 export function SurvivalTrial({
@@ -44,7 +84,22 @@ export function SurvivalTrial({
   );
 
   if (trial.stage === 'closed') {
-    if (own.result === null) return <section className="survival-trial">{head}</section>;
+    if (own.result === null) {
+      return (
+        <section className="survival-trial is-watch is-closed">
+          {head}
+          {trial.question !== null && (
+            <>
+              <h1 className="question">{trial.question.text}</h1>
+              <QuestionImage url={trial.question.imageUrl} />
+              <TrialChoices question={trial.question} reveal={trial.reveal} />
+              <TrialAnswer question={trial.question} reveal={trial.reveal} />
+            </>
+          )}
+          <TrialOutcome rows={info.rows} />
+        </section>
+      );
+    }
     const door = myRow?.door ?? null;
     return (
       <section className={`survival-trial is-${own.result}`}>
@@ -55,6 +110,7 @@ export function SurvivalTrial({
         <p className="lead survival-state" role="status">
           {t(own.result === 'safe' ? 'survivalSafe' : 'survivalOut')}
         </p>
+        <TrialAnswer question={trial.question} reveal={trial.reveal} />
       </section>
     );
   }
@@ -70,6 +126,7 @@ export function SurvivalTrial({
           ) : (
             <>
               <h1 className="question">{trial.question.text}</h1>
+              <QuestionImage url={trial.question.imageUrl} />
               <fieldset className="inputs" disabled={frozen || !own.canAnswerTrial}>
                 <AnswerInput key={trial.question.text} question={trial.question} onSubmit={(answer) => !frozen && own.canAnswerTrial && onAnswer(answer)} onDraft={onDraft} confirm={confirm} />
               </fieldset>
@@ -93,14 +150,34 @@ export function SurvivalTrial({
     );
   }
 
-  const names = info.rows.filter((row) => row.trial !== null).map((row) => row.nickname);
+  const names = info.rows
+    .filter((row) => row.trial !== null)
+    .map((row) => row.nickname)
+    .join(', ');
+  const done = (
+    <p className="meta" role="status">
+      {t('survivalTrialDone', { n: trial.done, total: trial.total })}
+    </p>
+  );
+  if (trial.kind === 'question' && trial.question !== null) {
+    // Глядач (16a): питання лише для читання — без полів і кнопок; правильної відповіді до закриття сервер не надсилає.
+    return (
+      <section className="survival-trial is-watch">
+        {trial.fellBack && <p className="meta">{t('survivalFellBack')}</p>}
+        <h2 className="survival-watch-for">{t('survivalTrialFor', { names })}</h2>
+        <Timer view={trial} offsetMs={offsetMs} status={view.paused ? 'paused' : null} />
+        <h1 className="question">{trial.question.text}</h1>
+        <QuestionImage url={trial.question.imageUrl} />
+        <TrialChoices question={trial.question} reveal={null} />
+        {done}
+      </section>
+    );
+  }
   return (
     <section className="survival-trial is-watch">
       {head}
-      <p className="lead survival-state">{t('survivalWatchTrial', { names: names.join(', ') })}</p>
-      <p className="meta" role="status">
-        {t('survivalTrialDone', { n: trial.done, total: trial.total })}
-      </p>
+      <p className="lead survival-state">{t('survivalWatchTrial', { names })}</p>
+      {done}
     </section>
   );
 }

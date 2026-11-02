@@ -9684,6 +9684,43 @@ button.wall-tile:disabled {
   opacity: 0.8;
 }
 
+/* Глядач питання на виживання (16a): лише читання — підпис, питання, варіанти, а після закриття — хто вижив. */
+.survival-watch-for {
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.survival-trial.is-watch .question {
+  overflow-wrap: anywhere;
+}
+
+.survival-watch-choices .choice {
+  cursor: default;
+}
+
+.survival-trial.is-watch > .meta,
+.survival-watch-answer {
+  text-align: center;
+}
+
+.survival-watch-outcome {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.survival-watch-outcome .is-safe {
+  color: var(--correct);
+}
+
+.survival-watch-outcome .is-out {
+  color: var(--signal);
+}
+
 .survival-doors {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -9871,6 +9908,11 @@ button.wall-tile:disabled {
   gap: 1.5vh;
   min-height: 0;
   min-width: 0;
+}
+
+/* Картинка питання на виживання на сцені (16a): поруч заголовок, варіанти, рядки «на межі» й дошка — нижча за звичайну. */
+.stage .survival-trial-area .question-image {
+  height: clamp(5rem, 20vh, 12rem);
 }
 
 .survival-trial-area .choices {

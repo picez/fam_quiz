@@ -105,12 +105,42 @@ describe('survival views (10h)', () => {
     expect(phone(revealed, 'p2').me.result).toBeNull();
   });
 
-  it('phones of players off the edge do not get the survival question; the stage and the edge do', () => {
+  it('every phone gets the survival question to watch (16a): the edge, the safe and the stage alike, without the answer', () => {
     const s = trialOpen();
-    expect(phone(s, 'p2').survival?.trial?.question).not.toBeNull();
-    expect(phone(s, 'p1').survival?.trial?.question).toBeNull();
-    expect(survivalOf(s).trial?.question).not.toBeNull();
+    const stageQuestion = survivalOf(s).trial?.question;
+    expect(stageQuestion).not.toBeNull();
+    for (const id of ['p1', 'p2', 'p3']) {
+      const trial = phone(s, id).survival?.trial;
+      expect(trial?.question).toEqual(stageQuestion);
+      expect(trial?.reveal).toBeNull();
+      expect(JSON.stringify(trial)).not.toMatch(/"correct"|"accepted"/);
+      // Жодної згадки про розкриття самого питання на виживання (t1) до закриття.
+      expect(JSON.stringify(phone(s, id))).not.toContain('"t1"');
+    }
+    expect(phone(s, 'p1').me.survival).toMatchObject({ status: 'alive', canAnswerTrial: false });
     expect(hostView(s).survival?.trial?.question).not.toBeNull();
+  });
+
+  it('a ghost watches a later survival question read-only and sees the outcome once it closes (16a)', () => {
+    const s2 = ghostOnS2();
+    const live = must(submitAnswer(must(submitAnswer(s2, 'p1', NO, 5600)), 'p3', YES, 5600));
+    const locked = live.phase === 'question' ? must(lock(live)) : live;
+    const open = must(next(must(next(locked, 6000, rng)), 7000, rng));
+    expect(open.phase).toBe('leaderboard');
+    const ghost = phone(open, 'p2');
+    expect(ghost.me.survival).toMatchObject({ status: 'ghost', canAnswerTrial: false, canPickDoor: false });
+    expect(ghost.survival?.trial?.question).toMatchObject({ type: 'single', text: 'Столиця України?' });
+    expect(ghost.survival?.trial?.question?.choices.map((c) => c.id).sort()).toEqual(['a', 'b', 'c']);
+    expect(ghost.survival?.trial?.reveal).toBeNull();
+    expect(JSON.stringify(ghost.survival?.trial)).not.toMatch(/"correct"|"accepted"/);
+    expect(ghost.survival?.rows.find((r) => r.playerId === 'p1')?.trial).toBe('pending');
+    const closed = must(answerTrial(open, 'p1', WRONG, 8000));
+    const after = phone(closed, 'p2').survival;
+    expect(after?.trial?.stage).toBe('closed');
+    expect(after?.trial?.question).not.toBeNull();
+    expect(after?.trial?.reveal).toMatchObject({ id: 't2', type: 'single', correctId: 'b' });
+    expect(after?.rows.find((r) => r.playerId === 'p1')).toMatchObject({ trial: 'out', status: 'ghost' });
+    expect(phone(closed, 'p3').survival?.trial?.reveal).toMatchObject({ id: 't2' });
   });
 
   it('an open survival question hides the answer', () => {

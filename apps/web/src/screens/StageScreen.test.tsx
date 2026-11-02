@@ -1884,6 +1884,13 @@ describe('StageScreen: bluff (10f)', () => {
       expect(document.querySelector('.survival-board.is-stage')).not.toBeNull();
     });
 
+    it('leaderboard with a survival question that has a picture shows the picture (16a)', () => {
+      const base = sInfo();
+      const pictured = { ...base, trial: { ...base.trial!, question: { ...base.trial!.question!, imageUrl: 'https://img.example/spider.png' } } };
+      show(view({ phase: 'leaderboard', round: sRound, survival: pictured, standings: null }));
+      expect(document.querySelector('.survival-trial-area img.question-image')?.getAttribute('src')).toBe('https://img.example/spider.png');
+    });
+
     it('leaderboard after the close: the right answer and safe / out for each', () => {
       const rows = [sRow('a', 'Оля', { status: 'alive', trial: 'safe' }), sRow('b', 'Петро', { status: 'ghost', outAfter: 2, trial: 'out' })];
       show(view({ phase: 'leaderboard', round: sRound, survival: sInfo({ rows, trial: trialOf({ stage: 'closed', endsAt: null, reveal: full }) }) }));

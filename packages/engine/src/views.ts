@@ -2239,10 +2239,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
           question: withoutClip(publicQuestion(spare.question, spare.presented)),
           limitMs: state.phase === 'question' && play !== undefined ? answerLimitMs(play, playerId) : shared.limitMs,
         }),
-    // Питання на виживання бачать лише ті, хто на межі: телефони решти його не отримують (сцена — так).
-    ...(shared.survival !== null && shared.survival.trial !== null && shared.survival.trial.question !== null && shared.survival.rows.find((row) => row.playerId === playerId)?.status !== 'edge'
-      ? { survival: { ...shared.survival, trial: { ...shared.survival.trial, question: null } } }
-      : {}),
+    // Питання на виживання (16a) телефони отримують усі — як і сцена: решта дивиться його лише для читання.
+    // Правильна відповідь (trial.reveal) — лише після закриття, як і на сцені.
     // Слова й живий показ клітинки сортування — для глядачів; той, хто сортує, бачить лише власну поточну картку.
     ...(shared.sort !== null && (shared.sort.words !== null || shared.sort.live !== null) && open?.board.chooserId === playerId
       ? { sort: { ...shared.sort, words: null, live: null } }

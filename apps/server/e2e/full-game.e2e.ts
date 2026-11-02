@@ -17841,3 +17841,155 @@ it('part 15a: levels — Оля (level 10) and Петро (level 15) wear their 
     throw error;
   }
 });
+
+it('part 16a: survival spectators — Оля errs and gets the survival question on her 375 phone, while Петро (safe) and Віра (a ghost) see it read-only with «Питання на виживання для: Оля», the picture and the options but no controls and no answer, clear of the reaction strip and without side scroll; the stage shows it with the picture; after the close everyone sees the correct answer and that Оля survived', async () => {
+  try {
+    await survivalWatch16a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Телефон (16a): прокручено донизу — панель випробування й дошка закінчуються над смугою реакцій. */
+async function expectClearOfStrip16a(page: Page, name: string) {
+  await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const strip = await page.locator('.reaction-strip').boundingBox();
+  expect(strip, `${name}: the reaction strip is there`).not.toBeNull();
+  for (const selector of ['.survival-trial', '.survival-board']) {
+    const box = await page.locator(selector).first().boundingBox();
+    expect(box, `${name}: ${selector}`).not.toBeNull();
+    expect(box!.y + box!.height, `${name}: ${selector} runs under the reaction strip`).toBeLessThanOrEqual(strip!.y + 0.5);
+  }
+  await page.evaluate('window.scrollTo(0, 0)');
+}
+
+async function survivalWatch16a() {
+  const host = await open('host16a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host16a@example.com');
+  const image = ((await (await host.request.post(`${base}/api/uploads`, { data: avatarPng(), headers: { 'content-type': 'image/png' } })).json()) as { url: string }).url;
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const s1 = { ...common, id: 's1', type: 'single' as const, text: 'Столиця Канади?', options: [{ id: 's1-a', text: 'Оттава' }, { id: 's1-b', text: 'Торонто' }, { id: 's1-c', text: 'Монреаль' }], correctId: 's1-a' };
+  const s2 = { ...common, id: 's2', type: 'single' as const, text: 'Скільки континентів на Землі?', options: [{ id: 's2-a', text: 'Сім' }, { id: 's2-b', text: 'Шість' }, { id: 's2-c', text: 'Дев’ять' }], correctId: 's2-a' };
+  const s3 = { ...common, id: 's3', type: 'text' as const, text: 'Столиця Туреччини?', accepted: ['Анкара'] };
+  const t1 = { ...common, id: 't1', type: 'boolean' as const, text: 'Місяць більший за Землю', correct: false, timeLimit: 30 };
+  const t2 = {
+    ...common,
+    id: 't2',
+    type: 'single' as const,
+    text: 'Яка річка тече через Київ?',
+    imageUrl: image,
+    timeLimit: 30,
+    options: [{ id: 't2-a', text: 'Дніпро' }, { id: 't2-b', text: 'Дністер' }, { id: 't2-c', text: 'Десна' }],
+    correctId: 't2-a',
+  };
+  const data = { ...makeRoundsQuiz([survivalRound('rs', [s1, s2, s3] as never, [t1, t2] as never, { title: 'Хто лишиться' })], { leaderboard: 'each' }), title: 'Вибування 16a' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Вибування 16a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage16a', 1280, 720);
+  await stage.goto(stageUrl);
+  const olya = await open('olya16a', 375, 812);
+  const petro = await open('petro16a', 375, 812);
+  const vira = await open('vira16a', 375, 812);
+  const petroFrames = socketFrames(petro);
+  const viraFrames = socketFrames(vira);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(vira, code, 'Віра', false);
+  const phones = [olya, petro, vira];
+  const all = [host, stage, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await stage.locator('.survival-board').waitFor();
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. s1: Віра помиляється, не проходить питання на виживання й стає привидом; Оля дивиться.
+  await stage.getByText('Столиця Канади?', exact).waitFor();
+  await pickOption(olya, 'Оттава');
+  await pickOption(petro, 'Оттава');
+  await pickOption(vira, 'Торонто');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await vira.getByText('Ти на межі — зараз випробування.', exact).waitFor();
+  await click(host, 'Далі');
+  await afterSplash(stage, ...phones);
+  await vira.getByText('Місяць більший за Землю', exact).waitFor();
+  const olyaWatch = olya.locator('.survival-trial.is-watch');
+  await olyaWatch.getByRole('heading', { name: 'Питання на виживання для: Віра', ...exact }).waitFor();
+  await olyaWatch.getByText('Місяць більший за Землю', exact).waitFor();
+  await pickOption(vira, '(^|\\s)Так$');
+  await vira.getByText('Ти вибуваєш — тепер ти привид.', exact).waitFor();
+  await olyaWatch.locator('.survival-watch-outcome li.is-out', { hasText: 'Віра — вибуває' }).waitFor();
+  await olyaWatch.getByText('Правильна відповідь: Ні', exact).waitFor();
+  await expect.poll(() => survivalGroupOf(stage, 'Віра'), POLL).toBe('Привиди');
+  await click(host, 'Наступне запитання');
+  await afterSplash(...all);
+
+  // 2. s2: Оля помиляється, Петро ні, привид Віра відповідає для себе.
+  await stage.getByText('Скільки континентів на Землі?', exact).waitFor();
+  await vira.locator('.survival-ghost-banner').waitFor();
+  await pickOption(vira, 'Сім');
+  await pickOption(olya, 'Шість');
+  await pickOption(petro, 'Сім');
+  await host.getByText('Запитання закрите').waitFor();
+  await click(host, 'Показати відповідь');
+  await olya.getByText('Ти на межі — зараз випробування.', exact).waitFor();
+  await click(host, 'Далі');
+  await afterSplash(stage, ...phones);
+
+  // 3. Питання на виживання для Олі: у неї — кнопки, у Петра й Віри — лише читання.
+  await olya.getByRole('button', { name: /Дніпро/ }).waitFor();
+  await expectNoSideScroll(olya, 'p16a-olya-trial');
+  await stage.getByText('Яка річка тече через Київ?', exact).waitFor();
+  const stageImage = stage.locator('.survival-trial-area img.question-image');
+  expect(await stageImage.count(), 'the stage shows the picture').toBe(1);
+  await expect.poll(() => stageImage.evaluate((img) => (img as unknown as { naturalWidth: number }).naturalWidth), POLL).toBeGreaterThan(0);
+  await expectStageFits(stage, 'p16a-stage-trial');
+  await shot(stage, 'p16a-stage-trial');
+  for (const [who, page] of [['petro', petro], ['vira', vira]] as const) {
+    const panel = page.locator('.survival-trial.is-watch');
+    await panel.getByRole('heading', { name: 'Питання на виживання для: Оля', ...exact }).waitFor();
+    await panel.getByText('Яка річка тече через Київ?', exact).waitFor();
+    expect(await panel.locator('img.question-image').count(), `${who} sees the picture`).toBe(1);
+    const options = await panel.locator('.choice').allInnerTexts();
+    expect(options.length, `${who} sees three options`).toBe(3);
+    for (const [i, text] of ['Дніпро', 'Дністер', 'Десна'].entries()) expect(options[i], `${who}: option ${i + 1}`).toContain(text);
+    expect(await panel.locator('button, input, textarea, select').count(), `${who} has no answer controls`).toBe(0);
+    expect(await page.getByRole('button', { name: /Дніпро|Дністер|Десна/ }).count(), `${who} has no option buttons`).toBe(0);
+    expect(await panel.locator('.choice.is-correct').count(), `${who} sees no correct option before the close`).toBe(0);
+    expect(await bodyText(page), `${who} sees the answer before the close`).not.toContain('Правильна відповідь');
+    await panel.getByText('Відповіли 0 з 1', exact).waitFor();
+    await expectNoSideScroll(page, `p16a-${who}-watch`);
+    await expectClearOfStrip16a(page, `p16a-${who}-watch`);
+  }
+  expect(openTrialLeaks('petro', petroFrames, 'question'), 'Петро saw the open trial').toBeGreaterThan(0);
+  expect(openTrialLeaks('vira', viraFrames, 'question'), 'Віра saw the open trial').toBeGreaterThan(0);
+
+  // 4. Оля відповідає правильно: усі бачать правильну відповідь і що вона вижила.
+  await pickOption(olya, 'Дніпро');
+  await olya.getByText('Пронесло! Ти живий(-а).', exact).waitFor();
+  await olya.getByText('Правильна відповідь: A. Дніпро', exact).waitFor();
+  await shot(olya, 'p16a-olya-safe');
+  for (const [who, page] of [['petro', petro], ['vira', vira]] as const) {
+    const panel = page.locator('.survival-trial.is-watch');
+    await panel.locator('.survival-watch-outcome li.is-safe', { hasText: 'Оля — вижив(-ла)' }).waitFor();
+    await panel.getByText('Правильна відповідь: A. Дніпро', exact).waitFor();
+    expect(await panel.locator('.choice.is-correct').innerText(), `${who}: the correct option`).toContain('Дніпро');
+    expect(await panel.locator('img.question-image').count(), `${who} still sees the picture`).toBe(1);
+    expect(await panel.locator('button, input, textarea, select').count(), `${who} has no controls after the close`).toBe(0);
+    await expectNoSideScroll(page, `p16a-${who}-outcome`);
+    await expectClearOfStrip16a(page, `p16a-${who}-outcome`);
+  }
+  await stage.getByText('Правильна відповідь: A. Дніпро', exact).waitFor();
+  await stage.locator('.survival-edge-rows li.is-safe', { hasText: 'Оля' }).waitFor();
+  await expectStageFits(stage, 'p16a-stage-outcome');
+  await shot(stage, 'p16a-stage-outcome');
+  expect(await survivalGroupOf(stage, 'Оля')).toBe('Живі');
+}
