@@ -170,7 +170,10 @@ export async function registerCalendarRoutes(app: FastifyInstance, deps: Calenda
     if (manager.size >= maxRooms) return { status: 503, body: { error: 'server_busy' } };
     if (manager.frozen) return { status: 503, body: { error: 'restarting' } };
     const room = manager.create(quiz, hostId, row.quizId);
-    await attachGame(db, eventId, room.id, room.code);
+    // Якщо attachGame кине після create, кімната лишається сиротою (повтор створить другу) — прийнято.
+    // Подію скасували чи змінили між перевіркою й записом: кімната-сирота спливе з лобі, пуш не шлемо.
+    const attached = await attachGame(db, eventId, room.id, room.code, { quizId: row.quizId, gameId: row.gameId });
+    if (!attached) return { status: 409, body: { error: 'event_locked' } };
     tell(() => deps.notify?.opened(eventId));
     return { status: 201, body: { gameId: room.id, code: room.code, hostToken: room.hostToken, stageToken: room.stageToken } };
   };

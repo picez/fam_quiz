@@ -163,6 +163,12 @@ describe('calendar routes', () => {
     expect(forO.state).toBe('open');
     expect(forO.joinCode).toBe(first.code);
     expect((await find(who.p.cookie, eventId)).joinCode).toBeNull();
+    const late = await driver(ctx).person('Ліда');
+    await db.insert(follow).values({ followerId: who.h.id, followeeId: late.id });
+    expect((await call('POST', `/api/calendar/${eventId}/request`, late.cookie)).json()).toEqual({ status: 'pending' });
+    const seen = await find(late.cookie, eventId);
+    expect(seen.state).toBe('open');
+    expect(seen.joinCode).toBeNull();
   });
 
   it('locks edits while open and answers 404 for a foreign open', async () => {

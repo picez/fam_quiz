@@ -257,9 +257,27 @@ export async function cancelEvent(db: Db, hostId: string, eventId: string, now: 
   return { ok: true, changed };
 }
 
-/** Запам'ятати кімнату події. */
-export async function attachGame(db: Db, eventId: string, gameId: string, code: string): Promise<void> {
-  await db.update(calendarEvent).set({ gameId, gameCode: code }).where(eq(calendarEvent.id, eventId));
+/**
+ * Запам'ятати кімнату події. Лише для нескасованої; з `seen` — ще й поки вікторина й кімната ті, що бачив викликач.
+ * false — подію встигли скасувати чи змінити.
+ */
+export async function attachGame(
+  db: Db,
+  eventId: string,
+  gameId: string,
+  code: string,
+  seen?: { quizId: string | null; gameId: string | null },
+): Promise<boolean> {
+  const conditions = [eq(calendarEvent.id, eventId), sql`${calendarEvent.cancelledAt} is null`];
+  if (seen !== undefined) {
+    conditions.push(sql`${calendarEvent.quizId} is not distinct from ${seen.quizId}`, sql`${calendarEvent.gameId} is not distinct from ${seen.gameId}`);
+  }
+  const done = await db
+    .update(calendarEvent)
+    .set({ gameId, gameCode: code })
+    .where(and(...conditions))
+    .returning({ id: calendarEvent.id });
+  return done.length > 0;
 }
 
 /** Видима подія (calendarVisibility; скасована — лише ведучому й тим, хто мав pending/approved) із сирим рядком і обчисленим станом; інакше null. */

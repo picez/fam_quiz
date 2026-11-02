@@ -248,4 +248,22 @@ describe('calendar store', () => {
     await db.delete(quiz).where(eq(quiz.id, q));
     expect((await listCalendar(db, o, NOW, noRooms)).events.find((e) => e.id === id)!.quiz.title).toBeNull();
   });
+
+  it('attaches a room only to a live event whose quiz and room are still the ones seen', async () => {
+    const gid = '55555555-5555-4555-8555-555555555555';
+    const id = await create();
+    const [row] = await db.select().from(calendarEvent).where(eq(calendarEvent.id, id));
+    const seen = { quizId: row.quizId, gameId: row.gameId };
+    expect(await attachGame(db, id, gid, 'ATT1', { quizId: row.quizId, gameId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' })).toBe(false);
+    const other = await createQuiz(db, h, { ...makeQuiz([single]), title: 'Інша' });
+    await db.update(calendarEvent).set({ quizId: other }).where(eq(calendarEvent.id, id));
+    expect(await attachGame(db, id, gid, 'ATT1', seen)).toBe(false);
+    await db.update(calendarEvent).set({ quizId: row.quizId }).where(eq(calendarEvent.id, id));
+    await cancelEvent(db, h, id, NOW, noRooms);
+    expect(await attachGame(db, id, gid, 'ATT1', seen)).toBe(false);
+    const [after] = await db.select().from(calendarEvent).where(eq(calendarEvent.id, id));
+    expect(after.gameId).toBeNull();
+    const live = await create();
+    expect(await attachGame(db, live, gid, 'ATT2', seen)).toBe(true);
+  });
 });
