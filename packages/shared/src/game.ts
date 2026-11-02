@@ -93,6 +93,14 @@ export const SORT_TILT_GAP_MS = 80;
 export type ShopBlock = 'phase' | 'paused' | 'bought';
 
 export type ErrorCode =
+  /** Гість не може лайкати (17a). */
+  | 'like_guest'
+  /** Себе, своє запитання чи вікторину лайкати не можна (17a). */
+  | 'like_self'
+  /** Об'єкта лайка немає чи вподобання ще не прочитано (17a). */
+  | 'like_unavailable'
+  /** Забагато лайків за вікно LIKE_RATE (17a). */
+  | 'like_rate'
   /** Бонус рівня вже використано (15a). */
   | 'perk_used'
   /** Бонус рівня тут не діє (15a). */

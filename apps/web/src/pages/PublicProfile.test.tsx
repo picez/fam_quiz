@@ -17,6 +17,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   following: false,
   showcase: { title: null, awards: [] },
   level: { level: 1, looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
   ...over,
 });
 
@@ -61,6 +62,22 @@ describe('PublicProfile', () => {
     expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
     expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
+  });
+
+  it('shows the likes section right after the stats and before the awards', async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ok: true,
+      data: profile({
+        likes: { author: 5, host: 2, player: 1 },
+        showcase: { title: null, awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }] },
+      }),
+    });
+    const { container } = open();
+    expect(await screen.findByRole('heading', { name: 'Вподобання' })).toBeTruthy();
+    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
+    expect(headings.indexOf('Вподобання')).toBe(headings.indexOf('Статистика') + 1);
+    expect(headings.indexOf('Нагороди')).toBeGreaterThan(headings.indexOf('Вподобання'));
+    expect(container.querySelector('.likes-card')?.textContent).toContain('5');
   });
 
   it('shows the level and the badge of another player, without the bar', async () => {
@@ -195,7 +212,7 @@ describe('PublicProfile', () => {
     open();
     expect(await screen.findByText('Статистика')).toBeTruthy();
     expect(screen.queryByText('Ви і Тарас')).toBeNull();
-    expect(document.querySelectorAll('.profile-section')).toHaveLength(2);
+    expect(document.querySelectorAll('.profile-section')).toHaveLength(3);
   });
 
   it('an unknown profile says so', async () => {

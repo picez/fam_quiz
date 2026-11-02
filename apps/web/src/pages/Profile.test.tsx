@@ -33,6 +33,7 @@ const mine: OwnProfile = {
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [] },
   level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
 };
 
 beforeEach(() => {
@@ -93,7 +94,8 @@ describe('Profile', () => {
     expect(container.querySelector('.profile-head .nick-level')?.textContent).toBe('Рів. 3');
     expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings.indexOf('Рівень 3')).toBe(headings.indexOf('Статистика') + 1);
+    expect(headings.indexOf('Вподобання')).toBe(headings.indexOf('Статистика') + 1);
+    expect(headings.indexOf('Рівень 3')).toBe(headings.indexOf('Вподобання') + 1);
   });
 
   it('shows a row of earned badges linking to the achievements page', async () => {
@@ -121,7 +123,7 @@ describe('Profile', () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Статистика', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
+    expect(headings).toEqual(['Статистика', 'Вподобання', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
     expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');

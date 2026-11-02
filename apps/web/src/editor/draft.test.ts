@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -2253,5 +2253,47 @@ describe('board readiness (11a)', () => {
       expect(problemsOf(quizOf(round))).toEqual([]);
       expect(boardReadiness(round).notReady).toBe(0);
     });
+  });
+});
+
+describe('stable question ids (17a)', () => {
+  it('changeType keeps the id between every pair of types', () => {
+    for (const from of QUESTION_TYPES) {
+      const question = newQuestion(from);
+      for (const to of QUESTION_TYPES) {
+        expect(changeType(question, to).id).toBe(question.id);
+      }
+    }
+  });
+
+  it('cleaned keeps the ids of questions, cells and spares', () => {
+    const board = newBoardRound();
+    const category = { ...board.categories[0]!, spares: [newSpare()] };
+    const quiz: Quiz = {
+      ...newQuiz(),
+      rounds: [{ ...newClassicRound(), questions: [newQuestion('single'), newQuestion('text')] }, { ...board, categories: [category, ...board.categories.slice(1)] }],
+      spares: [newSpare(), newSpare('text')],
+    };
+    const idsOf = (q: Quiz) => [...questionsOf(q).map((x) => x.id), ...(q.spares ?? []).map((x) => x.id), ...q.rounds.flatMap((r) => (r.type === 'board' ? r.categories.flatMap((c) => (c.spares ?? []).map((x) => x.id)) : []))];
+    expect(idsOf(cleaned(quiz))).toEqual(idsOf(quiz));
+  });
+
+  it('applyRoundTime, withDefaultMode, fitCell and moveItem keep ids', () => {
+    const classic = { ...newClassicRound(), questions: [newQuestion('single'), newQuestion('text')] };
+    expect(roundQuestions(applyRoundTime(classic, 30)).map((q) => q.id)).toEqual(classic.questions.map((q) => q.id));
+    const board = newBoardRound();
+    const before = roundQuestions(board).map((q) => q.id);
+    expect(roundQuestions(applyRoundTime(board, 30)).map((q) => q.id)).toEqual(before);
+    expect(roundQuestions(withDefaultMode(board, 'voice')).map((q) => q.id)).toEqual(before);
+    const cell = board.categories[0]!.cells[0]!;
+    expect(fitCell(board, cell).question.id).toBe(cell.question.id);
+    expect(moveItem(classic.questions, 0, 1).map((q) => q.id)).toEqual([classic.questions[1]!.id, classic.questions[0]!.id]);
+  });
+
+  it('duplicateQuestion gives the copy a new id', () => {
+    for (const type of QUESTION_TYPES) {
+      const question = newQuestion(type);
+      expect(duplicateQuestion(question).id).not.toBe(question.id);
+    }
   });
 });

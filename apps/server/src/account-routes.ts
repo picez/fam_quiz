@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { autopilotCheck, joinSchema, quizSchema, upgradeQuiz } from '@quiz/shared';
 import { createQuiz, deleteQuiz, getQuiz, listQuizzes, updateQuiz } from './quizzes';
+import { quizLikes } from './like-store';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Auth } from './auth';
@@ -122,6 +123,13 @@ export async function registerAccountRoutes(
     const found = await getQuiz(db, user.id, request.params.id);
     if (found === null) return reply.code(404).send(NOT_FOUND);
     return { id: request.params.id, ...found };
+  });
+
+  app.get<WithId>('/api/quizzes/:id/likes', CODE_LIMIT, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const likes = await quizLikes(db, user.id, request.params.id);
+    return likes === null ? reply.code(404).send(NOT_FOUND) : likes;
   });
 
   app.get<WithId>('/api/quizzes/:id/autopilot', async (request, reply) => {

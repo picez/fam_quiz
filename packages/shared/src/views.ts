@@ -10,6 +10,7 @@ import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
+import type { LikesView } from './likes';
 import type { RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
 import type { Standing } from './standing';
@@ -1322,6 +1323,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** Лайки (17a): ставить сервер, рушій ключа не ставить; немає — гість чи ще не прочитано. */
+  likes?: LikesView;
   /** Оберіг (15a): які дебафи проти суперників гасить готовий оберіг; id гравця. */
   wards?: Record<string, 'ready' | 'spent'>;
   /** У лобі — нікнейми всіх, хто вже зайшов, у порядку входу (беклог 5); поза лобі поля немає. */

@@ -295,7 +295,7 @@ describe('PlayerScreen «Прослухати» (16b)', () => {
 
 describe('PlayerScreen', () => {
   it('a debuffed question wraps the answer area; other phones get the same zone without a debuff', () => {
-    const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    const classes = () => [...document.querySelector('.app.player')!.children].map((el) => el.className);
     show(onQuestion({ me: { ...me, debuff: { kind: 'mirror', since: Date.now(), by: null } } }));
     const zone = document.querySelector('[data-debuff="mirror"]')!;
     expect(zone).not.toBeNull();
@@ -1727,7 +1727,7 @@ describe('PlayerScreen: sort', () => {
   it('the duel button sits in the header and moves nothing', () => {
     const rights = { canDeclare: true, opponents: [{ playerId: 'p2', nickname: 'Петро' }] };
     const duel = { rights: null, tries: [], canAnswer: false, canPick: false };
-    const classes = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    const classes = () => [...document.querySelector('.app.player')!.children].map((el) => el.className);
     show(onQuestion({ me: { ...me, duel } }));
     const without = classes();
     expect(screen.queryByRole('button', { name: '⚔ Дуель' })).toBeNull();
@@ -1907,7 +1907,7 @@ describe('PlayerScreen: sort', () => {
       { playerId: 'p2', nickname: 'Оля', deadline: now + 24_000, remainingMs: null },
       { playerId: 'p3', nickname: 'Петро', deadline: now + 12_000, remainingMs: null },
     ];
-    const shape = () => [...document.querySelector('main')!.children].map((el) => el.className);
+    const shape = () => [...document.querySelector('.app.player')!.children].map((el) => el.className);
     // Без бафів у самого гравця (глядач на полі): me.buffs === null.
     show(onQuestion({ endsAt: now + 5000, overtime }));
     const before = shape();
@@ -4168,5 +4168,68 @@ describe('PlayerScreen: the prize ceremony (14a)', () => {
     show(view({ phase: 'finished', questionIndex: 1, standings }));
     expect(document.querySelector('.podium')).toBeNull();
     expect(screen.queryByText('Твій приз')).toBeNull();
+  });
+});
+
+describe('PlayerScreen: likes (17a)', () => {
+  afterEach(() => vi.useRealTimers());
+  const reveal = { phase: 'reveal' as const, questionIndex: 0, question: publicQuestion, reveal: fullQuestion };
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const content = { trophy: null, engraving: 'Чемпіон', real: { text: 'Піца', photoUrl: null }, title: null, diploma: true };
+
+  it('reveal with likes: the pill sits in the header and sends player:like', () => {
+    const send = show(view({ ...reveal, likes: { question: false } }));
+    const pill = within(document.querySelector('header.bar') as HTMLElement).getByRole('button', { name: 'Вподобати запитання' });
+    fireEvent.click(pill);
+    expect(send).toHaveBeenCalledWith('player:like', { target: 'question', liked: true });
+  });
+
+  it('no likes in the view: no pill', () => {
+    show(view({ ...reveal }));
+    expect(screen.queryByRole('button', { name: 'Вподобати запитання' })).toBeNull();
+  });
+
+  it('question phase: no pill even with likes', () => {
+    show(onQuestion({ likes: { question: false } }));
+    expect(screen.queryByRole('button', { name: 'Вподобати запитання' })).toBeNull();
+  });
+
+  it('anti-goal: the pill changes nothing in the screen outside the header', () => {
+    show(view({ ...reveal }));
+    const shape = () => Array.from(document.querySelector('.app.player')!.children).filter((n) => n.tagName !== 'HEADER').map((n) => `${n.tagName}.${n.className}`);
+    const before = shape();
+    cleanup();
+    show(view({ ...reveal, likes: { question: false } }));
+    expect(shape()).toEqual(before);
+  });
+
+  it('finished: the block appears only after the ceremony', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, likes: { quiz: false, host: false }, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Тарас', members: [] } }] } }));
+    expect(screen.queryByText('Сподобалось?')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(screen.getByText('Сподобалось?')).toBeTruthy();
+  });
+
+  it('finished: a tap on the quiz sends player:like', () => {
+    const send = show(view({ phase: 'finished', questionIndex: 1, standings, likes: { quiz: false } }));
+    fireEvent.click(screen.getByRole('button', { name: /Вікторина/ }));
+    expect(send).toHaveBeenCalledWith('player:like', { target: 'quiz', liked: true });
+  });
+
+  it('a refused like shows readable text', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'like_guest' }));
+    show(view({ ...reveal, likes: { question: false } }), { send });
+    fireEvent.click(screen.getByRole('button', { name: 'Вподобати запитання' }));
+    expect(await screen.findByText('Вподобати можна лише з акаунтом')).toBeTruthy();
+  });
+
+  it('too many likes show a text about likes, not about the screen', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'like_rate' }));
+    show(view({ ...reveal, likes: { question: false } }), { send });
+    fireEvent.click(screen.getByRole('button', { name: 'Вподобати запитання' }));
+    expect(await screen.findByText('Забагато вподобань — зачекай кілька секунд')).toBeTruthy();
   });
 });

@@ -1,9 +1,10 @@
-import type { Quiz } from '@quiz/shared';
+import { withUniqueQuestionIds, type Quiz, type QuizLikes } from '@quiz/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { createQuiz, getQuiz, updateQuiz } from '../api';
+import { createQuiz, fetchQuizLikes, getQuiz, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
 import { clearDraft, loadDraft, saveDraft } from '../editor/draft-storage';
+import { newId } from '../editor/new-id';
 import { QuizEditor } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
 import { useAccount } from '../useAccount';
@@ -14,9 +15,13 @@ export function EditQuiz() {
   const account = useAccount();
   const fresh = useMemo(() => newQuiz(), []);
   // Чернетка з минулого разу: сторінку перезавантажили, пішли назад або закінчилась сесія.
-  const draft = useMemo(() => loadDraft(id), [id]);
+  const draft = useMemo(() => {
+    const stored = loadDraft(id);
+    return stored === null ? null : withUniqueQuestionIds(stored, newId);
+  }, [id]);
   const [loaded, setLoaded] = useState<Quiz | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [likes, setLikes] = useState<QuizLikes | undefined>(undefined);
   const [expired, setExpired] = useState(false);
   const signedIn = account.status === 'signed-in';
 
@@ -25,9 +30,21 @@ export function EditQuiz() {
     let current = true;
     void getQuiz(id).then((result) => {
       if (!current) return;
-      if (result.ok) setLoaded(result.data);
+      if (result.ok) setLoaded(withUniqueQuestionIds(result.data, newId));
       else if (result.error === 'unauthorized') setExpired(true);
       else setLoadError(errorText(result.error));
+    });
+    return () => {
+      current = false;
+    };
+  }, [signedIn, id]);
+
+  // Лайки не блокують редактор: з'являться, коли прийдуть; збій — просто без сердець.
+  useEffect(() => {
+    if (!signedIn || id === undefined) return;
+    let current = true;
+    void fetchQuizLikes(id).then((result) => {
+      if (current && result !== null) setLikes(result);
     });
     return () => {
       current = false;
@@ -87,6 +104,7 @@ export function EditQuiz() {
     <QuizEditor
       initial={initial}
       heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
+      likes={likes}
       notice={draft === null ? null : t('draftRestored')}
       onDraft={(quiz) => saveDraft(id, quiz)}
       onSave={save}

@@ -7,6 +7,7 @@ import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
 import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
+import { LikesCard } from '../profile/LikesCard';
 import { ProfileEditor } from '../profile/ProfileEditor';
 import { InviteList } from '../profile/InviteList';
 import { Showcase } from '../profile/Showcase';
@@ -103,6 +104,7 @@ export function Profile() {
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
+      <LikesCard likes={profile.likes} />
       <LevelCard level={profile.level} nickname={profile.nickname} onSaved={reload} />
       <Showcase showcase={profile.showcase} own />
       <section className="profile-section">

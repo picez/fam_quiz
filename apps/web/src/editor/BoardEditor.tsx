@@ -1,4 +1,5 @@
 import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
+import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
 import { countText, t, type TextKey } from '../i18n';
@@ -20,6 +21,8 @@ interface Props {
   swapOn?: boolean;
   /** Жодна категорія не має запасних, а загальні є: поле бере загальні. */
   legacySpares?: boolean;
+  /** Лайки запитань за id. */
+  likes?: Record<string, number>;
 }
 
 const markText = (mark: CellMark) => (mark === 'x2' ? t('boardMarkX2') : mark === 'x3' ? t('boardMarkX3') : '');
@@ -37,7 +40,7 @@ const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === '
  * а під стовпцем вибраної клітинки ще й «Прибрати запитання» (вимкнена на мінімумі, з підказкою);
  * вибрана клітинка відкривається внизу з позначкою й звичайним редактором запитання.
  */
-export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false }: Props) {
+export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes }: Props) {
   const { categories } = round;
   const [picked, setPicked] = useState({ category: 0, index: 0 });
   useEffect(() => {
@@ -149,6 +152,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
                     <span>{points}</span>
                     {mark !== '' && <span className="board-mark">{mark}</span>}
                     {cell.kind === 'blitz' && <span className="board-edit-badge">{t('boardKindBlitz')}</span>}
+                    <LikeCount count={likes?.[cell.question.id]} />
                     <span className="board-edit-state" aria-hidden="true">
                       {state === 'ready' ? '✓' : state === 'incomplete' ? '!' : ''}
                     </span>
@@ -310,6 +314,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           <HelpButton id="setting.spares" />
         </h3>
         <SparesEditor
+          likes={likes}
           key={categories[category].id}
           spares={categories[category].spares}
           max={LIMITS.maxCategorySpares}

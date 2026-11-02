@@ -1,4 +1,4 @@
-import { LIMITS, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type Round } from '@quiz/shared';
+import { LIMITS, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
@@ -23,6 +23,7 @@ import {
   swapGaps,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
+import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
 import { DuelsEditor } from './DuelsEditor';
 import { PowersEditor } from './PowersEditor';
@@ -42,13 +43,15 @@ interface Props {
   /** Зберігає вікторину; повертає текст помилки або null. */
   onSave: (quiz: Quiz) => Promise<string | null>;
   onCancel: () => void;
+  /** Лічильники лайків збереженої вікторини; без них сердець не видно. */
+  likes?: QuizLikes;
 }
 
 /**
  * Редактор «список і сцена»: зверху назва й правила, далі раунди; ліворуч список запитань, праворуч одне запитання
  * таким, яким його побачать гравці. На вузькому екрані список ховається за кнопку.
  */
-export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel }: Props) {
+export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, onCancel, likes }: Props) {
   const [quiz, setQuiz] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -234,6 +237,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   return (
     <main className="app editor">
       <h1 className="brand">{heading}</h1>
+      {likes !== undefined && likes.quiz > 0 && <p className="meta">{t('quizLikesLine', { count: likes.quiz })}</p>}
       <a className="quiet-link help-link" href="/help" target="_blank" rel="noreferrer">
         {t('helpLink')}
         <span aria-hidden="true"> ↗</span>
@@ -309,6 +313,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <HelpButton id="setting.spares" />
           </p>
           <SparesEditor
+            likes={likes?.questions}
             spares={quiz.spares}
             onChange={(spares) => {
               const { spares: _old, ...rest } = quiz;
@@ -414,6 +419,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                         </span>
                         <span className="letter">{index + 1}</span>
                         <span className="question-item-text">{text}</span>
+                        <LikeCount count={likes?.questions[question.id]} />
                         {round.type === 'wipeout' && <span className="question-item-price">{question.points}</span>}
                         {round.type === 'ladder' && (
                           <span className="question-item-price">
@@ -438,6 +444,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         {round.type === 'board' ? (
           <section className="editor-stage">
             <BoardEditor
+              likes={likes?.questions}
               key={round.id}
               round={round}
               focus={boardFocus}

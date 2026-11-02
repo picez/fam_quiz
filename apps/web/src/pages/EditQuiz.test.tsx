@@ -2,15 +2,16 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createQuiz, getQuiz, me, updateQuiz } from '../api';
+import { createQuiz, fetchQuizLikes, getQuiz, me, updateQuiz } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { EditQuiz } from './EditQuiz';
 
-vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  vi.mocked(fetchQuizLikes).mockResolvedValue(null);
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
 });
 afterEach(cleanup);
@@ -28,6 +29,29 @@ const open = (path: string) =>
   );
 
 describe('EditQuiz', () => {
+  it('asks for the likes of a saved quiz and shows them without blocking the editor (17a)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(fetchQuizLikes).mockResolvedValue({ quiz: 5, questions: {} });
+    open('/quizzes/q1');
+    expect(await screen.findByText('❤️ Вікторину вподобали: 5')).toBeTruthy();
+    expect(fetchQuizLikes).toHaveBeenCalledWith('q1');
+  });
+
+  it('does not ask for likes on a new quiz (17a)', async () => {
+    open('/quizzes/new');
+    await screen.findByLabelText('Назва вікторини');
+    expect(fetchQuizLikes).not.toHaveBeenCalled();
+  });
+
+  it('opens the editor without hearts when the likes request fails (17a)', async () => {
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
+    vi.mocked(fetchQuizLikes).mockResolvedValue(null);
+    const { container } = open('/quizzes/q1');
+    await screen.findByLabelText('Назва вікторини');
+    expect(container.querySelector('.like-count')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('loads a saved quiz, saves the changes and returns to the list', async () => {
     vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
     vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });
@@ -41,6 +65,22 @@ describe('EditQuiz', () => {
     expect(await screen.findByText('мої вікторини')).toBeTruthy();
     expect(updateQuiz).toHaveBeenCalledWith('q1', expect.objectContaining({ title: 'Нова назва', rounds: demoQuiz.rounds }));
     expect(createQuiz).not.toHaveBeenCalled();
+  });
+
+  it('gives a repeated question id a fresh one when the quiz is opened (17a)', async () => {
+    const first = demoQuiz.rounds[0]!;
+    if (first.type === 'board') throw new Error('demo quiz starts with a board');
+    const [a, b] = first.questions;
+    const repeated = { ...demoQuiz, rounds: [{ ...first, questions: [a!, { ...b!, id: a!.id }] }] };
+    vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: repeated });
+    vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });
+    open('/quizzes/q1');
+    await screen.findByLabelText('Назва вікторини');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    const sent = vi.mocked(updateQuiz).mock.calls[0]![1].rounds[0] as { questions: { id: string }[] };
+    expect(sent.questions[0]!.id).toBe(a!.id);
+    expect(sent.questions[1]!.id).not.toBe(a!.id);
   });
 
   it('creates a new quiz', async () => {

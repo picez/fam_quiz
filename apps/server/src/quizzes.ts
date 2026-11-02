@@ -2,6 +2,7 @@ import { questionsOf, quizSchema, type Duels, type Question, type Quiz, type Qui
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz } from './db/schema';
+import { syncHiddenLikes } from './like-store';
 
 export interface QuizSummary {
   id: string;
@@ -37,16 +38,21 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
   }));
 }
 
-export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz | null> {
-  const where = owned(ownerId, id);
-  if (where === null) return null;
-  const [row] = await db.select().from(quiz).where(where);
-  if (row === undefined) return null;
+type QuizRow = typeof quiz.$inferSelect;
+
+function quizOf(row: QuizRow): Quiz {
   const { duels, spares, ...settings } = row.settings;
   const stored = { title: row.title, description: row.description, settings, rounds: row.rounds, ...(duels === undefined ? {} : { duels }), ...(spares === undefined ? {} : { spares }) };
   // Схема дописує типові значення в старих вікторинах; зламаний рядок лишається як є.
   const parsed = quizSchema.safeParse(stored);
   return parsed.success ? parsed.data : stored;
+}
+
+export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz | null> {
+  const where = owned(ownerId, id);
+  if (where === null) return null;
+  const [row] = await db.select().from(quiz).where(where);
+  return row === undefined ? null : quizOf(row);
 }
 
 export async function createQuiz(db: Db, ownerId: string, data: Quiz): Promise<string> {
@@ -57,20 +63,30 @@ export async function createQuiz(db: Db, ownerId: string, data: Quiz): Promise<s
   return row.id;
 }
 
+/** Разом з вікториною — видимість лайків її запитань (видалене запитання ховається, повернене тим самим id знову видно). */
 export async function updateQuiz(db: Db, ownerId: string, id: string, data: Quiz): Promise<boolean> {
   const where = owned(ownerId, id);
   if (where === null) return false;
-  const rows = await db
-    .update(quiz)
-    .set({ title: data.title, description: data.description, settings: storedSettings(data), rounds: data.rounds, updatedAt: new Date() })
-    .where(where)
-    .returning({ id: quiz.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(quiz)
+      .set({ title: data.title, description: data.description, settings: storedSettings(data), rounds: data.rounds, updatedAt: new Date() })
+      .where(where)
+      .returning({ id: quiz.id });
+    if (rows.length === 0) return false;
+    await syncHiddenLikes(tx, id, data);
+    return true;
+  });
 }
 
+/** Лайки запитань і вікторини лишаються в базі, але приховані. */
 export async function deleteQuiz(db: Db, ownerId: string, id: string): Promise<boolean> {
   const where = owned(ownerId, id);
   if (where === null) return false;
-  const rows = await db.delete(quiz).where(where).returning({ id: quiz.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const rows = await tx.delete(quiz).where(where).returning({ id: quiz.id });
+    if (rows.length === 0) return false;
+    await syncHiddenLikes(tx, id, null);
+    return true;
+  });
 }

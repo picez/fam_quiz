@@ -806,3 +806,25 @@ describe('level in the profile (15a)', () => {
     expect(pub?.level.looks).toEqual({ color: null, frame: null, badge: null });
   });
 });
+
+describe('likes in profiles (17a)', () => {
+  it('count likes as author, host and player; a hidden one is not counted', async () => {
+    const { randomUUID } = await import('node:crypto');
+    const { saveLike } = await import('./like-store');
+    const { createQuiz } = await import('./quizzes');
+    const { makeQuiz, single } = await import('@quiz/engine/testing');
+    const db = await createTestDb();
+    for (const id of ['a', 'o']) await addUser(db, id, `Людина ${id}`);
+    const quizId = await createQuiz(db, 'a', makeQuiz([single]));
+    const gameId = randomUUID();
+    await saveLike(db, { userId: 'o', kind: 'question', liked: true, gameId, quizId, questionId: 'q1' });
+    await saveLike(db, { userId: 'o', kind: 'quiz', liked: true, gameId, quizId });
+    await saveLike(db, { userId: 'o', kind: 'question', liked: true, gameId, quizId, questionId: 'gone' });
+    await saveLike(db, { userId: 'o', kind: 'host', liked: true, gameId, quizId, targetUserId: 'a' });
+    await saveLike(db, { userId: 'a', kind: 'player', liked: true, gameId, quizId, targetUserId: 'o' });
+
+    const own = await ownProfile(db, { id: 'a', email: 'a@example.com' } as Parameters<typeof ownProfile>[1]);
+    expect(own.likes).toEqual({ author: 2, host: 1, player: 0 });
+    expect((await publicProfile(db, 'o', 'a'))?.likes).toEqual({ author: 0, host: 0, player: 1 });
+  });
+});

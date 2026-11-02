@@ -11,7 +11,7 @@ import { chromium, type Browser, type BrowserContext, type Locator, type Page } 
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
-import { xpEntry } from '../src/db/schema';
+import { userLike, xpEntry } from '../src/db/schema';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
@@ -2088,7 +2088,7 @@ async function invitesAndVersus() {
   expect(versusText).not.toContain('@');
   expect(versusText).not.toContain(hostId);
   const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
-  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'nickname', 'showcase', 'stats']);
+  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'likes', 'nickname', 'showcase', 'stats']);
 
   expect(problems).toEqual([]);
 }
@@ -18137,6 +18137,297 @@ async function listenOnPhone16b() {
 it('part 16b: every phone can listen — with the stage open the 375 phones stay silent and show «🔊 Прослухати»; a tap plays the clip on that phone only, «⏹ Зупинити» stops it, the answers never move; the question end stops it and the reveal offers «Прослухати ще раз» clear of the reaction strip', async () => {
   try {
     await listenOnPhone16b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+function likeQuestions17a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'l1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Південний Буг', 'Десна'), correctId: 'a' },
+    { ...common, id: 'l2', type: 'boolean' as const, text: 'Говерла — найвища вершина України?', correct: true },
+    { ...common, id: 'l3', type: 'boolean' as const, text: 'Азовське море — найглибше в Європі?', correct: false },
+    { ...common, id: 'l4', type: 'boolean' as const, text: 'Софійський собор стоїть у Києві?', correct: true },
+  ];
+}
+
+/**
+ * Шапка телефона (17a) — один рядок у межах екрана: кожна пігулка (нік, «Таблиця», ❤️, реакція, бали, дуель чи крамниця,
+ * якщо є) лежить у шапці, шапка не прокручується вбік, а значки, бали й «Таблиця» не обрізані.
+ */
+const BAR_FITS_17A = `(() => {
+  const bar = document.querySelector('header.bar');
+  if (!bar) return ['no header'];
+  const bad = [];
+  if (bar.scrollWidth > bar.clientWidth + 1) bad.push('the header scrolls: ' + bar.scrollWidth + ' > ' + bar.clientWidth);
+  const br = bar.getBoundingClientRect();
+  if (br.left < -0.5 || br.right > innerWidth + 0.5) bad.push('the header leaves the screen');
+  const items = [...bar.children].filter((el) => el.getBoundingClientRect().width > 0);
+  for (const el of items) {
+    const r = el.getBoundingClientRect();
+    const label = el.tagName.toLowerCase() + '.' + [...el.classList].join('.');
+    if (r.left < br.left - 0.5 || r.right > br.right + 0.5) bad.push(label + ' leaves the header');
+    if (r.left < -0.5 || r.right > innerWidth + 0.5) bad.push(label + ' leaves the screen');
+  }
+  const mids = items.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; });
+  if (Math.max(...mids) - Math.min(...mids) > 4) bad.push('the header wraps');
+  // Обрізане трикрапкою: розкладка вмісту (Range, дробові пікселі) ширша за поле вмісту пігулки (без рамки й відступів).
+  // scrollWidth тут не годиться: він округлює (61,4 у полі 61 — уже «Табли…»), а дотикова зона 😀 (::after) його роздуває.
+  const cut = (el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const content = range.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const s = getComputedStyle(el);
+    const left = box.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft);
+    const right = box.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight);
+    return content.left < left - 0.01 || content.right > right + 0.01;
+  };
+  for (const sel of ['.like-button', '.reaction-button', '.score', '.duel-button', '.shop-button']) {
+    const el = bar.querySelector(sel);
+    if (el && cut(el)) bad.push(sel + ' is cut');
+  }
+  const table = [...bar.querySelectorAll('.table-button')].find((el) => el.textContent.includes('Таблиця'));
+  if (table && cut(table)) bad.push('«Таблиця» is cut');
+  return bad;
+})()`;
+
+type Box17a = { x: number; y: number; width: number; height: number };
+const overlaps17a = (a: Box17a, b: Box17a) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+async function likes17a() {
+  const TITLE = 'Вподобайка 17a';
+  const OLYA = 'Оля Барвінок-Калинка';
+  const PETRO = 'Петро Вербицький-Дуб';
+  expect([OLYA.length, PETRO.length], 'the long nicknames have 20 characters').toEqual([20, 20]);
+  const host = await open('host17a', 1280, 800);
+  await register(host, 'host', 'Марко Ведучий', 'host17a@example.com');
+  const olya = await open('olya17a', 375, 812);
+  await register(olya, 'menu', OLYA, 'olya17a@example.com');
+  const petro = await open('petro17a', 375, 812);
+  await register(petro, 'menu', PETRO, 'petro17a@example.com');
+  const ids = new Map<Page, string>();
+  for (const page of [host, olya, petro]) ids.set(page, await myId(page));
+
+  // ── 1. Лобі. ──
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', likeQuestions17a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+  const quizId = ((await created.json()) as { id: string }).id;
+  const stage = await open('stage17a', 1280, 720);
+  const guest = await open('guest17a', 375, 812);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  await join(olya, code, OLYA, false);
+  await join(petro, code, PETRO, false);
+  await join(guest, code, 'Гість', false);
+  await host.getByText('Гість', exact).first().waitFor();
+
+  const phones = [olya, petro, guest];
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const answer = async (page: Page, text: string) => {
+    const button = text === 'Так' || text === 'Ні' ? page.getByRole('button', { name: text, ...exact }) : page.getByRole('button', { name: new RegExp(text) });
+    await button.waitFor();
+    await button.click();
+  };
+  const toReveal = async (picks: [Page, string][]) => {
+    for (const [page, text] of picks) await answer(page, text);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+  };
+  const toNext = async () => {
+    await step('Далі');
+    await step('Наступне запитання');
+    await afterSplash(host, stage, ...phones);
+  };
+  const heart = (page: Page) => page.locator('header.bar .like-button');
+  const likeIt = (page: Page) => page.getByRole('button', { name: 'Вподобати запитання', ...exact });
+  const unlikeIt = (page: Page) => page.getByRole('button', { name: 'Прибрати вподобання', ...exact });
+  const barHeight = async (page: Page) => (await page.locator('header.bar').boundingBox())!.height;
+
+  // ── 2. Розкриття 1: ❤️ у шапці Олі нічого не зсуває. ──
+  await step('Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await olya.getByRole('button', { name: /Дніпро/ }).waitFor();
+  expect(await heart(olya).count(), 'a heart while the question is open').toBe(0);
+  const questionBar = await barHeight(olya);
+  await toReveal([[olya, 'Дніпро'], [petro, 'Дністер'], [guest, 'Десна']]);
+  await likeIt(olya).waitFor();
+  expect(await barHeight(olya), 'p17a-phone-reveal: the heart makes the header taller').toBe(questionBar);
+  expect(await olya.locator('header.bar').getByRole('button', { name: /Таблиця/ }).count(), 'p17a: «Таблиця» in the header').toBe(1);
+  expect(await olya.locator('header.bar .reaction-button').count(), 'p17a: the reaction button in the header').toBe(1);
+  expect(await olya.evaluate(BAR_FITS_17A), 'p17a-phone-reveal: the header').toEqual([]);
+  const titleBefore = (await olya.locator('h1.question').boundingBox())!;
+  const strip = (await olya.locator('.reaction-strip').boundingBox())!;
+  expect(await heart(olya).getAttribute('aria-pressed')).toBe('false');
+  await likeIt(olya).click();
+  await unlikeIt(olya).waitFor();
+  expect(await heart(olya).getAttribute('aria-pressed')).toBe('true');
+  expect(await olya.locator('h1.question').boundingBox(), 'p17a-phone-reveal: the like moves the question').toEqual(titleBefore);
+  expect(await barHeight(olya), 'p17a-phone-reveal: the filled heart makes the header taller').toBe(questionBar);
+  expect(overlaps17a((await heart(olya).boundingBox())!, strip), 'p17a-phone-reveal: the heart overlaps the reaction strip').toBe(false);
+  expect(await olya.evaluate(BAR_FITS_17A), 'p17a-phone-reveal: the header after the like').toEqual([]);
+  await expectNoSideScroll(olya, 'p17a-phone-reveal');
+  // Подвійний дотик Петра: лайк і одразу зняття — нічого не лишається.
+  await likeIt(petro).click();
+  await unlikeIt(petro).waitFor();
+  await unlikeIt(petro).click();
+  await likeIt(petro).waitFor();
+  expect(await heart(petro).getAttribute('aria-pressed')).toBe('false');
+  expect(await petro.evaluate(BAR_FITS_17A), 'p17a-petro-reveal: the header').toEqual([]);
+  await expectNoSideScroll(petro, 'p17a-petro-reveal');
+  // Гість: серця немає.
+  await guest.locator('header.bar').getByRole('button', { name: /Таблиця/ }).waitFor();
+  expect(await heart(guest).count(), 'the guest has a heart').toBe(0);
+
+  // ── 3. Розкриття 2–4. ──
+  await toNext();
+  await toReveal([[olya, 'Так'], [petro, 'Так'], [guest, 'Ні']]);
+  await likeIt(olya).click();
+  await unlikeIt(olya).waitFor();
+  await toNext();
+  await olya.getByRole('button', { name: 'Ні', ...exact }).waitFor();
+  expect(await heart(olya).count(), 'a heart on question 3 before the reveal').toBe(0);
+  await toReveal([[olya, 'Ні'], [petro, 'Так'], [guest, 'Ні']]);
+  await likeIt(olya).waitFor();
+  expect(await heart(olya).getAttribute('aria-pressed'), 'question 3 starts liked').toBe('false');
+  await toNext();
+  await toReveal([[olya, 'Так'], [petro, 'Ні'], [guest, 'Так']]);
+  await likeIt(olya).waitFor();
+  await step('Завершити гру');
+
+  // ── 4. Фінал: «Сподобалось?». ──
+  const panel = (page: Page) => page.locator('section.like-panel');
+  const chip = (page: Page, name: string) => panel(page).getByRole('button', { name, ...exact });
+  await olya.getByText('Гру завершено').first().waitFor();
+  await panel(olya).getByRole('heading', { name: 'Сподобалось?', ...exact }).waitFor();
+  for (const name of ['Вікторина', 'Ведучий', PETRO]) {
+    await chip(olya, name).click();
+    await expect.poll(() => chip(olya, name).getAttribute('aria-pressed'), POLL).toBe('true');
+  }
+  expect(await chip(olya, OLYA).count(), 'Оля can like herself').toBe(0);
+  expect(await panel(olya).getByRole('button', { name: 'Гість', ...exact }).count(), 'the guest is in the list').toBe(0);
+  await olya.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+  const finalStrip = (await olya.locator('.reaction-strip').boundingBox())!;
+  const panelBox = (await panel(olya).boundingBox())!;
+  expect(overlaps17a(panelBox, finalStrip), 'p17a-phone-final: «Сподобалось?» overlaps the reaction strip').toBe(false);
+  expect(panelBox.x + panelBox.width, 'p17a-phone-final: the panel leaves the phone').toBeLessThanOrEqual(375 + 0.5);
+  for (const one of await panel(olya).locator('.like-chip').all()) {
+    const box = (await one.boundingBox())!;
+    expect(box.x >= 0 && box.x + box.width <= 375 + 0.5, 'p17a-phone-final: a chip leaves the phone').toBe(true);
+  }
+  await expectNoSideScroll(olya, 'p17a-phone-final');
+  await olya.evaluate('window.scrollTo(0, 0)');
+  // Фінал на 360 і 375 px з 20-символьним ніком (❤️ у шапці вже немає): «Таблиця» ціла — місце віддає нік, шапка в один рядок.
+  for (const width of [360, 375]) {
+    await olya.setViewportSize({ width, height: 812 });
+    expect(await olya.locator('header.bar').getByRole('button', { name: /Таблиця/ }).count(), `p17a-phone-final-${width}: «Таблиця» in the header`).toBe(1);
+    expect(await heart(olya).count(), `p17a-phone-final-${width}: a heart in the header`).toBe(0);
+    await expect.poll(() => olya.evaluate(BAR_FITS_17A), POLL).toEqual([]);
+    await shot(olya, `p17a-phone-final-header-${width}`);
+    await expectNoSideScroll(olya, `p17a-phone-final-${width}`);
+  }
+  await panel(petro).waitFor();
+  await chip(petro, OLYA).click();
+  await expect.poll(() => chip(petro, OLYA).getAttribute('aria-pressed'), POLL).toBe('true');
+  await chip(petro, 'Ведучий').waitFor();
+  expect(await chip(petro, 'Ведучий').getAttribute('aria-pressed')).toBe('false');
+  await expectNoSideScroll(petro, 'p17a-petro-final');
+  await guest.getByText('Гру завершено').first().waitFor();
+  expect(await panel(guest).count(), 'the guest has the like panel').toBe(0);
+
+  // ── 5. Запис у user_like. ──
+  const who = new Map([[ids.get(host)!, 'host'], [ids.get(olya)!, 'olya'], [ids.get(petro)!, 'petro']]);
+  const likeRows = async () =>
+    (await db.select().from(userLike))
+      .filter((r) => who.has(r.userId))
+      .map((r) => `${who.get(r.userId)} ${r.kind}${r.questionId !== null ? ` ${r.questionId}` : ''} → ${who.get(r.targetUserId) ?? r.targetUserId}${r.hidden ? ' hidden' : ''}`)
+      .sort();
+  await expect
+    .poll(likeRows, { timeout: 15_000 })
+    .toEqual(['olya host → host', 'olya player → petro', 'olya question l1 → host', 'olya question l2 → host', 'olya quiz → host', 'petro player → olya']);
+  for (const r of await db.select().from(userLike)) if (r.kind === 'question' || r.kind === 'quiz') expect(r.quizId).toBe(quizId);
+
+  // ── 6. Профілі. ──
+  const tileValue = async (page: Page, label: string) =>
+    (await page.locator('section.likes-card .likes-tile', { hasText: label }).locator('strong').innerText()).replace(/\D/g, '');
+  await host.setViewportSize({ width: 375, height: 812 });
+  await host.goto(`${base}/profile`);
+  await host.locator('section.likes-card').getByRole('heading', { name: 'Вподобання', ...exact }).waitFor();
+  expect([await tileValue(host, 'як автор'), await tileValue(host, 'як ведучий'), await tileValue(host, 'як гравець')], 'the host profile').toEqual(['3', '1', '0']);
+  const tops = await Promise.all((await host.locator('.likes-tile').all()).map(async (one) => (await one.boundingBox())!.y));
+  expect(new Set(tops).size, 'p17a-profile: the three tiles are not in one row').toBe(1);
+  await expectNoSideScroll(host, 'p17a-profile');
+  await olya.goto(`${base}/profile/${ids.get(petro)!}`);
+  await olya.locator('section.likes-card').waitFor();
+  await expect.poll(() => tileValue(olya, 'як гравець'), POLL).toBe('1');
+  expect(await tileValue(olya, 'як автор')).toBe('0');
+  await expectNoSideScroll(olya, 'p17a-public-profile');
+
+  // ── 7. Редактор. ──
+  await host.setViewportSize({ width: 1280, height: 800 });
+  const openEditor = async (questions: number) => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Редагувати' }).click();
+    await host.locator('main.editor').waitFor();
+    await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(questions);
+  };
+  const counts = () => host.locator('.question-list .question-item').evaluateAll((items) => items.map((item) => item.querySelector('.like-count')?.textContent ?? null));
+  await openEditor(4);
+  await expect.poll(counts, POLL).toEqual(['❤️ 1', '❤️ 1', null, null]);
+  await host.getByText('❤️ Вікторину вподобали: 1', exact).waitFor();
+  expect(await host.locator('.question-list .like-count').first().getAttribute('aria-label')).toBe('Вподобали: 1');
+  await shot(host, 'p17a-editor');
+  await host.setViewportSize({ width: 375, height: 812 });
+  // На телефоні список запитань згорнуто в «1 / 4 ☰»: серця видно, щойно його розгорнути.
+  await host.locator('.question-nav-all').click();
+  await host.locator('.question-list.is-open').waitFor();
+  for (const count of await host.locator('.question-list .like-count').all()) {
+    expect(await count.isVisible(), 'p17a-editor-375: a heart is hidden').toBe(true);
+    const box = (await count.boundingBox())!;
+    expect(box.x >= 0 && box.x + box.width <= 375 + 0.5, 'p17a-editor-375: a heart leaves the phone').toBe(true);
+  }
+  for (const item of await host.locator('.question-list .question-item').all()) {
+    const box = (await item.boundingBox())!;
+    expect(box.x + box.width, 'p17a-editor-375: a question row leaves the phone').toBeLessThanOrEqual(375 + 0.5);
+  }
+  await expectNoSideScroll(host, 'p17a-editor-375');
+  await host.locator('.question-nav-all').click();
+  await host.setViewportSize({ width: 1280, height: 800 });
+  // Видалене запитання 2 більше не рахується.
+  await host.locator('.question-list .question-item').nth(1).click();
+  await click(host, 'Видалити запитання 2');
+  await expect.poll(() => host.locator('.question-list .question-item').count(), POLL).toBe(3);
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+  await expect.poll(likeRows, { timeout: 15_000 }).toContain('olya question l2 → host hidden');
+  await host.goto(`${base}/profile`);
+  await host.locator('section.likes-card').waitFor();
+  await expect.poll(() => tileValue(host, 'як автор'), POLL).toBe('2');
+  await openEditor(3);
+  await expect.poll(counts, POLL).toEqual(['❤️ 1', null, null]);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 17a: likes — Оля hearts questions 1 and 2 on the reveal without moving anything, Петро’s double tap leaves nothing, the guest has no heart, after the game Оля likes the quiz, the host and Петро and Петро likes Оля, the profiles count likes as author, host and player, the editor shows a heart per question, and a deleted question stops counting', async () => {
+  try {
+    await likes17a();
   } catch (error) {
     await snapshot();
     throw error;

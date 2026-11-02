@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -229,5 +229,17 @@ describe('saved games (13b)', () => {
     fetchMock = respond(409, { error: 'slot_taken' });
     expect(await claimSlot('123456', 's1')).toEqual({ ok: false, error: 'slot_taken' });
     expect(fetchMock).toHaveBeenCalledWith('/api/games/by-code/123456/claim', expect.objectContaining({ method: 'POST', body: '{"slotId":"s1"}' }));
+  });
+});
+
+describe('fetchQuizLikes', () => {
+  it('returns the counts on 200 and null otherwise', async () => {
+    const fetchMock = respond(200, { quiz: 2, questions: { q1: 1 } });
+    expect(await fetchQuizLikes('a b')).toEqual({ quiz: 2, questions: { q1: 1 } });
+    expect(fetchMock.mock.calls[0]).toEqual(['/api/quizzes/a%20b/likes', expect.anything()]);
+    respond(404, { error: 'not_found' });
+    expect(await fetchQuizLikes('x')).toBeNull();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down'); }));
+    expect(await fetchQuizLikes('x')).toBeNull();
   });
 });

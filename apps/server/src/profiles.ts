@@ -18,6 +18,7 @@ import type { CurrentUser } from './account-routes';
 import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
+import { likeTotals } from './like-store';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
 import { ownLevel, publicLevel } from './xp-store';
@@ -212,6 +213,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     showcase: await showcaseOf(db, current.id),
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level: await ownLevel(db, current.id),
+    likes: await likeTotals(db, current.id),
   };
 }
 
@@ -221,7 +223,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id) };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id), likes: await likeTotals(db, id) };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

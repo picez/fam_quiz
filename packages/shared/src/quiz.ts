@@ -1233,6 +1233,44 @@ export function allSpares(quiz: Pick<Quiz, 'rounds' | 'spares'>): Question[] {
   return [...(quiz.spares ?? []), ...categorySparesOf(quiz)];
 }
 
+/** Id запитань, які гравець може побачити на reveal: основні (questionsOf) і всі запасні (allSpares). Без питань на виживання й дуелей. */
+export function questionIdsOf(quiz: Pick<Quiz, 'rounds' | 'spares'>): Set<string> {
+  return new Set([...quiz.rounds.flatMap(roundQuestions), ...allSpares(quiz)].map((q) => q.id));
+}
+
+/** Та сама вікторина, де кожне запитання (основне, запасне, клітинка, питання на виживання) має свій id: другий і далі повтори дістають makeId(). Без повторів — той самий об'єкт. */
+export function withUniqueQuestionIds(quiz: Quiz, makeId: () => string): Quiz {
+  const seen = new Set<string>();
+  let changed = false;
+  const fix = (question: Question): Question => {
+    if (!seen.has(question.id)) {
+      seen.add(question.id);
+      return question;
+    }
+    changed = true;
+    const id = makeId();
+    seen.add(id);
+    return { ...question, id };
+  };
+  const fixAll = (list: Question[]) => list.map(fix);
+  const rounds = quiz.rounds.map((round): Round => {
+    if (round.type === 'board') {
+      return {
+        ...round,
+        categories: round.categories.map((category) => ({
+          ...category,
+          cells: category.cells.map((cell) => ({ ...cell, question: fix(cell.question) })),
+          ...(category.spares === undefined ? {} : { spares: fixAll(category.spares) }),
+        })),
+      };
+    }
+    const questions = fixAll(round.questions);
+    return (round.type === 'survival' ? { ...round, questions, trials: fixAll(round.trials) } : { ...round, questions }) as Round;
+  });
+  const spares = quiz.spares === undefined ? undefined : fixAll(quiz.spares);
+  return changed ? { ...quiz, rounds, ...(spares === undefined ? {} : { spares }) } : quiz;
+}
+
 /**
  * Звідки заміна на полі бере запасне: 'category' — хоч одна категорія має власні запасні (9d),
  * тоді кожна клітинка бере лише зі своєї категорії; 'quiz' — жодна не має (вікторини до 9d), загальний пул.

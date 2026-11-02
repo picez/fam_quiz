@@ -9,6 +9,7 @@ import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
 import type { Reaction, ReactionItem } from './reactions';
 import { perkSchema } from './levels';
+import { likeSchema } from './likes';
 import { ANSWERER_SCOPES, TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
 import type { GameView } from './views';
@@ -216,6 +217,8 @@ export interface ClientToServerEvents {
   'player:pick-answerer': (payload: z.infer<typeof pickAnswererSchema>, ack: Ack) => void;
   /** Живий вибір до «Надіслати»: товаришам капітана (10j) і пульту з «наживо» (12b). */
   'player:draft': (payload: z.infer<typeof draftSchema>, ack: Ack) => void;
+  /** Лайк (17a): бажаний стан запитання, вікторини, ведучого чи гравця. */
+  'player:like': (payload: z.infer<typeof likeSchema>, ack: Ack) => void;
   /** Антигугл (12e): телефон пішов із гри чи повернувся; час рахує сервер. */
   'player:away': (payload: z.infer<typeof awaySchema>, ack: Ack) => void;
   /** Апеляція (12f): гравець (капітан) просить зал зарахувати відповідь чи зняти штраф за вихід. */

@@ -50,6 +50,7 @@ import {
   liveWatchSchema,
   startSchema,
   reactSchema,
+  likeSchema,
   perkSchema,
   HOST_DRAFTS_MS,
   type AckResult,
@@ -238,6 +239,8 @@ export function attachSockets(
       scheduleDrafts(room);
       return;
     }
+    // Лайк (17a) — справа attachLikes; телефони дізнаються з наступного changed. Без перебору сокетів.
+    if (event.type === 'like') return;
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
       members.forEach(push);
@@ -272,6 +275,12 @@ export function attachSockets(
         socket.emit('restarting');
         socket.disconnect(true);
       }
+      return;
+    }
+    // Далі — лише закриття кімнати й вилучення гравця: будь-яка інша подія не має права розірвати кімнату.
+    if (event.type !== 'closed' && event.type !== 'kicked') {
+      const never: never = event;
+      void never;
       return;
     }
     if (event.type === 'closed') dropDrafts(room);
@@ -413,6 +422,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = reactSchema.safeParse(payloadOf(args));
       return payload.success ? manager.react(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:like', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = likeSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.like(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:perk', (args) => {
