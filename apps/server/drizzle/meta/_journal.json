@@ -155,6 +155,13 @@
       "when": 1793552775456,
       "tag": "0021_prizes",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793570224692,
+      "tag": "0022_levels",
+      "breakpoints": true
     }
   ]
 }

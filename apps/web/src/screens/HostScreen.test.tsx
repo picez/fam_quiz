@@ -120,6 +120,17 @@ describe('HostScreen', () => {
     expect(screen.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href')).toBe('http://quiz.test/stage/123456#s');
   });
 
+  it('the lobby says whether level bonuses are on (15a)', () => {
+    show(view());
+    expect(screen.getByText('Бонуси рівнів увімкнено')).toBeTruthy();
+    cleanup();
+    show(view({ levelBonuses: 'off' }));
+    expect(screen.getByText('Бонуси рівнів вимкнено')).toBeTruthy();
+    cleanup();
+    show(view({ levelBonuses: 'none' }));
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
+  });
+
   it('the invite button is only in the lobby', () => {
     show(view());
     expect(screen.getByRole('button', { name: 'Запросити друзів' })).toBeTruthy();

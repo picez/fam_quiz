@@ -29,6 +29,7 @@ import { PlayingFor, useShowPrizesAtIntro } from './PlayingFor';
 import { MyPrize, PrizeResults, useQuizTitle } from './MyPrize';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { Standings } from './Standings';
+import { Nick } from './Nick';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
@@ -63,6 +64,7 @@ import { LadderDecision } from './LadderDecision';
 import { LadderHall } from './LadderHall';
 import { LadderLifelines } from './LadderLifelines';
 import { ladderOutcomeText } from './LadderStatus';
+import { Perks } from './Perks';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 import { PeekSheet } from './PeekSheet';
 import { AppealCard } from './AppealCard';
@@ -628,6 +630,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const [peekFor, setPeekFor] = useState<number | null>(null);
   const peekSlot = me.buffs?.slots.find((slot) => slot.kind === 'peek') ?? null;
   const decideGuard = useGuardedSend(send, setError);
+  const perkGuard = useGuardedSend(send, setError);
+  const ward = view.wards?.[me.id];
   const resumeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
@@ -811,7 +815,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
         {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
-        <ReactionButton shown={canReact(view)} event="player:react" send={send} />
+        <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
         <strong className="score">{num(me.score)}</strong>
       </header>
 
@@ -832,8 +836,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
       {phase === 'lobby' && view.author !== null && (
-        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} />
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} />
       )}
+      {phase === 'lobby' && view.author === null && view.levelBonuses === 'off' && <p className="meta">{t('levelBonusesOffByHost')}</p>}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
       {/* Хто вже в лобі (беклог 5); у командній грі склад видно в командах. */}
       {phase === 'lobby' && view.team === null && view.lobby !== undefined && (
@@ -842,8 +847,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <ul className="chips">
             {view.lobby.map((nickname, index) => (
               <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined}>
-                {nickname}
-                {view.titles?.[nickname] !== undefined && <span className="nick-title">{view.titles[nickname]}</span>}
+                <Nick nickname={nickname} levels={view.levels} titles={view.titles} />
               </li>
             ))}
           </ul>
@@ -905,6 +909,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
+      {/* Оберіг поза запитанням — чип угорі (у запитанні він стоїть у ряду бонусів). */}
+      {!(phase === 'question' && question !== null) && ward !== undefined && <Perks perks={null} ward={ward} onUse={() => undefined} />}
       {phase === 'question' && question !== null && (
         <>
           <div className="question-head">
@@ -978,6 +984,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                 }}
               />
             )}
+            {/* Бонуси рівня (15a): під рядом бафів, висота стала, поле відповіді не рухається. */}
+            {answersForTeam && <Perks perks={me.perks} ward={ward} holdSpace onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
@@ -1293,7 +1301,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
-          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />
         </>
       )}
 
@@ -1304,7 +1312,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {survivalStateLine(me.survival) !== null && <p className="lead survival-state">{survivalStateLine(me.survival)}</p>}
           {me.ladder?.won != null && <p className="lead ladder-state">{t('ladderWon', { points: num(me.ladder.won) })}</p>}
           {place}
-          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
+          <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
         </>
@@ -1325,7 +1333,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <PrizeResults prizes={view.prizes} role="player" />
             ))}
           {view.own?.game != null && <GameCardView card={view.own.game} team={view.team !== null} />}
-          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} />}
+          {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />}
           <MenuLinks role="player" />
         </>
       )}

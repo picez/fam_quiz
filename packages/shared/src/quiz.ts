@@ -988,6 +988,8 @@ export const quizSettingsSchema = z.object({
   debuffShop: z.boolean().optional(),
   /** Штраф за вихід із гри (12e): від AWAY_MS.penalty сумарно — 0 за запитання; немає поля — вимкнено. */
   awayPenalty: z.boolean().optional(),
+  /** Бонуси рівнів (беклог 11); немає поля — увімкнено. */
+  levelBonuses: z.boolean().optional(),
   /** Командна гра (10j); немає поля — соло. */
   teams: teamsSettingsSchema.optional(),
 });

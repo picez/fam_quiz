@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Achievement } from './achievements';
 import type { PlayedGame } from './history';
+import type { OwnLevel, PublicLevel } from './levels';
 import type { Showcase } from './prizes';
 import { LIMITS } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
@@ -57,6 +58,7 @@ export interface PublicProfile extends ProfileCard {
   /** Чи підписаний той, хто дивиться; null — не увійшов або це його власний профіль. */
   following: boolean | null;
   showcase: Showcase;
+  level: PublicLevel;
 }
 
 export interface ProfileWin {
@@ -87,6 +89,7 @@ export interface Versus {
 }
 
 export interface OwnProfile extends ProfileCard {
+  level: OwnLevel;
   email: string;
   stats: ProfileStats;
   achievements: Achievement[];

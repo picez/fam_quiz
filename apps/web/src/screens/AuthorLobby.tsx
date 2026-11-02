@@ -19,6 +19,7 @@ export function AuthorLobby({
   onError,
   resume = null,
   continued,
+  levelBonuses,
 }: {
   code: string;
   /** null — токена сцени на цьому пристрої немає: посилання не показано. */
@@ -30,6 +31,8 @@ export function AuthorLobby({
   resume?: ResumeLobby | null;
   /** Кімната продовження збереженої гри (13b): бали переносить сервер — замість панелі 12r лише рядок про стартовий раунд. */
   continued?: ContinuedView;
+  /** view.levelBonuses: без значення — діють; 'off' — ведучий вимкнув; 'none' — не діють тут узагалі, рядка немає. */
+  levelBonuses?: 'off' | 'none';
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
@@ -87,6 +90,7 @@ export function AuthorLobby({
       <PrizePlaces code={code} />
       {continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
       {continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
+      {levelBonuses !== 'none' && <p className="meta">{t(levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
       <p className="lead">{t('authorStartHint')}</p>
       <button
         type="button"

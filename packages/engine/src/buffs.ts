@@ -1,6 +1,7 @@
 import {
   allSpares,
   allowedBuffs,
+  boardCells,
   boardSpareSource,
   findCell,
   isUnscored,
@@ -20,7 +21,10 @@ import {
   type BuffTag,
   type Phase,
   type Question,
+  type Quiz,
   type RetryStage,
+  type Round,
+  roundQuestions,
 } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import {
@@ -40,8 +44,9 @@ import {
 } from './game';
 import { giveLadderHint, inLadderRound } from './ladder';
 import { normalizeText } from './normalize';
-import { grantOvertime, isTimed, limitMsOf, timeOverFor } from './timing';
+import { grantOvertime, isTimed, limitMsOf, overtimeOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
+import { perkHintHere, perkTimeHere } from './perks';
 import { canMemberVote } from './team-act';
 import { memberOf, teamsOn } from './teams';
 
@@ -128,18 +133,42 @@ function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock 
     if (board.kind === 'blitz') return 'off_blitz_cell';
     // Звичайна клітинка — і з телефона, і вголос: бафи бере лише той, хто вибрав.
     if (board.chooserId !== playerId) return 'not_chooser';
-  } else if (play.blitz !== undefined || round.type === 'blitz') return 'off_blitz';
-  else if (round.type === 'final') return 'off_final';
-  else if (round.type === 'wipeout') return 'off_wipeout';
-  else if (round.type === 'survival') return 'off_survival';
-  else if (round.type === 'ladder') return 'off_ladder';
-  // Ланцюжок, сортування й стіна рахуються окремо.
-  if (play.question.type === 'chain') return 'off_chain';
-  if (play.question.type === 'sort') return 'off_sort';
-  if (play.question.type === 'wall') return 'off_wall';
-  // Без балів — без бафів.
-  if (isUnscored(play.question)) return 'off_vote';
+  } else if (play.blitz !== undefined) return 'off_blitz';
+  else {
+    const off = roundOff(round);
+    if (off !== null) return off;
+  }
+  return questionOff(play.question);
+}
+
+/** Раунд, де бафів немає взагалі (поле перевіряється за клітинкою); null — раунд їх дозволяє. */
+function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_ladder' | null {
+  if (round.type === 'blitz') return 'off_blitz';
+  if (round.type === 'final') return 'off_final';
+  if (round.type === 'wipeout') return 'off_wipeout';
+  if (round.type === 'survival') return 'off_survival';
+  if (round.type === 'ladder') return 'off_ladder';
   return null;
+}
+
+/** Запитання, на якому бафів немає; null — можна. */
+function questionOff(question: Question): 'off_chain' | 'off_sort' | 'off_wall' | 'off_vote' | null {
+  // Ланцюжок, сортування й стіна рахуються окремо.
+  if (question.type === 'chain') return 'off_chain';
+  if (question.type === 'sort') return 'off_sort';
+  if (question.type === 'wall') return 'off_wall';
+  // Без балів — без бафів.
+  if (isUnscored(question)) return 'off_vote';
+  return null;
+}
+
+/** Запитання вікторини, на яких бафи 12h можуть діяти (той самий тест раунду й запитання, що й buffsHere); бліц-клітинки поля — ні. */
+export function buffQuestions(quiz: Quiz): Question[] {
+  return quiz.rounds.flatMap((round) => {
+    if (roundOff(round) !== null) return [];
+    const questions = round.type === 'board' ? boardCells(round).filter(({ cell }) => cell.kind !== 'blitz').map(({ cell }) => cell.question) : roundQuestions(round);
+    return questions.filter((question) => questionOff(question) === null);
+  });
 }
 
 /** Причина «тут бафів немає взагалі». */
@@ -209,6 +238,8 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       return null;
     case 'hint':
       // Без ведучого підказку нікому сказати: вона працює лише там, де автор написав текст.
+      // «Підказка рівня» (15a) на цьому запитанні вже показала текст автора.
+      if (perkHintHere(state, playerId)) return 'taken';
       return state.autopilot !== undefined && question.hint === undefined ? 'unfit_host' : null;
     case 'audience':
       if (!(SIMPLE_TYPES as readonly string[]).includes(question.type)) return 'unfit_type';
@@ -341,9 +372,11 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   };
   if (kind === 'swap') return ok(takeSpare(state, play, playerId, buff, now, rng));
   const taken = withCurrentPlay({ ...state, buffSeq: seq }, { ...play, buffs: { ...play.buffs, [playerId]: buff } });
-  if (kind === 'time') return ok(grantOvertime(taken, playerId, EXTRA_TIME_MS));
+  // «+5 с» рівня (15a) на цьому запитанні: баф часу додається до вже наданого, а не замінює його.
+  const held = perkTimeHere(state, playerId) ? overtimeOf(play, playerId) : 0;
+  if (kind === 'time') return ok(grantOvertime(taken, playerId, held + EXTRA_TIME_MS));
   // Поки зал голосує, гравець не втрачає часу: +15 с особистого, як «Додатковий час». Без таймера часу немає.
-  if (kind === 'audience' && isTimed(play.question)) return ok(grantOvertime(taken, playerId, AUDIENCE_MS));
+  if (kind === 'audience' && isTimed(play.question)) return ok(grantOvertime(taken, playerId, held + AUDIENCE_MS));
   return ok(taken);
 }
 
@@ -363,7 +396,9 @@ function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPla
     { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
     { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },
   );
-  return timed ? grantOvertime(taken, playerId, Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
+  // «+5 с» рівня (15a), уже взятий на цьому запитанні, лишається понад час заміни.
+  const held = perkTimeHere(state, playerId) ? overtimeOf(play, playerId) : 0;
+  return timed ? grantOvertime(taken, playerId, held + Math.max(0, now + SWAP_MIN_MS - endsAt)) : taken;
 }
 
 /** Змінює баф гравця на поточному запитанні; без бафу стан без змін. */

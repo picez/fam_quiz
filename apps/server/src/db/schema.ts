@@ -1,7 +1,29 @@
 import type { BluffOption } from '@quiz/engine';
-import type { AchievementId, AdjustmentSource, AppealOutcome, AppealReason, Answer, BuffKind, DebuffKind, Duels, GameStatus, LadderOutcomeKind, PrizeContent, PrizePlace, Question, QuizSettings, Round, SurveyRow, TrialKind } from '@quiz/shared';
+import type {
+  AchievementId,
+  AdjustmentSource,
+  AppealOutcome,
+  AppealReason,
+  Answer,
+  BuffKind,
+  DebuffKind,
+  Duels,
+  GameStatus,
+  LadderOutcomeKind,
+  NickColor,
+  NickFrame,
+  PrizeContent,
+  PrizePlace,
+  ProfileBadge,
+  Question,
+  QuizSettings,
+  Round,
+  SurveyRow,
+  TrialKind,
+} from '@quiz/shared';
 import { sql } from 'drizzle-orm';
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import type { XpReason } from '../xp-rules';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -314,6 +336,12 @@ export const profile = pgTable('profile', {
   lastSeenAt: at('last_seen_at'),
   /** Улюблені стікери (беклог 7): id з маніфесту, від нещодавно доданих; невідомі id відкидаються під час читання. */
   favoriteStickers: text('favorite_stickers').array().notNull().default(sql`'{}'`),
+  /** Ретро-нарахування досвіду вже зроблено (беклог 11); null — ще ні. Далі — мітка: ігри, що закінчились пізніше й не мають свого рядка xp_entry, syncXp наздоганяє. */
+  xpSyncedAt: at('xp_synced_at'),
+  /** Вбрання біля ніку (беклог 11); закрите рівнем не показується (looksShown). */
+  nickColor: text('nick_color').$type<NickColor>(),
+  nickFrame: text('nick_frame').$type<NickFrame>(),
+  badge: text('badge').$type<ProfileBadge>(),
   ...stamps,
 });
 
@@ -404,3 +432,34 @@ export const userTitle = pgTable('user_title', {
   awardedAt: at('awarded_at').notNull(),
   expiresAt: at('expires_at').notNull(),
 });
+
+/** Журнал досвіду (беклог 11): рядок на акаунт за гру ('game') чи за ачівку ('achievement'); сума — рівень. */
+export const xpEntry = pgTable(
+  'xp_entry',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    source: text('source').$type<'game' | 'achievement'>().notNull(),
+    /** Без FK: журнал переживає видалення гри. */
+    gameId: uuid('game_id'),
+    quizId: uuid('quiz_id'),
+    achievementId: text('achievement_id').$type<AchievementId>(),
+    amount: integer('amount').notNull(),
+    /** Гра пройшла правила 1–4: вікторина «з'їдена» для repeat_quiz. */
+    counted: boolean('counted').notNull().default(false),
+    reason: text('reason').$type<XpReason>(),
+    /** kyivDay(at) — для денної стелі. */
+    day: text('day').notNull(),
+    /** finished_at гри чи earned_at досягнення; null — давнє досягнення без дати. */
+    at: at('at'),
+    retro: boolean('retro').notNull().default(false),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('xp_entry_game_once').on(table.userId, table.gameId).where(sql`source = 'game'`),
+    uniqueIndex('xp_entry_achievement_once').on(table.userId, table.achievementId).where(sql`source = 'achievement'`),
+    index('xp_entry_user_day_idx').on(table.userId, table.day),
+  ],
+);

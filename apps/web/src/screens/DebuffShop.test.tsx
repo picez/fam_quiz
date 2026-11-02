@@ -27,8 +27,8 @@ const shop: PlayerShop = {
     { kind: 'mud', price: 300 },
   ],
   targets: [
-    { playerId: 'p2', nickname: 'Петро', busy: false, offline: false },
-    { playerId: 'p3', nickname: 'Іра', busy: true, offline: false },
+    { playerId: 'p2', nickname: 'Петро', busy: false, offline: false, warded: false },
+    { playerId: 'p3', nickname: 'Іра', busy: true, offline: false, warded: false },
   ],
   block: null,
 };
@@ -36,6 +36,14 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name }) a
 const okSend = () => vi.fn(async () => ({ ok: true as const })) as unknown as Send & ReturnType<typeof vi.fn>;
 
 describe('DebuffShop', () => {
+  it('a warded target shows 🛡', () => {
+    const warded = { ...shop, targets: [{ ...shop.targets[0]!, warded: true }] };
+    render(<DebuffShop shop={warded} score={250} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    fireEvent.click(button(/Туман/));
+    expect(screen.getByRole('img', { name: 'має оберіг: перший дебаф згасне' }).textContent).toBe('🛡');
+  });
+
   it('buys fog for Петро in three taps and closes', async () => {
     const send = okSend();
     const onError = vi.fn();
@@ -81,7 +89,7 @@ describe('DebuffShop', () => {
   });
 
   it('an offline rival is shown as «Не в грі» and cannot be picked', () => {
-    const away: PlayerShop = { ...shop, targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: true }] };
+    const away: PlayerShop = { ...shop, targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: true, warded: false }] };
     render(<DebuffShop shop={away} score={250} send={okSend()} onError={vi.fn()} />);
     fireEvent.click(button('Дебафи'));
     fireEvent.click(button(/Туман/));

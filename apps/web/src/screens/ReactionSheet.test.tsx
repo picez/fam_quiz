@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QUICK_EMOJI, STICKERS } from '@quiz/shared';
+import { QUICK_EMOJI, STICKERS, seriesLevel } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { ReactionButton, ReactionSheet } from './ReactionSheet';
@@ -17,11 +17,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function sheet(favorites: string[] = []) {
+function sheet(favorites: string[] = [], level: number | null = Infinity) {
   const onPick = vi.fn();
   const onToggle = vi.fn();
   const onClose = vi.fn();
-  render(<ReactionSheet favorites={favorites} onPick={onPick} onToggle={onToggle} onClose={onClose} />);
+  render(<ReactionSheet favorites={favorites} level={level} onPick={onPick} onToggle={onToggle} onClose={onClose} />);
   return { onPick, onToggle, onClose, dialog: screen.getByRole('dialog', { name: t('reactionSheetTitle') }) };
 }
 
@@ -100,13 +100,13 @@ describe('ReactionButton (13a)', () => {
   }
 
   it('is not there when shown is false', () => {
-    render(<ReactionButton shown={false} event="player:react" send={vi.fn<Send>()} />);
+    render(<ReactionButton level={Infinity} shown={false} event="player:react" send={vi.fn<Send>()} />);
     expect(trigger()).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('the sheet grid is mounted only while it is open', async () => {
-    render(<ReactionButton shown event="player:react" send={vi.fn<Send>()} />);
+    render(<ReactionButton level={Infinity} shown event="player:react" send={vi.fn<Send>()} />);
     expect(document.querySelectorAll('img')).toHaveLength(0);
     await tap(t('reactionButton'));
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -119,7 +119,7 @@ describe('ReactionButton (13a)', () => {
   it('a pick sends the reaction, closes the sheet and rests the button for 2 s', async () => {
     vi.useFakeTimers();
     const send = vi.fn<Send>().mockResolvedValue({ ok: true });
-    render(<ReactionButton shown event="player:react" send={send} />);
+    render(<ReactionButton level={Infinity} shown event="player:react" send={send} />);
     await tap(t('reactionButton'));
     await tap('👏');
     expect(send).toHaveBeenCalledWith('player:react', { kind: 'emoji', value: '👏' });
@@ -134,7 +134,7 @@ describe('ReactionButton (13a)', () => {
   it('too_soon rests the button too, wrong_phase does not and shows no error', async () => {
     vi.useFakeTimers();
     const send = vi.fn<Send>().mockResolvedValue({ ok: false, error: 'too_soon' });
-    render(<ReactionButton shown event="player:react" send={send} />);
+    render(<ReactionButton level={Infinity} shown event="player:react" send={send} />);
     await tap(t('reactionButton'));
     await tap('😂');
     expect(trigger()?.disabled).toBe(true);
@@ -151,7 +151,7 @@ describe('ReactionButton (13a)', () => {
 
   it('the host sends host:react, a sticker too', async () => {
     const send = vi.fn<Send>().mockResolvedValue({ ok: true });
-    render(<ReactionButton shown event="host:react" send={send} />);
+    render(<ReactionButton level={Infinity} shown event="host:react" send={send} />);
     await tap(t('reactionButton'));
     await tap(t('reactionSticker', { name: a }));
     expect(send).toHaveBeenCalledWith('host:react', { kind: 'sticker', value: a });
@@ -175,8 +175,49 @@ describe('«😀 Реакція» fits a 360 px header (e2e 7g regression)', () 
   });
 
   it('the word is a separate hideable span, the accessible name stays whole', () => {
-    render(<ReactionButton shown event="player:react" send={vi.fn<Send>()} />);
+    render(<ReactionButton level={Infinity} shown event="player:react" send={vi.fn<Send>()} />);
     const button = screen.getByRole('button', { name: t('reactionButton') });
     expect(button.querySelector('.reaction-button-label')?.textContent?.trim()).toBe('Реакція');
+  });
+});
+
+describe('ReactionSheet locked series (15a)', () => {
+  const open = STICKERS.find((s) => s.series === 'nya')!;
+  const locked = STICKERS.find((s) => s.series === 'nyaa')!;
+  const lockedLabel = t('stickerLocked', { level: seriesLevel('nyaa') });
+
+  it('level 1: a later series is locked with its level and does not pick; the first series picks', () => {
+    const { onPick, dialog } = sheet([], 1);
+    const cell = within(group(t('reactionAll'))).getAllByRole('button', { name: lockedLabel })[0];
+    expect(cell.textContent).toContain('🔒');
+    fireEvent.click(cell);
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getAllByRole('button', { name: t('reactionSticker', { name: open.id }) })[0]);
+    expect(onPick).toHaveBeenCalledWith({ kind: 'sticker', value: open.id });
+    expect(lockedLabel).toBe('Відкриється з рівня 3');
+  });
+
+  it('a guest (null) sees the same as level 1, and quick emoji stay open', () => {
+    const { onPick, dialog } = sheet([], null);
+    expect(within(group(t('reactionAll'))).getAllByRole('button', { name: lockedLabel }).length).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: '🔥' }));
+    expect(onPick).toHaveBeenCalledWith({ kind: 'emoji', value: '🔥' });
+  });
+
+  it('a locked favourite shows 🔒 and the star still works', () => {
+    const { onToggle, onPick } = sheet([locked.id], 1);
+    const fav = group(t('reactionFavorites'));
+    const cell = within(fav).getByRole('button', { name: lockedLabel });
+    expect(cell.textContent).toContain('🔒');
+    fireEvent.click(cell);
+    expect(onPick).not.toHaveBeenCalled();
+    fireEvent.click(within(fav).getByRole('button', { name: t('reactionFavoriteRemove', { name: locked.id }) }));
+    expect(onToggle).toHaveBeenCalledWith(locked.id);
+  });
+
+  it('level Infinity (the host) opens everything', () => {
+    sheet([], Infinity);
+    expect(within(group(t('reactionAll'))).queryAllByRole('button', { name: /^Відкриється/ })).toHaveLength(0);
+    expect(stickerButtons(group(t('reactionAll')))).toHaveLength(STICKERS.length);
   });
 });

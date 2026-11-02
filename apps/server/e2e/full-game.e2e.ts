@@ -1,16 +1,20 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { DEFAULT_RULES, STICKERS, stickerPath, type AchievementsPage, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
+import { xpEntry } from '../src/db/schema';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
+import { kyivDay } from '../src/xp-rules';
 
 /**
  * Наскрізний сценарій у справжньому браузері: ведучий реєструється, складає вікторину
@@ -1714,7 +1718,8 @@ async function menuProfileFriends() {
   await shot(olya, 'profile-own-phone');
 
   // Нікнейм за замовчуванням — лише ім'я з акаунта «Оля Гравець».
-  await olya.getByRole('heading', { name: 'Оля', exact: true }).waitFor();
+  // У шапці профілю біля ніку — «Рів. N» (15a), тож ім'я заголовка — нік і «Рівень N».
+  await olya.getByRole('heading', { level: 1, name: /^Оля Рівень \d+$/ }).waitFor();
   await click(olya, 'Змінити нікнейм / аватар');
   await field(olya, 'Нікнейм').fill('Зірка');
   await olya.locator('.profile-editor input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: avatarPng() });
@@ -1743,7 +1748,7 @@ async function menuProfileFriends() {
 
   // 6. Ведуча відкриває публічний профіль Олі і додає її в друзі.
   await host.goto(publicUrl);
-  await host.getByRole('heading', { name: 'Зірка', exact: true }).waitFor();
+  await host.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
   await host.getByText('email приховано').waitFor();
   expect(await host.content()).not.toContain('olya8@example.com');
   await shot(host, 'profile-public-desktop');
@@ -1759,7 +1764,7 @@ async function menuProfileFriends() {
   await shot(host, 'profile-own-desktop');
   await friend.click();
   await host.waitForURL(`${base}/profile/${olyaId}`);
-  await host.getByRole('heading', { name: 'Зірка', exact: true }).waitFor();
+  await host.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
 
   // 7. Приватність через API: у відповіді немає приватних ключів.
   const response = await host.request.get(`${base}/api/profiles/${olyaId}`);
@@ -2083,7 +2088,7 @@ async function invitesAndVersus() {
   expect(versusText).not.toContain('@');
   expect(versusText).not.toContain(hostId);
   const publicProfile = (await (await host.request.get(`${base}/api/profiles/${olyaId}`)).json()) as Record<string, unknown>;
-  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'showcase', 'stats']);
+  expect(Object.keys(publicProfile).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'nickname', 'showcase', 'stats']);
 
   expect(problems).toEqual([]);
 }
@@ -17482,6 +17487,355 @@ async function expectFullHeadTitle(page: Page, title: string, label: string) {
 it('part 14a: prizes — the host makes a gold cup with an engraving, a pizza, a title and a diploma and a silver medal in «Мої призи», puts them on places 1 and 2 in the lobby, the stage and the phones show «Граємо за», the finish raises the podium with the winner last, the signed-in Оля gets «Твій приз» and downloads the diploma, the cup moves to her showcase with the title, and the medal of the guest Петро goes back to the store', async () => {
   try {
     await prizes14a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+function levelQuestions15a() {
+  const common = { imageUrl: null, video: null, timeLimit: 20, points: 100 };
+  const options = (...texts: string[]) => texts.map((text, i) => ({ id: 'abcd'[i]!, text }));
+  return [
+    { ...common, id: 'l1', type: 'single' as const, text: 'Яка річка тече через Київ?', options: options('Дніпро', 'Дністер', 'Південний Буг', 'Десна'), correctId: 'a', hint: 'Найдовша річка України' },
+    { ...common, id: 'l2', type: 'boolean' as const, text: 'Говерла — найвища вершина України?', correct: true },
+    { ...common, id: 'l3', type: 'boolean' as const, text: 'Чорне море — прісне?', correct: false },
+    { ...common, id: 'l4', type: 'single' as const, text: 'Яке місто стоїть на семи пагорбах над Дніпром?', options: options('Київ', 'Харків', 'Полтава', 'Чернігів'), correctId: 'a' },
+    { ...common, id: 'l5', type: 'boolean' as const, text: 'Карпати лежать на сході України?', correct: false },
+  ];
+}
+
+/**
+ * Рамки ніків (15a) не обрізані: обведення (outline + offset) кожного .nick з рамкою лежить у межах екрана й кожного
+ * предка з overflow ≠ visible, а сам нік не скорочено трикрапкою.
+ */
+const FRAMES_FIT_15A = `(() => {
+  const bad = [];
+  for (const el of document.querySelectorAll('.nick[class*="nick-f-"]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const s = getComputedStyle(el);
+    const pad = parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset);
+    const label = el.textContent;
+    if (r.left - pad < -0.5 || r.right + pad > innerWidth + 0.5) bad.push(label + ': the frame leaves the screen');
+    for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+      const ps = getComputedStyle(p);
+      if (ps.overflowX === 'visible' && ps.overflowY === 'visible') continue;
+      const pr = p.getBoundingClientRect();
+      const l = pr.left + p.clientLeft, t = pr.top + p.clientTop, rr = l + p.clientWidth, bb = t + p.clientHeight;
+      const insideX = r.left >= l - 0.5 && r.right <= rr + 0.5;
+      const insideY = r.top >= t - 0.5 && r.bottom <= bb + 0.5;
+      if (insideX && insideY && (r.left - pad < l - 0.5 || r.right + pad > rr + 0.5 || r.top - pad < t - 0.5 || r.bottom + pad > bb + 0.5)) {
+        bad.push(label + ': the frame is clipped by ' + p.tagName.toLowerCase() + '.' + [...p.classList].join('.'));
+      }
+    }
+    const name = el.querySelector('.nick-name');
+    if (name && name.scrollWidth > name.clientWidth + 1) bad.push(label + ': the nickname is cut');
+  }
+  return bad;
+})()`;
+
+async function expectFramesFit15a(page: Page, label: string) {
+  const frames = await page.locator('.nick[class*="nick-f-"]').count();
+  expect(frames, `${label}: no framed nickname on the screen`).toBeGreaterThan(0);
+  expect(await page.evaluate(FRAMES_FIT_15A), `${label}: framed nicknames`).toEqual([]);
+}
+
+async function levels15a() {
+  const TITLE = 'Рівнева вікторина 15a';
+  const host = await open('host15a', 1280, 800);
+  await register(host, 'host', 'Марко Ведучий', 'host15a@example.com');
+  const olya = await open('olya15a', 375, 812);
+  await register(olya, 'menu', 'Оля', 'olya15a@example.com');
+  const petro = await open('petro15a', 375, 812);
+  await register(petro, 'menu', 'Петро', 'petro15a@example.com');
+  const iryna = await open('iryna15a', 375, 812);
+  await register(iryna, 'menu', 'Ірина', 'iryna15a@example.com');
+
+  // ── 1. Сід і вбрання: кожен раз відкрив профіль (мітка ретро), далі досвід прямо в журнал. ──
+  const ids = new Map<Page, string>();
+  for (const page of [host, olya, petro, iryna]) {
+    await page.goto(`${base}/profile`);
+    await page.locator('section.level-card').waitFor();
+    ids.set(page, await myId(page));
+  }
+  const yesterday = new Date(Date.now() - 24 * 3600 * 1000);
+  for (const [page, amount] of [[olya, 3200], [petro, 5900]] as const) {
+    await db.insert(xpEntry).values({ userId: ids.get(page)!, source: 'game', gameId: randomUUID(), amount, counted: false, day: kyivDay(yesterday), at: yesterday, createdAt: yesterday });
+  }
+  await olya.goto(`${base}/profile`);
+  const card = olya.locator('section.level-card');
+  await card.getByRole('heading', { name: 'Рівень 10', ...exact }).waitFor();
+  expect(await card.locator('p.meta').first().textContent()).toBe(`3200 / ${xpForLevel(11)} досвіду`);
+  await card.getByRole('radiogroup', { name: 'Колір ніку', ...exact }).getByRole('radio', { name: 'Небо', ...exact }).check();
+  await card.getByRole('radiogroup', { name: 'Рамка', ...exact }).getByRole('radio', { name: 'Бронза', ...exact }).check();
+  await card.getByRole('radiogroup', { name: 'Значок', ...exact }).getByRole('radio', { name: '⭐', ...exact }).check();
+  const [saved] = await Promise.all([olya.waitForResponse((r) => r.url().endsWith('/api/me/looks') && r.request().method() === 'PUT'), click(olya, 'Зберегти вигляд')]);
+  expect(saved.ok(), await saved.text()).toBe(true);
+  expect(await saved.json()).toMatchObject({ looks: { color: 'sky', frame: 'bronze', badge: '⭐' } });
+  // Розділ «Рівень» і вибір вбрання — одна колонка в межах 375 px.
+  const cardBox = (await card.boundingBox())!;
+  expect(cardBox.x >= 0 && cardBox.x + cardBox.width <= 375, 'p15a-profile: the level card leaves the phone').toBe(true);
+  for (const option of await card.locator('.look-option').all()) {
+    const box = (await option.boundingBox())!;
+    expect(box.x + box.width, 'p15a-profile: a look option leaves the phone').toBeLessThanOrEqual(375 + 0.5);
+  }
+  await expectNoSideScroll(olya, 'p15a-profile');
+
+  // ── 2. Лобі: «Рів. N», колір і рамка біля ніку. ──
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', levelQuestions15a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title: TITLE,
+  };
+  const created = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+  const quizId = ((await created.json()) as { id: string }).id;
+  const guest = await open('guest15a', 375, 812);
+  const stage = await open('stage15a', 1280, 720);
+
+  const step = async (name: string) => {
+    const button = host.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const openGame = async () => {
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    await stage.goto((await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+    return code;
+  };
+  const answer = async (page: Page, text: string) => {
+    const button = text === 'Так' || text === 'Ні' ? page.getByRole('button', { name: text, ...exact }) : page.getByRole('button', { name: new RegExp(text) });
+    await button.waitFor();
+    await button.click();
+  };
+  /** Запитання: відповіді, «Показати відповідь», далі «Далі» → «Наступне запитання» або, після останнього, «Завершити гру». */
+  const play = async (players: Page[], picks: [Page, string][], last: boolean) => {
+    for (const [page, text] of picks) await answer(page, text);
+    await host.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+    if (last) {
+      await step('Завершити гру');
+      return;
+    }
+    await step('Далі');
+    await step('Наступне запитання');
+    await afterSplash(host, stage, ...players);
+  };
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const castFog = async (nickname: string) => {
+    const button = row(nickname).getByRole('button', { name: 'Дебаф', ...exact });
+    if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+    await row(nickname).locator('.player-tools').getByRole('button', { name: /Туман/ }).click();
+  };
+
+  let code = await openGame();
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(iryna, code, 'Ірина', false);
+  await join(guest, code, 'Гість', false);
+  await host.getByText('Гість', exact).first().waitFor();
+
+  const chip = (nickname: string) => stage.locator('ul.chips li', { hasText: nickname });
+  await chip('Оля').locator('.nick-level').getByText('Рів. 10', exact).waitFor();
+  await chip('Оля').locator('.nick-name.nick-c-sky').waitFor();
+  expect(await chip('Оля').locator('.nick.nick-f-bronze').count(), 'Оля’s bronze frame on the stage').toBe(1);
+  await chip('Петро').locator('.nick-level').getByText('Рів. 15', exact).waitFor();
+  expect(await chip('Гість').locator('.nick-level').count(), 'a level badge next to the guest').toBe(0);
+  expect(await chip('Ірина').locator('.nick-level').count(), 'a level badge next to the level 1 Ірина').toBe(0);
+  expect(await stage.evaluate('document.scrollingElement.scrollHeight <= innerHeight'), 'p15a-stage-lobby: the stage scrolls').toBe(true);
+  await expectFramesFit15a(stage, 'p15a-stage-lobby');
+  await shot(stage, 'p15a-stage-lobby');
+  await host.getByText('Бонуси рівнів увімкнено', exact).waitFor();
+  await row('Оля').locator('.nick-level').getByText('Рів. 10', exact).waitFor();
+  // Рамка Олі в рядку гравця на пульті не виходить за межі рядка.
+  await row('Оля').locator('.nick.nick-f-bronze').waitFor();
+  await expectFramesFit15a(host, 'p15a-host-lobby');
+  await expectNoSideScroll(olya, 'p15a-phone-lobby');
+
+  // ── 3. Бонуси рівня: підказка й +5 с у Олі, оберіг Петра гасить Туман ведучого. ──
+  const all = [olya, petro, iryna, guest];
+  await step('Почати гру');
+  await afterSplash(host, stage, ...all);
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...all);
+  const olyaAnswer = olya.getByRole('button', { name: /Дніпро/ });
+  await olyaAnswer.waitFor();
+  const hintButton = olya.getByRole('button', { name: '💡 Підказка рівня', ...exact });
+  const timeButton = olya.getByRole('button', { name: '⏱ +5 с', ...exact });
+  await hintButton.waitFor();
+  await expect.poll(() => hintButton.isDisabled(), { timeout: 10_000 }).toBe(false);
+  // Ірина (рівень 1) і гість бонусів не мають.
+  for (const page of [iryna, guest]) expect(await page.locator('.perk-bar').count(), 'a perk row without a level').toBe(0);
+  const answerY = async (page: Page, text: RegExp) => (await page.getByRole('button', { name: text }).boundingBox())!.y;
+  const before = await answerY(olya, /Дніпро/);
+  await hintButton.click();
+  await olya.locator('.perk-hint').getByText('💡 Найдовша річка України', exact).waitFor();
+  await expect.poll(() => hintButton.isDisabled(), { timeout: 5000 }).toBe(true);
+  expect(await answerY(olya, /Дніпро/), 'the level hint moves the answers').toBe(before);
+  const secondsBefore = await seconds(olya);
+  await expect.poll(() => timeButton.isDisabled(), { timeout: 5000 }).toBe(false);
+  await timeButton.click();
+  await expect.poll(() => timeButton.isDisabled(), { timeout: 5000 }).toBe(true);
+  await expect.poll(() => seconds(olya), { timeout: 3000 }).toBeGreaterThanOrEqual(secondsBefore + 3);
+  expect(await answerY(olya, /Дніпро/), '+5 s moves the answers').toBe(before);
+  // Реакцій під час запитання немає: смуга не накриває бонусів, бо її немає зовсім.
+  expect(await olya.locator('.reaction-strip').count(), 'a reaction strip during a question').toBe(0);
+  await expectNoSideScroll(olya, 'p15a-phone-perks');
+
+  await row('Петро').locator('.ward-tag').waitFor();
+  const petroBefore = await answerY(petro, /Дніпро/);
+  await castFog('Петро');
+  await petro.getByText('🛡 Оберіг погасив дебаф', exact).waitFor({ timeout: 3000 });
+  await shot(petro, 'p15a-phone-ward');
+  expect(await answerY(petro, /Дніпро/), 'the ward moment moves Петро’s answers').toBe(petroBefore);
+  await expectNoSideScroll(petro, 'p15a-phone-ward');
+  // Мить оберегу минає (WARD_SPENT_MS = 4 с), а поля відповіді стоять на місці до кінця запитання.
+  await petro.getByText('🛡 Оберіг погасив дебаф', exact).waitFor({ state: 'hidden', timeout: 6000 });
+  expect(await answerY(petro, /Дніпро/), 'the end of the ward moment moves Петро’s answers').toBe(petroBefore);
+  await row('Петро').locator('.ward-tag').waitFor({ state: 'detached' });
+  expect(await row('Петро').locator('.debuff-tag').count(), 'the host fog stuck on the warded Петро').toBe(0);
+
+  await play(all, [[olya, 'Дніпро'], [petro, 'Дніпро'], [iryna, 'Десна'], [guest, 'Дністер']], false);
+  for (const page of [olya, petro]) await page.getByRole('button', { name: 'Так', ...exact }).waitFor();
+  expect(await petro.locator('.debuff-zone[data-debuff="fog"], .debuff-fog').count(), 'the quenched fog fired on Петро').toBe(0);
+  await play(all, [[olya, 'Так'], [petro, 'Так'], [iryna, 'Ні'], [guest, 'Ні']], false);
+  await play(all, [[olya, 'Ні'], [petro, 'Так'], [iryna, 'Ні'], [guest, 'Так']], false);
+  await play(all, [[olya, 'Київ'], [petro, 'Київ'], [iryna, 'Харків'], [guest, 'Полтава']], false);
+  await play(all, [[olya, 'Ні'], [petro, 'Так'], [iryna, 'Так'], [guest, 'Так']], true);
+
+  // ── 4. Фінал: рамки в таблицях на 375 px; стікери Ірини (рівень 1): серія nyaa закрита, nya — ні. ──
+  await iryna.getByText('Гру завершено').first().waitFor();
+  for (const [page, name] of [[petro, 'petro'], [iryna, 'iryna']] as const) {
+    await page.locator('.standings').first().waitFor();
+    await expectFramesFit15a(page, `p15a-final-table-${name}`);
+    for (const score of await page.locator('.standings li .score').all()) {
+      const box = (await score.boundingBox())!;
+      expect(box.x + box.width, `p15a-final-table-${name}: a score leaves the 375 phone`).toBeLessThanOrEqual(375 + 0.5);
+    }
+  }
+  await shot(petro, 'p15a-phone-final');
+  await expectFramesFit15a(stage, 'p15a-stage-final');
+  await shot(stage, 'p15a-stage-final');
+  const nyaa = STICKERS.find((sticker) => sticker.series === 'nyaa')!;
+  const nya = STICKERS.find((sticker) => sticker.series === 'nya')!;
+  await iryna.getByRole('button', { name: '😀 Реакція', ...exact }).click();
+  const sheet = iryna.getByRole('dialog', { name: 'Реакція', ...exact });
+  const allStickers = sheet.getByRole('group', { name: 'Усі стікери', ...exact });
+  const locked = allStickers.locator('.reaction-pick', { has: iryna.locator(`img[src="${stickerPath(nyaa)}"]`) });
+  expect(await locked.getAttribute('aria-label')).toBe('Відкриється з рівня 3');
+  expect(await locked.isDisabled(), 'a locked sticker is clickable').toBe(true);
+  expect(await locked.locator('.reaction-lock').textContent()).toBe('🔒');
+  await shot(iryna, 'p15a-stickers');
+  await expectNoSideScroll(iryna, 'p15a-stickers');
+  // Закрита серія nyaa з 🔒 у полі зору.
+  await locked.scrollIntoViewIfNeeded();
+  expect(await locked.locator('.reaction-lock').isVisible(), 'the 🔒 of a locked sticker').toBe(true);
+  await shot(iryna, 'p15a-stickers-locked');
+  await allStickers.getByRole('button', { name: `Стікер ${nya.id}`, ...exact }).click();
+  await sheet.waitFor({ state: 'detached' });
+  await stage.locator(`.reaction-badge img[src="${stickerPath(nya)}"]`).first().waitFor();
+
+  // ── 5. Досвід: Оля 200, Петро 140, Ірина 90; ведучий-автор і гість — нічого. ──
+  await expect
+    .poll(async () => ((await (await iryna.request.get(`${base}/api/me/profile`)).json()) as { level: OwnLevel }).level.progress.xp, { timeout: 15_000 })
+    .toBeGreaterThan(0);
+  const quizRows = () => db.select().from(xpEntry).where(and(eq(xpEntry.source, 'game'), eq(xpEntry.quizId, quizId)));
+  await expect.poll(async () => (await quizRows()).length, { timeout: 15_000 }).toBe(3);
+  const firstRows = await quizRows();
+  const firstGame = firstRows[0]!.gameId;
+  expect(firstRows.every((r) => r.gameId === firstGame)).toBe(true);
+  const byUser = (rows: typeof firstRows) => Object.fromEntries(rows.map((r) => [r.userId, { amount: r.amount, counted: r.counted, reason: r.reason }]));
+  expect(byUser(firstRows)).toEqual({
+    [ids.get(olya)!]: { amount: 200, counted: true, reason: null },
+    [ids.get(petro)!]: { amount: 140, counted: true, reason: null },
+    [ids.get(iryna)!]: { amount: 90, counted: true, reason: null },
+  });
+  expect(firstRows.some((r) => r.userId === ids.get(host)), 'the host-author got a game row').toBe(false);
+  const irynaAchievements = () => db.select().from(xpEntry).where(and(eq(xpEntry.userId, ids.get(iryna)!), eq(xpEntry.source, 'achievement')));
+  await expect.poll(async () => (await irynaAchievements()).map((r) => r.achievementId), { timeout: 15_000 }).toContain('first_game');
+  for (const r of await irynaAchievements()) expect(r.amount, r.achievementId!).toBe(ACHIEVEMENT_XP[achievementRarity(r.achievementId!)]);
+  // Картка «Рівень» Олі: 3200 із сіду + 200 за гру + досягнення гри — рівно сума її журналу.
+  const olyaXp = async () => (await db.select().from(xpEntry).where(eq(xpEntry.userId, ids.get(olya)!))).reduce((sum, r) => sum + r.amount, 0);
+  await expect
+    .poll(async () => {
+      const own = ((await (await olya.request.get(`${base}/api/me/profile`)).json()) as { level: OwnLevel }).level.progress.xp;
+      return own === (await olyaXp()) ? own : -1;
+    }, { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(3200 + 200);
+  const olyaTotal = await olyaXp();
+  await olya.goto(`${base}/profile`);
+  const after = olya.locator('section.level-card');
+  await after.waitFor();
+  expect(await after.locator('p.meta').first().textContent()).toBe(`${olyaTotal} / ${xpForLevel(levelOf(olyaTotal) + 1)} досвіду`);
+  await expectNoSideScroll(olya, 'p15a-profile-after');
+
+  // ── 6. Повтор тієї самої вікторини: усім трьом 0 з repeat_quiz. ──
+  const three = [olya, petro, iryna];
+  code = await openGame();
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(iryna, code, 'Ірина', false);
+  await host.getByText('Ірина', exact).first().waitFor();
+  await step('Почати гру');
+  await afterSplash(host, stage, ...three);
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...three);
+  await play(three, [[olya, 'Дніпро'], [petro, 'Дніпро'], [iryna, 'Дніпро']], false);
+  await play(three, [[olya, 'Так'], [petro, 'Так'], [iryna, 'Так']], false);
+  await play(three, [[olya, 'Ні'], [petro, 'Ні'], [iryna, 'Так']], false);
+  await play(three, [[olya, 'Київ'], [petro, 'Харків'], [iryna, 'Київ']], false);
+  await play(three, [[olya, 'Ні'], [petro, 'Ні'], [iryna, 'Ні']], true);
+  await expect.poll(async () => (await quizRows()).filter((r) => r.gameId !== firstGame).length, { timeout: 15_000 }).toBe(3);
+  const secondRows = (await quizRows()).filter((r) => r.gameId !== firstGame);
+  expect(byUser(secondRows)).toEqual({
+    [ids.get(olya)!]: { amount: 0, counted: false, reason: 'repeat_quiz' },
+    [ids.get(petro)!]: { amount: 0, counted: false, reason: 'repeat_quiz' },
+    [ids.get(iryna)!]: { amount: 0, counted: false, reason: 'repeat_quiz' },
+  });
+
+  // ── 7. Вимикач у редакторі: без бонусів і без оберегу. ──
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('link', { name: 'Редагувати' }).click();
+  await host.locator('details.powers > summary').click();
+  const bonuses = host.locator('label.powers-item', { hasText: 'Бонуси рівнів' }).locator('input');
+  expect(await bonuses.isChecked()).toBe(true);
+  await bonuses.uncheck();
+  await click(host, 'Зберегти');
+  await host.waitForURL(/\/quizzes$/);
+
+  code = await openGame();
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(iryna, code, 'Ірина', false);
+  await host.getByText('Бонуси рівнів вимкнено', exact).waitFor();
+  await olya.getByText('Бонуси рівнів вимкнено ведучим', exact).waitFor();
+  await shot(host, 'p15a-off-host-lobby');
+  await step('Почати гру');
+  await afterSplash(host, stage, ...three);
+  expect(await row('Петро').locator('.ward-tag').count(), 'a ward with level bonuses off').toBe(0);
+  await castFog('Петро');
+  await row('Петро').locator('.debuff-tag').waitFor();
+  await step('Почати раунд');
+  await afterSplash(host, stage, ...three);
+  await olyaAnswer.waitFor();
+  await petro.locator('.debuff-zone[data-debuff="fog"]').waitFor();
+  await petro.locator('.debuff-fog').waitFor();
+  expect(await olya.getByRole('button', { name: /\+5 с/ }).count(), '+5 s with level bonuses off').toBe(0);
+  expect(await olya.locator('.perk-bar').count(), 'a perk row with level bonuses off').toBe(0);
+  await shot(olya, 'p15a-off');
+  await shot(petro, 'p15a-off-petro');
+  await step('Завершити гру');
+  await olya.getByText('Гру завершено').first().waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 15a: levels — Оля (level 10) and Петро (level 15) wear their level badges, nick colour and frame in the lobby and tables, Оля takes +5 s and the level hint, Петро’s ward quenches the host’s debuff, Ірина sees locked sticker series, the finished game credits XP to the three accounts but not to the host-author or the guest, a second game of the same quiz gives nothing, and the switch in the editor turns level bonuses off', async () => {
+  try {
+    await levels15a();
   } catch (error) {
     await snapshot();
     throw error;

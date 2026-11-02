@@ -49,6 +49,8 @@ import {
   type LadderPlay,
   type LadderState,
   type Play,
+  type PerkHint,
+  type PerkState,
   type PlayerState,
   type ScoreAdjustment,
   type SortProgress,
@@ -109,6 +111,7 @@ import { decideLadder, pickContestant, useLifeline } from './ladder';
 import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { actAnswer, actBuzz } from './team-act';
 import { pickAnswerer, startAnswerers } from './answerer';
+import { grantPerks, usePerk } from './perks';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
@@ -288,12 +291,12 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks',
     ],
     true,
   ),
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
-  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty'], true),
+  QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
   Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
@@ -346,6 +349,9 @@ const STATE_SHAPE: Record<string, string> = {
   AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'resume', 'skips', 'skipPlays', 'retries'], true),
   ResumeSetup: keysOf<ResumeSetup>()(['roundIndex', 'points'], true),
   Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq', 'yes', 'no'], true),
+  PerkState: keysOf<PerkState>()(['kinds', 'timeMs', 'used'], true),
+  PerkUsed: keysOf<PerkState['used']>()(['time', 'hint', 'ward'], true),
+  PerkHint: keysOf<PerkHint>()(['q', 'text'], true),
 };
 
 /** Записана форма кожної версії; запис старої версії не змінюють. */
@@ -1130,6 +1136,60 @@ const KEYS: Record<number, Record<string, string>> = {
     ResumeSetup: 'points,roundIndex',
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
+  22: {
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    Quiz: 'description,duels,rounds,settings,spares,title',
+    QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
+    PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
+    BoardState: 'awaySince,circle,circleNo,dice,done',
+    DiceState: 'throws,tour,tourNo,waiting',
+    BoardPlay: 'answer,answerMode,cellId,chooserId,kind,multiplier,named,penalty,price',
+    BlitzPlay: 'attempts,buzzed,dropped,queue',
+    BuzzEntry: 'answer,at,deadline,playerId,timeMs',
+    Attempt: 'answer,grade,playerId,points,timeMs',
+    FinalState: 'allIn,limits,order,shown,split,wagers',
+    FinalPlay: 'allIn,graded,wagers',
+    SortProgress: 'lockedUntil,missed,missedInto,misses,queue,sorted,wordMisses',
+    WallProgress: 'found,mistakes,tried',
+    SurveyPlay: 'shown,source',
+    BluffPlay: 'lies,options,picks,seed,shown,stage',
+    WipeoutPlay: 'auto,end,stay,took',
+    SurvivalPlay: 'edge,end,ghosts,trial',
+    GhostAnswer: 'answer,correct,timeMs',
+    SurvivalTrial: 'answers,doors,fallback,fellBack,kind,out,presented,questionId,stage,traps',
+    TrialAnswer: 'answer,correct,overridden,timeMs',
+    LadderState: 'contestantId,drawn',
+    LadderPlay: 'contestantId,decision,level,lifelines,outcome,step,timed',
+    LadderLifelines: 'audience,fifty,hint',
+    LadderOutcome: 'kind,passed,points',
+    TeamsState: 'answerers,captains,current,dice,duelists,form,list,members,turns',
+    AnswererPick: 'fromQuestion,memberId,roundIndex,scope',
+    AnswererTurn: 'memberId,questionIndex',
+    AnswererNow: 'memberId,questionIndex',
+    TeamsSettings: 'answerer,count,names',
+    TeamMember: 'connected,id,nickname,teamId',
+    BluffLie: 'at,text',
+    BluffPick: 'optionId,timeMs',
+    BluffOption: 'authors,id,kind,removed,text',
+    ChainProgress: 'hints,shown,solved',
+    BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
+    BuffRange: 'max,min',
+    BuffZoom: 'size,x,y',
+    DebuffState: 'by,firedAt,kind,since',
+    DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
+    DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
+    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    Splash: 'at,kind,until',
+    AwayEntry: 'count,ms,since',
+    AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
+    ResumeSetup: 'points,roundIndex',
+    Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
+    PerkState: 'kinds,timeMs,used',
+    PerkUsed: 'hint,time,ward',
+    PerkHint: 'q,text',
+  },
 };
 
 /** 11g: автопілот (автор Оля p1, Петро p2) на розкритті класичного запитання. */
@@ -1386,7 +1446,22 @@ function representative(): GameState[] {
     resumedCarry(),
     answering(),
     powered(),
+    perked(),
+    hintPerked(),
   ];
+}
+
+/** 15a: Оля взяла «Підказку рівня» на q1 — у стані індекс запитання й показаний текст. */
+function hintPerked(): GameState {
+  const started = grantPerks(must(start(lobbyWith(makeQuiz([{ ...single, hint: 'Місто Лева' }, withId(single, 'q2')], { buffs: ['time'] }), 'Оля'))), { p1: { kinds: ['hint'], timeMs: 5000 } });
+  return must(usePerk(must(next(started, T0, () => 0)), 'p1', 'hint', T0 + 1000));
+}
+
+/** 15a: Оля з бонусами рівня — «+5 с» узято на q1, оберіг погасив дебаф ведучого; вимикач у вікторині без поля (увімкнено). */
+function perked(): GameState {
+  const started = grantPerks(must(start(lobbyWith(buffQuiz({ debuffs: ['fog'] }), 'Оля', 'Петро'))), { p1: { kinds: ['time', 'ward'], timeMs: 5000 } });
+  const timed = must(usePerk(must(next(started, T0, () => 0)), 'p1', 'time', T0 + 1000));
+  return must(setDebuff(timed, 'p1', 'fog'));
 }
 
 describe('the saved state', () => {
@@ -1661,6 +1736,31 @@ describe('the saved state', () => {
     expect(saved.plays[2].answers).toEqual(s.plays[2].answers);
   });
 
+  it('a version 21 state (no perks, no levelBonuses) restores; perks and the switch survive the round trip and suspend', () => {
+    // стан до 15a: класика з бафом, без бонусів рівня й без вимикача
+    const plain = must(takeBuff(toBuffQuestion(), 'p1', 'double', T0 + 1000, () => 0));
+    expect('perks' in plain).toBe(false);
+    expect('levelBonuses' in plain.quiz.settings).toBe(false);
+    const old = roundTrip(suspend(roundTrip(plain), T0 + 2000));
+    expect(old.paused).toBe(true);
+    expect(READABLE_STATE_VERSIONS).toContain(21);
+    const back = must(resume(old, T0 + HOUR));
+    expect(back.paused).toBe(false);
+    expect(back.perks).toBeUndefined();
+    // дебаф на стан v21 ставиться, як до 15a
+    expect(must(setDebuff(back, 'p2', 'fog')).debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: null });
+    // бонуси з використаним «+5 с» і оберегом переживають JSON і suspend
+    const s = perked();
+    expect(s.perks).toEqual({ p1: { kinds: ['time', 'ward'], timeMs: 5000, used: { time: 0, ward: 0 } } });
+    expect(s.debuffs.p1).toBeUndefined();
+    expect(roundTrip(s)).toEqual(s);
+    const saved = roundTrip(suspend(roundTrip(s), T0 + 3000));
+    expect(saved.perks).toEqual(s.perks);
+    expect(saved.plays[0].overtime).toEqual(s.plays[0].overtime);
+    const off = must(start(lobbyWith({ ...buffQuiz(), settings: { ...buffQuiz().settings, levelBonuses: false } }, 'Оля')));
+    expect(roundTrip(suspend(roundTrip(off), T0)).quiz.settings.levelBonuses).toBe(false);
+  });
+
   it('suspend decides an appeal whose vote ended before the save; one still running waits with its time left', () => {
     const s = appealed();
     expect(s.appeals?.at(-1)).toMatchObject({ outcome: null, endsAt: T0 + 36_000 });
@@ -1692,7 +1792,7 @@ describe('the saved state', () => {
   it('older readable versions are a subset of the current format', () => {
     // Версію читають як поточну лише тоді, коли поточна тільки додала ключі (необов'язкові, з типовим значенням у рушії).
     expect(READABLE_STATE_VERSIONS).toContain(GAME_STATE_VERSION);
-    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
+    expect(READABLE_STATE_VERSIONS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
     expect(READABLE_STATE_VERSIONS).not.toContain(1);
     for (const version of READABLE_STATE_VERSIONS) {
       for (const [name, keys] of Object.entries(KEYS[version])) {
@@ -1756,6 +1856,9 @@ describe('the saved state', () => {
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));
       add('Appeal', s.appeals ?? []);
+      add('PerkState', Object.values(s.perks ?? {}));
+      add('PerkUsed', Object.values(s.perks ?? {}).map((p) => p.used));
+      add('PerkHint', Object.values(s.perks ?? {}).map((p) => p.used.hint));
       // стан без змін переживає JSON
       expect(roundTrip(s)).toEqual(s);
     }

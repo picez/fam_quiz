@@ -2,6 +2,7 @@ import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNo
 import { addAdjustment, afterQuestionNow } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
+import { spendWard, wardReady } from './perks';
 import { isGhost, survivalAlive } from './survival';
 
 /** У раундах «Ва-банк» і «Мільйонер» дебафів немає (14a): на їхніх етапах, крім round_end. */
@@ -18,6 +19,7 @@ export function ghostTarget(state: GameState, playerId: string): boolean {
 /**
  * Наслати дебаф. Етапи lobby/finished → wrong_phase; невідомий гравець → not_found;
  * вікторина не дозволяє цей дебаф → not_allowed; дебаф чекає або діє → debuff_busy; застарілий спрацьований перезаписується.
+ * Готовий «Оберіг» цілі (15a) — ok: дебаф не ставиться, оберіг спрацював.
  */
 export function setDebuff(state: GameState, playerId: string, kind: DebuffKind): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
@@ -25,6 +27,8 @@ export function setDebuff(state: GameState, playerId: string, kind: DebuffKind):
   if (!allowedDebuffs(state.quiz).includes(kind)) return fail('not_allowed');
   if (debuffsOff(state) || ghostTarget(state, playerId)) return fail('not_allowed');
   if (shownDebuff(state, playerId) !== null) return fail('debuff_busy');
+  // «Оберіг» (15a): перший дебаф проти гравця гасне, оберіг спрацьовує.
+  if (wardReady(state, playerId)) return ok(spendWard(state, playerId));
   return ok({ ...state, debuffs: { ...state.debuffs, [playerId]: { kind, firedAt: null, since: null, by: null } } });
 }
 
@@ -64,6 +68,7 @@ const BLOCK_ERRORS = { phase: 'wrong_phase', paused: 'paused', bought: 'debuff_b
  * not_allowed (ціль — сам покупець, дебаф не дозволено або купівлю вимкнено settings.debuffShop), wrong_phase / paused /
  * debuff_bought (shopBlock), target_offline (ціль не підключена: дебаф не спрацював би), debuff_busy (на цілі вже чекає або діє дебаф), points_short (score < ціна: у мінус не можна).
  * Успіх: коригування −ціна з source 'debuff', target, debuff; дебаф цілі { kind, firedAt: null, since: null, by: buyerId }.
+ * Готовий «Оберіг» цілі (15a): ціну списано, дебаф не ставиться, оберіг спрацював.
  */
 export function buyDebuff(state: GameState, buyerId: string, targetId: string, kind: DebuffKind, now: number): Result {
   const buyer = state.players.find((p) => p.id === buyerId);
@@ -80,6 +85,8 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   // На дозволених етапах прихованих балів немає, тож score — справжній рахунок.
   if (buyer.score < price) return fail('points_short');
   const charged = addAdjustment(state, buyerId, -price, now, 'debuff', { target: targetId, debuff: kind });
+  // «Оберіг» (15a): покупець бачив 🛡 і вирішив його зламати — ціну списано, дебафу немає.
+  if (wardReady(charged, targetId)) return ok(spendWard(charged, targetId));
   return ok({ ...charged, debuffs: { ...charged.debuffs, [targetId]: { kind, firedAt: null, since: null, by: buyerId } } });
 }
 

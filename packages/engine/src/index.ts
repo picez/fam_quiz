@@ -10,6 +10,7 @@ export * from './undo';
 export * from './carry';
 export * from './debuffs';
 export * from './buffs';
+export * from './perks';
 export * from './timing';
 export * from './hold';
 export * from './blitz';

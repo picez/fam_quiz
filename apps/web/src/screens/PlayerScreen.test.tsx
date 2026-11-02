@@ -37,7 +37,7 @@ const fullQuestion: Question = {
   correctId: 'b',
 };
 
-const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
+const me = { id: 'p1', nickname: 'Олена', score: 0, rank: null, answer: null, result: null, blitz: null, final: null, wipeout: null, survival: null, ladder: null, chain: null, sort: null, survey: null, bluff: null, debuff: null, shop: null, duel: null, buffs: null, perks: null, peekedBy: null, overtime: null, tip: null, vote: null, appeal: null, wall: null };
 
 const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   role: 'player',
@@ -307,6 +307,17 @@ describe('PlayerScreen', () => {
     expect(screen.getByText('Олена')).toBeTruthy();
     expect(screen.getByText('1250')).toBeTruthy();
     expect(screen.getByText('Ви в грі. Чекаємо на старт.')).toBeTruthy();
+  });
+
+  it('the lobby says the host turned level bonuses off, and says nothing when they are on (15a)', () => {
+    show(view({ levelBonuses: 'off' }));
+    expect(screen.getByText('Бонуси рівнів вимкнено ведучим')).toBeTruthy();
+    cleanup();
+    show(view());
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
+    cleanup();
+    show(view({ levelBonuses: 'none' }));
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
   });
 
   it('the author sees the author lobby with the code and «Почати гру» instead of the waiting line', () => {
@@ -2127,7 +2138,7 @@ describe('PlayerScreen: table and menu', () => {
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 } }));
     expect(screen.queryByRole('button', { name: 'Дебафи' })).toBeNull();
     cleanup();
-    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false }], block: null };
+    const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'p2', nickname: 'Петро', busy: false, offline: false, warded: false }], block: null };
     const debuffNotice = { seq: 1, at: Date.now(), buyer: { playerId: 'p2', nickname: 'Петро' }, target: { playerId: 'p3', nickname: 'Іра' } };
     show(view({ phase: 'question', questionIndex: 0, question: publicQuestion, table: { rows, full: true, firstRound: 0 }, debuffNotice, me: { ...me, shop } }));
     const header = document.querySelector('header.bar')!;
@@ -3223,7 +3234,7 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
   const petro = { captain: false, memberId: 'u3', nickname: 'Петро', answererId: 'u3', answerer: true, answererMode: 'chosen' as const, canAct: true };
   const olya = { answererId: 'u3', answerer: false, answererMode: 'chosen' as const, canAct: false };
   const buffs = { slots: [{ kind: 'fifty' as const, state: 'ready' as const, block: null }], active: null, peekable: [] } as unknown as PlayerView['me']['buffs'];
-  const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false }], block: null };
+  const shop = { items: [{ kind: 'fog' as const, price: 200 }], targets: [{ playerId: 'team-a', nickname: 'Червоні', busy: false, offline: false, warded: false }], block: null };
 
   it('the answerer reads «Ти відповідаєш за команду» above the question and has the answer field', () => {
     show(asQuestion(petro));
@@ -3835,6 +3846,16 @@ describe('PlayerScreen: 12h buffs', () => {
     peekable: [{ playerId: 'p3', nickname: 'Іра' }],
   };
 
+  it('the level hint button sends player:perk; a ward chip shows under the question', async () => {
+    const perks = { items: [{ kind: 'hint' as const, block: null }], timeMs: 5000, hint: null };
+    const send = show(onQuestion({ me: { ...me, perks }, wards: { p1: 'ready' } }));
+    expect(screen.getByText('🛡 Оберіг')).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '💡 Підказка рівня' }));
+    });
+    expect(send).toHaveBeenCalledWith('player:perk', { kind: 'hint' });
+  });
+
   it('two taps on peek open the sheet outside the question zone; a name sends the peek', async () => {
     const send = show(onQuestion({ me: { ...me, buffs: peekReady } }));
     expect(document.querySelector('.peek-sheet')).toBeNull();
@@ -4021,6 +4042,11 @@ describe('PlayerScreen prizes (14a)', () => {
   it('a title stands next to the nickname in the lobby list', () => {
     show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], titles: { Оля: '👑 Король' } }));
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
+  });
+  it('a level stands next to the nickname in the lobby list, only for who has one', () => {
+    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], levels: { Оля: { level: 12, color: 'sky', frame: null } } }));
+    expect(screen.getByText('Рів. 12').closest('li')?.textContent).toContain('Оля');
+    expect(screen.getAllByText(/Рів\./)).toHaveLength(1);
   });
 });
 

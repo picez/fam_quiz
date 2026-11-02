@@ -116,7 +116,7 @@ describe('risk in a room (12h)', () => {
 });
 
 describe('binoculars across a restart (12h)', () => {
-  it('the range is saved as version 21 and comes back the same', () => {
+  it('the range is saved with the current state version and comes back the same', () => {
     const quiz = makeQuiz([slider, withId(single, 'q2')], { buffs: ['scope'] });
     const { scheduler, manager, room, olya, petro, ira } = playing(quiz);
     expect(manager.buff(room, olya, 'scope')).toEqual({ ok: true });
@@ -126,7 +126,7 @@ describe('binoculars across a restart (12h)', () => {
     expect(before).toEqual({ kind: 'range', ...range });
     const saved = viaJson(manager.snapshot(room));
     expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
-    expect(GAME_STATE_VERSION).toBe(21);
+    expect(GAME_STATE_VERSION).toBe(22);
     manager.freeze();
     const later = new RoomManager(scheduler, () => 0.5);
     const back = later.restore(saved) as Room;

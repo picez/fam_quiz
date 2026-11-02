@@ -1,7 +1,8 @@
-import type { Standing, TeamsView } from '@quiz/shared';
+import type { NickLevel, Standing, TeamsView } from '@quiz/shared';
 import { num, signed } from '../format';
 import { t } from '../i18n';
 import { RowReaction } from '../live/Reactions';
+import { Nick } from './Nick';
 
 interface Props {
   standings: Standing[];
@@ -17,9 +18,11 @@ interface Props {
   more?: number;
   /** Титули за ніком (14a); у командній таблиці не ставляться. */
   titles?: Record<string, string>;
+  /** Рівні й вбрання за ніком (15a); у командній таблиці не ставляться. */
+  levels?: Record<string, NickLevel>;
 }
 
-export function Standings({ standings, highlightId, limit, streaks, teams, gains, more, titles }: Props) {
+export function Standings({ standings, highlightId, limit, streaks, teams, gains, more, titles, levels }: Props) {
   const shown = limit === undefined ? standings : standings.slice(0, limit);
   return (
     <ol className="standings">
@@ -34,8 +37,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
           <li key={row.participantId} className={classes || undefined}>
             <span className="rank">{row.rank}</span>
             <span className="name">
-              {row.nickname}
-              {team === null && titles?.[row.nickname] !== undefined && <span className="nick-title">{titles[row.nickname]}</span>}
+              {team === null ? <Nick nickname={row.nickname} levels={levels} titles={titles} /> : row.nickname}
               <RowReaction rowId={row.participantId} />
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>

@@ -14,6 +14,8 @@ interface Powers {
   debuffPrices: Prices | undefined;
   /** false — гравці не купують; увімкнено зберігається як відсутність ключа. */
   debuffShop: false | undefined;
+  /** false — бонуси рівнів вимкнено; увімкнено — відсутність ключа. */
+  levelBonuses: false | undefined;
 }
 
 interface Props {
@@ -40,14 +42,16 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
   const buffs = allowedBuffs({ settings });
   const prices = settings.debuffPrices;
   const shopOn = settings.debuffShop !== false;
+  const bonusesOn = settings.levelBonuses !== false;
 
-  const emit = (next: { debuffs?: DebuffKind[]; buffs?: BuffKind[]; prices?: Prices | undefined; shopOn?: boolean }) => {
+  const emit = (next: { debuffs?: DebuffKind[]; buffs?: BuffKind[]; prices?: Prices | undefined; shopOn?: boolean; bonusesOn?: boolean }) => {
     const nextDebuffs = next.debuffs ?? debuffs;
     onChange({
       debuffs: nextDebuffs,
       buffs: next.buffs ?? buffs,
       debuffPrices: pricesFor('prices' in next ? next.prices : prices, nextDebuffs),
       debuffShop: (next.shopOn ?? shopOn) ? undefined : false,
+      levelBonuses: (next.bonusesOn ?? bonusesOn) ? undefined : false,
     });
   };
 
@@ -133,6 +137,15 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
         </label>
         <HelpButton id="setting.debuffShop" />
       </div>
+
+      <div className="with-help">
+        <label className="powers-item">
+          <input type="checkbox" checked={bonusesOn} onChange={(event) => emit({ bonusesOn: event.target.checked })} />
+          <span>{t('levelBonusesLabel')}</span>
+        </label>
+        <HelpButton id="setting.levelBonuses" />
+      </div>
+      <p className="meta">{t('levelBonusesHint')}</p>
 
       <fieldset className="powers-group">
         <legend>{t('powersBuffs')}</legend>

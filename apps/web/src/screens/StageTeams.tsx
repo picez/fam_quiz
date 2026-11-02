@@ -1,11 +1,12 @@
-import type { TeamsView } from '@quiz/shared';
+import type { NickLevel, TeamsView } from '@quiz/shared';
 import { t } from '../i18n';
+import { Nick } from './Nick';
 import { DicePanel, useDiceSpin } from './Dice';
 
 const NO_ROWS: NonNullable<TeamsView['dice']>['rows'] = [];
 
 /** Сцена в лобі командної гри: колонки команд з капітанами, «Без команди» і кубики формування. */
-export function StageTeams({ teams, titles }: { teams: TeamsView; titles?: Record<string, string> }) {
+export function StageTeams({ teams, titles, levels }: { teams: TeamsView; titles?: Record<string, string>; levels?: Record<string, NickLevel> }) {
   const spinning = useDiceSpin(teams.dice?.rows ?? NO_ROWS);
   return (
     <div className="stage-teams">
@@ -22,8 +23,7 @@ export function StageTeams({ teams, titles }: { teams: TeamsView; titles?: Recor
                       👑
                     </span>
                   )}
-                  {member.nickname}
-                  {titles?.[member.nickname] !== undefined && <span className="nick-title">{titles[member.nickname]}</span>}
+                  <Nick nickname={member.nickname} levels={levels} titles={titles} />
                 </li>
               ))}
             </ul>

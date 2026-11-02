@@ -13,10 +13,10 @@ afterEach(() => {
 const joinUrl = 'https://quiz.example/play/123456';
 const stageUrl = 'https://quiz.example/stage/123456#tok';
 
-function show(options: { stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
+function show(options: { levelBonuses?: 'off' | 'none'; stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
   const send: Send = options.send ?? vi.fn(async () => ({ ok: true as const }));
   const onError = options.onError ?? vi.fn();
-  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} />);
+  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} levelBonuses={options.levelBonuses} />);
   return { send, onError };
 }
 
@@ -122,5 +122,17 @@ describe('AuthorLobby: a restarted saved game (13b)', () => {
     render(<AuthorLobby code="123456" stageUrl={null} joinUrl={joinUrl} send={vi.fn()} onError={vi.fn()} resume={resume} continued={{ slots: [], carryRound: null }} />);
     expect(screen.queryByText(/Почнемо з/)).toBeNull();
     expect(screen.queryByText('Продовжити попередню гру')).toBeNull();
+  });
+
+  it('says whether level bonuses are on', () => {
+    show();
+    expect(screen.getByText('Бонуси рівнів увімкнено')).toBeTruthy();
+    cleanup();
+    show({ levelBonuses: 'off' });
+    expect(screen.getByText('Бонуси рівнів вимкнено')).toBeTruthy();
+    cleanup();
+    // командна гра чи жоден бонус не пасує — рядка немає
+    show({ levelBonuses: 'none' });
+    expect(screen.queryByText(/Бонуси рівнів/)).toBeNull();
   });
 });

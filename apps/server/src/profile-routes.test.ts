@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { STICKERS } from '@quiz/shared';
 import { buildApp } from './app';
-import { follow, profile, user } from './db/schema';
+import { follow, profile, user, xpEntry } from './db/schema';
 import { awardPrizes, createPrize, reservePlaces } from './prizes';
 import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -71,7 +71,7 @@ describe('public profile', () => {
       const response = await request('GET', `/api/profiles/${olenaId}`, cookie);
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'nickname', 'showcase', 'stats']);
+      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'nickname', 'showcase', 'stats']);
       expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'avgPlace', 'bestScore', 'games', 'hosted', 'podium', 'quizzes', 'top3', 'wins']);
       expect(response.body).not.toContain(olena.email);
       expect(response.body).not.toContain('Таємна вікторина');
@@ -343,5 +343,28 @@ describe('showcase in profiles (14a)', () => {
       expect(body.showcase.awards[0]).toMatchObject({ place: 1, quizTitle: 'Україна', nickname: 'Тарас' });
       expect('name' in body.showcase.awards[0].content).toBe(false);
     }
+  });
+});
+
+describe('wearing looks (15a)', () => {
+  const none = { color: null, frame: null, badge: null };
+
+  it('needs a session and a valid body', async () => {
+    expect((await request('PUT', '/api/me/looks', undefined, { ...none, color: 'sky' })).statusCode).toBe(401);
+    expect((await request('PUT', '/api/me/looks', olena.cookie, { ...none, color: 'pink' })).statusCode).toBe(400);
+  });
+
+  it('refuses a colour above the level and wears it once the level is there', async () => {
+    const locked = await request('PUT', '/api/me/looks', taras.cookie, { ...none, color: 'sky' });
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json()).toEqual({ error: 'look_locked' });
+
+    const at = new Date('2026-10-20T10:00:00Z');
+    await db.insert(xpEntry).values({ userId: tarasId, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
+    const worn = await request('PUT', '/api/me/looks', taras.cookie, { ...none, color: 'sky' });
+    expect(worn.statusCode).toBe(200);
+    expect(worn.json()).toEqual({ looks: { ...none, color: 'sky' } });
+    const shown = await request('GET', `/api/profiles/${tarasId}`);
+    expect(shown.json().level.looks.color).toBe('sky');
   });
 });

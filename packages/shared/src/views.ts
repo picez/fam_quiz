@@ -16,6 +16,7 @@ import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
 import type { AnswererMode, AnswererScope, TeamForm } from './teams';
 import type { WipeoutStatus } from './wipeout';
+import type { ActivePerk, NickLevel } from './levels';
 
 export interface Choice {
   id: string;
@@ -1108,6 +1109,10 @@ interface BaseView {
   prizes?: PrizesView;
   /** Титули біля ніків: нік людини → титул (ставить сервер, рушій ключа не ставить). */
   titles?: Record<string, string>;
+  /** Рівні біля ніків: нік людини → рівень і вбрання (ставить сервер, рушій ключа не ставить). */
+  levels?: Record<string, NickLevel>;
+  /** Бонуси рівнів (ставить рушій): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден не пасує вікторині. */
+  levelBonuses?: 'off' | 'none';
   phase: Phase;
   paused: boolean;
   /** Раунд; null у лобі. */
@@ -1247,12 +1252,24 @@ export interface SplashView {
   until: number;
 }
 
+/** Чому бонус рівня зараз не натиснути. */
+export type PerkBlock = 'used' | 'elsewhere' | 'answered' | 'paused' | 'time' | 'not_started' | 'unfit';
+
+/** Ряд бонусів рівня на телефоні (15a). */
+export interface PerksView {
+  items: { kind: ActivePerk; block: PerkBlock | null }[];
+  /** Скільки мс додає «+5 с» (5000 чи 10000). */
+  timeMs: number;
+  /** Підказка автора до поточного запитання, коли «Підказку рівня» використано; інакше null. */
+  hint: string | null;
+}
+
 /** Аркуш «Дебафи» на телефоні (9c). */
 export interface PlayerShop {
   /** Дозволені дебафи з цінами, у порядку DEBUFF_KINDS. */
   items: { kind: DebuffKind; price: number }[];
   /** Суперники в порядку гравців; busy — на ньому вже чекає або діє дебаф; offline — не підключений (купити не можна). */
-  targets: (BlitzPlayer & { busy: boolean; offline: boolean })[];
+  targets: (BlitzPlayer & { busy: boolean; offline: boolean; warded: boolean })[];
   /** null — купити можна (бали телефон порівнює з ціною сам); інакше чому ні. */
   block: ShopBlock | null;
 }
@@ -1305,6 +1322,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** Оберіг (15a): які дебафи проти суперників гасить готовий оберіг; id гравця. */
+  wards?: Record<string, 'ready' | 'spent'>;
   /** У лобі — нікнейми всіх, хто вже зайшов, у порядку входу (беклог 5); поза лобі поля немає. */
   lobby?: string[];
   me: {
@@ -1373,6 +1392,8 @@ export interface PlayerView extends BaseView {
     duel: PlayerDuel | null;
     /** Ряд бафів; null — у вікторині немає бафів, етап не question або гравець тут не відповідає з телефона. */
     buffs: PlayerBuffs | null;
+    /** Бонуси рівня (15a); null — їх немає (вимкнено, не видано, командна гра, гість). */
+    perks: PerksView | null;
     /** «Підглянути» (12h): останнє підглядання в мою відповідь на цьому запитанні (question, locked, reveal); у командній грі — у відповідь моєї команди. Інакше null. */
     peekedBy: { seq: number; at: number; nickname: string } | null;
     /** Власний особистий кінець, якщо він пізніший за спільний (етап question); інакше null. */
@@ -1509,6 +1530,8 @@ export interface PaceWindow { from: number; until: number }
 export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
 
 export interface HostView extends BaseView {
+  /** Оберіг гравців (15a): id гравця → готовий чи спрацював; ключа немає, коли оберегів немає. */
+  wards?: Record<string, 'ready' | 'spent'>;
   role: 'host';
   players: HostPlayer[];
   correct: Question | null;

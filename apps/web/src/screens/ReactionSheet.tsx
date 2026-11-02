@@ -1,16 +1,27 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { QUICK_EMOJI, REACTION_GAP_MS, STICKERS, stickerOf, stickerPath, type ReactionItem, type Sticker } from '@quiz/shared';
+import { QUICK_EMOJI, REACTION_GAP_MS, STICKERS, seriesLevel, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useFavoriteStickers } from '../live/useFavoriteStickers';
 
 /** Стікер у сітці: кнопка-картинка (вибір) і мала ☆ / ★ (улюблений). */
-function StickerCell({ sticker, favorite, onPick, onToggle }: { sticker: Sticker; favorite: boolean; onPick: (item: ReactionItem) => void; onToggle: (id: string) => void }) {
+function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker: Sticker; favorite: boolean; locked: boolean; onPick: (item: ReactionItem) => void; onToggle: (id: string) => void }) {
   return (
     <li className="reaction-cell">
-      <button type="button" className="reaction-pick" aria-label={t('reactionSticker', { name: sticker.id })} onClick={() => onPick({ kind: 'sticker', value: sticker.id })}>
+      <button
+        type="button"
+        className="reaction-pick"
+        disabled={locked}
+        aria-label={locked ? t('stickerLocked', { level: seriesLevel(sticker.series) }) : t('reactionSticker', { name: sticker.id })}
+        onClick={locked ? undefined : () => onPick({ kind: 'sticker', value: sticker.id })}
+      >
         <img src={stickerPath(sticker)} alt="" loading="lazy" decoding="async" width={48} height={48} />
+        {locked && (
+          <span className="reaction-lock" aria-hidden="true">
+            🔒
+          </span>
+        )}
       </button>
       <button
         type="button"
@@ -26,7 +37,7 @@ function StickerCell({ sticker, favorite, onPick, onToggle }: { sticker: Sticker
 }
 
 /** Нижній аркуш у порталі (як PeekSheet): Escape і «Закрити» закривають; вибір шле подію й закриває аркуш. */
-export function ReactionSheet({ favorites, onToggle, onPick, onClose }: { favorites: string[]; onToggle: (id: string) => void; onPick: (item: ReactionItem) => void; onClose: () => void }) {
+export function ReactionSheet({ favorites, level, onToggle, onPick, onClose }: { favorites: string[]; level: number | null; onToggle: (id: string) => void; onPick: (item: ReactionItem) => void; onClose: () => void }) {
   const favoritesId = useId();
   const allId = useId();
   const firstRef = useRef<HTMLButtonElement | null>(null);
@@ -65,7 +76,7 @@ export function ReactionSheet({ favorites, onToggle, onPick, onClose }: { favori
         ) : (
           <ul className="reaction-grid">
             {favoriteStickers.map((sticker) => (
-              <StickerCell key={sticker.id} sticker={sticker} favorite onPick={onPick} onToggle={onToggle} />
+              <StickerCell key={sticker.id} sticker={sticker} favorite locked={!stickerOpen(sticker.id, level)} onPick={onPick} onToggle={onToggle} />
             ))}
           </ul>
         )}
@@ -74,7 +85,7 @@ export function ReactionSheet({ favorites, onToggle, onPick, onClose }: { favori
         <h3 id={allId}>{t('reactionAll')}</h3>
         <ul className="reaction-grid is-all">
           {STICKERS.map((sticker) => (
-            <StickerCell key={sticker.id} sticker={sticker} favorite={liked.has(sticker.id)} onPick={onPick} onToggle={onToggle} />
+            <StickerCell key={sticker.id} sticker={sticker} favorite={liked.has(sticker.id)} locked={!stickerOpen(sticker.id, level)} onPick={onPick} onToggle={onToggle} />
           ))}
         </ul>
       </div>
@@ -94,7 +105,7 @@ function buttonParts(): [icon: string, label: string] {
  * Кнопка в шапці; ховається, коли shown false. Тримає useFavoriteStickers і паузу REACTION_GAP_MS після ok чи too_soon.
  * Помилок (wrong_phase, offline) не показує: реакція для гри не важлива. Аркуш (а з ним і сітка стікерів) змонтований, лише поки відкритий.
  */
-export function ReactionButton({ shown, event, send }: { shown: boolean; event: 'player:react' | 'host:react'; send: Send }) {
+export function ReactionButton({ shown, level, event, send }: { shown: boolean; level: number | null; event: 'player:react' | 'host:react'; send: Send }) {
   const { favorites, load, toggle } = useFavoriteStickers();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -153,7 +164,7 @@ export function ReactionButton({ shown, event, send }: { shown: boolean; event: 
           </span>
         )}
       </button>
-      {open && <ReactionSheet favorites={favorites} onToggle={toggle} onPick={(item) => void pick(item)} onClose={close} />}
+      {open && <ReactionSheet favorites={favorites} level={level} onToggle={toggle} onPick={(item) => void pick(item)} onClose={close} />}
     </>
   );
 }

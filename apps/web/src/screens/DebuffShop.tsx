@@ -122,6 +122,11 @@ export function DebuffShop({ shop, score, send, onError }: { shop: PlayerShop; s
                         onClick={() => setTargetId(p.playerId)}
                       >
                         <span className="shop-target-name">{p.nickname}</span>
+                        {p.warded && (
+                          <span className="shop-ward" role="img" aria-label={t('shopWarded')}>
+                            🛡
+                          </span>
+                        )}
                         {p.offline ? (
                           <span className="shop-item-note">{t('shopOffline')}</span>
                         ) : (

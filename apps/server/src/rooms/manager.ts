@@ -120,13 +120,17 @@ import {
   tooSoon,
   openClue,
   openAppeal,
+  grantPerks,
+  revokePerks,
+  usePerk,
   type GameState,
   type PacedAction,
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen } from '@quiz/shared';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
+import { levelsView, perkGrants } from './levels';
 import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
 
@@ -214,6 +218,8 @@ export interface Room {
   prizes: PlacedPrize[];
   /** Чинні титули акаунтів кімнати (15): userId → текст. Лише в пам'яті; заповнює attachTitles. */
   titles: Map<string, string>;
+  /** Рівні акаунтів кімнати (15a): userId → рівень і вбрання біля ніку. Лише в пам'яті; заповнює attachLevels. */
+  levels: Map<string, NickLevel>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -589,6 +595,7 @@ export class RoomManager {
       continued: null,
       prizes: [],
       titles: new Map(),
+      levels: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -656,6 +663,7 @@ export class RoomManager {
       continued: continuedOf(saved.continued),
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
+      levels: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -722,6 +730,35 @@ export class RoomManager {
       }
     }
     if (changed) this.emit(room, { type: 'changed' });
+  }
+
+  /** Злити рівні акаунтів (15a), видати бонуси рівня (syncPerks); emit changed, лише якщо щось змінилось. */
+  setLevels(room: Room, levels: Map<string, NickLevel>): void {
+    let changed = false;
+    for (const [userId, level] of levels) {
+      const was = room.levels.get(userId);
+      if (was !== undefined && was.level === level.level && was.color === level.color && was.frame === level.frame) continue;
+      room.levels.set(userId, { level: level.level, color: level.color, frame: level.frame });
+      changed = true;
+    }
+    if (!changed) return;
+    const before = room.state;
+    room.state = this.syncPerks(room, before);
+    // Межа між запитаннями: продовження (13b) бере контрольну точку, тож видача потрапляє й туди.
+    if (room.state !== before && room.checkpoint?.state === before) room.checkpoint = { ...room.checkpoint, state: room.state };
+    this.emit(room, { type: 'changed' });
+  }
+
+  /** Видача бонусів рівня (15a) гравцям стану з рівнем у room.levels; grantPerks сам пропускає лобі, вимикач, командну гру й тих, хто вже має запис. */
+  private syncPerks(room: Room, state: GameState): GameState {
+    if (room.levels.size === 0) return state;
+    return grantPerks(state, perkGrants(room, state));
+  }
+
+  /** Гравець натискає бонус рівня (15a): «+5 с» чи «Підказка рівня». Бонус особистий — без actorOf. */
+  usePerk(room: Room, playerId: string, kind: ActivePerk): AckResult {
+    if (!this.alive(room)) return this.gone();
+    return this.apply(room, usePerk(room.state, playerId, kind, this.now()));
   }
 
   get(code: string): Room | undefined {
@@ -921,7 +958,8 @@ export class RoomManager {
     }
     room.connections.delete(personId);
     // Прив'язка зі збереження лишається: місце акаунта — і далі його.
-    if (continued.bound.delete(personId)) room.playerUsers.delete(personId);
+    const unbound = continued.bound.delete(personId);
+    if (unbound) room.playerUsers.delete(personId);
     this.emit(room, { type: 'kicked', playerId: personId, reason: 'released' });
     // Антигугл (12e): вихід, що тривав у того, хто звільнив місце, не дістається наступному — ні в пам'яті менеджера, ні в записі запитання.
     room.hidden.delete(personId);
@@ -937,6 +975,8 @@ export class RoomManager {
       plays[base.questionIndex] = { ...play, away: rest };
       base = { ...base, plays };
     }
+    // Бонуси рівня (15a) належали акаунту, що відв'язався: місце до кінця гри без них — наступний (гість чи інший акаунт) їх не успадкує.
+    if (unbound) base = revokePerks(base, personId);
     const offline = setConnected(base, personId, false, this.now());
     this.commit(room, offline.ok ? offline.state : base);
     return { ok: true };
@@ -1041,6 +1081,10 @@ export class RoomManager {
     const member = by === 'host' ? undefined : memberOf(state, by);
     const player = by === 'host' || member !== undefined ? undefined : state.players.find((p) => p.id === by);
     if (by !== 'host' && member === undefined && player === undefined) return { ok: false, error: 'not_found' };
+    // Стікери понад рівень (15a): гість — стартовий набір; ведучий має все. До вікна частоти: відмова його не займає.
+    if (by !== 'host' && item.kind === 'sticker' && !stickerOpen(item.value, room.levels.get(room.playerUsers.get(by) ?? '')?.level ?? null)) {
+      return { ok: false, error: 'sticker_locked' };
+    }
     const now = this.now();
     const last = room.reactRate.get(by);
     if (last !== undefined && now - last < REACTION_GAP_MS) return { ok: false, error: 'too_soon' };
@@ -1061,9 +1105,10 @@ export class RoomManager {
     if (base === null) return null;
     const prizes = prizesView(room, identity.role === 'player' ? { role: 'player', playerId: identity.playerId ?? '' } : { role: identity.role });
     const titles = titlesView(room);
-    if (prizes === undefined && titles === undefined) return base;
+    const levels = levelsView(room);
+    if (prizes === undefined && titles === undefined && levels === undefined) return base;
     // Як continued (13b): ключа немає, коли порожньо.
-    return { ...base, ...(prizes === undefined ? {} : { prizes }), ...(titles === undefined ? {} : { titles }) };
+    return { ...base, ...(prizes === undefined ? {} : { prizes }), ...(titles === undefined ? {} : { titles }), ...(levels === undefined ? {} : { levels }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {
@@ -1818,6 +1863,8 @@ export class RoomManager {
   private commit(room: Room, state: GameState, at = this.now()): void {
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
+    // Бонуси рівня (15a): старт (ведучим чи автопілотом), пізній гравець і зайняте місце продовження — на тому ж кроці.
+    state = this.syncPerks(room, state);
     // Нове запитання: нахили попереднього вже нічого не значать.
     if (state.questionIndex !== room.state.questionIndex) room.tilts.clear();
     // Автопілот: мітка кроку завжди (від неї рахуються заставки й вікна 11b), потім план наступного кроку (11g).

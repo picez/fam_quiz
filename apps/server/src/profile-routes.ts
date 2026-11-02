@@ -1,9 +1,10 @@
-import { favoriteStickersSchema, profileUpdateSchema } from '@quiz/shared';
+import { favoriteStickersSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { achievementsPage } from './achievement-store';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
+import { saveLooks } from './xp-store';
 import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveFavoriteStickers, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
@@ -46,6 +47,16 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     const body = favoriteStickersSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     return { favorites: await saveFavoriteStickers(db, user.id, body.data.favorites) };
+  });
+
+  app.put('/api/me/looks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const body = looksSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    const saved = await saveLooks(db, user.id, body.data);
+    if (!saved.ok) return reply.code(409).send({ error: saved.error });
+    return { looks: saved.looks };
   });
 
   app.put('/api/me/profile', async (request, reply) => {
