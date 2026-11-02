@@ -53,6 +53,8 @@ export interface AppOptions {
   pacing?: boolean;
   /** Зберігати живі кімнати в базі й піднімати їх після перезапуску (9b). main.ts і наскрізні тести вмикають. */
   persist?: { instanceId: string; saveDelayMs?: number };
+  /** Адреси адмінів (config.adminEmails); типово порожній набір — адмінки немає. */
+  adminEmails?: ReadonlySet<string>;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
@@ -98,6 +100,7 @@ export async function buildApp(options: AppOptions) {
     baseURL: options.auth.baseURL,
     attemptsPerMinute: options.auth.attemptsPerMinute ?? 10,
     google: options.auth.google !== undefined,
+    adminEmails: options.adminEmails ?? new Set<string>(),
   });
 
   const imageStorage = options.storage ?? memoryStorage();

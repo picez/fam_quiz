@@ -9,6 +9,8 @@ import type { Db } from './db/client';
 import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
 import { openGameIds, savedSummaries } from './saved-games';
 import { touchSeen } from './profiles';
+import { isAdmin } from './admin';
+import { banNotice, isBanned } from './bans';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
@@ -27,6 +29,13 @@ export interface AccountDeps {
   attemptsPerMinute: number;
   /** Чи налаштовано вхід через Google. */
   google: boolean;
+  /** Адреси адмінів з ADMIN_EMAILS (нормалізовані); порожній набір — адмінів немає. */
+  adminEmails: ReadonlySet<string>;
+}
+
+/** 3xx і banned → '/login?error=account_banned'; інакше null (Location не чіпаємо). */
+export function bannedRedirect(status: number, banned: boolean): string | null {
+  return banned && status >= 300 && status < 400 ? '/login?error=account_banned' : null;
 }
 
 export interface CurrentUser {
@@ -45,7 +54,10 @@ export async function registerAccountRoutes(
   const currentUser = async (request: FastifyRequest): Promise<CurrentUser | null> => {
     try {
       const found = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
-      return found === null ? null : { id: found.user.id, name: found.user.name, email: found.user.email };
+      if (found === null) return null;
+      // Сесія могла пережити бан (вхід у ту саму мить, кеш cookie): бан перевіряється на кожному читанні.
+      if (await isBanned(deps.db, found.user.id)) return null;
+      return { id: found.user.id, name: found.user.name, email: found.user.email };
     } catch {
       return null;
     }
@@ -69,17 +81,23 @@ export async function registerAccountRoutes(
       // Адреса будується від налаштованої, а не від заголовка Host, який надсилає клієнт.
       const url = new URL(request.url, deps.baseURL);
       const hasBody = request.method !== 'GET' && request.body !== undefined && request.body !== null;
-      const response = await auth.handler(
-        new Request(url, {
-          method: request.method,
-          headers: fromNodeHeaders(request.headers),
-          body: hasBody ? JSON.stringify(request.body) : undefined,
-        }),
+      // Хук сесії ставить прапорець, коли вхід відхилено баном; редирект Google тоді веде на сторінку входу з поясненням.
+      const notice = { banned: false };
+      const response = await banNotice.run(notice, () =>
+        auth.handler(
+          new Request(url, {
+            method: request.method,
+            headers: fromNodeHeaders(request.headers),
+            body: hasBody ? JSON.stringify(request.body) : undefined,
+          }),
+        ),
       );
+      const location = bannedRedirect(response.status, notice.banned);
       reply.status(response.status);
       response.headers.forEach((value, key) => {
         reply.header(key, value);
       });
+      if (location !== null) reply.header('location', location);
       return reply.send(response.body === null ? null : await response.text());
     },
   });
@@ -92,7 +110,7 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send({ error: 'unauthorized' });
     // Меню питає /api/me на кожній сторінці: за цим друзі бачать «онлайн» (беклог 9). Збій мітки вхід не ламає.
     await touchSeen(deps.db, user.id).catch((error: unknown) => request.log.warn({ err: error }, 'touchSeen failed'));
-    return user;
+    return { ...user, admin: await isAdmin(deps.db, deps.adminEmails, user.id) };
   });
 
   const { db } = deps;
