@@ -1,3 +1,7 @@
+import type { Locale } from '@quiz/shared';
+import { intlTag, setCurrentLocale } from './locales/current';
+import { loadMessages, type Messages } from './locales/load';
+import { isEnabled } from './locales/locales';
 import { pushStrings } from './push/push-strings';
 
 const uk = {
@@ -2721,10 +2725,52 @@ const uk = {
   err_push_disabled: 'Сповіщення на сервері вимкнені.',
 } as const;
 
+/** uk-словник — той самий об'єкт, що читає t(); інші мови перевіряються проти нього. */
+export const ukMessages = uk;
+
 export type TextKey = keyof typeof uk;
 
+type Dictionaries = { ui: Messages; help: Messages };
+
+/** uk-довідка з'являється в задачі 5; до того — порожня. */
+const UK: Dictionaries = { ui: uk, help: {} };
+const loaded = new Map<Locale, Dictionaries>([['uk', UK]]);
+let active: Dictionaries = UK;
+
+const own = (messages: Messages, key: string): boolean => Object.prototype.hasOwnProperty.call(messages, key);
+
+function fill(text: string, vars: Record<string, string | number>): string {
+  return text.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
+}
+
+/** Вантажить словники мови в кеш (uk завжди є). Мова має бути увімкнена. */
+export async function loadLocale(locale: Locale): Promise<void> {
+  if (!isEnabled(locale)) throw new Error(`Locale ${locale} is not enabled`);
+  if (locale === 'uk' || loaded.has(locale)) return;
+  loaded.set(locale, await loadMessages(locale));
+}
+
+/** Робить мову активною. Її словник уже має бути в кеші (loadLocale). */
+export function activateLocale(locale: Locale): void {
+  const messages = loaded.get(locale);
+  if (!isEnabled(locale) || !messages) throw new Error(`Locale ${locale} is not loaded`);
+  active = messages;
+  setCurrentLocale(locale);
+}
+
+/** Для тестів: вмикає будь-яку мову зі штучним словником, минаючи ENABLED_LOCALES. 'uk' повертає справжній uk. */
+export function activateLocaleForTests(locale: Locale, messages?: { ui?: Messages; help?: Messages }): void {
+  active = locale === 'uk' && !messages ? UK : { ui: messages?.ui ?? loaded.get(locale)?.ui ?? {}, help: messages?.help ?? loaded.get(locale)?.help ?? {} };
+  setCurrentLocale(locale);
+}
+
+export function activeMessages(): { ui: Messages; help: Messages } {
+  return active;
+}
+
+/** Текст активною мовою; нема ключа в її словнику — uk. */
 export function t(key: TextKey, vars: Record<string, string | number> = {}): string {
-  return uk[key].replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
+  return fill(own(active.ui, key) ? active.ui[key]! : uk[key], vars);
 }
 
 /** Чи є такий ключ у словнику. */
@@ -2741,12 +2787,26 @@ export function errorText(code: string): string {
   return t('err_unknown');
 }
 
-type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
+export type CountKey = { [K in TextKey]: K extends `${infer Base}_one` ? Base : never }[TextKey];
 
-/** Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. */
+const pluralRules = new Map<string, Intl.PluralRules>();
+function pluralForm(tag: string, count: number): Intl.LDMLPluralRule {
+  let rules = pluralRules.get(tag);
+  if (!rules) {
+    rules = new Intl.PluralRules(tag);
+    pluralRules.set(tag, rules);
+  }
+  return rules.select(count);
+}
+
+/**
+ * Іменник у формі, якої вимагає число: 1 гра, 2 гри, 5 ігор. Форма — з Intl.PluralRules активної мови;
+ * нема такої в словнику → `_other` → `_many` → uk-форма за uk-правилами (для uk на цілих це one/few/many).
+ */
 export function countText(base: CountKey, count: number, vars: Record<string, string | number> = {}): string {
-  const lastTwo = Math.abs(count) % 100;
-  const last = lastTwo % 10;
-  const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
-  return t(`${base}_${form}` as TextKey, vars);
+  for (const key of [`${base}_${pluralForm(intlTag(), count)}`, `${base}_other`, `${base}_many`]) {
+    if (own(active.ui, key)) return fill(active.ui[key]!, vars);
+  }
+  const ukKey = `${base}_${pluralForm(intlTag('uk'), count)}`;
+  return fill(own(uk, ukKey) ? uk[ukKey as TextKey] : uk[`${base}_many` as TextKey], vars);
 }
