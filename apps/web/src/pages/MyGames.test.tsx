@@ -32,7 +32,7 @@ function LoginStub() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
 });
 afterEach(cleanup);
 

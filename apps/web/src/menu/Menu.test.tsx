@@ -8,7 +8,7 @@ import { WithMenu } from './WithMenu';
 
 vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn() }));
 
-const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' } as const;
+const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;
 
 beforeEach(() => {

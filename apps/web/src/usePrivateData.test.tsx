@@ -6,7 +6,7 @@ import { usePrivateData } from './usePrivateData';
 
 vi.mock('./api', () => ({ me: vi.fn() }));
 
-const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com' };
+const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);

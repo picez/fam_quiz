@@ -162,6 +162,13 @@ export function Profile() {
         )}
         <AddFriend onAdded={reload} />
       </section>
+      {account.status === 'signed-in' && account.account.admin && (
+        <div className="toolbar">
+          <Link className="btn" to="/admin">
+            {t('profileAdminLink')}
+          </Link>
+        </div>
+      )}
       <PushSettings />
       <div className="toolbar">
         <button type="button" className="btn" disabled={leaving} onClick={() => void leave()}>

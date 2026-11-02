@@ -80,7 +80,7 @@ const show = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
   vi.mocked(markCalendarSeen).mockResolvedValue({ ok: true });
   vi.mocked(listQuizzes).mockResolvedValue({ ok: true, data: [{ id: 'q1', title: 'Україна', description: '', questionCount: 5, updatedAt: '2026-11-01T10:00:00.000Z' }] });

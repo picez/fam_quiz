@@ -20,7 +20,7 @@ vi.mock('../api', () => ({
   createAutopilotGame: vi.fn(),
 }));
 
-const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com' };
+const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
 const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
 
 beforeEach(() => {

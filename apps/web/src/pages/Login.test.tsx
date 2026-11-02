@@ -147,6 +147,11 @@ describe('Login with Google', () => {
     );
   });
 
+  it('says the account is blocked when the server sends a banned person back', async () => {
+    open('/login?error=account_banned');
+    expect((await screen.findByRole('alert')).textContent).toBe('Акаунт заблоковано.');
+  });
+
   it('explains a sign-in that Google or the server turned down', async () => {
     open('/login?error=access_denied');
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');

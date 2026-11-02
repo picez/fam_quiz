@@ -43,7 +43,7 @@ const theirs: AchievementsPage = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: mine });
   vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: theirs });
 });

@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { Admin } from './admin/Admin';
 import { WithMenu } from './menu/WithMenu';
 import { Achievements } from './pages/Achievements';
 import { EditQuiz } from './pages/EditQuiz';
@@ -37,6 +38,7 @@ export function AppRoutes() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
         <Route path="/profile/:id/achievements" element={<Achievements />} />
+        <Route path="/admin/*" element={<Admin />} />
         <Route path="/help" element={<HostHelp />} />
         <Route path="/new" element={<Navigate to="/quizzes" replace />} />
       </Route>

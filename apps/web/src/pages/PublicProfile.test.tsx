@@ -23,7 +23,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile() });
   vi.mocked(follow).mockResolvedValue({ ok: true });
   vi.mocked(unfollow).mockResolvedValue({ ok: true });
@@ -145,7 +145,7 @@ describe('PublicProfile', () => {
   });
 
   it('the owner sees a link to their own profile instead of the button', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
     const link = await screen.findByRole('link', { name: 'Це ваш профіль' });
@@ -199,7 +199,7 @@ describe('PublicProfile', () => {
     expect(screen.queryByText('Ви і Тарас')).toBeNull();
     expect(getVersus).not.toHaveBeenCalled();
     cleanup();
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u2', name: 'Тарас', email: 't@example.com', admin: false });
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null }) });
     open();
     await screen.findByText('Статистика');

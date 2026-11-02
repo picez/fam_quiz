@@ -60,7 +60,7 @@ describe('Home', () => {
 
 describe('Home for a signed-in person', () => {
   it('does not repeat the menu links for a signed-in person', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
