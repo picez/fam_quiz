@@ -6,6 +6,7 @@ import {
   normalizeFavorites,
   type Achievement,
   type FriendCard,
+  type Locale,
   type OwnProfile,
   type ProfileCard,
   type ProfileStats,
@@ -248,4 +249,17 @@ export async function saveFavoriteStickers(db: Db, userId: string, ids: string[]
   const favorites = normalizeFavorites(ids);
   await db.update(profile).set({ favoriteStickers: favorites }).where(eq(profile.userId, userId));
   return favorites;
+}
+
+/** Мова профілю або null, якщо не обрана (чи профілю немає). */
+export async function profileLocale(db: Db, userId: string): Promise<Locale | null> {
+  const [row] = await db.select({ locale: profile.locale }).from(profile).where(eq(profile.userId, userId));
+  return row?.locale ?? null;
+}
+
+/** Зберігає мову; профілю ще немає — його створює ensureProfile. false — профілю не створити (немає користувача). */
+export async function saveLocale(db: Db, userId: string, locale: Locale): Promise<boolean> {
+  if ((await ensureProfile(db, userId)) === null) return false;
+  await db.update(profile).set({ locale }).where(eq(profile.userId, userId));
+  return true;
 }

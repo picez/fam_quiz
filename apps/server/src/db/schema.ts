@@ -14,6 +14,7 @@ import type {
   FeedData,
   FeedKind,
   GameStatus,
+  Locale,
   LikeKind,
   LadderOutcomeKind,
   NickColor,
@@ -354,6 +355,8 @@ export const profile = pgTable('profile', {
   feedLevel: integer('feed_level'),
   /** Календар переглянуто до цієї миті (19a): decisions рахує зміни пізніше; null — ще ні. */
   calendarSeenAt: at('calendar_seen_at'),
+  /** Мова інтерфейсу (22a): одна з LOCALES; null — ще не обрано (пуші йдуть українською). */
+  locale: text('locale').$type<Locale>(),
   ...stamps,
 });
 

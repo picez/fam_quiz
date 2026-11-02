@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { localeSchema, type Locale } from './locale';
 
 // shared has no DOM/node lib; URL exists at runtime in browsers and Node.
 declare const URL: new (input: string) => { protocol: string; hostname: string };
@@ -19,9 +20,9 @@ export const PUSH_KINDS = ['reminder', 'opened', 'cancelled'] as const;
 export type PushKind = (typeof PUSH_KINDS)[number];
 
 export type PushPayload =
-  | { kind: 'reminder'; eventId: string; title: string; startsAt: string }
-  | { kind: 'opened'; eventId: string; title: string; code: string }
-  | { kind: 'cancelled'; eventId: string; title: string; startsAt: string };
+  | { kind: 'reminder'; eventId: string; title: string; startsAt: string; locale?: Locale }
+  | { kind: 'opened'; eventId: string; title: string; code: string; locale?: Locale }
+  | { kind: 'cancelled'; eventId: string; title: string; startsAt: string; locale?: Locale };
 
 /**
  * Лише https://хост[/шлях] з друкованих ASCII без пробілів: без userinfo, порту, `;`, `{`, лапок, `\` тощо в хості,
@@ -53,7 +54,7 @@ export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
 
 export const pushUnsubscribeSchema = z.object({ endpoint: z.string().min(1).max(PUSH_ENDPOINT_MAX) }).strict();
 
-const eventBase = { eventId: z.string(), title: z.string() };
+const eventBase = { eventId: z.string(), title: z.string(), locale: localeSchema.optional() };
 /** Розбір даних пушу в сервіс-воркері: невідоме → не пройде. */
 export const pushPayloadSchema: z.ZodType<PushPayload> = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('reminder'), ...eventBase, startsAt: z.string() }),
