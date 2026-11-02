@@ -12,7 +12,7 @@ function respond(status: number, body?: unknown) {
 describe('api', () => {
   it('returns the account fields on success', async () => {
     respond(200, { id: 'u1', name: 'Олена', email: 'o@example.com' });
-    expect(await me()).toEqual({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+    expect(await me()).toEqual({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com' });
   });
 
   it('passes our own error codes through', async () => {
