@@ -414,6 +414,52 @@ describe('QuestionAudio «Прослухати» on the phone (16b)', () => {
     expect(button().textContent).toBe('🔊 Прослухати');
   });
 
+  it('a tapped clip that was stopped no longer counts as tapped: a later blocked autostart asks «Увімкнути звук» and a stage resets it', async () => {
+    const view = mount({ autoplay: false, listen: 'first' });
+    fireEvent.click(button());
+    await flush();
+    fireEvent.click(button());
+    expect(card().dataset.state).toBe('stopped');
+    Object.defineProperty(navigator, 'userActivation', { value: { hasBeenActive: false }, configurable: true });
+    try {
+      view.again({ autoplay: true, listen: 'first' });
+      await flush();
+      expect(card().dataset.state).toBe('blocked');
+      expect(screen.getByRole('button', { name: '🔊 Увімкнути звук' })).toBeTruthy();
+      view.again({ autoplay: false, listen: 'first' });
+      expect(card().dataset.state).toBe('idle');
+      expect(button().textContent).toBe('🔊 Прослухати');
+    } finally {
+      delete (navigator as unknown as { userActivation?: unknown }).userActivation;
+    }
+  });
+
+  it('a clip tapped and then stopped falls silent when the stage opens after an autostart', async () => {
+    const view = mount({ listen: 'first' });
+    await flush();
+    fireEvent.click(button());
+    expect(card().dataset.state).toBe('stopped');
+    fireEvent.click(button());
+    await flush();
+    fireEvent.click(button());
+    view.again({ listen: 'first', autoplay: false });
+    expect(card().dataset.state).toBe('stopped');
+    expect(button().textContent).toBe('🔊 Прослухати');
+  });
+
+  it('is disabled while the game is paused, so a tap cannot hold a clip that would start on resume', async () => {
+    const view = mount({ autoplay: false, listen: 'first', paused: true });
+    expect(button().disabled).toBe(true);
+    fireEvent.click(button());
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    view.again({ autoplay: false, listen: 'first', paused: false });
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    expect(card().dataset.state).toBe('idle');
+    expect(button().disabled).toBe(false);
+  });
+
   it('without listen there is no toggle (the stage and the host keep their own controls)', async () => {
     mount();
     await flush();

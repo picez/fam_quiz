@@ -124,6 +124,8 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       r.active = false;
       r.running = false;
       r.held = false;
+      // Тиша — більше нічого не грає: ні дотик, ні автостарт. Заблокований дотик лишається дотиком (кнопка «Прослухати», а не «Увімкнути звук»).
+      if (next !== 'blocked') startedBy.current = null;
       clearTimer();
       clearBlock();
       yt.current.state = 2;
@@ -295,12 +297,12 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
       setState('stopped');
       return;
     }
+    startedBy.current = 'auto';
     if (needsTouch()) {
       run.current.active = false;
       setState('blocked');
       return;
     }
-    startedBy.current = 'auto';
     begin(true, offset);
   }, [ready, autoplay, questionKey, begin]);
 
@@ -407,7 +409,7 @@ export function QuestionAudio({ clip, questionKey, ready, paused, command, elaps
         </button>
       )}
       {toggleShown && (
-        <button type="button" className="btn audio-toggle" aria-pressed={playing} disabled={splash} onClick={toggle}>
+        <button type="button" className="btn audio-toggle" aria-pressed={playing} disabled={splash || paused} onClick={toggle}>
           {playing ? t('audioToggleStop') : listen === 'again' ? t('audioToggleAgain') : t('audioToggleListen')}
         </button>
       )}
