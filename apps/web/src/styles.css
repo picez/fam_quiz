@@ -1471,8 +1471,10 @@ a.banner {
   font-variant-numeric: tabular-nums;
 }
 
+/* Колонка не ширша за список: довгий текст запитання обрізається трикрапкою, а «❤️ N» і тип лишаються в рядку. */
 .question-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   max-height: 60vh;
   overflow-y: auto;
@@ -13621,12 +13623,22 @@ button.wall-tile:disabled {
   white-space: nowrap;
 }
 
-/* Вужча шапка: ❤️ не стискається трикрапкою, як текстові пігулки (правило пізніше й не слабше за правило «Таблиці»). */
+/* Вужча шапка: ❤️ не стискається трикрапкою, як текстові пігулки (правило пізніше й не слабше за правило «Таблиці»).
+   З ❤️ на 375 px (нік, крамниця, «Таблиця», ❤️, 😀, бали) місце віддає нік (трикрапкою), а «Таблиця» не стискається зовсім:
+   навіть частка пікселя від спільного стискання вже малює «Табли…». Тісніше — поступається «⚔ Дуель» (правило 13a). */
 @media (max-width: 400px) {
   .bar:has(.reaction-button) > .table-button.like-button {
     flex-shrink: 0;
     min-width: auto;
     overflow: visible;
+  }
+
+  .bar:has(.like-button) > span:first-child {
+    flex-shrink: 1000;
+  }
+
+  .bar:has(.like-button) > .table-button:not(.like-button, .reaction-button, .shop-button, .author-menu-btn) {
+    flex-shrink: 0;
   }
 }
 
