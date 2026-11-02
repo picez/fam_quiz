@@ -55,13 +55,6 @@ export async function getQuiz(db: Db, ownerId: string, id: string): Promise<Quiz
   return row === undefined ? null : quizOf(row);
 }
 
-/** Вікторина за id без перевірки власника (для лайків): власник і вікторина; null — немає такої. */
-export async function quizById(db: Db, id: string): Promise<{ ownerId: string; quiz: Quiz } | null> {
-  if (!UUID.test(id)) return null;
-  const [row] = await db.select().from(quiz).where(eq(quiz.id, id));
-  return row === undefined ? null : { ownerId: row.ownerId, quiz: quizOf(row) };
-}
-
 export async function createQuiz(db: Db, ownerId: string, data: Quiz): Promise<string> {
   const [row] = await db
     .insert(quiz)
