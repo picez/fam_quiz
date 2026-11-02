@@ -13,7 +13,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import webpush from 'web-push';
 import { buildApp, type AppOptions } from '../src/app';
 import type { PushOptions } from '../src/push';
-import { calendarEvent, feedEvent, game as gameRow, pushSubscription, userLike, xpEntry } from '../src/db/schema';
+import { calendarEvent, feedEvent, game as gameRow, pushSubscription, quiz as quizRow, user, userLike, xpEntry } from '../src/db/schema';
+import { adminEmails } from '../src/config';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
@@ -182,6 +183,8 @@ beforeAll(async () => {
 let restarting = false;
 /** Лише частини 13b і 9b (їхні сценарії ставлять і знімають): тихий 404 на /slots для коду, якого вже немає, там очікуваний. */
 let slots404Expected = false;
+/** Лише частина 21a: закрите лобі забороненого (404 на код гри) і відмова у вході (403) очікувані. */
+let banExpected = false;
 
 /** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
 async function restart(between?: () => Promise<void>) {
@@ -263,7 +266,8 @@ async function open(
     const expected =
       message.text().includes('401 (Unauthorized)') ||
       (restarting && message.text().includes('WebSocket connection to')) ||
-      (slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url));
+      (slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url)) ||
+      (banExpected && /403 \(Forbidden\)|404 \(Not Found\)/.test(message.text()) && /\/api\/(auth\/sign-in\/email|games\/by-code\/\d{6}(\/slots)?)$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
   });
   page.on('dialog', (dialog) => void dialog.accept());
@@ -19434,6 +19438,189 @@ async function push20a() {
 it('part 20a: web push — without VAPID keys the notifications block is hidden; with keys Оля and Петро enable notifications, an iPhone tab sees the home-screen hint, the one-hour reminder goes once to the host and the approved friend, «game opened» carries the room code to the approved friend only, a cancel reaches those who asked, a 410 drops a subscription, sign-out removes the device subscription, and the menu keeps seven items', async () => {
   try {
     await push20a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Адмінка (21a): лише підтверджений акаунт з ADMIN_EMAILS; решті — простий 404. */
+async function admin21a() {
+  const ADMIN_EMAIL = 'admin21a@example.com';
+  const BAN_QUIZ = 'Бан 21a';
+  const KEEP_QUIZ = 'Карпати 21a';
+  const CITY = 'Яке місто — столиця України?';
+  const SEA = 'Одеса стоїть на Чорному морі?';
+  const PRIZE = 'Кубок 21a';
+  const MENU_ITEMS = ['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль'];
+  const PASSWORD = 'correct horse battery';
+
+  banExpected = true;
+  try {
+    // ── 1. Сервер з адміном і троє людей. ──
+    restarting = true;
+    await ctx.shutdown();
+    await relisten({ adminEmails: adminEmails({ ADMIN_EMAILS: ADMIN_EMAIL }) });
+    restarting = false;
+    const admin = await open('admin21a', 375, 812);
+    await register(admin, 'menu', 'Адмін 21a', ADMIN_EMAIL);
+    const olya = await open('olya21a', 375, 812);
+    await register(olya, 'menu', 'Оля 21a', 'olya21a@example.com');
+    const bohdan = await open('bohdan21a', 1280, 800);
+    await register(bohdan, 'menu', 'Богдан 21a', 'bohdan21a@example.com');
+    for (const [page, nickname] of [[admin, 'Адмін 21a'], [olya, 'Оля 21a'], [bohdan, 'Богдан 21a']] as const) {
+      const saved = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
+      expect(saved.ok(), await saved.text()).toBe(true);
+    }
+    await db.update(user).set({ emailVerified: true }).where(eq(user.email, ADMIN_EMAIL));
+    const bohdanId = await myId(bohdan);
+
+    // ── 2. Не-адмін: простий 404 скрізь, «Адмінки» в профілі немає. ──
+    const hidden = await olya.request.get(`${base}/api/admin/stats`);
+    expect(hidden.status()).toBe(404);
+    const hiddenBody = await hidden.json();
+    expect(hiddenBody).toEqual({ error: 'not_found' });
+    const unknown = await olya.request.get(`${base}/api/nope`);
+    expect(unknown.status()).toBe(404);
+    expect(await unknown.json()).toEqual(hiddenBody);
+    await olya.goto(`${base}/admin`);
+    await expect.poll(() => new URL(olya.url()).pathname, POLL).toBe('/');
+    await olya.goto(`${base}/profile`);
+    await olya.getByRole('button', { name: 'Вийти', ...exact }).waitFor();
+    expect(await olya.getByRole('link', { name: 'Адмінка', ...exact }).count()).toBe(0);
+    const olyaMe = (await (await olya.request.get(`${base}/api/me`)).json()) as { admin: boolean };
+    expect(olyaMe.admin).toBe(false);
+
+    // ── 3. Підготовка Богдана. ──
+    const questions = [
+      { ...single, id: 'q1', text: CITY, options: [{ id: 'a', text: 'Київ' }, { id: 'b', text: 'Львів' }, { id: 'c', text: 'Одеса' }], correctId: 'a' },
+      { ...boolQ, id: 'q2', text: SEA, correct: true },
+    ];
+    const banQuiz = { ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]), title: BAN_QUIZ };
+    const keepQuiz = {
+      ...makeRoundsQuiz([classicRound('r1', [{ ...boolQ, id: 'q1', text: 'Говерла нижча за Петрос?', correct: false }] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+      title: KEEP_QUIZ,
+    };
+    for (const data of [banQuiz, keepQuiz]) {
+      const created = await bohdan.request.post(`${base}/api/quizzes`, { data });
+      expect(created.ok(), await created.text()).toBe(true);
+    }
+    const prized = await bohdan.request.post(`${base}/api/me/prizes`, {
+      data: { name: PRIZE, trophy: { kind: 'cup', material: 'gold' }, engraving: null, real: null, title: null, diploma: false },
+    });
+    expect(prized.status(), await prized.text()).toBe(201);
+    await bohdan.goto(`${base}/quizzes`);
+    await bohdan.locator('.quiz-list li', { hasText: BAN_QUIZ }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await bohdan.waitForURL(/\/host\/\d{6}$/);
+    const code = bohdan.url().slice(-6);
+    await join(olya, code, 'Оля', false);
+    expect((await olya.request.put(`${base}/api/me/friends/${bohdanId}`)).ok()).toBe(true);
+    expect((await olya.request.get(`${base}/api/profiles/${bohdanId}`)).status()).toBe(200);
+
+    // ── 4. Адмін входить: статистика, меню з семи пунктів. ──
+    await admin.goto(`${base}/profile`);
+    await admin.getByRole('link', { name: 'Адмінка', ...exact }).click();
+    await admin.waitForURL(`${base}/admin`);
+    await admin.getByText('Користувачів усього', exact).waitFor();
+    await admin.getByText('Живих ігор зараз', exact).waitFor();
+    expect(await menuLinks(admin)).toEqual(MENU_ITEMS);
+    for (const width of [360, 375]) await expectSevenItems18a(admin, width);
+    expect(await noSideScroll(admin)).toBe(true);
+    const tabs = admin.locator('.admin-tabs a');
+    expect(await tabs.count()).toBe(4);
+    for (let i = 0; i < 4; i++) expect((await tabs.nth(i).boundingBox())!.height, `tab ${i}`).toBeGreaterThanOrEqual(44);
+    await shot(admin, 'p21a-stats');
+
+    // ── 5. Пошук і бан. ──
+    const tab = (name: string) => admin.locator('.admin-tabs').getByRole('link', { name, ...exact });
+    await tab('Користувачі').click();
+    await field(admin, 'Пошук за ніком чи email').fill('Богдан 21a');
+    await click(admin, 'Шукати');
+    await admin.locator('.admin-card', { hasText: 'bohdan21a@example.com' }).getByRole('link', { name: 'Богдан 21a', ...exact }).click();
+    await admin.waitForURL(`${base}/admin/users/${bohdanId}`);
+    await field(admin, 'Причина (бачать лише адміни)').fill('спам');
+    await click(admin, 'Заблокувати');
+    await admin.locator('.admin-mark.is-banned').waitFor();
+    expect(await noSideScroll(admin)).toBe(true);
+    expect((await admin.getByRole('button', { name: 'Розблокувати', ...exact }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await shot(admin, 'p21a-banned');
+    await olya.getByText('Цієї гри вже немає', { exact: false }).waitFor();
+    expect((await bohdan.request.get(`${base}/api/me`)).status()).toBe(401);
+    await bohdan.goto(`${base}/login`);
+    await field(bohdan, 'Email').fill('bohdan21a@example.com');
+    await field(bohdan, 'Пароль').fill(PASSWORD);
+    await click(bohdan, 'Увійти');
+    await bohdan.getByRole('alert').filter({ hasText: 'Акаунт заблоковано.' }).waitFor();
+    await shot(bohdan, 'p21a-login-banned');
+    expect((await olya.request.get(`${base}/api/profiles/${bohdanId}`)).status()).toBe(404);
+    const friends = await olya.request.get(`${base}/api/me/friends`);
+    expect(JSON.stringify(await friends.json())).not.toContain(bohdanId);
+
+    // ── 6. Видалення запитання, потім вікторини. ──
+    await tab('Вікторини').click();
+    await field(admin, 'Пошук за назвою чи автором').fill(BAN_QUIZ);
+    await click(admin, 'Шукати');
+    await admin.locator('.admin-card', { hasText: BAN_QUIZ }).getByRole('link', { name: 'Переглянути', ...exact }).click();
+    const questionCard = (text: string) => admin.locator('.admin-card', { hasText: text });
+    await questionCard(CITY).getByRole('button', { name: 'Видалити запитання', ...exact }).click();
+    await questionCard(CITY).waitFor({ state: 'detached' });
+    expect(await questionCard(SEA).getByRole('button', { name: 'Видалити запитання', ...exact }).isDisabled()).toBe(true);
+    await admin.getByText('Видали вікторину цілком', exact).waitFor();
+    expect(await noSideScroll(admin)).toBe(true);
+    await shot(admin, 'p21a-quiz');
+    await click(admin, 'Видалити вікторину');
+    await admin.waitForURL(`${base}/admin/quizzes`);
+    await field(admin, 'Пошук за назвою чи автором').fill(BAN_QUIZ);
+    await click(admin, 'Шукати');
+    await admin.getByText('Нічого не знайдено.', exact).waitFor();
+    expect(await db.select().from(quizRow).where(eq(quizRow.title, BAN_QUIZ))).toHaveLength(0);
+    expect(await db.select().from(quizRow).where(eq(quizRow.title, KEEP_QUIZ))).toHaveLength(1);
+
+    // ── 7. Приз зі складу. ──
+    await admin.goto(`${base}/admin/users/${bohdanId}`);
+    await admin.getByText(PRIZE, exact).waitFor();
+    await click(admin, 'Видалити приз');
+    await expect.poll(() => admin.getByText('Порожньо.', exact).count(), POLL).toBe(2);
+    expect(await admin.getByText(PRIZE, exact).count()).toBe(0);
+
+    // ── 8. Журнал: найновіше згори, без email. ──
+    const logResponse = await admin.request.get(`${base}/api/admin/log`);
+    expect(logResponse.status()).toBe(200);
+    const logText = await logResponse.text();
+    expect(logText).not.toContain(ADMIN_EMAIL);
+    const { rows } = JSON.parse(logText) as { rows: { kind: string; admin: string; details: { reason?: string } }[] };
+    expect(rows.slice(0, 4).map((r) => r.kind)).toEqual(['prize_delete', 'quiz_delete', 'question_delete', 'ban']);
+    expect(rows[3]!.details.reason).toBe('спам');
+    expect(rows[0]!.admin).toBe('Адмін 21a');
+    await tab('Журнал').click();
+    await admin.getByText('Адмін 21a заблокував(-ла) Богдан 21a. Причина: спам', exact).waitFor();
+    expect(await noSideScroll(admin)).toBe(true);
+    await shot(admin, 'p21a-log');
+
+    // ── 9. Розбан. ──
+    await admin.goto(`${base}/admin/users/${bohdanId}`);
+    await click(admin, 'Розблокувати');
+    await admin.getByRole('button', { name: 'Заблокувати', ...exact }).waitFor();
+    await bohdan.goto(`${base}/login`);
+    await field(bohdan, 'Email').fill('bohdan21a@example.com');
+    await field(bohdan, 'Пароль').fill(PASSWORD);
+    await click(bohdan, 'Увійти');
+    await bohdan.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
+    expect((await olya.request.get(`${base}/api/profiles/${bohdanId}`)).status()).toBe(200);
+
+    expect(problems).toEqual([]);
+  } finally {
+    banExpected = false;
+    restarting = true;
+    await ctx.shutdown();
+    await relisten();
+    restarting = false;
+  }
+}
+
+it('part 21a: admin panel — only a verified ADMIN_EMAILS account sees «Адмінка» in the profile while /admin and /api/admin stay a plain 404 for others, the menu keeps seven items, the admin sees stats, finds and bans Богдан whose lobby closes for Оля, whose sessions end and whose sign-in says «Акаунт заблоковано» while his profile is gone for Оля, deletes one question then the whole quiz and a stock prize, reads the log newest first, and unbans him so he signs in again', async () => {
+  try {
+    await admin21a();
   } catch (error) {
     await snapshot();
     throw error;
