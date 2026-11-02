@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { build, defineConfig, type Plugin } from 'vite';
 
 /** Після збірки кладе поруч із мапами dist/maps/*.svg стиснені .br і .gz: сервер віддає їх сам (preCompressed). */
 function compressMaps(): Plugin {
@@ -25,8 +25,36 @@ function compressMaps(): Plugin {
   };
 }
 
+/** Збирає src/sw.ts окремим класичним скриптом dist/sw.js (IIFE, без хешу): модульні сервіс-воркери в Safari ненадійні. */
+function serviceWorker(): Plugin {
+  let root = '.';
+  let outDir = 'dist';
+  return {
+    name: 'quiz-service-worker',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root;
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    async closeBundle() {
+      await build({
+        root,
+        configFile: false,
+        logLevel: 'warn',
+        publicDir: false,
+        build: {
+          outDir,
+          emptyOutDir: false,
+          copyPublicDir: false,
+          lib: { entry: resolve(root, 'src/sw.ts'), formats: ['iife'], name: 'quizSw', fileName: () => 'sw.js' },
+        },
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), compressMaps()],
+  plugins: [react(), compressMaps(), serviceWorker()],
   server: {
     host: true,
     proxy: {

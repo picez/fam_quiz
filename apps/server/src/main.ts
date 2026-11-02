@@ -3,11 +3,12 @@ import { existsSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { buildApp } from './app';
-import { baseUrl, localOrigins, proxyTrust, secretProblem } from './config';
+import { baseUrl, localOrigins, proxyTrust, pushKeys, secretProblem } from './config';
 import { connectDb } from './db/client';
 import { backfillFeed, settleFeedLevels } from './feed-publish';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage } from './storage/r2';
+import { webPushSender } from './web-push-sender';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -73,6 +74,24 @@ function googleKeys() {
 }
 
 const google = googleKeys();
+/** Web Push вмикається, коли задано всі три змінні VAPID_*; частково чи криво задані — вихід із причиною. */
+function webPush() {
+  const result = pushKeys(process.env);
+  if (!result.ok) {
+    console.error(result.problem);
+    process.exit(1);
+  }
+  if (result.keys === null) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('Не задано VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY і VAPID_SUBJECT: сповіщення вимкнені.');
+    }
+    return undefined;
+  }
+  console.log('Web Push увімкнено.');
+  return { publicKey: result.keys.publicKey, send: webPushSender(result.keys) };
+}
+
+const push = webPush();
 const address = baseUrl(process.env, port);
 if (process.env.NODE_ENV === 'production' && address.startsWith('http://localhost')) {
   console.warn('Не задано BETTER_AUTH_URL: вхід працюватиме лише за адресою цього комп’ютера.');
@@ -103,6 +122,7 @@ const { app, shutdown } = await buildApp({
   // Єдине місце, де вмикається мінімальний час справжньої гри (11b).
   pacing: true,
   persist: { instanceId: randomUUID() },
+  push,
 });
 await app.listen({ port, host: '0.0.0.0' });
 // Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному

@@ -13863,3 +13863,29 @@ button.wall-tile:disabled {
   gap: 0.75rem;
   margin: 1rem 0;
 }
+
+.push-settings .btn {
+  min-height: 44px;
+}
+
+.push-settings.is-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.push-settings.is-compact p {
+  margin: 0;
+}
+
+@media (max-width: 420px) {
+  .push-settings .btn {
+    width: 100%;
+  }
+}

@@ -9,6 +9,7 @@ import {
   createCalendarEvent,
   getCalendar,
   getFeedBadge,
+  getPushKey,
   listQuizzes,
   markCalendarSeen,
   me,
@@ -32,6 +33,15 @@ vi.mock('../api', () => ({
   withdrawCalendarRequest: vi.fn(),
   decideCalendarRequest: vi.fn(),
   openCalendarGame: vi.fn(),
+  getPushKey: vi.fn(async () => ({ ok: true, publicKey: null })),
+}));
+vi.mock('../push/push-client', () => ({
+  browserEnv: vi.fn(() => ({})),
+  pushSupport: vi.fn(() => 'supported'),
+  currentSubscription: vi.fn(async () => null),
+  sameKey: vi.fn(),
+  enablePush: vi.fn(),
+  disablePush: vi.fn(),
 }));
 vi.mock('../calendar/calendar-time', async (orig) => ({ ...(await orig<typeof import('../calendar/calendar-time')>()), viewerZone: () => 'Europe/Kyiv' }));
 
@@ -79,6 +89,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Calendar', () => {
+  it('offers to turn notifications on above the list when push is available', async () => {
+    vi.mocked(getPushKey).mockResolvedValueOnce({ ok: true, publicKey: 'KEY' });
+    show();
+    const button = await screen.findByRole('button', { name: 'Увімкнути сповіщення' });
+    expect(screen.queryByRole('heading', { name: 'Сповіщення' })).toBeNull();
+    const card = await screen.findByText('Подія e1');
+    expect(button.compareDocumentPosition(card) &Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('groups by day in the viewer zone and sorts by time', async () => {
     vi.mocked(getCalendar).mockResolvedValue(
       page([ev('a', '2026-11-07T17:00:00.000Z'), ev('b', '2026-11-07T22:30:00.000Z'), ev('c', '2026-11-08T09:00:00.000Z')]),

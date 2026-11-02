@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -95,6 +95,10 @@ export const googleSignIn = (next: string) =>
   request<{ url: string }>('/api/auth/sign-in/social', {
     body: { provider: 'google', callbackURL: next, errorCallbackURL: '/login' },
   });
+
+export const getPushKey = () => request<{ publicKey: string | null }>('/api/push/key');
+export const savePushSubscription = (sub: PushSubscriptionInput) => request<object>('/api/me/push', { body: sub });
+export const deletePushSubscription = (endpoint: string) => request<object>('/api/me/push', { method: 'DELETE', body: { endpoint } });
 
 export const listQuizzes = () => fetchData<QuizSummary[]>('/api/quizzes');
 export const getQuiz = (id: string) => fetchData<Quiz>(quizUrl(id));

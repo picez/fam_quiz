@@ -6,6 +6,8 @@ import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
 import { registerCalendarRoutes, type CalendarNotify } from './calendar-routes';
+import { createPushService, startPushReminders, type PushSend } from './push';
+import { registerPushRoutes } from './push-routes';
 import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { Invites, registerInviteRoutes } from './invites';
 import { registerSavedGameRoutes } from './saved-games';
@@ -30,6 +32,8 @@ export interface AppOptions {
   rng?: () => number;
   /** Куди календар повідомляє про відкриту й скасовану подію (Web Push, підпроєкт 4); типово нікуди. */
   calendarNotify?: CalendarNotify;
+  /** Web Push: публічний ключ VAPID і відправник; без нього пуші вимкнені. */
+  push?: { publicKey: string; send: PushSend };
   /**
    * Брати адресу клієнта із заголовка X-Forwarded-For (потрібно за проксі, наприклад на Render).
    * Число означає кількість проксі перед сервером; true довіряє заголовку повністю.
@@ -104,7 +108,18 @@ export async function buildApp(options: AppOptions) {
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
-  await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: options.calendarNotify });
+  const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => console.error(message, error) });
+  const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
+  const calendarNotify: CalendarNotify | undefined =
+    notifiers.length === 0
+      ? undefined
+      : {
+          opened: (eventId) => notifiers.forEach((n) => n.opened(eventId)),
+          cancelled: (eventId) => notifiers.forEach((n) => n.cancelled(eventId)),
+        };
+  await registerPushRoutes(app, { db: options.db, service: push, currentUser });
+  await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: calendarNotify });
+  const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => console.error('Нагадування не вдалося:', error));
   const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms });
 
@@ -159,12 +174,14 @@ export async function buildApp(options: AppOptions) {
     await store?.flushAll({ release: true });
     store?.stop();
     stopPrune();
+    stopReminders();
     await app.close();
+    await push?.idle();
     await recorder.idle();
     await titles.idle();
     await levels.idle();
     await likes.idle();
   };
 
-  return { app, manager, io, recorder, invites, store, shutdown };
+  return { app, manager, io, recorder, invites, store, push, shutdown };
 }

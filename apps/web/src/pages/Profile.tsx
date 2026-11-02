@@ -6,6 +6,8 @@ import { t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
+import { PushSettings } from '../push/PushSettings';
+import { disablePush } from '../push/push-client';
 import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
 import { LikesCard } from '../profile/LikesCard';
 import { ProfileEditor } from '../profile/ProfileEditor';
@@ -59,6 +61,8 @@ export function Profile() {
   const leave = async () => {
     if (leaving) return;
     setLeaving(true);
+    // Спершу прибираємо підписку цього пристрою, поки сесія жива; збій чи зависання (понад 3 с) виходу не блокує.
+    await Promise.race([disablePush().catch(() => undefined), new Promise<void>((done) => setTimeout(done, 3_000))]);
     await signOut();
     navigate('/');
   };
@@ -158,6 +162,7 @@ export function Profile() {
         )}
         <AddFriend onAdded={reload} />
       </section>
+      <PushSettings />
       <div className="toolbar">
         <button type="button" className="btn" disabled={leaving} onClick={() => void leave()}>
           {t('signOut')}

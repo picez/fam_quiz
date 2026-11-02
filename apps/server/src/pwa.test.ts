@@ -55,4 +55,15 @@ describe('installable app', () => {
     expect(page).toContain('<link rel="icon" type="image/png" href="/icon-192.png" />');
     expect(pngSize('public/apple-touch-icon.png')).toEqual({ width: 180, height: 180 });
   });
+
+  it('ships a push-only service worker', () => {
+    const sw = read('src/sw.ts').toString('utf8');
+    for (const event of ['push', 'notificationclick', 'pushsubscriptionchange']) expect(sw).toContain(`'${event}'`);
+    expect(sw).not.toContain('fetch');
+    expect(sw).not.toContain('caches');
+    expect(read('src/main.tsx').toString('utf8')).toContain("register('/sw.js')");
+    const config = read('vite.config.ts').toString('utf8');
+    expect(config).toContain("fileName: () => 'sw.js'");
+    expect(config).toContain("formats: ['iife']");
+  });
 });

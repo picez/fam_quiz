@@ -51,3 +51,30 @@ export function proxyTrust(value: string | undefined): boolean | number {
   if (value === 'true') return true;
   return value !== undefined && /^[1-9]\d?$/.test(value) ? Number(value) : false;
 }
+
+export interface VapidKeys {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+}
+
+const VAPID_PUBLIC = /^[A-Za-z0-9_-]{87}$/;
+const VAPID_PRIVATE = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * Ключі Web Push зі змінних середовища. Жодної з трьох: пуші вимкнені. Усі три правильні: ключі.
+ * Інакше причина (українською, з назвами змінних), з якою main.ts виходить, як з GOOGLE_* і R2_*.
+ */
+export function pushKeys(env: Record<string, string | undefined>): { ok: true; keys: VapidKeys | null } | { ok: false; problem: string } {
+  const names = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const;
+  // trim: власник вставляє ключі в Render, зайвий перенос рядка не має ламати запуск.
+  const value = (name: (typeof names)[number]) => env[name]?.trim() ?? '';
+  const [publicKey, privateKey, subject] = names.map(value);
+  const missing = names.filter((name) => value(name) === '');
+  if (missing.length === names.length) return { ok: true, keys: null };
+  if (missing.length > 0) return { ok: false, problem: `Для Web Push потрібні всі три змінні: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY і VAPID_SUBJECT. Не задано: ${missing.join(', ')}.` };
+  if (!VAPID_PUBLIC.test(publicKey!)) return { ok: false, problem: 'VAPID_PUBLIC_KEY має бути рядком base64url з 87 символів (pnpm --filter @quiz/server exec web-push generate-vapid-keys).' };
+  if (!VAPID_PRIVATE.test(privateKey!)) return { ok: false, problem: 'VAPID_PRIVATE_KEY має бути рядком base64url з 43 символів (pnpm --filter @quiz/server exec web-push generate-vapid-keys).' };
+  if (!subject!.startsWith('mailto:') && !subject!.startsWith('https://')) return { ok: false, problem: 'VAPID_SUBJECT має починатися з mailto: або https://.' };
+  return { ok: true, keys: { publicKey: publicKey!, privateKey: privateKey!, subject: subject! } };
+}
