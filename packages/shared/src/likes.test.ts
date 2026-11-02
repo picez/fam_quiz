@@ -19,8 +19,16 @@ describe('likeSchema', () => {
     expect(likeSchema.safeParse({ target: 'question', id: 'p1', liked: true }).success).toBe(false);
   });
 
-  it('lists the four kinds and a rate window', () => {
-    expect([...LIKE_KINDS]).toEqual(['question', 'quiz', 'host', 'player']);
+  it('lists the five kinds and a rate window', () => {
+    expect([...LIKE_KINDS]).toEqual(['question', 'quiz', 'host', 'player', 'event']);
     expect(LIKE_RATE).toEqual({ windowMs: 10_000, max: 60 });
+  });
+});
+
+describe('event like kind (18a)', () => {
+  it('is a like kind but not a socket target', async () => {
+    const { LIKE_KINDS, likeSchema } = await import('./likes');
+    expect(LIKE_KINDS).toContain('event');
+    expect(likeSchema.safeParse({ target: 'event', liked: true }).success).toBe(false);
   });
 });
