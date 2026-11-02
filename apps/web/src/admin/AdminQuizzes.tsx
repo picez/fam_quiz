@@ -20,8 +20,8 @@ export function AdminQuizzes(): JSX.Element {
     setPage(1);
   };
 
-  const remove = async (id: string, title: string) => {
-    if (!window.confirm(t('adminDeleteQuizConfirm', { title }))) return;
+  const remove = async (id: string, title: string, author: string) => {
+    if (!window.confirm(t('adminDeleteQuizConfirm', { title, author }))) return;
     setBusy(true);
     setError(null);
     const result = await deleteQuizAsAdmin(id);
@@ -78,7 +78,7 @@ export function AdminQuizzes(): JSX.Element {
                     <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>
                       {t('adminView')}
                     </Link>
-                    <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title)}>
+                    <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title, row.author.nickname)}>
                       {t('adminDeleteQuiz')}
                     </button>
                   </div>

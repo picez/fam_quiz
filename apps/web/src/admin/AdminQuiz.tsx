@@ -49,7 +49,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
   };
 
   const removeQuiz = async () => {
-    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title }))) return;
+    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title, author: view.author.nickname }))) return;
     setBusy(true);
     setError(null);
     const result = await deleteQuizAsAdmin(view.id);

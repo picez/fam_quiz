@@ -2,11 +2,17 @@ import { randomUUID } from 'node:crypto';
 import { classicRound, makeQuiz, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
 import type { AdminList, AdminLogEntry, AdminQuizView, AdminStats, AdminUserDetail, CalendarEvent, PrizeContent, PrizeItem, PrizePlacesInfo, Question } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import * as adminModule from './admin';
 import { buildApp } from './app';
-import { calendarEvent, prizeAward, user, userTitle } from './db/schema';
+import { calendarEvent, prizeAward, user, userBan, userTitle } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
+
+vi.mock('./admin', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./admin')>();
+  return { ...original, isAdmin: vi.fn(original.isAdmin) };
+});
 
 type Ctx = Awaited<ReturnType<typeof buildApp>>;
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -179,20 +185,31 @@ describe('ban', () => {
     expect((await call('GET', `/api/admin/users/${o.id}`, a.cookie)).json()).toMatchObject({ user: { banned: null } });
   });
 
-  it('on a frozen manager bans but leaves the rooms to the next process', async () => {
+  it('on a frozen manager refuses to ban with 503 and writes nothing', async () => {
     const other = await buildApp({ db, auth: TEST_AUTH, adminEmails: emails });
     try {
       const host = await signUp(other.app, 'Тарас');
       const hostId = ((await callOn(other.app, 'GET', '/api/me', host.cookie)).json() as { id: string }).id;
       const { game } = await startGame(other.app, makeQuiz([single]), host.cookie);
       other.manager.freeze();
-      expect((await callOn(other.app, 'POST', `/api/admin/users/${hostId}/ban`, a.cookie, {})).statusCode).toBe(204);
+      const refused = await callOn(other.app, 'POST', `/api/admin/users/${hostId}/ban`, a.cookie, {});
+      expect(refused.statusCode).toBe(503);
+      expect(refused.json()).toEqual({ error: 'restarting' });
       expect(other.manager.get(game.code)).toBeDefined();
-      expect((await callOn(other.app, 'GET', '/api/me', host.cookie)).statusCode).toBe(401);
-      expect((await callOn(other.app, 'DELETE', `/api/admin/users/${hostId}/ban`, a.cookie)).statusCode).toBe(204);
+      expect((await callOn(other.app, 'GET', '/api/me', host.cookie)).statusCode).toBe(200);
+      expect(await db.select().from(userBan).where(eq(userBan.userId, hostId))).toHaveLength(0);
     } finally {
       await other.app.close();
     }
+  });
+
+  it('a database error while checking the admin gives the same 404 as an unknown route', async () => {
+    const unknown = await call('GET', '/api/nothing-here', a.cookie);
+    vi.mocked(adminModule.isAdmin).mockRejectedValueOnce(new Error('db down'));
+    const failed = await call('GET', '/api/admin/stats', a.cookie);
+    expect(failed.statusCode).toBe(404);
+    expect(failed.json()).toEqual(NOT_FOUND);
+    expect(failed.body).toBe(unknown.body);
   });
 
   it('unbans, and answers 204 when there was no ban', async () => {

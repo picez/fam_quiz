@@ -38,9 +38,14 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     let found = checked.get(request);
     if (found === undefined) {
       found = (async () => {
-        if (adminEmails.size === 0) return null;
-        const account = await currentUser(request);
-        return account !== null && (await isAdmin(db, adminEmails, account.id)) ? account : null;
+        try {
+          if (adminEmails.size === 0) return null;
+          const account = await currentUser(request);
+          return account !== null && (await isAdmin(db, adminEmails, account.id)) ? account : null;
+        } catch {
+          // Збій бази не відрізняє адмінку від невідомого маршруту: та сама 404, не 500.
+          return null;
+        }
       })();
       checked.set(request, found);
     }
@@ -94,12 +99,12 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (id.length > USER_ID_MAX) return reply.code(404).send(NOT_FOUND);
     const body = banSchema.safeParse(request.body ?? {});
     if (!body.success) return reply.code(400).send(INVALID);
+    // На зупинці кімнати вже записані й віддаються наступному процесу: бан без закриття кімнат був би півбаном.
+    if (manager.frozen) return reply.code(503).send({ error: 'restarting' });
     if (id === me.id || (await isAdmin(db, adminEmails, id))) return reply.code(409).send({ error: 'cannot_ban_admin' });
     const result = await banUser(db, { adminId: me.id, targetId: id, reason: body.data.reason, now: now() });
     if (!result.ok) return reply.code(404).send(NOT_FOUND);
-    // На зупинці кімнати вже записані й віддаються наступному процесу: не чіпаємо їх. Бан однаково діє —
-    // забанений не ввійде, а приховування від інших іде з бази.
-    if (!manager.frozen) manager.closeHostedBy(id);
+    manager.closeHostedBy(id);
     return reply.code(204).send();
   });
 

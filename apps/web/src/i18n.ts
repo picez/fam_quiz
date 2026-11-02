@@ -2692,7 +2692,7 @@ const uk = {
   adminGamesOf: 'Ігор: {count}',
   adminView: 'Переглянути',
   adminDeleteQuiz: 'Видалити вікторину',
-  adminDeleteQuizConfirm: 'Видалити вікторину «{title}» цілком? Скасувати не можна.',
+  adminDeleteQuizConfirm: 'Видалити вікторину «{title}» ({author})? Зіграні ігри лишаться в історії. Скасувати не можна.',
   adminDeleteQuestion: 'Видалити запитання',
   adminDeleteQuestionConfirm: 'Видалити це запитання? Скасувати не можна.',
   adminDeleteCategoryConfirm:

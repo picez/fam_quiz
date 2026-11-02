@@ -94,6 +94,9 @@ describe('AdminQuiz', () => {
     await screen.findByText('Текст q1');
     fireEvent.click(screen.getByRole('button', { name: 'Видалити вікторину' }));
     await waitFor(() => expect(deleteQuizAsAdmin).toHaveBeenCalledWith('z1'));
+    const text = vi.mocked(window.confirm).mock.calls[0]![0] as string;
+    expect(text).toContain('Оля');
+    expect(text).toContain('Зіграні ігри лишаться в історії');
     expect(await screen.findByText('список вікторин')).toBeTruthy();
   });
 });

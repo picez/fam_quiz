@@ -25,6 +25,9 @@ export function createAuth(db: Db, options: AuthOptions) {
     baseURL: options.baseURL,
     trustedOrigins: options.trustedOrigins ?? [],
     emailAndPassword: { enabled: true, minPasswordLength: 8 },
+    // Права адміна залежать від email_verified, що приходить лише від Google; це закріплює типову поведінку Better Auth
+    // на випадок, якщо її колись змінять.
+    account: { accountLinking: { requireLocalEmailVerified: true } },
     socialProviders: options.google === undefined ? {} : { google: options.google },
     // Власний обмежувач Better Auth не бачить справжньої адреси клієнта за проксі й тоді
     // рахує всіх разом; частоту обмежує маршрут Fastify, який знає request.ip.
