@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -241,5 +241,16 @@ describe('fetchQuizLikes', () => {
     expect(await fetchQuizLikes('x')).toBeNull();
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('down'); }));
     expect(await fetchQuizLikes('x')).toBeNull();
+  });
+});
+
+describe('push api', () => {
+  it('deletes a subscription by endpoint', async () => {
+    const fetchMock = respond(204);
+    await deletePushSubscription('https://fcm.googleapis.com/fcm/send/a');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/me/push',
+      expect.objectContaining({ method: 'DELETE', body: '{"endpoint":"https://fcm.googleapis.com/fcm/send/a"}' }),
+    );
   });
 });

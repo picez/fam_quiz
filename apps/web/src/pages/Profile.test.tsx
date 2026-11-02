@@ -5,7 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type OwnProfile } from '@quiz/shared';
 import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, searchProfiles, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
+import { disablePush } from '../push/push-client';
 import { Profile } from './Profile';
+
+vi.mock('../push/push-client', () => ({
+  browserEnv: vi.fn(() => ({})),
+  pushSupport: vi.fn(() => 'unsupported'),
+  currentSubscription: vi.fn(async () => null),
+  sameKey: vi.fn(),
+  enablePush: vi.fn(),
+  disablePush: vi.fn(async () => undefined),
+}));
 
 vi.mock('../api', () => ({
   me: vi.fn(),
@@ -16,6 +26,7 @@ vi.mock('../api', () => ({
   follow: vi.fn(),
   uploadImage: vi.fn(),
   signOut: vi.fn(),
+  getPushKey: vi.fn(async () => ({ ok: true, publicKey: null })),
   getMyInvites: vi.fn(),
   getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
@@ -261,6 +272,15 @@ describe('Profile', () => {
   });
 
   it('signs out from the profile', async () => {
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
+    expect(await screen.findByText('на /')).toBeTruthy();
+    expect(signOut).toHaveBeenCalled();
+    expect(vi.mocked(disablePush).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(signOut).mock.invocationCallOrder[0]!);
+  });
+
+  it('still signs out when removing the subscription throws', async () => {
+    vi.mocked(disablePush).mockRejectedValueOnce(new Error('boom'));
     open();
     fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
     expect(await screen.findByText('на /')).toBeTruthy();

@@ -18,6 +18,7 @@ import { dayHeading, dayKey, viewerZone } from '../calendar/calendar-time';
 import { CalendarCard, type CalendarAction } from '../calendar/CalendarCard';
 import { CalendarForm } from '../calendar/CalendarForm';
 import { FeedTabs } from '../feed/FeedTabs';
+import { PushSettings } from '../push/PushSettings';
 import { errorText, t } from '../i18n';
 import { saveHost, saveLastGame } from '../storage';
 import { announceFeedSeen, feedBadgeNow, useFeedBadge } from '../useFeedBadge';
@@ -197,6 +198,7 @@ function CalendarList({ first }: { first: CalendarPage }): JSX.Element {
   return (
     <main className="app wide feed-page">
       <FeedTabs badge={badge} />
+      <PushSettings compact />
       {form === null ? (
         <button type="button" disabled={busy} onClick={() => void openForm()}>
           {t('calendarNew')}
