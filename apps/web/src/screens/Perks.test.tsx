@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PerksView } from '@quiz/shared';
 import { Perks } from './Perks';
@@ -43,6 +44,8 @@ describe('Perks', () => {
       expect(screen.getByText('🛡 Оберіг погасив дебаф')).toBeTruthy();
       act(() => void vi.advanceTimersByTime(4100));
       expect(screen.queryByText('🛡 Оберіг погасив дебаф')).toBeNull();
+      // поза запитанням після миті — жодної порожньої смуги
+      expect(document.querySelector('.perk-bar')).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -68,6 +71,19 @@ describe('Perks', () => {
     const { container } = render(<Perks perks={null} ward="spent" onUse={vi.fn()} />);
     expect(screen.queryByText('🛡 Оберіг погасив дебаф')).toBeNull();
     expect(container.querySelector('.perk-chip')).toBeNull();
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('a long hint is clamped to its reserved lines and scrolls inside: the answers below stay put (375 px)', () => {
+    const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path))!;
+    const css = readFileSync(cssPath, 'utf8').replace(/\r\n/g, '\n');
+    const start = css.indexOf('\n.perk-hint {');
+    expect(start).toBeGreaterThanOrEqual(0);
+    const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+    const min = /min-height:\s*([^;]+);/.exec(body)?.[1];
+    expect(min).toBeDefined();
+    expect(/max-height:\s*([^;]+);/.exec(body)?.[1]).toBe(min);
+    expect(body).toMatch(/overflow-y:\s*auto;/);
   });
 
   it('renders nothing when empty', () => {

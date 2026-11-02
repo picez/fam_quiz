@@ -27,7 +27,8 @@ export function Perks({ perks, ward, onUse, holdSpace = false }: { perks: PerksV
   const flash = moment === 'flash';
   const held = moment === 'after' && holdSpace;
 
-  if (perks === null && ward === undefined) return null;
+  // Без кнопок лишається тільки чип оберегу: готовий, мить «погасив» або місце, яке тримає запитання. Інакше — нічого, без порожньої смуги.
+  if (perks === null && ward !== 'ready' && !(ward === 'spent' && (flash || held))) return null;
   const hasHint = perks?.items.some((item) => item.kind === 'hint') ?? false;
   return (
     <div className="perk-bar">
