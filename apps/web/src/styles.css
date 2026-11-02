@@ -13678,3 +13678,65 @@ button.wall-tile:disabled {
   color: var(--dim);
   font-size: 0.85rem;
 }
+
+.feed-list {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.feed-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  min-width: 0;
+}
+
+.feed-card.is-win {
+  border-color: var(--amber);
+}
+
+.feed-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feed-text,
+.feed-time {
+  margin: 0;
+}
+
+.feed-who {
+  display: inline-flex;
+}
+
+.feed-like {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.6rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.feed-like[aria-pressed='true'] {
+  border-color: var(--amber);
+}
+
+.feed-like-count {
+  flex: none;
+  color: var(--dim);
+}
