@@ -93,7 +93,9 @@ describe('calendar requests', () => {
     expect(await cancelEvent(db, h, E, NOW, noRooms)).toMatchObject({ ok: true });
     const q = await person();
     await db.insert(follow).values({ followerId: h, followeeId: q });
-    expect(await requestToJoin(db, q, E, NOW, noRooms)).toEqual({ ok: false, error: 'event_closed' });
+    // скасована подія прихована від друга без запиту й від відхиленого
+    expect(await requestToJoin(db, q, E, NOW, noRooms)).toEqual({ ok: false, error: 'not_found' });
+    expect(await requestToJoin(db, o, E, NOW, noRooms)).toEqual({ ok: false, error: 'event_closed' });
     expect(await decideRequest(db, h, E, o, 'approved', NOW, noRooms)).toEqual({ ok: false, error: 'event_locked' });
   });
 
@@ -187,6 +189,23 @@ describe('calendar requests', () => {
       expect((await calendarBadge(db, p, later)).decisions).toBe(1);
       await cancelEvent(db, h, E, at(120_000), noRooms);
       expect((await calendarBadge(db, o, at(120_000))).decisions).toBe(1);
+    });
+
+    it('a rejected guest does not get a decision for an event that was then cancelled', async () => {
+      await requestToJoin(db, p, E, NOW, noRooms);
+      await decideRequest(db, h, E, p, 'rejected', NOW, noRooms);
+      expect((await calendarBadge(db, p, at(1))).decisions).toBe(1);
+      await cancelEvent(db, h, E, at(2), noRooms);
+      expect((await calendarBadge(db, p, at(2))).decisions).toBe(0);
+    });
+
+    it('repeating the same decision does not move decided_at or light the badge', async () => {
+      await requestToJoin(db, o, E, NOW, noRooms);
+      await decideRequest(db, h, E, o, 'approved', NOW, noRooms);
+      await markCalendarSeen(db, o, at(1), at(1));
+      expect(await decideRequest(db, h, E, o, 'approved', at(2), noRooms)).toEqual({ ok: true });
+      expect((await rows())[0].decidedAt).toEqual(NOW);
+      expect((await calendarBadge(db, o, at(2))).decisions).toBe(0);
     });
 
     it('the seen mark never goes back and a future mark becomes now', async () => {

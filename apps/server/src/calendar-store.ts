@@ -262,14 +262,14 @@ export async function attachGame(db: Db, eventId: string, gameId: string, code: 
   await db.update(calendarEvent).set({ gameId, gameCode: code }).where(eq(calendarEvent.id, eventId));
 }
 
-/** Видима подія (calendarVisibility, скасовані теж) із сирим рядком і обчисленим станом; інакше null. */
+/** Видима подія (calendarVisibility; скасована — лише ведучому й тим, хто мав pending/approved) із сирим рядком і обчисленим станом; інакше null. */
 async function visibleRow(db: Db, viewerId: string, eventId: string, now: Date, probe: CalendarProbe): Promise<{ row: EventRow; state: CalendarState } | null> {
   if (!UUID.test(eventId)) return null;
   const [found] = await db
     .select({ row: calendarEvent, finished: sql<boolean>`coalesce(${game.status} = 'finished', false)` })
     .from(calendarEvent)
     .leftJoin(game, eq(game.id, calendarEvent.gameId))
-    .where(and(eq(calendarEvent.id, eventId), calendarVisibility(viewerId)));
+    .where(and(eq(calendarEvent.id, eventId), calendarVisibility(viewerId), cancelledVisibility(viewerId)));
   if (found === undefined) return null;
   return { row: found.row, state: calendarState(found.row, now, probe, found.finished) };
 }
@@ -307,8 +307,12 @@ export async function withdrawRequest(db: Db, userId: string, eventId: string, n
     .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId), calendarVisibility(userId)));
   if (found === undefined || found.status === 'rejected') return { ok: false, error: 'not_found' };
   if (found.status === 'approved') return { ok: false, error: 'request_approved' };
-  await db.delete(calendarRequest).where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId), eq(calendarRequest.status, 'pending')));
-  return { ok: true };
+  const removed = await db
+    .delete(calendarRequest)
+    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId), eq(calendarRequest.status, 'pending')))
+    .returning({ userId: calendarRequest.userId });
+  // Підтвердження встигло між читанням і видаленням.
+  return removed.length === 0 ? { ok: false, error: 'request_approved' } : { ok: true };
 }
 
 /** Лише ведучий; подія не played / cancelled; status і decided_at = now. */
@@ -324,12 +328,26 @@ export async function decideRequest(
   const found = await hostedEvent(db, hostId, eventId, now, probe);
   if (found === null) return { ok: false, error: 'not_found' };
   if (found.state === 'played' || found.state === 'cancelled') return { ok: false, error: 'event_locked' };
+  const [current] = await db
+    .select({ status: calendarRequest.status })
+    .from(calendarRequest)
+    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId)));
+  if (current === undefined) return { ok: false, error: 'not_found' };
+  // Те саме рішення вдруге: decided_at не зсуваємо, бейдж не загоряється.
+  if (current.status === decision) return { ok: true };
   const updated = await db
     .update(calendarRequest)
     .set({ status: decision, decidedAt: now })
-    .where(and(eq(calendarRequest.eventId, eventId), eq(calendarRequest.userId, userId)))
+    .where(
+      and(
+        eq(calendarRequest.eventId, eventId),
+        eq(calendarRequest.userId, userId),
+        sql`exists (select 1 from ${calendarEvent} where ${calendarEvent.id} = ${calendarRequest.eventId} and ${calendarEvent.cancelledAt} is null)`,
+      ),
+    )
     .returning({ userId: calendarRequest.userId });
-  return updated.length === 0 ? { ok: false, error: 'not_found' } : { ok: true };
+  // Подію скасували між читанням і записом.
+  return updated.length === 0 ? { ok: false, error: 'event_locked' } : { ok: true };
 }
 
 /** Обидва до FEED_BADGE_CAP + 1; правила — «Рішення → Бейдж». */
@@ -362,7 +380,7 @@ export async function calendarBadge(db: Db, viewerId: string, now: Date): Promis
         eq(calendarRequest.userId, viewerId),
         calendarVisibility(viewerId),
         sql`${calendarEvent.startsAt} > ${edge}`,
-        sql`((${calendarRequest.status} in ('pending', 'approved') and (${calendarRequest.decidedAt} > ${seen} or ${calendarEvent.editedAt} > ${seen} or ${calendarEvent.cancelledAt} > ${seen})) or (${calendarRequest.status} = 'rejected' and ${calendarRequest.decidedAt} > ${seen}))`,
+        sql`((${calendarRequest.status} in ('pending', 'approved') and (${calendarRequest.decidedAt} > ${seen} or ${calendarEvent.editedAt} > ${seen} or ${calendarEvent.cancelledAt} > ${seen})) or (${calendarRequest.status} = 'rejected' and ${calendarEvent.cancelledAt} is null and ${calendarRequest.decidedAt} > ${seen}))`,
       ),
     )
     .limit(FEED_BADGE_CAP + 1)
