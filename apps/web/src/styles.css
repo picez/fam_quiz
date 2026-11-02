@@ -13411,6 +13411,11 @@ button.wall-tile:disabled {
   background: var(--panel);
 }
 
+/* Мить оберегу минула: чип невидимий, але тримає місце до кінця запитання. */
+.perk-chip.is-gone {
+  visibility: hidden;
+}
+
 .perk-hint {
   margin: 0;
   min-height: 2.5rem;

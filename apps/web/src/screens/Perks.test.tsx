@@ -48,6 +48,22 @@ describe('Perks', () => {
     }
   });
 
+  it('in a question (holdSpace) the spent chip keeps its place, hidden, after the moment: the answers below do not jump', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, rerender } = render(<Perks perks={both} ward="ready" holdSpace onUse={vi.fn()} />);
+      rerender(<Perks perks={both} ward="spent" holdSpace onUse={vi.fn()} />);
+      expect(screen.getByRole('status').textContent).toBe('🛡 Оберіг погасив дебаф');
+      act(() => void vi.advanceTimersByTime(4100));
+      expect(screen.queryByRole('status')).toBeNull();
+      const held = container.querySelector('.perk-chip.is-spent');
+      expect(held?.classList.contains('is-gone')).toBe(true);
+      expect(held?.getAttribute('aria-hidden')).toBe('true');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('an already spent ward on mount shows nothing', () => {
     const { container } = render(<Perks perks={null} ward="spent" onUse={vi.fn()} />);
     expect(screen.queryByText('🛡 Оберіг погасив дебаф')).toBeNull();

@@ -8,20 +8,24 @@ export const WARD_SPENT_MS = 4000;
 /**
  * Ряд бонусів рівня (15a) під рядом бафів 12h: кнопки, підказка, оберіг.
  * Висота сталa: підказка з'являється в зарезервованому місці, а не зсуває поля відповіді.
+ * holdSpace (у запитанні): мить «Оберіг погасив дебаф» минає, а чип лишається невидимим і тримає своє місце до кінця
+ * запитання — інакше ряд, що переносився на другий рядок, стискається й поля відповіді підскакують.
  */
-export function Perks({ perks, ward, onUse }: { perks: PerksView | null; ward: 'ready' | 'spent' | undefined; onUse: (kind: ActivePerk) => void }) {
+export function Perks({ perks, ward, onUse, holdSpace = false }: { perks: PerksView | null; ward: 'ready' | 'spent' | undefined; onUse: (kind: ActivePerk) => void; holdSpace?: boolean }) {
   const prev = useRef(ward);
-  const [flash, setFlash] = useState(false);
+  const [moment, setMoment] = useState<'none' | 'flash' | 'after'>('none');
   useEffect(() => {
     const before = prev.current;
     prev.current = ward;
     if (before === 'ready' && ward === 'spent') {
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), WARD_SPENT_MS);
+      setMoment('flash');
+      const timer = setTimeout(() => setMoment('after'), WARD_SPENT_MS);
       return () => clearTimeout(timer);
     }
     return undefined;
   }, [ward]);
+  const flash = moment === 'flash';
+  const held = moment === 'after' && holdSpace;
 
   if (perks === null && ward === undefined) return null;
   const hasHint = perks?.items.some((item) => item.kind === 'hint') ?? false;
@@ -43,6 +47,11 @@ export function Perks({ perks, ward, onUse }: { perks: PerksView | null; ward: '
         {ward === 'ready' && <span className="perk-chip">{t('perkWard')}</span>}
         {flash && ward === 'spent' && (
           <span className="perk-chip is-spent" role="status">
+            {t('perkWardSpent')}
+          </span>
+        )}
+        {held && ward === 'spent' && (
+          <span className="perk-chip is-spent is-gone" aria-hidden="true">
             {t('perkWardSpent')}
           </span>
         )}

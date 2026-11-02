@@ -985,7 +985,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               />
             )}
             {/* Бонуси рівня (15a): під рядом бафів, висота стала, поле відповіді не рухається. */}
-            {answersForTeam && <Perks perks={me.perks} ward={ward} onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
+            {answersForTeam && <Perks perks={me.perks} ward={ward} holdSpace onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
