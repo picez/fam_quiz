@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, ContinueResponse, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -98,6 +98,11 @@ export const googleSignIn = (next: string) =>
 
 export const listQuizzes = () => fetchData<QuizSummary[]>('/api/quizzes');
 export const getQuiz = (id: string) => fetchData<Quiz>(quizUrl(id));
+/** Лічильники лайків для редактора; збій чи не 200 — null, і редактор просто не показує сердець. */
+export async function fetchQuizLikes(id: string): Promise<QuizLikes | null> {
+  const result = await fetchData<QuizLikes>(`${quizUrl(id)}/likes`);
+  return result.ok ? result.data : null;
+}
 export const createQuiz = (quiz: Quiz) => request<{ id: string }>('/api/quizzes', { body: quiz });
 export const updateQuiz = (id: string, quiz: Quiz) => request<{ id: string }>(quizUrl(id), { method: 'PUT', body: quiz });
 export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method: 'DELETE' });

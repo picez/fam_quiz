@@ -2498,6 +2498,8 @@ const uk = {
   prizeResult: '{place} місце — {name}',
   showcaseTitle: 'Нагороди',
   likesTitle: 'Вподобання',
+  likesCount: 'Вподобали: {count}',
+  quizLikesLine: '❤️ Вікторину вподобали: {count}',
   likesAsAuthor: 'як автор',
   likesAsHost: 'як ведучий',
   likesAsPlayer: 'як гравець',

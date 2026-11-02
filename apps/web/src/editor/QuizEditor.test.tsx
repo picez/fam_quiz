@@ -2680,3 +2680,44 @@ describe('QuizEditor board tab badge (11a)', () => {
     expect(badge?.parentElement).toBe(tab);
   });
 });
+
+describe('QuizEditor likes (17a)', () => {
+  const likedQuiz = (): Quiz => {
+    const round = newClassicRound();
+    round.questions = [
+      { ...newQuestion('single'), id: 'q1', text: 'Перше' },
+      { ...newQuestion('single'), id: 'q2', text: 'Друге' },
+    ];
+    return { ...newQuiz(), title: 'Гра', rounds: [round] };
+  };
+
+  it('shows the heart count by a question and the quiz count under the heading', () => {
+    render(<QuizEditor initial={likedQuiz()} heading="Нова вікторина" likes={{ quiz: 4, questions: { q1: 3 } }} onSave={async () => null} onCancel={() => {}} />);
+    const first = screen.getByRole('button', { name: /^Запитання 1/ });
+    expect(within(first).getByLabelText('Вподобали: 3').textContent).toBe('❤️ 3');
+    const second = screen.getByRole('button', { name: /^Запитання 2/ });
+    expect(within(second).queryByLabelText(/Вподобали/)).toBeNull();
+    expect(screen.getByText('❤️ Вікторину вподобали: 4')).toBeTruthy();
+  });
+
+  it('shows the count in a board cell', () => {
+    const board = newBoardRound();
+    board.categories[0].cells[0].question = { ...board.categories[0].cells[0].question, id: 'c1' };
+    render(<QuizEditor initial={{ ...newQuiz(), title: 'Гра', rounds: [board] }} heading="H" likes={{ quiz: 0, questions: { c1: 2 } }} onSave={async () => null} onCancel={() => {}} />);
+    const cell = screen.getByRole('button', { name: /^Категорія 1, клітинка 1:/ });
+    expect(within(cell).getByLabelText('Вподобали: 2').textContent).toBe('❤️ 2');
+    expect(screen.queryByText(/Вікторину вподобали/)).toBeNull();
+  });
+
+  it('shows the count on a spare', () => {
+    const quiz = { ...likedQuiz(), spares: [{ ...newQuestion('single'), id: 's1' }] };
+    render(<QuizEditor initial={quiz} heading="H" likes={{ quiz: 0, questions: { s1: 1 } }} onSave={async () => null} onCancel={() => {}} />);
+    const spare = screen.getByRole('button', { name: /^Запасне 1/ });
+    expect(within(spare).getByLabelText('Вподобали: 1').textContent).toBe('❤️ 1');
+  });
+
+  it('shows no hearts without likes', () => {
+    const { container } = render(<QuizEditor initial={likedQuiz()} heading="H" onSave={async () => null} onCancel={() => {}} />);
+    expect(container.querySelector('.like-count')).toBeNull();
+  });
+});

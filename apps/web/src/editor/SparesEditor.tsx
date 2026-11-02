@@ -2,6 +2,7 @@ import { LIMITS, SIMPLE_TYPES, type Question, type QuestionType } from '@quiz/sh
 import { useState } from 'react';
 import { t } from '../i18n';
 import { newSpare } from './draft';
+import { LikeCount } from './LikeCount';
 import { QuestionEditor } from './QuestionEditor';
 
 interface Props {
@@ -21,10 +22,12 @@ interface Props {
   addLabel?: string;
   /** Підпис кнопки вилучення (типово «Видалити запасне»). */
   removeLabel?: string;
+  /** Лайки запитань за id. */
+  likes?: Record<string, number>;
 }
 
 /** Розділ «Запасні запитання»: чіпи запасних і редактор вибраного. Порожній пул — undefined. */
-export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint, types = SIMPLE_TYPES, showTime = false, chipLabel, addLabel, removeLabel }: Props) {
+export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint, types = SIMPLE_TYPES, showTime = false, chipLabel, addLabel, removeLabel, likes }: Props) {
   const [picked, setPicked] = useState(0);
   const list = spares ?? [];
   const at = Math.min(picked, list.length - 1);
@@ -52,6 +55,7 @@ export function SparesEditor({ spares, onChange, max = LIMITS.maxSpares, hint, t
             onClick={() => setPicked(index)}
           >
             {`${(chipLabel ?? ((i) => t('spareN', { index: i + 1 })))(index)} · ${t(`typeShort_${spare.type}`)}`}
+            <LikeCount count={likes?.[spare.id]} />
           </button>
         ))}
         <button type="button" className="chip" disabled={list.length >= max} onClick={add}>

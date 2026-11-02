@@ -1518,6 +1518,18 @@ a.banner {
   white-space: nowrap;
 }
 
+.like-count {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip .like-count {
+  margin-left: 0.375rem;
+}
+
 .question-item-price {
   color: var(--dim);
   font-size: 0.75rem;
