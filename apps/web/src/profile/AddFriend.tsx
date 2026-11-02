@@ -19,7 +19,7 @@ export function AddFriend({ onAdded }: { onAdded: () => void }) {
     let current = true;
     const timer = setTimeout(() => {
       void searchProfiles(query).then((result) => {
-        if (current && result.ok) setHints(result.data.map((card) => card.nickname));
+        if (current && result.ok) setHints(result.data.map((card) => card.nickname).filter((nick): nick is string => nick !== null));
       });
     }, 250);
     return () => {

@@ -26,8 +26,6 @@ import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
 import { ownLevel, publicLevel } from './xp-store';
 
-export const DEFAULT_NICKNAME = 'Гравець';
-
 /** Ключ унікальності: без різниці регістру, пробілів і апострофів. */
 export const nicknameKey = (nickname: string) => normalizeText(nickname);
 
@@ -36,7 +34,7 @@ const UNIQUE_VIOLATION = '23505';
 /** Скільки разів пробувати наступний номер, перш ніж здатися (захист від нескінченного циклу). */
 const MAX_ATTEMPTS = 1000;
 
-const card = (row: { userId: string; nickname: string; avatar: string | null }): ProfileCard => ({
+const card = (row: { userId: string; nickname: string | null; avatar: string | null }): ProfileCard => ({
   id: row.userId,
   nickname: row.nickname,
   avatar: row.avatar,
@@ -44,15 +42,15 @@ const card = (row: { userId: string; nickname: string; avatar: string | null }):
 
 /**
  * Основа нікнейма за замовчуванням: перше слово імені акаунта (обрізане до межі). Якщо воно не проходить
- * перевірку нікнейма, береться стиснене повне ім'я, а якщо й воно не проходить, то DEFAULT_NICKNAME.
+ * перевірку нікнейма, береться стиснене повне ім'я, а якщо й воно не проходить, то null (нік порожній, веб показує підставку).
  */
-function baseNickname(name: string): string {
+function baseNickname(name: string): string | null {
   const squeezed = name.replace(/\s+/g, ' ').trim();
   const candidates = [
     squeezed.split(' ')[0]!.slice(0, LIMITS.nicknameMax),
     squeezed.slice(0, LIMITS.nicknameMax).trim(),
   ];
-  return candidates.find((c) => nicknameSchema.safeParse(c).success) ?? DEFAULT_NICKNAME;
+  return candidates.find((c) => nicknameSchema.safeParse(c).success) ?? null;
 }
 
 function candidate(base: string, n: number): string {
@@ -75,6 +73,11 @@ export async function ensureProfile(db: Db, userId: string): Promise<ProfileCard
   if (!account) return null;
 
   const base = baseNickname(account.name);
+  if (base === null) {
+    // Без ніка: ключ теж null, тож унікальність не заважає і нумерувати нічого.
+    await db.insert(profile).values({ userId: userId, nickname: null, nicknameKey: null }).onConflictDoNothing();
+    return findProfile(db, userId);
+  }
   for (let n = 1; n <= MAX_ATTEMPTS; n++) {
     const nickname = candidate(base, n);
     // Без цілі: спрацьовує і на user_id (паралельний виклик), і на nickname_key (зайнятий нікнейм).
@@ -154,7 +157,7 @@ export async function friendsOf(db: Db, userId: string): Promise<FriendCard[]> {
     const created = await ensureProfile(db, id);
     if (created) rows.push({ ...created, lastSeenAt: null });
   }
-  return rows.sort((a, b) => a.nickname.localeCompare(b.nickname));
+  return rows.sort((a, b) => (a.nickname ?? '').localeCompare(b.nickname ?? ''));
 }
 
 /** Людина щойно була на сайті (беклог 9): мітка оновлюється не частіше ніж раз на хвилину; без профілю — нічого. */

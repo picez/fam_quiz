@@ -17,6 +17,7 @@ import { StatsView } from '../profile/StatsView';
 import { useAccount } from '../useAccount';
 import { announceInvitesChanged, useInvites } from '../useInvites';
 import { usePrivateData } from '../usePrivateData';
+import { nickText } from '../nick';
 
 const LOGIN = '/login?next=%2Fprofile';
 
@@ -83,7 +84,7 @@ export function Profile() {
           <Avatar profile={profile} size="large" />
           <div>
             <h1 className="brand">
-              {profile.nickname}
+              {nickText(profile.nickname)}
               <ProfileLevelMark level={profile.level.progress.level} badge={profile.level.looks.badge} />
               {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
             </h1>
@@ -109,7 +110,7 @@ export function Profile() {
         <StatsView stats={profile.stats} />
       </section>
       <LikesCard likes={profile.likes} />
-      <LevelCard level={profile.level} nickname={profile.nickname} onSaved={reload} />
+      <LevelCard level={profile.level} nickname={nickText(profile.nickname)} onSaved={reload} />
       <Showcase showcase={profile.showcase} own />
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
@@ -150,7 +151,7 @@ export function Profile() {
             {profile.friends.map((friend) => (
               <li key={friend.id}>
                 <Link to={`/profile/${friend.id}`}>
-                  <Avatar profile={friend} size="small" /> {friend.nickname}
+                  <Avatar profile={friend} size="small" /> {nickText(friend.nickname)}
                 </Link>
                 {/* Онлайн чи коли бачили (беклог 9). */}
                 {seenText(friend.lastSeenAt) !== null && (

@@ -6,6 +6,7 @@ import { roundLabel } from '../format';
 import { adminQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 import { questionConfirm, questionLines } from './admin-text';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 export function AdminQuiz(): JSX.Element {
   const { id = '' } = useParams();
@@ -49,7 +50,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
   };
 
   const removeQuiz = async () => {
-    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title, author: view.author.nickname }))) return;
+    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title, author: nickText(view.author.nickname) }))) return;
     setBusy(true);
     setError(null);
     const result = await deleteQuizAsAdmin(view.id);

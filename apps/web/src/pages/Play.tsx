@@ -23,7 +23,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     if (!signedIn) return;
     let current = true;
     void getMyCard().then((result) => {
-      if (current && result.ok) setNickname((typed) => (typed === '' ? result.data.nickname.slice(0, 20) : typed));
+      if (current && result.ok) setNickname((typed) => (typed === '' ? (result.data.nickname ?? '').slice(0, 20) : typed));
     });
     return () => {
       current = false;

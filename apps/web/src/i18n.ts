@@ -11,6 +11,7 @@ const uk = {
   // Вхід гравця
   nicknameLabel: 'Ваше ім’я',
   nicknameHint: 'Від 2 до 20 символів',
+  defaultNickname: 'Гравець',
   enterGame: 'Увійти в гру',
   gameTitle: 'Гра «{title}»',
   // Спільне

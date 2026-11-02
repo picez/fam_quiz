@@ -33,7 +33,7 @@ export interface ProfileStats extends PodiumStats {
 /** Те, що видно про користувача в будь-якому списку. */
 export interface ProfileCard {
   id: string;
-  nickname: string;
+  nickname: string | null;
   avatar: string | null;
 }
 

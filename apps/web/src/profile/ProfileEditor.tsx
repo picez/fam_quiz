@@ -9,7 +9,7 @@ const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).in
 
 /** Форма «Змінити нікнейм / аватар»: нікнейм, вибір або прибирання аватара. */
 export function ProfileEditor({ profile, onSaved, onCancel }: { profile: ProfileCard; onSaved: () => void; onCancel: () => void }) {
-  const [nickname, setNickname] = useState(profile.nickname);
+  const [nickname, setNickname] = useState(profile.nickname ?? '');
   const [avatar, setAvatar] = useState<string | null>(profile.avatar);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);

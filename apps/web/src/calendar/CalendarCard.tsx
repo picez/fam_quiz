@@ -5,6 +5,7 @@ import { countText, t } from '../i18n';
 import { Avatar } from '../profile/Avatar';
 import { Nick } from '../screens/Nick';
 import { timeText } from './calendar-time';
+import { nickText } from '../nick';
 
 export type CalendarAction = 'request' | 'withdraw' | 'open' | 'edit' | 'cancel' | { decide: string; decision: 'approved' | 'rejected' };
 
@@ -34,7 +35,7 @@ export function CalendarCard({
     <li key={request.user.id} className="calendar-request">
       <Avatar profile={request.user} size="small" />
       <span className="calendar-request-who">
-        <Nick nickname={request.user.nickname} />
+        <Nick nickname={nickText(request.user.nickname)} />
       </span>
       <span className="meta">{t(STATUS_TEXT[request.status])}</span>
       {live && request.status !== 'approved' && act(t('calendarApprove'), { decide: request.user.id, decision: 'approved' }, false)}
@@ -49,7 +50,7 @@ export function CalendarCard({
         <span aria-hidden="true">🕖 </span>
         {timeText(event.startsAt, zone)}
       </p>
-      <p className="meta">{event.mine ? t('calendarYouHost') : t('calendarHost', { nickname: event.host.nickname })}</p>
+      <p className="meta">{event.mine ? t('calendarYouHost') : t('calendarHost', { nickname: nickText(event.host.nickname) })}</p>
       <p className="meta">{event.quiz.title ?? t('calendarQuizGone')}</p>
       <p className="meta calendar-marks">
         <span>{countText('calendarParticipants', event.approved, { count: event.approved })}</span>

@@ -10,7 +10,8 @@ import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
 import { follow, game, participant, profile, user } from './db/schema';
-import { ensureProfile, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
+import { nicknameKey } from './profiles';
+import { ensureProfile, findByNickname, searchProfiles, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
 import { ACHIEVEMENTS, defaultTeams, questionsOf } from '@quiz/shared';
@@ -41,7 +42,7 @@ describe('default nickname', () => {
     await addUser(db, 'u2', '   ');
 
     expect((await ensureProfile(db, 'u1'))?.nickname).toBe('Я Петро');
-    expect((await ensureProfile(db, 'u2'))?.nickname).toBe('Гравець');
+    expect((await ensureProfile(db, 'u2'))?.nickname).toBeNull();
   });
 
   it('adds a number when the default nickname is taken', async () => {
@@ -63,7 +64,22 @@ describe('default nickname', () => {
 
     expect((await ensureProfile(db, 'u1'))?.nickname).toBe('Олександра-Анастасія');
     expect((await ensureProfile(db, 'u2'))?.nickname).toBe('Олександра-Анастас 2');
-    expect((await ensureProfile(db, 'u3'))?.nickname).toBe('Гравець');
+    expect((await ensureProfile(db, 'u3'))?.nickname).toBeNull();
+  });
+
+  it('an unusable account name gives nickname null, twice without a clash, and null profiles are not searchable', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'u1', '🙂');
+    await addUser(db, 'u2', '🙂');
+    await addUser(db, 'u3', 'Оля Петренко');
+    await addUser(db, 'u4', 'Х');
+    expect(await ensureProfile(db, 'u1')).toEqual({ id: 'u1', nickname: null, avatar: null });
+    expect((await ensureProfile(db, 'u2'))?.nickname).toBeNull();
+    expect((await ensureProfile(db, 'u3'))?.nickname).toBe('Оля');
+    await db.insert(profile).values({ userId: 'u4', nickname: 'Гравець', nicknameKey: nicknameKey('Гравець') });
+    expect((await ensureProfile(db, 'u4'))?.nickname).toBe('Гравець');
+    expect((await searchProfiles(db, 'Гр', 'u3')).map((c) => c.id)).toEqual(['u4']);
+    expect((await findByNickname(db, 'Гравець'))?.id).toBe('u4');
   });
 
   it('two simultaneous first reads create one profile', async () => {
