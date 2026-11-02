@@ -20,7 +20,7 @@ import type { Db } from './db/client';
 import { follow, profile, user } from './db/schema';
 import { showcaseOf } from './prizes';
 import { listQuizzes } from './quizzes';
-import { ownLevel, publicLevel, syncXp } from './xp-store';
+import { ownLevel, publicLevel } from './xp-store';
 
 export const DEFAULT_NICKNAME = 'Гравець';
 
@@ -199,12 +199,6 @@ export async function isFollowing(db: Db, followerId: string, followeeId: string
 export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfile> {
   const base = await ensureProfile(db, current.id);
   if (!base) throw new Error('profile of a signed-in user must exist');
-  // Ретро й наздоганяння досвіду (15a) мають бути раніше за читання; збій профіль не ламає.
-  try {
-    await syncXp(db, current.id);
-  } catch (error) {
-    console.error('Не вдалося нарахувати досвід:', error);
-  }
   const facts = await profileFacts(db, current.id);
   const quizzes = (await listQuizzes(db, current.id)).map(({ id, title }) => ({ id, title }));
   return {
@@ -216,6 +210,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     wins: facts.wins,
     friends: await friendsOf(db, current.id),
     showcase: await showcaseOf(db, current.id),
+    // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level: await ownLevel(db, current.id),
   };
 }
