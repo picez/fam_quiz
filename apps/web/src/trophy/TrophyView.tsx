@@ -13,7 +13,7 @@ type ViewerElement = HTMLElement & { model?: { materials: { pbrMetallicRoughness
 
 export interface TrophyViewProps {
   trophy: TrophyLook;
-  size: 'stage' | 'phone' | 'card';
+  size: 'stage' | 'phone' | 'card' | 'view';
   spin: boolean;
   interactive: boolean;
 }

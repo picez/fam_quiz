@@ -17197,6 +17197,33 @@ function prizeQuestions14a() {
 /** Запити до 3D: файли моделей і чанк model-viewer. */
 const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/model-viewer[^/]*\.js/.test(url);
 
+/** Перегляд призу (кнопка з видом трофея, тут «Кубок»): модальний діалог у межах вузького екрана, × не менше 44 px; закривається Escape, тоді тлом, тоді ×. */
+async function expectPrizeViewer(page: Page, opener: Locator, label: string, engraving: string) {
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: /^Приз за \d місце$/ });
+  await dialog.waitFor();
+  expect(await dialog.getAttribute('aria-modal')).toBe('true');
+  expect(await dialog.locator('.engraving').textContent()).toBe(engraving);
+  const width = page.viewportSize()!.width;
+  const box = (await dialog.boundingBox())!;
+  expect(box.x >= 0 && box.x + box.width <= width, `${label}: the viewer leaves the screen`).toBe(true);
+  const close = dialog.getByRole('button', { name: 'Закрити', ...exact });
+  const closeBox = (await close.boundingBox())!;
+  expect(closeBox.width >= 44 && closeBox.height >= 44, `${label}: × is under 44 px`).toBe(true);
+  expect(await page.evaluate('document.activeElement?.getAttribute("aria-label")'), `${label}: focus is not on ×`).toBe('Закрити');
+  await expectNoSideScroll(page, label);
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+  await opener.click();
+  await dialog.waitFor();
+  // Дотик тла поза вікном (верхній лівий кут) закриває.
+  await page.mouse.click(2, 2);
+  await dialog.waitFor({ state: 'detached' });
+  await opener.click();
+  await close.click();
+  await dialog.waitFor({ state: 'detached' });
+}
+
 async function prizes14a() {
   const TITLE = 'Призова вікторина 14a';
   const ENGRAVING = 'Чемпіон призової вікторини 2026';
@@ -17402,6 +17429,15 @@ async function prizes14a() {
   expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 850]);
   expect(await olyaPrize.getByRole('alert').count(), 'the diploma failed').toBe(0);
   await expectNoSideScroll(olya, 'p14a-phone-prize');
+  // «Кубок» поруч із «Диплом»: великий трофей на весь екран 375 px.
+  await expectPrizeViewer(olya, olyaPrize.getByRole('button', { name: 'Кубок', ...exact }), 'p14a-phone-prize-view', ENGRAVING);
+
+  // Пульт: церемонія й на ньому — «Церемонія тут» з «Кубок» під місцем переможця.
+  await click(host, 'Церемонія тут');
+  const hostCeremony = host.locator('.host-ceremony .ceremony');
+  await hostCeremony.locator('.podium-col.is-place-1.is-shown').waitFor({ timeout: 15_000 });
+  expect(await hostCeremony.locator('.podium-col.is-place-1 .podium-name').textContent()).toBe('Оля');
+  await expectPrizeViewer(host, hostCeremony.locator('.podium-col.is-place-1').getByRole('button', { name: 'Кубок', ...exact }), 'p14a-host-prize-view', ENGRAVING);
 
   // Диплом у <img>: він малюється, і на ньому є текст (темні пікселі на кремовому тлі), а не лише рамка.
   const diplomaPage = await open('diploma14a', 1200, 850);
@@ -17456,6 +17492,7 @@ async function prizes14a() {
   const cardBox = (await card.boundingBox())!;
   expect(cardBox.x >= 0 && cardBox.x + cardBox.width <= 375, 'the award card leaves the 375 phone').toBe(true);
   await expectNoSideScroll(olya, 'p14a-showcase');
+  await expectPrizeViewer(olya, card.getByRole('button', { name: 'Кубок', ...exact }), 'p14a-showcase-view', ENGRAVING);
 
   const olyaId = await myId(olya);
   const response = await petro.request.get(`${base}/api/profiles/${olyaId}`);

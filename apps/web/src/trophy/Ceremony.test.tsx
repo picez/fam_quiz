@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrizeShown, PrizesView } from '@quiz/shared';
 import { Ceremony } from './Ceremony';
@@ -165,5 +165,33 @@ describe('Ceremony', () => {
     unmount();
     render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} />);
     expect(document.querySelector('.trophy-mock')!.getAttribute('data-interactive')).toBe('true');
+  });
+
+  it('with onView each shown place gets «Кубок» that opens that place; without onView there is none', () => {
+    const onView = vi.fn();
+    const { unmount } = render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} onView={onView} />);
+    advance(3500);
+    advance(3500);
+    // Назва кнопки — з виду трофея: кубок, медаль, зірка.
+    expect(screen.getAllByRole('button', { name: /^(Кубок|Медаль|Зірка)$/ })).toHaveLength(3);
+    expect(column(2).querySelector('button')!.textContent).toBe('Медаль');
+    expect(column(3).querySelector('button')!.textContent).toBe('Зірка');
+    fireEvent.click(column(2).querySelector('button')!);
+    expect(onView).toHaveBeenCalledWith(2);
+    unmount();
+    render(<Ceremony prizes={three} size="stage" hold={false} onDone={vi.fn()} />);
+    advance(3500);
+    advance(3500);
+    expect(screen.queryByRole('button', { name: /^(Кубок|Медаль|Зірка)$/ })).toBeNull();
+  });
+
+  it('the confetti stops CEREMONY_MS.winner after the winner, even if the podium stays up (the host)', () => {
+    render(<Ceremony prizes={three} size="phone" hold={false} onDone={vi.fn()} />);
+    advance(3500);
+    advance(3500);
+    expect(document.querySelector('.confetti')).not.toBeNull();
+    advance(6000);
+    expect(document.querySelector('.confetti')).toBeNull();
+    expect(shown().sort()).toEqual([1, 2, 3]);
   });
 });

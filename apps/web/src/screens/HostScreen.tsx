@@ -38,6 +38,7 @@ import { draftsById } from '../live-drafts';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
 import { PrizePlaces } from './PrizePlaces';
+import { HostCeremony } from './HostCeremony';
 import { PrizeResults } from './MyPrize';
 import { Timer, timerStatus, useTimeOver } from '../live/Timer';
 import { Standings } from './Standings';
@@ -1224,8 +1225,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel">
           <h2>{t('gameOver')}</h2>
           <Standings standings={view.standings} teams={view.teams} titles={view.titles} levels={view.levels} />
-          {/* Призи (14a): церемонії на пульті немає — лише хто що взяв. */}
+          {/* Призи (14a): хто що взяв; церемонію пульт показує на дотик — сцени може й не бути. */}
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
+          {view.prizes !== undefined && <HostCeremony prizes={view.prizes} stageGone={stageGone} stageUrl={stageUrl} />}
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
           {(view.facts?.awards?.length ?? 0) > 0 && (
             <>

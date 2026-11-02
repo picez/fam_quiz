@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
-import { CEREMONY_MS, type Phase, type PrizeShown, type PrizesView } from '@quiz/shared';
+import { CEREMONY_MS, type Phase, type PrizePlace, type PrizeShown, type PrizesView } from '@quiz/shared';
 import { t } from '../i18n';
 import { reducedMotion } from '../motion';
+import { canViewPrize, prizeViewLabel } from './PrizeViewer';
 import { TrophyView } from './TrophyView';
 import { ceremonyOrder, podiumColumns, titleBadge } from './trophy-meta';
 
@@ -19,7 +20,7 @@ function confettiStyle(index: number): CSSProperties {
   } as CSSProperties;
 }
 
-function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<PrizeShown['winner']> }; size: 'stage' | 'phone' }) {
+function Column({ shown, size, onView }: { shown: PrizeShown & { winner: NonNullable<PrizeShown['winner']> }; size: 'stage' | 'phone'; onView?: (place: PrizePlace) => void }) {
   const { place, content, winner } = shown;
   return (
     <>
@@ -36,6 +37,11 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
           </div>
         )}
         {content.title && <p className="podium-title">{titleBadge(content.title)}</p>}
+        {onView !== undefined && canViewPrize(content) && (
+          <button type="button" className="btn btn-small podium-view" onClick={() => onView(place)}>
+            {prizeViewLabel(content)}
+          </button>
+        )}
       </div>
       <div className="podium-step" aria-hidden="true">
         {place}
@@ -44,8 +50,12 @@ function Column({ shown, size }: { shown: PrizeShown & { winner: NonNullable<Pri
   );
 }
 
-/** Місця з winner по черзі 3 → 2 → 1 (CEREMONY_MS.step, переможець — winner); hold — заставка ще йде, таймери стоять; onDone — раз. */
-export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void }): JSX.Element {
+/**
+ * Місця з winner по черзі 3 → 2 → 1 (CEREMONY_MS.step, переможець — winner); hold — заставка ще йде, таймери стоять; onDone — раз.
+ * onView (пульт) — під кожним відкритим місцем кнопка з видом трофея («Кубок», …), що відкриває перегляд призу цього місця.
+ * Конфеті — CEREMONY_MS.winner після переможця, і стоп: пульт тримає подіум, доки ведучий його не сховає.
+ */
+export function Ceremony({ prizes, size, hold, onDone, onView }: { prizes: PrizesView; size: 'stage' | 'phone'; hold: boolean; onDone: () => void; onView?: (place: PrizePlace) => void }): JSX.Element {
   const order = ceremonyOrder(prizes);
   const total = order.length;
   // Стовпці зліва направо 2 — 1 — 3, лише місця церемонії: подіум без третього місця не з'їжджає вбік.
@@ -55,6 +65,8 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
   // Скільки місць уже відкрито (з кінця черги 3 → 2 → 1).
   const [count, setCount] = useState(0);
   const finished = useRef(false);
+  // Час переможця сплив: конфеті більше не сиплеться (подіум на пульті лишається).
+  const [over, setOver] = useState(false);
   const latest = useRef(onDone);
   latest.current = onDone;
 
@@ -62,6 +74,7 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
     const finish = () => {
       if (finished.current) return;
       finished.current = true;
+      setOver(true);
       latest.current();
     };
     if (total === 0) {
@@ -81,7 +94,7 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
   if (total === 0) return <></>;
   const open = order.slice(0, Math.min(count, total));
   const now = !calm && open.length > 0 ? open[open.length - 1]!.place : null;
-  const climax = !calm && count >= total;
+  const climax = !calm && count >= total && !over;
   return (
     <section className={`ceremony is-${size}`} aria-label={t('ceremonyTitle')}>
       <p className="meta ceremony-title">{t('ceremonyTitle')}</p>
@@ -91,7 +104,7 @@ export function Ceremony({ prizes, size, hold, onDone }: { prizes: PrizesView; s
           const classes = ['podium-col', `is-place-${place}`, shown ? 'is-shown' : '', place === now ? 'is-now' : ''].filter(Boolean).join(' ');
           return (
             <div key={place} className={classes} data-place={place}>
-              {shown && <Column shown={shown} size={size} />}
+              {shown && <Column shown={shown} size={size} onView={onView} />}
             </div>
           );
         })}

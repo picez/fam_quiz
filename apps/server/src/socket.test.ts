@@ -1151,6 +1151,31 @@ describe('audio over sockets', () => {
     stage.socket.close();
     await closed;
   });
+
+  it('after the game is over the flag still follows the stage: a second tab, a closed one and a reopened one', async () => {
+    const { game, host, stage, olena } = await lobby(await createGame());
+    const meta: boolean[] = [];
+    host.socket.on('state', (_view, m) => meta.push(m.stageOnline));
+    const stageIs = async (online: boolean) => {
+      for (let i = 0; i < 100 && meta.at(-1) !== online; i += 1) await pause(20);
+      expect(meta.at(-1)).toBe(online);
+    };
+    await send(host, 'host:start');
+    await send(host, 'host:end');
+    await until(olena, inPhase('finished'));
+    await until(stage, inPhase('finished'));
+    const second = open({ code: game.code, role: 'stage', token: game.stageToken });
+    await until(second, inPhase('finished'));
+    stage.socket.close();
+    await pause(100);
+    // Друга вкладка сцени ще відкрита.
+    expect(meta.at(-1) ?? true).toBe(true);
+    second.socket.close();
+    await stageIs(false);
+    const again = open({ code: game.code, role: 'stage', token: game.stageToken });
+    await stageIs(true);
+    await until(again, inPhase('finished'));
+  });
 });
 
 describe('sort tilt over sockets (11d)', () => {

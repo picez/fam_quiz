@@ -131,6 +131,43 @@ describe('Showcase', () => {
     expect(share).toHaveBeenCalledOnce();
   });
 
+  it('«Кубок» and a tap on the photo open the prize viewer; Escape closes it', () => {
+    const data: ShowcaseData = {
+      title: null,
+      awards: [award({ content: { engraving: 'Чемпіон', real: { text: 'Кубок сім’ї', photoUrl: 'https://img/cup.jpg' }, diploma: true } })],
+    };
+    render(<Showcase showcase={data} own />);
+    fireEvent.click(screen.getByRole('button', { name: 'Кубок' }));
+    const dialog = screen.getByRole('dialog', { name: 'Приз за 1 місце' });
+    expect((dialog.querySelector('img.prize-view-photo') as HTMLImageElement).src).toBe('https://img/cup.jpg');
+    expect(dialog.textContent).toContain('Чемпіон');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Переглянути фото: Кубок' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('a medal is opened by «Медаль», a photo alone by «Приз»', () => {
+    const data: ShowcaseData = {
+      title: null,
+      awards: [
+        award({ id: 'm', content: { trophy: { kind: 'medal', material: 'silver' } } }),
+        award({ id: 'p', content: { trophy: null, real: { text: 'Піца', photoUrl: 'https://img/p.jpg' } } }),
+      ],
+    };
+    render(<Showcase showcase={data} own={false} />);
+    expect(screen.getByRole('button', { name: 'Медаль' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Приз' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Переглянути фото: Приз' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Кубок' })).toBeNull();
+  });
+
+  it('no «Кубок» for an award with neither a trophy nor a photo', () => {
+    const data: ShowcaseData = { title: null, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] };
+    render(<Showcase showcase={data} own={false} />);
+    expect(screen.queryByRole('button', { name: /^(Кубок|Приз)$/ })).toBeNull();
+  });
+
   it('renders nothing for an empty showcase', () => {
     const { container } = render(<Showcase showcase={{ title: null, awards: [] }} own />);
     expect(container.innerHTML).toBe('');
