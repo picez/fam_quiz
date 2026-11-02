@@ -14,6 +14,9 @@ describe('calendar', () => {
     expect(calendarInputSchema.safeParse({ ...ok, title: 'а'.repeat(81) }).success).toBe(false);
     expect(calendarInputSchema.safeParse({ ...ok, title: 'а'.repeat(80) }).success).toBe(true);
     expect(calendarInputSchema.safeParse({ ...ok, startsAt: 'завтра' }).success).toBe(false);
+    expect(calendarInputSchema.safeParse({ ...ok, startsAt: '2026-11-07T17:00' }).success).toBe(false);
+    expect(calendarInputSchema.safeParse({ ...ok, startsAt: '2026-11-07T15:00:00.000Z' }).success).toBe(true);
+    expect(calendarInputSchema.safeParse({ ...ok, startsAt: '2026-11-07T17:00:00+02:00' }).success).toBe(true);
     expect(calendarInputSchema.safeParse({ ...ok, quizId: 'q1' }).success).toBe(false);
     expect(calendarInputSchema.safeParse({ ...ok, extra: 1 }).success).toBe(false);
   });

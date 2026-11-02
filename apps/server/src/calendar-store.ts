@@ -19,6 +19,8 @@ import { ensureProfile } from './profiles';
 import { getQuiz } from './quizzes';
 
 const DAY_MS = 86_400_000;
+/** Запас для давніх подій із кімнатою: кімната живе обмежений час, а прикріпити її можна лише до початок + 6 год. */
+const OPEN_GRACE_MS = 48 * 3_600_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** true — кімната з цим id жива тут і не у finished. */
@@ -62,8 +64,8 @@ function cancelledVisibility(viewerId: string): SQL {
 
 const iso = (date: Date) => sql`${date.toISOString()}::timestamptz`;
 
-async function selectEvents(db: Db, viewerId: string, extra: SQL | undefined) {
-  return db
+async function selectEvents(db: Db, viewerId: string, extra: SQL | undefined, limit?: number) {
+  const query = db
     .select({
       row: calendarEvent,
       nickname: nameOf,
@@ -78,6 +80,7 @@ async function selectEvents(db: Db, viewerId: string, extra: SQL | undefined) {
     .leftJoin(game, eq(game.id, calendarEvent.gameId))
     .where(and(calendarVisibility(viewerId), cancelledVisibility(viewerId), extra))
     .orderBy(asc(calendarEvent.startsAt), asc(calendarEvent.id));
+  return limit === undefined ? query : query.limit(limit);
 }
 
 type Selected = Awaited<ReturnType<typeof selectEvents>>;
@@ -148,9 +151,18 @@ async function toCalendarEvents(db: Db, viewerId: string, selected: Selected, no
 /** Вікно календаря (див. «Рішення»), видимі глядачу; скасовані — лише ведучому й тим, хто мав pending/approved. */
 export async function listCalendar(db: Db, viewerId: string, now: Date, probe: CalendarProbe): Promise<CalendarPage> {
   const edge = new Date(now.getTime() - CALENDAR_MISSED_AFTER_MS);
-  const selected = await selectEvents(db, viewerId, sql`(${calendarEvent.startsAt} > ${iso(edge)} or ${calendarEvent.gameId} is not null)`);
-  const inWindow = selected
-    .filter((s) => s.row.startsAt.getTime() > edge.getTime() || calendarState(s.row, now, probe, s.finished) === 'open')
+  // Майбутні: у вікні за часом, обмежені капом. Давні з кімнатою: лише недавні й не зіграні (кімната зі сховища живе <= 24 год).
+  const graceEdge = new Date(edge.getTime() - OPEN_GRACE_MS);
+  const [future, old] = await Promise.all([
+    selectEvents(db, viewerId, sql`${calendarEvent.startsAt} > ${iso(edge)}`, CALENDAR_LIST_CAP),
+    selectEvents(
+      db,
+      viewerId,
+      sql`(${calendarEvent.startsAt} <= ${iso(edge)} and ${calendarEvent.startsAt} > ${iso(graceEdge)} and ${calendarEvent.gameId} is not null and coalesce(${game.status}, '') <> 'finished')`,
+    ),
+  ]);
+  const inWindow = [...future, ...old.filter((x) => calendarState(x.row, now, probe, x.finished) === 'open')]
+    .sort((x, y) => x.row.startsAt.getTime() - y.row.startsAt.getTime() || (x.row.id < y.row.id ? -1 : x.row.id > y.row.id ? 1 : 0))
     .slice(0, CALENDAR_LIST_CAP);
   return { events: await toCalendarEvents(db, viewerId, inWindow, now, probe), asOf: now.toISOString() };
 }
@@ -209,11 +221,20 @@ export async function updateEvent(
   if ((await getQuiz(db, hostId, input.quizId)) === null) return { ok: false, error: 'quiz_not_found' };
   const startsAt = new Date(input.startsAt);
   if (!startsAtAllowed(startsAt, now)) return { ok: false, error: 'calendar_time' };
-  await db.transaction(async (tx) => {
-    await tx.update(calendarEvent).set({ title: input.title, quizId: input.quizId, startsAt, editedAt: now }).where(eq(calendarEvent.id, eventId));
+  // Рядок planned у стрічці міг уже зникнути (прунінг стрічки 90 днів проти подій на 365 днів уперед): оновлення за ключем тоді нічого не зачепить — прийнято.
+  const locked = await db.transaction(async (tx) => {
+    const guard = found.row.gameId === null ? sql`${calendarEvent.gameId} is null` : eq(calendarEvent.gameId, found.row.gameId);
+    const updated = await tx
+      .update(calendarEvent)
+      .set({ title: input.title, quizId: input.quizId, startsAt, editedAt: now })
+      .where(and(eq(calendarEvent.id, eventId), sql`${calendarEvent.cancelledAt} is null`, guard))
+      .returning({ id: calendarEvent.id });
+    if (updated.length === 0) return true;
     const data: FeedData = { kind: 'planned', eventId, title: input.title, startsAt: startsAt.toISOString() };
     await tx.update(feedEvent).set({ data }).where(eq(feedEvent.key, plannedKey(eventId)));
+    return false;
   });
+  if (locked) return { ok: false, error: 'event_locked' };
   return { ok: true };
 }
 
@@ -223,11 +244,17 @@ export async function cancelEvent(db: Db, hostId: string, eventId: string, now: 
   if (found === null) return { ok: false, error: 'not_found' };
   if (found.state === 'played') return { ok: false, error: 'event_locked' };
   if (found.state === 'cancelled') return { ok: true, changed: false };
-  await db.transaction(async (tx) => {
-    await tx.update(calendarEvent).set({ cancelledAt: now }).where(eq(calendarEvent.id, eventId));
+  const changed = await db.transaction(async (tx) => {
+    const done = await tx
+      .update(calendarEvent)
+      .set({ cancelledAt: now })
+      .where(and(eq(calendarEvent.id, eventId), sql`${calendarEvent.cancelledAt} is null`))
+      .returning({ id: calendarEvent.id });
+    if (done.length === 0) return false;
     await tx.delete(feedEvent).where(eq(feedEvent.key, plannedKey(eventId)));
+    return true;
   });
-  return { ok: true, changed: true };
+  return { ok: true, changed };
 }
 
 /** Запам'ятати кімнату події. */

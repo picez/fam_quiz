@@ -223,6 +223,25 @@ describe('calendar store', () => {
     expect(await cancelEvent(db, h, id, NOW, noRooms)).toEqual({ ok: false, error: 'event_locked' });
   });
 
+  it('lists an event at +6h-1ms and drops it at exactly +6h', async () => {
+    const id = await create();
+    await db.update(calendarEvent).set({ startsAt: at(-6 * H + 1) }).where(eq(calendarEvent.id, id));
+    expect((await listCalendar(db, o, NOW, noRooms)).events.map((e) => e.id)).toContain(id);
+    await db.update(calendarEvent).set({ startsAt: at(-6 * H) }).where(eq(calendarEvent.id, id));
+    expect((await listCalendar(db, o, NOW, noRooms)).events.map((e) => e.id)).not.toContain(id);
+  });
+
+  it('does not return an old played event that has a room', async () => {
+    const id = await create();
+    const gid = '44444444-4444-4444-8444-444444444444';
+    await db.update(calendarEvent).set({ startsAt: at(-7 * H) }).where(eq(calendarEvent.id, id));
+    await attachGame(db, id, gid, 'OLDP');
+    await db.execute(
+      sql`insert into game (id, host_id, code, status, title, quiz_snapshot, started_at, finished_at) values (${gid}::uuid, ${h}, 'OLDP', 'finished', 'x', '{}'::jsonb, now(), now())`,
+    );
+    expect((await listCalendar(db, o, NOW, alive)).events.map((e) => e.id)).not.toContain(id);
+  });
+
   it('shows a deleted quiz as a null title', async () => {
     const q = await createQuiz(db, h, { ...makeQuiz([single]), title: 'Зникне' });
     const id = await create({ quizId: q });

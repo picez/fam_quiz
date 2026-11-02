@@ -53,7 +53,10 @@ export interface CalendarPage {
 export const calendarInputSchema = z
   .object({
     title: z.string().trim().min(1).max(CALENDAR_TITLE_MAX).refine(isStorable, UNSTORABLE),
-    startsAt: z.string().max(40).refine((s) => !Number.isNaN(Date.parse(s)), 'bad date'),
+    startsAt: z
+      .string()
+      .max(40)
+      .refine((s) => /(Z|[+-]\d{2}:\d{2})$/.test(s) && !Number.isNaN(Date.parse(s)), 'bad date'),
     quizId: z.string().uuid(),
   })
   .strict();
