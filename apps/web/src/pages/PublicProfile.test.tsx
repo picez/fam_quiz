@@ -17,6 +17,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   following: false,
   showcase: { title: null, awards: [] },
   level: { level: 1, looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
   ...over,
 });
 

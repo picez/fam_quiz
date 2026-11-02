@@ -71,7 +71,7 @@ describe('public profile', () => {
       const response = await request('GET', `/api/profiles/${olenaId}`, cookie);
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'nickname', 'showcase', 'stats']);
+      expect(Object.keys(body).sort()).toEqual(['achievements', 'avatar', 'following', 'id', 'level', 'likes', 'nickname', 'showcase', 'stats']);
       expect(Object.keys(body.stats).sort()).toEqual(['accuracy', 'avgPlace', 'bestScore', 'games', 'hosted', 'podium', 'quizzes', 'top3', 'wins']);
       expect(response.body).not.toContain(olena.email);
       expect(response.body).not.toContain('Таємна вікторина');

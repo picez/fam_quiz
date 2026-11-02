@@ -212,6 +212,7 @@ export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfi
     showcase: await showcaseOf(db, current.id),
     // Ретро й наздоганяння досвіду (15a) — усередині ownLevel, раз і перед читанням рівня; збій профіль не ламає.
     level: await ownLevel(db, current.id),
+    likes: { author: 0, host: 0, player: 0 }, // 17a: задача 5
   };
 }
 
@@ -221,7 +222,7 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id) };
+  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id), likes: { author: 0, host: 0, player: 0 } /* 17a: задача 5 */ };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

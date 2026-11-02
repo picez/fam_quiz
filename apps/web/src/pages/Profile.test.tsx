@@ -33,6 +33,7 @@ const mine: OwnProfile = {
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [] },
   level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
 };
 
 beforeEach(() => {
