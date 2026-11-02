@@ -1,6 +1,7 @@
 import { feedCursorSchema, feedLikeSchema, feedSeenSchema, LIKE_RATE } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
+import { calendarBadge } from './calendar-store';
 import type { Db } from './db/client';
 import { eventLikes, feedBadge, feedPage, markFeedSeen, pruneFeed, visibleEvent } from './feed-store';
 import { saveLike } from './like-store';
@@ -52,7 +53,9 @@ export async function registerFeedRoutes(app: FastifyInstance, deps: FeedDeps): 
   app.get('/api/me/feed/badge', read, async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    return feedBadge(db, user.id, now());
+    const at = now();
+    const [feed, calendar] = await Promise.all([feedBadge(db, user.id, at), calendarBadge(db, user.id, at)]);
+    return { events: feed.events, ...calendar };
   });
 
   app.post('/api/me/feed/seen', seen, async (request, reply) => {
