@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { WithMenu } from './menu/WithMenu';
 import { Achievements } from './pages/Achievements';
 import { EditQuiz } from './pages/EditQuiz';
+import { Calendar } from './pages/Calendar';
 import { Feed } from './pages/Feed';
 import { GameHistory } from './pages/GameHistory';
 import { History } from './pages/History';
@@ -27,6 +28,7 @@ export function AppRoutes() {
         <Route path="/quizzes/new" element={<EditQuiz />} />
         <Route path="/quizzes/:id" element={<EditQuiz />} />
         <Route path="/feed" element={<Feed />} />
+        <Route path="/feed/calendar" element={<Calendar />} />
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
         <Route path="/me" element={<MyGames />} />

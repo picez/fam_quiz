@@ -1,5 +1,6 @@
 import type { FeedData } from '@quiz/shared';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
+import { viewerZone, dayHeading, timeText } from '../calendar/calendar-time';
 import { countText, t, type TextKey } from '../i18n';
 
 function joinParts(parts: string[]): string {
@@ -8,7 +9,7 @@ function joinParts(parts: string[]): string {
 }
 
 /** Текст картки без ніку (нік — посиланням перед ним): «зіграв(-ла) «Писанки» — 2 місце з 5». */
-export function feedText(data: FeedData): string {
+export function feedText(data: FeedData, zone: string = viewerZone()): string {
   switch (data.kind) {
     case 'game': {
       const team = data.team === null ? '' : t('feedTeam', { team: data.team });
@@ -26,7 +27,7 @@ export function feedText(data: FeedData): string {
         (data.nickTitle === null ? '' : t('feedPrizeTitle', { nickTitle: data.nickTitle }))
       );
     case 'planned':
-      return data.title; // 19a: задача 6
+      return t('feedPlanned', { title: data.title, when: `${dayHeading(data.startsAt, zone)}, ${timeText(data.startsAt, zone)}` });
     case 'like': {
       const parts: string[] = [];
       if (data.questions > 0) parts.push(countText('feedLikeQuestions', data.questions, { count: data.questions }));
@@ -52,6 +53,6 @@ export function feedIcon(data: FeedData): string {
     case 'like':
       return '❤️';
     case 'planned':
-      return '📅'; // 19a: задача 6
+      return '📅';
   }
 }

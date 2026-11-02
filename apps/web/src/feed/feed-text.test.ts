@@ -29,4 +29,10 @@ describe('feedText', () => {
     expect(feedText({ kind: 'like', questions: 1, quiz: false, host: false, player: true, title: null })).toBe('вподобав(-ла) 1 твоє запитання і тебе як гравця');
     expect(feedIcon({ kind: 'like', questions: 1, quiz: false, host: false, player: false, title: null })).toBe('❤️');
   });
+
+  it('writes a planned game in the zone of the viewer', () => {
+    const data = { kind: 'planned', eventId: 'e1', title: 'Вечір загадок', startsAt: '2026-11-07T17:00:00.000Z' } as const;
+    expect(feedText(data, 'Europe/Kyiv')).toBe('запланував(-ла) «Вечір загадок» на субота, 7 листопада, 19:00');
+    expect(feedIcon(data)).toBe('📅');
+  });
 });

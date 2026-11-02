@@ -34,6 +34,11 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
           )}{' '}
           {feedText(data)}
         </p>
+        {data.kind === 'planned' && (
+          <p className="feed-link">
+            <Link to={`/feed/calendar#event-${data.eventId}`}>{t('feedPlannedLink')}</Link>
+          </p>
+        )}
         <p className="meta feed-time">{formatDate(event.at)}</p>
       </div>
       {likes !== null &&
