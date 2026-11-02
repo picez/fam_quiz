@@ -18821,7 +18821,7 @@ async function calendar19a() {
     const response = await answered;
     expect(response.ok(), 'the badge answers').toBe(true);
     const body = (await response.json()) as { requests: number; decisions: number };
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
+    await page.evaluate(() => new Promise((resolve) => setTimeout(() => resolve(null), 50)));
     return body.requests + body.decisions;
   };
   /** Опитування бейджа раз на 30 с: перезавантажуємо сторінку, доки вкладка не покаже очікуване. */
