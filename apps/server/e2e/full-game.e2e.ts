@@ -19357,7 +19357,7 @@ async function push20a() {
     expect(reminders.map((o) => o.endpoint).sort(), 'reminder recipients').toEqual([endpointOf('host20a'), endpointOf('olya20a')]);
     const startsAt = (reminders[0]!.payload as { startsAt: string }).startsAt;
     for (const r of reminders) {
-      expect(r.payload).toEqual({ kind: 'reminder', eventId, title: EVENT, startsAt });
+      expect(r.payload).toEqual({ kind: 'reminder', eventId, title: EVENT, startsAt, locale: expect.any(String) });
       expect(r.options.ttl).toBe(3600);
     }
     const before = outbox.length;
@@ -19375,7 +19375,7 @@ async function push20a() {
     await ctx.push!.idle();
     const openedPush = sentTo('opened');
     expect(openedPush.map((o) => o.endpoint), 'opened recipients').toEqual([endpointOf('olya20a')]);
-    expect(openedPush[0]!.payload).toEqual({ kind: 'opened', eventId, title: EVENT, code });
+    expect(openedPush[0]!.payload).toEqual({ kind: 'opened', eventId, title: EVENT, code, locale: expect.any(String) });
     expect(openedPush[0]!.options.ttl).toBe(21_600);
 
     // ── 10. Сервіс-воркер показує українське сповіщення. ──
