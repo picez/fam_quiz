@@ -36,7 +36,7 @@ export function StatsView({ stats }: { stats: ProfileStats }) {
     [String(stats.hosted), countText('statHosted', stats.hosted)],
   ];
   return (
-    <>
+    <div className="profile-stats">
       <dl className="stats">
         {rows.map(([value, label]) => (
           <div className="stat" key={label}>
@@ -46,6 +46,6 @@ export function StatsView({ stats }: { stats: ProfileStats }) {
         ))}
       </dl>
       <PodiumStats stats={stats} />
-    </>
+    </div>
   );
 }

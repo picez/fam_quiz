@@ -22,7 +22,27 @@ describe('LevelCard', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     expect(screen.getByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
     expect(screen.getByText('600 / 800 досвіду')).toBeTruthy();
-    expect(screen.getByText(/щонайменше 3 гравці з акаунтами/)).toBeTruthy();
+  });
+
+  it('keeps the XP rules in a tooltip of the bar: described by it, opened by a tap, closed by Escape or a tap elsewhere', () => {
+    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    // Правил немає текстом під шкалою (p.meta) — лише підказка.
+    expect([...container.querySelectorAll('p.meta')].map((p) => p.textContent)).toEqual(['600 / 800 досвіду']);
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    const tip = screen.getByRole('tooltip', { hidden: true });
+    expect(info.getAttribute('aria-describedby')).toBe(tip.id);
+    expect(tip.textContent).toMatch(/щонайменше 3 гравці з акаунтами/);
+    const meter = container.querySelector('.level-meter')!;
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(container.querySelector('.level-meter progress')!);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    expect(info.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(info, { key: 'Escape' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.pointerDown(document.body);
+    expect(meter.classList.contains('is-open')).toBe(false);
   });
 
   it('lists what is unlocked with dates and the next three', () => {

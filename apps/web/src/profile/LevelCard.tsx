@@ -1,5 +1,5 @@
 import type { LevelReward, NickLooks, OwnLevel } from '@quiz/shared';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { saveLooks } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { Nick } from '../screens/Nick';
@@ -43,6 +43,55 @@ export function ProfileLevelMark({ level, badge }: { level: number; badge: strin
         {t('levelBadge', { n: level })}
       </span>
     </span>
+  );
+}
+
+/**
+ * Шкала рівня з правилами досвіду в підказці (не текстом під шкалою): наведення мишею, фокус на «ⓘ» з клавіатури,
+ * дотик до шкали чи «ⓘ» на телефоні. Підказка — role=tooltip, пов'язана з «ⓘ» через aria-describedby; Escape і дотик поза нею закривають.
+ */
+function LevelMeter({ value, max, level, xp }: { value: number; max: number; level: number; xp: string }) {
+  const [open, setOpen] = useState(false);
+  const tipId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (box.current !== null && !box.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+  return (
+    <div
+      ref={box}
+      className={open ? 'level-meter is-open' : 'level-meter'}
+      onClick={() => setOpen((was) => !was)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpen(false);
+      }}
+    >
+      <progress value={value} max={max} aria-label={t('levelTitle', { n: level })} />
+      <div className="level-meter-row">
+        <p className="meta">{xp}</p>
+        <button
+          type="button"
+          className="level-info"
+          aria-label={t('levelRulesHint')}
+          aria-describedby={tipId}
+          aria-expanded={open}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((was) => !was);
+          }}
+        >
+          <span aria-hidden="true">ⓘ</span>
+        </button>
+      </div>
+      <div id={tipId} role="tooltip" className="level-tip">
+        {t('xpRules')}
+      </div>
+    </div>
   );
 }
 
@@ -92,9 +141,7 @@ export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickn
   return (
     <section className="profile-section level-card">
       <h2>{t('levelTitle', { n: progress.level })}</h2>
-      <progress value={progress.xp - progress.levelAt} max={span} aria-label={t('levelTitle', { n: progress.level })} />
-      <p className="meta">{t('levelXp', { xp: progress.xp, next: progress.nextAt })}</p>
-      <p className="meta">{t('xpRules')}</p>
+      <LevelMeter value={progress.xp - progress.levelAt} max={span} level={progress.level} xp={t('levelXp', { xp: progress.xp, next: progress.nextAt })} />
       <h3>{t('levelUnlockedTitle')}</h3>
       <ul className="profile-list level-list">
         {level.unlocked.map((row) => (
