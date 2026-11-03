@@ -226,6 +226,18 @@ describe('game verdicts', () => {
     expect(anyMoving.map(({ selector }) => selector)).toEqual([]);
     const host = rules.find(({ selector }) => selector === '.game-bg')?.body ?? '';
     expect(host).toContain('position: relative;');
-    expect(host).toContain('isolation: isolate;');
+  });
+
+  it('the game main makes no stacking context, so the away alarm (95) still covers the offline banner (90)', () => {
+    const zIndex = (selector: string) => Number(/z-index:\s*(-?\d+)/.exec(rules.filter((rule) => rule.selector === selector).map((rule) => rule.body).join(''))?.[1] ?? NaN);
+    expect(zIndex('.banner.is-offline')).toBe(90);
+    expect(zIndex('.away-alarm')).toBe(95);
+    // main гри — предок тривоги, а смуга стоїть поза ним: будь-що з цього затиснуло б тривогу під смугою.
+    const STACKING = /(^|[;\s])(isolation\s*:\s*isolate|z-index\s*:|transform\s*:|filter\s*:|opacity\s*:|contain\s*:|will-change\s*:)/;
+    const offenders = rules
+      .filter(({ selector }) => selector.split(',').some((part) => /^(\.app(\.[\w-]+)*|\.game-bg|main(\.[\w-]+)*)$/.test(part.trim())))
+      .filter(({ body }) => STACKING.test(body))
+      .map(({ selector }) => selector);
+    expect(offenders).toEqual([]);
   });
 });
