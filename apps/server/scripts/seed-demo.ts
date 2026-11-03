@@ -1,14 +1,17 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
  * party-media також потребує SITE_URL: картинки з Вікіпедії завантажуються на сайт
  * через тимчасовий акаунт, який потім видаляється. showcase з SITE_URL так само завантажує дві картинки,
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand і family так само завантажують по три картинки.
+ * logic потребує SITE_URL: завантажує намальовані PNG з scripts/logic/img і фото з Вікіпедії.
  */
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { quizSchema, type Quiz } from '@quiz/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
@@ -33,6 +36,7 @@ import { family2Quiz } from './family2-quiz';
 import { EVENING_IMAGES, eveningQuiz } from './evening-quiz';
 import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { MOVIES90_IMAGES, movies90Quiz } from './movies90-quiz';
+import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -121,16 +125,19 @@ async function uploadImages(
   try {
     const urls: Record<string, string> = {};
     for (const [key, source] of Object.entries(await sources())) {
-      const image = await fetch(source, { headers: UA });
-      const type = image.headers.get('content-type')?.split(';')[0] ?? '';
-      if (!image.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(type)) {
+      // «file:<шлях>» — локальний PNG (намальовані картинки logic), інакше — адреса в мережі.
+      const local = source.startsWith('file:');
+      const image = local ? null : await fetch(source, { headers: UA });
+      const type = local ? 'image/png' : (image!.headers.get('content-type')?.split(';')[0] ?? '');
+      if (image && (!image.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(type))) {
         console.warn(`Skip ${key}: ${image.status} ${type}`);
         continue;
       }
+      const bytes = local ? readFileSync(source.slice('file:'.length)) : Buffer.from(await image!.arrayBuffer());
       const upload = await fetch(`${site}/api/uploads`, {
         method: 'POST',
         headers: { 'content-type': type, cookie, origin: site },
-        body: Buffer.from(await image.arrayBuffer()),
+        body: bytes,
       });
       if (!upload.ok) {
         console.warn(`Upload ${key} failed: ${upload.status} ${await upload.text()}`);
@@ -145,7 +152,7 @@ async function uploadImages(
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -204,6 +211,17 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       if (!site) throw new Error('The movies90 quiz needs SITE_URL: its pictures are required');
       const urls = await uploadImages(site, db, Object.keys(MOVIES90_IMAGES), () => wideSources(MOVIES90_IMAGES));
       return movies90Quiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'logic': {
+      if (!site) throw new Error('The logic quiz needs SITE_URL: its pictures are required');
+      const files = Object.fromEntries(LOGIC_FILES.map((key) => [key, `file:${join(import.meta.dirname, 'logic', 'img', `${key}.png`)}`]));
+      const keys = [...LOGIC_FILES, ...Object.keys(LOGIC_PHOTOS)];
+      const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(LOGIC_PHOTOS)) }));
+      return logicQuiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
