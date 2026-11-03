@@ -96,7 +96,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         <p className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
       </div>
       <div className="qr">
-        <QRCodeSVG value={joinUrl} size={256} bgColor="#F5F1E6" fgColor="#0E1020" marginSize={2} />
+        <QRCodeSVG value={joinUrl} size={256} bgColor="#F3EAEA" fgColor="#060505" marginSize={2} />
       </div>
       {view.teams !== null ? (
         <div className="roster">

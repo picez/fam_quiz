@@ -1,28 +1,36 @@
 :root {
   --menu-h: 3.75rem;
-  --stage: #0e1020;
-  --spot: #2a2f5c;
-  --paper: #f5f1e6;
-  --dim: #a9a7b8;
-  --amber: #ffb300;
+  --stage: #060505;
+  --surface: #0f0b0b;
+  --spot: rgb(224 37 49 / 0.12);
+  --paper: #f3eaea;
+  --dim: rgb(243 234 234 / 0.7);
+  --accent: #e02531;
+  --accent-text: #ff4651;
+  --link: #ff6b72;
+  --on-accent: #ffffff;
+  --amber: var(--accent-text);
   --correct: #3ddcc0;
-  --signal: #ff3d5a;
-  --notice-bg: rgb(14 16 32 / 0.92);
+  --signal: #ff4651;
+  --wrong: #ff8fa3;
+  --radius: 0.5rem;
+  --radius-small: 0.375rem;
+  --notice-bg: rgb(6 5 5 / 0.94);
   --notice-up: var(--correct);
   --notice-down: var(--signal);
   --voice: #9b8cff;
-  --cell-blitz: rgb(255 179 0 / 0.2);
+  --cell-blitz: color-mix(in srgb, var(--accent) 20%, transparent);
   --cell-voice: rgb(155 140 255 / 0.22);
   --video-mask: #000;
   --allin: #ff4f81;
   --bank: #ffd166;
   --pending: #ff7a1a;
   --pending-soft: rgb(255 122 26 / 0.18);
-  --panel: rgb(255 255 255 / 0.05);
-  --line: rgb(245 241 230 / 0.16);
+  --panel: var(--surface);
+  --line: #2a1a1a;
   --ice: rgb(190 230 255 / 0.72);
   --ice-line: rgb(255 255 255 / 0.85);
-  --fog: rgb(150 160 185 / 0.3);
+  --fog: rgb(150 160 185 / 0.6);
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
   --sort-zone: rgb(155 140 255 / 0.16);
@@ -53,7 +61,7 @@
   --appeal-yes: var(--correct);
   --appeal-no: var(--signal);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
-  --splash-bg: rgb(14 16 32);
+  --splash-bg: rgb(6 5 5);
   --splash-accent: var(--amber);
   --final-gold: #ffd166;
   --final-ray: rgb(255 209 102 / 0.14);
@@ -104,7 +112,7 @@ body,
 body {
   margin: 0;
   background: var(--stage);
-  background-image: radial-gradient(120% 70% at 50% -10%, var(--spot) 0%, var(--stage) 60%);
+  background-image: radial-gradient(120% 60% at 50% -10%, var(--spot) 0%, transparent 60%);
   background-attachment: fixed;
   color: var(--paper);
   font-family: var(--body);
@@ -134,12 +142,12 @@ h2 {
 }
 
 a {
-  color: var(--amber);
+  color: var(--link);
 }
 
 :focus-visible {
-  outline: 3px solid var(--amber);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- Каркас ---------- */
@@ -227,7 +235,7 @@ a {
   width: 100%;
   height: clamp(6rem, 22vh, 13rem);
   object-fit: contain;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -251,7 +259,7 @@ a {
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -360,14 +368,14 @@ a {
   padding: 1.25rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
 }
 
 .banner {
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  background: var(--amber);
-  color: var(--stage);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
   text-align: center;
 }
@@ -401,7 +409,7 @@ a {
   min-height: 3rem;
   padding: 0.75rem 1.25rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -430,9 +438,9 @@ a {
 }
 
 .btn-primary {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font-family: var(--display);
   font-size: 1rem;
 }
@@ -465,8 +473,8 @@ a {
   min-height: 3.25rem;
   padding: 0.75rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 1.125rem;
@@ -520,7 +528,7 @@ a {
   min-height: 3.75rem;
   padding: 0.875rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -585,8 +593,8 @@ button.choice {
 }
 
 .choice.is-picked {
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .choice.is-picked .letter {
@@ -624,7 +632,7 @@ button.choice {
   margin: 0;
   padding: 0.875rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   font-size: 1.125rem;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -651,7 +659,7 @@ button.choice {
 .spotlight-answer.is-waiting {
   padding: 0.75rem 1rem;
   border: 1px dashed var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   color: var(--dim);
   font-weight: 400;
 }
@@ -676,7 +684,7 @@ button.choice {
   gap: 0.75rem;
   padding: 0.5rem 0.5rem 0.5rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .order-text {
@@ -694,7 +702,7 @@ button.choice {
   padding: 1.25rem;
   border-inline-start: 4px solid var(--amber);
   background: var(--panel);
-  border-radius: 0 0.75rem 0.75rem 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .result h2 {
@@ -765,7 +773,7 @@ button.choice {
 }
 
 .standings .is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -924,7 +932,7 @@ button.choice {
   min-width: 1.6em;
   padding: 0.15em 0.2em;
   border-radius: 0.2em;
-  background: #05060f;
+  background: var(--stage);
   color: var(--amber);
   font-family: var(--display);
   font-size: 1.5rem;
@@ -1040,7 +1048,7 @@ button.choice {
 .qr {
   padding: 1rem;
   background: var(--paper);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   line-height: 0;
 }
 
@@ -1243,8 +1251,8 @@ a.btn {
   min-height: 3rem;
   padding: 0.625rem 0.875rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
 }
@@ -1368,7 +1376,7 @@ a.banner {
   min-width: 0;
   padding: 1rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -1470,7 +1478,8 @@ a.banner {
 
 .rules {
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
   padding: 0.25rem 0.875rem;
 }
 
@@ -1510,12 +1519,12 @@ a.banner {
 
 .question-list li {
   border: 1px solid transparent;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
 }
 
 .question-list li.is-on {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .question-item {
@@ -1602,9 +1611,9 @@ a.banner {
 }
 
 .chip.is-on {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
 }
 
@@ -1614,8 +1623,8 @@ a.banner {
   gap: 0.75rem;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: radial-gradient(120% 90% at 50% -10%, rgb(42 47 92 / 0.55), transparent 60%), var(--panel);
+  border-radius: var(--radius);
+  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
 }
 
 .question-field > span {
@@ -1645,8 +1654,8 @@ a.banner {
   min-height: 3.25rem;
   padding: 0.25rem 0.375rem 0.25rem 0.875rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.2);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-weight: 600;
@@ -1673,7 +1682,7 @@ a.banner {
 }
 
 .answer-row:focus-within {
-  box-shadow: 0 0 0 3px rgb(255 179 0 / 0.35);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .answer-row.is-correct {
@@ -2092,7 +2101,7 @@ a.banner {
 .board-frame {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   padding: 0.75rem;
 }
 
@@ -2124,7 +2133,7 @@ a.banner {
   min-height: 2.75rem;
   padding: 0 0.625rem;
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: none;
   color: var(--paper);
   font: inherit;
@@ -2142,7 +2151,7 @@ a.banner {
   padding: 0 0.75rem;
   /* Рамка завжди 2px: «не заповнена» лише міняє колір і не зсуває вміст. */
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: none;
   color: var(--paper);
   font: inherit;
@@ -2420,7 +2429,7 @@ a.banner {
 
 .stage .gb-cell {
   --gb-badge: clamp(0.75rem, calc(var(--gb-col) * 0.1), 1.125rem);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   font-size: clamp(1.25rem, calc(var(--gb-col) * 0.24), 3rem);
 }
 
@@ -2867,7 +2876,7 @@ a.banner {
   min-height: 44px;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -2886,8 +2895,8 @@ button.match-item {
 }
 
 .match-item.is-picked {
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .match-item.is-linked {
@@ -2927,7 +2936,7 @@ button.match-item {
 .match-row {
   padding: 0.75rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   font-weight: 600;
   overflow-wrap: anywhere;
   hyphens: auto;
@@ -3141,7 +3150,7 @@ button.match-item {
 }
 
 .avatar-tone-0 {
-  background: var(--amber);
+  background: var(--bank);
 }
 
 .avatar-tone-1 {
@@ -3336,7 +3345,7 @@ button.match-item {
 .profile-stats .stat {
   gap: 0.1rem;
   padding: 0.45rem 0.6rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 .profile-stats .stat dd {
   font-size: clamp(1.1rem, 4.5vw, 1.4rem);
@@ -3752,8 +3761,8 @@ button.match-item {
   height: 1.25rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
@@ -3938,7 +3947,7 @@ button.match-item {
   max-width: 100%;
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-weight: 700;
@@ -4105,7 +4114,7 @@ body:has(.banner.is-offline) .host .live-notices {
   margin: 0;
   padding: 0.55rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   text-align: center;
@@ -4126,7 +4135,7 @@ body:has(.debuff-banner) .live-notices {
 .debuff-ice {
   inset: 0;
   z-index: 2;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--ice);
   /* Іній по краях: лід видно здалеку, а не лише тріщини. */
   box-shadow: inset 0 0 1.5rem rgb(255 255 255 / 0.8);
@@ -4154,23 +4163,14 @@ body:has(.debuff-banner) .live-notices {
 .debuff-fog {
   inset: 0;
   z-index: 1;
-  border-radius: 0.75rem;
-  /* Легкий серпанок і помірне розмиття (3px): слова й обриси тексту вгадуються, а не біла стіна. */
+  border-radius: var(--radius);
+  /* Густий серпанок без розмиття (жодного скла): слова й обриси тексту вгадуються, а не біла стіна. */
   background: var(--fog);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
   /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-}
-
-/* Без розмиття туман — лише густіший серпанок. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .debuff-fog {
-    background: rgb(150 160 185 / 0.6);
-  }
 }
 
 .debuff-splat {
@@ -4197,7 +4197,7 @@ body:has(.debuff-banner) .live-notices {
 
 /* Спокійні варіанти для зменшеної анімації: без руху — розмиття, прозорість і жовта рамка в такт поштовхам. */
 .is-calm.is-shake .debuff-content {
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   animation: debuff-ghost var(--shake-cycle, 2800ms) infinite;
 }
 
@@ -4401,7 +4401,7 @@ body:has(.debuff-banner) .live-notices {
   margin: 0;
   padding: 0.5rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-family: var(--display);
@@ -4506,7 +4506,7 @@ body:has(.debuff-banner) .live-notices {
   margin: 0;
   padding: 0.5rem 0.375rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--sort-zone);
   color: var(--paper);
   font: 600 1rem/1.2 var(--body);
@@ -4622,7 +4622,7 @@ button.sort-zone:disabled {
   max-width: 100%;
   max-height: 100%;
   padding: 0.875rem 0.625rem;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--stage);
   font: 700 1.125rem/1.25 var(--body);
@@ -4650,7 +4650,7 @@ button.sort-zone:disabled {
   max-width: 100%;
   max-height: 100%;
   padding: 0.875rem 0.625rem;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--stage);
   font: 700 1.125rem/1.25 var(--body);
@@ -4688,7 +4688,7 @@ button.sort-zone:disabled {
 .sort-live-card.is-miss {
   animation: sort-shake 400ms;
   background: var(--signal);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .sort-zone.is-toward,
@@ -4710,7 +4710,7 @@ button.sort-zone:disabled {
   align-items: flex-end;
   justify-content: stretch;
   margin: 0;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--sort-lock);
   color: var(--paper);
   font-weight: 700;
@@ -4725,7 +4725,7 @@ button.sort-zone:disabled {
   z-index: 2;
   flex: 1;
   padding: 0.375rem 0.5rem;
-  border-radius: 0 0 0.875rem 0.875rem;
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--sort-lock-strip);
 }
 
@@ -4978,7 +4978,7 @@ button.sort-zone:disabled {
   min-width: 0;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--sort-zone);
 }
 
@@ -5202,7 +5202,7 @@ button.sort-zone:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .duels .duel-remove {
@@ -5264,8 +5264,8 @@ button.sort-zone:disabled {
   overflow-y: auto;
   padding: 1.25rem;
   border: 2px solid var(--duel-accent);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .duel-opponents,
@@ -5298,7 +5298,7 @@ button.sort-zone:disabled {
   padding: 0.6rem 1rem;
   line-height: 1.35;
   border: 2px solid var(--duel-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-weight: 700;
@@ -5396,7 +5396,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
   padding: 0.5rem 0.75rem;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--signal);
   overflow-wrap: anywhere;
@@ -5507,7 +5507,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
 .duel-stage-categories li {
   padding: 0.5rem 1.25rem;
   border: 2px solid var(--duel-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .duel-stage-categories .is-empty {
@@ -5667,7 +5667,7 @@ label.powers-price {
   height: 44px;
   padding: 0;
   border: 2px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--buff-accent);
   font: inherit;
@@ -5779,8 +5779,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.35);
 }
@@ -5818,7 +5818,7 @@ label.powers-price {
   .help-pop {
     inset: 0 0 auto 0;
     width: auto;
-    border-radius: 0 0 1rem 1rem;
+    border-radius: 0 0 var(--radius) var(--radius);
     border-width: 0 0 1px;
     max-height: 50vh;
     padding-top: max(1rem, env(safe-area-inset-top));
@@ -5851,8 +5851,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
 }
 
@@ -6077,7 +6077,7 @@ label.powers-price {
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   font-size: 16px;
   line-height: 1.35;
@@ -6108,8 +6108,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--buff-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
@@ -6222,8 +6222,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--buff-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
 
@@ -6346,7 +6346,7 @@ label.powers-price {
   padding: 0.75rem;
   border: 1px solid var(--line);
   border-inline-start: 3px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .hint-request h3 {
@@ -7112,8 +7112,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
 }
 
@@ -7221,7 +7221,7 @@ label.powers-price {
 
 .score-row.is-me td,
 .score-row.is-me th {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .score-row.is-me .name,
@@ -7409,7 +7409,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -7499,7 +7499,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 0.6rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -7727,7 +7727,7 @@ label.powers-price {
 
 .reveal-frame {
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .reveal-canvas {
@@ -7758,7 +7758,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.2);
 }
 
@@ -8018,7 +8018,7 @@ label.powers-price {
 
 .clue.is-new {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .clue.is-hidden {
@@ -8078,7 +8078,7 @@ label.powers-price {
 .pin-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
   /* Два пальці наближають мапу, а не всю сторінку. */
   touch-action: none;
@@ -8118,7 +8118,7 @@ label.powers-price {
   position: relative;
   /* Кола й підписи біля краю не виходять за основу: на 375 px жодної прокрутки вбік. */
   overflow: clip;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -8408,7 +8408,7 @@ label.powers-price {
   min-height: 3.5rem;
   padding: 0.375rem 0.125rem;
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--paper);
   font: inherit;
@@ -8458,13 +8458,13 @@ button.wall-tile:disabled {
 
 .wall-tile.is-selected {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow: inset 0 0 0 2px var(--amber);
 }
 
 .wall-tile.is-found {
   border-color: transparent;
-  color: #10131f;
+  color: var(--stage);
 }
 
 .wall-color-0 {
@@ -8511,8 +8511,8 @@ button.wall-tile:disabled {
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.625rem;
-  color: #10131f;
+  border-radius: var(--radius);
+  color: var(--stage);
   overflow-wrap: anywhere;
 }
 
@@ -8790,7 +8790,7 @@ button.wall-tile:disabled {
 .poll-track {
   display: block;
   height: 1.25rem;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--panel);
   overflow: hidden;
 }
@@ -8798,7 +8798,7 @@ button.wall-tile:disabled {
 .poll-fill {
   display: block;
   height: 100%;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--line);
 }
 
@@ -8828,7 +8828,7 @@ button.wall-tile:disabled {
 
 .poll-bars.is-big .poll-track {
   height: 2rem;
-  border-radius: 1rem;
+  border-radius: var(--radius);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -9039,7 +9039,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .wall-group-title {
@@ -9147,7 +9147,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .survey-row-meta {
@@ -9498,9 +9498,9 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step.is-current {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 /* Телефон: сходинки в один ряд, щоб драбина не витісняла кнопки. */
@@ -9530,7 +9530,7 @@ button.wall-tile:disabled {
 }
 
 .wipeout-group li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -9608,7 +9608,7 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step-list li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -9903,7 +9903,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.5rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--paper);
   font: inherit;
@@ -9933,7 +9933,7 @@ button.wall-tile:disabled {
 
 .survival-door.is-picked {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .survival-door.is-trap {
@@ -9988,7 +9988,7 @@ button.wall-tile:disabled {
 }
 
 .survival-group li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -10001,7 +10001,7 @@ button.wall-tile:disabled {
 
 .survival-group.is-edge li {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .survival-group.is-ghost li {
@@ -10334,7 +10334,7 @@ button.wall-tile:disabled {
   gap: 0.25rem;
   padding: 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--stage);
 }
 
@@ -10369,9 +10369,9 @@ button.wall-tile:disabled {
 }
 
 .ladder-step.is-current {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   opacity: 1;
 }
 
@@ -10396,10 +10396,10 @@ button.wall-tile:disabled {
 
 @keyframes ladder-glow {
   from {
-    box-shadow: 0 0 0 rgb(255 179 0 / 0);
+    box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
   }
   to {
-    box-shadow: 0 0 0.75rem rgb(255 179 0 / 0.6);
+    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--accent) 60%, transparent);
   }
 }
 
@@ -10430,7 +10430,7 @@ button.wall-tile:disabled {
   min-height: 3.5rem;
   padding: 0.25rem;
   border: 2px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--buff-accent);
   font: inherit;
@@ -10777,7 +10777,7 @@ button.wall-tile:disabled {
 
 .team-draft {
   padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .draft-mark {
@@ -10849,14 +10849,14 @@ button.wall-tile:disabled {
   margin: 0;
   padding: 0.5rem 0.75rem;
   border-inline-start: 0.5rem solid var(--team, var(--amber));
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
 .team-debuff-strip {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--dim);
 }
@@ -10881,7 +10881,7 @@ button.wall-tile:disabled {
 .stage-team {
   min-width: 0;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -10889,7 +10889,7 @@ button.wall-tile:disabled {
   margin: 0;
   padding: 0.4rem 0.75rem;
   background: var(--team, var(--panel));
-  color: #0e1020;
+  color: var(--stage);
   font-size: clamp(1rem, 2.4vh, 1.75rem);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11017,7 +11017,7 @@ button.wall-tile:disabled {
   padding: 0.5rem;
   border: 2px dashed var(--line);
   border-top: 0.5rem solid var(--team, var(--line));
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .host-team.is-over {
@@ -11064,7 +11064,7 @@ button.wall-tile:disabled {
   padding: 0.25rem 0.375rem;
   border: 2px solid var(--line);
   border-radius: 0.5rem;
-  background: rgb(0 0 0 / 0.25);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 0.875rem;
@@ -11286,7 +11286,7 @@ button.wall-tile:disabled {
 .autopilot-honest {
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   font-weight: 700;
 }
 
@@ -11560,7 +11560,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -11685,7 +11685,7 @@ button.wall-tile:disabled {
   margin: 0.75rem 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -11927,7 +11927,7 @@ button.wall-tile:disabled {
 /* Фішка з позначкою на 375 px може стати двома рядками (ім'я, під ним «🙈 …»): не довга «пігулка», а заокруглена картка. */
 .live-chip:has(.live-away) {
   max-width: 100%;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 /* 12e: «🙈 4 с» біля відповіді з виходом із гри; не рветься посеред позначки на 375 px. */
@@ -11959,7 +11959,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.875rem 1rem;
   border: 2px solid var(--appeal-accent);
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -12147,8 +12147,8 @@ button.wall-tile:disabled {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--appeal-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
 
@@ -12278,8 +12278,8 @@ button.wall-tile:disabled {
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -12766,8 +12766,8 @@ button.wall-tile:disabled {
   overflow-x: hidden;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--amber);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
@@ -12807,7 +12807,7 @@ button.wall-tile:disabled {
 .reaction-emoji-btn {
   min-height: 48px;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   font-size: 1.6rem;
   line-height: 1;
@@ -12834,7 +12834,7 @@ button.wall-tile:disabled {
   align-items: stretch;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .reaction-pick {
@@ -12944,7 +12944,7 @@ button.wall-tile:disabled {
   min-height: 3rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -13368,7 +13368,7 @@ button.wall-tile:disabled {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--amber);
   border-radius: 0.25rem;
-  background: rgb(255 179 0 / 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-style: italic;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
@@ -13533,7 +13533,7 @@ button.wall-tile:disabled {
   }
 
   .podium-col.is-now .podium-step {
-    box-shadow: 0 0 2rem rgb(255 179 0 / 0.45);
+    box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 45%, transparent);
   }
 
   .confetti {
@@ -13619,7 +13619,7 @@ button.wall-tile:disabled {
   gap: 0.4rem;
   min-width: 0;
   padding: 0.8rem;
-  border: 1px solid var(--line, rgba(127, 127, 127, 0.3));
+  border: 1px solid var(--line);
   border-radius: 12px;
   text-align: center;
   overflow-wrap: anywhere;
@@ -13783,8 +13783,8 @@ button.wall-tile:disabled {
   margin-top: 0.25rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.45);
   color: var(--paper);
   font-size: 0.875rem;
@@ -13912,7 +13912,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 1rem 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--panel);
   text-align: center;
   overflow-wrap: anywhere;
@@ -13944,7 +13944,7 @@ button.wall-tile:disabled {
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
 }
 
@@ -14021,7 +14021,7 @@ button.wall-tile:disabled {
   gap: 0.35rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -14123,7 +14123,7 @@ button.wall-tile:disabled {
   padding: 0.6rem 0.75rem;
   margin-bottom: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -14165,7 +14165,7 @@ button.wall-tile:disabled {
   gap: 0.6rem;
   padding: 0.75rem 1rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--stage);
   color: var(--paper);
   text-align: center;
@@ -14281,7 +14281,8 @@ button.wall-tile:disabled {
 .admin-stat {
   padding: 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .admin-stat dt {
@@ -14313,7 +14314,8 @@ button.wall-tile:disabled {
   gap: 0.35rem;
   padding: 0.85rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
   overflow-wrap: anywhere;
 }
 
@@ -14338,7 +14340,7 @@ button.wall-tile:disabled {
 }
 
 .admin-mark.is-banned {
-  color: #ff6b6b;
+  color: var(--signal);
 }
 
 .admin-search {
