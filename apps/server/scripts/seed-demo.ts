@@ -134,11 +134,15 @@ async function uploadImages(
         continue;
       }
       const bytes = local ? readFileSync(source.slice('file:'.length)) : Buffer.from(await image!.arrayBuffer());
-      const upload = await fetch(`${site}/api/uploads`, {
-        method: 'POST',
-        headers: { 'content-type': type, cookie, origin: site },
-        body: bytes,
-      });
+      const send = () => fetch(`${site}/api/uploads`, { method: 'POST', headers: { 'content-type': type, cookie, origin: site }, body: bytes });
+      let upload = await send();
+      // Ліміт завантажень (429): чекаємо retry-after (або 30 с) і пробуємо знову, до 6 разів.
+      for (let attempt = 0; upload.status === 429 && attempt < 6; attempt += 1) {
+        const wait = Number(upload.headers.get('retry-after')) || 30;
+        console.log(`Upload ${key}: rate limited, waiting ${wait} s`);
+        await new Promise((resolve) => setTimeout(resolve, (wait + 1) * 1000));
+        upload = await send();
+      }
       if (!upload.ok) {
         console.warn(`Upload ${key} failed: ${upload.status} ${await upload.text()}`);
         continue;
