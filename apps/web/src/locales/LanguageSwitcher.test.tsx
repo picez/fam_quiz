@@ -2,11 +2,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveMyLocale } from '../api';
-import { activateLocaleForTests, t } from '../i18n';
+import { activateLocaleForTests } from '../i18n';
 import { applyDocument, resetChoiceForTests } from './choose';
 import { currentLocale } from './current';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { LocaleRoot } from './LocaleRoot';
+import en from './en.json';
 
 const enabled = vi.hoisted(() => ({ list: ['uk', 'en'] as string[] }));
 
@@ -34,7 +35,7 @@ afterEach(() => {
   applyDocument('uk');
 });
 
-const select = () => screen.getByLabelText('Мова') as HTMLSelectElement;
+const select = () => screen.getByRole('combobox') as HTMLSelectElement;
 
 describe('LanguageSwitcher', () => {
   it('lists the enabled locales by their own names, each with its lang', () => {
@@ -69,7 +70,7 @@ describe('LanguageSwitcher', () => {
     vi.mocked(saveMyLocale).mockResolvedValueOnce({ ok: false, error: 'offline' });
     render(<LanguageSwitcher signedIn />);
     fireEvent.change(select(), { target: { value: 'en' } });
-    expect(await screen.findByText(t('languageSaveFailed'))).toBeTruthy();
+    expect(await screen.findByText(en.languageSaveFailed)).toBeTruthy();
     expect(currentLocale()).toBe('en');
   });
 
@@ -81,7 +82,7 @@ describe('LanguageSwitcher', () => {
       </LocaleRoot>,
     );
     fireEvent.change(select(), { target: { value: 'en' } });
-    expect(await screen.findByText(t('languageSaveFailed'))).toBeTruthy();
+    expect(await screen.findByText(en.languageSaveFailed)).toBeTruthy();
     expect(select().value).toBe('en');
   });
 });

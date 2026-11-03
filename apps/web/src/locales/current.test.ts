@@ -1,3 +1,4 @@
+import { LOCALES } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { currentLocale, intlTag, setCurrentLocale, subscribeLocale } from './current';
 import { ENABLED_LOCALES, INTL_TAGS, LOCALE_NAMES, isEnabled } from './locales';
@@ -30,10 +31,11 @@ describe('current locale', () => {
 });
 
 describe('enabled locales', () => {
-  it('starts with uk only', () => {
-    expect(ENABLED_LOCALES).toEqual(['uk']);
+  it('starts with uk and enables only known locales', () => {
+    expect(ENABLED_LOCALES[0]).toBe('uk');
     expect(isEnabled('uk')).toBe(true);
-    expect(isEnabled('en')).toBe(false);
+    for (const locale of LOCALES) expect(isEnabled(locale)).toBe(ENABLED_LOCALES.includes(locale));
+    expect(ENABLED_LOCALES.every((locale) => (LOCALES as readonly string[]).includes(locale))).toBe(true);
   });
 
   it('names every locale in itself', () => {
