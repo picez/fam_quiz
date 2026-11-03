@@ -12387,6 +12387,19 @@ button.wall-tile:disabled {
   .menu a .menu-badge { inset-inline-start: auto; inset-inline-end: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
+/* 22a: на 401–700 px сім повних підписів не влазять (на 412 px пункт 59 px, а «Neuigkeiten», «Aktualności», «Achievements» ширші):
+   інші мови й тут показують короткі. uk лишається як була. */
+@media (min-width: 401px) and (max-width: 700px) {
+  :root:not(:lang(uk)) .menu a .menu-full {
+    display: none;
+  }
+
+  :root:not(:lang(uk)) .menu a::after {
+    content: attr(data-short);
+    content: attr(data-short) / '';
+  }
+}
+
 /* ---------- Реакції (13a) ----------
    Бейдж біля ніка має сталий розмір (телефон і пульт 28 px, сцена 56 px) і від'ємні вертикальні поля: у рядку він займає
    рівно 1em, тож висота рядка не змінюється. Смуга — шар position: fixed унизу зі сталою висотою --reaction-strip-h; у

@@ -18,6 +18,10 @@ import { adminEmails } from '../src/config';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
 import { kyivDay } from '../src/xp-rules';
+import ar from '../../web/src/locales/ar.json';
+import de from '../../web/src/locales/de.json';
+import en from '../../web/src/locales/en.json';
+import { ukMessages } from '../../web/src/i18n';
 
 /**
  * Наскрізний сценарій у справжньому браузері: ведучий реєструється, складає вікторину
@@ -250,7 +254,7 @@ async function open(
   name: string,
   width: number,
   height: number,
-  options: { reducedMotion?: 'reduce'; timezoneId?: string; permissions?: string[]; userAgent?: string } = {},
+  options: { reducedMotion?: 'reduce'; timezoneId?: string; permissions?: string[]; userAgent?: string; locale?: string } = {},
 ): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
@@ -1603,7 +1607,7 @@ it('the menu stays off the game screens; a player’s profile counts the game, c
   }
 });
 
-const MENU = 'nav[aria-label="Меню"]';
+const MENU = 'nav.menu';
 const menuLinks = async (page: Page) =>
   (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
 
@@ -17148,7 +17152,7 @@ it('part 13b: saved games — the host saves in the middle of question 2 and eve
 
 /** Меню телефона (14a): шість пунктів, висота, прокрутка вбік і чи влазить кожен короткий підпис (::after з data-short) у свій пункт. */
 const MENU_FITS_14A = `(() => {
-  const nav = document.querySelector('nav[aria-label="Меню"]');
+  const nav = document.querySelector('nav.menu');
   const links = [...nav.querySelectorAll('a')];
   const probe = document.createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:0;top:0';
@@ -18499,7 +18503,7 @@ function feedQuestions18a() {
  * сторінка не гортається вбік. Повертає список порушень.
  */
 const FEED_BADGE_FITS_18A = `(() => {
-  const links = [...document.querySelectorAll('nav[aria-label="Меню"] a')];
+  const links = [...document.querySelectorAll('nav.menu a')];
   const badge = links[1]?.querySelector('.menu-badge');
   if (!badge) return ['no badge on the second item'];
   const bad = [];
@@ -19621,6 +19625,240 @@ async function admin21a() {
 it('part 21a: admin panel — only a verified ADMIN_EMAILS account sees «Адмінка» in the profile while /admin and /api/admin stay a plain 404 for others, the menu keeps seven items, the admin sees stats, finds and bans Богдан whose lobby closes for Оля, whose sessions end and whose sign-in says «Акаунт заблоковано» while his profile is gone for Оля, deletes one question then the whole quiz and a stock prize, reads the log newest first, and unbans him so he signs in again', async () => {
   try {
     await admin21a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+type Dict22a = Readonly<Record<string, string>>;
+
+/**
+ * Підпис мовою dict для українського тексту ukText: усі uk-ключі з цим значенням мають тут один переклад — його й повертає.
+ * Різні переклади (як «Далі» в de) — помилка з переліком ключів: тоді сценарій бере потрібний ключ явно.
+ */
+function label(dict: Dict22a, ukText: string): string {
+  const keys = Object.entries(ukMessages as Dict22a)
+    .filter(([, value]) => value === ukText)
+    .map(([key]) => key);
+  if (keys.length === 0) throw new Error(`no uk key says «${ukText}»`);
+  const texts = new Set(keys.map((key) => dict[key] ?? (ukMessages as Dict22a)[key]!));
+  if (texts.size !== 1) throw new Error(`«${ukText}» has different translations: ${keys.map((key) => `${key}=${dict[key]}`).join(', ')}`);
+  return [...texts][0]!;
+}
+
+const htmlLang = (page: Page) => page.evaluate('document.documentElement.lang') as Promise<string>;
+const htmlDir = (page: Page) => page.evaluate('document.documentElement.dir') as Promise<string>;
+/** Напрямок, що діє для елемента: dir найближчого предка з атрибутом (або самого елемента). */
+const ownDir = (locator: Locator) => locator.evaluate((element) => element.closest('[dir]')?.getAttribute('dir') ?? '');
+
+/** Вхід у гру з телефона мовою dict. Увійшовшому форма сама підставляє нік профілю — як у join(), досить одного повтору. */
+async function join22a(page: Page, dict: Dict22a, code: string, nickname: string) {
+  await page.goto(`${base}/play/${code}`);
+  const input = field(page, label(dict, 'Ваше ім’я'));
+  await input.fill(nickname);
+  if ((await input.inputValue()) !== nickname) await input.fill(nickname);
+  await click(page, label(dict, 'Увійти в гру'));
+  await page.getByText(label(dict, 'Ви в грі. Чекаємо на старт.'), exact).waitFor();
+}
+
+async function l10n22a() {
+  const LANGS = ['uk', 'en', 'pl', 'de', 'es', 'it', 'ar'] as const;
+  const PAGES = ['/', '/feed', '/feed/calendar', '/quizzes', '/quizzes/new', '/history', '/prizes', '/achievements', '/profile', '/help'];
+  const CITY = 'Яке місто — столиця України?';
+  const RIVER = 'Дніпро впадає в Балтійське море?';
+  const QUIZ = 'Мови 22a';
+  const PASSWORD = 'correct horse battery';
+
+  // ── 1. Браузер вирішує: німецький браузер без збереженої мови відкриває сайт німецькою. ──
+  const guest = await open('guest22a', 375, 812, { locale: 'de-DE' });
+  await guest.goto(base);
+  await expect.poll(() => htmlLang(guest), POLL).toBe('de');
+  expect(await htmlDir(guest)).toBe('ltr');
+  await guest.locator(MENU).getByRole('link', { name: de.menuJoin, ...exact }).waitFor();
+  await shot(guest, 'p22a-de-home');
+
+  // ── 2. Меню й прокрутка вбік у кожній мові. ──
+  const olya = await open('olya22a', 375, 812);
+  await register(olya, 'menu', 'Оля 22a', 'olya22a@example.com');
+  const named = await olya.request.put(`${base}/api/me/profile`, { data: { nickname: 'Оля 22a', avatar: null } });
+  expect(named.ok(), await named.text()).toBe(true);
+  // ~80 переходів за хвилину: значки меню (запрошення, стрічка — по 60 на хвилину на людину) відповідають один раз, далі
+  // сторінки отримують ту саму відповідь, інакше сервер чесно дасть 429. Для макета меню вони однакові.
+  const BADGES = /\/api\/me\/(invites|feed\/badge)(\?|$)/;
+  const badges = new Map<string, string>();
+  await olya.context().route(BADGES, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (!badges.has(path)) badges.set(path, await (await route.fetch()).text());
+    await route.fulfill({ contentType: 'application/json', body: badges.get(path)! });
+  });
+  for (const lang of LANGS) {
+    const saved = await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } });
+    expect(saved.status()).toBe(200);
+    expect(await saved.json()).toEqual({ locale: lang });
+    await olya.setViewportSize({ width: 375, height: 812 });
+    await olya.goto(`${base}/profile`);
+    await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
+    expect(await htmlDir(olya)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
+    await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
+    await expectSevenItems18a(olya, 360);
+    await shot(olya, `p22a-${lang}-menu-360`);
+    await expectSevenItems18a(olya, 375);
+    for (const path of PAGES) {
+      await olya.goto(`${base}${path}`);
+      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
+      expect(await htmlLang(olya)).toBe(lang);
+      const name = path === '/' ? 'start' : path.slice(1).replaceAll('/', '-');
+      await expectNoSideScroll(olya, `p22a-${lang}-${name}`);
+    }
+    if (lang === 'de') {
+      // Повні підписи (401–700 px): усі сім в одному рядку, жоден не вилазить за свій пункт.
+      await olya.setViewportSize({ width: 412, height: 812 });
+      await olya.goto(`${base}/profile`);
+      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
+      expect((await olya.locator(MENU).boundingBox())!.height, 'p22a-de-menu-412: height').toBeLessThanOrEqual(60);
+      const over = await olya.locator(`${MENU} a`).evaluateAll((links) =>
+        links.filter((a) => a.scrollWidth > a.clientWidth).map((a) => a.getAttribute('aria-label')),
+      );
+      expect(over, 'p22a-de-menu-412: a label is wider than its item').toEqual([]);
+      expect(await noSideScroll(olya), 'p22a-de-menu-412: horizontal scroll').toBe(true);
+      await shot(olya, 'p22a-de-menu-412');
+      await olya.setViewportSize({ width: 375, height: 812 });
+    }
+  }
+
+  await olya.context().unroute(BADGES);
+
+  // ── 3. Перемикач у профілі; мова йде за акаунтом у новий український браузер. ──
+  await olya.goto(`${base}/profile`);
+  await expect.poll(() => htmlLang(olya), POLL).toBe('ar');
+  // Підпис поля обгортає select, тож його ім'я — «Мова» плюс вибрана мова.
+  await olya.getByRole('combobox', { name: new RegExp(`^${ar.languageLabel}`) }).selectOption({ label: 'Deutsch' });
+  await expect.poll(() => htmlLang(olya), POLL).toBe('de');
+  expect(await htmlDir(olya)).toBe('ltr');
+  await expect
+    .poll(async () => {
+      const me = await olya.request.get(`${base}/api/me`);
+      return ((await me.json()) as { locale: string | null }).locale;
+    }, POLL)
+    .toBe('de');
+  const olya2 = await open('olya22a-2', 375, 812);
+  await olya2.goto(`${base}/login`);
+  await expect.poll(() => htmlLang(olya2), POLL).toBe('uk');
+  await field(olya2, 'Email').fill('olya22a@example.com');
+  await field(olya2, 'Пароль').fill(PASSWORD);
+  await click(olya2, 'Увійти');
+  await expect.poll(() => htmlLang(olya2), POLL).toBe('de');
+  await olya2.locator(MENU).getByRole('link', { name: de.menuProfile, ...exact }).waitFor();
+  expect(await olya2.evaluate("localStorage.getItem('quiz:locale')")).toBe('de');
+  await olya2.goto(`${base}/profile`);
+  await expect.poll(() => htmlLang(olya2), POLL).toBe('de');
+  await olya2.getByRole('combobox', { name: new RegExp(`^${de.languageLabel}`) }).waitFor();
+  expect(await noSideScroll(olya2)).toBe(true);
+  await shot(olya2, 'p22a-de-profile');
+
+  // ── 4. Одна гра трьома мовами: Богдан веде англійською, Оля грає німецькою, Віра — арабською справа наліво. ──
+  const bohdan = await open('bohdan22a', 1280, 800, { locale: 'en-GB' });
+  await bohdan.goto(`${base}/login`);
+  await expect.poll(() => htmlLang(bohdan), POLL).toBe('en');
+  await click(bohdan, label(en, 'Створити акаунт'));
+  await field(bohdan, label(en, 'Ваше ім’я')).fill('Богдан 22a');
+  await field(bohdan, label(en, 'Email')).fill('bohdan22a@example.com');
+  await field(bohdan, label(en, 'Пароль')).fill(PASSWORD);
+  await click(bohdan, label(en, 'Зареєструватися'));
+  await bohdan.locator(MENU).getByRole('link', { name: en.menuProfile, ...exact }).waitFor();
+  const bohdanNamed = await bohdan.request.put(`${base}/api/me/profile`, { data: { nickname: 'Богдан 22a', avatar: null } });
+  expect(bohdanNamed.ok(), await bohdanNamed.text()).toBe(true);
+  const questions = [
+    { ...single, id: 'q1', text: CITY, options: [{ id: 'a', text: 'Київ' }, { id: 'b', text: 'Львів' }, { id: 'c', text: 'Одеса' }], correctId: 'a' },
+    { ...boolQ, id: 'q2', text: RIVER, correct: false },
+  ];
+  const quiz = { ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]), title: QUIZ };
+  const created = await bohdan.request.post(`${base}/api/quizzes`, { data: quiz });
+  expect(created.status()).toBe(201);
+  await bohdan.goto(`${base}/quizzes`);
+  await bohdan.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: label(en, 'Грати'), ...exact }).click();
+  await bohdan.waitForURL(/\/host\/\d{6}$/);
+  const code = bohdan.url().slice(-6);
+  const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
+  expect(await htmlLang(bohdan)).toBe('en');
+  await bohdan.getByRole('button', { name: label(en, 'Почати гру'), ...exact }).waitFor();
+  await shot(bohdan, 'p22a-en-host-lobby');
+
+  const stageHref = await bohdan.locator('a[href*="/stage/"]').first().getAttribute('href');
+  const stage = await open('stage22a', 1280, 720, { locale: 'en-GB' });
+  await stage.goto(new URL(stageHref!, base).href);
+  await expect.poll(() => htmlLang(stage), POLL).toBe('en');
+  await stage.getByText(spaced).first().waitFor();
+
+  const vira = await open('vira22a', 375, 812, { locale: 'ar-EG' });
+  await vira.goto(`${base}/play/${code}`);
+  await expect.poll(() => htmlLang(vira), POLL).toBe('ar');
+  expect(await htmlDir(vira)).toBe('rtl');
+  const roomCode = vira.getByText(spaced, exact).first();
+  await roomCode.waitFor();
+  expect(await ownDir(roomCode), 'the room code reads left to right').toBe('ltr');
+  expect(await noSideScroll(vira)).toBe(true);
+  await shot(vira, 'p22a-ar-join');
+  await join22a(vira, ar, code, 'Віра');
+  await join22a(olya2, de, code, 'Оля');
+
+  await click(bohdan, label(en, 'Почати гру'));
+  await click(bohdan, label(en, 'Почати раунд'));
+  const heading = vira.getByRole('heading', { name: CITY, ...exact });
+  await heading.waitFor();
+  expect(await heading.textContent()).toBe(CITY);
+  expect(await heading.getAttribute('dir')).toBe('auto');
+  const timer = vira.locator('.timer').first();
+  expect(await timer.getAttribute('dir')).toBe('ltr');
+  expect(await ownDir(timer)).toBe('ltr');
+  expect(await noSideScroll(vira)).toBe(true);
+  await shot(vira, 'p22a-ar-question');
+  await stage.getByRole('heading', { name: CITY, ...exact }).waitFor();
+  await shot(stage, 'p22a-en-stage-question');
+
+  await vira.getByRole('button', { name: /Київ/ }).click();
+  await olya2.getByRole('button', { name: /Львів/ }).click();
+  await click(bohdan, label(en, 'Показати відповідь'));
+  await bohdan.getByRole('button', { name: label(en, 'Далі'), ...exact }).waitFor();
+  await vira.getByText(ar.resultCorrect, exact).first().waitFor();
+  expect(await noSideScroll(vira)).toBe(true);
+  await shot(vira, 'p22a-ar-reveal');
+
+  // «Далі»: рейтинг після запитання (якщо він є), потім «Наступне запитання».
+  await click(bohdan, label(en, 'Далі'));
+  const nextQuestion = bohdan.getByRole('button', { name: label(en, 'Наступне запитання'), ...exact });
+  const river = vira.getByRole('heading', { name: RIVER, ...exact });
+  await Promise.race([nextQuestion.waitFor(), river.waitFor()]);
+  if (await nextQuestion.isVisible()) await nextQuestion.click();
+  await river.waitFor();
+  await vira.getByRole('button', { name: ar.no, ...exact }).click();
+  await olya2.getByRole('button', { name: de.yes, ...exact }).click();
+  await click(bohdan, label(en, 'Показати відповідь'));
+  await bohdan.getByRole('button', { name: label(en, 'Далі'), ...exact }).waitFor();
+  await click(bohdan, label(en, 'Далі'));
+  await vira.getByText(ar.gameOver, exact).first().waitFor();
+  await olya2.getByText(de.gameOver, exact).first().waitFor();
+
+  const viraRow = vira.locator('.standings li', { hasText: 'Віра' });
+  await viraRow.waitFor();
+  const viraScore = viraRow.locator('.score');
+  expect(await viraScore.getAttribute('dir')).toBe('ltr');
+  expect(await viraScore.textContent()).toMatch(/^[0-9]+$/);
+  expect(await noSideScroll(vira)).toBe(true);
+  await shot(vira, 'p22a-ar-scores');
+  await olya2.locator('.standings li', { hasText: 'Віра' }).waitFor();
+  expect(await noSideScroll(olya2)).toBe(true);
+  await shot(olya2, 'p22a-de-scores');
+  await stage.getByText('Віра').first().waitFor();
+  await shot(stage, 'p22a-en-stage-scores');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 22a: localisation — a German browser opens the site in German, every language keeps the seven-item menu within 60 px on 360 and 375 px with no side scroll, Оля picks Deutsch in the profile and gets it back on a fresh Ukrainian browser after sign-in, Богдан hosts in English, Віра plays from an Arabic phone right to left with the room code, timer and scores left to right and the Ukrainian questions untranslated', async () => {
+  try {
+    await l10n22a();
   } catch (error) {
     await snapshot();
     throw error;
