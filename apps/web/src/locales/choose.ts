@@ -5,19 +5,23 @@ import { currentLocale } from './current';
 import { ENABLED_LOCALES, isEnabled } from './locales';
 
 /**
- * Яку мову бачить людина. Пріоритет: профіль акаунта → localStorage → navigator.languages → uk.
+ * Яку мову бачить людина. Пріоритет: профіль акаунта → localStorage → uk серед navigator.languages → navigator.languages → uk.
  * Лише увімкнені мови (ENABLED_LOCALES); вимкнена мова звідусіль ігнорується.
  */
 
 export const LOCALE_STORAGE_KEY = 'quiz:locale';
 
-/** Мова пристрою: збережена (якщо увімкнена), інакше перша мова браузера, чий основний підтег увімкнений («de» з «de-AT»), інакше uk. */
+/**
+ * Мова пристрою: збережена (якщо увімкнена); інакше uk, якщо браузер десь серед мов має українську;
+ * інакше перша мова браузера, чий основний підтег увімкнений («de» з «de-AT»), інакше uk.
+ */
 export function detectLocale(input: { stored: string | null; browser: readonly string[]; enabled: readonly Locale[] }): Locale {
   const { stored, browser, enabled } = input;
   const usable = (value: string | null | undefined): value is Locale => isLocale(value) && enabled.includes(value);
   if (usable(stored)) return stored;
-  for (const tag of browser) {
-    const primary = tag.trim().toLowerCase().split(/[-_]/)[0];
+  const primaries = browser.map((tag) => tag.trim().toLowerCase().split(/[-_]/)[0]);
+  if (primaries.includes('uk')) return 'uk';
+  for (const primary of primaries) {
     if (usable(primary)) return primary;
   }
   return 'uk';
@@ -72,13 +76,34 @@ export async function switchLocale(locale: Locale): Promise<boolean> {
   return true;
 }
 
-/** Старт застосунку (main.tsx): мова з localStorage чи браузера, до першого рендеру. Збій словника — лишається uk. */
+/** Скільки старт чекає на словник, перш ніж показати сторінку українською. */
+export const LOCALE_LOAD_TIMEOUT_MS = 4000;
+
+/**
+ * Мова цього пристрою вибрана людиною (localStorage, перемикач, мова профілю), а не вгадана з мов браузера.
+ * Лише таку мову пропонуємо порожньому профілю: вгадана мова не має без відома людини потрапити в акаунт.
+ */
+let explicitChoice = false;
+
+/** Старт застосунку (main.tsx): мова з localStorage чи браузера, до першого рендеру. Збій чи 4 с без словника — лишається uk. */
 export async function initLocale(): Promise<Locale> {
-  const locale = detectLocale({ stored: readStored(), browser: browserLanguages(), enabled: ENABLED_LOCALES });
-  try {
-    if (locale !== 'uk') await switchLocale(locale);
-  } catch {
-    // Немає зв'язку чи битий чанк: краще українською, ніж порожня сторінка.
+  const stored = readStored();
+  const locale = detectLocale({ stored, browser: browserLanguages(), enabled: ENABLED_LOCALES });
+  explicitChoice = locale === stored;
+  if (locale !== 'uk') {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), LOCALE_LOAD_TIMEOUT_MS);
+    });
+    try {
+      const outcome = await Promise.race([switchLocale(locale), timeout]);
+      // Словник так і не прийшов: пізня відповідь уже нічого не вмикає.
+      if (outcome === 'timeout') latestSwitch++;
+    } catch {
+      // Немає зв'язку чи битий чанк: краще українською, ніж порожня сторінка.
+    } finally {
+      clearTimeout(timer);
+    }
   }
   applyDocument(currentLocale());
   return currentLocale();
@@ -129,6 +154,7 @@ export async function chooseLocale(locale: Locale, opts: { signedIn: boolean }):
   setSaveFailed(false);
   if (!(await switchLocale(locale))) return { saved: true };
   writeStored(locale);
+  explicitChoice = true;
   if (!opts.signedIn) return { saved: true };
   chosen = locale;
   offered = locale;
@@ -138,8 +164,8 @@ export async function chooseLocale(locale: Locale, opts: { signedIn: boolean }):
   return { saved };
 }
 
-/** Сторінки живої гри (гравець, пульт, сцена): тут дерево не перемонтовуємо, бо це обірвало б гру. */
-const LIVE_GAME_PATH = /^\/(play|host|stage)\//;
+/** Сторінки живої гри (гравець, пульт, сцена) і редактор вікторини: тут дерево не перемонтовуємо, бо це обірвало б гру чи стерло незбережене. */
+const LIVE_GAME_PATH = /^\/(play|host|stage|quizzes)\//;
 
 function inLiveGame(): boolean {
   return typeof window !== 'undefined' && LIVE_GAME_PATH.test(window.location.pathname);
@@ -158,7 +184,7 @@ export async function syncAccountLocale(profile: Locale | null | undefined, acco
   if (chosen !== null) return;
   if (profile === null || profile === undefined) {
     const locale = currentLocale();
-    if (locale === 'uk' || offered === locale) return;
+    if (!explicitChoice || locale === 'uk' || offered === locale) return;
     offered = locale;
     if (!(await save(locale))) offered = null;
     return;
@@ -166,6 +192,7 @@ export async function syncAccountLocale(profile: Locale | null | undefined, acco
   if (!isEnabled(profile)) return;
   offered = profile;
   writeStored(profile);
+  explicitChoice = true;
   if (profile !== currentLocale() && !inLiveGame()) await switchLocale(profile).catch(() => false);
 }
 
@@ -175,4 +202,5 @@ export function resetChoiceForTests(): void {
   offered = null;
   accountOf = null;
   saveFailed = false;
+  explicitChoice = false;
 }

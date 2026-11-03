@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, seenText, sliderNumber } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
 import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -312,5 +312,23 @@ describe('formats follow the interface locale', () => {
       expect(text).not.toMatch(/[٠-٩]/);
     }
     expect(secondsText(23400)).toMatch(/^23[.,٫]4$/);
+  });
+});
+
+describe('signed', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('keeps uk output byte-identical', () => {
+    expect(signed(750)).toBe('+750');
+    expect(signed(-1000)).toBe('−1000');
+    expect(signed(0)).toBe('0');
+  });
+
+  it('isolates the signed number left to right in an RTL locale', () => {
+    activateLocaleForTests('ar', { ui: {} });
+    expect(signed(750)).toBe('⁦+750⁩');
+    expect(signed(-1000)).toBe('⁦−1000⁩');
+    activateLocaleForTests('en', { ui: {} });
+    expect(signed(750)).toBe('+750');
   });
 });

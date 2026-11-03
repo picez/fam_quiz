@@ -20,7 +20,8 @@ export const pushStrings = {
 
 export type PushStringKey = keyof typeof pushStrings;
 
-const LOCALE_CODES: readonly string[] = ['uk', 'en', 'pl', 'de', 'es', 'it', 'ar'];
+/** Копія LOCALES із shared (воркер не тягне shared); тест звіряє їх. */
+export const LOCALE_CODES: readonly string[] = ['uk', 'en', 'pl', 'de', 'es', 'it', 'ar'];
 
 /** uk — pushStrings, решта — JSON (спершу порожні: нема ключа → uk). Статичні імпорти: воркер не вантажить нічого динамічно. */
 export const PUSH_STRINGS: Record<Locale, Partial<Record<PushStringKey, string>>> = { uk: pushStrings, en, pl, de, es, it, ar };

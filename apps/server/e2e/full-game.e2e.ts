@@ -17298,7 +17298,8 @@ async function prizes14a() {
   await hostPhone.locator('.prize-list li', { hasText: 'Друге місце' }).waitFor();
   expect(await hostPhone.locator('.prize-list li').count()).toBe(2);
   await expectNoSideScroll(hostPhone, 'p14a-prizes');
-  // Меню з сімома пунктами: 375 і 360 px.
+  // Меню з сімома пунктами: 412, 375 і 360 px (з 22a і uk на 401–700 px показує короткі підписи).
+  await expectPhoneMenu14a(hostPhone, 412);
   await expectPhoneMenu14a(hostPhone, 375);
   await expectPhoneMenu14a(hostPhone, 360);
   await hostPhone.close();
@@ -19711,18 +19712,16 @@ async function l10n22a() {
       const name = path === '/' ? 'start' : path.slice(1).replaceAll('/', '-');
       await expectNoSideScroll(olya, `p22a-${lang}-${name}`);
     }
-    if (lang === 'de') {
-      // Повні підписи (401–700 px): усі сім в одному рядку, жоден не вилазить за свій пункт.
+    if (lang === 'de' || lang === 'uk') {
+      // 401–700 px: і тут короткі підписи (uk теж), усі сім в одному рядку, жоден не вилазить за свій пункт.
       await olya.setViewportSize({ width: 412, height: 812 });
       await olya.goto(`${base}/profile`);
       await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
-      expect((await olya.locator(MENU).boundingBox())!.height, 'p22a-de-menu-412: height').toBeLessThanOrEqual(60);
-      const over = await olya.locator(`${MENU} a`).evaluateAll((links) =>
-        links.filter((a) => a.scrollWidth > a.clientWidth).map((a) => a.getAttribute('aria-label')),
-      );
-      expect(over, 'p22a-de-menu-412: a label is wider than its item').toEqual([]);
-      expect(await noSideScroll(olya), 'p22a-de-menu-412: horizontal scroll').toBe(true);
-      await shot(olya, 'p22a-de-menu-412');
+      await expectSevenItems18a(olya, 412);
+      const shown = (await olya.evaluate(MENU_FITS_14A)) as { shown: string[] };
+      expect(shown.shown.every((content) => content.includes('"')), `p22a-${lang}-menu-412: short labels are not shown`).toBe(true);
+      expect(await noSideScroll(olya), `p22a-${lang}-menu-412: horizontal scroll`).toBe(true);
+      await shot(olya, `p22a-${lang}-menu-412`);
       await olya.setViewportSize({ width: 375, height: 812 });
     }
   }
@@ -19784,6 +19783,9 @@ async function l10n22a() {
   expect(await htmlLang(bohdan)).toBe('en');
   await bohdan.getByRole('button', { name: label(en, 'Почати гру'), ...exact }).waitFor();
   await shot(bohdan, 'p22a-en-host-lobby');
+  // Англійську лише вгадали з мов браузера, Богдан її не вибирав: профіль лишається без мови.
+  const bohdanMe = (await (await bohdan.request.get(`${base}/api/me`)).json()) as { locale: string | null };
+  expect(bohdanMe.locale, 'a browser-detected locale is not written to the profile').toBeNull();
 
   const stageHref = await bohdan.locator('a[href*="/stage/"]').first().getAttribute('href');
   const stage = await open('stage22a', 1280, 720, { locale: 'en-GB' });

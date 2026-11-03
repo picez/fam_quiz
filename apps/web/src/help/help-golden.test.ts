@@ -40,6 +40,8 @@ describe('host help uk golden', () => {
     expect(helpVars('uk').awayAlarm).toBe('2,5');
     expect(helpVars('en').awayAlarm).toBe('2.5');
     expect(helpVars('uk').paceStep).toBe('2');
+    for (const [name, value] of Object.entries(helpVars('uk'))) expect(value, name).not.toMatch(/\d\.\d/);
+    expect(Object.values(helpVars('uk'))).toContain('1,5');
   });
 
   it('search finds by title ignoring case and apostrophe kind', () => {

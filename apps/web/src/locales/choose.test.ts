@@ -38,6 +38,12 @@ describe('detectLocale', () => {
     expect(detectLocale({ stored: null, browser: ['ar-EG'], enabled })).toBe('ar');
   });
 
+  it('prefers uk when the browser lists it anywhere', () => {
+    expect(detectLocale({ stored: null, browser: ['en-US', 'uk'], enabled })).toBe('uk');
+    expect(detectLocale({ stored: null, browser: ['de-DE', 'en', 'uk-UA'], enabled })).toBe('uk');
+    expect(detectLocale({ stored: 'en', browser: ['uk'], enabled })).toBe('en');
+  });
+
   it('falls back to uk', () => {
     expect(detectLocale({ stored: null, browser: ['fr-FR'], enabled })).toBe('uk');
     expect(detectLocale({ stored: null, browser: ['ru-RU'], enabled })).toBe('uk');
@@ -73,6 +79,26 @@ describe('initLocale', () => {
     expect(await initLocale()).toBe('uk');
     expect(currentLocale()).toBe('uk');
     expect(document.documentElement.lang).toBe('uk');
+  });
+
+  it('falls back to uk when the dictionary hangs for 4 s', async () => {
+    vi.useFakeTimers();
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, 'de');
+      vi.mocked(loadMessages).mockImplementationOnce(() => new Promise(() => undefined));
+      const started = initLocale();
+      await vi.advanceTimersByTimeAsync(3999);
+      let settled = false;
+      void started.then(() => (settled = true));
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await started).toBe('uk');
+      expect(currentLocale()).toBe('uk');
+      expect(document.documentElement.lang).toBe('uk');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -122,12 +148,27 @@ describe('syncAccountLocale', () => {
     expect(saveMyLocale).not.toHaveBeenCalled();
   });
 
-  it('sends the current locale once when the profile has none', async () => {
-    activateLocaleForTests('en');
+  it('sends the stored explicit locale once when the profile has none', async () => {
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'en');
+    await initLocale();
     await syncAccountLocale(null, 'a');
     await syncAccountLocale(null, 'a');
     expect(saveMyLocale).toHaveBeenCalledTimes(1);
     expect(saveMyLocale).toHaveBeenCalledWith('en');
+  });
+
+  it('does not save a locale that only came from the browser languages', async () => {
+    const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['de-DE']);
+    try {
+      expect(await initLocale()).toBe('de');
+      await syncAccountLocale(null, 'a');
+      expect(saveMyLocale).not.toHaveBeenCalled();
+      await chooseLocale('en', { signedIn: true });
+      expect(saveMyLocale).toHaveBeenCalledTimes(1);
+      expect(saveMyLocale).toHaveBeenCalledWith('en');
+    } finally {
+      languages.mockRestore();
+    }
   });
 
   it('does nothing for an empty profile in uk', async () => {
@@ -169,6 +210,12 @@ describe('syncAccountLocale', () => {
       await syncAccountLocale('en', 'a');
       expect(currentLocale()).toBe('uk');
       expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('en');
+      localStorage.clear();
+    }
+    for (const path of ['/quizzes/new', '/quizzes/abc-123']) {
+      window.history.replaceState(null, '', path);
+      await syncAccountLocale('en', 'a');
+      expect(currentLocale()).toBe('uk');
       localStorage.clear();
     }
     window.history.replaceState(null, '', '/quizzes');

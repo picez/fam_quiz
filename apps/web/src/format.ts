@@ -1,4 +1,4 @@
-import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
+import { isRtl, pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 import { currentLocale, intlTag } from './locales/current';
 import { agoText, decimalText, dropYearMark } from './locales/grammar';
@@ -261,9 +261,10 @@ export function num(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);
 }
 
-/** Бали запитання зі знаком: «+750», «−1000». */
+/** Бали запитання зі знаком: «+750», «−1000». У мові справа наліво число ізольоване зліва направо (LRI…PDI), щоб знак не перескочив у кінець. */
 export function signed(value: number): string {
-  return value > 0 ? `+${value}` : num(value);
+  const text = value > 0 ? `+${value}` : num(value);
+  return isRtl(currentLocale()) ? `⁦${text}⁩` : text;
 }
 
 /** Номер запитання в раунді, скільки лишилося й назва раунду, коли раундів кілька. */
