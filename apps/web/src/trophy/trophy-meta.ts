@@ -1,6 +1,6 @@
 import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
-import { trophyGender } from '../locales/grammar';
+import { trophyGender, trophyPhrase } from '../locales/grammar';
 
 /** Значок трофея: запасний вигляд без WebGL, «Граємо за», диплом. */
 export const TROPHY_EMOJI: Record<TrophyKind, string> = {
@@ -24,10 +24,10 @@ export interface TrophyLook {
   material: TrophyMaterial;
 }
 
-/** «Золотий кубок», «Срібна медаль», … */
+/** «Золотий кубок», «Срібна медаль», … (es «Copa de oro»). */
 export function trophyLabel(trophy: TrophyLook): string {
   const adjective = t(`material_${trophy.material}_${trophyGender(trophy.kind)}` as TextKey);
-  return `${adjective} ${t(`trophy_${trophy.kind}` as TextKey)}`;
+  return trophyPhrase(adjective, t(`trophy_${trophy.kind}` as TextKey));
 }
 
 /** Рядок «Граємо за»: трофей, справжній приз, титул, диплом; гравіювання — лише коли більше нічого немає. */

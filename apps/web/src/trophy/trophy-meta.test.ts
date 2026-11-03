@@ -37,6 +37,20 @@ describe('trophyLabel', () => {
       expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Goldene Statuette');
     });
   });
+
+  describe('in Spanish', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it('puts the noun first, all five kinds being feminine', async () => {
+      await loadLocale('es');
+      activateLocale('es');
+      expect(trophyLabel({ kind: 'cup', material: 'gold' })).toBe('Copa de oro');
+      expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe('Medalla de plata');
+      expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Corona de bronce');
+      expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('Estrella de diamante');
+      expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Estatuilla de oro');
+    });
+  });
 });
 
 describe('prizeSummary', () => {
