@@ -1,4 +1,4 @@
-import type { Locale } from '@quiz/shared';
+import type { Locale, TrophyKind } from '@quiz/shared';
 import { t } from '../i18n';
 import { currentLocale, intlTag } from './current';
 
@@ -110,4 +110,16 @@ export function agoText(ms: number, locale: Locale = currentLocale()): string {
   const tag = intlTag(locale);
   const format = cached(`ago:${tag}`, () => new Intl.RelativeTimeFormat(tag, { style: 'short' }));
   return ms < 3_600_000 ? format.format(-Math.floor(ms / 60_000), 'minute') : format.format(-Math.floor(ms / 3_600_000), 'hour');
+}
+
+/**
+ * Рід назви трофея — щоб узгодити прикметник матеріалу: «Золотий кубок», «Срібна медаль».
+ * Рід залежить від мови: у pl «medal» чоловічого роду («Srebrny medal»). Мови без свого рядка — як uk.
+ */
+const TROPHY_GENDER: Record<TrophyKind, 'm' | 'f'> = { cup: 'm', medal: 'f', crown: 'f', star: 'f', statuette: 'f' };
+const TROPHY_GENDER_BY_LOCALE: Partial<Record<Locale, Partial<Record<TrophyKind, 'm' | 'f'>>>> = {
+  pl: { medal: 'm' },
+};
+export function trophyGender(kind: TrophyKind, locale: Locale = currentLocale()): 'm' | 'f' {
+  return TROPHY_GENDER_BY_LOCALE[locale]?.[kind] ?? TROPHY_GENDER[kind];
 }

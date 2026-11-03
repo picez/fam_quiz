@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { activateLocale, activateLocaleForTests, loadLocale } from '../i18n';
 import { podiumColumns, prizeSummary, titleBadge, trophyLabel } from './trophy-meta';
 
 describe('trophyLabel', () => {
@@ -9,6 +10,18 @@ describe('trophyLabel', () => {
     expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('Діамантова зірка');
     expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Золота статуетка');
     expect(trophyLabel({ kind: 'cup', material: 'diamond' })).toBe('Діамантовий кубок');
+  });
+
+  describe('in Polish', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it('agrees the material with the Polish gender, where a medal is masculine', async () => {
+      await loadLocale('pl');
+      activateLocale('pl');
+      expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe('Srebrny medal');
+      expect(trophyLabel({ kind: 'cup', material: 'gold' })).toBe('Złoty puchar');
+      expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Brązowa korona');
+    });
   });
 });
 

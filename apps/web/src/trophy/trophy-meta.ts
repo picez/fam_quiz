@@ -1,5 +1,6 @@
 import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { trophyGender } from '../locales/grammar';
 
 /** Значок трофея: запасний вигляд без WebGL, «Граємо за», диплом. */
 export const TROPHY_EMOJI: Record<TrophyKind, string> = {
@@ -18,9 +19,6 @@ export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: nu
   diamond: { color: '#CFEFFF', metallic: 0, roughness: 0.02 },
 };
 
-/** Рід назви трофея — щоб узгодити прикметник матеріалу: «Золотий кубок», «Золота медаль». */
-const GENDER: Record<TrophyKind, 'm' | 'f'> = { cup: 'm', medal: 'f', crown: 'f', star: 'f', statuette: 'f' };
-
 export interface TrophyLook {
   kind: TrophyKind;
   material: TrophyMaterial;
@@ -28,7 +26,7 @@ export interface TrophyLook {
 
 /** «Золотий кубок», «Срібна медаль», … */
 export function trophyLabel(trophy: TrophyLook): string {
-  const adjective = t(`material_${trophy.material}_${GENDER[trophy.kind]}` as TextKey);
+  const adjective = t(`material_${trophy.material}_${trophyGender(trophy.kind)}` as TextKey);
   return `${adjective} ${t(`trophy_${trophy.kind}` as TextKey)}`;
 }
 
