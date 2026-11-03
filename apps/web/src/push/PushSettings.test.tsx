@@ -108,6 +108,15 @@ describe('PushSettings', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увімкнути сповіщення. Спробуй ще раз.');
   });
 
+  it('explains that this browser cannot do push when subscribing fails', async () => {
+    vi.mocked(enablePush).mockResolvedValue('unsupported');
+    render(<PushSettings />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Увімкнути сповіщення' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Цей браузер не підтримує сповіщення (наприклад, Opera на комп’ютері). Відкрий сайт у Chrome, Edge чи Firefox або на телефоні.',
+    );
+  });
+
   it('shows only the hint on an iPhone tab', async () => {
     vi.mocked(pushSupport).mockReturnValue('ios-home-screen');
     render(<PushSettings />);
