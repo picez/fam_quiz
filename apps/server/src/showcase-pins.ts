@@ -57,36 +57,45 @@ async function owns(tx: Tx, userId: string, pin: ShowcasePin): Promise<boolean> 
 const pinRow = (userId: string, pin: ShowcasePin) =>
   and(eq(showcasePin.userId, userId), eq(showcasePin.kind, pin.kind), eq(showcasePin.itemId, pin.id));
 
-/** У транзакції: перевірка власності → повтор = ok без змін → прибрати застарілі → ліміт → найменший вільний slot; 23505 на slot → showcase_full. */
+/**
+ * У транзакції: перевірка власності → повтор = ok без змін → прибрати застарілі → ліміт → найменший вільний slot.
+ * 23505: той самий предмет уже закріплено (гонка) — ok; інакше slot зайняв інший предмет — ще одна спроба, потім showcase_full.
+ */
 export async function pinItem(db: Db, userId: string, pin: ShowcasePin, now: Date = new Date()): Promise<PinResult> {
-  try {
-    return await db.transaction(async (tx): Promise<PinResult> => {
-      if (!(await owns(tx, userId, pin))) return { ok: false, error: 'not_found' };
-      const [existing] = await tx.select({ slot: showcasePin.slot }).from(showcasePin).where(pinRow(userId, pin));
-      if (existing !== undefined) return { ok: true, pins: await showcasePins(tx, userId) };
-
-      // Застарілі рядки цього виду (нагороду видалено, ачівки немає) не займають слотів.
-      const live = pin.kind === 'prize' ? sql`exists (select 1 from ${prizeAward} where ${ownAward})` : sql`exists (select 1 from ${userAchievement} where ${ownAchievement})`;
-      await tx.delete(showcasePin).where(and(eq(showcasePin.userId, userId), eq(showcasePin.kind, pin.kind), sql`not ${live}`));
-
-      const used = await tx
-        .select({ slot: showcasePin.slot })
-        .from(showcasePin)
-        .where(and(eq(showcasePin.userId, userId), eq(showcasePin.kind, pin.kind)));
-      const limit = SHOWCASE_PIN_LIMITS[pin.kind];
-      if (used.length >= limit) return { ok: false, error: 'showcase_full' };
-      const taken = new Set(used.map((row) => row.slot));
-      let slot = 0;
-      while (taken.has(slot)) slot += 1;
-      await tx.insert(showcasePin).values({ userId, kind: pin.kind, itemId: pin.id, slot, pinnedAt: now });
-      return { ok: true, pins: await showcasePins(tx, userId) };
-    });
-  } catch (error) {
-    if (!isUniqueViolation(error)) throw error;
-    // Гонка: той самий предмет закріпили водночас (ключ) — це успіх; інакше слот зайняв інший предмет — ліміт.
-    const [existing] = await db.select({ slot: showcasePin.slot }).from(showcasePin).where(pinRow(userId, pin));
-    return existing !== undefined ? { ok: true, pins: await showcasePins(db, userId) } : { ok: false, error: 'showcase_full' };
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await pinOnce(db, userId, pin, now);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const [existing] = await db.select({ slot: showcasePin.slot }).from(showcasePin).where(pinRow(userId, pin));
+      if (existing !== undefined) return { ok: true, pins: await showcasePins(db, userId) };
+      if (attempt >= 1) return { ok: false, error: 'showcase_full' };
+    }
   }
+}
+
+function pinOnce(db: Db, userId: string, pin: ShowcasePin, now: Date): Promise<PinResult> {
+  return db.transaction(async (tx): Promise<PinResult> => {
+    if (!(await owns(tx, userId, pin))) return { ok: false, error: 'not_found' };
+    const [existing] = await tx.select({ slot: showcasePin.slot }).from(showcasePin).where(pinRow(userId, pin));
+    if (existing !== undefined) return { ok: true, pins: await showcasePins(tx, userId) };
+
+    // Застарілі рядки цього виду (нагороду видалено, ачівки немає) не займають слотів.
+    const live = pin.kind === 'prize' ? sql`exists (select 1 from ${prizeAward} where ${ownAward})` : sql`exists (select 1 from ${userAchievement} where ${ownAchievement})`;
+    await tx.delete(showcasePin).where(and(eq(showcasePin.userId, userId), eq(showcasePin.kind, pin.kind), sql`not ${live}`));
+
+    const used = await tx
+      .select({ slot: showcasePin.slot })
+      .from(showcasePin)
+      .where(and(eq(showcasePin.userId, userId), eq(showcasePin.kind, pin.kind)));
+    const limit = SHOWCASE_PIN_LIMITS[pin.kind];
+    if (used.length >= limit) return { ok: false, error: 'showcase_full' };
+    const taken = new Set(used.map((row) => row.slot));
+    let slot = 0;
+    while (taken.has(slot)) slot += 1;
+    await tx.insert(showcasePin).values({ userId, kind: pin.kind, itemId: pin.id, slot, pinnedAt: now });
+    return { ok: true, pins: await showcasePins(tx, userId) };
+  });
 }
 
 /** Ідемпотентно. */

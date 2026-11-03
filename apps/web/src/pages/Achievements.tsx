@@ -24,7 +24,7 @@ function OwnAchievements() {
   const location = useLocation();
   const state = usePrivateData(getMyAchievements);
   const pinning = usePins();
-  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
+  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   if (state.status === 'loading') return <Shell><p className="meta">{t('loading')}</p></Shell>;
   if (state.status === 'error') return <Failure message={state.message} />;
   return <PageView page={state.data} pinning={pinning} />;

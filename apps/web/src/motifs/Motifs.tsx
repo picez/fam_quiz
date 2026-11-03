@@ -3,9 +3,9 @@ import type { JSX, ReactNode } from 'react';
 // Власні мотиви «Кривавого місяця»: лише CSS-градієнт та inline SVG, жодних картинок і чужого арту.
 // Усе декоративне: aria-hidden, svg ще й focusable="false", тексту немає.
 
-/** Світний місяць: div.moon.moon-{size}; hero — у шапці/героях, faint — фоном. */
-export function BloodMoon({ size = 'hero' }: { size?: 'hero' | 'faint' }): JSX.Element {
-  return <div className={`moon moon-${size}`} aria-hidden="true" />;
+/** Світний місяць у шапці/героях: div.moon.moon-hero (фоном у грі — .game-bg::before, не компонент). */
+export function BloodMoon(): JSX.Element {
+  return <div className="moon moon-hero" aria-hidden="true" />;
 }
 
 /**

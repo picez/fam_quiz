@@ -83,6 +83,8 @@ describe('theme tokens «Кривавий місяць»', () => {
     ['--correct', '--stage'],
     ['--wrong', '--stage'],
     ['--stage', '--accent-text'],
+    ['--stage', '--signal'],
+    ['--stage', '--wrong'],
   ])('%s on %s reaches WCAG AA (4.5:1)', (text, background) => {
     expect(contrast(tokenColor(tokens, text), tokenColor(tokens, background))).toBeGreaterThanOrEqual(4.5);
   });
@@ -109,6 +111,27 @@ describe('theme tokens «Кривавий місяць»', () => {
     expect(contrast(tokenColor(tokens, '--on-accent'), tokenColor(tokens, '--accent'))).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('the offline banner and a missed sort card keep dark text on their red (WCAG AA)', () => {
+    const body = (selector: string) => cssRules(css).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(body('.banner.is-offline')).toContain('background: var(--signal);');
+    expect(body('.banner.is-offline')).toContain('color: var(--stage);');
+    expect(body('.sort-live-card.is-miss')).toContain('background: var(--wrong);');
+    expect(body('.sort-live-card.is-miss')).toContain('color: var(--stage);');
+  });
+
+  it('the editor yes/no pick: the unmarked option has a neutral --line border, the marked one is --correct, never red', () => {
+    const body = (selector: string) => cssRules(css).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(body('.answer-pick:not(.is-correct)')).toContain('border-color: var(--line);');
+    expect(body('.answer-row.is-correct')).toContain('border-color: var(--correct);');
+    expect(body('.answer-row.is-correct')).not.toMatch(/var\(--(signal|accent|amber|accent-text|wrong)\)/);
+  });
+
+  it('the award emoji button has no system button face (grey in the dark scheme)', () => {
+    const body = cssRules(css).find((rule) => rule.selector === '.award-emoji')?.body ?? '';
+    expect(body).toContain('background: none;');
+    expect(body).toContain('border: 0;');
+  });
+
   it('a shelf of two stands centred like a shelf of three', () => {
     expect(cssRules(css).find((rule) => rule.selector === '.shelf-stand')?.body ?? '').toContain('justify-content: center;');
   });
@@ -121,6 +144,18 @@ describe('theme tokens «Кривавий місяць»', () => {
 
   it('native progress bars are red, not the system blue', () => {
     expect(cssRules(css).find((rule) => rule.selector === 'progress')?.body ?? '').toContain('accent-color: var(--accent);');
+  });
+
+  it('native progress bars run on a dark track with a red fill in WebKit and Firefox', () => {
+    const body = (selector: string) => cssRules(css).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(tokens['--track']).toBe('#221616');
+    expect(body('progress')).toContain('appearance: none;');
+    expect(body('progress')).toContain('background: var(--track);');
+    expect(body('progress::-webkit-progress-bar')).toContain('background: var(--track);');
+    expect(body('progress::-webkit-progress-value')).toContain('background: var(--accent);');
+    expect(body('progress::-moz-progress-bar')).toContain('background: var(--accent);');
+    // Доріжка темна: майже не світліша за тло (на відміну від системної світло-сірої).
+    expect(contrast(tokenColor(tokens, '--track'), tokenColor(tokens, '--stage'))).toBeLessThan(1.5);
   });
 
   it('the primary button is a red fill with white text', () => {
@@ -175,6 +210,14 @@ describe('motifs', () => {
 
   it('the crows drift only when motion is welcome', () => {
     expect(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.crows\s*\{[^}]*animation:[^}]*30s/.test(css)).toBe(true);
+  });
+
+  it('on phones the profile crows are smaller, fly above the nick and drift only sideways', () => {
+    const phone = /@media \(max-width: 35\.99rem\) \{\s*\.profile-hero \.crows\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(phone).toContain('width: 5rem;');
+    expect(phone).toContain('inset-block-start: 1.75rem;');
+    expect(css).toMatch(/\.profile-hero \.crows\s*\{\s*animation-name: crows-drift-flat;/);
+    expect(css).toMatch(/@keyframes crows-drift-flat \{[^@]*translate: -1\.5rem 0;/);
   });
 
   it('the moon is a gradient with a glow, never blurred', () => {

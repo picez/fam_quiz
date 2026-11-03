@@ -3,9 +3,9 @@ import { Link, Navigate, useLocation } from 'react-router-dom';
 import { t } from '../i18n';
 import type { PrivateData } from '../usePrivateData';
 
-/** Вхід із поверненням на ту саму адресу. */
-export function loginFor(pathname: string): string {
-  return `/login?next=${encodeURIComponent(pathname)}`;
+/** Вхід із поверненням на ту саму адресу: шлях разом із ?query (напр. /profile/settings?edit=1). */
+export function loginFor(path: string): string {
+  return `/login?next=${encodeURIComponent(path)}`;
 }
 
 /** Підсторінка профілю: «‹» назад (посилання, тож працює й на глибокому посиланні) і заголовок плитки; title null — без h1 (ще вантажимо). */
@@ -28,7 +28,7 @@ export function ProfileSubpage({ title, back = '/profile', className, children }
 /** Спільні стани підсторінки зі своїми даними: без входу — на вхід, далі «Завантаження…», помилка або вміст. */
 export function SubpageData<T>({ state, title, children }: { state: PrivateData<T>; title: string; children: (data: T) => ReactNode }): JSX.Element {
   const location = useLocation();
-  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
+  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
     <ProfileSubpage title={title}>
       {state.status === 'loading' && <p className="meta">{t('loading')}</p>}

@@ -1422,7 +1422,6 @@ const uk = {
   versusRecent: 'Останні спільні ігри',
   versusGame: '{date} — «{title}»: ви — {mine}, {name} — {theirs}',
   versusNoPlace: 'без місця',
-  achievementsTitle: 'Досягнення',
   achievement_first_game: 'Перша гра',
   achievement_first_win: 'Перша перемога',
   achievement_games_10: '10 ігор',

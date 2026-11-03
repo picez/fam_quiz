@@ -11,7 +11,7 @@ const fullText = (kind: ShowcasePin['kind']) =>
 
 /**
  * Закріплене на вітрині. initial є — без запиту; немає — GET. Ліміт перевіряється до запиту (жодної мовчазної заміни),
- * 409 showcase_full — той самий текст. Поки запит триває, busy і другий toggle ігнорується (подвійний дотик).
+ * 409 showcase_full — той самий текст; після 409/404 список перечитується з сервера. Поки запит триває, busy і другий toggle ігнорується (подвійний дотик).
  */
 export function usePins(initial?: ShowcasePins): {
   pins: ShowcasePins | null;
@@ -56,10 +56,17 @@ export function usePins(initial?: ShowcasePins): {
     setBusy(true);
     setMessage(null);
     const result = pinned ? await unpinFromShowcase(pin) : await pinToShowcase(pin);
+    if (result.ok) setPins(result.data);
+    else {
+      // 409/404: місцевий список застарів (закріплено з іншого пристрою, нагороду видалено) — беремо свіжий.
+      if (result.error === 'showcase_full' || result.error === 'not_found') {
+        const fresh = await getShowcasePins();
+        if (fresh.ok) setPins(fresh.data);
+      }
+      setMessage(result.error === 'showcase_full' ? fullText(pin.kind) : errorText(result.error));
+    }
     running.current = false;
     setBusy(false);
-    if (result.ok) setPins(result.data);
-    else setMessage(result.error === 'showcase_full' ? fullText(pin.kind) : errorText(result.error));
   }, []);
 
   return { pins, busy, message, isPinned, toggle };

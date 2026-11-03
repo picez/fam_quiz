@@ -27,15 +27,10 @@ describe('motifs', () => {
     expect(screen.getByText('Код').closest('.motif-hero-content')).not.toBeNull();
   });
 
-  it('the moon comes in hero and faint sizes, hero by default', () => {
-    const { container } = render(
-      <>
-        <BloodMoon />
-        <BloodMoon size="faint" />
-      </>,
-    );
+  it('the moon is a hero moon', () => {
+    const { container } = render(<BloodMoon />);
     const moons = [...container.querySelectorAll('div.moon')];
-    expect(moons.map((moon) => moon.className)).toEqual(['moon moon-hero', 'moon moon-faint']);
+    expect(moons.map((moon) => moon.className)).toEqual(['moon moon-hero']);
   });
 
   it('draws two or three crows in one svg', () => {

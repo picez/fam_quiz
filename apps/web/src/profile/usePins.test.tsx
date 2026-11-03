@@ -78,7 +78,27 @@ describe('usePins', () => {
     expect(result.current.message).toBe('На вітрині вже 3 кубки — спершу прибери один.');
     await act(() => result.current.toggle({ kind: 'prize', id: P1 }));
     expect(result.current.message).toBe('Немає зв’язку із сервером.');
-    expect(result.current.pins).toEqual(pins());
+    expect(getShowcasePins).toHaveBeenCalledOnce();
+  });
+
+  it('refetches the pins after a 409 showcase_full (pinned on another device)', async () => {
+    vi.mocked(pinToShowcase).mockResolvedValue({ ok: false, error: 'showcase_full' });
+    vi.mocked(getShowcasePins).mockResolvedValue({ ok: true, data: pins({ prizes: [P2, P3, P4] }) });
+    const { result } = renderHook(() => usePins(pins({ prizes: [P2] })));
+    await act(() => result.current.toggle({ kind: 'prize', id: P1 }));
+    expect(getShowcasePins).toHaveBeenCalledOnce();
+    expect(result.current.pins).toEqual(pins({ prizes: [P2, P3, P4] }));
+    expect(result.current.message).toBe('На вітрині вже 3 кубки — спершу прибери один.');
+    expect(result.current.busy).toBe(false);
+  });
+
+  it('refetches the pins after a 404 (the award was deleted) so its pin goes away', async () => {
+    vi.mocked(unpinFromShowcase).mockResolvedValue({ ok: false, error: 'not_found' });
+    vi.mocked(getShowcasePins).mockResolvedValue({ ok: true, data: pins() });
+    const { result } = renderHook(() => usePins(pins({ prizes: [P1] })));
+    await act(() => result.current.toggle({ kind: 'prize', id: P1 }));
+    expect(getShowcasePins).toHaveBeenCalledOnce();
+    expect(result.current.isPinned({ kind: 'prize', id: P1 })).toBe(false);
   });
 
   it('is busy while the request runs and ignores a second toggle', async () => {

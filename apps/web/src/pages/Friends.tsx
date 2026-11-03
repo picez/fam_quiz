@@ -17,7 +17,7 @@ export function Friends() {
   if (fresh.status === 'ready') last.current = fresh;
   const state = fresh.status === 'loading' && last.current !== null ? last.current : fresh;
 
-  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
+  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
     <ProfileSubpage title={t('profileTileFriends')}>
       {state.status === 'error' && (

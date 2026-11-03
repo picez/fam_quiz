@@ -18,7 +18,7 @@ export function Prizes(): JSX.Element {
   const location = useLocation();
   const store = usePrivateData(myPrizes);
   const { state: profile } = useMyProfile();
-  if (store.status === 'signed-out' || profile.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
+  if (store.status === 'signed-out' || profile.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
   return (
     <ProfileSubpage title={t('profileTilePrizes')} className="prizes-page">
       {profile.status === 'ready' && profile.data.showcase.awards.length === 0 && profile.data.showcase.title === null ? (

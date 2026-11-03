@@ -38,6 +38,34 @@ const earn = (ids: AchievementId[], userId = 'u1') =>
   db.insert(userAchievement).values(ids.map((achievementId) => ({ userId, achievementId, earnedAt: base })));
 const prizePin = (id: string) => ({ kind: 'prize' as const, id });
 
+/**
+ * db, у транзакціях якого перші `failures` вставок кидають 23505 (як драйвер: код у cause) —
+ * імітація гонки на PGlite з одним з'єднанням: інший предмет зайняв той самий slot.
+ */
+function collidingDb(failures: number): { db: Db; inserts: () => number } {
+  let inserts = 0;
+  const wrapTx = (tx: object) =>
+    new Proxy(tx, {
+      get(target, key, receiver) {
+        const value = Reflect.get(target, key, receiver);
+        if (key !== 'insert' || typeof value !== 'function') return value;
+        return (...args: unknown[]) => {
+          inserts += 1;
+          if (inserts <= failures) throw Object.assign(new Error('Failed query'), { cause: { code: '23505' } });
+          return (value as (...a: unknown[]) => unknown).apply(target, args);
+        };
+      },
+    });
+  const wrapped = new Proxy(db, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver);
+      if (key !== 'transaction') return typeof value === 'function' ? value.bind(target) : value;
+      return (run: (tx: object) => Promise<unknown>) => target.transaction((tx) => run(wrapTx(tx)));
+    },
+  });
+  return { db: wrapped, inserts: () => inserts };
+}
+
 describe('showcase pins', () => {
   it('pins 3 awards in the order of pinning and refuses the 4th', async () => {
     const ids = [await award(), await award(), await award(), await award()];
@@ -95,6 +123,22 @@ describe('showcase pins', () => {
     expect(results.filter((r) => r.ok)).toHaveLength(3);
     expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'showcase_full' }]);
     expect(await db.select().from(showcasePin)).toHaveLength(3);
+  });
+
+  it('retries once when another item took the same slot (23505) and pins into a free slot', async () => {
+    const [a, b] = [await award(), await award()];
+    await pinItem(db, 'u1', prizePin(a), t(0));
+    const flaky = collidingDb(1);
+    expect(await pinItem(flaky.db, 'u1', prizePin(b), t(1))).toEqual({ ok: true, pins: { prizes: [a, b], achievements: [] } });
+    expect(flaky.inserts()).toBe(2);
+  });
+
+  it('answers showcase_full when the slot collides twice', async () => {
+    const a = await award();
+    const flaky = collidingDb(2);
+    expect(await pinItem(flaky.db, 'u1', prizePin(a), t(0))).toEqual({ ok: false, error: 'showcase_full' });
+    expect(flaky.inserts()).toBe(2);
+    expect(await db.select().from(showcasePin)).toHaveLength(0);
   });
 
   it('pins up to 5 earned achievements', async () => {

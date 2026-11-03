@@ -20216,7 +20216,22 @@ async function bloodMoon23a() {
   const crows = olya.locator('.profile-hero .crows');
   await crows.waitFor();
   expect(await crows.evaluate((el) => (globalThis as unknown as Css23a).getComputedStyle(el).animationName)).toBe('none');
-  expect(await olya.locator('.profile-hero .moon').evaluate((el) => (globalThis as unknown as Css23a).getComputedStyle(el).animationName)).toBe('none');
+  // Ворони не торкаються ніка на вузьких телефонах: низ найнижчого силуету вище верху тексту ніка (дрейф на телефоні — лише вбік).
+  for (const width of [320, 360, 375]) {
+    await olya.setViewportSize({ width, height: 812 });
+    const gap = (await olya.evaluate(`(() => {
+      const nick = document.createRange();
+      nick.selectNodeContents(document.querySelector('.profile-hero h1'));
+      const text = nick.getBoundingClientRect();
+      const birds = [...document.querySelectorAll('.profile-hero .crows .crow')].map((crow) => crow.getBoundingClientRect());
+      const bottom = Math.max(...birds.map((box) => box.bottom));
+      const apart = birds.every((box) => box.bottom <= text.top || box.left >= text.right || box.right <= text.left);
+      return { apart, gap: text.top - bottom };
+    })()`)) as { apart: boolean; gap: number };
+    expect(gap.apart, `crows touch the nick at ${width}px (gap ${gap.gap})`).toBe(true);
+    expect(gap.gap, `crows sit above the nick at ${width}px`).toBeGreaterThanOrEqual(4);
+  }
+  await shot(olya, 'p23a-crows-375');
   await olya.emulateMedia({ reducedMotion: 'no-preference' });
   await olya.reload();
   await crows.waitFor();

@@ -2,6 +2,7 @@
   --menu-h: 3.75rem;
   --stage: #060505;
   --surface: #0f0b0b;
+  --track: #221616; /* незаповнена доріжка шкал (progress): темна, видно й на --surface */
   --spot: rgb(224 37 49 / 0.12);
   --paper: #f3eaea;
   --dim: rgb(243 234 234 / 0.7);
@@ -43,7 +44,7 @@
   --duel-challenger: #5ec8ff;
   --duel-opponent: #ff7eb6;
   --buff-accent: #7ee0ff;
-  --buff-used: rgb(245 241 230 / 0.28);
+  --buff-used: rgb(243 234 234 / 0.28);
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
@@ -130,9 +131,34 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Рідні шкали (рівень, прогрес ачівок) — червоні, а не системні сині. Окремі шкали задають своє accent-color. */
+/* Рідні шкали (рівень, прогрес ачівок) — червоні, а не системні сині, на темній доріжці (не світло-сірій системній).
+   appearance: none, щоб WebKit узяв ::-webkit-progress-*; Firefox малює доріжку тлом progress, а заповнення — ::-moz-progress-bar.
+   Псевдоелементи — окремими правилами: невідомий селектор у списку зламав би все правило в іншому рушії. */
 progress {
+  -webkit-appearance: none;
+  appearance: none;
+  block-size: 0.5rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--accent);
   accent-color: var(--accent);
+}
+
+progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--track);
+}
+
+progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 h1,
@@ -406,7 +432,7 @@ a {
   padding-top: max(0.75rem, env(safe-area-inset-top));
   border-radius: 0;
   background: var(--signal);
-  color: var(--paper);
+  color: var(--stage);
 }
 
 .error {
@@ -1791,6 +1817,15 @@ a.banner {
   justify-content: space-between;
   padding-inline-end: 0.875rem;
   cursor: pointer;
+}
+
+/* Так/ні: непозначений варіант — нейтральна рамка (червона читалася б як «неправильно»); позначений — .is-correct у --correct. */
+.answer-pick:not(.is-correct) {
+  border-color: var(--line);
+}
+
+.answer-pick:not(.is-correct):hover {
+  border-color: var(--dim);
 }
 
 .answer-word {
@@ -3803,22 +3838,6 @@ button.shelf-cup {
   }
 }
 
-/* «Ще N» під вікторинами профілю: кнопка, що виглядає як посилання «Усі досягнення →» поруч, з дотиковою зоною 44 px. */
-.link-more {
-  min-height: 2.75rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--amber);
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-}
-.link-more:hover {
-  color: var(--paper);
-}
-
 /* Статистика профілю — щільно: дрібніші клітинки, більше колонок на широкому екрані, 3 на телефоні (у «Моїх іграх» — як було). */
 .profile-stats {
   display: flex;
@@ -5178,8 +5197,8 @@ button.sort-zone:disabled {
 
 .sort-live-card.is-miss {
   animation: sort-shake 400ms;
-  background: var(--signal);
-  color: var(--on-accent);
+  background: var(--wrong);
+  color: var(--stage);
 }
 
 .sort-zone.is-toward,
@@ -10871,12 +10890,12 @@ button.wall-tile:disabled {
 }
 
 .ladder-step.is-failed {
-  border-color: var(--signal);
-  color: var(--signal);
+  border-color: var(--wrong);
+  color: var(--wrong);
 }
 
 .ladder-mark {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -12920,6 +12939,14 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
+.achievement-card progress::-webkit-progress-value {
+  background: var(--amber);
+}
+
+.achievement-card progress::-moz-progress-bar {
+  background: var(--amber);
+}
+
 /* П'ять пунктів нижнього меню: на 360 px по 72 px, короткі підписи (data-short); шрифт — clamp вище (≤ 700 px). */
 @media (max-width: 400px) {
   .menu a {
@@ -14084,12 +14111,23 @@ button.wall-tile:disabled {
   text-align: center;
   overflow-wrap: anywhere;
 }
+/* Кнопка-значок замість 3D (поза першими картками): без системного тла кнопки — у темній схемі воно сіре (ButtonFace). */
 .award-emoji {
   display: grid;
   place-items: center;
   width: 100%;
   height: 160px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
   font-size: 4rem;
+  cursor: pointer;
+}
+
+.award-emoji:hover {
+  background: rgb(255 255 255 / 0.06);
 }
 .award-card .trophy-card {
   width: 160px;
@@ -14885,12 +14923,17 @@ button.wall-tile:disabled {
   inset: 0;
   pointer-events: none;
   /* Згори сяйво (80px) гасне за 5rem, тож рамка його не ріже; місяць стоїть нижче цього згасання. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to left, transparent, #000 var(--motif-side-fade));
+  -webkit-mask-composite: source-in;
   mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
     linear-gradient(to left, transparent, #000 var(--motif-side-fade));
   mask-composite: intersect;
 }
 
 [dir='rtl'] .motif-hero-art {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to right, transparent, #000 var(--motif-side-fade));
   mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
     linear-gradient(to right, transparent, #000 var(--motif-side-fade));
 }
@@ -14926,10 +14969,6 @@ button.wall-tile:disabled {
   opacity: 0.85;
 }
 
-.moon-faint {
-  opacity: 0.12;
-}
-
 /* Ворони — чорні силуети на тлі місяця. */
 .crows {
   position: absolute;
@@ -14942,10 +14981,13 @@ button.wall-tile:disabled {
   pointer-events: none;
 }
 
-/* На телефоні в шапці профілю ворони летять над ніком, а не по ньому (нік на 320 px сягає краю). */
+/* На телефоні в шапці профілю ворони менші й летять вище ніка, а не по ньому (нік на 320 px сягає краю):
+   низ найнижчого ворона (~2.4rem від верху svg 5rem) — на ~4.15rem, а нік починається нижче поля героя 4.5rem. */
 @media (max-width: 35.99rem) {
   .profile-hero .crows {
-    inset-block-start: 2.25rem;
+    inset-block-start: 1.75rem;
+    inset-inline-end: 0.75rem;
+    width: 5rem;
   }
 }
 
@@ -14961,6 +15003,23 @@ button.wall-tile:disabled {
 
     to {
       translate: -1.5rem 0.5rem;
+    }
+  }
+
+  /* Над ніком на телефоні дрейф лише вбік: вниз ворони не опускаються. */
+  @media (max-width: 35.99rem) {
+    .profile-hero .crows {
+      animation-name: crows-drift-flat;
+    }
+  }
+
+  @keyframes crows-drift-flat {
+    from {
+      translate: 0 0;
+    }
+
+    to {
+      translate: -1.5rem 0;
     }
   }
 }

@@ -142,6 +142,8 @@ describe('profile sub-pages', () => {
 
   it.each([
     ['/profile/settings', '/login?next=%2Fprofile%2Fsettings'],
+    ['/profile/settings?edit=1', '/login?next=%2Fprofile%2Fsettings%3Fedit%3D1'],
+    ['/prizes?tab=x', '/login?next=%2Fprizes%3Ftab%3Dx'],
     ['/profile/quizzes', '/login?next=%2Fprofile%2Fquizzes'],
     ['/prizes', '/login?next=%2Fprizes'],
     ['/achievements', '/login?next=%2Fachievements'],
