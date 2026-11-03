@@ -1666,7 +1666,7 @@ async function menuProfileFriends() {
   await field(host, 'Пароль').fill('correct horse battery');
   await click(host, 'Зареєструватися');
   await host.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
+  expect(await menuLinks(host)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль']);
   expect((await host.locator(MENU).boundingBox())!.y).toBeLessThanOrEqual(1);
   await shot(host, 'menu-host-desktop');
 
@@ -1775,9 +1775,14 @@ async function menuProfileFriends() {
   await host.getByRole('heading', { name: 'Статистика' }).waitFor();
   expect(await stat(host, 'проведена гра').textContent()).toBe('1проведена гра');
   expect(await host.locator('.achievements li:not(.locked)', { hasText: 'За пультом' }).count()).toBe(1);
+  await shot(host, 'profile-own-desktop');
+  // Друзі — окремий пункт меню: у профілі списку немає, на «Друзях» — є.
+  expect(await host.locator('.friend-list').count()).toBe(0);
+  await host.locator(MENU).getByRole('link', { name: 'Друзі' }).click();
+  await host.waitForURL(`${base}/friends`);
   const friend = host.locator('.friend-list a', { hasText: 'Зірка' });
   await friend.waitFor();
-  await shot(host, 'profile-own-desktop');
+  await shot(host, 'friends-desktop');
   await friend.click();
   await host.waitForURL(`${base}/profile/${olyaId}`);
   await host.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
@@ -16428,7 +16433,7 @@ async function achievements12i() {
   const ownPage = async () => (await (await olya.request.get(`${base}/api/me/achievements`)).json()) as AchievementsPage;
   await expect.poll(async () => (await ownPage()).items.find((i) => i.id === 'fast_answer')?.earned, POLL).toBe(true);
 
-  // ── 3. Меню з сімома пунктами (14a додав «Призи», 18a — «Стрічку»). ──
+  // ── 3. Меню з вісьмома пунктами (14a додав «Призи», 18a — «Стрічку», потім «Друзі»). ──
   await olya.goto(base);
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
   expect((await olya.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/[^\p{L}\s’]/gu, '').trim())).toEqual([
@@ -16438,6 +16443,7 @@ async function achievements12i() {
     'Історія',
     'Призи',
     'Досягнення',
+    'Друзі',
     'Профіль',
   ]);
   await expectNoSideScroll(olya, 'p12i-menu');
@@ -17181,11 +17187,11 @@ const MENU_FITS_14A = `(() => {
   };
 })()`;
 
-/** Меню з сімома пунктами (з 18a — і «Стрічка») на ширині width: не вище 60 px, без прокрутки вбік, жоден короткий підпис не обрізано. */
+/** Меню з вісьмома пунктами (з 18a — і «Стрічка», потім «Друзі») на ширині width: не вище 60 px, без прокрутки вбік, жоден короткий підпис не обрізано. */
 async function expectPhoneMenu14a(page: Page, width: number) {
   await page.setViewportSize({ width, height: 812 });
   const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
-  expect(fit.count, `menu ${width}: items`).toBe(7);
+  expect(fit.count, `menu ${width}: items`).toBe(8);
   expect(fit.height, `menu ${width}: height`).toBeLessThanOrEqual(60);
   expect(fit.wide, `menu ${width}: horizontal scroll`).toBe(true);
   expect(fit.clipped, `menu ${width}: clipped labels`).toEqual([]);
@@ -17298,7 +17304,7 @@ async function prizes14a() {
   await hostPhone.locator('.prize-list li', { hasText: 'Друге місце' }).waitFor();
   expect(await hostPhone.locator('.prize-list li').count()).toBe(2);
   await expectNoSideScroll(hostPhone, 'p14a-prizes');
-  // Меню з сімома пунктами: 412, 375 і 360 px (з 22a і uk на 401–700 px показує короткі підписи).
+  // Меню з вісьмома пунктами: 412, 375 і 360 px (з 22a і uk на 401–700 px показує короткі підписи).
   await expectPhoneMenu14a(hostPhone, 412);
   await expectPhoneMenu14a(hostPhone, 375);
   await expectPhoneMenu14a(hostPhone, 360);
@@ -18520,11 +18526,11 @@ const FEED_BADGE_FITS_18A = `(() => {
   return bad;
 })()`;
 
-/** Сім пунктів меню на ширині width: ≤ 60 px заввишки, усі в одному рядку, жоден короткий підпис не ширший за пункт. */
-async function expectSevenItems18a(page: Page, width: number) {
+/** Вісім пунктів меню на ширині width: ≤ 60 px заввишки, усі в одному рядку, жоден короткий підпис не ширший за пункт. */
+async function expectEightItems18a(page: Page, width: number) {
   await page.setViewportSize({ width, height: 812 });
   const fit = (await page.evaluate(MENU_FITS_14A)) as { count: number; height: number; wide: boolean; shown: string[]; clipped: string[] };
-  expect(fit.count, `p18a-menu-${width}: items`).toBe(7);
+  expect(fit.count, `p18a-menu-${width}: items`).toBe(8);
   expect((await page.locator(MENU).boundingBox())!.height, `p18a-menu-${width}: height`).toBeLessThanOrEqual(60);
   expect(fit.wide, `p18a-menu-${width}: horizontal scroll`).toBe(true);
   expect(fit.clipped, `p18a-menu-${width}: clipped labels`).toEqual([]);
@@ -18558,11 +18564,11 @@ async function feed18a() {
   const feedLink = (page: Page) => page.locator(MENU).getByRole('link', { name: /^Стрічка/ });
   const menuBadge = (page: Page) => feedLink(page).locator('.menu-badge');
 
-  // ── 1. Меню: сім пунктів на 360 і 375 px; бейдж «99+» і двоцифровий не виходять за пункт. ──
+  // ── 1. Меню: вісім пунктів на 360 і 375 px; бейдж «99+» і двоцифровий не виходять за пункт. ──
   await olya.goto(base);
   await feedLink(olya).waitFor();
-  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
-  for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль']);
+  for (const width of [360, 375]) await expectEightItems18a(olya, width);
   // The «99+» and 42 badges are stubbed here; the real badge is checked in step 4.
   for (const [count, label] of [[120, '99+'], [42, '42']] as const) {
     await olya.route('**/api/me/feed/badge', (route) => route.fulfill({ json: { events: count, requests: 0, decisions: 0 } }));
@@ -18571,7 +18577,7 @@ async function feed18a() {
     expect(await feedLink(olya).getAttribute('aria-label')).toBe(`Стрічка, Нових подій: ${count}`);
     expect(await menuBadge(olya).getAttribute('aria-hidden'), 'the badge repeats the count to a screen reader').toBe('true');
     for (const width of [360, 375]) {
-      await expectSevenItems18a(olya, width);
+      await expectEightItems18a(olya, width);
       expect(await olya.evaluate(FEED_BADGE_FITS_18A), `p18a-menu-${width} with «${label}»`).toEqual([]);
       await shot(olya, label === '99+' ? `p18a-menu-${width}` : `p18a-menu-${width}-two-digit`);
     }
@@ -18893,11 +18899,11 @@ async function calendar19a() {
       )
       .toBe(expected);
 
-  // ── 1. Меню не змінилось: сім пунктів на 360 і 375 px. ──
+  // ── 1. Меню: вісім пунктів на 360 і 375 px. ──
   await olya.goto(base);
   await feedLink(olya).waitFor();
-  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
-  for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+  expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль']);
+  for (const width of [360, 375]) await expectEightItems18a(olya, width);
 
   // ── 2. Дружба: Марко → Оля, Марко → Петро, Віра → Марко (в один бік), Оля → Марко (взаємно). ──
   const follow = async (page: Page, target: Page) => {
@@ -19156,7 +19162,7 @@ async function calendar19a() {
   expect(problems).toEqual([]);
 }
 
-it('part 19a: calendar — the menu keeps seven items, the host plans a game for tomorrow 19:00 Kyiv time, friends see it in the calendar tab and the feed while a one-way follower does not, Оля asks and is approved, Петро is rejected, an edit lights the badge, the host opens the game from the event and Оля joins from «Приєднатися», the event ends as played, and a cancelled event shows as cancelled to its participant', async () => {
+it('part 19a: calendar — the menu keeps eight items, the host plans a game for tomorrow 19:00 Kyiv time, friends see it in the calendar tab and the feed while a one-way follower does not, Оля asks and is approved, Петро is rejected, an edit lights the badge, the host opens the game from the event and Оля joins from «Приєднатися», the event ends as played, and a cancelled event shows as cancelled to its participant', async () => {
   try {
     await calendar19a();
   } catch (error) {
@@ -19282,11 +19288,11 @@ async function push20a() {
     restarting = false;
     expect(await (await olya.request.get(`${base}/api/push/key`)).json()).toEqual({ publicKey });
 
-    // ── 3. Меню: сім пунктів. ──
+    // ── 3. Меню: вісім пунктів. ──
     await olya.goto(base);
     await olya.locator(MENU).getByRole('link', { name: /^Стрічка/ }).waitFor();
-    expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль']);
-    for (const width of [360, 375]) await expectSevenItems18a(olya, width);
+    expect(await menuLinks(olya)).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль']);
+    for (const width of [360, 375]) await expectEightItems18a(olya, width);
 
     // ── 4. Сервіс-воркер: без fetch, зареєстрований на /. ──
     const sw = await fetch(`${base}/sw.js`);
@@ -19440,7 +19446,7 @@ async function push20a() {
   }
 }
 
-it('part 20a: web push — without VAPID keys the notifications block is hidden; with keys Оля and Петро enable notifications, an iPhone tab sees the home-screen hint, the one-hour reminder goes once to the host and the approved friend, «game opened» carries the room code to the approved friend only, a cancel reaches those who asked, a 410 drops a subscription, sign-out removes the device subscription, and the menu keeps seven items', async () => {
+it('part 20a: web push — without VAPID keys the notifications block is hidden; with keys Оля and Петро enable notifications, an iPhone tab sees the home-screen hint, the one-hour reminder goes once to the host and the approved friend, «game opened» carries the room code to the approved friend only, a cancel reaches those who asked, a 410 drops a subscription, sign-out removes the device subscription, and the menu keeps eight items', async () => {
   try {
     await push20a();
   } catch (error) {
@@ -19457,7 +19463,7 @@ async function admin21a() {
   const CITY = 'Яке місто — столиця України?';
   const SEA = 'Одеса стоїть на Чорному морі?';
   const PRIZE = 'Кубок 21a';
-  const MENU_ITEMS = ['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Профіль'];
+  const MENU_ITEMS = ['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль'];
   const PASSWORD = 'correct horse battery';
 
   banExpected = true;
@@ -19529,7 +19535,7 @@ async function admin21a() {
     await admin.getByText('Користувачів усього', exact).waitFor();
     await admin.getByText('Живих ігор зараз', exact).waitFor();
     expect(await menuLinks(admin)).toEqual(MENU_ITEMS);
-    for (const width of [360, 375]) await expectSevenItems18a(admin, width);
+    for (const width of [360, 375]) await expectEightItems18a(admin, width);
     expect(await noSideScroll(admin)).toBe(true);
     const tabs = admin.locator('.admin-tabs a');
     expect(await tabs.count()).toBe(4);
@@ -19623,7 +19629,7 @@ async function admin21a() {
   }
 }
 
-it('part 21a: admin panel — only a verified ADMIN_EMAILS account sees «Адмінка» in the profile while /admin and /api/admin stay a plain 404 for others, the menu keeps seven items, the admin sees stats, finds and bans Богдан whose lobby closes for Оля, whose sessions end and whose sign-in says «Акаунт заблоковано» while his profile is gone for Оля, deletes one question then the whole quiz and a stock prize, reads the log newest first, and unbans him so he signs in again', async () => {
+it('part 21a: admin panel — only a verified ADMIN_EMAILS account sees «Адмінка» in the profile while /admin and /api/admin stay a plain 404 for others, the menu keeps eight items, the admin sees stats, finds and bans Богдан whose lobby closes for Оля, whose sessions end and whose sign-in says «Акаунт заблоковано» while his profile is gone for Оля, deletes one question then the whole quiz and a stock prize, reads the log newest first, and unbans him so he signs in again', async () => {
   try {
     await admin21a();
   } catch (error) {
@@ -19701,23 +19707,23 @@ async function l10n22a() {
     await olya.goto(`${base}/profile`);
     await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
     expect(await htmlDir(olya)).toBe(lang === 'ar' ? 'rtl' : 'ltr');
-    await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
-    await expectSevenItems18a(olya, 360);
+    await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(8);
+    await expectEightItems18a(olya, 360);
     await shot(olya, `p22a-${lang}-menu-360`);
-    await expectSevenItems18a(olya, 375);
+    await expectEightItems18a(olya, 375);
     for (const path of PAGES) {
       await olya.goto(`${base}${path}`);
-      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
+      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(8);
       expect(await htmlLang(olya)).toBe(lang);
       const name = path === '/' ? 'start' : path.slice(1).replaceAll('/', '-');
       await expectNoSideScroll(olya, `p22a-${lang}-${name}`);
     }
     if (lang === 'de' || lang === 'uk') {
-      // 401–700 px: і тут короткі підписи (uk теж), усі сім в одному рядку, жоден не вилазить за свій пункт.
+      // 401–700 px: і тут короткі підписи (uk теж), усі вісім в одному рядку, жоден не вилазить за свій пункт.
       await olya.setViewportSize({ width: 412, height: 812 });
       await olya.goto(`${base}/profile`);
-      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(7);
-      await expectSevenItems18a(olya, 412);
+      await expect.poll(() => olya.locator(`${MENU} a`).count(), POLL).toBe(8);
+      await expectEightItems18a(olya, 412);
       const shown = (await olya.evaluate(MENU_FITS_14A)) as { shown: string[] };
       expect(shown.shown.every((content) => content.includes('"')), `p22a-${lang}-menu-412: short labels are not shown`).toBe(true);
       expect(await noSideScroll(olya), `p22a-${lang}-menu-412: horizontal scroll`).toBe(true);
@@ -19858,7 +19864,7 @@ async function l10n22a() {
   expect(problems).toEqual([]);
 }
 
-it('part 22a: localisation — a German browser opens the site in German, every language keeps the seven-item menu within 60 px on 360 and 375 px with no side scroll, Оля picks Deutsch in the profile and gets it back on a fresh Ukrainian browser after sign-in, Богдан hosts in English, Віра plays from an Arabic phone right to left with the room code, timer and scores left to right and the Ukrainian questions untranslated', async () => {
+it('part 22a: localisation — a German browser opens the site in German, every language keeps the eight-item menu within 60 px on 360 and 375 px with no side scroll, Оля picks Deutsch in the profile and gets it back on a fresh Ukrainian browser after sign-in, Богдан hosts in English, Віра plays from an Arabic phone right to left with the room code, timer and scores left to right and the Ukrainian questions untranslated', async () => {
   try {
     await l10n22a();
   } catch (error) {
