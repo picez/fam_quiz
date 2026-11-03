@@ -83,7 +83,7 @@ export function WipeoutStepList({ info, size, highlightId, max }: { info: Wipeou
                 <span aria-hidden="true">{ok ? '✓' : '✗'}</span>
                 <span className="sr-only">{t(ok ? 'wipeoutVerdictRight' : 'wipeoutVerdictBurned')}</span>
               </span>
-              <span className="name">{row.nickname}</span>
+              <span className="name" dir="auto">{row.nickname}</span>
               <span className="wipeout-change">{ok ? t('wipeoutStepRight', { prev, bank: num(row.bank) }) : t('wipeoutStepBurned', { prev })}</span>
             </li>
           );
@@ -115,8 +115,8 @@ export function WipeoutSide({ info, reveal }: { info: WipeoutInfo; reveal: boole
       <ul>
         {rows.map((row) => (
           <li key={row.playerId}>
-            <span className="name">{row.nickname}</span>
-            <span className="score">{num(row.bank)}</span>
+            <span className="name" dir="auto">{row.nickname}</span>
+            <span className="score" dir="ltr">{num(row.bank)}</span>
           </li>
         ))}
         {more > 0 && <li className="meta">{t('wipeoutMore', { n: more })}</li>}
@@ -187,7 +187,7 @@ export function WipeoutPlayers({ info, size, highlightId }: { info: WipeoutInfo;
                       <RowReaction rowId={row.playerId} />
                     </span>
                     {mark !== null && <span className={`wipeout-mark is-${row.decision}`}>{mark}</span>}
-                    {status !== 'burned' && <span className="score">{num(row.bank)}</span>}
+                    {status !== 'burned' && <span className="score" dir="ltr">{num(row.bank)}</span>}
                   </li>
                 );
               })}

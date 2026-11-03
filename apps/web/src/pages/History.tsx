@@ -13,7 +13,7 @@ function GameFacts({ game }: { game: GameSummary }) {
   return (
     <>
       <h2>
-        <Link to={`/history/${game.id}`}>{game.title}</Link>
+        <Link to={`/history/${game.id}`} dir="auto">{game.title}</Link>
       </h2>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}

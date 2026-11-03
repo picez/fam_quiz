@@ -48,7 +48,7 @@ describe('stage away line styles', () => {
     const start = css.indexOf('\n.bar > .away-line {');
     expect(start).toBeGreaterThanOrEqual(0);
     const body = css.slice(start, css.indexOf('}', start));
-    for (const line of ['margin-left: auto;', 'min-width: 0;', 'max-width: 45%;', 'overflow: hidden;', 'text-overflow: ellipsis;', 'white-space: nowrap;', 'color: var(--signal);']) {
+    for (const line of ['margin-inline-start: auto;', 'min-width: 0;', 'max-width: 45%;', 'overflow: hidden;', 'text-overflow: ellipsis;', 'white-space: nowrap;', 'color: var(--signal);']) {
       expect(body).toContain(line);
     }
   });

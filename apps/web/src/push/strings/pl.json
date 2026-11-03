@@ -1,0 +1,10 @@
+{
+  "pushCancelledBody": "Prowadzący odwołał grę zaplanowaną na {when}.",
+  "pushCancelledTitle": "Gra „{title}” odwołana",
+  "pushFallbackBody": "Jest nowa informacja o zaplanowanej grze.",
+  "pushFallbackTitle": "Quiz",
+  "pushOpenedBody": "Prowadzący otworzył grę. Dotknij, żeby dołączyć.",
+  "pushOpenedTitle": "Gra „{title}” się zaczęła",
+  "pushReminderBody": "Początek o {time}. Nie spóźnij się!",
+  "pushReminderTitle": "Wkrótce gra „{title}”"
+}

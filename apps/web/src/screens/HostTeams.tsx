@@ -211,7 +211,7 @@ export function HostTeams({ teams, send, onError, onKick }: { teams: TeamsView; 
                   setOver(null);
                 }}
               >
-                <span className="name">{member.nickname}</span>
+                <span className="name" dir="auto">{member.nickname}</span>
                 {!member.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
                 <MoveSelect member={member} current={null} moveTo={moveFor(teams.teams)} />
                 {onKick !== undefined && (

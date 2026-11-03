@@ -233,14 +233,14 @@ export function ChainBoard({ chain, reveal }: { chain: ChainInfo; reveal: boolea
         // Під час запитання «не пройшов» означає «ще грає»: тьмяніє лише на розкритті.
         <li key={row.playerId} className={reveal && row.timeMs === null ? 'is-out' : undefined}>
           {reveal && <span className="rank">{rankOf(chain, row.timeMs)}</span>}
-          <span className="name">{row.nickname}</span>
+          <span className="name" dir="auto">{row.nickname}</span>
           <span className="tag">
             {row.timeMs === null
               ? t('chainRowWords', { solved: row.solved, total: chain.total })
               : t('chainRowTime', { time: secondsText(row.timeMs) })}
           </span>
           {row.hints > 0 && <span className="tag">{t('chainHints', { count: row.hints })}</span>}
-          {reveal && row.points !== null && <span className="score">{signed(row.points)}</span>}
+          {reveal && row.points !== null && <span className="score" dir="ltr">{signed(row.points)}</span>}
         </li>
       ))}
     </ol>

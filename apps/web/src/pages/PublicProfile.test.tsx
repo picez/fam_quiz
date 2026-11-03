@@ -41,6 +41,12 @@ const open = () =>
   );
 
 describe('PublicProfile', () => {
+  it('shows the placeholder for a profile without a nickname', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ nickname: null }) });
+    open();
+    expect(await screen.findByRole('heading', { name: /Гравець/ })).toBeTruthy();
+  });
+
   it('shows a row of earned badges linking to another player achievements page', async () => {
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();

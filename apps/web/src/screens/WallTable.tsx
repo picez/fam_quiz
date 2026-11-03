@@ -40,7 +40,7 @@ export function WallTable({ info, compact = false }: { info: WallInfo; compact?:
               {row.locked && <span className="tag is-wrong">{t('wallTableLocked')}</span>}
             </td>
             <td>{row.mistakes}</td>
-            {showPoints && <td className="score">{row.points === null ? '' : num(row.points)}</td>}
+            {showPoints && <td className="score" dir="ltr">{row.points === null ? '' : num(row.points)}</td>}
           </tr>
         ))}
         {more > 0 && (

@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { Avatar } from '../profile/Avatar';
 import { Nick } from '../screens/Nick';
 import { feedIcon, feedText } from './feed-text';
+import { nickText } from '../nick';
 
 export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent; onLike: (event: FeedEvent, liked: boolean) => void; pending?: boolean }) {
   const { data, likes, who } = event;
@@ -28,7 +29,7 @@ export function FeedCard({ event, onLike, pending = false }: { event: FeedEvent;
           ) : (
             <Link to={`/profile/${who.id}`}>
               <strong>
-                <Nick nickname={who.nickname} />
+                <Nick nickname={nickText(who.nickname)} />
               </strong>
             </Link>
           )}{' '}

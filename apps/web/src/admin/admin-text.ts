@@ -1,5 +1,6 @@
 import type { AdminLogEntry, Question, RemovalEffect } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { nickText } from '../nick';
 
 /** Текст підтвердження видалення запитання; null — кнопка неактивна (останнє, замкнене чи вже немає). */
 export function questionConfirm(effect: RemovalEffect, roundTitle: string): string | null {
@@ -17,7 +18,7 @@ export function questionConfirm(effect: RemovalEffect, roundTitle: string): stri
 
 /** Рядок журналу; для блокування з причиною — «. Причина: …». */
 export function logLine(entry: AdminLogEntry): string {
-  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: entry.admin, target: entry.target, title: entry.details.title ?? '' });
+  const line = t(`adminLog_${entry.kind}` as TextKey, { admin: nickText(entry.admin), target: nickText(entry.target), title: entry.details.title ?? '' });
   const reason = entry.kind === 'ban' ? entry.details.reason : null;
   return reason ? `${line}. ${t('adminReasonShown', { reason })}` : line;
 }

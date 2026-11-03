@@ -1183,7 +1183,7 @@ export function problemsOf(quiz: Quiz): string[] {
         const key = problemKey(trial, roundPlace(draft, roundIndex, 0));
         if (key === null) return;
         // «Запитання N: текст» → «Питання на виживання N: текст».
-        const problem = problemText(key, index + 1, trial).replace(/^Запитання \d+:\s*/, '');
+        const problem = problemText(key, index + 1, trial).replace(/^[^:]*:\s*/, '');
         problems.push(where(t('problemSurvivalTrial', { index: index + 1, problem })));
       });
     }

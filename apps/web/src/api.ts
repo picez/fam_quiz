@@ -1,6 +1,7 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
 import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
+import type { Locale } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 export type ApiData<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -10,6 +11,8 @@ export interface Account {
   name: string;
   email: string;
   admin: boolean;
+  /** Мова з профілю; null — людина ще не вибирала. */
+  locale: Locale | null;
 }
 
 export interface QuizSummary {
@@ -84,7 +87,13 @@ export async function fetchData<T>(url: string, options: Options = {}): Promise<
 const quizUrl = (id: string) => `/api/quizzes/${encodeURIComponent(id)}`;
 const gameUrl = (code: string) => `/api/games/by-code/${encodeURIComponent(code)}`;
 
-export const me = () => request<Account>('/api/me');
+/** Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null. */
+export const me = () => request<Omit<Account, 'locale'> & { locale?: unknown }>('/api/me');
+/** Зберігає мову в профілі, щоб пуші приходили нею ж. */
+export async function saveMyLocale(locale: Locale): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await request<object>('/api/me/locale', { method: 'PUT', body: { locale } });
+  return result.ok ? { ok: true } : result;
+}
 export const signUp = (name: string, email: string, password: string) =>
   request<object>('/api/auth/sign-up/email', { body: { name, email, password } });
 export const signIn = (email: string, password: string) =>

@@ -52,7 +52,7 @@ export function MyGames() {
         <ul className="quiz-list">
           {state.data.map((game) => (
             <li className="panel" key={`${game.gameId}:${game.nickname}`}>
-              <h2>{game.title}</h2>
+              <h2 dir="auto">{game.title}</h2>
               <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}, ${t('playedAs', { nickname: game.nickname })}`}</p>
               <p className="place">
                 {game.rank === null ? t('noPlace') : t('placeOf', { rank: game.rank, total: game.playerCount })}

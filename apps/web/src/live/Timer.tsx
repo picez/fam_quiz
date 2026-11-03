@@ -46,7 +46,7 @@ export function Timer({ view, offsetMs, total = null, status: given = null, lead
   // Пауза й утримання важливіші за «Слухайте».
   const status: TimerStatus = given ?? (listening ? 'listening' : null);
   return (
-    <div className="timer" role="timer" aria-label={String(seconds)}>
+    <div className="timer" dir="ltr" role="timer" aria-label={String(seconds)}>
       <span className="timer-flaps">
         {String(seconds)
           .padStart(2, '0')

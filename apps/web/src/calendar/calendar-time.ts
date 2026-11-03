@@ -1,3 +1,6 @@
+import type { Locale } from '@quiz/shared';
+import { currentLocale, intlTag } from '../locales/current';
+
 const FALLBACK = 'Europe/Kyiv';
 
 function zoneOk(zone: string): boolean {
@@ -57,17 +60,23 @@ export function dayKey(iso: string, zone: string): string {
   return `${pad(f.y, 4)}-${pad(f.m)}-${pad(f.d)}`;
 }
 
-/** «субота, 7 листопада» (рік — лише якщо не поточний у поясі). */
-export function dayHeading(iso: string, zone: string, now: Date = new Date()): string {
+const headingFormats = new Map<string, Intl.DateTimeFormat>();
+
+function headingFormat(tag: string, zone: string, withYear: boolean): Intl.DateTimeFormat {
+  const key = `${tag}|${zone}|${withYear ? 'y' : ''}`;
+  let format = headingFormats.get(key);
+  if (!format) {
+    format = new Intl.DateTimeFormat(tag, { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long', ...(withYear ? { year: 'numeric' } : {}) });
+    headingFormats.set(key, format);
+  }
+  return format;
+}
+
+/** «субота, 7 листопада» (рік — лише якщо не поточний у поясі); мова — з параметра або мова інтерфейсу. */
+export function dayHeading(iso: string, zone: string, now: Date = new Date(), locale: Locale = currentLocale()): string {
   const ms = Date.parse(iso);
   const sameYear = fields(ms, zone).y === fields(now.getTime(), zone).y;
-  return new Intl.DateTimeFormat('uk-UA', {
-    timeZone: zone,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  }).format(new Date(ms));
+  return headingFormat(intlTag(locale), zone, !sameYear).format(new Date(ms));
 }
 
 /** «19:00». */

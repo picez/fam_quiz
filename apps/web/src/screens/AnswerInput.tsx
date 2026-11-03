@@ -158,7 +158,7 @@ function OrderInput({ question, onSubmit, onDraft }: Props) {
         {items.map((item, index) => (
           <li key={item.id}>
             <span className="letter">{index + 1}</span>
-            <span className="order-text">{item.text}</span>
+            <span className="order-text" dir="auto">{item.text}</span>
             <button
               type="button"
               className="btn btn-icon"

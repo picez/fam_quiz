@@ -172,6 +172,15 @@ describe('Play: whether the game will be kept', () => {
     await waitFor(() => expect(joinGame).toHaveBeenCalledWith('123456', 'Оля'));
   });
 
+  it('leaves the name empty when the profile has no nickname', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: '🙂', email: 'o@example.com', admin: false });
+    vi.mocked(getMyCard).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: null, avatar: null } });
+    open();
+    const field = screen.getByLabelText<HTMLInputElement>('Ваше ім’я');
+    await waitFor(() => expect(getMyCard).toHaveBeenCalled());
+    expect(field.value).toBe('');
+  });
+
   it('the join form has the menu like the other pages (backlog 24)', async () => {
     open();
     const nav = await screen.findByRole('navigation');

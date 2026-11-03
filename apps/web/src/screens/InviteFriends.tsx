@@ -3,6 +3,7 @@ import type { ProfileCard } from '@quiz/shared';
 import { getMyFriends, getRoomInvites, inviteFriends } from '../api';
 import { errorText, t } from '../i18n';
 import { Avatar } from '../profile/Avatar';
+import { nickText } from '../nick';
 
 /** Панель «Запросити друзів» у лобі: список друзів ведучого й кнопка «Запросити» біля кожного. */
 export function InviteFriends({ code }: { code: string }) {
@@ -73,7 +74,7 @@ export function InviteFriends({ code }: { code: string }) {
             return (
               <li key={friend.id}>
                 <Avatar profile={friend} size="small" />
-                <span className="name">{friend.nickname}</span>
+                <span className="name">{nickText(friend.nickname)}</span>
                 <button type="button" className="btn btn-small" disabled={done || busy.includes(friend.id)} onClick={() => void invite(friend.id)}>
                   {t(done ? 'invitedOne' : 'inviteOne')}
                 </button>

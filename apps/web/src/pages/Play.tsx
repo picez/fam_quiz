@@ -23,7 +23,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     if (!signedIn) return;
     let current = true;
     void getMyCard().then((result) => {
-      if (current && result.ok) setNickname((typed) => (typed === '' ? result.data.nickname.slice(0, 20) : typed));
+      if (current && result.ok) setNickname((typed) => (typed === '' ? (result.data.nickname ?? '').slice(0, 20) : typed));
     });
     return () => {
       current = false;
@@ -79,7 +79,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     <div className="with-menu">
       <Menu />
       <main className="app narrow">
-        <h1 className="brand">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
+        <h1 className="brand" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
         <form className="panel" onSubmit={submit}>
           {picking && (
             <fieldset className="slot-list">

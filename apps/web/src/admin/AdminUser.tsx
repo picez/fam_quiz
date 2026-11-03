@@ -6,6 +6,7 @@ import { errorText, t } from '../i18n';
 import { adminUser, banUser, deleteAwardAsAdmin, deletePrizeAsAdmin, unbanUser } from './admin-api';
 import { UserCard } from './AdminUsers';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 export function AdminUser(): JSX.Element {
   const { id = '' } = useParams();
@@ -63,7 +64,7 @@ function UserView({ detail, reload }: { detail: AdminUserDetail; reload: () => v
       {user.banned !== null ? (
         <section className="panel">
           {user.banned.reason !== null && <p>{t('adminReasonShown', { reason: user.banned.reason })}</p>}
-          <button type="button" className="btn" disabled={busy} onClick={() => void act(t('adminUnbanConfirm', { nickname: user.nickname }), () => unbanUser(user.id))}>
+          <button type="button" className="btn" disabled={busy} onClick={() => void act(t('adminUnbanConfirm', { nickname: nickText(user.nickname) }), () => unbanUser(user.id))}>
             {t('adminUnban')}
           </button>
         </section>
@@ -78,7 +79,7 @@ function UserView({ detail, reload }: { detail: AdminUserDetail; reload: () => v
               type="button"
               className="btn btn-danger"
               disabled={busy}
-              onClick={() => void act(t('adminBanConfirm', { nickname: user.nickname }), () => banUser(user.id, reason.trim()))}
+              onClick={() => void act(t('adminBanConfirm', { nickname: nickText(user.nickname) }), () => banUser(user.id, reason.trim()))}
             >
               {t('adminBan')}
             </button>

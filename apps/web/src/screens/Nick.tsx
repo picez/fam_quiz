@@ -13,7 +13,7 @@ export function Nick({ nickname, levels, titles }: { nickname: string; levels?: 
   const color = look?.color ?? null;
   return (
     <span className={frame === null ? 'nick' : `nick nick-f-${frame}`}>
-      <span className={color === null ? 'nick-name' : `nick-name nick-c-${color}`}>{nickname}</span>
+      <span className={color === null ? 'nick-name' : `nick-name nick-c-${color}`} dir="auto">{nickname}</span>
       {look !== undefined && look.level > 1 && (
         <span className="nick-level" aria-label={t('levelAria', { n: look.level })}>
           {t('levelBadge', { n: look.level })}

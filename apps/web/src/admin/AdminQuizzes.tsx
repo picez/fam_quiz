@@ -4,6 +4,7 @@ import { countText, errorText, t } from '../i18n';
 import { AdminPager } from './Admin';
 import { adminQuizzes, deleteQuizAsAdmin } from './admin-api';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 export function AdminQuizzes(): JSX.Element {
   const [draft, setDraft] = useState('');
@@ -67,9 +68,9 @@ export function AdminQuizzes(): JSX.Element {
             <ul className="admin-list">
               {state.data.rows.map((row) => (
                 <li key={row.id} className="admin-card">
-                  <h2>{row.title}</h2>
+                  <h2 dir="auto">{row.title}</h2>
                   <p className="meta">
-                    {t('adminAuthor', { name: row.author.nickname })}
+                    {t('adminAuthor', { name: nickText(row.author.nickname) })}
                     {row.authorBanned && ` (${t('adminAuthorBanned')})`}
                   </p>
                   <p className="meta">{countText('questionCount', row.questionCount)}</p>
@@ -78,7 +79,7 @@ export function AdminQuizzes(): JSX.Element {
                     <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>
                       {t('adminView')}
                     </Link>
-                    <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title, row.author.nickname)}>
+                    <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void remove(row.id, row.title, nickText(row.author.nickname))}>
                       {t('adminDeleteQuiz')}
                     </button>
                   </div>

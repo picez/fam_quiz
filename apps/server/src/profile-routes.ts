@@ -1,4 +1,4 @@
-import { favoriteStickersSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
+import { favoriteStickersSchema, localeUpdateSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { achievementsPage } from './achievement-store';
@@ -6,7 +6,7 @@ import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { versusOf } from './versus';
 import { saveLooks } from './xp-store';
-import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveFavoriteStickers, saveProfile, searchProfiles, setFollow } from './profiles';
+import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -61,6 +61,27 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     if (!saved.ok) return reply.code(409).send({ error: saved.error });
     return { looks: saved.looks };
   });
+
+  app.put(
+    '/api/me/locale',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+          keyGenerator: async (request: FastifyRequest) => `locale:${(await currentUser(request))?.id ?? request.ip}`,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = await currentUser(request);
+      if (user === null) return reply.code(401).send(UNAUTHORIZED);
+      const body = localeUpdateSchema.safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+      if (!(await saveLocale(db, user.id, body.data.locale))) return reply.code(404).send(NOT_FOUND);
+      return { locale: body.data.locale };
+    },
+  );
 
   app.put('/api/me/profile', async (request, reply) => {
     const user = await currentUser(request);

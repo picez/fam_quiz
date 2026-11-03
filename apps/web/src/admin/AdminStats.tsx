@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { t, type TextKey } from '../i18n';
 import { adminStats } from './admin-api';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 function Stat({ label, value }: { label: TextKey; value: number }): JSX.Element {
   return (
@@ -46,7 +47,7 @@ export function AdminStats(): JSX.Element {
       <h2>{t('adminTopQuizzes')}</h2>
       <ol className="admin-top">
         {topQuizzes.map((quiz) => (
-          <li key={quiz.id}>{t('adminTopRow', { title: quiz.title, author: quiz.author, count: quiz.games })}</li>
+          <li key={quiz.id}>{t('adminTopRow', { title: quiz.title, author: nickText(quiz.author), count: quiz.games })}</li>
         ))}
       </ol>
     </>

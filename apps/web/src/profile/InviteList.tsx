@@ -4,6 +4,7 @@ import type { GameInvite } from '@quiz/shared';
 import { dismissInvite } from '../api';
 import { errorText, t } from '../i18n';
 import { Avatar } from './Avatar';
+import { nickText } from '../nick';
 
 /** Блок «Вас запросили» угорі профілю; порожній список не малює нічого. */
 export function InviteList({ invites, onDismissed }: { invites: GameInvite[]; onDismissed: (code: string) => void }) {
@@ -24,7 +25,7 @@ export function InviteList({ invites, onDismissed }: { invites: GameInvite[]; on
           <li key={invite.code}>
             <Avatar profile={invite.host} size="small" />
             <span className="invite-text">
-              {t('inviteLine', { host: invite.host.nickname, title: invite.title, code: `${invite.code.slice(0, 3)} ${invite.code.slice(3)}` })}
+              {t('inviteLine', { host: nickText(invite.host.nickname), title: invite.title, code: `${invite.code.slice(0, 3)} ${invite.code.slice(3)}` })}
             </span>
             <span className="invite-actions">
               <Link className="btn btn-small btn-primary" to={`/play/${invite.code}`}>

@@ -31,7 +31,14 @@ vi.mock('../api', () => ({
   getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
+  saveMyLocale: vi.fn(async () => ({ ok: true })),
 }));
+
+vi.mock('../locales/locales', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../locales/locales')>();
+  const ENABLED_LOCALES = ['uk', 'en'] as const;
+  return { ...original, ENABLED_LOCALES, isEnabled: (locale: string) => (ENABLED_LOCALES as readonly string[]).includes(locale) };
+});
 
 const mine: OwnProfile = {
   id: 'u1',
@@ -147,7 +154,7 @@ describe('Profile', () => {
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
     expect(headings).toEqual(['Статистика', 'Вподобання', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
-    expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
+    expect(screen.getByRole('link', { name: 'Кіно 90-х' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
     // Друг заходив хвилину тому — онлайн (беклог 9).
@@ -320,5 +327,10 @@ describe('Profile', () => {
     open();
     expect(await screen.findByText('на /login?next=%2Fprofile')).toBeTruthy();
     expect(screen.queryByText('Статистика')).toBeNull();
+  });
+
+  it('has the language field', async () => {
+    open();
+    expect(((await screen.findByLabelText('Мова')) as HTMLSelectElement).options).toHaveLength(2);
   });
 });

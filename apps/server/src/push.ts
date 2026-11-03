@@ -1,4 +1,4 @@
-import { PUSH_REMINDER_BEFORE_MS, PUSH_TICK_MS, type CalendarRequestStatus, type PushPayload } from '@quiz/shared';
+import { PUSH_REMINDER_BEFORE_MS, PUSH_TICK_MS, type CalendarRequestStatus, type Locale, type PushPayload } from '@quiz/shared';
 import { and, eq, inArray, isNotNull, isNull, lte, gt, sql } from 'drizzle-orm';
 import type { CalendarNotify } from './calendar-routes';
 import type { Db } from './db/client';
@@ -63,12 +63,22 @@ export function createPushService(deps: {
   async function deliver(userIds: string[], payload: PushPayload): Promise<number> {
     const subs = await subscriptionsOf(db, userIds);
     if (subs.length === 0) return 0;
-    const body = JSON.stringify(payload);
     const options: PushOptions = { ttl: PUSH_TTL[payload.kind], urgency: payload.kind === 'cancelled' ? 'normal' : 'high' };
+    // Одне тіло на мову одержувача (22a): без профілю чи мови — українська.
+    const bodies = new Map<Locale, string>();
+    const bodyFor = (locale: Locale | null): string => {
+      const key = locale ?? 'uk';
+      let body = bodies.get(key);
+      if (body === undefined) {
+        body = JSON.stringify({ ...payload, locale: key });
+        bodies.set(key, body);
+      }
+      return body;
+    };
     await Promise.allSettled(
       subs.map(async (sub) => {
         try {
-          const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, body, options);
+          const { status } = await send({ endpoint: sub.endpoint, keys: sub.keys }, bodyFor(sub.locale), options);
           if (status === 404 || status === 410) await dropEndpoint(db, sub.endpoint);
           else if (status < 200 || status >= 300) log(`push ${payload.kind} answered ${status}`);
         } catch (error) {

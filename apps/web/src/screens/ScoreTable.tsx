@@ -119,7 +119,7 @@ export function ScoreTable({
                   <th scope="row" className="name">
                     {/* Нік обрізається трикрапкою у власному span, а бейдж реакції (13a) стоїть поза ним: довге ім'я його не ховає. */}
                     <span className="score-name-line">
-                      <span className="score-name">
+                      <span className="score-name" dir="auto">
                         {breakdown === undefined ? (
                           row.nickname
                         ) : (
@@ -134,11 +134,11 @@ export function ScoreTable({
                     {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
                   </th>
                   {columns.map((i) => (
-                    <td key={i} className="round">
+                    <td key={i} className="round" dir="ltr">
                       {row.rounds !== undefined && row.rounds[i] !== undefined ? num(row.rounds[i]) : '–'}
                     </td>
                   ))}
-                  <td className="total">{num(row.score)}</td>
+                  <td className="total" dir="ltr">{num(row.score)}</td>
                 </tr>
                 {open && (
                   <tr className="score-breakdown-row" onClick={(event) => event.stopPropagation()}>

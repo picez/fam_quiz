@@ -1,0 +1,10 @@
+{
+  "pushCancelledBody": "The host cancelled the game planned for {when}.",
+  "pushCancelledTitle": "“{title}” has been cancelled",
+  "pushFallbackBody": "There's an update about a planned game.",
+  "pushFallbackTitle": "Quiz",
+  "pushOpenedBody": "The host has opened the game. Tap to join.",
+  "pushOpenedTitle": "“{title}” has started",
+  "pushReminderBody": "Starts at {time}. Don't be late!",
+  "pushReminderTitle": "“{title}” starts soon"
+}

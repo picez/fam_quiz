@@ -45,7 +45,7 @@ export function Board({ board, onPick, disabled = false }: Props) {
         {board.categories.map((category) => (
           <div key={category.id} className="gb-col" style={{ gridRow: `span ${rows + 1}` }}>
             <h3 className="gb-title" style={{ '--gb-word': longestWord(category.title) } as CSSProperties}>
-              <span>{category.title}</span>
+              <span dir="auto">{category.title}</span>
             </h3>
             {category.cells.map((cell) => {
               if (cell.played) return <span key={cell.id} className="gb-cell is-played" aria-hidden="true" />;

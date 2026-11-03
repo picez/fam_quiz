@@ -17,15 +17,15 @@ export interface AdminStats {
 }
 export interface AdminList<T> { rows: T[]; total: number; page: number; pages: number }
 export interface AdminUserRow {
-  id: string; nickname: string; email: string; createdAt: string;
+  id: string; nickname: string | null; email: string; createdAt: string;
   games: number; quizzes: number; admin: boolean;
   banned: { at: string; reason: string | null } | null;
 }
 export interface AdminQuizRow {
-  id: string; title: string; author: { id: string; nickname: string }; authorBanned: boolean;
+  id: string; title: string; author: { id: string; nickname: string | null }; authorBanned: boolean;
   questionCount: number; games: number; updatedAt: string;
 }
-export interface AdminQuizView { id: string; author: { id: string; nickname: string }; quiz: Quiz; updatedAt: string; effects: Record<string, RemovalEffect> }
+export interface AdminQuizView { id: string; author: { id: string; nickname: string | null }; quiz: Quiz; updatedAt: string; effects: Record<string, RemovalEffect> }
 export interface AdminPrize { id: string; content: PrizeContent; status: 'free' | 'reserved'; createdAt: string }
 export interface AdminAward { id: string; place: PrizePlace; content: PrizeContent; quizTitle: string; awardedAt: string }
 export interface AdminUserDetail { user: AdminUserRow; stock: AdminPrize[]; awards: AdminAward[]; title: { text: string; until: string } | null }

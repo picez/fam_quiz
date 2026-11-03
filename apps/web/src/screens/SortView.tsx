@@ -696,14 +696,14 @@ export function SortBoard({ sort, reveal }: { sort: SortInfo; reveal: boolean })
         const share = sort.total === 0 ? 0 : Math.min(1, row.sorted / sort.total);
         return (
           <li key={row.playerId}>
-            <span className="name">{row.nickname}</span>
+            <span className="name" dir="auto">{row.nickname}</span>
             <span className="sort-bar" aria-hidden="true">
               <span className="sort-bar-fill" style={{ '--sort-share': share } as CSSProperties} />
             </span>
             <span className="tag sort-count">{t('sortRow', { sorted: row.sorted, total: sort.total })}</span>
             <span className="tag sort-time">{row.timeMs !== null ? t('sortRowTime', { time: secondsText(row.timeMs) }) : ''}</span>
             <span className="tag sort-misses">{row.misses > 0 ? t('sortMisses', { misses: row.misses }) : ''}</span>
-            <span className="score">{reveal && row.points !== null ? signed(row.points) : ''}</span>
+            <span className="score" dir="ltr">{reveal && row.points !== null ? signed(row.points) : ''}</span>
           </li>
         );
       })}

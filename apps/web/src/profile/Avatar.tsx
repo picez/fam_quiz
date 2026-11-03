@@ -1,5 +1,6 @@
 import type { ProfileCard } from '@quiz/shared';
 import { t } from '../i18n';
+import { nickText } from '../nick';
 
 /** Колір літери-запасного аватара: стабільний для одного id. */
 function tone(id: string): number {
@@ -10,11 +11,11 @@ function tone(id: string): number {
 
 /** Аватар: зображення або перша літера нікнейма на тлі одного з чотирьох кольорів (за id). */
 export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' | 'small' }) {
-  const label = t('avatarOf', { nickname: profile.nickname });
+  const label = t('avatarOf', { nickname: nickText(profile.nickname) });
   if (profile.avatar !== null) {
     return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} />;
   }
-  const letter = (Array.from(profile.nickname)[0] ?? '').toUpperCase();
+  const letter = (Array.from(nickText(profile.nickname))[0] ?? '').toUpperCase();
   return (
     <span className={`avatar avatar-${size} avatar-tone-${tone(profile.id)}`} role="img" aria-label={label}>
       {letter}

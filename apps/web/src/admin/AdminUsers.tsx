@@ -6,12 +6,13 @@ import { t } from '../i18n';
 import { AdminPager } from './Admin';
 import { adminUsers } from './admin-api';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 /** Картка людини: у списку з посиланням на людину, на сторінці людини без нього. */
 export function UserCard({ row, link }: { row: AdminUserRow; link: boolean }): JSX.Element {
   return (
     <li className="admin-card">
-      <h2>{link ? <Link to={`/admin/users/${encodeURIComponent(row.id)}`}>{row.nickname}</Link> : row.nickname}</h2>
+      <h2>{link ? <Link to={`/admin/users/${encodeURIComponent(row.id)}`}>{nickText(row.nickname)}</Link> : nickText(row.nickname)}</h2>
       <p className="meta">{row.email}</p>
       <p className="meta">{t('adminJoined', { date: formatDate(row.createdAt) })}</p>
       <p className="meta">{t('adminGamesCount', { count: row.games })}</p>

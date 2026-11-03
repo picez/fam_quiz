@@ -53,7 +53,7 @@ async function eventRows(db: Db, viewerId: string, cursor: Cursor | null, now: D
   const at = ms(feedEvent.at);
   const id = sql`${feedEvent.id}::text collate "C"`;
   return db
-    .select({ event: feedEvent, nickname: sql<string>`coalesce(${profile.nickname}, ${user.name}, '')`, avatar: profile.avatar })
+    .select({ event: feedEvent, nickname: sql<string>`coalesce(${profile.nickname}, '')`, avatar: profile.avatar })
     .from(feedEvent)
     .leftJoin(profile, eq(profile.userId, feedEvent.userId))
     .innerJoin(user, eq(user.id, feedEvent.userId))
@@ -76,7 +76,7 @@ async function likeGroups(db: Db, viewerId: string, cursor: Cursor | null, now: 
       host: sql<boolean>`bool_or(${userLike.kind} = 'host')`,
       player: sql<boolean>`bool_or(${userLike.kind} = 'player')`,
       title: game.title,
-      nickname: sql<string>`coalesce(${profile.nickname}, ${user.name}, '')`,
+      nickname: sql<string>`coalesce(${profile.nickname}, '')`,
       avatar: profile.avatar,
     })
     .from(userLike)

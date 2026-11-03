@@ -11,6 +11,7 @@ import { Showcase } from '../profile/Showcase';
 import { StatsView } from '../profile/StatsView';
 import { VersusBlock } from '../profile/VersusBlock';
 import { useAccount } from '../useAccount';
+import { nickText } from '../nick';
 
 type State = { status: 'loading' } | { status: 'ready'; profile: PublicProfileData } | { status: 'error'; message: string };
 
@@ -79,7 +80,7 @@ export function PublicProfile() {
         <Avatar profile={profile} size="large" />
         <div>
           <h1 className="brand">
-            {profile.nickname}
+            {nickText(profile.nickname)}
             <ProfileLevelMark level={profile.level.level} badge={profile.level.looks.badge} />
             {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
           </h1>
@@ -114,7 +115,7 @@ export function PublicProfile() {
       </section>
       <LikesCard likes={profile.likes} />
       <Showcase showcase={profile.showcase} own={isOwner} />
-      {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={profile.nickname} />}
+      {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={nickText(profile.nickname)} />}
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
         <AchievementStrip achievements={profile.achievements} to={`/profile/${encodeURIComponent(profile.id)}/achievements`} />

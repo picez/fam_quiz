@@ -14,6 +14,7 @@ import type {
   FeedData,
   FeedKind,
   GameStatus,
+  Locale,
   LikeKind,
   LadderOutcomeKind,
   NickColor,
@@ -331,9 +332,10 @@ export const profile = pgTable('profile', {
   userId: text('user_id')
     .primaryKey()
     .references(() => user.id, { onDelete: 'cascade' }),
-  nickname: text('nickname').notNull(),
-  /** normalizeText(nickname): нікнейм унікальний без різниці регістру, пробілів і апострофів. */
-  nicknameKey: text('nickname_key').notNull().unique(),
+  /** null — нікнейма ще нема (ім'я акаунта не пройшло правил); веб показує підставку. */
+  nickname: text('nickname'),
+  /** normalizeText(nickname): нікнейм унікальний без різниці регістру, пробілів і апострофів; null, коли нікнейма нема. */
+  nicknameKey: text('nickname_key').unique(),
   /** Шлях /uploads/<назва> або null. */
   avatar: text('avatar'),
   /** Історію цього користувача вже доповнено ачівками (12i); null — ще ні. Далі — мітка: ігри, що закінчились пізніше й не дали жодного рядка user_achievement, читання наздоганяє. */
@@ -354,6 +356,8 @@ export const profile = pgTable('profile', {
   feedLevel: integer('feed_level'),
   /** Календар переглянуто до цієї миті (19a): decisions рахує зміни пізніше; null — ще ні. */
   calendarSeenAt: at('calendar_seen_at'),
+  /** Мова інтерфейсу (22a): одна з LOCALES; null — ще не обрано (пуші йдуть українською). */
+  locale: text('locale').$type<Locale>(),
   ...stamps,
 });
 

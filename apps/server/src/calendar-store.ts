@@ -31,7 +31,7 @@ export const noRooms: CalendarProbe = () => false;
 type EventRow = typeof calendarEvent.$inferSelect;
 export type Fail<E extends string> = { ok: false; error: E };
 
-const nameOf = sql<string>`coalesce(${profile.nickname}, ${user.name}, '')`;
+const nameOf = sql<string>`coalesce(${profile.nickname}, '')`;
 
 /** Чиста функція: перша умова, що справдилась, перемагає. */
 export function calendarState(

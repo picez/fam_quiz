@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { countText, errorText, t } from './i18n';
+import { afterEach, describe, expect, it } from 'vitest';
+import golden from './__fixtures__/uk-golden.json';
+import { activateLocale, activateLocaleForTests, activeMessages, countText, errorText, t, ukMessages } from './i18n';
 
 describe('i18n', () => {
   it('substitutes variables', () => {
@@ -57,5 +58,94 @@ describe('points in words', () => {
       '1000 балів',
       '1322 бали',
     ]);
+  });
+});
+
+describe('uk golden (22a)', () => {
+  /** Ключі, які 22a свідомо прибирає з uk. Задача 4 дописує 'agoMinutes' і 'agoHours'. */
+  const REMOVED: string[] = ['agoMinutes', 'agoHours'];
+  /** Нові uk-ключі 22a — лише ці. */
+  const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
+
+  it('keeps every uk text as it was before localisation', () => {
+    const current: Record<string, string> = ukMessages;
+    const changed = Object.entries(golden as Record<string, string>).filter(([key, value]) => !REMOVED.includes(key) && current[key] !== value);
+    expect(changed).toEqual([]);
+    const removedStill = REMOVED.filter((key) => key in current);
+    expect(removedStill).toEqual([]);
+  });
+
+  it('adds no uk keys beyond the agreed list', () => {
+    const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
+    expect(fresh.filter((key) => !ADDED.includes(key))).toEqual([]);
+  });
+});
+
+describe('uk plurals through Intl', () => {
+  it('counts questions in every Ukrainian form', () => {
+    const counts = [1, 2, 5, 11, 12, 21, 22, 25, 111];
+    expect(counts.map((n) => countText('questionCount', n, { count: n }))).toEqual([
+      '1 запитання',
+      '2 запитання',
+      '5 запитань',
+      '11 запитань',
+      '12 запитань',
+      '21 запитання',
+      '22 запитання',
+      '25 запитань',
+      '111 запитань',
+    ]);
+  });
+
+  it('picks the same form as the old hand-written rule for every integer up to 2000 and below zero', () => {
+    const old = (count: number) => {
+      const lastTwo = Math.abs(count) % 100;
+      const last = lastTwo % 10;
+      const form = last === 1 && lastTwo !== 11 ? 'one' : last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? 'few' : 'many';
+      return t(`pointsWord_${form}`);
+    };
+    const counts = [...Array(2001).keys(), -1, -2, -5, -11, -21];
+    expect(counts.map((n) => countText('pointsWord', n))).toEqual(counts.map(old));
+  });
+});
+
+describe('active locale', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('reads the active dictionary and falls back to uk', () => {
+    activateLocaleForTests('en', { ui: { yes: 'Yes', questionCount_one: '{count} question', questionCount_other: '{count} questions' } });
+    expect(t('yes')).toBe('Yes');
+    expect(t('no')).toBe('Ні');
+    expect(countText('questionCount', 1, { count: 1 })).toBe('1 question');
+    expect(countText('questionCount', 7, { count: 7 })).toBe('7 questions');
+    expect(activeMessages().ui.yes).toBe('Yes');
+  });
+
+  it('falls back to the uk form when the active dictionary has no form of the noun', () => {
+    activateLocaleForTests('en', { ui: {} });
+    expect(countText('questionCount', 5, { count: 5 })).toBe('5 запитань');
+    expect(countText('questionCount', 2, { count: 2 })).toBe('2 запитання');
+  });
+
+  it('uses many when other is absent', () => {
+    activateLocaleForTests('pl', { ui: { questionCount_one: '{count} pytanie', questionCount_many: '{count} pytań' } });
+    expect(countText('questionCount', 3, { count: 3 })).toBe('3 pytań');
+  });
+
+  it('explains errors from the active dictionary', () => {
+    activateLocaleForTests('en', { ui: { err_nickname_taken: 'That name is taken.' } });
+    expect(errorText('nickname_taken')).toBe('That name is taken.');
+    expect(errorText('something_new')).toBe('Щось пішло не так. Спробуйте ще раз.');
+  });
+
+  it('comes back to uk exactly', () => {
+    activateLocaleForTests('en', { ui: { yes: 'Yes' } });
+    activateLocaleForTests('uk');
+    expect(t('yes')).toBe(ukMessages.yes);
+    expect(activeMessages().ui).toBe(ukMessages);
+  });
+
+  it('refuses to activate a locale that is not loaded', () => {
+    expect(() => activateLocale('de')).toThrow();
   });
 });

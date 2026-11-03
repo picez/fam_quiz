@@ -47,7 +47,7 @@ export function HostSurvival({ view, offsetMs, send, onError }: { view: HostView
           <ul className="rows survival-host-rows">
             {rows.map((row) => (
               <li key={row.playerId} className={row.trial === 'out' ? 'is-out' : row.trial === 'safe' ? 'is-safe' : undefined}>
-                <span className="name">{row.nickname}</span>
+                <span className="name" dir="auto">{row.nickname}</span>
                 {trial.kind === 'question' && row.answer !== null && trial.question !== null && <span className="given">{answerText(row.answer, trial.reveal, trial.question.choices)}</span>}
                 <span className="survival-mark">{edgeText(row, trial.kind)}</span>
                 {trial.kind === 'luck' && trial.stage === 'closed' && row.door !== null && row.door.trap !== null && row.door.picked !== null && (

@@ -1,0 +1,10 @@
+{
+  "pushCancelledBody": "Der Spielleiter hat das für {when} geplante Spiel abgesagt.",
+  "pushCancelledTitle": "Das Spiel „{title}“ ist abgesagt",
+  "pushFallbackBody": "Es gibt Neuigkeiten zu einem geplanten Spiel.",
+  "pushFallbackTitle": "Quiz",
+  "pushOpenedBody": "Der Spielleiter hat das Spiel geöffnet. Tippe, um beizutreten.",
+  "pushOpenedTitle": "Das Spiel „{title}“ hat begonnen",
+  "pushReminderBody": "Beginn um {time}. Sei pünktlich!",
+  "pushReminderTitle": "Bald beginnt das Spiel „{title}“"
+}

@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { attachGame, cancelEvent, noRooms, updateEvent } from './calendar-store';
 import type { Db } from './db/client';
-import { calendarEvent, calendarRequest, follow, game, pushSubscription, user } from './db/schema';
+import { calendarEvent, calendarRequest, follow, game, profile, pushSubscription, user } from './db/schema';
 import { createPushService, startPushReminders, type PushOptions, type PushSend, type PushService } from './push';
 import { saveSubscription } from './push-store';
 import { createQuiz } from './quizzes';
@@ -90,7 +90,7 @@ describe('reminders', () => {
     expect(await service.remindDue(NOW)).toBe(1);
     expect(who(calls)).toEqual([h, o].sort());
     for (const c of calls) {
-      expect(c.payload).toEqual({ kind: 'reminder', eventId: E, title: 'Вечір загадок', startsAt: '2026-11-07T16:00:00.000Z' });
+      expect(c.payload).toEqual({ kind: 'reminder', eventId: E, title: 'Вечір загадок', startsAt: '2026-11-07T16:00:00.000Z', locale: 'uk' });
       expect(c.options).toEqual({ ttl: 3600, urgency: 'high' });
     }
     expect((await row(E)).remindedAt).toEqual(NOW);
@@ -150,13 +150,29 @@ describe('reminders', () => {
   });
 });
 
+describe('recipient language', () => {
+  it('tags each body with the profile locale, uk when there is none', async () => {
+    await db.insert(profile).values({ userId: h, locale: 'de' });
+    expect(await service.remindDue(NOW)).toBe(1);
+    const locales = Object.fromEntries(calls.map((c) => [c.endpoint.slice(URL.length), (c.payload as { locale?: string }).locale]));
+    expect(locales).toEqual({ [h]: 'de', [o]: 'uk' });
+    expect(calls.find((c) => c.endpoint === URL + h)?.payload).toEqual({
+      kind: 'reminder',
+      eventId: E,
+      title: 'Вечір загадок',
+      startsAt: '2026-11-07T16:00:00.000Z',
+      locale: 'de',
+    });
+  });
+});
+
 describe('opened', () => {
   it('tells approved friends once with the code', async () => {
     expect(await attachGame(db, E, randomUUID(), '123456')).toBe(true);
     service.calendarNotify.opened(E);
     await service.idle();
     expect(who(calls)).toEqual([o]);
-    expect(calls[0].payload).toEqual({ kind: 'opened', eventId: E, title: 'Вечір загадок', code: '123456' });
+    expect(calls[0].payload).toEqual({ kind: 'opened', eventId: E, title: 'Вечір загадок', code: '123456', locale: 'uk' });
     expect(calls[0].options).toEqual({ ttl: 21_600, urgency: 'high' });
     await attachGame(db, E, randomUUID(), '654321');
     service.calendarNotify.opened(E);
@@ -177,7 +193,7 @@ describe('cancelled', () => {
     service.calendarNotify.cancelled(E);
     await service.idle();
     expect(who(calls)).toEqual([o, p].sort());
-    expect(calls[0].payload).toEqual({ kind: 'cancelled', eventId: E, title: 'Вечір загадок', startsAt: '2026-11-07T16:00:00.000Z' });
+    expect(calls[0].payload).toEqual({ kind: 'cancelled', eventId: E, title: 'Вечір загадок', startsAt: '2026-11-07T16:00:00.000Z', locale: 'uk' });
     expect(calls[0].options).toEqual({ ttl: 86_400, urgency: 'normal' });
   });
 });

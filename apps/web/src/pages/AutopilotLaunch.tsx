@@ -33,7 +33,7 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
     let current = true;
     void Promise.all([getAutopilotCheck(quiz.id), getMyProfile()]).then(([result, profile]) => {
       if (!current) return;
-      if (profile.ok) setNickname((typed) => (typed === '' ? profile.data.nickname : typed));
+      if (profile.ok) setNickname((typed) => (typed === '' ? profile.data.nickname ?? '' : typed));
       if (result.ok) setCheck({ state: 'ready', check: { blocked: result.blocked, changed: result.changed } });
       else setCheck({ state: 'failed', error: result.error });
     });
@@ -106,7 +106,7 @@ export function AutopilotLaunch({ quiz, onClose }: { quiz: QuizSummary; onClose:
           <h2>{t('autopilotTitle')}</h2>
           <HelpButton id="setting.autopilot" />
         </div>
-        <p className="meta">{quiz.title}</p>
+        <p className="meta" dir="auto">{quiz.title}</p>
         <p>{t('autopilotLead')}</p>
 
         {check.state === 'checking' && <p className="meta">{t('autopilotChecking')}</p>}

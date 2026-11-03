@@ -1,6 +1,6 @@
 import type { PushPayload } from '@quiz/shared';
 import { dayHeading, timeText } from '../calendar/calendar-time';
-import { pushString as t } from './push-strings';
+import { pushLocale, pushStringsFor } from './push-strings';
 
 export interface PushNotice {
   title: string;
@@ -11,6 +11,8 @@ export interface PushNotice {
 
 /** Тексти з i18n; час — у поясі пристрою. */
 export function pushNotice(payload: PushPayload, zone: string, now: Date = new Date()): PushNotice {
+  const locale = pushLocale(payload.locale);
+  const t = pushStringsFor(locale);
   const tag = `event-${payload.eventId}`;
   const title = payload.title;
   switch (payload.kind) {
@@ -27,7 +29,7 @@ export function pushNotice(payload: PushPayload, zone: string, now: Date = new D
       return {
         title: t('pushCancelledTitle', { title }),
         body: t('pushCancelledBody', {
-          when: `${dayHeading(payload.startsAt, zone, now)}, ${timeText(payload.startsAt, zone)}`,
+          when: `${dayHeading(payload.startsAt, zone, now, locale)}, ${timeText(payload.startsAt, zone)}`,
         }),
         url: `/feed/calendar#${tag}`,
         tag,

@@ -6,6 +6,7 @@ import { roundLabel } from '../format';
 import { adminQuiz, deleteQuestionAsAdmin, deleteQuizAsAdmin } from './admin-api';
 import { questionConfirm, questionLines } from './admin-text';
 import { useAdminData } from './useAdminData';
+import { nickText } from '../nick';
 
 export function AdminQuiz(): JSX.Element {
   const { id = '' } = useParams();
@@ -49,7 +50,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
   };
 
   const removeQuiz = async () => {
-    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title, author: view.author.nickname }))) return;
+    if (!window.confirm(t('adminDeleteQuizConfirm', { title: quiz.title, author: nickText(view.author.nickname) }))) return;
     setBusy(true);
     setError(null);
     const result = await deleteQuizAsAdmin(view.id);
@@ -114,10 +115,10 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
       <Link className="quiet-link" to="/admin/quizzes">
         {t('adminBack')}
       </Link>
-      <h2 className="admin-title">{quiz.title}</h2>
+      <h2 className="admin-title" dir="auto">{quiz.title}</h2>
       <p className="meta">
         {t('adminAuthor', { name: '' })}
-        <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{view.author.nickname}</Link>
+        <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>
       </p>
       {error !== null && (
         <p className="error" role="alert">

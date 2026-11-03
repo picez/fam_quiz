@@ -47,7 +47,7 @@ export function BlitzQueue({ rows, reserve, question, blinking, highlightHead = 
         rows.map((row, index) => (
           <li key={row.playerId} className={index === head ? `is-head${highlightHead ? ' is-pending' : ''}` : undefined}>
             <span className="rank">{index + 1}</span>
-            <span className="name">{row.nickname}</span>
+            <span className="name" dir="auto">{row.nickname}</span>
             {row.answer !== null && <span className="given">{pickedText(row.answer, choices)}</span>}
             <span className="time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>
             <Mark row={row} head={index === head} closed={closed} blinking={blinking.has(row.playerId)} />

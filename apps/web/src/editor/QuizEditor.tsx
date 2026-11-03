@@ -363,7 +363,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                   disabled={selected === 0}
                   onClick={() => select(selected - 1)}
                 >
-                  ‹
+                  <span className="flip-rtl" aria-hidden="true">
+                    ‹
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -382,7 +384,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                   disabled={selected === last}
                   onClick={() => select(selected + 1)}
                 >
-                  ›
+                  <span className="flip-rtl" aria-hidden="true">
+                    ›
+                  </span>
                 </button>
               </div>
 

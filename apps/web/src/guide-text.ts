@@ -2,6 +2,7 @@ import type { GuidePage, Question, RoundBrief } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from './buff-meta';
 import { DEBUFF_ICONS, debuffName } from './debuff-meta';
 import { countText, t, type TextKey } from './i18n';
+import { lowerFirst } from './locales/grammar';
 import { roundSummary } from './round-summary';
 
 /** Пункт сторінки: значок (лише сцена), назва, рядок; details — додаткові рядки сцени (бали раунду). */
@@ -30,11 +31,14 @@ export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   ladder: 'roundTypeLadder',
 };
 
+/** Значки типів; «Аа» — літери мови інтерфейсу (гетер читає словник щоразу). */
 export const TYPE_ICONS: Record<Question['type'], string> = {
   single: '◉',
   multi: '☑',
   boolean: '✓✗',
-  text: 'Аа',
+  get text() {
+    return t('iconTypeText');
+  },
   numeric: '123',
   order: '↕',
   match: '⇆',
@@ -49,6 +53,11 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   survey: '💯',
   bluff: '🎭',
 };
+
+/** Значок типу запитання мовою інтерфейсу. */
+export function typeIcon(type: Question['type']): string {
+  return TYPE_ICONS[type];
+}
 
 /** Як проходить раунд — 1 рядок (у фіналі 2: ставка і режим ставок; пам'ятка бере лише перший). */
 export function roundHow(brief: RoundBrief, autopilot = false): string[] {
@@ -70,12 +79,7 @@ export function roundHow(brief: RoundBrief, autopilot = false): string[] {
   }
 }
 
-/** Мала перша літера, лише якщо друга теж мала: «Найбільший» → «найбільший», а «NASA» чи «ВВП» без змін. */
-export function lowerFirst(label: string): string {
-  const second = label.charAt(1);
-  const secondLower = second !== '' && second === second.toLocaleLowerCase('uk') && second !== second.toLocaleUpperCase('uk');
-  return secondLower ? label.charAt(0).toLocaleLowerCase('uk') + label.slice(1) : label;
-}
+export { lowerFirst } from './locales/grammar';
 
 /** Як відповідати на запитання цього типу; top — підпис верху порядку ('' — немає). */
 export function typeHow(type: Question['type'], top = ''): string {

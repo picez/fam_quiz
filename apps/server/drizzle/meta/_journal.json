@@ -197,6 +197,20 @@
       "when": 1793650726099,
       "tag": "0027_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793661000769,
+      "tag": "0028_locale",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793661390549,
+      "tag": "0029_nickname_null",
+      "breakpoints": true
     }
   ]
 }

@@ -515,7 +515,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <ul className="rows">
           {blitz.queue.map((entry, index) => (
             <li key={entry.playerId}>
-              <span className="name">{entry.nickname}</span>
+              <span className="name" dir="auto">{entry.nickname}</span>
               {blitz.voice && index === 0 ? (
                 <span className="row-actions">
                   <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
@@ -552,7 +552,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
         <ReactionButton shown={reactionAllowed(phase)} level={Infinity} event="host:react" send={send} />
-        <strong className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
+        <strong className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>
 
       {view.paused && (
@@ -609,7 +609,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             {board.order.map((entry, index) => (
               <li key={entry.playerId}>
                 <span className="rank">{index + 1}</span>
-                <span className="name">{entry.nickname}</span>
+                <span className="name" dir="auto">{entry.nickname}</span>
                 <button
                   type="button"
                   className="btn btn-small btn-icon"
@@ -708,7 +708,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
           {answering !== null && <p className="lead">{t('boardAnswering', { name: answering.nickname })}</p>}
           {phase === 'question' && board !== null && <SkipNote board={board} view={view} offsetMs={offsetMs} />}
-          <h1 className={questionClass(view.question.text)}>{view.question.text}</h1>
+          <h1 className={questionClass(view.question.text)} dir="auto">{view.question.text}</h1>
           {view.question.pin === null && <QuestionImage url={view.question.imageUrl} />}
           {view.question.reveal !== null && view.question.imageUrl !== null && (
             <p className="meta reveal-tag">
@@ -802,7 +802,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <h2>{t('pendingTitle')}</h2>
           <ul className="rows">
             <li>
-              <span className="name">{pending.nickname}</span>
+              <span className="name" dir="auto">{pending.nickname}</span>
               <span className="given">{answerText(pending.answer, correct, view.question?.choices)}</span>
               <span className="tag is-pending">{t('pendingTitle')}</span>
             </li>
@@ -849,7 +849,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <ul className="rows wager-list">
             {final.wagers.map((entry) => (
               <li key={entry.playerId}>
-                <span className="name">{entry.nickname}</span>
+                <span className="name" dir="auto">{entry.nickname}</span>
                 <span className="given">{entry.wager === null ? t('finalThinking') : num(entry.wager)}</span>
                 {/* Стале місце для «ва-банк»: межа ставки в усіх рядках стоїть в одній колонці. */}
                 <span className="allin-slot">{entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}</span>
@@ -866,7 +866,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <ul className="rows">
             {final.pending.map((entry) => (
               <li key={entry.playerId}>
-                <span className="name">{entry.nickname}</span>
+                <span className="name" dir="auto">{entry.nickname}</span>
                 <span className="given">{answerText(entry.answer, correct, view.question?.choices)}</span>
                 <span className="row-actions">
                   <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
@@ -902,10 +902,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               const waiting = final.pending.some((item) => item.playerId === entry.playerId);
               return (
                 <li key={entry.playerId} className={entry.grade === 'correct' ? 'is-correct' : 'is-wrong'}>
-                  <span className="name">{entry.nickname}</span>
+                  <span className="name" dir="auto">{entry.nickname}</span>
                   <span className="given">{entry.answer === null ? t('finalSilent') : answerText(entry.answer, correct, view.question?.choices)}</span>
                   <span className="tag">{num(entry.wager)}</span>
-                  <span className="score">{`${num(entry.before)} → ${num(entry.after)}`}</span>
+                  <span className="score" dir="ltr">{`${num(entry.before)} → ${num(entry.after)}`}</span>
                   <span className="allin-slot">{entry.allIn && <span className="allin-tag">{t('finalAllInTag')}</span>}</span>
                   {/* Місце частки зарезервоване з першого розкриття: розподіл не зсуває рядки. */}
                   {final.mode === 'bank' && (
@@ -949,7 +949,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                 <ul className="rows">
                   {blitz.queue.map((entry, index) => (
                     <li key={entry.playerId}>
-                      <span className="name">{entry.nickname}</span>
+                      <span className="name" dir="auto">{entry.nickname}</span>
                       {blitz.voice && index === 0 ? (
                         <span className="row-actions">
                           <button type="button" className="btn btn-small" onClick={() => judge(entry.playerId, true)}>
@@ -974,12 +974,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               <ul className="rows">
                 {blitz.attempts.map((attempt, index) => (
                   <li key={`${attempt.playerId}-${index}`}>
-                    <span className="name">{attempt.nickname}</span>
+                    <span className="name" dir="auto">{attempt.nickname}</span>
                     <span className="given">{attempt.answer === null ? t('blitzMissed') : answerText(attempt.answer, correct, view.question?.choices)}</span>
                     <span className={attempt.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                       {t(attempt.grade === 'correct' ? 'accepted' : 'rejected')}
                     </span>
-                    <span className="score">{num(attempt.points)}</span>
+                    <span className="score" dir="ltr">{num(attempt.points)}</span>
                   </li>
                 ))}
               </ul>
@@ -1000,7 +1000,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <ul className="rows">
             {board.turn !== null && (
               <li>
-                <span className="name">{board.turn.nickname}</span>
+                <span className="name" dir="auto">{board.turn.nickname}</span>
                 {(() => {
                   const response = view.responses.find((entry) => entry.playerId === chooserId);
                   const given = response?.answer ?? board.answer;
@@ -1024,7 +1024,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                               <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                                 {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
                               </span>
-                              <span className="score">{num(response.points)}</span>
+                              <span className="score" dir="ltr">{num(response.points)}</span>
                             </>
                           )}
                         </>
@@ -1133,13 +1133,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   .filter((player) => !view.responses.some((response) => response.playerId === player.id))
                   .map((player) => (
                     <li key={`silent-${player.id}`}>
-                      <span className="name">{player.nickname}</span>
+                      <span className="name" dir="auto">{player.nickname}</span>
                       <span className="given">{t(phase === 'question' ? 'finalThinking' : 'finalSilent')}</span>
                     </li>
                   ))}
               {view.responses.map((response) => (
                 <li key={response.playerId}>
-                  <span className="name">{response.nickname}</span>
+                  <span className="name" dir="auto">{response.nickname}</span>
                   {response.buff !== null && <BuffBadge kind={response.buff} />}
                   {response.spare !== null && <SpareMark spare={response.spare} />}
                   <span className="given">
@@ -1157,14 +1157,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                     </span>
                   ))}
                   {/* У фіналі вердикт і бали з'являються лише на розкритті: до того в рядку тільки відповідь. */}
-                  {!isFinal && response.grade !== null && response.silent && <span className="score">{num(response.points)}</span>}
+                  {!isFinal && response.grade !== null && response.silent && <span className="score" dir="ltr">{num(response.points)}</span>}
                   {!isFinal && response.grade !== null && !response.silent && (
                     <>
                       <span className={response.grade === 'wrong' ? 'tag is-wrong' : 'tag is-correct'}>
                         {t(response.grade === 'partial' ? 'partialTag' : response.accepted ? 'accepted' : 'rejected')}
                         {response.overridden && `, ${t('changedByHost')}`}
                       </span>
-                      <span className="score">{num(response.points)}</span>
+                      <span className="score" dir="ltr">{num(response.points)}</span>
                       {response.awayPenalty && <span className="meta response-penalty">{t('awayPenaltyComing')}</span>}
                     </>
                   )}
@@ -1252,7 +1252,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <ul className="rows">
             {view.players.map((player) => (
               <li key={player.id} className="player-row">
-                <span className="name">
+                <span className="name" dir="auto">
                   <Nick nickname={player.nickname} levels={view.levels} titles={view.titles} />
                 </span>
                 {!player.connected && <span className="tag is-wrong">{t('disconnected')}</span>}
@@ -1263,7 +1263,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   </span>
                 )}
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
-                <span className="score">{num(player.score)}</span>
+                <span className="score" dir="ltr">{num(player.score)}</span>
                 {live &&
                   (debuffKinds.length > 0 && !isSurvivalGhost(view.survival, phase, player.id) ? (['points', 'debuff'] as const) : (['points'] as const)).map((kind) => (
                     <button

@@ -2,18 +2,11 @@ import type { FeedData } from '@quiz/shared';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
 import { viewerZone, dayHeading, timeText } from '../calendar/calendar-time';
 import { countText, t, type TextKey } from '../i18n';
+import { accusativeDay } from '../locales/grammar';
 
 function joinParts(parts: string[]): string {
   if (parts.length < 2) return parts.join('');
   return `${parts.slice(0, -1).join(', ')}${t('feedAnd')}${parts[parts.length - 1]}`;
-}
-
-const WEEKDAY_ACCUSATIVE: Record<string, string> = { середа: 'середу', 'пʼятниця': 'пʼятницю', "п'ятниця": "п'ятницю", 'п’ятниця': 'п’ятницю', субота: 'суботу', неділя: 'неділю' };
-
-/** «субота, 7 листопада» → «суботу, 7 листопада» (після «на» потрібен знахідний). */
-function accusativeDay(heading: string): string {
-  const [word = '', ...rest] = heading.split(',');
-  return [WEEKDAY_ACCUSATIVE[word.trim()] ?? word.trim(), ...rest].join(',');
 }
 
 /** Текст картки без ніку (нік — посиланням перед ним): «зіграв(-ла) «Писанки» — 2 місце з 5». */

@@ -86,7 +86,7 @@ export function DicePanel({ dice, spinning, meId }: { dice: DiceInfo; spinning: 
           const classes = [r.playerId === meId ? 'is-me' : '', r.waiting ? 'is-waiting' : ''].filter(Boolean).join(' ');
           return (
             <li key={r.playerId} className={classes || undefined}>
-              <span className="name">{r.nickname}</span>
+              <span className="name" dir="auto">{r.nickname}</span>
               {r.throws.length > 1 && <span className="dice-throws">{`${r.throws.slice(0, -1).join(' · ')} →`}</span>}
               {last === null ? (
                 <span className="die is-empty" />
