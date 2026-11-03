@@ -3168,6 +3168,15 @@ button.match-item {
   overflow-wrap: anywhere;
 }
 
+/* Довгий email і кнопки шапки не розпирають сторінку на 320 px: колонка біля аватарки може стискатися. */
+.profile-head > div {
+  min-width: 0;
+}
+
+.profile-head .meta {
+  overflow-wrap: anywhere;
+}
+
 .profile-section {
   display: flex;
   flex-direction: column;
