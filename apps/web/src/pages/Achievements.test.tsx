@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 // Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_INFO, type AchievementCard, type AchievementsPage } from '@quiz/shared';
-import { getAchievements, getMyAchievements, me } from '../api';
+import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase } from '../api';
 import { formatDay } from '../format';
 import { Achievements } from './Achievements';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn() }));
 
 const EARNED: Record<string, string | null> = { fast_answer: '2026-10-29T10:00:00.000Z', first_game: null };
 
@@ -46,6 +46,7 @@ beforeEach(() => {
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: mine });
   vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: theirs });
+  vi.mocked(getShowcasePins).mockResolvedValue({ ok: true, data: { prizes: [], achievements: ['first_game'] } });
 });
 afterEach(cleanup);
 
@@ -119,6 +120,21 @@ describe('Achievements, own page', () => {
     expect(sniper.querySelector('progress')).toBeNull();
   });
 
+  it('only earned cards have the 📌 button; a tap pins the achievement', async () => {
+    vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [], achievements: ['first_game', 'fast_answer'] } });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 48');
+    expect(within(cardOf('10 ігор')).queryByRole('button')).toBeNull();
+    const first = await within(cardOf('Перша гра')).findByRole('button', { name: '📌 Прибрати з вітрини: Перша гра' });
+    expect(first.getAttribute('aria-pressed')).toBe('true');
+    const fast = within(cardOf('Швидкі пальці')).getByRole('button', { name: '📌 На вітрину: Швидкі пальці' });
+    expect(fast.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getAllByRole('button', { name: /^📌 / })).toHaveLength(2);
+    fireEvent.click(fast);
+    await waitFor(() => expect(pinToShowcase).toHaveBeenCalledWith({ kind: 'achievement', id: 'fast_answer' }));
+    expect(await within(cardOf('Швидкі пальці')).findByRole('button', { name: '📌 Прибрати з вітрини: Швидкі пальці' })).toBeTruthy();
+  });
+
   it('a visitor goes to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/achievements');
@@ -141,6 +157,13 @@ describe('Achievements, another player', () => {
     expect(container.querySelectorAll('.achievement-card')).toHaveLength(2);
     expect(container.querySelectorAll('.is-locked')).toHaveLength(0);
     expect(container.querySelector('progress')).toBeNull();
+  });
+
+  it('has no 📌 buttons and does not ask for pins', async () => {
+    open('/profile/u2/achievements');
+    await screen.findByRole('heading', { level: 1, name: 'Досягнення: Оля' });
+    expect(screen.queryByRole('button', { name: /📌/ })).toBeNull();
+    expect(getShowcasePins).not.toHaveBeenCalled();
   });
 
   it('opens for a visitor without an account', async () => {

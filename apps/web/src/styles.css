@@ -3473,6 +3473,141 @@ button.match-item {
   font-size: 0.6875rem;
 }
 
+/* Вітрини профілю (23a): полиця кубків — перший у центрі й найбільший, без живого 3D; підставка — градієнт рамки в поверхню. */
+.shelf-stand {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 0.25rem;
+  min-height: 7.5rem;
+  margin: 0;
+  padding: 0 0.375rem;
+  list-style: none;
+  background: radial-gradient(60% 80% at 50% 100%, rgb(224 37 49 / 0.13), transparent);
+}
+
+.shelf-stand::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 0.625rem;
+  border-radius: var(--radius-small);
+  background: linear-gradient(var(--line), var(--surface));
+  box-shadow: 0 0.375rem 0.875rem #000;
+  pointer-events: none;
+}
+
+.shelf-item {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 7rem;
+  padding-block-end: 0.875rem;
+  text-align: center;
+}
+
+.shelf-cup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+button.shelf-cup {
+  cursor: pointer;
+}
+
+.shelf-icon {
+  font-size: 2.875rem;
+  line-height: 1.1;
+  filter: drop-shadow(0 0 0.75rem rgb(255 59 69 / 0.33));
+}
+
+.shelf-item.is-main .shelf-icon {
+  font-size: 3.75rem;
+}
+
+.shelf-caption {
+  margin-block-start: 0.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.shelf-quiz {
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* Ачівки профілю: до 5 квадратиків у ряд; назва — у підписі під рядом. */
+.achievement-squares {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(2.75rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.achievement-square {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 2.75rem;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font-size: 1.625rem;
+  cursor: pointer;
+}
+
+.achievement-square.is-selected {
+  border-color: var(--accent);
+}
+
+.achievement-caption {
+  min-height: 1.25rem;
+  margin: 0.375rem 0 0;
+  color: var(--dim);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* Порожня вітрина: хмаринка й текст. */
+.showcase-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  padding-block: 0.5rem;
+  text-align: center;
+}
+
+.showcase-empty .cloud-motif {
+  width: 4rem;
+}
+
+/* Повідомлення 📌 (ліміт, помилка): живий регіон стоїть завжди, порожній не займає місця. */
+.pin-message {
+  margin: 0;
+  color: var(--accent-text);
+}
+
+.pin-message:not(:empty) {
+  margin-block: 0.5rem;
+}
+
 /* Підсторінка профілю (23a): «‹» назад і заголовок плитки в один рядок; розділи — картки. */
 .profile-sub-head {
   display: flex;

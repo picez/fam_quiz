@@ -1,12 +1,15 @@
-import type { PrizeContent, PrizeItem } from '@quiz/shared';
+import type { PrizeContent, PrizeItem, Showcase as ShowcaseData } from '@quiz/shared';
 import { useState, type JSX } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { createPrize, deletePrize, myPrizes, updatePrize } from '../api';
 import { errorText, t } from '../i18n';
 import { PrizeEditor } from '../prizes/PrizeEditor';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
+import { PinButton } from '../profile/PinButton';
 import { Showcase } from '../profile/Showcase';
+import { awardCaption } from '../profile/ShowcaseShelf';
 import { useMyProfile } from '../profile/useMyProfile';
+import { usePins } from '../profile/usePins';
 import { prizeSummary } from '../trophy/trophy-meta';
 import { usePrivateData, type PrivateData } from '../usePrivateData';
 
@@ -24,12 +27,32 @@ export function Prizes(): JSX.Element {
           <p className="meta">{t('noAwardsYet')}</p>
         </section>
       ) : profile.status === 'ready' ? (
-        <Showcase showcase={profile.data.showcase} own />
+        <Awards showcase={profile.data.showcase} />
       ) : (
         <Pending state={profile} title={t('showcaseTitle')} />
       )}
       {store.status === 'ready' ? <Store initial={store.data} /> : <Pending state={store} title={t('prizesTitle')} />}
     </ProfileSubpage>
+  );
+}
+
+/** Виграні нагороди з кнопкою 📌 на кожній; повідомлення (ліміт, помилка) — над сіткою. */
+function Awards({ showcase }: { showcase: ShowcaseData }): JSX.Element {
+  const { busy, message, isPinned, toggle } = usePins(showcase.pins);
+  return (
+    <>
+      <p className="pin-message" role="status">
+        {message}
+      </p>
+      <Showcase
+        showcase={showcase}
+        own
+        renderPin={(award) => {
+          const pin = { kind: 'prize', id: award.id } as const;
+          return <PinButton pinned={isPinned(pin)} busy={busy} name={`${awardCaption(award)} · ${award.quizTitle}`} onClick={() => void toggle(pin)} />;
+        }}
+      />
+    </>
   );
 }
 

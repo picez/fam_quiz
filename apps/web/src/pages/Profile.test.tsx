@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type AwardCard, type OwnProfile } from '@quiz/shared';
@@ -134,11 +134,25 @@ describe('Profile', () => {
     expect(tiles().querySelectorAll('.tile-count')).toHaveLength(3);
   });
 
+  it('after the tiles shows the trophy shelf and the achievements, with links to all', async () => {
+    open();
+    const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    const shelf = screen.getByRole('heading', { name: /Вітрина кубків/ });
+    const achievements = screen.getByRole('heading', { name: /Ачівки · 1 з 48/ });
+    expect(before(nav, shelf)).toBe(true);
+    expect(before(shelf, achievements)).toBe(true);
+    expect(before(achievements, screen.getByRole('heading', { name: 'Найпопулярніші вікторини' }))).toBe(true);
+    expect(screen.getByRole('link', { name: /усі призи/ }).getAttribute('href')).toBe('/profile/prizes');
+    expect(shelf.closest('section')!.querySelectorAll('.shelf-item')).toHaveLength(2);
+    expect(achievements.closest('section')!.querySelector('a')!.getAttribute('href')).toBe('/profile/achievements');
+    expect(screen.getByRole('button', { name: 'Перша гра' })).toBeTruthy();
+  });
+
   it('shows the top three quizzes with their play counts and «усі»', async () => {
     open();
     expect((await screen.findByRole('link', { name: 'Хіт' })).closest('li')?.textContent).toContain('5 ігор');
     expect([...document.querySelectorAll('.popular-quizzes a bdi')].map((el) => el.textContent)).toEqual(['Хіт', 'Друга', 'Третя']);
-    expect(screen.getByRole('link', { name: /^усі/ }).getAttribute('href')).toBe('/profile/quizzes');
+    expect(within(screen.getByRole('heading', { name: 'Найпопулярніші вікторини' }).closest('section')!).getByRole('link', { name: /^усі/ }).getAttribute('href')).toBe('/profile/quizzes');
   });
 
   it('keeps the rest on the sub-pages', async () => {

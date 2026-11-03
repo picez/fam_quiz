@@ -6,7 +6,9 @@ import { ACHIEVEMENT_ICONS } from '../achievement-meta';
 import { groupCards } from '../achievements';
 import { formatDay } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { PinButton } from '../profile/PinButton';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
+import { usePins } from '../profile/usePins';
 import { usePrivateData } from '../usePrivateData';
 import { nickText } from '../nick';
 
@@ -21,10 +23,11 @@ export function Achievements() {
 function OwnAchievements() {
   const location = useLocation();
   const state = usePrivateData(getMyAchievements);
+  const pinning = usePins();
   if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
   if (state.status === 'loading') return <Shell><p className="meta">{t('loading')}</p></Shell>;
   if (state.status === 'error') return <Failure message={state.message} />;
-  return <PageView page={state.data} />;
+  return <PageView page={state.data} pinning={pinning} />;
 }
 
 type Loaded = { status: 'loading' } | { status: 'ready'; page: AchievementsPage } | { status: 'error'; message: string };
@@ -68,7 +71,10 @@ function Failure({ back, message }: { back?: string; message: string }) {
   );
 }
 
-function PageView({ page }: { page: AchievementsPage }) {
+/** Закріплення на вітрині — лише на своїй сторінці. */
+type Pinning = ReturnType<typeof usePins>;
+
+function PageView({ page, pinning }: { page: AchievementsPage; pinning?: Pinning }) {
   const { profile } = page;
   const groups = groupCards(page.items);
   // Ім’я в заголовку «Ачівки: Оля» — посилання на профіль; текст навколо береться з перекладу.
@@ -85,13 +91,18 @@ function PageView({ page }: { page: AchievementsPage }) {
   return (
     <Shell title={title} back={page.own ? undefined : profileOf(profile.id)}>
       <p className="achievements-count">{t('achievementsCount', { earned: page.earned, total: page.total })}</p>
+      {pinning !== undefined && (
+        <p className="pin-message" role="status">
+          {pinning.message}
+        </p>
+      )}
       {!page.own && groups.length === 0 && <p className="meta">{t('achievementsEmptyPublic')}</p>}
       {groups.map(({ group, items }) => (
         <section key={group} className="achievement-group" aria-labelledby={`g-${group}`}>
           <h2 id={`g-${group}`}>{t(`achievementGroup_${group}` as TextKey)}</h2>
           <ul className="achievement-cards">
             {items.map((item) => (
-              <CardView key={item.id} item={item} />
+              <CardView key={item.id} item={item} pinning={page.own ? pinning : undefined} />
             ))}
           </ul>
         </section>
@@ -100,7 +111,7 @@ function PageView({ page }: { page: AchievementsPage }) {
   );
 }
 
-function CardView({ item }: { item: AchievementCard }) {
+function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning }) {
   const name = t(`achievement_${item.id}` as TextKey);
   const progress = !item.earned ? item.progress : null;
   return (
@@ -119,6 +130,14 @@ function CardView({ item }: { item: AchievementCard }) {
         <p className="achievement-date">
           {item.earnedAt === null ? t('achievementEarnedLongAgo') : t('achievementEarnedOn', { date: formatDay(item.earnedAt) })}
         </p>
+      )}
+      {item.earned && pinning !== undefined && (
+        <PinButton
+          pinned={pinning.isPinned({ kind: 'achievement', id: item.id })}
+          busy={pinning.busy || pinning.pins === null}
+          name={name}
+          onClick={() => void pinning.toggle({ kind: 'achievement', id: item.id })}
+        />
       )}
       {progress !== null && (
         <>

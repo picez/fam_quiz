@@ -39,6 +39,9 @@ vi.mock('../../api', () => ({
   getMyFriends: vi.fn(),
   getMyAchievements: vi.fn(),
   getAchievements: vi.fn(),
+  getShowcasePins: vi.fn(async () => ({ ok: true, data: { prizes: [], achievements: [] } })),
+  pinToShowcase: vi.fn(),
+  unpinFromShowcase: vi.fn(),
 }));
 
 // Вхід і головна тут — лише адреси, куди ведуть підсторінки.

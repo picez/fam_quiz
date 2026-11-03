@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { t } from '../i18n';
+import { AchievementShowcase } from '../profile/AchievementShowcase';
 import { InviteList } from '../profile/InviteList';
 import { PopularQuizzes } from '../profile/PopularQuizzes';
 import { ProfileHeader } from '../profile/ProfileHeader';
 import { ProfileTiles } from '../profile/ProfileTiles';
+import { ShowcaseShelf } from '../profile/ShowcaseShelf';
 import { useMyProfile } from '../profile/useMyProfile';
 import { useAccount } from '../useAccount';
 import { announceInvitesChanged, useInvites } from '../useInvites';
@@ -69,7 +71,8 @@ export function Profile() {
         />
       </div>
       <div className="profile-col">
-        {/* Задача 8: тут стануть вітрини — полиця кубків і закріплені ачівки. */}
+        <ShowcaseShelf awards={profile.showcase.awards} pinned={profile.showcase.pins.prizes} allTo="/profile/prizes" />
+        <AchievementShowcase achievements={profile.achievements} pinned={profile.showcase.pins.achievements} allTo="/profile/achievements" />
         <section className="profile-section profile-popular">
           <div className="profile-section-head">
             <h2>{t('profilePopularTitle')}</h2>
