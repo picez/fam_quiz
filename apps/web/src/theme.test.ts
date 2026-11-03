@@ -174,3 +174,58 @@ describe('motifs', () => {
     expect(hero).toContain('margin-inline: calc(-1 * var(--app-pad, 0rem));');
   });
 });
+
+describe('game verdicts', () => {
+  const rules = cssRules(css);
+  /** Значення властивостей кольору (color, background*, border*-color) у тілі правила. */
+  const colourValues = (body: string) =>
+    [...body.matchAll(/(?:^|[;\s])(color|background(?:-color|-image)?|border(?:-[\w-]+)?-color|border(?:-(?:top|bottom|left|right|block|inline)(?:-start|-end)?)?)\s*:\s*([^;]+)/g)].map((match) => match[2]);
+
+  it('every wrong verdict is painted in --wrong, never in the red accent or the danger red', () => {
+    const wrongRules = rules.filter(({ selector }) => selector.includes('.is-wrong'));
+    expect(wrongRules.length).toBeGreaterThan(5);
+    const offenders = wrongRules
+      .map(({ selector, body }) => ({ selector, values: colourValues(body) }))
+      .filter(({ values }) => values.length > 0)
+      .filter(({ selector, values }) => {
+        const text = values.join(' ');
+        const banned = /var\(--(signal|accent|amber|accent-text)\)/.test(text);
+        // Бейдж уже має текст (✗ / «відключився»): йому дозволено --wrong і нейтральні кольори.
+        if (selector === '.tag.is-wrong') return banned;
+        return banned || !text.includes('var(--wrong)');
+      })
+      .map(({ selector }) => selector);
+    expect(offenders).toEqual([]);
+  });
+
+  it.each(['.choice.is-wrong::after', '.spotlight-answer.is-wrong::after', '.duel-stage-answer.is-wrong::after', '.result.is-wrong h2::before'])(
+    '%s carries a ✗ that screen readers skip',
+    (selector) => {
+      const rule = rules.find((candidate) => candidate.selector.split(',').map((part) => part.trim()).includes(selector));
+      expect(rule?.body).toContain("content: '✗' / '';");
+    },
+  );
+
+  it('the ✗ on a choice sits at the inline end, with room kept for it, not over the text', () => {
+    const mark = rules.find(({ selector }) => selector.split(',').map((part) => part.trim()).includes('.choice.is-wrong::after'))?.body ?? '';
+    expect(mark).toContain('position: absolute;');
+    expect(mark).toMatch(/inset-inline-end:/);
+    const room = rules.filter(({ selector }) => /(^|,)\s*\.choice\.is-wrong\s*(,|$)/.test(selector)).map(({ body }) => body).join('');
+    expect(room).toMatch(/padding-inline-end:/);
+  });
+
+  it('the moon behind the game is faint, still and never catches a tap', () => {
+    const before = rules.filter(({ selector }) => selector === '.game-bg::before').map(({ body }) => body).join('');
+    expect(before).toContain('pointer-events: none;');
+    expect(before).toContain('z-index: -1;');
+    expect(before).toMatch(/inset-inline-end:/);
+    const opacity = Number(/opacity:\s*([\d.]+)/.exec(before)?.[1] ?? NaN);
+    expect(opacity).toBeGreaterThan(0);
+    expect(opacity).toBeLessThanOrEqual(0.12);
+    const anyMoving = cssRules(css).filter(({ selector, body }) => /\.game-bg\b/.test(selector) && /(^|[;\s])(animation|transition)(-[\w-]+)?\s*:/.test(body));
+    expect(anyMoving.map(({ selector }) => selector)).toEqual([]);
+    const host = rules.find(({ selector }) => selector === '.game-bg')?.body ?? '';
+    expect(host).toContain('position: relative;');
+    expect(host).toContain('isolation: isolate;');
+  });
+});

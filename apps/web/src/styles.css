@@ -531,7 +531,8 @@ a {
   padding: 0.875rem 1rem;
   border: 2px solid var(--amber);
   border-radius: var(--radius);
-  background: transparent;
+  /* Непрозора картка: фоновий місяць гри (.game-bg) не просвічує крізь варіант. */
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 1.125rem;
@@ -620,14 +621,18 @@ button.choice {
 }
 
 .choice.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
+  border-color: var(--wrong);
+  /* Не червона кнопка: рожевий обвід і ледь рожеве тло, текст світлий; ✗ — нижче, біля сцени. */
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
+}
+
+.choice.is-pending .letter {
   color: var(--stage);
 }
 
-.choice.is-pending .letter,
 .choice.is-wrong .letter {
-  color: var(--stage);
+  color: var(--wrong);
 }
 
 .spotlight-answer {
@@ -635,6 +640,7 @@ button.choice {
   padding: 0.875rem 1rem;
   border: 2px solid var(--line);
   border-radius: var(--radius);
+  background: var(--surface);
   font-size: 1.125rem;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -653,9 +659,9 @@ button.choice {
 }
 
 .spotlight-answer.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
-  color: var(--stage);
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
 }
 
 .spotlight-answer.is-waiting {
@@ -720,11 +726,18 @@ button.choice {
 }
 
 .result.is-wrong {
-  border-color: var(--signal);
+  border-color: var(--wrong);
 }
 
 .result.is-wrong h2 {
-  color: var(--signal);
+  color: var(--wrong);
+}
+
+/* ✗ перед заголовком вердикту; читач екрана його не озвучує — «неправильно» вже сказано текстом. */
+.result.is-wrong h2::before {
+  content: '✗';
+  content: '✗' / '';
+  margin-inline-end: 0.4em;
 }
 
 .earned {
@@ -797,7 +810,7 @@ button.choice {
 }
 
 .tag.is-wrong {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 .answer {
@@ -1024,6 +1037,51 @@ button.choice {
 
 .stage .choice-image {
   max-height: 28vh;
+}
+
+/*
+ * ✗ «неправильно» (телефон, сцена, пульт): позначка стоїть у кінці рядка, у власному запасі padding-inline-end,
+ * тож не налазить на довгий текст варіанта. Порожній alt: читач екрана її не озвучує — вердикт уже є текстом.
+ * Правило стоїть після .stage .choice, щоб запас не перебив padding сцени.
+ */
+.choice.is-wrong,
+.spotlight-answer.is-wrong,
+.duel-stage-answer.is-wrong {
+  position: relative;
+  padding-inline-end: 2.25em;
+}
+
+.choice.is-wrong::after,
+.spotlight-answer.is-wrong::after,
+.duel-stage-answer.is-wrong::after {
+  content: '✗';
+  content: '✗' / '';
+  position: absolute;
+  inset-inline-end: 0.75em;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--wrong);
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Варіант-картинка: ✗ у протилежному від літери верхньому куті, на темній плашці поверх картинки, не поверх тексту. */
+.choices.has-images .choice.is-wrong::after {
+  top: 0.75rem;
+  inset-inline-end: 0.75rem;
+  z-index: 1;
+  transform: none;
+  min-width: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-small);
+  background: var(--stage);
+  color: var(--wrong);
+  line-height: inherit;
+  text-align: center;
+}
+
+.duel-stage-answer.is-wrong .lead:last-child {
+  color: var(--wrong);
 }
 
 .stage-lobby {
@@ -2002,7 +2060,7 @@ a.banner {
 }
 
 .blitz-queue .blitz-mark.is-wrong {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 .blitz-queue .blitz-mark.is-pending,
@@ -2957,9 +3015,9 @@ button.match-item {
 }
 
 .match-row.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
-  color: var(--stage);
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
 }
 
 /* Відповіді гравців у історії: згорнутий блок на всю ширину під запитанням. */
@@ -2995,7 +3053,7 @@ button.match-item {
 }
 
 .rows .responses li.is-wrong {
-  border-inline-start-color: var(--signal);
+  border-inline-start-color: var(--wrong);
 }
 
 /* 12f: відповідь, яку зарахував зал (апеляція «так»). */
@@ -10604,7 +10662,7 @@ button.wall-tile:disabled {
 }
 
 .stage .choice.is-picked.is-wrong {
-  border-color: var(--signal);
+  border-color: var(--wrong);
 }
 
 .ladder-final {
@@ -14549,4 +14607,33 @@ button.wall-tile:disabled {
    в арабській таблиці стоїть праворуч, як і сусіди. Наприкінці файлу, щоб перебити .score-table .name { text-align: start }. */
 .name[dir] {
   text-align: match-parent;
+}
+
+/* ---------- Тло гри: слабкий місяць ---------- */
+
+/*
+ * Телефон, пульт і сцена (main.game-bg): нерухомий місяць у куті inline-end, ледь видно (opacity 0.1), під усім вмістом
+ * (z-index: -1 усередині isolation) і без дотиків. Запитання й картки варіантів (тло --surface) лежать над ним.
+ */
+.game-bg {
+  position: relative;
+  isolation: isolate;
+}
+
+.game-bg::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 1.5rem;
+  inset-inline-end: 0;
+  width: clamp(8rem, 28vmin, 20rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+[dir='rtl'] .game-bg::before {
+  background: radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
 }

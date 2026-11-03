@@ -790,7 +790,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
     // Реакції (13a): лише в REACTION_PHASES — телефон, що вже на запитанні, живої реакції не малює.
-    <ReactionMain className={suspense ? 'app player is-suspense' : 'app player'} aria-busy={notStarted || undefined} phase={phase} reactions={reactions} size="phone">
+    <ReactionMain className={suspense ? 'app player game-bg is-suspense' : 'app player game-bg'} aria-busy={notStarted || undefined} phase={phase} reactions={reactions} size="phone">
       {/* Смуга й сповіщення — position: fixed, тож нічого не зсувають. */}
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>

@@ -64,7 +64,7 @@ export function Host() {
 
   if (access.status === 'denied') {
     return (
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <p className="lead">{t('noHostAccess')}</p>
         <Link className="btn btn-primary" to={`/login?next=${encodeURIComponent(`/host/${code}`)}`}>
           {t('joinButton')}
@@ -79,7 +79,7 @@ export function Host() {
   // Збережену гру (13b) продовжують з «Історії ігор».
   if (tokens !== null && game.closed === 'saved') {
     return (
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <p className="lead">{t('gameSaved')}</p>
         <Link className="btn btn-primary" to="/history">
           {t('savedToHistory')}
@@ -90,7 +90,7 @@ export function Host() {
 
   if (tokens !== null && (game.status === 'unauthorized' || game.closed !== null)) {
     return (
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <p className="lead">{t('gameGone')}</p>
         <Link className="quiet-link" to="/quizzes">
           {t('quizzesTitle')}
@@ -101,7 +101,7 @@ export function Host() {
 
   if (tokens === null || game.view === null || game.view.role !== 'host') {
     return (
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <p className="lead">{t(statusTextKey(game.status))}</p>
       </main>
     );

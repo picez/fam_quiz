@@ -64,6 +64,16 @@ function submitNickname(name: string) {
 }
 
 describe('Play', () => {
+  it('the join form and the waiting screen sit on the game background with the faint moon', async () => {
+    open();
+    await settle();
+    expect(document.querySelector('main')?.classList.contains('game-bg')).toBe(true);
+    cleanup();
+    savePlayer('123456', 'kept-token');
+    open();
+    expect(document.querySelector('main')?.className).toBe('app narrow game-bg');
+  });
+
   it('keeps the token and shows «Сервер перезапускається…» instead of «гри немає»', async () => {
     savePlayer('123456', 'kept-token');
     open();

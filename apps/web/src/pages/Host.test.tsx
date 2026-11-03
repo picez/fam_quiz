@@ -45,6 +45,13 @@ const open = () =>
   );
 
 describe('Host', () => {
+  it('the remote sits on the game background with the faint moon', async () => {
+    saveHost('123456', { hostToken: 'local-host', stageToken: 'local-stage' });
+    open();
+    await screen.findByText('Підключаємося…');
+    expect(document.querySelector('main')?.className).toBe('app narrow game-bg');
+  });
+
   it('uses the tokens remembered on this device without asking the server', async () => {
     saveHost('123456', { hostToken: 'local-host', stageToken: 'local-stage' });
     open();

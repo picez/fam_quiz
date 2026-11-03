@@ -860,7 +860,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
-    <ReactionMain className={['app stage', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
+    <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />

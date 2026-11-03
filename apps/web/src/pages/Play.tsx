@@ -78,7 +78,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
   return (
     <div className="with-menu">
       <Menu />
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <h1 className="brand">
           <span dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</span>
         </h1>
@@ -182,7 +182,7 @@ export function Play() {
     return (
       <div className="with-menu">
         <Menu />
-        <main className="app narrow">
+        <main className="app narrow game-bg">
           <p className="lead">{t('gameSaved')}</p>
           <Link className="btn btn-primary" to="/">
             {t('joinTitle')}
@@ -209,7 +209,7 @@ export function Play() {
 
   if (game.view === null || game.view.role !== 'player') {
     return (
-      <main className="app narrow">
+      <main className="app narrow game-bg">
         <p className="lead">{t(statusTextKey(game.status))}</p>
       </main>
     );
