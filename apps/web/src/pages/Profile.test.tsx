@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type OwnProfile } from '@quiz/shared';
-import { dismissInvite, findProfile, follow, getMyInvites, getMyProfile, me, saveMyProfile, searchProfiles, signOut, uploadImage } from '../api';
+import { dismissInvite, follow, getMyInvites, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
 import { disablePush } from '../push/push-client';
 import { Profile } from './Profile';
@@ -47,7 +47,7 @@ const mine: OwnProfile = {
   email: 'o@example.com',
   stats: { games: 3, wins: 1, accuracy: 68, quizzes: 1, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game', earnedAt: null })),
-  quizzes: [{ id: 'q1', title: 'Кіно 90-х' }],
+  quizzes: [{ id: 'q1', title: 'Кіно 90-х', plays: 2 }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [] },
@@ -123,9 +123,12 @@ describe('Profile', () => {
     expect(await screen.findByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
     expect(container.querySelector('.profile-head .nick-level')?.textContent).toBe('Рів. 3');
     expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');
+    // Рівень — одразу під ніком, перед статистикою; правила досвіду — підказка шкали, пов'язана через aria-describedby.
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings.indexOf('Вподобання')).toBe(headings.indexOf('Статистика') + 1);
-    expect(headings.indexOf('Рівень 3')).toBe(headings.indexOf('Вподобання') + 1);
+    expect(headings.indexOf('Рівень 3')).toBe(0);
+    expect(headings.indexOf('Статистика')).toBe(1);
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    expect(document.getElementById(info.getAttribute('aria-describedby')!)?.textContent).toMatch(/щонайменше 3 гравці з акаунтами/);
   });
 
   it('shows a row of earned badges linking to the achievements page', async () => {
@@ -153,12 +156,12 @@ describe('Profile', () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Статистика', 'Вподобання', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
+    expect(headings).toEqual(['Рівень 1', 'Статистика', 'Вподобання', 'Нагороди рівнів', 'Досягнення', 'Мої вікторини', 'Перемоги']);
     expect(screen.getByRole('link', { name: 'Кіно 90-х' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
-    // Друг заходив хвилину тому — онлайн (беклог 9).
-    expect(screen.getByText('онлайн').className).toBe('friend-seen is-online');
+    // Друзі переїхали на свою сторінку (пункт меню «Друзі»): у профілі їх немає.
+    expect(screen.queryByRole('link', { name: /Тарас/ })).toBeNull();
+    expect(screen.queryByLabelText('Нікнейм друга')).toBeNull();
     expect(screen.getByRole('link', { name: 'Мій публічний профіль' }).getAttribute('href')).toBe('/profile/u1');
   });
 
@@ -208,7 +211,6 @@ describe('Profile', () => {
     open();
     expect(await screen.findByText('Вікторин поки немає.')).toBeTruthy();
     expect(screen.getByText('Перемог поки немає.')).toBeTruthy();
-    expect(screen.getByText('Друзів поки немає.')).toBeTruthy();
   });
 
   it('changes the nickname and the avatar', async () => {
@@ -253,40 +255,25 @@ describe('Profile', () => {
     await waitFor(() => expect(saveMyProfile).toHaveBeenCalledWith({ nickname: 'Олена', avatar: null }));
   });
 
-  it('adds a friend by nickname and explains an unknown one', async () => {
-    vi.mocked(findProfile).mockResolvedValueOnce({ ok: false, error: 'not_found' });
+  it('shows the three most played quizzes and the rest behind «Ще N»', async () => {
+    const quizzes = ['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята'].map((title, i) => ({ id: 'q' + i, title, plays: 5 - i }));
+    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, quizzes } });
     open();
-    const field = await screen.findByLabelText('Нікнейм друга');
-    fireEvent.change(field, { target: { value: 'Хтось' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Додати друга' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('Гравця з таким нікнеймом не знайдено.');
-    expect(follow).not.toHaveBeenCalled();
-
-    vi.mocked(findProfile).mockResolvedValueOnce({ ok: true, data: { id: 'u3', nickname: 'Іра', avatar: null } });
-    fireEvent.change(field, { target: { value: 'Іра' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Додати друга' }));
-    await waitFor(() => expect(follow).toHaveBeenCalledWith('u3'));
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalledTimes(2));
+    const more = await screen.findByRole('button', { name: 'Ще 2' });
+    const titles = () => [...document.querySelectorAll('#profile-quizzes a bdi')].map((el) => el.textContent);
+    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя']);
+    fireEvent.click(more);
+    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята']);
+    // Кнопки вже немає — фокус на четвертій вікторині, а не на body.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Четверта/ })));
+    expect(more.getAttribute('aria-expanded')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
   });
 
-  it('suggests nicknames that start with what is typed (backlog 9)', async () => {
-    vi.mocked(searchProfiles).mockResolvedValue({ ok: true, data: [{ id: 'u3', nickname: 'Іра', avatar: null }, { id: 'u4', nickname: 'Ірина', avatar: null }] });
+  it('has no «Ще» with three quizzes or fewer', async () => {
     open();
-    fireEvent.change(await screen.findByLabelText('Нікнейм друга'), { target: { value: 'Ір' } });
-    await waitFor(() => expect(searchProfiles).toHaveBeenCalledWith('Ір'));
-    await waitFor(() => expect(Array.from(document.querySelectorAll('#friend-hints option')).map((o) => o.getAttribute('value'))).toEqual(['Іра', 'Ірина']));
-  });
-
-  it('refuses to add yourself and ignores a double click', async () => {
-    vi.mocked(findProfile).mockResolvedValue({ ok: true, data: { id: 'u3', nickname: 'Іра', avatar: null } });
-    vi.mocked(follow).mockResolvedValue({ ok: false, error: 'self_follow' });
-    open();
-    fireEvent.change(await screen.findByLabelText('Нікнейм друга'), { target: { value: 'Іра' } });
-    const add = screen.getByRole('button', { name: 'Додати друга' });
-    fireEvent.click(add);
-    fireEvent.click(add);
-    expect((await screen.findByRole('alert')).textContent).toBe('Себе додати в друзі не можна.');
-    expect(findProfile).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('link', { name: 'Кіно 90-х' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
   });
 
   it('signs out from the profile', async () => {

@@ -7,8 +7,8 @@ import { InviteFriends } from './InviteFriends';
 vi.mock('../api', () => ({ getMyFriends: vi.fn(), getRoomInvites: vi.fn(), inviteFriends: vi.fn() }));
 
 const friends = [
-  { id: 'olya', nickname: 'Оля', avatar: null },
-  { id: 'taras', nickname: 'Тарас', avatar: null },
+  { id: 'olya', nickname: 'Оля', avatar: null, lastSeenAt: null },
+  { id: 'taras', nickname: 'Тарас', avatar: null, lastSeenAt: null },
 ];
 
 beforeEach(() => {
@@ -34,14 +34,14 @@ describe('InviteFriends', () => {
     expect(rowButtons()[0]!.disabled).toBe(true);
   });
 
-  it('without friends shows the hint and a profile link in a new tab', async () => {
+  it('without friends shows the hint and a Friends page link in a new tab', async () => {
     vi.mocked(getMyFriends).mockResolvedValue({ ok: true, data: [] });
     vi.mocked(getRoomInvites).mockResolvedValue({ ok: true, data: { invited: [] } });
     render(<InviteFriends code="123456" />);
     fireEvent.click(screen.getByRole('button', { name: 'Запросити друзів' }));
-    await screen.findByText('Друзів поки немає. Додайте їх у профілі.');
-    const link = screen.getByRole('link', { name: 'Відкрити профіль' });
-    expect(link.getAttribute('href')).toBe('/profile');
+    await screen.findByText('Друзів поки немає. Додайте їх на сторінці «Друзі».');
+    const link = screen.getByRole('link', { name: 'Відкрити «Друзі»' });
+    expect(link.getAttribute('href')).toBe('/friends');
     expect(link.getAttribute('target')).toBe('_blank');
   });
 

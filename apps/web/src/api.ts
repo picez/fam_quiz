@@ -1,5 +1,5 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
-import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import type { Locale } from '@quiz/shared';
 
@@ -190,7 +190,7 @@ export const searchProfiles = (query: string) => fetchData<ProfileCard[]>(`/api/
 export const follow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'PUT' });
 export const unfollow = (id: string) => request<object>(`/api/me/friends/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
-export const getMyFriends = () => fetchData<ProfileCard[]>('/api/me/friends');
+export const getMyFriends = () => fetchData<FriendCard[]>('/api/me/friends');
 export const inviteFriends = (code: string, userIds: string[]) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`, { body: { userIds } });
 export const getRoomInvites = (code: string) => fetchData<{ invited: string[] }>(`${gameUrl(code)}/invites`);
 export const getMyInvites = () => fetchData<GameInvite[]>('/api/me/invites');

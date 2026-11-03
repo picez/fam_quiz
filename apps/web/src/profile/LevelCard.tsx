@@ -1,5 +1,5 @@
 import type { LevelReward, NickLooks, OwnLevel } from '@quiz/shared';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { saveLooks } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { Nick } from '../screens/Nick';
@@ -46,6 +46,78 @@ export function ProfileLevelMark({ level, badge }: { level: number; badge: strin
   );
 }
 
+/**
+ * Шкала рівня з правилами досвіду в підказці (не текстом під шкалою): наведення мишею, фокус на «ⓘ» з клавіатури,
+ * дотик до шкали чи «ⓘ» на телефоні. Видимість — лише стан open (клас is-open), без :hover/:focus-within у CSS: відкривають наведення,
+ * фокус з клавіатури і дотик; закривають відведення миші, втрата фокусу, Escape, другий дотик і дотик поза підказкою.
+ * Підказка — role=tooltip, пов'язана з «ⓘ» через aria-describedby.
+ */
+function LevelMeter({ value, max, level, xp }: { value: number; max: number; level: number; xp: string }) {
+  const [open, setOpen] = useState(false);
+  const tipId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  // Фокус від дотику чи кліку не відкриває підказку сам: інакше той самий дотик її одразу й закрив би (фокус → click-перемикач).
+  const pointerFocus = useRef(false);
+  // Мишею підказку вже відкрило наведення: клік її не перемикає (інакше клік по шкалі закривав би щойно показане); дотик і клавіатура — перемикають.
+  const toggle = (event: { nativeEvent: Event }) => {
+    const mouse = (event.nativeEvent as PointerEvent).pointerType === 'mouse';
+    setOpen((was) => (mouse ? true : !was));
+  };
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (box.current !== null && !box.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
+  return (
+    <div
+      ref={box}
+      className={open ? 'level-meter is-open' : 'level-meter'}
+      onClick={toggle}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') setOpen(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpen(false);
+      }}
+    >
+      <progress value={value} max={max} aria-label={t('levelTitle', { n: level })} />
+      <div className="level-meter-row">
+        <p className="meta">{xp}</p>
+        <button
+          type="button"
+          className="level-info"
+          aria-label={t('levelRulesHint')}
+          aria-describedby={tipId}
+          aria-expanded={open}
+          onPointerDown={() => {
+            pointerFocus.current = true;
+          }}
+          onFocus={() => {
+            if (!pointerFocus.current) setOpen(true);
+            pointerFocus.current = false;
+          }}
+          onBlur={() => setOpen(false)}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggle(event);
+          }}
+        >
+          <span aria-hidden="true">ⓘ</span>
+        </button>
+      </div>
+      <div id={tipId} role="tooltip" className="level-tip">
+        {t('xpRules')}
+      </div>
+    </div>
+  );
+}
+
 type Slot = 'color' | 'frame' | 'badge';
 const GROUPS: { slot: Slot; title: TextKey; none: TextKey }[] = [
   { slot: 'color', title: 'lookColor', none: 'lookNoColor' },
@@ -53,14 +125,22 @@ const GROUPS: { slot: Slot; title: TextKey; none: TextKey }[] = [
   { slot: 'badge', title: 'lookBadge', none: 'lookNoBadge' },
 ];
 
-/** Власний профіль: рівень, шкала, правила досвіду, відкрите з датами, 3 наступні, вибір вбрання. */
+/** Власний профіль, одразу під ніком: «Рівень N», шкала, «X / Y досвіду» і правила досвіду в підказці «ⓘ». */
+export function LevelBar({ progress }: { progress: OwnLevel['progress'] }) {
+  const span = Math.max(1, progress.nextAt - progress.levelAt);
+  return (
+    <section className="profile-section level-bar">
+      <h2>{t('levelTitle', { n: progress.level })}</h2>
+      <LevelMeter value={progress.xp - progress.levelAt} max={span} level={progress.level} xp={t('levelXp', { xp: progress.xp, next: progress.nextAt })} />
+    </section>
+  );
+}
+
+/** Власний профіль, нижче статистики: «Нагороди рівнів» — відкрите з датами, 3 наступні, вибір вбрання. */
 export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickname: string; onSaved: (looks: NickLooks) => void }) {
   const [looks, setLooks] = useState<NickLooks>(level.looks);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const { progress } = level;
-  const span = Math.max(1, progress.nextAt - progress.levelAt);
-
   const options = (slot: Slot): { id: string; name: string }[] =>
     level.unlocked.flatMap(({ reward }): { id: string; name: string }[] => {
       if (reward.kind === 'color' && slot === 'color') return [{ id: reward.id, name: t(`color_${reward.id}` as TextKey) }];
@@ -91,10 +171,7 @@ export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickn
 
   return (
     <section className="profile-section level-card">
-      <h2>{t('levelTitle', { n: progress.level })}</h2>
-      <progress value={progress.xp - progress.levelAt} max={span} aria-label={t('levelTitle', { n: progress.level })} />
-      <p className="meta">{t('levelXp', { xp: progress.xp, next: progress.nextAt })}</p>
-      <p className="meta">{t('xpRules')}</p>
+      <h2>{t('levelRewardsTitle')}</h2>
       <h3>{t('levelUnlockedTitle')}</h3>
       <ul className="profile-list level-list">
         {level.unlocked.map((row) => (

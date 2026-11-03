@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { deletePushSubscription } from '../api';
+import { deletePushSubscription, savePushSubscription } from '../api';
 import { disablePush, enablePush, keyToBytes, pushSupport, sameKey, type BrowserEnv } from './push-client';
 
 vi.mock('../api', () => ({ deletePushSubscription: vi.fn(), savePushSubscription: vi.fn() }));
@@ -100,5 +100,41 @@ describe('enablePush', () => {
     expect(result).toBeUndefined();
     await vi.advanceTimersByTimeAsync(1);
     expect(result).toBe('failed');
+  });
+
+  const withSubscribe = (subscribe: () => Promise<unknown>) =>
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: Promise.resolve({ pushManager: { subscribe: vi.fn(subscribe) } }) } });
+  const subscription = () => ({
+    endpoint: 'https://fcm.googleapis.com/fcm/send/a',
+    toJSON: () => ({ expirationTime: null, keys: { p256dh: 'p', auth: 'a' } }),
+    unsubscribe: vi.fn(async () => true),
+  });
+
+  it('says unsupported when the browser cannot subscribe (Opera desktop has no push service) and saves nothing', async () => {
+    setPermission('granted');
+    withSubscribe(async () => {
+      throw new DOMException('Registration failed - push service not available', 'AbortError');
+    });
+    expect(await enablePush('AQAB')).toBe('unsupported');
+    expect(savePushSubscription).not.toHaveBeenCalled();
+  });
+
+  it('says failed and drops the subscription when the server does not save it', async () => {
+    setPermission('granted');
+    const sub = subscription();
+    withSubscribe(async () => sub);
+    vi.mocked(savePushSubscription).mockResolvedValueOnce({ ok: false, error: 'offline' } as Awaited<ReturnType<typeof savePushSubscription>>);
+    expect(await enablePush('AQAB')).toBe('failed');
+    expect(sub.unsubscribe).toHaveBeenCalled();
+  });
+
+  it('says on when the server saves the subscription', async () => {
+    setPermission('granted');
+    const sub = subscription();
+    withSubscribe(async () => sub);
+    vi.mocked(savePushSubscription).mockResolvedValueOnce({ ok: true } as Awaited<ReturnType<typeof savePushSubscription>>);
+    expect(await enablePush('AQAB')).toBe('on');
+    expect(savePushSubscription).toHaveBeenCalledWith({ endpoint: sub.endpoint, expirationTime: null, keys: { p256dh: 'p', auth: 'a' } });
+    expect(sub.unsubscribe).not.toHaveBeenCalled();
   });
 });

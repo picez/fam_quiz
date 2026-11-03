@@ -12,7 +12,8 @@ export function PushSettings({ compact = false }: { compact?: boolean }): JSX.El
   const [view, setView] = useState<View>('loading');
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  // Збій увімкнення: 'unsupported' — браузер не вміє push (subscribe кинув), 'failed' — інше, варто спробувати ще раз.
+  const [problem, setProblem] = useState<'failed' | 'unsupported' | null>(null);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -50,14 +51,14 @@ export function PushSettings({ compact = false }: { compact?: boolean }): JSX.El
   const turnOn = async () => {
     if (busy || publicKey === null) return;
     setBusy(true);
-    setFailed(false);
+    setProblem(null);
     const result = await enablePush(publicKey);
     if (!alive.current) return;
     setBusy(false);
     if (result === 'on') setView('on');
     else if (result === 'denied') setView('denied');
     // Вікно дозволу закрили без відповіді — просто лишаємо «вимкнено», без червоної помилки.
-    else if (result === 'failed') setFailed(true);
+    else if (result === 'failed' || result === 'unsupported') setProblem(result);
   };
   const turnOff = async () => {
     if (busy) return;
@@ -78,9 +79,9 @@ export function PushSettings({ compact = false }: { compact?: boolean }): JSX.El
           <button type="button" className="btn" disabled={busy} onClick={() => void turnOn()}>
             {t('pushEnable')}
           </button>
-          {failed && (
+          {problem !== null && (
             <p className="error" role="alert">
-              {t('pushFailed')}
+              {t(problem === 'unsupported' ? 'pushUnsupported' : 'pushFailed')}
             </p>
           )}
         </>

@@ -63,13 +63,17 @@ describe('points in words', () => {
 
 describe('uk golden (22a)', () => {
   /** Ключі, які 22a свідомо прибирає з uk. Задача 4 дописує 'agoMinutes' і 'agoHours'. */
-  const REMOVED: string[] = ['agoMinutes', 'agoHours'];
+  const REMOVED: string[] = ['agoMinutes', 'agoHours', /* друзі переїхали з профілю на /friends */ 'openProfile'];
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
+  /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
+  const ADDED_LATER = ['menuFriends', 'menuShortFriends', 'openFriends', 'profileQuizzesMore', 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
+  /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
+  const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite'];
 
   it('keeps every uk text as it was before localisation', () => {
     const current: Record<string, string> = ukMessages;
-    const changed = Object.entries(golden as Record<string, string>).filter(([key, value]) => !REMOVED.includes(key) && current[key] !== value);
+    const changed = Object.entries(golden as Record<string, string>).filter(([key, value]) => !REMOVED.includes(key) && !CHANGED_LATER.includes(key) && current[key] !== value);
     expect(changed).toEqual([]);
     const removedStill = REMOVED.filter((key) => key in current);
     expect(removedStill).toEqual([]);
@@ -77,7 +81,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key))).toEqual([]);
   });
 });
 

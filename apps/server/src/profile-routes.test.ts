@@ -45,7 +45,7 @@ describe('own profile', () => {
     const body = response.json();
     expect(body.email).toBe(olena.email);
     expect(body.nickname).toBe('Олена');
-    expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина' }]);
+    expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина', plays: 0 }]);
     expect(body.friends).toMatchObject([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
     expect(body.achievements).toHaveLength(48);
     expect(body.achievements[0]).toEqual({ id: 'first_game', earned: false, earnedAt: null });

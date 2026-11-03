@@ -96,7 +96,8 @@ export interface OwnProfile extends ProfileCard {
   email: string;
   stats: ProfileStats;
   achievements: Achievement[];
-  quizzes: { id: string; title: string }[];
+  /** Найзіграніші першими (plays — завершені ігри цієї вікторини); за рівності — новіші. */
+  quizzes: { id: string; title: string; plays: number }[];
   wins: ProfileWin[];
   friends: FriendCard[];
   showcase: Showcase;

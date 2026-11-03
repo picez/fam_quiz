@@ -70,14 +70,25 @@ function readyWithin(ms: number): Promise<ServiceWorkerRegistration> {
   return Promise.race([navigator.serviceWorker.ready, timeout]).finally(() => clearTimeout(timer));
 }
 
-/** requestPermission (лише з дотику) → ready (≤10 с) → subscribe → savePushSubscription. Закрите вікно дозволу → 'dismissed'. */
-export async function enablePush(publicKey: string): Promise<'on' | 'denied' | 'dismissed' | 'failed'> {
+export type EnableResult = 'on' | 'denied' | 'dismissed' | 'unsupported' | 'failed';
+
+/**
+ * requestPermission (лише з дотику) → ready (≤10 с) → subscribe → savePushSubscription. Закрите вікно дозволу → 'dismissed'.
+ * subscribe кинув — браузер не має push-сервісу (Opera на комп'ютері: API є, а підписатися нема куди) → 'unsupported';
+ * воркер не готовий чи сервер не зберіг — 'failed' (можна спробувати ще раз).
+ */
+export async function enablePush(publicKey: string): Promise<EnableResult> {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'denied') return 'denied';
     if (permission !== 'granted') return 'dismissed';
     const registration = await readyWithin(SW_READY_TIMEOUT_MS);
-    const sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) });
+    let sub: PushSubscription;
+    try {
+      sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) });
+    } catch {
+      return 'unsupported';
+    }
     const json = sub.toJSON();
     const saved = await savePushSubscription({
       endpoint: sub.endpoint,

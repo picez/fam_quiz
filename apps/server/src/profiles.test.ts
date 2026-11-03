@@ -9,7 +9,7 @@ import { playToEnd } from './testing/final-game';
 import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
-import { follow, game, participant, profile, user } from './db/schema';
+import { follow, game, participant, profile, quiz as quizTable, user } from './db/schema';
 import { nicknameKey } from './profiles';
 import { ensureProfile, findByNickname, searchProfiles, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
@@ -842,5 +842,37 @@ describe('likes in profiles (17a)', () => {
     const own = await ownProfile(db, { id: 'a', email: 'a@example.com' } as Parameters<typeof ownProfile>[1]);
     expect(own.likes).toEqual({ author: 2, host: 1, player: 0 });
     expect((await publicProfile(db, 'o', 'a'))?.likes).toEqual({ author: 0, host: 0, player: 1 });
+  });
+});
+
+describe('popular quizzes in the own profile', () => {
+  it('sorts by finished games, most played first, ties by the newest; running and aborted games do not count', async () => {
+    const { createQuiz } = await import('./quizzes');
+    const db = await createTestDb();
+    await addUser(db, 'a', 'Автор');
+    let minute = 0;
+    const quiz = async (title: string) => {
+      const id = await createQuiz(db, 'a', { ...makeQuiz([single]), title });
+      minute += 1;
+      await db.update(quizTable).set({ updatedAt: new Date(Date.UTC(2026, 0, 1, 0, minute)) }).where(eq(quizTable.id, id));
+      return id;
+    };
+    const old = await quiz('Стара');
+    const hit = await quiz('Хіт');
+    const fresh = await quiz('Нова');
+    const play = (quizId: string, status: 'finished' | 'aborted' | 'running' = 'finished') =>
+      seedGame(db, { hostId: 'a', quizId, status, startedAt: new Date(), players: [] });
+    await play(hit);
+    await play(hit);
+    await play(old);
+    await play(fresh);
+    await play(old, 'aborted');
+    await play(fresh, 'running');
+    const own = await ownProfile(db, { id: 'a', email: 'a@example.com' } as Parameters<typeof ownProfile>[1]);
+    expect(own.quizzes.map(({ title, plays }) => [title, plays])).toEqual([
+      ['Хіт', 2],
+      ['Нова', 1],
+      ['Стара', 1],
+    ]);
   });
 });

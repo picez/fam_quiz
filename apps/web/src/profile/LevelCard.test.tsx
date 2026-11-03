@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, LEVEL_REWARDS, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
-import { LevelCard } from './LevelCard';
+import { LevelBar, LevelCard } from './LevelCard';
 
 vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 
@@ -18,11 +18,77 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe('LevelCard', () => {
-  it('shows the level and the bar to the next one', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+  it('shows the level and the bar to the next one; the rewards card below has its own heading and no bar', () => {
+    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Нагороди рівнів' })).toBeTruthy();
+    expect(container.querySelector('progress')).toBeNull();
+    cleanup();
+    render(<LevelBar progress={level.progress} />);
     expect(screen.getByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
     expect(screen.getByText('600 / 800 досвіду')).toBeTruthy();
-    expect(screen.getByText(/щонайменше 3 гравці з акаунтами/)).toBeTruthy();
+  });
+
+  it('keeps the XP rules in a tooltip of the bar: described by it, opened by a tap, closed by Escape or a tap elsewhere', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    // Правил немає текстом під шкалою (p.meta) — лише підказка.
+    expect([...container.querySelectorAll('p.meta')].map((p) => p.textContent)).toEqual(['600 / 800 досвіду']);
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    const tip = screen.getByRole('tooltip', { hidden: true });
+    expect(info.getAttribute('aria-describedby')).toBe(tip.id);
+    expect(tip.textContent).toMatch(/щонайменше 3 гравці з акаунтами/);
+    const meter = container.querySelector('.level-meter')!;
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(container.querySelector('.level-meter progress')!);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    expect(info.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(info, { key: 'Escape' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.pointerDown(document.body);
+    expect(meter.classList.contains('is-open')).toBe(false);
+  });
+
+  it('keyboard: focus on ⓘ opens the tooltip, Escape hides it while ⓘ keeps focus, blur closes it', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    act(() => info.focus());
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.keyDown(info, { key: 'Escape' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    expect(document.activeElement).toBe(info);
+    expect(info.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    act(() => info.blur());
+    expect(meter.classList.contains('is-open')).toBe(false);
+  });
+
+  it('a second click on ⓘ hides it even though ⓘ is focused; a tap that focuses ⓘ opens it once, not open-then-closed', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    // Дотик: pointerdown → фокус → click.
+    fireEvent.pointerDown(info);
+    act(() => info.focus());
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(false);
+    expect(document.activeElement).toBe(info);
+  });
+
+  it('a mouse opens it on hover and closes it on leave; a touch pointer does not', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    fireEvent.pointerEnter(meter, { pointerType: 'touch' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.pointerEnter(meter, { pointerType: 'mouse' });
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.pointerLeave(meter, { pointerType: 'mouse' });
+    expect(meter.classList.contains('is-open')).toBe(false);
   });
 
   it('lists what is unlocked with dates and the next three', () => {

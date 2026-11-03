@@ -115,6 +115,6 @@ describe('Feed', () => {
     vi.mocked(getFeed).mockResolvedValue({ ok: true, events: [], next: null, asOf: 'x' });
     show();
     expect(await screen.findByText(/Друзі — це ті/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'До друзів у профілі' }).getAttribute('href')).toBe('/profile');
+    expect(screen.getByRole('link', { name: 'До друзів' }).getAttribute('href')).toBe('/friends');
   });
 });
