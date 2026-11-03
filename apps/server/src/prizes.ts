@@ -14,6 +14,7 @@ import { and, count, desc, eq, gt, inArray, isNull, lt, ne, not, notInArray, or,
 import type { Db } from './db/client';
 import { game, liveRoom, prize, prizeAward, userTitle } from './db/schema';
 import type { RoomManager } from './rooms/manager';
+import { dropAwardPin, showcasePins } from './showcase-pins';
 
 type Row = typeof prize.$inferSelect;
 type Status = Row['status'];
@@ -278,6 +279,18 @@ export async function showcaseOf(db: Db, userId: string, now: Date = new Date())
     .where(eq(prizeAward.userId, userId))
     .orderBy(desc(prizeAward.awardedAt), desc(prizeAward.id))
     .limit(SHOWCASE_MAX);
+  const pins = await showcasePins(db, userId);
+  // Закріплені нагороди, старші за SHOWCASE_MAX найновіших, дочитуються окремо (у кінець, у порядку закріплення).
+  const shown = new Set(rows.map((row) => row.id));
+  const missing = pins.prizes.filter((id) => !shown.has(id));
+  if (missing.length > 0) {
+    const extra = await db
+      .select()
+      .from(prizeAward)
+      .where(and(eq(prizeAward.userId, userId), inArray(prizeAward.id, missing)));
+    const byId = new Map(extra.map((row) => [row.id, row]));
+    rows.push(...missing.flatMap((id) => byId.get(id) ?? []));
+  }
   const awards: AwardCard[] = rows.map((row) => ({
     id: row.id,
     place: row.place,
@@ -286,14 +299,14 @@ export async function showcaseOf(db: Db, userId: string, now: Date = new Date())
     nickname: row.nickname,
     awardedAt: row.awardedAt!.toISOString(),
   }));
-  return { title: titleRow === undefined ? null : { text: titleRow.text, until: titleRow.expiresAt!.toISOString() }, awards };
+  return { title: titleRow === undefined ? null : { text: titleRow.text, until: titleRow.expiresAt!.toISOString() }, awards, pins };
 }
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * Адмінка: прибрати рядок вітрини; повертає видалене (знімок для журналу) чи null.
- * Титул власника з тим самим текстом, що й content.title нагороди, іде разом із нею.
+ * Титул власника з тим самим текстом, що й content.title нагороди, іде разом із нею; закріплення на вітрині (23a) — теж.
  */
 export async function deleteAward(
   db: Db | Tx,
@@ -304,6 +317,7 @@ export async function deleteAward(
     .where(eq(prizeAward.id, awardId))
     .returning({ userId: prizeAward.userId, content: prizeAward.content, quizTitle: prizeAward.quizTitle });
   if (row === undefined) return null;
+  await dropAwardPin(db, row.userId, awardId);
   if (row.content.title !== null) await db.delete(userTitle).where(and(eq(userTitle.userId, row.userId), eq(userTitle.text, row.content.title)));
   return row;
 }

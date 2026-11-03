@@ -15,7 +15,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
-  showcase: { title: null, awards: [] },
+  showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
   level: { level: 1, looks: { color: null, frame: null, badge: null } },
   likes: { author: 0, host: 0, player: 0 },
   ...over,
@@ -60,6 +60,7 @@ describe('PublicProfile', () => {
       data: profile({
         showcase: {
           title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          pins: { prizes: [], achievements: [] },
           awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       }),
@@ -75,7 +76,7 @@ describe('PublicProfile', () => {
       ok: true,
       data: profile({
         likes: { author: 5, host: 2, player: 1 },
-        showcase: { title: null, awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }] },
+        showcase: { title: null, pins: { prizes: [], achievements: [] }, awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }] },
       }),
     });
     const { container } = open();

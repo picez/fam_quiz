@@ -39,6 +39,7 @@ describe('Showcase', () => {
   it('lists awards in the order they came, with place, quiz and engraving', () => {
     const data: ShowcaseData = {
       title: null,
+      pins: { prizes: [], achievements: [] },
       awards: [award({ id: 'a1', quizTitle: 'Нова', content: { engraving: 'Чемпіон' } }), award({ id: 'a2', place: 2, quizTitle: 'Стара' })],
     };
     render(<Showcase showcase={data} own={false} />);
@@ -51,14 +52,14 @@ describe('Showcase', () => {
   });
 
   it('an award without a trophy has no 3D view and shows the real prize record', () => {
-    render(<Showcase showcase={{ title: null, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] }} own />);
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] }} own />);
     expect(document.querySelector('.trophy-mock')).toBeNull();
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
   it('without IntersectionObserver only emoji show, and a tap opens 3D for that card', () => {
     vi.stubGlobal('IntersectionObserver', undefined);
-    render(<Showcase showcase={{ title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' })] }} own />);
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' })] }} own />);
     expect(document.querySelector('.trophy-mock')).toBeNull();
     const emoji = document.querySelectorAll('.award-emoji');
     expect(emoji).toHaveLength(2);
@@ -93,7 +94,7 @@ describe('Showcase', () => {
 
   it('mounts 3D only for the cards that are in view and keeps it after they scroll away', () => {
     const show = fakeObserver();
-    render(<Showcase showcase={{ title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' }), award({ id: 'a3' })] }} own />);
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' }), award({ id: 'a3' })] }} own />);
     expect(document.querySelectorAll('.trophy-mock')).toHaveLength(0);
     expect(document.querySelectorAll('.award-emoji')).toHaveLength(3);
     show(1);
@@ -106,7 +107,7 @@ describe('Showcase', () => {
   it('allows at most 6 live 3D cards by scrolling; the rest stay emoji until tapped', () => {
     const show = fakeObserver();
     const awards = Array.from({ length: 8 }, (_, i) => award({ id: `a${i}` }));
-    render(<Showcase showcase={{ title: null, awards }} own />);
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards }} own />);
     for (let i = 0; i < 8; i++) show(i);
     expect(document.querySelectorAll('.trophy-mock')).toHaveLength(6);
     fireEvent.click(document.querySelectorAll('.award-emoji')[0]!);
@@ -118,7 +119,7 @@ describe('Showcase', () => {
     share.mockResolvedValue('downloaded');
     render(
       <Showcase
-        showcase={{ title: null, awards: [award({ id: 'a1', nickname: 'Оля', content: { diploma: true } }), award({ id: 'a2', nickname: 'Інша' })] }}
+        showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'a1', nickname: 'Оля', content: { diploma: true } }), award({ id: 'a2', nickname: 'Інша' })] }}
         own={false}
       />,
     );
@@ -134,6 +135,7 @@ describe('Showcase', () => {
   it('«Кубок» and a tap on the photo open the prize viewer; Escape closes it', () => {
     const data: ShowcaseData = {
       title: null,
+      pins: { prizes: [], achievements: [] },
       awards: [award({ content: { engraving: 'Чемпіон', real: { text: 'Кубок сім’ї', photoUrl: 'https://img/cup.jpg' }, diploma: true } })],
     };
     render(<Showcase showcase={data} own />);
@@ -150,6 +152,7 @@ describe('Showcase', () => {
   it('a medal is opened by «Медаль», a photo alone by «Приз»', () => {
     const data: ShowcaseData = {
       title: null,
+      pins: { prizes: [], achievements: [] },
       awards: [
         award({ id: 'm', content: { trophy: { kind: 'medal', material: 'silver' } } }),
         award({ id: 'p', content: { trophy: null, real: { text: 'Піца', photoUrl: 'https://img/p.jpg' } } }),
@@ -163,18 +166,18 @@ describe('Showcase', () => {
   });
 
   it('no «Кубок» for an award with neither a trophy nor a photo', () => {
-    const data: ShowcaseData = { title: null, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] };
+    const data: ShowcaseData = { title: null, pins: { prizes: [], achievements: [] }, awards: [award({ content: { trophy: null, real: { text: 'Піца', photoUrl: null } } })] };
     render(<Showcase showcase={data} own={false} />);
     expect(screen.queryByRole('button', { name: /^(Кубок|Приз)$/ })).toBeNull();
   });
 
   it('renders nothing for an empty showcase', () => {
-    const { container } = render(<Showcase showcase={{ title: null, awards: [] }} own />);
+    const { container } = render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [] }} own />);
     expect(container.innerHTML).toBe('');
   });
 
   it('a title alone makes the section with its end date', () => {
-    render(<Showcase showcase={{ title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' }, awards: [] }} own />);
+    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' }, awards: [] }} own />);
     expect(screen.getByText(/титул до/)).toBeTruthy();
     expect(screen.getByText(/Король/)).toBeTruthy();
   });

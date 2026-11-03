@@ -50,7 +50,7 @@ const mine: OwnProfile = {
   quizzes: [{ id: 'q1', title: 'Кіно 90-х', plays: 2 }],
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
-  showcase: { title: null, awards: [] },
+  showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
   level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
   likes: { author: 0, host: 0, player: 0 },
 };
@@ -101,6 +101,7 @@ describe('Profile', () => {
         ...mine,
         showcase: {
           title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          pins: { prizes: [], achievements: [] },
           awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       },

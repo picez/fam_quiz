@@ -21,6 +21,7 @@ import type {
   NickFrame,
   PrizeContent,
   PrizePlace,
+  ShowcasePinKind,
   ProfileBadge,
   Question,
   QuizSettings,
@@ -448,6 +449,25 @@ export const userTitle = pgTable('user_title', {
   awardedAt: at('awarded_at').notNull(),
   expiresAt: at('expires_at').notNull(),
 });
+
+/**
+ * Закріплене на вітрині (23a): нагорода (item_id = id prize_award) чи ачівка (item_id = AchievementId).
+ * slot 0…ліміт−1 з унікальним індексом — база не пускає понад ліміт навіть за гонки; pinned_at — порядок.
+ * FK лише на user: предмети двох видів у різних таблицях, застарілі рядки прибирають pinItem і deleteAward.
+ */
+export const showcasePin = pgTable(
+  'showcase_pin',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<ShowcasePinKind>().notNull(),
+    itemId: text('item_id').notNull(),
+    slot: integer('slot').notNull(),
+    pinnedAt: at('pinned_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.kind, table.itemId] }), uniqueIndex('showcase_pin_slot').on(table.userId, table.kind, table.slot)],
+);
 
 /** Журнал досвіду (беклог 11): рядок на акаунт за гру ('game') чи за ачівку ('achievement'); сума — рівень. */
 export const xpEntry = pgTable(
