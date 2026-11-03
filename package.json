@@ -14,7 +14,8 @@
     "start": "pnpm --filter @quiz/server start",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
-    "e2e": "pnpm build && vitest run --config apps/server/e2e/vitest.config.ts"
+    "e2e": "pnpm build && vitest run --config apps/server/e2e/vitest.config.ts",
+    "l10n": "pnpm --filter @quiz/server exec tsx ../web/scripts/l10n.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

@@ -12,7 +12,7 @@ const read = (file: string) => readFileSync(file, 'utf8') as string;
 const src = ['apps/web/src', 'src'].find((path) => existsSync(path) as boolean)!;
 
 /** Файли, де українські рядки дозволені: словники, граматика, вміст власника, назви мов, фікстури. */
-const ALLOWED = ['i18n.ts', 'help/help-uk.ts', 'push/push-strings.ts', 'locales/grammar.ts', 'locales/locales.ts', 'demo-quiz.ts'];
+const ALLOWED = ['i18n.ts', 'help/help-uk.ts', 'push/push-strings.ts', 'locales/grammar.ts', 'locales/locales.ts', 'locales/review-sheet.ts', 'demo-quiz.ts'];
 
 function allowed(file: string): boolean {
   if (ALLOWED.includes(file)) return true;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Locale } from '@quiz/shared';
+import { helpUk } from '../help/help-uk';
 import { ukMessages } from '../i18n';
 import { PUSH_STRINGS, pushStrings } from '../push/push-strings';
 import { checkLocale, digitRuns, glossary, integerForms, placeholders, pluralBases, type Issue } from './checks';
@@ -41,6 +42,20 @@ describe('checkLocale', () => {
   it('reports missing and extra keys', () => {
     expect(kinds(checkLocale('en', uk, dicts({ yes: 'Yes', maybe: 'Maybe' })))).toEqual(['missing:no', 'extra:maybe']);
     expect(kinds(checkLocale('en', dicts({}, { 'round.classic.title': 'Класика' }), dicts({}, {})))).toEqual(['missing:round.classic.title']);
+  });
+
+  it('reports a gap in a help list: how.0 and how.2 without how.1', () => {
+    const help = { 'round.a.how.0': 'Один', 'round.a.how.1': 'Два', 'round.a.how.2': 'Три', 'round.a.title': 'А' };
+    const issues = checkLocale('en', dicts({}, help), dicts({}, { 'round.a.how.0': 'One', 'round.a.how.2': 'Three', 'round.a.title': 'A' }));
+    expect(kinds(issues)).toEqual(['missing:round.a.how.1', 'list_gap:round.a.how.2']);
+    expect(checkLocale('en', dicts({}, help), dicts({}, { 'round.a.how.0': 'One', 'round.a.how.1': 'Two', 'round.a.how.2': 'Three', 'round.a.title': 'A' }))).toEqual([]);
+  });
+
+  it('reports a help placeholder that differs from uk', () => {
+    const help = { 'setting.pacing.limits.0': 'Крок {paceStep} с.' };
+    expect(kinds(checkLocale('en', dicts({}, help), dicts({}, { 'setting.pacing.limits.0': 'Step {paceStp} s.' })))).toEqual(['placeholders:setting.pacing.limits.0']);
+    expect(kinds(checkLocale('en', dicts({}, help), dicts({}, { 'setting.pacing.limits.0': 'Step s.' })))).toEqual(['placeholders:setting.pacing.limits.0']);
+    expect(checkLocale('en', dicts({}, help), dicts({}, { 'setting.pacing.limits.0': 'Step {paceStep} s.' }))).toEqual([]);
   });
 
   it('reports placeholders that differ', () => {
@@ -112,7 +127,7 @@ describe('checkLocale', () => {
 describe('real dictionaries', () => {
   const pushKeys = new Set(Object.keys(pushStrings));
   const ui: Messages = Object.fromEntries(Object.entries(ukMessages).filter(([key]) => !pushKeys.has(key)));
-  const sources: Dicts = { ui, help: {}, push: pushStrings };
+  const sources: Dicts = { ui, help: helpUk, push: pushStrings };
   const others = ENABLED_LOCALES.filter((one): one is Exclude<Locale, 'uk'> => one !== 'uk');
 
   for (const locale of others) {

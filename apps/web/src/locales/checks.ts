@@ -9,7 +9,7 @@ export type { Messages };
 
 export type Issue = {
   key: string;
-  kind: 'missing' | 'extra' | 'placeholders' | 'plural' | 'digits' | 'cyrillic' | 'indic_digits' | 'quote' | 'menu_length';
+  kind: 'missing' | 'extra' | 'placeholders' | 'plural' | 'digits' | 'cyrillic' | 'indic_digits' | 'quote' | 'menu_length' | 'list_gap';
   detail: string;
 };
 
@@ -143,6 +143,20 @@ export function checkLocale(
       const base = baseOf(key);
       if (base === undefined ? !own(source, key) : !allowed.includes(key.slice(base.length + 1) as Intl.LDMLPluralRule)) {
         report(key, 'extra', base === undefined ? `not a uk ${section} key` : `${locale} has no plural form "${key.slice(base.length + 1)}"`);
+      }
+    }
+
+    // Списки довідки (how.0, how.1, …) без пропусків: helpEntry збирає масив за наявними ключами.
+    if (section === 'help') {
+      const indexed = new Map<string, Set<number>>();
+      for (const key of Object.keys(translated)) {
+        const match = /^(.+)\.(\d+)$/.exec(key);
+        if (match) indexed.set(match[1]!, (indexed.get(match[1]!) ?? new Set()).add(Number(match[2])));
+      }
+      for (const [prefix, found] of indexed) {
+        for (const at of [...found].sort((a, b) => a - b)) {
+          if (at > 0 && !found.has(at - 1)) report(`${prefix}.${at}`, 'list_gap', `no ${prefix}.${at - 1} before it`);
+        }
       }
     }
 
