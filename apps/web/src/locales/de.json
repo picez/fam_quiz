@@ -785,7 +785,7 @@
   "debuffBoughtNotice": "{buyer} verhängt einen Debuff auf {target}",
   "debuffCancel": "Debuff abbrechen",
   "debuffCast": "Auf dich verhängt: {name}",
-  "debuffCastBy": "{by} verhängt auf dich: {name}",
+  "debuffCastBy": "{by} belegt dich mit: {name}",
   "debuffFiring": "{icon} {name} · aktiv",
   "debuffFiringBy": "{icon} {name} von {by} · aktiv",
   "debuffGuide_bubbles": "Blasen verdecken die Antworten – lass sie platzen.",
