@@ -125,7 +125,12 @@ export function Profile() {
           <ul className="profile-list">
             {profile.quizzes.map((quiz) => (
               <li key={quiz.id}>
-                <Link to={`/quizzes/${quiz.id}`}>{`${quiz.title} →`}</Link>
+                <Link to={`/quizzes/${quiz.id}`}>
+                  <bdi>{quiz.title}</bdi>{' '}
+                  <span className="flip-rtl" aria-hidden="true">
+                    →
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

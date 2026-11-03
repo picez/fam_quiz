@@ -33,7 +33,7 @@ export function SliderScale({ slider, correct, tolerance, zeroBeyond, marks, hig
   const rows = named.reduce((most, mark) => Math.max(most, (mark.row ?? 0) + 1), 0);
   const correctPct = scalePct(correct, min, max);
   return (
-    <div className="slider-scale" style={{ ['--mark-rows' as string]: rows }}>
+    <div className="slider-scale" dir="ltr" style={{ ['--mark-rows' as string]: rows }}>
       <div className="scale-axis">
         {zeroBeyond !== undefined && <span className="scale-zero" style={{ left: `${zeroLeft}%`, width: `${zeroRight - zeroLeft}%` }} />}
         <span className="scale-tolerance" style={{ left: `${toleranceLeft}%`, width: `${toleranceRight - toleranceLeft}%` }} />

@@ -263,7 +263,7 @@ export function GameHistory() {
   return (
     <main className="app wide">
       {back}
-      <h1 className="brand">{game.title}</h1>
+      <h1 className="brand" dir="auto">{game.title}</h1>
       <p className="meta">{`${formatDate(game.startedAt)}, ${t(`status_${game.status}`)}`}</p>
       {game.teams && <p className="meta team-game-mark">{t('historyTeamGame')}</p>}
       {game.autopilot && <p className="meta autopilot-mark">{t('historyAutopilot')}</p>}
@@ -289,7 +289,7 @@ export function GameHistory() {
                   )}
                 </span>
                 <span className="tag">{t('correctOf', { correct: row.correct })}</span>
-                <span className="score">{num(row.score)}</span>
+                <span className="score" dir="ltr">{num(row.score)}</span>
               </li>
             ))}
           </ol>

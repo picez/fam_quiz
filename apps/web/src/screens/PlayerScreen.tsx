@@ -822,7 +822,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {phase === 'reveal' && <LikeButton liked={view.likes?.question} busy={likeGuard.busy} onToggle={(liked) => void likeGuard.run('player:like', { target: 'question', liked })} />}
         {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
         <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
-        <strong className="score">{num(me.score)}</strong>
+        <strong className="score" dir="ltr">{num(me.score)}</strong>
       </header>
 
       {view.paused && (
@@ -852,7 +852,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <p className="meta">{t('playersIn', { count: view.lobby.length })}</p>
           <ul className="chips">
             {view.lobby.map((nickname, index) => (
-              <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined}>
+              <li key={`${index}-${nickname}`} className={nickname === me.nickname ? 'is-me' : undefined} dir="auto">
                 <Nick nickname={nickname} levels={view.levels} titles={view.titles} />
               </li>
             ))}
@@ -956,7 +956,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
           {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
-            <h1 className={questionClass(question.text)}>{question.text}</h1>
+            <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
             <AwayNote away={view.away} />
             {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
             <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
@@ -1121,7 +1121,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'locked' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
           <AwayNote away={view.away} />
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
@@ -1191,7 +1191,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'reveal' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')}>{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
           <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />

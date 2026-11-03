@@ -153,7 +153,7 @@ function DraftLine({ row, view, draft, now }: { row: LiveRow; view: HostView; dr
   return (
     <>
       <span className="live-draft">
-        <em>{draftText(draft.draft, row.spare ?? view.correct, question, row.actor !== null)}</em> <span className="tag">{t(row.actor !== null ? 'liveNotSentTeam' : 'liveNotSent')}</span>
+        <em dir="auto">{draftText(draft.draft, row.spare ?? view.correct, question, row.actor !== null)}</em> <span className="tag">{t(row.actor !== null ? 'liveNotSentTeam' : 'liveNotSent')}</span>
       </span>
       {draftMeta(draft, now, row.actor !== null).map((text, i) => (
         <span key={i} className={i === 0 && draft.changes >= 1 ? 'meta live-changes' : 'meta live-thinking'}>
@@ -181,13 +181,13 @@ function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
   const draft = draftOf(row, drafts);
   return (
     <li className="live-row">
-      <span className="name">{row.nickname}</span>
+      <span className="name" dir="auto">{row.nickname}</span>
       {!row.connected && <span className="meta live-offline">{t('liveOffline')}</span>}
       {row.actor !== null && <span className="meta live-actor">{t('liveActs', { name: row.actor })}</span>}
       {row.buff !== null && <BuffBadge kind={row.buff} />}
       {row.spare !== null && <SpareMark spare={row.spare} />}
       {/* Поступ (ланцюжок, стіна) лишається поруч із чернеткою; без поступу чернетка стоїть замість «—». */}
-      {(draft === undefined || started(row)) && <span className="live-answer">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>}
+      {(draft === undefined || started(row)) && <span className="live-answer" dir="auto">{liveAnswerText(row, view.correct, choices, towardOf(row, view, tilts))}</span>}
       {draft !== undefined && <DraftLine row={row} view={view} draft={draft} now={now} />}
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}

@@ -93,7 +93,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         <p className="meta">{t('joinAt')}</p>
         <p className="address">{hostOf(joinUrl)}</p>
         <p className="meta">{t('joinCode')}</p>
-        <p className="code">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
+        <p className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
       </div>
       <div className="qr">
         <QRCodeSVG value={joinUrl} size={256} bgColor="#F5F1E6" fgColor="#0E1020" marginSize={2} />
@@ -107,7 +107,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
           <p className="meta">{view.playerCount === 0 ? t('noPlayersYet') : t('playersIn', { count: view.playerCount })}</p>
           <ul className="chips">
             {view.players.map((player) => (
-              <li key={player.id} className={player.connected ? undefined : 'is-away'}>
+              <li key={player.id} className={player.connected ? undefined : 'is-away'} dir="auto">
                 <Nick nickname={player.nickname} levels={view.levels} titles={view.titles} />
               </li>
             ))}
@@ -153,7 +153,7 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
         {[...final.shown].reverse().map((entry, index) => (
           <li key={entry.playerId} className={index === 0 ? 'wager-latest' : undefined}>
             <span className="wager-who">
-              <span className="name">{entry.nickname}</span>
+              <span className="name" dir="auto">{entry.nickname}</span>
               {entry.allIn && <span className="allin-badge">{t('finalAllInBadge')}</span>}
             </span>
             <span className="given">{answerText(entry.answer, question, presented)}</span>
@@ -165,7 +165,7 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
               {t('finalWagerTag', { wager: entry.wager })}
               {stakeNote(entry)}
             </span>
-            <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'}>
+            <span className={entry.after === entry.before ? 'wager-delta' : entry.after > entry.before ? 'wager-delta is-up' : 'wager-delta is-down'} dir="ltr">
               {`${entry.before} → ${entry.after}`}
             </span>
             {bank && (
@@ -285,7 +285,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
       )}
       {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
       <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
-        <h1 className={questionClass(question.text)}>{question.text}</h1>
+        <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">
@@ -418,7 +418,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           {view.blitz.queue.map((entry, index) => (
             <li key={entry.playerId}>
               <span className="rank">{index + 1}</span>
-              <span className="name">{entry.nickname}</span>
+              <span className="name" dir="auto">{entry.nickname}</span>
               {index === 0 && <span className="tag">{t('blitzChecking')}</span>}
             </li>
           ))}
@@ -570,7 +570,7 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
       <div className="ladder-stage-body">
         <div className="ladder-stage-main">
           <div className="stage-main">
-            <h1 className={questionClass(question.text)}>{question.text}</h1>
+            <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
             {view.phase === 'question' && info.timer && (
               <div className="stage-clock">
                 <Timer view={view} offsetMs={offsetMs} total={view.limitMs} status={timerStatus(view)} leadMs={publicLeadMs(question)} />
@@ -726,7 +726,7 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
             <ul className={trial.kind === 'luck' ? 'survival-edge-rows is-luck' : 'survival-edge-rows'}>
               {edgeRows.map((row) => (
                 <li key={row.playerId} className={row.trial === 'out' ? 'is-out' : row.trial === 'safe' ? 'is-safe' : undefined}>
-                  <span className="name">{row.nickname}</span>
+                  <span className="name" dir="auto">{row.nickname}</span>
                   {trial.kind === 'luck' && (
                     <SurvivalDoors
                       picked={null}

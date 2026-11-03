@@ -261,7 +261,7 @@ export function NoClock({ total, status }: { total: number | null; status: Timer
   // Невидимий «/ 30 с» тримає ширину клітинки, як у табло.
   const totalText = total === null ? '' : t('timerOf', { seconds: Math.round(total / 1000) });
   return (
-    <p className="timer is-noclock" role="img" aria-label={status === null ? t('noClockLabel') : `${t('noClockLabel')}. ${t(STATUS_TEXT[status])}`}>
+    <p className="timer is-noclock" dir="ltr" role="img" aria-label={status === null ? t('noClockLabel') : `${t('noClockLabel')}. ${t(STATUS_TEXT[status])}`}>
       <span className="timer-flaps" aria-hidden="true">
         <span className="flap">⌛</span>
       </span>

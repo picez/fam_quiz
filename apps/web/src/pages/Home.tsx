@@ -33,6 +33,7 @@ export function Home() {
           <span>{t('codeLabel')}</span>
           <input
             className="code-input"
+            dir="ltr"
             value={code}
             onChange={(event) => setCode(event.target.value)}
             inputMode="numeric"

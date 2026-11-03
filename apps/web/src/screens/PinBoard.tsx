@@ -104,7 +104,7 @@ export function PinBoard({ pin, imageUrl, marks = NONE, target, radii, highlight
   const rows = labelRows(marks, pin.aspect, highlight);
   const { ref, size } = useBoardSize(pin.aspect);
   return (
-    <div className="pin-board" ref={ref} style={{ aspectRatio: String(pin.aspect), '--pin-aspect': pin.aspect } as CSSProperties}>
+    <div className="pin-board" dir="ltr" ref={ref} style={{ aspectRatio: String(pin.aspect), '--pin-aspect': pin.aspect } as CSSProperties}>
       {url !== null && <img className="pin-base" src={url} alt={t('pinMapAlt')} draggable={false} />}
       <svg className="pin-layer" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
         {target !== undefined && radii !== undefined && (

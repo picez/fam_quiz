@@ -82,7 +82,7 @@ export function BluffBoard({ info, big = false, host = false, autopilot = false 
           ].filter((c) => c !== '');
           return (
             <li key={option.id} className={rowClasses.join(' ')}>
-              <span className="bluff-text">{option.text}</span>
+              <span className="bluff-text" dir="auto">{option.text}</span>
               {!open && info.stage === 'reveal' && <span className="sr-only">{t('bluffClosed')}</span>}
               {host && option.removed ? <span className="bluff-meta">{t('bluffRemoved')}</span> : open && metaOf(option, big, autopilot)}
             </li>

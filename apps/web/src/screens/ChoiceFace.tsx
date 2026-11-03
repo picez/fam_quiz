@@ -26,7 +26,11 @@ export function ChoiceFace({ choice, letter }: { choice: Choice; letter?: string
         ) : (
           <img className="choice-image" src={url} alt={choice.text || label} onError={() => setFailed(url)} />
         ))}
-      {choice.text !== '' && <span className="choice-text">{choice.text}</span>}
+      {choice.text !== '' && (
+        <span className="choice-text" dir="auto">
+          {choice.text}
+        </span>
+      )}
     </>
   );
 }

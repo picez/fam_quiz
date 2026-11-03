@@ -68,7 +68,7 @@ export function AdminQuizzes(): JSX.Element {
             <ul className="admin-list">
               {state.data.rows.map((row) => (
                 <li key={row.id} className="admin-card">
-                  <h2>{row.title}</h2>
+                  <h2 dir="auto">{row.title}</h2>
                   <p className="meta">
                     {t('adminAuthor', { name: nickText(row.author.nickname) })}
                     {row.authorBanned && ` (${t('adminAuthorBanned')})`}

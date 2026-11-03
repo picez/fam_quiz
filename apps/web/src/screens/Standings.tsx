@@ -36,14 +36,14 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
         return (
           <li key={row.participantId} className={classes || undefined}>
             <span className="rank">{row.rank}</span>
-            <span className="name">
+            <span className="name" dir="auto">
               {team === null ? <Nick nickname={row.nickname} levels={levels} titles={titles} /> : row.nickname}
               <RowReaction rowId={row.participantId} />
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>
             {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
             {gain !== undefined && <span className={gain < 0 ? 'round-gain is-minus' : 'round-gain'}>{t(roundGain !== undefined ? 'roundGain' : 'questionGain', { points: signed(gain) })}</span>}
-            <span className="score">{num(row.score)}</span>
+            <span className="score" dir="ltr">{num(row.score)}</span>
           </li>
         );
       })}

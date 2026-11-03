@@ -79,7 +79,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     <div className="with-menu">
       <Menu />
       <main className="app narrow">
-        <h1 className="brand">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
+        <h1 className="brand" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</h1>
         <form className="panel" onSubmit={submit}>
           {picking && (
             <fieldset className="slot-list">

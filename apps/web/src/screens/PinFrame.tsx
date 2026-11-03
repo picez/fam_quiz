@@ -150,7 +150,7 @@ export function PinFrame({ pin, imageUrl, point, onPlace, overlay, focus = null 
 
   const unscale = 1 / view.scale;
   return (
-    <div className="pin-frame-wrap">
+    <div className="pin-frame-wrap" dir="ltr">
       <div
         ref={frameRef}
         className="pin-frame"

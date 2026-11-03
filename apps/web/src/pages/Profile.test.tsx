@@ -154,7 +154,7 @@ describe('Profile', () => {
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
     expect(headings).toEqual(['Статистика', 'Вподобання', 'Рівень 1', 'Досягнення', 'Мої вікторини', 'Перемоги', 'Друзі']);
-    expect(screen.getByRole('link', { name: 'Кіно 90-х →' }).getAttribute('href')).toBe('/quizzes/q1');
+    expect(screen.getByRole('link', { name: 'Кіно 90-х' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     expect(screen.getByRole('link', { name: /Тарас/ }).getAttribute('href')).toBe('/profile/u2');
     // Друг заходив хвилину тому — онлайн (беклог 9).

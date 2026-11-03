@@ -36,7 +36,7 @@ export function SliderInput({ question, onSubmit, submitLabel, onDraft, band = n
   const shown = { step: digits === 0 ? 1 : Number(`1e-${digits}`), unit: question.slider.unit };
 
   return (
-    <div className="slider-input">
+    <div className="slider-input" dir="ltr">
       <output className="slider-value">
         {sliderValueText(value, shown)}
       </output>

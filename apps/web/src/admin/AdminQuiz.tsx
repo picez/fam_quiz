@@ -115,7 +115,7 @@ function QuizView({ loaded }: { loaded: AdminQuizView }): JSX.Element {
       <Link className="quiet-link" to="/admin/quizzes">
         {t('adminBack')}
       </Link>
-      <h2 className="admin-title">{quiz.title}</h2>
+      <h2 className="admin-title" dir="auto">{quiz.title}</h2>
       <p className="meta">
         {t('adminAuthor', { name: '' })}
         <Link to={`/admin/users/${encodeURIComponent(view.author.id)}`}>{nickText(view.author.nickname)}</Link>

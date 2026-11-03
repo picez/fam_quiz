@@ -139,7 +139,7 @@ export function Quizzes() {
           {quizzes.map((quiz) => (
             <li className="panel" key={quiz.id}>
               <div>
-                <h2>{quiz.title}</h2>
+                <h2 dir="auto">{quiz.title}</h2>
                 {quiz.description !== '' && <p className="meta">{quiz.description}</p>}
                 <p className="meta">{t('questionCount', { count: quiz.questionCount })}</p>
               </div>

@@ -64,7 +64,7 @@ export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQu
                 aria-pressed={picked === item.id}
                 onClick={() => tapLeft(item.id)}
               >
-                <span className="match-text">{item.text}</span>
+                <span className="match-text" dir="auto">{item.text}</span>
                 {linked && badge(item.id)}
               </button>
             );
@@ -80,7 +80,7 @@ export function MatchInput({ question, onSubmit, onDraft }: { question: PublicQu
                 className={owner !== null ? 'match-item match-right is-linked' : 'match-item match-right'}
                 onClick={() => tapRight(item.id)}
               >
-                <span className="match-text">{item.text}</span>
+                <span className="match-text" dir="auto">{item.text}</span>
                 {owner !== null && badge(owner)}
               </button>
             );
@@ -101,14 +101,14 @@ export function MatchColumns({ left, right }: { left: Choice[]; right: Choice[] 
       <ul className="match-col">
         {left.map((item) => (
           <li key={item.id} className="match-item match-left">
-            <span className="match-text">{item.text}</span>
+            <span className="match-text" dir="auto">{item.text}</span>
           </li>
         ))}
       </ul>
       <ul className="match-col">
         {right.map((item) => (
           <li key={item.id} className="match-item match-right">
-            <span className="match-text">{item.text}</span>
+            <span className="match-text" dir="auto">{item.text}</span>
           </li>
         ))}
       </ul>

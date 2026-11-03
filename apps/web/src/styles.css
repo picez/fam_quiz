@@ -68,6 +68,29 @@
   color-scheme: dark;
 }
 
+/* Арабська: системні шрифти з арабськими гліфами, без нових файлів; розрядка рве з'єднання літер, тож її нема ніде. */
+:root:lang(ar) {
+  --display: system-ui, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+  --body: system-ui, 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+  letter-spacing: 0;
+}
+
+:root:lang(ar) * {
+  letter-spacing: 0 !important;
+}
+
+/* Значки-стрілки інтерфейсу (назад, далі) дзеркаляться справа наліво. */
+[dir='rtl'] .flip-rtl {
+  display: inline-block;
+  transform: scaleX(-1);
+}
+
+/* Острівець зліва направо (код, рахунок) у рядку справа наліво. */
+.ltr-isolate {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -498,7 +521,7 @@ a {
   font: inherit;
   font-size: 1.125rem;
   font-weight: 600;
-  text-align: left;
+  text-align: start;
 }
 
 button.choice {
@@ -521,7 +544,7 @@ button.choice {
 .choices.has-images .choice .letter {
   position: absolute;
   top: 0.75rem;
-  left: 0.75rem;
+  inset-inline-start: 0.75rem;
   z-index: 1;
   min-width: 1.75rem;
   padding: 0 0.375rem;
@@ -629,7 +652,7 @@ button.choice {
 }
 
 .choice .count {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-family: var(--display);
   font-variant-numeric: tabular-nums;
 }
@@ -664,7 +687,7 @@ button.choice {
   flex-direction: column;
   gap: 0.5rem;
   padding: 1.25rem;
-  border-left: 4px solid var(--amber);
+  border-inline-start: 4px solid var(--amber);
   background: var(--panel);
   border-radius: 0 0.75rem 0.75rem 0;
 }
@@ -1277,7 +1300,7 @@ input[type='radio'] {
 .problems {
   display: grid;
   gap: 0.25rem;
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
   list-style: disc;
 }
 
@@ -1402,7 +1425,7 @@ a.banner {
 }
 
 .standings.stacked .score {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .divider {
@@ -1502,7 +1525,7 @@ a.banner {
   color: var(--paper);
   font: inherit;
   font-size: 0.9375rem;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1529,7 +1552,7 @@ a.banner {
 }
 
 .chip .like-count {
-  margin-left: 0.375rem;
+  margin-inline-start: 0.375rem;
 }
 
 .question-item-price {
@@ -1678,7 +1701,7 @@ a.banner {
 
 .answer-pick {
   justify-content: space-between;
-  padding-right: 0.875rem;
+  padding-inline-end: 0.875rem;
   cursor: pointer;
 }
 
@@ -2326,7 +2349,7 @@ a.banner {
 .gb-mark {
   position: absolute;
   top: 0.125rem;
-  right: 0.25rem;
+  inset-inline-end: 0.25rem;
   padding: 0.0625rem 0.25rem;
   border-radius: 0.25rem;
   background: var(--stage);
@@ -2339,7 +2362,7 @@ a.banner {
 .gb-kind {
   position: absolute;
   top: 0.125rem;
-  left: 0.25rem;
+  inset-inline-start: 0.25rem;
   color: var(--amber);
   font-size: 0.625rem;
   font-weight: 600;
@@ -2349,7 +2372,7 @@ a.banner {
 .gb-penalty {
   position: absolute;
   bottom: 0.125rem;
-  left: 0.25rem;
+  inset-inline-start: 0.25rem;
   color: var(--signal);
   font-size: 0.6875rem;
   font-weight: 700;
@@ -2358,7 +2381,7 @@ a.banner {
 
 .gb-voice {
   position: absolute;
-  right: 0.25rem;
+  inset-inline-end: 0.25rem;
   bottom: 0.125rem;
   font-size: 0.6875rem;
   line-height: 1;
@@ -2398,13 +2421,13 @@ a.banner {
 
 .stage .gb-kind {
   top: 0.375rem;
-  left: 0.5rem;
+  inset-inline-start: 0.5rem;
   font-size: var(--gb-badge);
 }
 
 .stage .gb-mark {
   top: 0.375rem;
-  right: 0.5rem;
+  inset-inline-end: 0.5rem;
   font-size: var(--gb-badge);
 }
 
@@ -2415,11 +2438,11 @@ a.banner {
 }
 
 .stage .gb-penalty {
-  left: 0.5rem;
+  inset-inline-start: 0.5rem;
 }
 
 .stage .gb-voice {
-  right: 0.5rem;
+  inset-inline-end: 0.5rem;
 }
 
 /* Легенда: лише ті види й позначки, що є на полі. */
@@ -2492,7 +2515,7 @@ a.banner {
 }
 
 .cell-mark {
-  margin-left: 0.5rem;
+  margin-inline-start: 0.5rem;
   color: var(--amber);
   font-family: var(--display);
   font-weight: 600;
@@ -2515,7 +2538,7 @@ a.banner {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 @media (min-width: 600px) {
@@ -2590,7 +2613,7 @@ a.banner {
 .dice-value {
   min-width: 1.5ch;
   font-weight: 700;
-  text-align: right;
+  text-align: end;
 }
 
 .die {
@@ -2844,7 +2867,7 @@ a.banner {
   color: var(--paper);
   font: inherit;
   font-weight: 600;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
   hyphens: auto;
 }
@@ -2948,20 +2971,20 @@ button.match-item {
   gap: 0.25rem;
   padding: 0.375rem 0.5rem;
   border-bottom: 0;
-  border-left: 3px solid var(--line);
+  border-inline-start: 3px solid var(--line);
 }
 
 .rows .responses li.is-correct {
-  border-left-color: var(--correct);
+  border-inline-start-color: var(--correct);
 }
 
 .rows .responses li.is-wrong {
-  border-left-color: var(--signal);
+  border-inline-start-color: var(--signal);
 }
 
 /* 12f: відповідь, яку зарахував зал (апеляція «так»). */
 .rows .responses li.appealed {
-  border-left-color: var(--amber);
+  border-inline-start-color: var(--amber);
 }
 
 .responses-name {
@@ -3050,8 +3073,8 @@ button.match-item {
     position: fixed;
     top: auto;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 0; /* phys */
+    right: 0; /* phys */
     gap: 0;
     padding: 0 0 env(safe-area-inset-bottom);
     border-bottom: 0;
@@ -3223,7 +3246,7 @@ button.match-item {
   display: inline-block;
   width: 0.5rem;
   height: 0.5rem;
-  margin-right: 0.35rem;
+  margin-inline-end: 0.35rem;
   border-radius: 50%;
   background: var(--correct);
 }
@@ -3387,7 +3410,7 @@ button.match-item {
 }
 .allin-slot + .meta {
   min-width: 5.5rem;
-  text-align: right;
+  text-align: end;
 }
 
 /* Частка з банку: місце резервується з першого розкриття (порожній рядок невидимий, але тримає висоту й ширину). */
@@ -3395,7 +3418,7 @@ button.match-item {
   flex: none;
   display: block;
   min-width: 13ch;
-  text-align: right;
+  text-align: end;
   white-space: nowrap;
   color: var(--bank);
   font-family: var(--display);
@@ -3456,7 +3479,7 @@ button.match-item {
   content: attr(data-reserve-alt);
 }
 .wager-reveal .wager-delta {
-  text-align: right;
+  text-align: end;
 }
 /* Цифри однакової ширини: нові рахунки й частки не розсувають колонки. */
 .wager-reveal .wager-delta,
@@ -3523,7 +3546,7 @@ button.match-item {
 }
 .round-brief-lines {
   margin: 0;
-  padding-left: 0;
+  padding-inline-start: 0;
   display: grid;
   gap: 0.375rem;
   color: var(--paper);
@@ -3592,7 +3615,7 @@ button.match-item {
 .chain-count {
   flex: none;
   align-self: center;
-  margin-left: 0.375rem;
+  margin-inline-start: 0.375rem;
   color: var(--dim);
   font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
@@ -3742,7 +3765,7 @@ button.match-item {
     font-size: 0.75rem;
     line-height: 1;
     top: 0.2rem;
-    left: calc(50% + 0.4rem);
+    inset-inline-start: calc(50% + 0.4rem);
   }
 }
 
@@ -3829,8 +3852,8 @@ button.match-item {
 .live-notices {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  left: 0;
-  right: 0;
+  left: 0; /* phys */
+  right: 0; /* phys */
   z-index: 66; /* над заставкою (65): тости ±15 с і бафів не ховаються під нею */
   display: flex;
   flex-direction: column;
@@ -3900,7 +3923,7 @@ body:has(.banner.is-offline) .host .live-notices {
 .stage-tags {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  right: 0.75rem;
+  inset-inline-end: 0.75rem;
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -4004,7 +4027,7 @@ body:has(.banner.is-offline) .host .live-notices {
 .debuff-banner {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  left: 50%;
+  left: 50%; /* phys */
   z-index: 55;
   display: grid;
   gap: 0.2rem;
@@ -4095,7 +4118,7 @@ body:has(.debuff-banner) .live-notices {
 
 .debuff-guest {
   top: var(--lane);
-  left: 0;
+  left: 0; /* phys */
   z-index: 1;
   font-size: 5.5rem;
   line-height: 1;
@@ -4110,8 +4133,8 @@ body:has(.debuff-banner) .live-notices {
 }
 
 .is-calm .debuff-guest {
-  right: auto;
-  left: var(--spot);
+  right: auto; /* phys */
+  left: var(--spot); /* phys */
   animation: debuff-peek 6s var(--delay) infinite;
 }
 
@@ -4157,7 +4180,7 @@ body:has(.debuff-banner) .live-notices {
 
   /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
   .debuff-guest {
-    right: 0;
+    right: 0; /* phys */
     animation: debuff-run 4s linear var(--delay) infinite;
   }
 
@@ -4304,7 +4327,7 @@ body:has(.debuff-banner) .live-notices {
 .sticky-note {
   position: absolute;
   top: 40%;
-  left: 50%;
+  left: 50%; /* phys */
   z-index: 4;
   margin: 0;
   padding: 0.5rem 1rem;
@@ -4821,7 +4844,7 @@ button.sort-zone:disabled {
 .sort-board .sort-time,
 .sort-board .sort-misses,
 .sort-board .score {
-  text-align: right;
+  text-align: end;
 }
 
 .sort-board .sort-misses {
@@ -4917,13 +4940,13 @@ button.sort-zone:disabled {
 }
 
 .sort-landed {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   color: var(--correct);
   font-weight: 700;
 }
 
 .sort-mark {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   color: var(--signal);
   font-weight: 700;
 }
@@ -4933,7 +4956,7 @@ button.sort-zone:disabled {
 }
 
 .sort-late {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   font-size: 0.8em;
 }
 
@@ -5192,7 +5215,7 @@ button.sort-zone:disabled {
 .duel-banner {
   position: fixed;
   bottom: var(--banner-base);
-  left: 50%;
+  left: 50%; /* phys */
   transform: translateX(-50%);
   z-index: 55;
   width: max-content;
@@ -5508,7 +5531,7 @@ label.powers-price {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 0.875rem;
 }
 
@@ -5674,7 +5697,7 @@ label.powers-price {
 .help-pop {
   position: fixed;
   z-index: 75;
-  right: 1rem;
+  inset-inline-end: 1rem;
   bottom: 5.5rem;
   width: min(26rem, calc(100vw - 2rem));
   max-height: 70vh;
@@ -5842,7 +5865,7 @@ label.powers-price {
 .removed-tag {
   position: absolute;
   top: 0.25rem;
-  right: 0.375rem;
+  inset-inline-end: 0.375rem;
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
   background: var(--removed-tag);
@@ -5858,7 +5881,7 @@ label.powers-price {
 /* Телевізор: позначку видно з залу. */
 .stage .removed-tag {
   top: 0.5vh;
-  right: 0.5vw;
+  inset-inline-end: 0.5vw;
   padding: 0.2vh 0.8vw;
   font-size: clamp(0.875rem, 1.4vw, 1.5rem);
 }
@@ -5942,7 +5965,7 @@ label.powers-price {
 .stage-clock .buff-wait {
   position: absolute;
   top: calc(100% + 0.5rem);
-  right: 0;
+  inset-inline-end: 0;
   max-width: 60vw;
   font-size: clamp(1.1rem, 2vw, 1.75rem);
 }
@@ -6158,7 +6181,7 @@ label.powers-price {
 .vote-toggle {
   flex: none;
   min-width: 44px;
-  margin-left: auto;
+  margin-inline-start: auto;
   padding-inline: 0.5rem;
 }
 
@@ -6220,7 +6243,7 @@ label.powers-price {
 /* Позначка запасного запитання в рядку підпису: пігулка, що не додає рядка. */
 .spare-tag {
   display: inline-block;
-  margin-left: 0.5rem;
+  margin-inline-start: 0.5rem;
   padding: 0 0.45rem;
   border: 1px solid var(--spare-accent);
   border-radius: 999px;
@@ -6246,7 +6269,7 @@ label.powers-price {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--buff-accent);
+  border-inline-start: 3px solid var(--buff-accent);
   border-radius: 0.75rem;
 }
 
@@ -6281,7 +6304,7 @@ label.powers-price {
 .rows li > .spare-tag,
 .responses-who > .spare-tag {
   flex: none;
-  margin-left: 0;
+  margin-inline-start: 0;
 }
 
 /* Заставки 8c. Шар position: fixed над незмінною розкладкою етапу: поява й зникнення нічого не зсувають.
@@ -6414,7 +6437,7 @@ label.powers-price {
 .splash-sparks {
   position: absolute;
   top: 50%;
-  left: 50%;
+  left: 50%; /* phys */
   width: 0;
   height: 0;
   pointer-events: none;
@@ -6423,7 +6446,7 @@ label.powers-price {
 .splash-sparks > span {
   position: absolute;
   top: -0.3rem;
-  left: -0.3rem;
+  left: -0.3rem; /* phys */
   width: 0.6rem;
   height: 0.6rem;
   border-radius: 50%;
@@ -6730,7 +6753,7 @@ label.powers-price {
 .splash-chip {
   position: fixed;
   top: calc(var(--menu-h) + 0.5rem);
-  right: 1rem;
+  inset-inline-end: 1rem;
   z-index: 60;
   margin: 0;
   padding: 0.375rem 0.75rem;
@@ -6958,8 +6981,8 @@ label.powers-price {
 .round-brief-how {
   display: grid;
   gap: 0.25rem;
-  padding-left: 0.75rem;
-  border-left: 3px solid var(--guide-accent);
+  padding-inline-start: 0.75rem;
+  border-inline-start: 3px solid var(--guide-accent);
 }
 .round-brief-how h2 {
   margin: 0;
@@ -7047,19 +7070,19 @@ label.powers-price {
   padding: 0.5rem 0.375rem;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
-  text-align: right;
+  text-align: end;
 }
 
 .score-table .rank {
   color: var(--amber);
   font-weight: 800;
-  text-align: left;
+  text-align: start;
 }
 
 /* Закріплені ім'я й Σ мають видимий край: раунди, що прокручуються, ховаються під ним, а не зливаються. */
 .score-table .name {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 1;
   max-width: clamp(5rem, 30vw, 9rem);
   box-shadow:
@@ -7069,12 +7092,12 @@ label.powers-price {
   text-overflow: ellipsis;
   background: var(--score-bg);
   font-weight: 600;
-  text-align: left;
+  text-align: start;
 }
 
 .score-table .total {
   position: sticky;
-  right: 0;
+  inset-inline-end: 0;
   z-index: 1;
   background: var(--score-bg);
   box-shadow:
@@ -7140,21 +7163,21 @@ label.powers-price {
   color: inherit;
   font: inherit;
   font-weight: 600;
-  text-align: left;
+  text-align: start;
   text-decoration: underline;
   text-overflow: ellipsis;
   cursor: pointer;
 }
 
 .score-breakdown-row td {
-  text-align: left;
+  text-align: start;
   white-space: normal;
 }
 
 /* Розбивка лишається на видноті, коли раунди прокручено вбік: липне ліворуч і вужча за видиму частину таблиці (аркуш телефона чи панель пульта на 375 px). */
 .score-breakdown-row td > * {
   position: sticky;
-  left: 0.625rem;
+  inset-inline-start: 0.625rem;
   max-width: min(20rem, calc(100vw - 7rem));
 }
 
@@ -7373,7 +7396,7 @@ label.powers-price {
 
 .shop-block {
   padding: 0.5rem 0.75rem;
-  border-left: 4px solid var(--amber);
+  border-inline-start: 4px solid var(--amber);
   background: var(--tip-bg);
 }
 
@@ -7404,7 +7427,7 @@ label.powers-price {
   background: transparent;
   color: var(--paper);
   font: inherit;
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
@@ -7451,7 +7474,7 @@ label.powers-price {
 
 .stage-menu {
   position: fixed;
-  right: 1rem;
+  inset-inline-end: 1rem;
   bottom: 1rem;
   z-index: 50;
 }
@@ -7698,7 +7721,7 @@ label.powers-price {
 .audio-only-frame {
   position: absolute;
   top: 0;
-  left: 0;
+  left: 0; /* phys */
   width: 200px;
   height: 200px;
   border: 0;
@@ -7792,7 +7815,7 @@ label.powers-price {
   top: -0.35rem;
   width: 0.35rem;
   height: 1.7rem;
-  margin-left: -0.175rem;
+  margin-left: -0.175rem; /* phys */
   border-radius: 0.2rem;
   background: #fff;
 }
@@ -7800,7 +7823,7 @@ label.powers-price {
 .scale-correct-label {
   position: absolute;
   bottom: 100%;
-  left: 0.175rem;
+  left: 0.175rem; /* phys */
   margin-bottom: 0.25rem;
   font-size: 1.5rem;
   font-weight: 700;
@@ -7828,7 +7851,7 @@ label.powers-price {
 
 .scale-more {
   position: absolute;
-  left: 50%;
+  left: 50%; /* phys */
   transform: translateX(-50%);
 }
 
@@ -7851,7 +7874,7 @@ label.powers-price {
   display: block;
   width: 0.5rem;
   height: 0.5rem;
-  margin-left: -0.25rem;
+  margin-left: -0.25rem; /* phys */
   border-radius: 50%;
   background: var(--dim);
 }
@@ -7864,7 +7887,7 @@ label.powers-price {
 .scale-name {
   position: absolute;
   top: 0.6rem;
-  left: 0;
+  left: 0; /* phys */
   max-width: 8rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8089,7 +8112,7 @@ label.powers-price {
 .pin-label {
   position: absolute;
   top: calc(100% + 0.15rem + var(--label-row, 0) * 1.1rem);
-  left: 50%;
+  left: 50%; /* phys */
   max-width: 7rem;
   overflow: hidden;
   transform: translateX(-50%);
@@ -8107,13 +8130,13 @@ label.powers-price {
 
 /* Біля краю мапи підпис притиснутий до нього й не виходить за основу. */
 .pin-label.is-left {
-  left: 0;
+  left: 0; /* phys */
   transform: none;
 }
 
 .pin-label.is-right {
-  right: 0;
-  left: auto;
+  right: 0; /* phys */
+  left: auto; /* phys */
   transform: none;
 }
 
@@ -8267,7 +8290,7 @@ label.powers-price {
 
 .host-clues .clue-state {
   flex: none;
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--dim);
   font-size: 0.85rem;
 }
@@ -8489,7 +8512,7 @@ button.wall-tile:disabled {
   border: 1px solid var(--line);
   border-radius: 0.5rem;
   background: var(--panel);
-  text-align: left;
+  text-align: start;
 }
 
 .survey-row.is-closed {
@@ -8632,7 +8655,7 @@ button.wall-tile:disabled {
 .wall-table td {
   padding: 0.25rem 0.5rem;
   border-bottom: 1px solid var(--line);
-  text-align: left;
+  text-align: start;
   font-weight: 400;
 }
 
@@ -8651,7 +8674,7 @@ button.wall-tile:disabled {
 }
 
 .wall-table .score {
-  text-align: right;
+  text-align: end;
 }
 
 .poll-bars {
@@ -8704,7 +8727,7 @@ button.wall-tile:disabled {
 
 .poll-value {
   min-width: 5rem;
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
@@ -9091,7 +9114,7 @@ button.wall-tile:disabled {
   align-items: flex-start;
   width: 100%;
   min-height: 2.75rem;
-  text-align: left;
+  text-align: start;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -9124,7 +9147,7 @@ button.wall-tile:disabled {
   border: 1px solid var(--line);
   border-radius: 0.5rem;
   background: var(--panel);
-  text-align: left;
+  text-align: start;
   overflow-wrap: anywhere;
 }
 
@@ -9450,7 +9473,7 @@ button.wall-tile:disabled {
 .wipeout-choice {
   color: var(--paper);
   font-size: 0.875em;
-  text-align: right;
+  text-align: end;
   overflow-wrap: anywhere;
 }
 
@@ -9510,7 +9533,7 @@ button.wall-tile:disabled {
 
 .wipeout-step-list .wipeout-change {
   font-size: 0.875em;
-  text-align: right;
+  text-align: end;
 }
 
 .wipeout-step-list .is-right .wipeout-verdict {
@@ -9568,13 +9591,13 @@ button.wall-tile:disabled {
 
 .stage-question.has-wipeout-side {
   position: relative;
-  padding-right: calc(var(--wipeout-side-w, 17rem) + 1.5rem);
+  padding-inline-end: calc(var(--wipeout-side-w, 17rem) + 1.5rem);
 }
 
 .stage-question.has-wipeout-side > .wipeout-side {
   position: absolute;
   top: 4.5rem;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   width: var(--wipeout-side-w, 17rem);
   overflow: hidden;
@@ -10160,7 +10183,7 @@ button.wall-tile:disabled {
 }
 
 .clue-pace > legend {
-  float: left;
+  float: inline-start;
   width: 100%;
   padding: 0;
   margin: 0;
@@ -10201,7 +10224,7 @@ button.wall-tile:disabled {
 
 .ladder-level-n {
   width: 1.75rem;
-  text-align: right;
+  text-align: end;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
@@ -10248,7 +10271,7 @@ button.wall-tile:disabled {
 }
 
 .ladder-level {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .ladder-step.is-safe {
@@ -10497,7 +10520,7 @@ button.wall-tile:disabled {
 }
 
 .ladder-final {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Між запитаннями: рядок рішення чи підсумку зліва, велика драбина справа. */
@@ -10588,8 +10611,8 @@ button.wall-tile:disabled {
   gap: 0.125rem;
   min-height: 3.5rem;
   padding: 0.5rem 0.75rem;
-  border-left: 0.5rem solid var(--team, var(--line));
-  text-align: left;
+  border-inline-start: 0.5rem solid var(--team, var(--line));
+  text-align: start;
   min-width: 0;
 }
 
@@ -10613,8 +10636,8 @@ button.wall-tile:disabled {
 }
 
 .team-yours {
-  padding-left: 0.75rem;
-  border-left: 0.5rem solid var(--team, var(--line));
+  padding-inline-start: 0.75rem;
+  border-inline-start: 0.5rem solid var(--team, var(--line));
 }
 
 .team-roll {
@@ -10739,7 +10762,7 @@ button.wall-tile:disabled {
 .team-answerer-banner {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border-left: 0.5rem solid var(--team, var(--amber));
+  border-inline-start: 0.5rem solid var(--team, var(--amber));
   border-radius: 0.75rem;
   background: var(--panel);
 }
@@ -10950,7 +10973,7 @@ button.wall-tile:disabled {
   flex: 1 1 5.5rem;
   min-width: 0;
   max-width: 8rem;
-  margin-left: auto;
+  margin-inline-start: auto;
   min-height: 2.25rem;
   padding: 0.25rem 0.375rem;
   border: 2px solid var(--line);
@@ -10980,12 +11003,12 @@ button.wall-tile:disabled {
 
 .rows li.player-row > .team-people {
   flex: 1 0 100%;
-  padding-left: 1rem;
+  padding-inline-start: 1rem;
 }
 
 /* Таблиця з командою: кольорова смуга ліворуч, склад — другим рядком. */
 .standings li.has-team {
-  border-left: 0.5rem solid var(--team, var(--line));
+  border-inline-start: 0.5rem solid var(--team, var(--line));
 }
 
 .standing-members {
@@ -11004,7 +11027,7 @@ button.wall-tile:disabled {
 }
 
 .place .team-chip {
-  margin-left: 0.5rem;
+  margin-inline-start: 0.5rem;
   color: var(--dim);
   font-family: inherit;
   font-size: 0.875rem;
@@ -11123,7 +11146,7 @@ button.wall-tile:disabled {
 }
 
 .live-offline {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   font-size: 0.8em;
 }
 
@@ -11170,7 +11193,7 @@ button.wall-tile:disabled {
   flex-direction: column;
   gap: 0.5rem;
   margin: 0;
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
   overflow-wrap: anywhere;
 }
 
@@ -11265,7 +11288,7 @@ button.wall-tile:disabled {
   flex-shrink: 0;
   min-height: 0;
   margin-block: calc(-0.4rem - 2px);
-  margin-left: auto;
+  margin-inline-start: auto;
   padding: 0.4rem 0.75rem;
   font-size: 0.9375rem;
   line-height: 1.2;
@@ -11637,8 +11660,8 @@ button.wall-tile:disabled {
 
 .round-bar-fill {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 0; /* phys */
+  right: 0; /* phys */
   min-height: 2px;
   border-radius: 0.25rem;
   background: var(--correct);
@@ -11717,7 +11740,7 @@ button.wall-tile:disabled {
   padding: 0.5rem 0.625rem;
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
-  text-align: right;
+  text-align: end;
 }
 
 .fact-table th {
@@ -11726,7 +11749,7 @@ button.wall-tile:disabled {
 
 .fact-table th:first-child,
 .fact-table td:first-child {
-  text-align: left;
+  text-align: start;
 }
 
 /* Тривога антигугла (12e): повноекранний червоний шар на телефоні того, хто виходив із гри.
@@ -11782,7 +11805,7 @@ button.wall-tile:disabled {
 
 /* Антигугл (12e): «🙈 Оля, Петро» у шапці запитання на сцені — поруч із лічильником, в один рядок, довгий перелік обрізається трикрапкою. */
 .bar > .away-line {
-  margin-left: auto;
+  margin-inline-start: auto;
   min-width: 0;
   max-width: 45%;
   overflow: hidden;
@@ -11810,7 +11833,7 @@ button.wall-tile:disabled {
 }
 
 .live-chip .live-away {
-  margin-left: 0.3rem;
+  margin-inline-start: 0.3rem;
   font-size: 0.8em;
   white-space: nowrap;
 }
@@ -11940,8 +11963,8 @@ button.wall-tile:disabled {
 .appeal-card.is-stage {
   position: fixed;
   bottom: 0.75rem;
-  left: 0;
-  right: 0;
+  left: 0; /* phys */
+  right: 0; /* phys */
   z-index: 60;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -12139,7 +12162,7 @@ button.wall-tile:disabled {
 .resume-pick .btn {
   width: 100%;
   white-space: normal;
-  text-align: left;
+  text-align: start;
 }
 
 .resume-points {
@@ -12174,7 +12197,7 @@ button.wall-tile:disabled {
   color: var(--paper);
   font: inherit;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: end;
 }
 
 .resume-points input:focus-visible {
@@ -12234,7 +12257,7 @@ button.wall-tile:disabled {
 
 .stage-answerer .team-dot {
   display: inline-block;
-  margin-right: 0.4em;
+  margin-inline-end: 0.4em;
   vertical-align: 0.1em;
 }
 
@@ -12243,7 +12266,7 @@ button.wall-tile:disabled {
 }
 
 .answerer-mark {
-  margin-left: 0.25rem;
+  margin-inline-start: 0.25rem;
 }
 
 /* 12i: сторінка ачівок — одна колонка на телефоні, кілька від 560 px. Рух не потрібен. */
@@ -12339,7 +12362,7 @@ button.wall-tile:disabled {
   }
 
   /* Бейдж у вужчому пункті (51 px на 360): у правому верхньому куті і менший, тож «99+» не виходить за пункт і не накриває сусіда. */
-  .menu a .menu-badge { left: auto; right: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
+  .menu a .menu-badge { inset-inline-start: auto; inset-inline-end: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
 /* ---------- Реакції (13a) ----------
@@ -12453,8 +12476,8 @@ button.wall-tile:disabled {
 .reaction-strip {
   position: fixed;
   bottom: env(safe-area-inset-bottom, 0px);
-  left: 0;
-  right: 0;
+  left: 0; /* phys */
+  right: 0; /* phys */
   z-index: 40;
   display: flex;
   align-items: center;
@@ -12713,7 +12736,7 @@ button.wall-tile:disabled {
 .reaction-star {
   flex: 0 0 1.75rem;
   border: 0;
-  border-left: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
   background: transparent;
   color: var(--dim);
   font-size: 1.1rem;
@@ -12941,8 +12964,8 @@ button.wall-tile:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding-left: 1rem;
-  border-left: 2px solid var(--line);
+  padding-inline-start: 1rem;
+  border-inline-start: 2px solid var(--line);
   min-width: 0;
 }
 
@@ -13374,7 +13397,7 @@ button.wall-tile:disabled {
     display: block;
     position: absolute;
     top: -1rem;
-    left: var(--x);
+    left: var(--x); /* phys */
     width: 0.5rem;
     height: 0.9rem;
     background: var(--c);
@@ -13539,7 +13562,7 @@ button.wall-tile:disabled {
 
 .shop-ward,
 .ward-tag {
-  margin-left: 0.25rem;
+  margin-inline-start: 0.25rem;
 }
 
 /* ---------- Розділ «Рівень» у профілі (15a) ---------- */
@@ -13769,7 +13792,7 @@ button.wall-tile:disabled {
 }
 
 .history-tabs .menu-badge {
-  margin-left: 0.35rem;
+  margin-inline-start: 0.35rem;
 }
 
 .feed-like-count {
@@ -13925,7 +13948,7 @@ button.wall-tile:disabled {
 .prize-view {
   position: fixed;
   top: 50%;
-  left: 50%;
+  left: 50%; /* phys */
   z-index: 97;
   transform: translate(-50%, -50%);
   box-sizing: border-box;
@@ -14072,7 +14095,7 @@ button.wall-tile:disabled {
 }
 
 .admin-top {
-  padding-left: 1.5rem;
+  padding-inline-start: 1.5rem;
   overflow-wrap: anywhere;
 }
 

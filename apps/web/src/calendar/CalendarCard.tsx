@@ -45,7 +45,7 @@ export function CalendarCard({
 
   return (
     <li className="calendar-card" id={`event-${event.id}`} data-state={event.state}>
-      <h3 className="calendar-title">{event.title}</h3>
+      <h3 className="calendar-title" dir="auto">{event.title}</h3>
       <p className="calendar-when">
         <span aria-hidden="true">🕖 </span>
         {timeText(event.startsAt, zone)}
