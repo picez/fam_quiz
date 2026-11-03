@@ -51,6 +51,23 @@ describe('trophyLabel', () => {
       expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Estatuilla de oro');
     });
   });
+
+  describe('in Italian', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it("puts the noun first with an elided «d'» before a vowel, all five kinds being feminine", async () => {
+      await loadLocale('it');
+      activateLocale('it');
+      expect(trophyLabel({ kind: 'cup', material: 'gold' })).toBe("Coppa d'oro");
+      expect(trophyLabel({ kind: 'cup', material: 'silver' })).toBe("Coppa d'argento");
+      expect(trophyLabel({ kind: 'cup', material: 'bronze' })).toBe('Coppa di bronzo');
+      expect(trophyLabel({ kind: 'cup', material: 'diamond' })).toBe('Coppa di diamante');
+      expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe("Medaglia d'argento");
+      expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Corona di bronzo');
+      expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('Stella di diamante');
+      expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe("Statuetta d'oro");
+    });
+  });
 });
 
 describe('prizeSummary', () => {

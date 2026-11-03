@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocaleForTests } from '../i18n';
-import { accusativeDay, agoText, compareText, decimalText, lowerFirst, namesText, ordinal, searchNormalize } from './grammar';
+import { accusativeDay, agoText, compareText, decimalText, lowerFirst, namesText, ordinal, searchNormalize, trophyGender, trophyPhrase } from './grammar';
 
 describe('grammar', () => {
   afterEach(() => activateLocaleForTests('uk'));
@@ -54,6 +54,14 @@ describe('grammar', () => {
     expect(lowerFirst('Abc')).toBe('Abc');
     expect(agoText(12 * 60_000)).not.toMatch(/[٠-٩]/);
     expect(agoText(12 * 60_000)).toContain('12');
+  });
+
+  it('it: trophy kinds are all feminine and the noun comes first', () => {
+    expect((['cup', 'medal', 'crown', 'star', 'statuette'] as const).map((kind) => trophyGender(kind, 'it'))).toEqual(['f', 'f', 'f', 'f', 'f']);
+    expect(trophyPhrase("d'oro", 'coppa', 'it')).toBe("Coppa d'oro");
+    expect(trophyPhrase('di bronzo', 'statuetta', 'it')).toBe('Statuetta di bronzo');
+    expect(trophyPhrase('de oro', 'copa', 'es')).toBe('Copa de oro');
+    expect(trophyPhrase('Золотий', 'кубок', 'uk')).toBe('Золотий кубок');
   });
 
   it('takes an explicit locale over the active one', () => {
