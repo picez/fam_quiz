@@ -10183,7 +10183,7 @@ button.wall-tile:disabled {
 }
 
 .clue-pace > legend {
-  float: inline-start;
+  float: left; /* phys */
   width: 100%;
   padding: 0;
   margin: 0;
