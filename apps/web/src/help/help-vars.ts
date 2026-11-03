@@ -78,11 +78,8 @@ const LIMIT_KEYS = [
   'wipeoutDecideSeconds',
 ] as const satisfies readonly (keyof typeof LIMITS)[];
 
-/** Секунди з мс без одиниці (одиницю «с» пише текст): десятковий знак мови — «2,5» (uk) / «2.5» (en). */
+/** Секунди з мс без одиниці (одиницю «с» пише текст): десятковий знак мови — «1,5» (uk) / «1.5» (en). */
 const seconds = (ms: number, locale: Locale) => decimalText(ms / 1000, Number.isInteger(ms / 1000) ? 0 : 1, locale);
-
-/** Як колишній s() довідки: uk лишає крапку («1.5 с»), щоб uk-вивід не змінився; лише тривога виходу мала кому. Інші мови — десятковий знак мови. */
-const plainSeconds = (ms: number, locale: Locale) => (locale === 'uk' ? String(ms / 1000) : seconds(ms, locale));
 
 const cache = new Map<Locale, Record<string, string>>();
 
@@ -94,7 +91,7 @@ export function helpVars(locale?: Locale): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const name of LIMIT_KEYS) vars[name] = String(LIMITS[name]);
   const ms = (prefix: string, table: Readonly<Record<string, number>>, names: readonly string[]) => {
-    for (const name of names) vars[prefix + name.charAt(0).toUpperCase() + name.slice(1)] = plainSeconds(table[name]!, key);
+    for (const name of names) vars[prefix + name.charAt(0).toUpperCase() + name.slice(1)] = seconds(table[name]!, key);
   };
   ms('pace', PACE_MS, ['step', 'row', 'intro', 'lock', 'decisions']);
   ms('away', AWAY_MS, ['mark', 'penalty', 'preGrace']);

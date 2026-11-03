@@ -41,6 +41,17 @@ describe('styles.css right to left', () => {
     expect(/\[dir='rtl'\] \.btn\.is-pacing\s*\{[^}]*linear-gradient\(270deg,[^}]*\}/.test(css)).toBe(true);
   });
 
+  it('names with their own dir follow the page alignment, after every other .name rule', () => {
+    const at = css.search(/\n\.name\[dir\]\s*\{\s*text-align:\s*match-parent;\s*\}/);
+    expect(at).toBeGreaterThan(-1);
+    expect(css.slice(at + 1).replace(/^[^}]*\}/, '')).not.toMatch(/\.name\b[^{]*\{[^}]*text-align/);
+  });
+
+  it('every language, uk too, shows the short menu labels at 401–700 px', () => {
+    const block = css.slice(css.indexOf('@media (min-width: 401px) and (max-width: 700px)'));
+    expect(block).toMatch(/^@media[^{]*\{\s*\.menu a \.menu-full\s*\{\s*display: none;\s*\}\s*\.menu a::after\s*\{/);
+  });
+
   it('has the .ltr-isolate class', () => {
     expect(/\.ltr-isolate\s*\{\s*direction:\s*ltr;\s*unicode-bidi:\s*isolate;\s*\}/.test(css)).toBe(true);
   });
