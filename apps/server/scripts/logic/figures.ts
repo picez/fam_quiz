@@ -463,7 +463,7 @@ function scalesSvg(): string {
     800,
     scale(300, 230, row('ccc'), row('s')) +
       scale(900, 230, row('sc'), row('t')) +
-      scale(600, 600, row('tt'), `${row('q')}<g transform="translate(70,0)">${circle(0, 0, 27, YEL)}</g>`) +
+      scale(600, 600, row('tt'), row('q')) +
       line([[60, 410], [1140, 410]], '#2a3045', 4),
   );
 }
@@ -623,7 +623,8 @@ const REBUS_SVG: Record<string, () => string> = {
   // «МАКЕТА» з підписом «М = Р».
   r11: () => svg(460, big(600, 260, 'МАКЕТА', 170) + text(600, 80, 'М = Р', 80, YEL)),
   // Коло (малюнок) + «С».
-  r12: () => svg(420, circle(400, 210, 130, 'none', CYAN, 16) + big(780, 210, 'С', 200)),
+  // Коло намальоване як геометрична фігура: центр і радіус, щоб не читалося як літера «О».
+  r12: () => svg(420, circle(400, 210, 130, 'none', CYAN, 12) + circle(400, 210, 10, CYAN) + line([[400, 210], [492, 118]], CYAN, 6) + text(470, 196, 'r', 44, CYAN, 'middle', 'normal') + big(780, 210, 'С', 200)),
 };
 
 /** Ключ картинки → SVG. Ключі нейтральні: g01…, r1…; відповіді в назвах немає. */
@@ -650,5 +651,6 @@ export const FIGURES: Record<string, () => string> = {
   g20: oddSvg,
   g21: clocksSvg,
   g22: treasureSvg,
+  g23: () => figure(PENTAGRAM),
   ...REBUS_SVG,
 };

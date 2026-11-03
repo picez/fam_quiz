@@ -256,7 +256,7 @@ expectIndex(byKey('g20'), only(F.ODD.figures.map(([s, d]) => s !== d)), 'g20 odd
 
 // Пентаграма в «Мільйонері».
 {
-  const q = byText('п’ятикутній зірці');
+  const q = byKey('g23');
   expectIndex(q, only(optionTexts(q).map((o) => Number(o) === S.countTriangles(F.PENTAGRAM))), 'pentagram');
 }
 
