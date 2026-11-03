@@ -3764,32 +3764,6 @@ button.shelf-cup {
   }
 }
 
-.achievements {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.achievement-strip li {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--panel);
-  font-size: 1.75rem;
-  line-height: 1;
-}
-
-.achievement-strip-more {
-  margin: 0.5rem 0 0;
-}
-
 /* «Ще N» під вікторинами профілю: кнопка, що виглядає як посилання «Усі досягнення →» поруч, з дотиковою зоною 44 px. */
 .link-more {
   min-height: 2.75rem;

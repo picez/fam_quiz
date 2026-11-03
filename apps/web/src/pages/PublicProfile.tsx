@@ -1,13 +1,13 @@
-import type { PublicProfile as PublicProfileData } from '@quiz/shared';
+import { shelfAwards, type PublicProfile as PublicProfileData } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { follow, getProfile, unfollow } from '../api';
 import { errorText, t } from '../i18n';
-import { AchievementStrip } from '../profile/AchievementStrip';
-import { Avatar } from '../profile/Avatar';
+import { AchievementShowcase } from '../profile/AchievementShowcase';
 import { LikesCard } from '../profile/LikesCard';
-import { ProfileLevelMark } from '../profile/LevelCard';
+import { ProfileHeader } from '../profile/ProfileHeader';
 import { Showcase } from '../profile/Showcase';
+import { ShowcaseShelf } from '../profile/ShowcaseShelf';
 import { StatsView } from '../profile/StatsView';
 import { VersusBlock } from '../profile/VersusBlock';
 import { useAccount } from '../useAccount';
@@ -22,6 +22,7 @@ export function PublicProfile() {
   const [following, setFollowing] = useState<boolean | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [allAwards, setAllAwards] = useState(false);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -74,52 +75,49 @@ export function PublicProfile() {
   const { profile } = state;
   const isOwner = account.status === 'signed-in' && account.account.id === profile.id;
 
+  const shelfCount = shelfAwards(profile.showcase.awards, profile.showcase.pins.prizes).length;
+  const hasMore = profile.showcase.awards.length > shelfCount;
+
   return (
     <main className="app wide">
-      <header className="profile-head">
-        <Avatar profile={profile} size="large" />
-        <div>
-          <h1 className="brand">
-            {nickText(profile.nickname)}
-            <ProfileLevelMark level={profile.level.level} badge={profile.level.looks.badge} />
-            {profile.showcase.title !== null && <span className="nick-title">{profile.showcase.title.text}</span>}
-          </h1>
-          <p className="meta">{t('emailHidden')}</p>
-          {following === false && (
+      <ProfileHeader profile={profile} level={profile.level.level} badge={profile.level.looks.badge} title={profile.showcase.title?.text ?? null} stats={profile.stats}>
+        {following === false && (
+          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
+            {t('addFriend')}
+          </button>
+        )}
+        {following === true && (
+          <p>
+            <span>{t('inFriends')}</span>{' '}
             <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
-              {t('addFriend')}
+              {t('removeFriend')}
             </button>
-          )}
-          {following === true && (
-            <p>
-              <span>{t('inFriends')}</span>{' '}
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
-                {t('removeFriend')}
-              </button>
-            </p>
-          )}
-          {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}
-          {following === null && account.status === 'anonymous' && (
-            <Link to={`/login?next=${encodeURIComponent(`/profile/${profile.id}`)}`}>{t('signInToFollow')}</Link>
-          )}
-          {problem !== null && (
-            <p className="error" role="alert">
-              {problem}
-            </p>
-          )}
-        </div>
-      </header>
+          </p>
+        )}
+        {following === null && isOwner && <Link to="/profile">{t('thisIsYou')}</Link>}
+        {following === null && account.status === 'anonymous' && (
+          <Link to={`/login?next=${encodeURIComponent(`/profile/${profile.id}`)}`}>{t('signInToFollow')}</Link>
+        )}
+        {problem !== null && (
+          <p className="error" role="alert">
+            {problem}
+          </p>
+        )}
+      </ProfileHeader>
+      <ShowcaseShelf
+        awards={profile.showcase.awards}
+        pinned={profile.showcase.pins.prizes}
+        onAll={hasMore ? () => setAllAwards((open) => !open) : undefined}
+        allLabel={allAwards ? t('publicAwardsHide') : t('publicAwardsAll', { n: profile.showcase.awards.length })}
+      />
+      {allAwards && <Showcase showcase={profile.showcase} own={isOwner} />}
+      <AchievementShowcase achievements={profile.achievements} pinned={profile.showcase.pins.achievements} allTo={`/profile/${encodeURIComponent(profile.id)}/achievements`} />
+      <LikesCard likes={profile.likes} />
       <section className="profile-section">
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
-      <LikesCard likes={profile.likes} />
-      <Showcase showcase={profile.showcase} own={isOwner} />
       {account.status === 'signed-in' && !isOwner && <VersusBlock id={profile.id} nickname={nickText(profile.nickname)} />}
-      <section className="profile-section">
-        <h2>{t('achievementsTitle')}</h2>
-        <AchievementStrip achievements={profile.achievements} to={`/profile/${encodeURIComponent(profile.id)}/achievements`} />
-      </section>
     </main>
   );
 }
