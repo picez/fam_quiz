@@ -27,6 +27,20 @@ describe('styles.css right to left', () => {
     expect(/:lang\(ar\)[^{]*\{[^}]*letter-spacing:\s*0[;\s]/.test(css)).toBe(true);
   });
 
+  it('right-to-left numbers in dir=ltr cells line up with their headers (end = left)', () => {
+    const rule = /\[dir='rtl'\] \.score-table td\[dir='ltr'\],\s*\[dir='rtl'\] \.wall-table \.score\[dir='ltr'\],\s*\[dir='rtl'\] \.sort-board \.score\[dir='ltr'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('text-align: left; /* phys */');
+  });
+
+  it('bars fill from the inline start: the vote bar is logical, scaleX and gradient fills flip under [dir=rtl]', () => {
+    const voteBar = /\n\.vote-bar\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(voteBar).toContain('inset-block: 0;');
+    expect(voteBar).toContain('inset-inline: 0 auto;');
+    expect(voteBar).not.toMatch(/\binset:/);
+    expect(/\[dir='rtl'\] \.sort-bar-fill,\s*\[dir='rtl'\] \.bank-meter-text\s*\{[^}]*transform-origin: right center;[^}]*\}/.test(css)).toBe(true);
+    expect(/\[dir='rtl'\] \.btn\.is-pacing\s*\{[^}]*linear-gradient\(270deg,[^}]*\}/.test(css)).toBe(true);
+  });
+
   it('has the .ltr-isolate class', () => {
     expect(/\.ltr-isolate\s*\{\s*direction:\s*ltr;\s*unicode-bidi:\s*isolate;\s*\}/.test(css)).toBe(true);
   });

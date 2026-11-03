@@ -1,1 +1,10 @@
-{}
+{
+  "pushCancelledBody": "ألغى المقدّم اللعبة المقرّرة في {when}.",
+  "pushCancelledTitle": "أُلغيت اللعبة «{title}»",
+  "pushFallbackBody": "هناك تحديث بشأن اللعبة المخطط لها.",
+  "pushFallbackTitle": "اختبار",
+  "pushOpenedBody": "فتح المقدّم اللعبة. المس للانضمام.",
+  "pushOpenedTitle": "بدأت اللعبة «{title}»",
+  "pushReminderBody": "البداية في {time}. لا تتأخر!",
+  "pushReminderTitle": "قريبًا اللعبة «{title}»"
+}
