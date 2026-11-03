@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+// Стилі читаються з диска (Vitest підміняє CSS порожнім рядком); типів node у вебі немає.
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -191,5 +194,21 @@ describe('Menu', () => {
       await vi.waitFor(() => expect(screen.queryByRole('link', { name: 'Профіль, Запрошень: 1' })).toBeNull());
       expect(document.querySelectorAll('.menu-badge').length).toBe(0);
     });
+  });
+});
+
+// Тести запускаються з кореня репозиторію або з apps/web.
+const cssPath = ['apps/web/src/styles.css', 'src/styles.css'].find((path) => existsSync(path) as boolean)!;
+const css = (readFileSync(cssPath, 'utf8') as string).replace(/\r\n/g, '\n');
+
+describe('menu styles', () => {
+  it('on 701–900 px the top bar keeps five full labels on one line each (tighter padding, no wrap)', () => {
+    const open = css.indexOf('@media (min-width: 701px) and (max-width: 900px) {');
+    expect(open).toBeGreaterThanOrEqual(0);
+    const block = css.slice(open, css.indexOf('\n}\n', open));
+    const link = block.slice(block.indexOf('.menu a {'), block.indexOf('}', block.indexOf('.menu a {')));
+    expect(link).toContain('white-space: nowrap;');
+    expect(link).toMatch(/padding-inline: 0\.5rem;/);
+    expect(block).toMatch(/\.menu \{[^}]*gap: 0;/);
   });
 });
