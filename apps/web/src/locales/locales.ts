@@ -5,7 +5,7 @@ import type { Locale } from '@quiz/shared';
  * Мову вмикають, щойно її словник повний (`checks.test.ts` зелений): дописати її сюди — і все.
  * uk завжди перша.
  */
-export const ENABLED_LOCALES: readonly Locale[] = ['uk', 'en', 'pl', 'de'];
+export const ENABLED_LOCALES: readonly Locale[] = ['uk', 'en', 'pl', 'de', 'es'];
 
 /** Самоназви мов для перемикача — без перекладу. */
 export const LOCALE_NAMES: Record<Locale, string> = {
