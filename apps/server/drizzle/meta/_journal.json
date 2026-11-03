@@ -211,6 +211,13 @@
       "when": 1793661390549,
       "tag": "0029_nickname_null",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793726803156,
+      "tag": "0030_showcase_pins",
+      "breakpoints": true
     }
   ]
 }

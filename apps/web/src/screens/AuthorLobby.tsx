@@ -64,7 +64,7 @@ export function AuthorLobby({
         <p className="meta">{t('authorCodeLabel')}</p>
         <p className="author-code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
         <div className="qr author-qr">
-          <QRCodeSVG value={joinUrl} size={168} title={joinUrl} bgColor="#F5F1E6" fgColor="#0E1020" marginSize={2} />
+          <QRCodeSVG value={joinUrl} size={168} title={joinUrl} bgColor="#F3EAEA" fgColor="#060505" marginSize={2} />
         </div>
         {stageUrl !== null && (
           <div className="author-stage">

@@ -96,7 +96,7 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         <p className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
       </div>
       <div className="qr">
-        <QRCodeSVG value={joinUrl} size={256} bgColor="#F5F1E6" fgColor="#0E1020" marginSize={2} />
+        <QRCodeSVG value={joinUrl} size={256} bgColor="#F3EAEA" fgColor="#060505" marginSize={2} />
       </div>
       {view.teams !== null ? (
         <div className="roster">
@@ -860,7 +860,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const appeal = phase === 'reveal' ? view.appeal : null;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
-    <ReactionMain className={['app stage', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
+    <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
       <DuelBanner duel={view.duel} phase={view.phase} autopilot={view.autopilot} />
       <LiveNotices>
         <AdjustmentToast notice={view.notice} offsetMs={offsetMs} teams={view.teams !== null} rounds={view.round?.total ?? 1} />

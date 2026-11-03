@@ -2,9 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS, type Achievement, type ProfileCard } from '@quiz/shared';
-import { t, type TextKey } from '../i18n';
-import { AchievementStrip } from './AchievementStrip';
+import { type ProfileCard } from '@quiz/shared';
 import { Avatar } from './Avatar';
 import { StatsView } from './StatsView';
 
@@ -62,63 +60,5 @@ describe('profile parts', () => {
 
     const empty = render(<StatsView stats={{ ...base, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null }} />);
     expect(cells(empty.container).map(([value]) => value)).toEqual(['0', '0', '0', '–', '–', '–']);
-  });
-
-  describe('AchievementStrip', () => {
-    const strip = (achievements: Achievement[]) =>
-      render(
-        <MemoryRouter>
-          <AchievementStrip achievements={achievements} to="/achievements" />
-        </MemoryRouter>,
-      );
-    const day = (n: number) => `2026-10-${String(n).padStart(2, '0')}T12:00:00.000Z`;
-
-    it('shows the eight newest earned badges and a link with the rest', () => {
-      const ids = ACHIEVEMENTS.slice(0, 14);
-      const list: Achievement[] = ids.map((id, i) => ({
-        id,
-        earned: i < 12,
-        earnedAt: i < 10 ? day(i + 1) : null,
-      }));
-      const { container } = strip(list);
-      const items = [...container.querySelectorAll('ul.achievements.achievement-strip > li')];
-      expect(items).toHaveLength(8);
-      const names = items.map((li) => li.getAttribute('title'));
-      expect(names).toEqual(ids.slice(2, 10).reverse().map((id) => t(`achievement_${id}` as TextKey)));
-      const more = screen.getByRole('link', { name: 'ще 4 →' });
-      expect(more.getAttribute('href')).toBe('/achievements');
-    });
-
-    it('puts the newest first and skips the locked ones', () => {
-      const { container } = strip([
-        { id: 'first_game', earned: true, earnedAt: day(1) },
-        { id: 'fast_answer', earned: true, earnedAt: day(5) },
-        { id: 'wins_10', earned: false, earnedAt: null },
-      ]);
-      const items = [...container.querySelectorAll('.achievement-strip > li')];
-      expect(items.map((li) => li.getAttribute('title'))).toEqual(['Швидкі пальці', 'Перша гра']);
-      expect(items[0]?.textContent).toContain('🏎️');
-      expect(items[0]?.querySelector('.sr-only')?.textContent).toBe('Швидкі пальці');
-      expect(items[0]?.querySelector('[aria-hidden="true"]')?.textContent).toBe('🏎️');
-      expect(container.textContent).not.toContain('10 перемог');
-      expect(container.textContent).not.toContain('🔒');
-    });
-
-    it('with eight or fewer earned shows «Усі досягнення →»', () => {
-      strip([
-        { id: 'first_game', earned: true, earnedAt: null },
-        { id: 'host', earned: true, earnedAt: null },
-        { id: 'first_win', earned: true, earnedAt: null },
-      ]);
-      expect(document.querySelectorAll('.achievement-strip > li')).toHaveLength(3);
-      expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/achievements');
-    });
-
-    it('with none earned says so and still links to the page', () => {
-      const { container } = strip([{ id: 'first_game', earned: false, earnedAt: null }]);
-      expect(screen.getByText('Ще жодного досягнення').className).toContain('meta');
-      expect(container.querySelectorAll('.achievement-strip > li')).toHaveLength(0);
-      expect(screen.getByRole('link', { name: 'Усі досягнення →' })).toBeTruthy();
-    });
   });
 });

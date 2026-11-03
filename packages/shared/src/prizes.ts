@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { IMAGE_URL } from './quiz';
+import type { ShowcasePins } from './showcase';
 import { UNSTORABLE, isStorable } from './text';
 
 export const TROPHY_KINDS = ['cup', 'medal', 'crown', 'star', 'statuette'] as const;
@@ -118,6 +119,8 @@ export interface AwardCard {
 export interface Showcase {
   title: { text: string; until: string } | null;
   awards: AwardCard[];
+  /** Закріплене власником (23a): лише наявні нагороди й отримані ачівки, у порядку закріплення. */
+  pins: ShowcasePins;
 }
 
 /** Без name: зміст для сцени й вітрини. */

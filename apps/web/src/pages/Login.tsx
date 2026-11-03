@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authProviders, googleSignIn, signIn, signUp } from '../api';
 import { errorText, t } from '../i18n';
 import { LanguageSwitcher } from '../locales/LanguageSwitcher';
+import { MotifHero } from '../motifs/Motifs';
 import { leaveTo } from '../navigation';
 
 const MIN_PASSWORD = 8;
@@ -63,7 +64,9 @@ export function Login() {
 
   return (
     <main className="app narrow">
-      <h1 className="brand">{t(registering ? 'registerTitle' : 'loginTitle')}</h1>
+      <MotifHero>
+        <h1 className="brand">{t(registering ? 'registerTitle' : 'loginTitle')}</h1>
+      </MotifHero>
       <form className="panel" onSubmit={submit}>
         {registering && (
           <label className="field">

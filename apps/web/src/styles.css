@@ -1,28 +1,37 @@
 :root {
   --menu-h: 3.75rem;
-  --stage: #0e1020;
-  --spot: #2a2f5c;
-  --paper: #f5f1e6;
-  --dim: #a9a7b8;
-  --amber: #ffb300;
+  --stage: #060505;
+  --surface: #0f0b0b;
+  --track: #221616; /* незаповнена доріжка шкал (progress): темна, видно й на --surface */
+  --spot: rgb(224 37 49 / 0.12);
+  --paper: #f3eaea;
+  --dim: rgb(243 234 234 / 0.7);
+  --accent: #e02531;
+  --accent-text: #ff4651;
+  --link: #ff6b72;
+  --on-accent: #ffffff;
+  --amber: var(--accent-text);
   --correct: #3ddcc0;
-  --signal: #ff3d5a;
-  --notice-bg: rgb(14 16 32 / 0.92);
+  --signal: #ff4651;
+  --wrong: #ff8fa3;
+  --radius: 0.5rem;
+  --radius-small: 0.375rem;
+  --notice-bg: rgb(6 5 5 / 0.94);
   --notice-up: var(--correct);
   --notice-down: var(--signal);
   --voice: #9b8cff;
-  --cell-blitz: rgb(255 179 0 / 0.2);
+  --cell-blitz: color-mix(in srgb, var(--accent) 20%, transparent);
   --cell-voice: rgb(155 140 255 / 0.22);
   --video-mask: #000;
   --allin: #ff4f81;
   --bank: #ffd166;
   --pending: #ff7a1a;
   --pending-soft: rgb(255 122 26 / 0.18);
-  --panel: rgb(255 255 255 / 0.05);
-  --line: rgb(245 241 230 / 0.16);
+  --panel: var(--surface);
+  --line: #2a1a1a;
   --ice: rgb(190 230 255 / 0.72);
   --ice-line: rgb(255 255 255 / 0.85);
-  --fog: rgb(150 160 185 / 0.3);
+  --fog: rgb(150 160 185 / 0.6);
   --mud: #5b3a1e;
   --mud-dark: #3e2612;
   --sort-zone: rgb(155 140 255 / 0.16);
@@ -35,7 +44,7 @@
   --duel-challenger: #5ec8ff;
   --duel-opponent: #ff7eb6;
   --buff-accent: #7ee0ff;
-  --buff-used: rgb(245 241 230 / 0.28);
+  --buff-used: rgb(243 234 234 / 0.28);
   --buff-active: #b8ff5c;
   --spare-accent: #ffcf5c;
   --vote-bar: rgb(126 224 255 / 0.22);
@@ -53,7 +62,7 @@
   --appeal-yes: var(--correct);
   --appeal-no: var(--signal);
   /* Непрозорий: на плато заставки розкладку під нею не видно зовсім; проявлення й згасання — лише на краях анімації. */
-  --splash-bg: rgb(14 16 32);
+  --splash-bg: rgb(6 5 5);
   --splash-accent: var(--amber);
   --final-gold: #ffd166;
   --final-ray: rgb(255 209 102 / 0.14);
@@ -104,13 +113,52 @@ body,
 body {
   margin: 0;
   background: var(--stage);
-  background-image: radial-gradient(120% 70% at 50% -10%, var(--spot) 0%, var(--stage) 60%);
+  /* Сяйво гасне плавно (з проміжними точками), без видимої межі там, де лінійний спад упирався б у прозорість. */
+  background-image: radial-gradient(
+    120% 60% at 50% -10%,
+    var(--spot) 0%,
+    rgb(224 37 49 / 0.08) 20%,
+    rgb(224 37 49 / 0.045) 36%,
+    rgb(224 37 49 / 0.02) 50%,
+    rgb(224 37 49 / 0.006) 62%,
+    transparent 72%
+  );
   background-attachment: fixed;
   color: var(--paper);
   font-family: var(--body);
   font-size: 1.0625rem;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Рідні шкали (рівень, прогрес ачівок) — червоні, а не системні сині, на темній доріжці (не світло-сірій системній).
+   appearance: none, щоб WebKit узяв ::-webkit-progress-*; Firefox малює доріжку тлом progress, а заповнення — ::-moz-progress-bar.
+   Псевдоелементи — окремими правилами: невідомий селектор у списку зламав би все правило в іншому рушії. */
+progress {
+  -webkit-appearance: none;
+  appearance: none;
+  block-size: 0.5rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--track);
+  color: var(--accent);
+  accent-color: var(--accent);
+}
+
+progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: var(--track);
+}
+
+progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 h1,
@@ -134,12 +182,12 @@ h2 {
 }
 
 a {
-  color: var(--amber);
+  color: var(--link);
 }
 
 :focus-visible {
-  outline: 3px solid var(--amber);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- Каркас ---------- */
@@ -149,7 +197,9 @@ a {
   flex-direction: column;
   gap: 1.25rem;
   min-height: 100dvh;
-  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+  /* Бічне поле сторінки; герой мотивів (.motif-hero) виходить на нього до країв екрана. */
+  --app-pad: 1.25rem;
+  padding: max(1.25rem, env(safe-area-inset-top)) var(--app-pad) max(1.5rem, env(safe-area-inset-bottom));
   margin: 0 auto;
   max-width: 34rem;
 }
@@ -227,7 +277,7 @@ a {
   width: 100%;
   height: clamp(6rem, 22vh, 13rem);
   object-fit: contain;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -251,7 +301,7 @@ a {
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -360,14 +410,14 @@ a {
   padding: 1.25rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
 }
 
 .banner {
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  background: var(--amber);
-  color: var(--stage);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
   text-align: center;
 }
@@ -382,7 +432,7 @@ a {
   padding-top: max(0.75rem, env(safe-area-inset-top));
   border-radius: 0;
   background: var(--signal);
-  color: var(--paper);
+  color: var(--stage);
 }
 
 .error {
@@ -401,7 +451,7 @@ a {
   min-height: 3rem;
   padding: 0.75rem 1.25rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -430,9 +480,9 @@ a {
 }
 
 .btn-primary {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font-family: var(--display);
   font-size: 1rem;
 }
@@ -465,8 +515,8 @@ a {
   min-height: 3.25rem;
   padding: 0.75rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 1.125rem;
@@ -520,8 +570,9 @@ a {
   min-height: 3.75rem;
   padding: 0.875rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
-  background: transparent;
+  border-radius: var(--radius);
+  /* Непрозора картка: фоновий місяць гри (.game-bg) не просвічує крізь варіант. */
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 1.125rem;
@@ -585,8 +636,8 @@ button.choice {
 }
 
 .choice.is-picked {
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .choice.is-picked .letter {
@@ -610,21 +661,26 @@ button.choice {
 }
 
 .choice.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
+  border-color: var(--wrong);
+  /* Не червона кнопка: рожевий обвід і ледь рожеве тло, текст світлий; ✗ — нижче, біля сцени. */
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
+}
+
+.choice.is-pending .letter {
   color: var(--stage);
 }
 
-.choice.is-pending .letter,
 .choice.is-wrong .letter {
-  color: var(--stage);
+  color: var(--wrong);
 }
 
 .spotlight-answer {
   margin: 0;
   padding: 0.875rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
   font-size: 1.125rem;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -643,15 +699,15 @@ button.choice {
 }
 
 .spotlight-answer.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
-  color: var(--stage);
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
 }
 
 .spotlight-answer.is-waiting {
   padding: 0.75rem 1rem;
   border: 1px dashed var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   color: var(--dim);
   font-weight: 400;
 }
@@ -676,7 +732,7 @@ button.choice {
   gap: 0.75rem;
   padding: 0.5rem 0.5rem 0.5rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .order-text {
@@ -694,7 +750,7 @@ button.choice {
   padding: 1.25rem;
   border-inline-start: 4px solid var(--amber);
   background: var(--panel);
-  border-radius: 0 0.75rem 0.75rem 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
 }
 
 .result h2 {
@@ -710,11 +766,18 @@ button.choice {
 }
 
 .result.is-wrong {
-  border-color: var(--signal);
+  border-color: var(--wrong);
 }
 
 .result.is-wrong h2 {
-  color: var(--signal);
+  color: var(--wrong);
+}
+
+/* ✗ перед заголовком вердикту; читач екрана його не озвучує — «неправильно» вже сказано текстом. */
+.result.is-wrong h2::before {
+  content: '✗';
+  content: '✗' / '';
+  margin-inline-end: 0.4em;
 }
 
 .earned {
@@ -765,7 +828,7 @@ button.choice {
 }
 
 .standings .is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -787,7 +850,7 @@ button.choice {
 }
 
 .tag.is-wrong {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 .answer {
@@ -924,7 +987,7 @@ button.choice {
   min-width: 1.6em;
   padding: 0.15em 0.2em;
   border-radius: 0.2em;
-  background: #05060f;
+  background: var(--stage);
   color: var(--amber);
   font-family: var(--display);
   font-size: 1.5rem;
@@ -1016,6 +1079,51 @@ button.choice {
   max-height: 28vh;
 }
 
+/*
+ * ✗ «неправильно» (телефон, сцена, пульт): позначка стоїть у кінці рядка, у власному запасі padding-inline-end,
+ * тож не налазить на довгий текст варіанта. Порожній alt: читач екрана її не озвучує — вердикт уже є текстом.
+ * Правило стоїть після .stage .choice, щоб запас не перебив padding сцени.
+ */
+.choice.is-wrong,
+.spotlight-answer.is-wrong,
+.duel-stage-answer.is-wrong {
+  position: relative;
+  padding-inline-end: 2.25em;
+}
+
+.choice.is-wrong::after,
+.spotlight-answer.is-wrong::after,
+.duel-stage-answer.is-wrong::after {
+  content: '✗';
+  content: '✗' / '';
+  position: absolute;
+  inset-inline-end: 0.75em;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--wrong);
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Варіант-картинка: ✗ у протилежному від літери верхньому куті, на темній плашці поверх картинки, не поверх тексту. */
+.choices.has-images .choice.is-wrong::after {
+  top: 0.75rem;
+  inset-inline-end: 0.75rem;
+  z-index: 1;
+  transform: none;
+  min-width: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-small);
+  background: var(--stage);
+  color: var(--wrong);
+  line-height: inherit;
+  text-align: center;
+}
+
+.duel-stage-answer.is-wrong .lead:last-child {
+  color: var(--wrong);
+}
+
 .stage-lobby {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -1040,7 +1148,7 @@ button.choice {
 .qr {
   padding: 1rem;
   background: var(--paper);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   line-height: 0;
 }
 
@@ -1243,8 +1351,8 @@ a.btn {
   min-height: 3rem;
   padding: 0.625rem 0.875rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
 }
@@ -1368,7 +1476,7 @@ a.banner {
   min-width: 0;
   padding: 1rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -1470,7 +1578,8 @@ a.banner {
 
 .rules {
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
   padding: 0.25rem 0.875rem;
 }
 
@@ -1510,12 +1619,12 @@ a.banner {
 
 .question-list li {
   border: 1px solid transparent;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
 }
 
 .question-list li.is-on {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .question-item {
@@ -1602,9 +1711,9 @@ a.banner {
 }
 
 .chip.is-on {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 700;
 }
 
@@ -1614,8 +1723,8 @@ a.banner {
   gap: 0.75rem;
   padding: 1.25rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: radial-gradient(120% 90% at 50% -10%, rgb(42 47 92 / 0.55), transparent 60%), var(--panel);
+  border-radius: var(--radius);
+  background: radial-gradient(120% 90% at 50% -10%, var(--spot), transparent 60%), var(--panel);
 }
 
 .question-field > span {
@@ -1645,8 +1754,8 @@ a.banner {
   min-height: 3.25rem;
   padding: 0.25rem 0.375rem 0.25rem 0.875rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.2);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-weight: 600;
@@ -1673,7 +1782,7 @@ a.banner {
 }
 
 .answer-row:focus-within {
-  box-shadow: 0 0 0 3px rgb(255 179 0 / 0.35);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .answer-row.is-correct {
@@ -1708,6 +1817,15 @@ a.banner {
   justify-content: space-between;
   padding-inline-end: 0.875rem;
   cursor: pointer;
+}
+
+/* Так/ні: непозначений варіант — нейтральна рамка (червона читалася б як «неправильно»); позначений — .is-correct у --correct. */
+.answer-pick:not(.is-correct) {
+  border-color: var(--line);
+}
+
+.answer-pick:not(.is-correct):hover {
+  border-color: var(--dim);
 }
 
 .answer-word {
@@ -1991,7 +2109,7 @@ a.banner {
 }
 
 .blitz-queue .blitz-mark.is-wrong {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 .blitz-queue .blitz-mark.is-pending,
@@ -2092,7 +2210,7 @@ a.banner {
 .board-frame {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   padding: 0.75rem;
 }
 
@@ -2124,7 +2242,7 @@ a.banner {
   min-height: 2.75rem;
   padding: 0 0.625rem;
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: none;
   color: var(--paper);
   font: inherit;
@@ -2142,7 +2260,7 @@ a.banner {
   padding: 0 0.75rem;
   /* Рамка завжди 2px: «не заповнена» лише міняє колір і не зсуває вміст. */
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: none;
   color: var(--paper);
   font: inherit;
@@ -2420,7 +2538,7 @@ a.banner {
 
 .stage .gb-cell {
   --gb-badge: clamp(0.75rem, calc(var(--gb-col) * 0.1), 1.125rem);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   font-size: clamp(1.25rem, calc(var(--gb-col) * 0.24), 3rem);
 }
 
@@ -2867,7 +2985,7 @@ a.banner {
   min-height: 44px;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -2886,8 +3004,8 @@ button.match-item {
 }
 
 .match-item.is-picked {
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .match-item.is-linked {
@@ -2927,7 +3045,7 @@ button.match-item {
 .match-row {
   padding: 0.75rem 1rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   font-weight: 600;
   overflow-wrap: anywhere;
   hyphens: auto;
@@ -2946,9 +3064,9 @@ button.match-item {
 }
 
 .match-row.is-wrong {
-  border-color: var(--signal);
-  background: var(--signal);
-  color: var(--stage);
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+  color: var(--paper);
 }
 
 /* Відповіді гравців у історії: згорнутий блок на всю ширину під запитанням. */
@@ -2984,7 +3102,7 @@ button.match-item {
 }
 
 .rows .responses li.is-wrong {
-  border-inline-start-color: var(--signal);
+  border-inline-start-color: var(--wrong);
 }
 
 /* 12f: відповідь, яку зарахував зал (апеляція «так»). */
@@ -3042,6 +3160,7 @@ button.match-item {
 
 .menu a {
   display: flex;
+  border-block-end: 2px solid transparent;
   align-items: center;
   gap: 0.4rem;
   padding: 0.75rem 0.9rem;
@@ -3051,7 +3170,8 @@ button.match-item {
 }
 
 .menu a[aria-current='page'] {
-  color: var(--amber);
+  color: var(--accent-text);
+  border-block-end-color: var(--accent);
 }
 
 .history-tabs {
@@ -3093,10 +3213,13 @@ button.match-item {
     justify-content: center;
     flex-direction: column;
     gap: 0.1rem;
-    /* Вісім пунктів (з «Друзями»): без бічних полів і з підписом, що меншає разом з екраном (12 px з 400 px, 10,8 px на 360,
-       9,6 px на 320) — найдовші короткі підписи («Профіль», «Nagrody», «Bacheca») влазять у восьму частину ширини. */
+    /* П'ять пунктів: без бічних полів, підпис меншає разом з екраном (13 px з 406 px, 11 px на 344 px і вужче) —
+       найдовші короткі підписи («Профіль», «Bacheca») влазять у п'яту частину ширини. */
     padding: 0.15rem 0;
-    font-size: clamp(0.6rem, 3vw, 0.75rem);
+    font-size: clamp(0.6875rem, 3.2vw, 0.8125rem);
+    /* Активна смужка зверху (на телефоні панель унизу), а не знизу. */
+    border-block-end: 0;
+    border-block-start: 2px solid transparent;
     /* Підпис у два рядки («Мої вікторини» з п'ятьма пунктами) не робить панель вищою за --menu-h. */
     line-height: 1.05;
     text-align: center;
@@ -3105,6 +3228,11 @@ button.match-item {
   .menu a span {
     font-size: 1.25rem;
     line-height: 1.2;
+  }
+
+  .menu a[aria-current='page'] {
+    border-block-end-color: transparent;
+    border-block-start-color: var(--accent);
   }
 
   .with-menu .app {
@@ -3141,7 +3269,7 @@ button.match-item {
 }
 
 .avatar-tone-0 {
-  background: var(--amber);
+  background: var(--bank);
 }
 
 .avatar-tone-1 {
@@ -3185,6 +3313,439 @@ button.match-item {
 
 .profile-section h2 {
   margin: 0;
+}
+
+/* ---------- 23a: головна профілю — шапка під місяцем, чотири числа, плитки ---------- */
+
+.profile-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* Від 960 px — дві колонки: ліворуч шапка, запрошення й плитки, праворуч вітрини й вікторини. */
+@media (min-width: 960px) {
+  .app.profile-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem 2rem;
+    max-width: 64rem;
+  }
+}
+
+.profile-hero .profile-head {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.875rem;
+}
+
+.profile-id {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.profile-id-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.profile-id .tomoe-ring {
+  flex: none;
+}
+
+/* Ряд плашок під ніком, як у макеті: «Рів. N» — суцільна червона, «🏆 N перемог» — контурна, однакової висоти. */
+.profile-pills .profile-mark {
+  margin-inline-start: 0;
+}
+
+.profile-pills .profile-mark .nick-level {
+  padding: 0.1875rem 0.5625rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+}
+
+.profile-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+}
+
+.profile-pill {
+  padding: 0.1875rem 0.5625rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--link);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Посилання може лягти на край місяця: світліший за --dim колір і тінь, як у заголовка, тримають AA. */
+.profile-edit {
+  color: var(--paper);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 3px rgb(6 5 5 / 0.85), 0 0 0.75rem rgb(6 5 5 / 0.6);
+}
+
+.profile-edit:hover {
+  color: var(--link);
+}
+
+.profile-hero .level-bar {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.profile-hero .level-bar h2 {
+  font-size: 0.875rem;
+}
+
+/* Числа — на непрозорій поверхні, як шкала рівня: червоне число не губиться на червоному місяці героя. */
+.headline-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.5rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.headline-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Число над підписом: у розмітці dt іде першим (як велить dl), тож dd піднімаємо order. */
+.headline-stat dd {
+  order: -1;
+  margin: 0;
+  color: var(--accent-text);
+  font-family: var(--display);
+  font-size: 1.1875rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.headline-stat dt {
+  color: var(--dim);
+  font-size: 0.6875rem;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* Плитки — по 4 в ряд на будь-якій ширині; довгі підписи (de, pl, ar) переносяться всередині плитки. */
+.profile-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.375rem;
+}
+
+@media (max-width: 359px) {
+  .profile-tiles {
+    gap: 0.25rem;
+  }
+}
+
+.profile-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.625rem 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  text-align: center;
+  text-decoration: none;
+}
+
+.profile-tile:hover {
+  border-color: var(--accent);
+}
+
+.tile-icon {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+/* Найдовше слово («Налаштування», «Achievements») вміщається цілим і на 320 px: на вузьких телефонах шрифт трохи менший. */
+.tile-label {
+  max-width: 100%;
+  font-size: clamp(0.5625rem, 2.85vw, 0.6875rem);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.tile-count {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.375rem;
+  color: var(--link);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Заголовок розділу з «усі ›» у кінці рядка. */
+.profile-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.profile-section-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-section-head a {
+  flex: none;
+  color: var(--link);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.profile-popular .popular-quizzes li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.profile-popular .popular-quizzes .meta {
+  flex: none;
+  font-size: 0.6875rem;
+}
+
+/* Вітрини профілю (23a): полиця кубків — перший у центрі й найбільший, без живого 3D; підставка — градієнт рамки в поверхню. */
+.shelf-stand {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  /* Предмети гуртом по центру: і два, і три стоять симетрично, а не розкидані по краях. */
+  justify-content: center;
+  gap: clamp(0.25rem, 3vw, 2rem);
+  min-height: 7.5rem;
+  margin: 0;
+  padding: 0 0.375rem;
+  list-style: none;
+  background: radial-gradient(60% 80% at 50% 100%, rgb(224 37 49 / 0.13), transparent);
+}
+
+.shelf-stand::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 0.625rem;
+  border-radius: var(--radius-small);
+  background: linear-gradient(var(--line), var(--surface));
+  box-shadow: 0 0.375rem 0.875rem #000;
+  pointer-events: none;
+}
+
+.shelf-item {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 7rem;
+  padding-block-end: 0.875rem;
+  text-align: center;
+}
+
+.shelf-cup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+button.shelf-cup {
+  cursor: pointer;
+}
+
+.shelf-icon {
+  font-size: 2.875rem;
+  line-height: 1.1;
+  filter: drop-shadow(0 0 0.75rem rgb(255 59 69 / 0.33));
+}
+
+.shelf-item.is-main .shelf-icon {
+  font-size: 3.75rem;
+}
+
+.shelf-caption {
+  margin-block-start: 0.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.shelf-quiz {
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* Ачівки профілю: до 5 квадратиків у ряд; назва — у підписі під рядом. */
+.achievement-squares {
+  display: grid;
+  /* На широкому екрані квадрати не розростаються на всю колонку. */
+  grid-template-columns: repeat(5, minmax(2.75rem, 5.5rem));
+  gap: 0.5rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.achievement-square {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 2.75rem;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font-size: clamp(1.625rem, 6vw, 2.25rem);
+  cursor: pointer;
+}
+
+.achievement-square.is-selected {
+  border-color: var(--accent);
+}
+
+.achievement-caption {
+  min-height: 1.25rem;
+  margin: 0.375rem 0 0;
+  color: var(--dim);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* Порожня вітрина: хмаринка й текст. */
+.showcase-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  padding-block: 0.5rem;
+  text-align: center;
+}
+
+.showcase-empty .cloud-motif {
+  width: 4rem;
+}
+
+/* Повідомлення 📌 (ліміт, помилка): живий регіон стоїть завжди, порожній не займає місця. */
+.pin-message {
+  margin: 0;
+  color: var(--accent-text);
+}
+
+.pin-message:not(:empty) {
+  margin-block: 0.5rem;
+}
+
+/* Підсторінка профілю (23a): «‹» назад і заголовок плитки в один рядок; розділи — картки. */
+.profile-sub-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.profile-sub-head h1 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Кругла кнопка 2.25 rem; невидиме поле довкола робить зону дотику 2.75 rem (44 px). */
+.profile-back {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--paper);
+  font-size: 1.5rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.profile-back::after {
+  content: '';
+  position: absolute;
+  inset: -0.25rem;
+}
+
+.profile-back:hover {
+  border-color: var(--accent);
+}
+
+.profile-sub .profile-section {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.settings-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settings-identity strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-row .meta {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Перемикач мови (вхід і профіль): поле на всю ширину колонки, не ширше екрана, ≥ 44 px заввишки. */
@@ -3277,48 +3838,6 @@ button.match-item {
   }
 }
 
-.achievements {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.achievement-strip li {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background: var(--panel);
-  font-size: 1.75rem;
-  line-height: 1;
-}
-
-.achievement-strip-more {
-  margin: 0.5rem 0 0;
-}
-
-/* «Ще N» під вікторинами профілю: кнопка, що виглядає як посилання «Усі досягнення →» поруч, з дотиковою зоною 44 px. */
-.link-more {
-  min-height: 2.75rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--amber);
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-}
-.link-more:hover {
-  color: var(--paper);
-}
-
 /* Статистика профілю — щільно: дрібніші клітинки, більше колонок на широкому екрані, 3 на телефоні (у «Моїх іграх» — як було). */
 .profile-stats {
   display: flex;
@@ -3336,7 +3855,7 @@ button.match-item {
 .profile-stats .stat {
   gap: 0.1rem;
   padding: 0.45rem 0.6rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 .profile-stats .stat dd {
   font-size: clamp(1.1rem, 4.5vw, 1.4rem);
@@ -3752,8 +4271,8 @@ button.match-item {
   height: 1.25rem;
   padding: 0 0.3rem;
   border-radius: 999px;
-  background: var(--amber);
-  color: var(--stage);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
@@ -3938,7 +4457,7 @@ button.match-item {
   max-width: 100%;
   padding: 0.6rem 1.1rem;
   border: 2px solid var(--notice-up);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-weight: 700;
@@ -4105,7 +4624,7 @@ body:has(.banner.is-offline) .host .live-notices {
   margin: 0;
   padding: 0.55rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   text-align: center;
@@ -4126,7 +4645,7 @@ body:has(.debuff-banner) .live-notices {
 .debuff-ice {
   inset: 0;
   z-index: 2;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--ice);
   /* Іній по краях: лід видно здалеку, а не лише тріщини. */
   box-shadow: inset 0 0 1.5rem rgb(255 255 255 / 0.8);
@@ -4154,23 +4673,14 @@ body:has(.debuff-banner) .live-notices {
 .debuff-fog {
   inset: 0;
   z-index: 1;
-  border-radius: 0.75rem;
-  /* Легкий серпанок і помірне розмиття (3px): слова й обриси тексту вгадуються, а не біла стіна. */
+  border-radius: var(--radius);
+  /* Густий серпанок без розмиття (жодного скла): слова й обриси тексту вгадуються, а не біла стіна. */
   background: var(--fog);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
   /* Маска — крихітний canvas сітки; розтягування дає м'які краї протертих місць. */
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-}
-
-/* Без розмиття туман — лише густіший серпанок. */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .debuff-fog {
-    background: rgb(150 160 185 / 0.6);
-  }
 }
 
 .debuff-splat {
@@ -4197,7 +4707,7 @@ body:has(.debuff-banner) .live-notices {
 
 /* Спокійні варіанти для зменшеної анімації: без руху — розмиття, прозорість і жовта рамка в такт поштовхам. */
 .is-calm.is-shake .debuff-content {
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   animation: debuff-ghost var(--shake-cycle, 2800ms) infinite;
 }
 
@@ -4401,7 +4911,7 @@ body:has(.debuff-banner) .live-notices {
   margin: 0;
   padding: 0.5rem 1rem;
   border: 2px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-family: var(--display);
@@ -4506,7 +5016,7 @@ body:has(.debuff-banner) .live-notices {
   margin: 0;
   padding: 0.5rem 0.375rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--sort-zone);
   color: var(--paper);
   font: 600 1rem/1.2 var(--body);
@@ -4622,7 +5132,7 @@ button.sort-zone:disabled {
   max-width: 100%;
   max-height: 100%;
   padding: 0.875rem 0.625rem;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--stage);
   font: 700 1.125rem/1.25 var(--body);
@@ -4650,7 +5160,7 @@ button.sort-zone:disabled {
   max-width: 100%;
   max-height: 100%;
   padding: 0.875rem 0.625rem;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--stage);
   font: 700 1.125rem/1.25 var(--body);
@@ -4687,8 +5197,8 @@ button.sort-zone:disabled {
 
 .sort-live-card.is-miss {
   animation: sort-shake 400ms;
-  background: var(--signal);
-  color: #fff;
+  background: var(--wrong);
+  color: var(--stage);
 }
 
 .sort-zone.is-toward,
@@ -4710,7 +5220,7 @@ button.sort-zone:disabled {
   align-items: flex-end;
   justify-content: stretch;
   margin: 0;
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--sort-lock);
   color: var(--paper);
   font-weight: 700;
@@ -4725,7 +5235,7 @@ button.sort-zone:disabled {
   z-index: 2;
   flex: 1;
   padding: 0.375rem 0.5rem;
-  border-radius: 0 0 0.875rem 0.875rem;
+  border-radius: 0 0 var(--radius) var(--radius);
   background: var(--sort-lock-strip);
 }
 
@@ -4978,7 +5488,7 @@ button.sort-zone:disabled {
   min-width: 0;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--sort-zone);
 }
 
@@ -5202,7 +5712,7 @@ button.sort-zone:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .duels .duel-remove {
@@ -5264,8 +5774,8 @@ button.sort-zone:disabled {
   overflow-y: auto;
   padding: 1.25rem;
   border: 2px solid var(--duel-accent);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .duel-opponents,
@@ -5298,7 +5808,7 @@ button.sort-zone:disabled {
   padding: 0.6rem 1rem;
   line-height: 1.35;
   border: 2px solid var(--duel-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--notice-bg);
   color: var(--paper);
   font-weight: 700;
@@ -5396,7 +5906,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
   padding: 0.5rem 0.75rem;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--signal);
   overflow-wrap: anywhere;
@@ -5507,7 +6017,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
 .duel-stage-categories li {
   padding: 0.5rem 1.25rem;
   border: 2px solid var(--duel-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .duel-stage-categories .is-empty {
@@ -5667,7 +6177,7 @@ label.powers-price {
   height: 44px;
   padding: 0;
   border: 2px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--buff-accent);
   font: inherit;
@@ -5779,8 +6289,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.35);
 }
@@ -5818,7 +6328,7 @@ label.powers-price {
   .help-pop {
     inset: 0 0 auto 0;
     width: auto;
-    border-radius: 0 0 1rem 1rem;
+    border-radius: 0 0 var(--radius) var(--radius);
     border-width: 0 0 1px;
     max-height: 50vh;
     padding-top: max(1rem, env(safe-area-inset-top));
@@ -5851,8 +6361,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
 }
 
@@ -6077,7 +6587,7 @@ label.powers-price {
   margin: 0 0 0.5rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   font-size: 16px;
   line-height: 1.35;
@@ -6108,8 +6618,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--buff-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
@@ -6222,8 +6732,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--buff-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
 
@@ -6346,7 +6856,7 @@ label.powers-price {
   padding: 0.75rem;
   border: 1px solid var(--line);
   border-inline-start: 3px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .hint-request h3 {
@@ -7112,8 +7622,8 @@ label.powers-price {
   overflow-y: auto;
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
 }
 
@@ -7221,7 +7731,7 @@ label.powers-price {
 
 .score-row.is-me td,
 .score-row.is-me th {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .score-row.is-me .name,
@@ -7409,7 +7919,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -7499,7 +8009,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 0.6rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
   font: inherit;
@@ -7727,7 +8237,7 @@ label.powers-price {
 
 .reveal-frame {
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .reveal-canvas {
@@ -7758,7 +8268,7 @@ label.powers-price {
   min-height: 3rem;
   padding: 0.5rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.2);
 }
 
@@ -8018,7 +8528,7 @@ label.powers-price {
 
 .clue.is-new {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .clue.is-hidden {
@@ -8078,7 +8588,7 @@ label.powers-price {
 .pin-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
   /* Два пальці наближають мапу, а не всю сторінку. */
   touch-action: none;
@@ -8118,7 +8628,7 @@ label.powers-price {
   position: relative;
   /* Кола й підписи біля краю не виходять за основу: на 375 px жодної прокрутки вбік. */
   overflow: clip;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: rgb(0 0 0 / 0.25);
 }
 
@@ -8408,7 +8918,7 @@ label.powers-price {
   min-height: 3.5rem;
   padding: 0.375rem 0.125rem;
   border: 2px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--paper);
   font: inherit;
@@ -8458,13 +8968,13 @@ button.wall-tile:disabled {
 
 .wall-tile.is-selected {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow: inset 0 0 0 2px var(--amber);
 }
 
 .wall-tile.is-found {
   border-color: transparent;
-  color: #10131f;
+  color: var(--stage);
 }
 
 .wall-color-0 {
@@ -8511,8 +9021,8 @@ button.wall-tile:disabled {
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.625rem;
-  color: #10131f;
+  border-radius: var(--radius);
+  color: var(--stage);
   overflow-wrap: anywhere;
 }
 
@@ -8790,7 +9300,7 @@ button.wall-tile:disabled {
 .poll-track {
   display: block;
   height: 1.25rem;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--panel);
   overflow: hidden;
 }
@@ -8798,7 +9308,7 @@ button.wall-tile:disabled {
 .poll-fill {
   display: block;
   height: 100%;
-  border-radius: 0.625rem;
+  border-radius: var(--radius);
   background: var(--line);
 }
 
@@ -8828,7 +9338,7 @@ button.wall-tile:disabled {
 
 .poll-bars.is-big .poll-track {
   height: 2rem;
-  border-radius: 1rem;
+  border-radius: var(--radius);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -9039,7 +9549,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .wall-group-title {
@@ -9147,7 +9657,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .survey-row-meta {
@@ -9498,9 +10008,9 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step.is-current {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 /* Телефон: сходинки в один ряд, щоб драбина не витісняла кнопки. */
@@ -9530,7 +10040,7 @@ button.wall-tile:disabled {
 }
 
 .wipeout-group li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -9608,7 +10118,7 @@ button.wall-tile:disabled {
 }
 
 .wipeout-step-list li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -9903,7 +10413,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.5rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--paper);
   font: inherit;
@@ -9933,7 +10443,7 @@ button.wall-tile:disabled {
 
 .survival-door.is-picked {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .survival-door.is-trap {
@@ -9988,7 +10498,7 @@ button.wall-tile:disabled {
 }
 
 .survival-group li.is-me {
-  background: rgb(255 179 0 / 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 0.5rem;
 }
 
@@ -10001,7 +10511,7 @@ button.wall-tile:disabled {
 
 .survival-group.is-edge li {
   border-color: var(--amber);
-  background: rgb(255 179 0 / 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .survival-group.is-ghost li {
@@ -10334,7 +10844,7 @@ button.wall-tile:disabled {
   gap: 0.25rem;
   padding: 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--stage);
 }
 
@@ -10369,9 +10879,9 @@ button.wall-tile:disabled {
 }
 
 .ladder-step.is-current {
-  border-color: var(--amber);
-  background: var(--amber);
-  color: var(--stage);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   opacity: 1;
 }
 
@@ -10380,12 +10890,12 @@ button.wall-tile:disabled {
 }
 
 .ladder-step.is-failed {
-  border-color: var(--signal);
-  color: var(--signal);
+  border-color: var(--wrong);
+  color: var(--wrong);
 }
 
 .ladder-mark {
-  color: var(--signal);
+  color: var(--wrong);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -10396,10 +10906,10 @@ button.wall-tile:disabled {
 
 @keyframes ladder-glow {
   from {
-    box-shadow: 0 0 0 rgb(255 179 0 / 0);
+    box-shadow: 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
   }
   to {
-    box-shadow: 0 0 0.75rem rgb(255 179 0 / 0.6);
+    box-shadow: 0 0 0.75rem color-mix(in srgb, var(--accent) 60%, transparent);
   }
 }
 
@@ -10430,7 +10940,7 @@ button.wall-tile:disabled {
   min-height: 3.5rem;
   padding: 0.25rem;
   border: 2px solid var(--buff-accent);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--buff-accent);
   font: inherit;
@@ -10602,7 +11112,7 @@ button.wall-tile:disabled {
 }
 
 .stage .choice.is-picked.is-wrong {
-  border-color: var(--signal);
+  border-color: var(--wrong);
 }
 
 .ladder-final {
@@ -10777,7 +11287,7 @@ button.wall-tile:disabled {
 
 .team-draft {
   padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .draft-mark {
@@ -10849,14 +11359,14 @@ button.wall-tile:disabled {
   margin: 0;
   padding: 0.5rem 0.75rem;
   border-inline-start: 0.5rem solid var(--team, var(--amber));
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
 .team-debuff-strip {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--dim);
 }
@@ -10881,7 +11391,7 @@ button.wall-tile:disabled {
 .stage-team {
   min-width: 0;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
@@ -10889,7 +11399,7 @@ button.wall-tile:disabled {
   margin: 0;
   padding: 0.4rem 0.75rem;
   background: var(--team, var(--panel));
-  color: #0e1020;
+  color: var(--stage);
   font-size: clamp(1rem, 2.4vh, 1.75rem);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11017,7 +11527,7 @@ button.wall-tile:disabled {
   padding: 0.5rem;
   border: 2px dashed var(--line);
   border-top: 0.5rem solid var(--team, var(--line));
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .host-team.is-over {
@@ -11064,7 +11574,7 @@ button.wall-tile:disabled {
   padding: 0.25rem 0.375rem;
   border: 2px solid var(--line);
   border-radius: 0.5rem;
-  background: rgb(0 0 0 / 0.25);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-size: 0.875rem;
@@ -11286,7 +11796,7 @@ button.wall-tile:disabled {
 .autopilot-honest {
   padding: 0.625rem 0.75rem;
   border: 1px solid var(--amber);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   font-weight: 700;
 }
 
@@ -11560,7 +12070,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -11685,7 +12195,7 @@ button.wall-tile:disabled {
   margin: 0.75rem 0;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -11927,7 +12437,7 @@ button.wall-tile:disabled {
 /* Фішка з позначкою на 375 px може стати двома рядками (ім'я, під ним «🙈 …»): не довга «пігулка», а заокруглена картка. */
 .live-chip:has(.live-away) {
   max-width: 100%;
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 /* 12e: «🙈 4 с» біля відповіді з виходом із гри; не рветься посеред позначки на 375 px. */
@@ -11959,7 +12469,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 0.875rem 1rem;
   border: 2px solid var(--appeal-accent);
-  border-radius: 0.875rem;
+  border-radius: var(--radius);
   background: var(--panel);
 }
 
@@ -12147,8 +12657,8 @@ button.wall-tile:disabled {
   overflow-y: auto;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--appeal-accent);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
 
@@ -12278,8 +12788,8 @@ button.wall-tile:disabled {
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.25);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--paper);
   font: inherit;
   font-variant-numeric: tabular-nums;
@@ -12429,7 +12939,15 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Вісім пунктів нижнього меню: на 360 px по 45 px, короткі підписи (data-short) до 7 літер; шрифт — clamp вище (≤ 700 px). */
+.achievement-card progress::-webkit-progress-value {
+  background: var(--amber);
+}
+
+.achievement-card progress::-moz-progress-bar {
+  background: var(--amber);
+}
+
+/* П'ять пунктів нижнього меню: на 360 px по 72 px, короткі підписи (data-short); шрифт — clamp вище (≤ 700 px). */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
@@ -12450,8 +12968,7 @@ button.wall-tile:disabled {
   .menu a .menu-badge { inset-inline-start: auto; inset-inline-end: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
-/* 22a: на 401–700 px сім повних підписів не влазять (на 412 px пункт 59 px, а «Neuigkeiten», «Aktualności», «Achievements»
-   і навіть українські «Досягнення» ширші — меню на 393–412 px вилазило на 79 px): усі мови й тут показують короткі. */
+/* На 401–700 px довгі повні підписи («Neuigkeiten», «Aktualności», «Мої вікторини») тісні для п'ятої частини ширини: усі мови й тут показують короткі. */
 @media (min-width: 401px) and (max-width: 700px) {
   .menu a .menu-full {
     display: none;
@@ -12463,48 +12980,18 @@ button.wall-tile:disabled {
   }
 }
 
-/* Вісім повних підписів у верхній панелі потребують до 1141 px (uk; pl 1098, de 1090): на 701–1199 px верхня панель
-   складається як нижня — пункти рівної ширини, значок над коротким підписом (data-short), бейдж у куті значка. */
-@media (min-width: 701px) and (max-width: 1199px) {
+/* На 701–900 px верхня панель тісна для п'яти повних підписів («Приєднатися», «Мої вікторини», «Meine Quizze»): вужчі поля й
+   жодного переносу — кожен підпис в один рядок, панель не росте. */
+@media (min-width: 701px) and (max-width: 900px) {
   .menu {
     gap: 0;
-    padding: 0 0.5rem;
+    padding-inline: 0.25rem;
   }
 
   .menu a {
-    position: relative;
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 8rem;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.1rem;
-    padding: 0.35rem 0.25rem;
-    font-size: 0.8125rem;
-    line-height: 1.1;
-    text-align: center;
-  }
-
-  .menu a span {
-    font-size: 1.25rem;
-    line-height: 1.2;
-  }
-
-  .menu a .menu-full {
-    display: none;
-  }
-
-  .menu a::after {
-    content: attr(data-short);
-    content: attr(data-short) / '';
-  }
-
-  .menu a .menu-badge {
-    position: absolute;
-    top: 0.2rem;
-    inset-inline-start: calc(50% + 0.4rem);
-    font-size: 0.75rem;
-    line-height: 1;
+    gap: 0.3rem;
+    padding-inline: 0.5rem;
+    white-space: nowrap;
   }
 }
 
@@ -12766,8 +13253,8 @@ button.wall-tile:disabled {
   overflow-x: hidden;
   padding: 1rem 1rem max(1rem, env(safe-area-inset-bottom));
   border-top: 2px solid var(--amber);
-  border-radius: 1rem 1rem 0 0;
-  background: var(--stage);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--surface);
   color: var(--paper);
   box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.5);
 }
@@ -12807,7 +13294,7 @@ button.wall-tile:disabled {
 .reaction-emoji-btn {
   min-height: 48px;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   background: transparent;
   font-size: 1.6rem;
   line-height: 1;
@@ -12834,7 +13321,7 @@ button.wall-tile:disabled {
   align-items: stretch;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
 }
 
 .reaction-pick {
@@ -12944,7 +13431,7 @@ button.wall-tile:disabled {
   min-height: 3rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -13368,7 +13855,7 @@ button.wall-tile:disabled {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--amber);
   border-radius: 0.25rem;
-  background: rgb(255 179 0 / 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-style: italic;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
@@ -13533,7 +14020,7 @@ button.wall-tile:disabled {
   }
 
   .podium-col.is-now .podium-step {
-    box-shadow: 0 0 2rem rgb(255 179 0 / 0.45);
+    box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 45%, transparent);
   }
 
   .confetti {
@@ -13619,17 +14106,28 @@ button.wall-tile:disabled {
   gap: 0.4rem;
   min-width: 0;
   padding: 0.8rem;
-  border: 1px solid var(--line, rgba(127, 127, 127, 0.3));
+  border: 1px solid var(--line);
   border-radius: 12px;
   text-align: center;
   overflow-wrap: anywhere;
 }
+/* Кнопка-значок замість 3D (поза першими картками): без системного тла кнопки — у темній схемі воно сіре (ButtonFace). */
 .award-emoji {
   display: grid;
   place-items: center;
   width: 100%;
   height: 160px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
   font-size: 4rem;
+  cursor: pointer;
+}
+
+.award-emoji:hover {
+  background: rgb(255 255 255 / 0.06);
 }
 .award-card .trophy-card {
   width: 160px;
@@ -13783,8 +14281,8 @@ button.wall-tile:disabled {
   margin-top: 0.25rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--stage);
+  border-radius: var(--radius);
+  background: var(--surface);
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.45);
   color: var(--paper);
   font-size: 0.875rem;
@@ -13912,7 +14410,7 @@ button.wall-tile:disabled {
   min-width: 0;
   padding: 1rem 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--panel);
   text-align: center;
   overflow-wrap: anywhere;
@@ -13944,7 +14442,7 @@ button.wall-tile:disabled {
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
 }
 
@@ -14021,7 +14519,7 @@ button.wall-tile:disabled {
   gap: 0.35rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -14123,7 +14621,7 @@ button.wall-tile:disabled {
   padding: 0.6rem 0.75rem;
   margin-bottom: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -14165,7 +14663,7 @@ button.wall-tile:disabled {
   gap: 0.6rem;
   padding: 0.75rem 1rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 1rem;
+  border-radius: var(--radius);
   background: var(--stage);
   color: var(--paper);
   text-align: center;
@@ -14281,7 +14779,8 @@ button.wall-tile:disabled {
 .admin-stat {
   padding: 0.75rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .admin-stat dt {
@@ -14313,7 +14812,8 @@ button.wall-tile:disabled {
   gap: 0.35rem;
   padding: 0.85rem;
   border: 2px solid var(--line);
-  border-radius: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
   overflow-wrap: anywhere;
 }
 
@@ -14338,7 +14838,7 @@ button.wall-tile:disabled {
 }
 
 .admin-mark.is-banned {
-  color: #ff6b6b;
+  color: var(--signal);
 }
 
 .admin-search {
@@ -14383,8 +14883,224 @@ button.wall-tile:disabled {
   opacity: 0.55;
 }
 
+/* ---------- 23a: мотиви «Кривавого місяця» (власні CSS / inline SVG, лише декор) ---------- */
+
+/* Герой: місяць і ворони позаду, вміст поверх. isolation тримає від'ємні z-index мотивів усередині героя. */
+.motif-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  /* На телефоні герой виходить до країв екрана (поля .app), тож місяць обрізає край екрана, а не рамка. */
+  margin-inline: calc(-1 * var(--app-pad, 0rem));
+  padding: 4.5rem var(--app-pad, 0rem) 0.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 12rem;
+  /* Довжина згасання бічного краю: на телефоні край героя — це край екрана, на ширшому — край колонки. */
+  --motif-side-fade: 1rem;
+}
+
+@media (min-width: 36rem) {
+  .motif-hero {
+    --motif-side-fade: 4.5rem;
+  }
+
+  .motif-hero .moon-hero {
+    inset-inline-end: 2rem;
+  }
+}
+
+/* Заголовок поверх місяця лишається чітким: тінь, а не розмиття тла. */
+.motif-hero .brand {
+  text-shadow: 0 1px 3px rgb(6 5 5 / 0.85), 0 0 1.25rem rgb(6 5 5 / 0.6);
+}
+
+/* Шар мотивів: краї гаснуть маскою, тож рамка героя не ріже місяць і сяйво прямокутником. */
+.motif-hero-art {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  /* Згори сяйво (80px) гасне за 5rem, тож рамка його не ріже; місяць стоїть нижче цього згасання. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to left, transparent, #000 var(--motif-side-fade));
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to left, transparent, #000 var(--motif-side-fade));
+  mask-composite: intersect;
+}
+
+[dir='rtl'] .motif-hero-art {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to right, transparent, #000 var(--motif-side-fade));
+  mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to right, transparent, #000 var(--motif-side-fade));
+}
+
+.motif-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Світний місяць із градієнта; не анімується й не розмивається. */
+.moon {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 4rem;
+  inset-inline-end: -3.5rem;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
+  box-shadow: 0 0 80px rgb(179 16 26 / 0.6);
+  pointer-events: none;
+}
+
+/* Відблиск місяця дзеркалиться разом зі сторінкою. */
+[dir='rtl'] .moon {
+  background: radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
+}
+
+.moon-hero {
+  opacity: 0.85;
+}
+
+/* Ворони — чорні силуети на тлі місяця. */
+.crows {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 4.75rem;
+  inset-inline-end: 1rem;
+  width: 7rem;
+  height: auto;
+  fill: #000;
+  pointer-events: none;
+}
+
+/* На телефоні в шапці профілю ворони менші й летять вище ніка, а не по ньому (нік на 320 px сягає краю):
+   низ найнижчого ворона (~2.4rem від верху svg 5rem) — на ~4.15rem, а нік починається нижче поля героя 4.5rem. */
+@media (max-width: 35.99rem) {
+  .profile-hero .crows {
+    inset-block-start: 1.75rem;
+    inset-inline-end: 0.75rem;
+    width: 5rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .crows {
+    animation: crows-drift 30s ease-in-out infinite alternate;
+  }
+
+  @keyframes crows-drift {
+    from {
+      translate: 0 0;
+    }
+
+    to {
+      translate: -1.5rem 0.5rem;
+    }
+  }
+
+  /* Над ніком на телефоні дрейф лише вбік: вниз ворони не опускаються. */
+  @media (max-width: 35.99rem) {
+    .profile-hero .crows {
+      animation-name: crows-drift-flat;
+    }
+  }
+
+  @keyframes crows-drift-flat {
+    from {
+      translate: 0 0;
+    }
+
+    to {
+      translate: -1.5rem 0;
+    }
+  }
+}
+
+/* Хмаринка: червона заливка, білий контур. */
+.cloud-motif {
+  display: block;
+  width: 5.5rem;
+  height: auto;
+  margin-inline: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cloud-motif path {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+/* Кільце з трьома томое навколо аватара. */
+.tomoe-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  padding: 0.375rem;
+  border-radius: 50%;
+}
+
+.tomoe-ring-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tomoe-ring-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.tomoe-ring .tomoe {
+  fill: var(--accent);
+}
+
 /* 22a: ім'я з власним dir (dir="auto" біля ніка) рівняється за сторінкою, а не за власним напрямком: латинський нік
    в арабській таблиці стоїть праворуч, як і сусіди. Наприкінці файлу, щоб перебити .score-table .name { text-align: start }. */
 .name[dir] {
   text-align: match-parent;
+}
+
+/* ---------- Тло гри: слабкий місяць ---------- */
+
+/*
+ * Телефон, пульт і сцена (main.game-bg): нерухомий місяць у куті inline-end, ледь видно (opacity 0.1), під усім вмістом
+ * і без дотиків. Запитання й картки варіантів (тло --surface) лежать над ним. z-index: -1 малює його над тлом body
+ * (воно йде на полотно), але під вмістом. main навмисно НЕ стає контекстом накладання (ні isolation, ні z-index):
+ * інакше тривога антигугла (95) усередині main опинилася б під смугою «Немає зв'язку» (90) поза ним.
+ */
+.game-bg {
+  position: relative;
+}
+
+.game-bg::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 1.5rem;
+  inset-inline-end: 0;
+  width: clamp(8rem, 28vmin, 20rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+[dir='rtl'] .game-bg::before {
+  background: radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
 }

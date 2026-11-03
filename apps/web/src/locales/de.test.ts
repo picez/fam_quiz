@@ -25,7 +25,7 @@ describe('de', () => {
     expect(t('no')).toBe('Nein');
     expect([1, 5].map((n) => countText('questionCount', n, { count: n }))).toEqual(['1 Frage', '5 Fragen']);
     expect(t('menuShortHistory')).toBe('Verlauf');
-    expect(t('menuAchievements')).toBe('Erfolge');
+    expect(t('menuProfile')).toBe('Profil');
   });
 
   it('keeps every word of a short label (uk ≤ 3 words) within 18 graphemes', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
 import type { AwardCard, Showcase as ShowcaseData } from '@quiz/shared';
 import { formatDate } from '../format';
 import { t } from '../i18n';
@@ -29,7 +29,20 @@ function useSeen(): [React.RefObject<HTMLElement | null>, boolean] {
   return [ref, seen];
 }
 
-function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLive: () => void }): JSX.Element {
+/** Диплом нагороди: малює й віддає (поділитися чи завантажити); помилку кидає далі. */
+export async function downloadDiploma(award: AwardCard): Promise<void> {
+  const blob = await renderDiploma({
+    nickname: award.nickname,
+    place: award.place,
+    quizTitle: award.quizTitle,
+    date: new Date(award.awardedAt),
+    engraving: award.content.engraving,
+    trophy: award.content.trophy,
+  });
+  await shareDiploma(blob, diplomaFileName(award.nickname));
+}
+
+function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; onLive: () => void; pin: ReactNode }): JSX.Element {
   const [ref, seen] = useSeen();
   const [opened, setOpened] = useState(false);
   const show = opened || (seen && live);
@@ -46,15 +59,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
     setBusy(true);
     setFailed(false);
     try {
-      const blob = await renderDiploma({
-        nickname: award.nickname,
-        place: award.place,
-        quizTitle: award.quizTitle,
-        date: new Date(award.awardedAt),
-        engraving: content.engraving,
-        trophy: content.trophy,
-      });
-      await shareDiploma(blob, diplomaFileName(award.nickname));
+      await downloadDiploma(award);
     } catch {
       setFailed(true);
     } finally {
@@ -84,7 +89,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
           <span>{`🎁 ${content.real.text}`}</span>
         </div>
       )}
-      {(content.diploma || canViewPrize(content)) && (
+      {(content.diploma || canViewPrize(content) || pin !== null) && (
         <div className="prize-actions">
           {canViewPrize(content) && (
             <button type="button" className="btn btn-small" onClick={() => setViewing(true)}>
@@ -96,6 +101,7 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
               {t('diplomaButton')}
             </button>
           )}
+          {pin}
         </div>
       )}
       {viewing && <PrizeViewer content={content} place={award.place} onClose={() => setViewing(false)} />}
@@ -108,8 +114,8 @@ function Award({ award, live, onLive }: { award: AwardCard; live: boolean; onLiv
   );
 }
 
-/** Розділ «Нагороди»: null, коли немає ні титулу, ні нагород. */
-export function Showcase({ showcase, own }: { showcase: ShowcaseData; own: boolean }): JSX.Element | null {
+/** Розділ «Нагороди»: null, коли немає ні титулу, ні нагород. renderPin — кнопка 📌 біля дій кожної нагороди (свої призи). */
+export function Showcase({ showcase, own, renderPin }: { showcase: ShowcaseData; own: boolean; renderPin?: (award: AwardCard) => ReactNode }): JSX.Element | null {
   // Першим LIVE_3D_MAX побаченим карткам дозволено 3D; пізніші — значок, доки не натиснуть.
   const [lives, setLives] = useState<string[]>([]);
   if (showcase.title === null && showcase.awards.length === 0) return null;
@@ -129,6 +135,7 @@ export function Showcase({ showcase, own }: { showcase: ShowcaseData; own: boole
               award={award}
               live={lives.includes(award.id) || lives.length < LIVE_3D_MAX}
               onLive={() => setLives((list) => (list.includes(award.id) || list.length >= LIVE_3D_MAX ? list : [...list, award.id]))}
+              pin={renderPin === undefined ? null : (renderPin(award) ?? null)}
             />
           ))}
         </ul>

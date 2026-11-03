@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { PrizeContent, PrizeItem } from '@quiz/shared';
+import { ACHIEVEMENTS, levelProgress, type OwnProfile, type PrizeContent, type PrizeItem } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPrize, deletePrize, me, myPrizes, updatePrize } from '../api';
+import { createPrize, deletePrize, getMyProfile, getShowcasePins, me, myPrizes, pinToShowcase, updatePrize } from '../api';
 import { Prizes } from './Prizes';
 
-vi.mock('../api', () => ({ me: vi.fn(), myPrizes: vi.fn(), createPrize: vi.fn(), updatePrize: vi.fn(), deletePrize: vi.fn() }));
+vi.mock('../api', () => ({
+  me: vi.fn(),
+  getMyProfile: vi.fn(),
+  myPrizes: vi.fn(),
+  createPrize: vi.fn(),
+  updatePrize: vi.fn(),
+  deletePrize: vi.fn(),
+  getShowcasePins: vi.fn(),
+  pinToShowcase: vi.fn(),
+  unpinFromShowcase: vi.fn(),
+}));
 vi.mock('../editor/ImageField', () => ({ ImageField: () => <div /> }));
 vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
 
@@ -27,8 +37,24 @@ const item = (id: string, name: string, over: Partial<PrizeItem> = {}): PrizeIte
   ...over,
 });
 
+const profile: OwnProfile = {
+  id: 'u1',
+  nickname: 'Олена',
+  avatar: null,
+  email: 'o@example.com',
+  stats: { games: 0, wins: 0, accuracy: null, quizzes: 0, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
+  achievements: ACHIEVEMENTS.map((id) => ({ id, earned: false, earnedAt: null })),
+  quizzes: [],
+  wins: [],
+  friends: [],
+  showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: profile });
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(myPrizes).mockResolvedValue({ ok: true, data: [item('p1', 'Кубок року'), item('p2', 'Піца', { status: 'reserved' })] });
   vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -49,6 +75,70 @@ const open = () =>
   );
 
 describe('Prizes', () => {
+  it('is the profile sub-page «Призи» with the won awards above the store', async () => {
+    open();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Призи' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile');
+    expect(await screen.findByText('Нагород поки немає — їх вручають у іграх із призами.')).toBeTruthy();
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Нагороди', 'Мої призи']);
+  });
+
+  it('shows the won awards', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: {
+        ...profile,
+        showcase: {
+          title: null,
+          pins: { prizes: [], achievements: [] },
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      },
+    });
+    open();
+    expect(await screen.findByText('🎁 Піца')).toBeTruthy();
+    expect(screen.queryByText('Нагород поки немає — їх вручають у іграх із призами.')).toBeNull();
+  });
+
+  it('a won award has «📌 На вітрину»; a tap pins it and the button turns into «Прибрати з вітрини»', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: {
+        ...profile,
+        showcase: {
+          title: null,
+          pins: { prizes: [], achievements: [] },
+          awards: [{ id, place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      },
+    });
+    vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [id], achievements: [] } });
+    open();
+    const pin = await screen.findByRole('button', { name: /^📌 На вітрину: / });
+    expect(pin.hasAttribute('aria-pressed')).toBe(false);
+    expect(pin.textContent).toBe('📌 На вітрину');
+    fireEvent.click(pin);
+    await waitFor(() => expect(pinToShowcase).toHaveBeenCalledWith({ kind: 'prize', id }));
+    const unpin = await screen.findByRole('button', { name: /^📌 Прибрати з вітрини: / });
+    expect(unpin.hasAttribute('aria-pressed')).toBe(false);
+    expect(getShowcasePins).not.toHaveBeenCalled();
+  });
+
+  it('a refused pin says why above the awards', async () => {
+    const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
+    const card = (id: string) => ({ id, place: 1 as const, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } });
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: { ...profile, showcase: { title: null, pins: { prizes: ids.slice(0, 3), achievements: [] }, awards: ids.map(card) } },
+    });
+    open();
+    const buttons = await screen.findAllByRole('button', { name: /^📌 / });
+    fireEvent.click(buttons[3]!);
+    expect((await screen.findByRole('status')).textContent).toBe('На вітрині вже 3 кубки — спершу прибери один.');
+    expect(pinToShowcase).not.toHaveBeenCalled();
+  });
+
   it('sends a visitor to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();

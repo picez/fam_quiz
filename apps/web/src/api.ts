@@ -1,5 +1,6 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
 import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
+import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import type { Locale } from '@quiz/shared';
 
@@ -215,3 +216,9 @@ export const dismissInvite = (code: string) => request<object>(`/api/me/invites/
 export const getFavoriteStickers = () => request<{ favorites: string[] }>('/api/me/stickers');
 /** Зберігає весь список (не більше 40 — його обрізає toggleFavorite). */
 export const saveFavoriteStickers = (favorites: string[]) => request<{ favorites: string[] }>('/api/me/stickers', { method: 'PUT', body: { favorites } });
+
+/** Закріплене на вітрині (23a): до 3 виграних нагород і 5 отриманих ачівок. */
+export const getShowcasePins = () => fetchData<ShowcasePins>('/api/me/showcase/pins');
+export const pinToShowcase = (pin: ShowcasePin) => fetchData<ShowcasePins>('/api/me/showcase/pins', { body: pin });
+export const unpinFromShowcase = (pin: ShowcasePin) =>
+  fetchData<ShowcasePins>(`/api/me/showcase/pins/${pin.kind}/${encodeURIComponent(pin.id)}`, { method: 'DELETE' });

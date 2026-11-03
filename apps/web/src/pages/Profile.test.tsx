@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ACHIEVEMENTS, levelProgress, type OwnProfile } from '@quiz/shared';
-import { dismissInvite, follow, getMyInvites, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
-import { formatDate } from '../format';
-import { disablePush } from '../push/push-client';
+import { ACHIEVEMENTS, levelProgress, type AwardCard, type OwnProfile } from '@quiz/shared';
+import { dismissInvite, getMyInvites, getMyProfile, me } from '../api';
 import { Profile } from './Profile';
 
 vi.mock('../push/push-client', () => ({
@@ -40,28 +38,34 @@ vi.mock('../locales/locales', async (importOriginal) => {
   return { ...original, ENABLED_LOCALES, isEnabled: (locale: string) => (ENABLED_LOCALES as readonly string[]).includes(locale) };
 });
 
+const award = (id: string): AwardCard => ({
+  id,
+  place: 1,
+  quizTitle: 'Столиці',
+  nickname: 'Олена',
+  awardedAt: '2026-10-30T10:00:00.000Z',
+  content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false },
+});
+
 const mine: OwnProfile = {
   id: 'u1',
   nickname: 'Олена',
   avatar: null,
   email: 'o@example.com',
-  stats: { games: 3, wins: 1, accuracy: 68, quizzes: 1, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
+  stats: { games: 3, wins: 1, accuracy: 68, quizzes: 5, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: ACHIEVEMENTS.map((id) => ({ id, earned: id === 'first_game', earnedAt: null })),
-  quizzes: [{ id: 'q1', title: 'Кіно 90-х', plays: 2 }],
-  wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
+  quizzes: ['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята'].map((title, i) => ({ id: 'q' + i, title, plays: 5 - i })),
+  wins: [{ gameId: 'g1', title: 'Хіт', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
-  showcase: { title: null, awards: [] },
+  showcase: { title: null, awards: [award('a1'), award('a2')], pins: { prizes: [], achievements: [] } },
   level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
   likes: { author: 0, host: 0, player: 0 },
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+  vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: true });
   vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: mine });
-  vi.mocked(saveMyProfile).mockResolvedValue({ ok: true, data: { id: 'u1', nickname: 'Зірка', avatar: null } });
-  vi.mocked(follow).mockResolvedValue({ ok: true });
-  vi.mocked(signOut).mockResolvedValue({ ok: true });
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(dismissInvite).mockResolvedValue({ ok: true });
 });
@@ -82,87 +86,84 @@ const open = () =>
     </MemoryRouter>,
   );
 
+const tiles = () => screen.getByRole('navigation', { name: 'Розділи профілю' });
+const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
 describe('Profile', () => {
-  it('links to the admin panel for admins only', async () => {
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: true });
+  it('shows the header, the tiles and the popular quizzes in order', async () => {
+    const { container } = open();
+    const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    const head = container.querySelector('header.profile-head')!;
+    const popular = screen.getByRole('heading', { name: 'Найпопулярніші вікторини' });
+    expect(before(head, nav)).toBe(true);
+    expect(before(nav, popular)).toBe(true);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Олена');
+    expect(screen.getByRole('link', { name: /Змінити нікнейм \/ аватар/ }).getAttribute('href')).toBe('/profile/settings?edit=1');
+    expect(screen.getByRole('heading', { name: 'Рівень 1' })).toBeTruthy();
+  });
+
+  it('puts the invites between the header and the tiles', async () => {
+    vi.mocked(getMyInvites).mockResolvedValue({
+      ok: true,
+      data: [{ code: '123456', title: 'Кіно', host: { id: 'h1', nickname: 'Галина', avatar: null }, invitedAt: '2026-10-23T10:00:00.000Z' }],
+    });
+    const { container } = open();
+    const invites = await screen.findByRole('heading', { name: 'Вас запросили' });
+    expect(before(container.querySelector('header.profile-head')!, invites)).toBe(true);
+    expect(before(invites, tiles())).toBe(true);
+  });
+
+  it('has eight tiles leading to the sub-pages, with counts', async () => {
     open();
-    expect((await screen.findByRole('link', { name: 'Адмінка' })).getAttribute('href')).toBe('/admin');
-    cleanup();
-    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+    await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    expect([...tiles().querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
+      '/profile/quizzes',
+      '/profile/prizes',
+      '/profile/achievements',
+      '/profile/friends',
+      '/profile/stats',
+      '/profile/likes',
+      '/profile/looks',
+      '/profile/settings',
+    ]);
+    expect(screen.getByRole('link', { name: 'Вікторини, 5' }).getAttribute('href')).toBe('/profile/quizzes');
+    expect(screen.getByRole('link', { name: 'Призи, 2' }).getAttribute('href')).toBe('/profile/prizes');
+    expect(screen.getByRole('link', { name: 'Досягнення, 1' }).getAttribute('href')).toBe('/profile/achievements');
+    expect(screen.getByRole('link', { name: 'Друзі' }).getAttribute('href')).toBe('/profile/friends');
+    expect(screen.getByRole('link', { name: 'Налаштування' }).getAttribute('href')).toBe('/profile/settings');
+    expect(tiles().querySelectorAll('.tile-count')).toHaveLength(3);
+  });
+
+  it('after the tiles shows the trophy shelf and the achievements, with links to all', async () => {
     open();
-    await screen.findByRole('heading', { name: 'Статистика' });
+    const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    const shelf = screen.getByRole('heading', { name: /Вітрина кубків/ });
+    const achievements = screen.getByRole('heading', { name: /Ачівки · 1 з 48/ });
+    expect(before(nav, shelf)).toBe(true);
+    expect(before(shelf, achievements)).toBe(true);
+    expect(before(achievements, screen.getByRole('heading', { name: 'Найпопулярніші вікторини' }))).toBe(true);
+    expect(screen.getByRole('link', { name: /усі призи/ }).getAttribute('href')).toBe('/profile/prizes');
+    expect(shelf.closest('section')!.querySelectorAll('.shelf-item')).toHaveLength(2);
+    expect(achievements.closest('section')!.querySelector('a')!.getAttribute('href')).toBe('/profile/achievements');
+    expect(screen.getByRole('button', { name: 'Перша гра' })).toBeTruthy();
+  });
+
+  it('shows the top three quizzes with their play counts and «усі»', async () => {
+    open();
+    expect((await screen.findByRole('link', { name: 'Хіт' })).closest('li')?.textContent).toContain('5 ігор');
+    expect([...document.querySelectorAll('.popular-quizzes a bdi')].map((el) => el.textContent)).toEqual(['Хіт', 'Друга', 'Третя']);
+    expect(within(screen.getByRole('heading', { name: 'Найпопулярніші вікторини' }).closest('section')!).getByRole('link', { name: /^усі/ }).getAttribute('href')).toBe('/profile/quizzes');
+  });
+
+  it('keeps the rest on the sub-pages', async () => {
+    open();
+    await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    expect(screen.queryByRole('button', { name: 'Вийти' })).toBeNull();
+    expect(screen.queryByText('o@example.com')).toBeNull();
+    expect(screen.queryByLabelText('Мова')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Адмінка' })).toBeNull();
-  });
-
-  it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
-    vi.mocked(getMyProfile).mockResolvedValue({
-      ok: true,
-      data: {
-        ...mine,
-        showcase: {
-          title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
-          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
-        },
-      },
-    });
-    render(
-      <MemoryRouter initialEntries={['/profile']}>
-        <Routes>
-          <Route path="/profile" element={<Profile />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
-    expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
-    expect(screen.getByText('🎁 Піца')).toBeTruthy();
-  });
-
-  it('shows the level section and the level badge next to the nickname', async () => {
-    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, level: { ...mine.level, progress: levelProgress(600), looks: { color: null, frame: null, badge: '⭐' } } } });
-    const { container } = open();
-    expect(await screen.findByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
-    expect(container.querySelector('.profile-head .nick-level')?.textContent).toBe('Рів. 3');
-    expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');
-    // Рівень — одразу під ніком, перед статистикою; правила досвіду — підказка шкали, пов'язана через aria-describedby.
-    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings.indexOf('Рівень 3')).toBe(0);
-    expect(headings.indexOf('Статистика')).toBe(1);
-    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
-    expect(document.getElementById(info.getAttribute('aria-describedby')!)?.textContent).toMatch(/щонайменше 3 гравці з акаунтами/);
-  });
-
-  it('shows a row of earned badges linking to the achievements page', async () => {
-    open();
-    expect(await screen.findByText('Олена')).toBeTruthy();
-    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/achievements');
-    expect(document.body.textContent).not.toContain('🔒');
-  });
-
-  it('shows the podium numbers of the own profile', async () => {
-    vi.mocked(getMyProfile).mockResolvedValue({
-      ok: true,
-      data: { ...mine, stats: { ...mine.stats, podium: { first: 1, second: 2, third: 0 }, top3: 100, bestScore: 900, avgPlace: 1.7 } },
-    });
-    const { container } = open();
-    expect(await screen.findByText('o@example.com')).toBeTruthy();
-    const podium = container.querySelector('.podium-stats');
-    expect(podium?.textContent).toContain('2-е місце');
-    expect(screen.getByText('2-е місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('2');
-    expect(screen.getByText('середнє місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('1,7');
-  });
-
-  it('shows the sections of the agreed layout in order', async () => {
-    const { container } = open();
-    expect(await screen.findByText('o@example.com')).toBeTruthy();
-    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Рівень 1', 'Статистика', 'Вподобання', 'Нагороди рівнів', 'Досягнення', 'Мої вікторини', 'Перемоги']);
-    expect(screen.getByRole('link', { name: 'Кіно 90-х' }).getAttribute('href')).toBe('/quizzes/q1');
-    expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
-    // Друзі переїхали на свою сторінку (пункт меню «Друзі»): у профілі їх немає.
-    expect(screen.queryByRole('link', { name: /Тарас/ })).toBeNull();
-    expect(screen.queryByLabelText('Нікнейм друга')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Мій публічний профіль' }).getAttribute('href')).toBe('/profile/u1');
+    expect(screen.queryByRole('heading', { name: 'Статистика' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Перемоги' })).toBeNull();
   });
 
   it('shows invites at the top with join and dismiss', async () => {
@@ -172,7 +173,7 @@ describe('Profile', () => {
     });
     const { container } = open();
     await screen.findByRole('heading', { name: 'Вас запросили' });
-    expect(container.querySelectorAll('h2')[0]?.textContent).toBe('Вас запросили');
+    expect(before(container.querySelector('header.profile-head')!, screen.getByRole('heading', { name: 'Вас запросили' }))).toBe(true);
     expect(screen.getByText('Галина запрошує: «Кіно», код 123 456')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Приєднатися' }).getAttribute('href')).toBe('/play/123456');
     fireEvent.click(screen.getByRole('button', { name: 'Відхилити' }));
@@ -202,122 +203,14 @@ describe('Profile', () => {
 
   it('has no invite block without invites', async () => {
     open();
-    await screen.findByText('o@example.com');
+    await screen.findByRole('navigation', { name: 'Розділи профілю' });
     expect(screen.queryByRole('heading', { name: 'Вас запросили' })).toBeNull();
-  });
-
-  it('shows empty sections', async () => {
-    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, quizzes: [], wins: [], friends: [] } });
-    open();
-    expect(await screen.findByText('Вікторин поки немає.')).toBeTruthy();
-    expect(screen.getByText('Перемог поки немає.')).toBeTruthy();
-  });
-
-  it('changes the nickname and the avatar', async () => {
-    vi.mocked(uploadImage).mockResolvedValue({ ok: true, url: '/uploads/0123456789abcdef.png' });
-    const { container } = open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Змінити нікнейм / аватар' }));
-    fireEvent.change(screen.getByLabelText('Нікнейм'), { target: { value: 'Зірка' } });
-    const file = new File(['x'], 'a.png', { type: 'image/png' });
-    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, { target: { files: [file] } });
-    await waitFor(() => expect(uploadImage).toHaveBeenCalledWith(file));
-    await screen.findByRole('button', { name: 'Прибрати аватар' });
-    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
-    await waitFor(() => expect(saveMyProfile).toHaveBeenCalledWith({ nickname: 'Зірка', avatar: '/uploads/0123456789abcdef.png' }));
-    await waitFor(() => expect(getMyProfile).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Зберегти' })).toBeNull());
-  });
-
-  it('shows a taken nickname and keeps the form open', async () => {
-    vi.mocked(saveMyProfile).mockResolvedValue({ ok: false, error: 'nickname_taken' });
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Змінити нікнейм / аватар' }));
-    fireEvent.change(screen.getByLabelText('Нікнейм'), { target: { value: 'Тарас' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('Таке ім’я вже зайняте. Виберіть інше.');
-    expect((screen.getByLabelText('Нікнейм') as HTMLInputElement).value).toBe('Тарас');
-  });
-
-  it('cancels editing', async () => {
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Змінити нікнейм / аватар' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Скасувати' }));
-    expect(screen.getByRole('button', { name: 'Змінити нікнейм / аватар' })).toBeTruthy();
-    expect(saveMyProfile).not.toHaveBeenCalled();
-  });
-
-  it('removes the avatar', async () => {
-    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, avatar: '/uploads/0123456789abcdef.png' } });
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Змінити нікнейм / аватар' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Прибрати аватар' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
-    await waitFor(() => expect(saveMyProfile).toHaveBeenCalledWith({ nickname: 'Олена', avatar: null }));
-  });
-
-  it('shows the three most played quizzes and the rest behind «Ще N»', async () => {
-    const quizzes = ['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята'].map((title, i) => ({ id: 'q' + i, title, plays: 5 - i }));
-    vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, quizzes } });
-    open();
-    const more = await screen.findByRole('button', { name: 'Ще 2' });
-    const titles = () => [...document.querySelectorAll('#profile-quizzes a bdi')].map((el) => el.textContent);
-    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя']);
-    fireEvent.click(more);
-    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята']);
-    // Кнопки вже немає — фокус на четвертій вікторині, а не на body.
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Четверта/ })));
-    expect(more.getAttribute('aria-expanded')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
-  });
-
-  it('has no «Ще» with three quizzes or fewer', async () => {
-    open();
-    expect(await screen.findByRole('link', { name: 'Кіно 90-х' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
-  });
-
-  it('signs out from the profile', async () => {
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
-    expect(await screen.findByText('на /')).toBeTruthy();
-    expect(signOut).toHaveBeenCalled();
-    expect(vi.mocked(disablePush).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(signOut).mock.invocationCallOrder[0]!);
-  });
-
-  it('still signs out when removing the subscription throws', async () => {
-    vi.mocked(disablePush).mockRejectedValueOnce(new Error('boom'));
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
-    expect(await screen.findByText('на /')).toBeTruthy();
-    expect(signOut).toHaveBeenCalled();
-  });
-
-  it('signs out after 3 s even when removing the subscription hangs', async () => {
-    vi.mocked(disablePush).mockReturnValueOnce(new Promise(() => undefined));
-    open();
-    const out = await screen.findByRole('button', { name: 'Вийти' });
-    vi.useFakeTimers();
-    try {
-      fireEvent.click(out);
-      await vi.advanceTimersByTimeAsync(2_999);
-      expect(signOut).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1);
-      expect(signOut).toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(await screen.findByText('на /')).toBeTruthy();
   });
 
   it('sends a visitor to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();
     expect(await screen.findByText('на /login?next=%2Fprofile')).toBeTruthy();
-    expect(screen.queryByText('Статистика')).toBeNull();
-  });
-
-  it('has the language field', async () => {
-    open();
-    expect(((await screen.findByLabelText('Мова')) as HTMLSelectElement).options).toHaveLength(2);
+    expect(screen.queryByRole('navigation', { name: 'Розділи профілю' })).toBeNull();
   });
 });

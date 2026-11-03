@@ -24,6 +24,14 @@ vi.mock('./pages/MyGames', () => ({ MyGames: () => <p>MyGames</p> }));
 vi.mock('./pages/Play', () => ({ Play: () => <p>Play</p> }));
 vi.mock('./pages/Achievements', () => ({ Achievements: () => <p>Achievements</p> }));
 vi.mock('./pages/Profile', () => ({ Profile: () => <p>Profile</p> }));
+vi.mock('./pages/Prizes', () => ({ Prizes: () => <p>Prizes</p> }));
+vi.mock('./pages/Friends', () => ({ Friends: () => <p>Friends</p> }));
+vi.mock('./pages/PublicProfile', () => ({ PublicProfile: () => <p>PublicProfile</p> }));
+vi.mock('./pages/profile/ProfileQuizzes', () => ({ ProfileQuizzes: () => <p>ProfileQuizzes</p> }));
+vi.mock('./pages/profile/ProfileStats', () => ({ ProfileStats: () => <p>ProfileStats</p> }));
+vi.mock('./pages/profile/ProfileLikes', () => ({ ProfileLikes: () => <p>ProfileLikes</p> }));
+vi.mock('./pages/profile/ProfileLooks', () => ({ ProfileLooks: () => <p>ProfileLooks</p> }));
+vi.mock('./pages/profile/ProfileSettings', () => ({ ProfileSettings: () => <p>ProfileSettings</p> }));
 vi.mock('./pages/Quizzes', () => ({ Quizzes: () => <p>Quizzes</p> }));
 vi.mock('./pages/Stage', () => ({ Stage: () => <p>Stage</p> }));
 
@@ -58,6 +66,25 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);
     expect(await screen.findByText('Achievements')).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it.each([
+    ['/profile/quizzes', 'ProfileQuizzes'],
+    ['/profile/prizes', 'Prizes'],
+    ['/profile/achievements', 'Achievements'],
+    ['/profile/friends', 'Friends'],
+    ['/profile/stats', 'ProfileStats'],
+    ['/profile/likes', 'ProfileLikes'],
+    ['/profile/looks', 'ProfileLooks'],
+    ['/profile/settings', 'ProfileSettings'],
+    ['/prizes', 'Prizes'],
+    ['/friends', 'Friends'],
+    ['/profile/u2', 'PublicProfile'],
+  ])('%s draws %s with the menu', async (path, page) => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open(path);
+    expect(await screen.findByText(page)).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
   });
 

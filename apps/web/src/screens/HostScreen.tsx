@@ -536,7 +536,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
   return (
     // Реакції (13a): лише в REACTION_PHASES; смуга стоїть під липкою панеллю дій.
-    <ReactionMain className="app host" phase={phase} reactions={reactions} size="host">
+    <ReactionMain className="app host game-bg" phase={phase} reactions={reactions} size="host">
       <LiveNotices>
         <BuffToast view={view} offsetMs={offsetMs} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />

@@ -17,6 +17,11 @@ import { Play } from './pages/Play';
 import { Prizes } from './pages/Prizes';
 import { Profile } from './pages/Profile';
 import { PublicProfile } from './pages/PublicProfile';
+import { ProfileLikes } from './pages/profile/ProfileLikes';
+import { ProfileLooks } from './pages/profile/ProfileLooks';
+import { ProfileQuizzes } from './pages/profile/ProfileQuizzes';
+import { ProfileSettings } from './pages/profile/ProfileSettings';
+import { ProfileStats } from './pages/profile/ProfileStats';
 import { Quizzes } from './pages/Quizzes';
 import { Stage } from './pages/Stage';
 
@@ -34,10 +39,20 @@ export function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="/history/:id" element={<GameHistory />} />
         <Route path="/me" element={<MyGames />} />
-        <Route path="/achievements" element={<Achievements />} />
-        <Route path="/prizes" element={<Prizes />} />
-        <Route path="/friends" element={<Friends />} />
         <Route path="/profile" element={<Profile />} />
+        {/* Підсторінки плиток профілю: статичні сегменти react-router ставить вище за /profile/:id. */}
+        <Route path="/profile/quizzes" element={<ProfileQuizzes />} />
+        <Route path="/profile/prizes" element={<Prizes />} />
+        <Route path="/profile/achievements" element={<Achievements />} />
+        <Route path="/profile/friends" element={<Friends />} />
+        <Route path="/profile/stats" element={<ProfileStats />} />
+        <Route path="/profile/likes" element={<ProfileLikes />} />
+        <Route path="/profile/looks" element={<ProfileLooks />} />
+        <Route path="/profile/settings" element={<ProfileSettings />} />
+        {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
+        <Route path="/prizes" element={<Prizes />} />
+        <Route path="/achievements" element={<Achievements />} />
+        <Route path="/friends" element={<Friends />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
         <Route path="/profile/:id/achievements" element={<Achievements />} />
         <Route path="/admin/*" element={<Admin />} />

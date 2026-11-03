@@ -21,7 +21,7 @@ describe('ar', () => {
     expect(new Set(counts).size).toBe(6);
     for (const key of Object.keys(uk) as TextKey[]) expect(t(key)).not.toMatch(/[٠-٩۰-۹]/);
     expect(t('menuShortJoin')).toBe('لعب');
-    expect(t('menuAchievements')).toBe('الإنجازات');
+    expect(t('menuProfile')).toBe('حسابي');
     applyDocument('ar');
     expect(document.documentElement.dir).toBe('rtl');
     expect(document.documentElement.lang).toBe('ar');

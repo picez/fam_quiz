@@ -34,4 +34,16 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('link', { name: 'На головну' }).getAttribute('href')).toBe('/');
     expect(screen.getByText(/crypto\.randomUUID is not a function/)).toBeTruthy();
   });
+
+  it('shows the decorative red cloud above the explanation', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { container } = render(
+      <ErrorBoundary>
+        <Broken />
+      </ErrorBoundary>,
+    );
+    const cloud = container.querySelector('svg.cloud-motif')!;
+    expect(cloud.getAttribute('aria-hidden')).toBe('true');
+    expect(cloud.compareDocumentPosition(screen.getByRole('alert')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

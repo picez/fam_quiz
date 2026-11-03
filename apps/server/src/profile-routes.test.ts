@@ -327,7 +327,7 @@ describe('favorite stickers (13a)', () => {
 
 describe('showcase in profiles (14a)', () => {
   it('is empty at first and carries an award and the current title after awardPrizes', async () => {
-    const empty = { title: null, awards: [] };
+    const empty = { title: null, awards: [], pins: { prizes: [], achievements: [] } };
     expect((await request('GET', `/api/profiles/${tarasId}`)).json().showcase).toEqual(empty);
     expect((await request('GET', '/api/me/profile', taras.cookie)).json().showcase).toEqual(empty);
 

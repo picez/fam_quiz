@@ -38,6 +38,13 @@ const open = () =>
   );
 
 describe('Stage', () => {
+  it('the stage sits on the game background with the faint moon', async () => {
+    game.current = { ...live('lobby'), view: null, status: 'connecting' };
+    open();
+    await act(async () => {});
+    expect(document.querySelector('main')?.className).toBe('app stage game-bg');
+  });
+
   it('keeps the screen awake for the whole game, the finished ceremony too: a sleeping stage drops off the room', async () => {
     const request = vi.fn(async () => ({ released: false, release: async () => {} }));
     Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request } });

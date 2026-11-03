@@ -2,7 +2,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PublicProfile as PublicProfileData } from '@quiz/shared';
+import { shelfColumns, type PublicProfile as PublicProfileData } from '@quiz/shared';
+import { t } from '../i18n';
 import { follow, getProfile, getVersus, me, unfollow } from '../api';
 import { PublicProfile } from './PublicProfile';
 
@@ -15,11 +16,22 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   stats: { games: 3, wins: 1, accuracy: 70, quizzes: 2, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
-  showcase: { title: null, awards: [] },
+  showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
   level: { level: 1, looks: { color: null, frame: null, badge: null } },
   likes: { author: 0, host: 0, player: 0 },
   ...over,
 });
+
+const award = (id: string, place: 1 | 2 | 3 = 1) => ({
+  id,
+  place,
+  quizTitle: `Квіз ${id}`,
+  nickname: 'Тарас',
+  awardedAt: '2026-10-30T10:00:00.000Z',
+  content: { trophy: null, engraving: null, real: { text: `Приз ${id}`, photoUrl: null }, title: null, diploma: false },
+});
+const withAwards = (n: number, pinned: string[] = []) =>
+  profile({ showcase: { title: null, awards: Array.from({ length: n }, (_, i) => award(`a${i + 1}`)), pins: { prizes: pinned, achievements: [] } } });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -47,42 +59,94 @@ describe('PublicProfile', () => {
     expect(await screen.findByRole('heading', { name: /Гравець/ })).toBeTruthy();
   });
 
-  it('shows a row of earned badges linking to another player achievements page', async () => {
-    open();
+  it('shows the same header and four numbers as the own profile, and no tiles', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ stats: { games: 12, wins: 4, accuracy: 70, quizzes: 2, hosted: 3, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null } }) });
+    const { container } = open();
     expect(await screen.findByText('Тарас')).toBeTruthy();
-    expect(document.querySelectorAll('ul.achievement-strip > li')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/u2/achievements');
+    const values = [...container.querySelectorAll('.headline-stats dd')].map((dd) => dd.textContent);
+    expect(values).toEqual(['12', '4', '70%', '3']);
+    expect(container.querySelector('.profile-tiles')).toBeNull();
+    expect(screen.queryByText('email приховано')).toBeNull();
   });
 
-  it('shows the title badge next to the nickname and the «Нагороди» section', async () => {
+  it('the shelf shows the prizes the owner pinned, in shelf order', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: withAwards(5, ['a3', 'a1', 'a2']) });
+    const { container } = open();
+    await screen.findByText('Тарас');
+    const expected = shelfColumns(['a3', 'a1', 'a2']).map((id) => `Квіз ${id}`);
+    const shown = [...container.querySelectorAll('.shelf-stand > li')].map((li) => li.textContent ?? '');
+    expect(shown).toHaveLength(3);
+    expected.forEach((text, i) => expect(shown[i]).toContain(text));
+  });
+
+  it('«Усі нагороди (5)» opens all five cards and a second tap hides them', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: withAwards(5) });
+    const { container } = open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Усі нагороди (5)' }));
+    expect(container.querySelectorAll('.award-card')).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Сховати нагороди' }));
+    expect(container.querySelectorAll('.award-card')).toHaveLength(0);
+  });
+
+  it('with three awards or fewer there is no «all» button', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: withAwards(3) });
+    open();
+    await screen.findByText('Тарас');
+    expect(screen.queryByRole('button', { name: /Усі нагороди/ })).toBeNull();
+  });
+
+  it('shows the achievements the owner pinned and links to all of them', async () => {
+    vi.mocked(getProfile).mockResolvedValue({
+      ok: true,
+      data: profile({
+        achievements: [
+          { id: 'first_game', earned: true, earnedAt: null },
+          { id: 'host', earned: true, earnedAt: null },
+        ],
+        showcase: { title: null, awards: [], pins: { prizes: [], achievements: ['host'] } },
+      }),
+    });
+    const { container } = open();
+    await screen.findByText('Тарас');
+    expect(container.querySelectorAll('.achievement-square')).toHaveLength(1);
+    expect(container.querySelector('.achievement-square')?.getAttribute('title')).toBe(t('achievement_host'));
+    expect(screen.getByRole('link', { name: /усі/ }).getAttribute('href')).toBe('/profile/u2/achievements');
+  });
+
+  it('a profile without awards and achievements shows two clouds and no errors', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ following: null, achievements: [{ id: 'first_game', earned: false, earnedAt: null }] }) });
+    const { container } = open();
+    await screen.findByText('Тарас');
+    expect(container.querySelectorAll('.showcase-empty')).toHaveLength(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows the title badge next to the nickname and the shelf', async () => {
     vi.mocked(getProfile).mockResolvedValue({
       ok: true,
       data: profile({
         showcase: {
           title: { text: 'Король', until: '2026-11-06T10:00:00.000Z' },
+          pins: { prizes: [], achievements: [] },
           awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
         },
       }),
     });
     open();
-    expect(await screen.findByRole('heading', { name: 'Нагороди' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /Вітрина кубків/ })).toBeTruthy();
     expect(document.querySelector('h1 .nick-title')?.textContent).toBe('Король');
-    expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
-  it('shows the likes section right after the stats and before the awards', async () => {
-    vi.mocked(getProfile).mockResolvedValue({
-      ok: true,
-      data: profile({
-        likes: { author: 5, host: 2, player: 1 },
-        showcase: { title: null, awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Тарас', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }] },
-      }),
-    });
+  it('shows the likes section after the shelf and achievements and before the stats', async () => {
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ likes: { author: 5, host: 2, player: 1 } }) });
     const { container } = open();
     expect(await screen.findByRole('heading', { name: 'Вподобання' })).toBeTruthy();
-    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings.indexOf('Вподобання')).toBe(headings.indexOf('Статистика') + 1);
-    expect(headings.indexOf('Нагороди')).toBeGreaterThan(headings.indexOf('Вподобання'));
+    const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent ?? '');
+    const at = (text: string) => headings.findIndex((h) => h.includes(text));
+    expect(at('Вітрина кубків')).toBeLessThan(at('Ачівки'));
+    expect(at('Ачівки')).toBeLessThan(at('Вподобання'));
+    expect(at('Вподобання')).toBeLessThan(at('Статистика'));
     expect(container.querySelector('.likes-card')?.textContent).toContain('5');
   });
 
@@ -98,7 +162,7 @@ describe('PublicProfile', () => {
     vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ id: 'a/b c' }) });
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Усі досягнення →' }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
+    expect(screen.getByRole('link', { name: /усі/ }).getAttribute('href')).toBe('/profile/a%2Fb%20c/achievements');
   });
 
   it('shows the podium numbers of a public profile', async () => {
@@ -112,12 +176,10 @@ describe('PublicProfile', () => {
     expect(screen.getByText('середнє місце').closest('.stat')?.querySelector('dd')?.textContent).toBe('1,7');
   });
 
-  it('shows a public profile without email and adds to friends', async () => {
+  it('adds to friends and removes again', async () => {
     open();
     expect(await screen.findByText('Тарас')).toBeTruthy();
-    expect(screen.getByText('email приховано')).toBeTruthy();
     expect(screen.getByText('Статистика')).toBeTruthy();
-    expect(screen.getByText('Досягнення')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Додати в друзі' }));
     expect(await screen.findByText('У друзях')).toBeTruthy();
     expect(follow).toHaveBeenCalledWith('u2');
@@ -218,7 +280,7 @@ describe('PublicProfile', () => {
     open();
     expect(await screen.findByText('Статистика')).toBeTruthy();
     expect(screen.queryByText('Ви і Тарас')).toBeNull();
-    expect(document.querySelectorAll('.profile-section')).toHaveLength(3);
+    expect(document.querySelectorAll('.profile-section')).toHaveLength(4);
   });
 
   it('an unknown profile says so', async () => {

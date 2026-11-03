@@ -86,4 +86,21 @@ describe('Home for a signed-in person', () => {
     expect((await screen.findByRole('link', { name: 'Я ведучий' })).getAttribute('href')).toBe('/quizzes');
     expect(screen.queryByRole('link', { name: 'Мої ігри' })).toBeNull();
   });
+
+  it('sets the title and the code field over a decorative moon and crows', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const hero = container.querySelector('.motif-hero')!;
+    expect(hero).not.toBeNull();
+    expect(hero.querySelector('.moon')?.getAttribute('aria-hidden')).toBe('true');
+    expect(hero.querySelector('svg.crows')?.getAttribute('aria-hidden')).toBe('true');
+    expect(hero.contains(screen.getByRole('heading', { level: 1 }))).toBe(true);
+    expect(hero.contains(screen.getByLabelText('Код гри'))).toBe(true);
+    expect(screen.getByRole('button', { name: 'Увійти' })).toBeTruthy();
+  });
 });

@@ -31,8 +31,8 @@ describe('installable app', () => {
     expect(manifest.lang).toBe('uk');
     expect(manifest.start_url).toBe('/');
     expect(manifest.display).toBe('standalone');
-    expect(manifest.background_color).toBe('#0E1020');
-    expect(manifest.theme_color).toBe('#0E1020');
+    expect(manifest.background_color).toBe('#060505');
+    expect(manifest.theme_color).toBe('#060505');
   });
 
   it('ships every icon it names, in the size it claims', () => {

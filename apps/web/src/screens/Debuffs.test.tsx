@@ -664,12 +664,11 @@ describe('debuff strength', () => {
     for (const guest of guests) expect(guest.classList.contains('debuff-layer')).toBe(true);
   });
 
-  it('fog is a blur over a light haze, not a milky wall', () => {
-    expect(css).toContain('--fog: rgb(150 160 185 / 0.3);');
+  it('fog is a denser haze without glass (no backdrop blur), not a milky wall', () => {
+    expect(css).toContain('--fog: rgb(150 160 185 / 0.6);');
     const fog = rule('.debuff-fog');
     expect(fog).toContain('background: var(--fog);');
-    expect(fog).toContain('backdrop-filter: blur(3px);');
-    expect(css).toMatch(/@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.debuff-fog \{\s*background: rgb\(150 160 185 \/ 0\.6\);/);
+    expect(fog).not.toContain('backdrop-filter');
   });
 
   it('ice is thicker with frost at the edges, guests are bigger with a shadow', () => {
