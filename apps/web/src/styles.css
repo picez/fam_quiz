@@ -3093,8 +3093,10 @@ button.match-item {
     justify-content: center;
     flex-direction: column;
     gap: 0.1rem;
-    padding: 0.15rem 0.25rem;
-    font-size: 0.75rem;
+    /* Вісім пунктів (з «Друзями»): без бічних полів і з підписом, що меншає разом з екраном (12 px з 400 px, 10,8 px на 360,
+       9,6 px на 320) — найдовші короткі підписи («Профіль», «Nagrody», «Bacheca») влазять у восьму частину ширини. */
+    padding: 0.15rem 0;
+    font-size: clamp(0.6rem, 3vw, 0.75rem);
     /* Підпис у два рядки («Мої вікторини» з п'ятьма пунктами) не робить панель вищою за --menu-h. */
     line-height: 1.05;
     text-align: center;
@@ -3290,6 +3292,59 @@ button.match-item {
 
 .achievement-strip-more {
   margin: 0.5rem 0 0;
+}
+
+/* «Ще N» під вікторинами профілю: кнопка, що виглядає як посилання «Усі досягнення →» поруч, з дотиковою зоною 44 px. */
+.link-more {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--amber);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.link-more:hover {
+  color: var(--paper);
+}
+
+/* Статистика профілю — щільно: дрібніші клітинки, більше колонок на широкому екрані, 3 на телефоні (у «Моїх іграх» — як було). */
+.profile-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.profile-stats .stats {
+  grid-template-columns: repeat(auto-fill, minmax(min(6.75rem, 100%), 1fr));
+  gap: 0.4rem;
+}
+.profile-stats .podium-stats {
+  margin-top: 0;
+}
+.profile-stats .stat {
+  gap: 0.1rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.75rem;
+}
+.profile-stats .stat dd {
+  font-size: clamp(1.1rem, 4.5vw, 1.4rem);
+  line-height: 1.15;
+}
+.profile-stats .stat dt {
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+@media (max-width: 30rem) {
+  .profile-stats .stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+  .profile-stats .stat {
+    padding: 0.4rem 0.45rem;
+  }
 }
 
 /* ---------- Фінал: ставки ---------- */
@@ -12365,11 +12420,10 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Сім пунктів нижнього меню: на 360 px по 51 px, короткі підписи (data-short) до 7 літер, а не дрібніший шрифт. */
+/* Вісім пунктів нижнього меню: на 360 px по 45 px, короткі підписи (data-short) до 7 літер; шрифт — clamp вище (≤ 700 px). */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
-    font-size: 0.75rem;
     letter-spacing: -0.01em;
   }
 
@@ -12397,6 +12451,51 @@ button.wall-tile:disabled {
   .menu a::after {
     content: attr(data-short);
     content: attr(data-short) / '';
+  }
+}
+
+/* Вісім повних підписів у верхній панелі потребують до 1141 px (uk; pl 1098, de 1090): на 701–1199 px верхня панель
+   складається як нижня — пункти рівної ширини, значок над коротким підписом (data-short), бейдж у куті значка. */
+@media (min-width: 701px) and (max-width: 1199px) {
+  .menu {
+    gap: 0;
+    padding: 0 0.5rem;
+  }
+
+  .menu a {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 8rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.1rem;
+    padding: 0.35rem 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .menu a span {
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+
+  .menu a .menu-full {
+    display: none;
+  }
+
+  .menu a::after {
+    content: attr(data-short);
+    content: attr(data-short) / '';
+  }
+
+  .menu a .menu-badge {
+    position: absolute;
+    top: 0.2rem;
+    inset-inline-start: calc(50% + 0.4rem);
+    font-size: 0.75rem;
+    line-height: 1;
   }
 }
 
@@ -13627,6 +13726,68 @@ button.wall-tile:disabled {
 }
 .level-list li {
   overflow-wrap: anywhere;
+}
+/* Шкала рівня: правила досвіду — підказка під шкалою, а не текст (наведення, фокус на «ⓘ», дотик). */
+.level-meter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  cursor: help;
+}
+.level-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.level-meter-row .meta {
+  margin: 0;
+}
+.level-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 1rem;
+  cursor: help;
+}
+.level-info:hover,
+.level-info:focus-visible {
+  color: var(--amber);
+}
+.level-tip {
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 0;
+  z-index: 5;
+  display: none;
+  max-width: min(28rem, 100%);
+  margin-top: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--stage);
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.45);
+  color: var(--paper);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.level-meter.is-open .level-tip,
+.level-meter:focus-within .level-tip {
+  display: block;
+}
+@media (hover: hover) {
+  .level-meter:hover .level-tip {
+    display: block;
+  }
 }
 .look-group {
   display: grid;

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { getMyProfile, signOut } from '../api';
-import { formatDate, seenText } from '../format';
+import { formatDate } from '../format';
 import { t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
-import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
 import { LanguageSwitcher } from '../locales/LanguageSwitcher';
 import { PushSettings } from '../push/PushSettings';
 import { disablePush } from '../push/push-client';
 import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
 import { LikesCard } from '../profile/LikesCard';
+import { PopularQuizzes } from '../profile/PopularQuizzes';
 import { ProfileEditor } from '../profile/ProfileEditor';
 import { InviteList } from '../profile/InviteList';
 import { Showcase } from '../profile/Showcase';
@@ -106,12 +106,13 @@ export function Profile() {
           announceInvitesChanged();
         }}
       />
+      {/* Рівень — одразу під ніком (лише запрошення в гру, якщо є, вище: на них чекають зараз), перед статистикою. */}
+      <LevelCard level={profile.level} nickname={nickText(profile.nickname)} onSaved={reload} />
       <section className="profile-section">
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
       <LikesCard likes={profile.likes} />
-      <LevelCard level={profile.level} nickname={nickText(profile.nickname)} onSaved={reload} />
       <Showcase showcase={profile.showcase} own />
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>
@@ -119,22 +120,7 @@ export function Profile() {
       </section>
       <section className="profile-section">
         <h2>{t('myQuizzesTitle')}</h2>
-        {profile.quizzes.length === 0 ? (
-          <p className="meta">{t('noQuizzesYet')}</p>
-        ) : (
-          <ul className="profile-list">
-            {profile.quizzes.map((quiz) => (
-              <li key={quiz.id}>
-                <Link to={`/quizzes/${quiz.id}`}>
-                  <bdi>{quiz.title}</bdi>{' '}
-                  <span className="flip-rtl" aria-hidden="true">
-                    →
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <PopularQuizzes quizzes={profile.quizzes} />
       </section>
       <section className="profile-section">
         <h2>{t('winsTitle')}</h2>
@@ -147,27 +133,6 @@ export function Profile() {
             ))}
           </ul>
         )}
-      </section>
-      <section className="profile-section">
-        <h2>{t('friendsTitle')}</h2>
-        {profile.friends.length === 0 ? (
-          <p className="meta">{t('noFriendsYet')}</p>
-        ) : (
-          <ul className="friend-list">
-            {profile.friends.map((friend) => (
-              <li key={friend.id}>
-                <Link to={`/profile/${friend.id}`}>
-                  <Avatar profile={friend} size="small" /> {nickText(friend.nickname)}
-                </Link>
-                {/* Онлайн чи коли бачили (беклог 9). */}
-                {seenText(friend.lastSeenAt) !== null && (
-                  <span className={seenText(friend.lastSeenAt) === t('friendOnline') ? 'friend-seen is-online' : 'friend-seen'}>{seenText(friend.lastSeenAt)}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <AddFriend onAdded={reload} />
       </section>
       {account.status === 'signed-in' && account.account.admin && (
         <div className="toolbar">

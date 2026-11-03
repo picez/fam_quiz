@@ -90,7 +90,7 @@ function FeedList({ first }: { first: FeedPage }): JSX.Element {
       <FeedTabs badge={badge} />
       {events.length === 0 ? (
         <p className="meta feed-empty">
-          {t('feedEmpty')} <Link to="/profile">{t('feedEmptyLink')}</Link>
+          {t('feedEmpty')} <Link to="/friends">{t('feedEmptyLink')}</Link>
         </p>
       ) : (
         <ol className="feed-list">

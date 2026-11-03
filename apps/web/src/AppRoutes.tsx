@@ -5,6 +5,7 @@ import { Achievements } from './pages/Achievements';
 import { EditQuiz } from './pages/EditQuiz';
 import { Calendar } from './pages/Calendar';
 import { Feed } from './pages/Feed';
+import { Friends } from './pages/Friends';
 import { GameHistory } from './pages/GameHistory';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
@@ -35,6 +36,7 @@ export function AppRoutes() {
         <Route path="/me" element={<MyGames />} />
         <Route path="/achievements" element={<Achievements />} />
         <Route path="/prizes" element={<Prizes />} />
+        <Route path="/friends" element={<Friends />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<PublicProfile />} />
         <Route path="/profile/:id/achievements" element={<Achievements />} />

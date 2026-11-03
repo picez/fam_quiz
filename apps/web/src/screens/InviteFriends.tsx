@@ -62,8 +62,8 @@ export function InviteFriends({ code }: { code: string }) {
       {friends !== null && friends.length === 0 && (
         <p className="meta">
           {t('noFriendsToInvite')}{' '}
-          <a href="/profile" target="_blank" rel="noreferrer">
-            {t('openProfile')}
+          <a href="/friends" target="_blank" rel="noreferrer">
+            {t('openFriends')}
           </a>
         </p>
       )}
