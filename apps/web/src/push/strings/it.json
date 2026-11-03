@@ -1,1 +1,10 @@
-{}
+{
+  "pushCancelledBody": "Il conduttore ha annullato la partita prevista per {when}.",
+  "pushCancelledTitle": "Partita «{title}» annullata",
+  "pushFallbackBody": "Ci sono novità su una partita programmata.",
+  "pushFallbackTitle": "Quiz",
+  "pushOpenedBody": "Il conduttore ha aperto la partita. Tocca per partecipare.",
+  "pushOpenedTitle": "La partita «{title}» è iniziata",
+  "pushReminderBody": "Inizio alle {time}. Non fare tardi!",
+  "pushReminderTitle": "Tra poco la partita «{title}»"
+}
