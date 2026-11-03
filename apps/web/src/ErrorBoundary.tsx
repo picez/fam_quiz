@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { t } from './i18n';
+import { AkatsukiCloud } from './motifs/Motifs';
 
 interface State {
   error: Error | null;
@@ -18,6 +19,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     if (error === null) return this.props.children;
     return (
       <main className="app narrow">
+        <AkatsukiCloud className="crash-cloud" />
         <div className="panel" role="alert">
           <h2>{t('crashTitle')}</h2>
           <p>{t('crashHint')}</p>

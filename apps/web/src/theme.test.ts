@@ -106,3 +106,58 @@ describe('theme tokens «Кривавий місяць»', () => {
     expect(rule).toContain('color: var(--on-accent);');
   });
 });
+
+/** Вирізає всі блоки `@media (prefers-reduced-motion: no-preference) { … }` разом із вкладеними дужками. */
+export function withoutMotionBlocks(source: string): string {
+  const head = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{/g;
+  let out = '';
+  let from = 0;
+  for (let match = head.exec(source); match !== null; match = head.exec(source)) {
+    out += source.slice(from, match.index);
+    let depth = 1;
+    let i = match.index + match[0].length;
+    while (i < source.length && depth > 0) {
+      if (source[i] === '{') depth++;
+      else if (source[i] === '}') depth--;
+      i++;
+    }
+    from = i;
+    head.lastIndex = i;
+  }
+  return out + source.slice(from);
+}
+
+/** Правила (селектор і тіло) без коментарів; @media-обгортки розкриваються. */
+function cssRules(source: string): { selector: string; body: string }[] {
+  const clean = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({ selector: match[1].trim(), body: match[2] }));
+}
+
+describe('motifs', () => {
+  const MOTIF = /\.(moon|crows|cloud-motif|tomoe-ring)\b/;
+
+  it('strips no-preference blocks with nested braces', () => {
+    const sample = 'a { x: 1; }\n@media (prefers-reduced-motion: no-preference) {\n  .crows { animation: drift 30s; }\n  @keyframes drift { from { y: 0; } to { y: 1; } }\n}\nb { y: 2; }';
+    expect(withoutMotionBlocks(sample).replace(/\s+/g, ' ').trim()).toBe('a { x: 1; } b { y: 2; }');
+  });
+
+  it('motifs exist and do not move outside prefers-reduced-motion: no-preference', () => {
+    const rules = cssRules(css).filter(({ selector }) => MOTIF.test(selector));
+    expect(rules.length).toBeGreaterThan(0);
+    const moving = cssRules(withoutMotionBlocks(css)).filter(
+      ({ selector, body }) => MOTIF.test(selector) && /(^|[;\s])(animation|transition)(-[\w-]+)?\s*:/.test(body),
+    );
+    expect(moving.map(({ selector }) => selector)).toEqual([]);
+  });
+
+  it('the crows drift only when motion is welcome', () => {
+    expect(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.crows\s*\{[^}]*animation:[^}]*30s/.test(css)).toBe(true);
+  });
+
+  it('the moon is a gradient with a glow, never blurred', () => {
+    const moonRules = cssRules(css).filter(({ selector }) => /\.moon\b/.test(selector));
+    expect(moonRules.some(({ body }) => body.includes('radial-gradient('))).toBe(true);
+    expect(moonRules.some(({ body }) => body.includes('box-shadow: 0 0 80px rgb(179 16 26 / 0.6)'))).toBe(true);
+    expect(moonRules.filter(({ body }) => /filter\s*:[^;]*blur/.test(body)).map(({ selector }) => selector)).toEqual([]);
+  });
+});

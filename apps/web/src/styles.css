@@ -14385,6 +14385,141 @@ button.wall-tile:disabled {
   opacity: 0.55;
 }
 
+/* ---------- 23a: мотиви «Кривавого місяця» (власні CSS / inline SVG, лише декор) ---------- */
+
+/* Герой: місяць і ворони позаду, вміст поверх. isolation тримає від'ємні z-index мотивів усередині героя. */
+.motif-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  /* На телефоні герой виходить до країв екрана (поля .app), тож місяць обрізає край екрана, а не рамка. */
+  margin-inline: -1.25rem;
+  padding: 3.5rem 1.25rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 11rem;
+}
+
+/* Шар мотивів: краї гаснуть маскою, тож рамка героя не ріже місяць і сяйво прямокутником. */
+.motif-hero-art {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem, #000 55%, transparent),
+    linear-gradient(to left, transparent, #000 2.5rem);
+  mask-composite: intersect;
+}
+
+[dir='rtl'] .motif-hero-art {
+  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem, #000 55%, transparent),
+    linear-gradient(to right, transparent, #000 2.5rem);
+}
+
+.motif-hero-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Світний місяць із градієнта; не анімується й не розмивається. */
+.moon {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 1rem;
+  inset-inline-end: -3.5rem;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
+  box-shadow: 0 0 80px rgb(179 16 26 / 0.6);
+  pointer-events: none;
+}
+
+.moon-hero {
+  opacity: 0.85;
+}
+
+.moon-faint {
+  opacity: 0.12;
+}
+
+/* Ворони — чорні силуети на тлі місяця. */
+.crows {
+  position: absolute;
+  z-index: -1;
+  inset-block-start: 2.25rem;
+  inset-inline-end: 1rem;
+  width: 7rem;
+  height: auto;
+  fill: #000;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .crows {
+    animation: crows-drift 30s ease-in-out infinite alternate;
+  }
+
+  @keyframes crows-drift {
+    from {
+      translate: 0 0;
+    }
+
+    to {
+      translate: -1.5rem 0.5rem;
+    }
+  }
+}
+
+/* Хмаринка: червона заливка, білий контур. */
+.cloud-motif {
+  display: block;
+  width: 5.5rem;
+  height: auto;
+  margin-inline: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.cloud-motif path {
+  fill: var(--accent);
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+/* Кільце з трьома томое навколо аватара. */
+.tomoe-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  padding: 0.375rem;
+  border-radius: 50%;
+}
+
+.tomoe-ring-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tomoe-ring-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.tomoe-ring .tomoe {
+  fill: var(--accent);
+}
+
 /* 22a: ім'я з власним dir (dir="auto" біля ніка) рівняється за сторінкою, а не за власним напрямком: латинський нік
    в арабській таблиці стоїть праворуч, як і сусіди. Наприкінці файлу, щоб перебити .score-table .name { text-align: start }. */
 .name[dir] {
