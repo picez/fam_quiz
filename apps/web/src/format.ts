@@ -1,7 +1,7 @@
 import { pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 import { currentLocale, intlTag } from './locales/current';
-import { agoText, decimalText } from './locales/grammar';
+import { agoText, decimalText, dropYearMark } from './locales/grammar';
 
 /** Назва раунду для показу: порожню (за замовчуванням) замінює «Раунд N», а в бліці й полі — «Бліц» та «Ігрове поле». */
 export const roundLabel = (title: string, index: number, type?: Round['type']): string => {
@@ -253,7 +253,7 @@ export function formatDay(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   const text = kyivDayFormat(intlTag()).format(date);
-  return currentLocale() === 'uk' ? text.replace(/\s*р\.$/, '') : text;
+  return dropYearMark(text);
 }
 
 /** Число зі справжнім мінусом «−», а не дефісом: рахунок може бути від’ємним. */

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authProviders, googleSignIn, signIn, signUp } from '../api';
 import { errorText, t } from '../i18n';
+import { LanguageSwitcher } from '../locales/LanguageSwitcher';
 import { leaveTo } from '../navigation';
 
 const MIN_PASSWORD = 8;
@@ -123,6 +124,7 @@ export function Login() {
       >
         {t(registering ? 'haveAccount' : 'createAccount')}
       </button>
+      <LanguageSwitcher signedIn={false} />
       <Link className="quiet-link" to="/">
         {t('backHome')}
       </Link>

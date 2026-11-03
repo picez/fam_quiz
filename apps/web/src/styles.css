@@ -3148,6 +3148,21 @@ button.match-item {
   margin: 0;
 }
 
+/* Перемикач мови (вхід і профіль): поле на всю ширину колонки, не ширше екрана, ≥ 44 px заввишки. */
+.language-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.language-switcher select {
+  min-height: 2.75rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .profile-editor {
   display: flex;
   align-items: flex-start;

@@ -72,6 +72,11 @@ export function accusativeDay(heading: string, locale: Locale = currentLocale())
   return [WEEKDAY_ACCUSATIVE[word.trim()] ?? word.trim(), ...rest].join(',');
 }
 
+/** uk: « р.», яке uk-UA дописує після року, відрізається («29 жовтня 2026 р.» → «29 жовтня 2026»). Інші мови — без змін. */
+export function dropYearMark(text: string, locale: Locale = currentLocale()): string {
+  return locale === 'uk' ? text.replace(/\s*р\.$/, '') : text;
+}
+
 /**
  * Мала перша літера, лише якщо друга теж мала: «Найбільший» → «найбільший», а «NASA» чи «ВВП» без змін.
  * de (іменники з великої) і ar (регістру немає) — без змін.

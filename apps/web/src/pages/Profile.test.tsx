@@ -31,7 +31,14 @@ vi.mock('../api', () => ({
   getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
+  saveMyLocale: vi.fn(async () => ({ ok: true })),
 }));
+
+vi.mock('../locales/locales', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../locales/locales')>();
+  const ENABLED_LOCALES = ['uk', 'en'] as const;
+  return { ...original, ENABLED_LOCALES, isEnabled: (locale: string) => (ENABLED_LOCALES as readonly string[]).includes(locale) };
+});
 
 const mine: OwnProfile = {
   id: 'u1',
@@ -320,5 +327,10 @@ describe('Profile', () => {
     open();
     expect(await screen.findByText('на /login?next=%2Fprofile')).toBeTruthy();
     expect(screen.queryByText('Статистика')).toBeNull();
+  });
+
+  it('has the language field', async () => {
+    open();
+    expect(((await screen.findByLabelText('Мова')) as HTMLSelectElement).options).toHaveLength(2);
   });
 });

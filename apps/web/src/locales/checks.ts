@@ -18,7 +18,7 @@ type Sources = { ui: Messages; help: Messages; push: Messages };
 
 const PLURAL_SUFFIX = /^(.+)_(zero|one|two|few|many|other)$/;
 const PLACEHOLDER = /\{(\w+)\}/g;
-const CYRILLIC = /[Ѐ-ӿ]/;
+const CYRILLIC = /[\u0400-\u04FF]/;
 const INDIC_DIGITS = /[٠-٩۰-۹]/;
 const QUOTED = /«([^«»]+)»/g;
 const MENU_SHORT_MAX = 8;

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { isLocale } from '@quiz/shared';
 import { me, type Account } from './api';
+import { syncAccountLocale } from './locales/choose';
 
 export type AccountState =
   | { status: 'loading' }
@@ -16,7 +18,12 @@ export function useAccount(refresh?: unknown): AccountState {
     let current = true;
     void me().then((result) => {
       if (!current) return;
-      if (result.ok) setState({ status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true } });
+      if (result.ok) {
+        const locale = isLocale(result.locale) ? result.locale : null;
+        setState({ status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale } });
+        // Мова з профілю перемагає мову пристрою; порожній профіль дістає поточну.
+        void syncAccountLocale(locale);
+      }
       // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
       else if (result.error === 'unauthorized') setState({ status: 'anonymous' });
       else setState({ status: 'unknown', error: result.error });

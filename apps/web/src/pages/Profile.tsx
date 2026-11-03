@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { AchievementStrip } from '../profile/AchievementStrip';
 import { AddFriend } from '../profile/AddFriend';
 import { Avatar } from '../profile/Avatar';
+import { LanguageSwitcher } from '../locales/LanguageSwitcher';
 import { PushSettings } from '../push/PushSettings';
 import { disablePush } from '../push/push-client';
 import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
@@ -170,6 +171,7 @@ export function Profile() {
           </Link>
         </div>
       )}
+      <LanguageSwitcher signedIn className="profile-section" />
       <PushSettings />
       <div className="toolbar">
         <button type="button" className="btn" disabled={leaving} onClick={() => void leave()}>

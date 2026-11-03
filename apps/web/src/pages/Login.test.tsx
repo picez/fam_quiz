@@ -13,6 +13,11 @@ vi.mock('../api', () => ({
   googleSignIn: vi.fn(),
 }));
 vi.mock('../navigation', () => ({ leaveTo: vi.fn() }));
+vi.mock('../locales/locales', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../locales/locales')>();
+  const ENABLED_LOCALES = ['uk', 'en'] as const;
+  return { ...original, ENABLED_LOCALES, isEnabled: (locale: string) => (ENABLED_LOCALES as readonly string[]).includes(locale) };
+});
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
@@ -155,5 +160,10 @@ describe('Login with Google', () => {
   it('explains a sign-in that Google or the server turned down', async () => {
     open('/login?error=access_denied');
     expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося увійти через Google. Спробуйте ще раз.');
+  });
+
+  it('offers the language field to guests', () => {
+    open();
+    expect((screen.getByLabelText('Мова') as HTMLSelectElement).options).toHaveLength(2);
   });
 });
