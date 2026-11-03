@@ -8,17 +8,20 @@ export function BloodMoon({ size = 'hero' }: { size?: 'hero' | 'faint' }): JSX.E
   return <div className={`moon moon-${size}`} aria-hidden="true" />;
 }
 
-/** Силует ворона в польоті: крила вгору, голова з дзьобом, клиноподібний хвіст. Розмах ≈ 40 одиниць. */
+/**
+ * Силует ворона знизу в польоті (48 × 24): широкі пологі крила з чотирма розчепіреними
+ * першорядними пір'їнами («пальцями»), мала голова з дзьобом уперед, клиноподібний хвіст.
+ */
 const CROW =
-  'M0 9C5 3 11 2 16 7l2 2 1-3 1-2 1 2 1 3 2-2c5-5 11-4 16 2-5-2-10-1-14 3l-1 3 2 4-3-1-2 2-2-2-3 1 2-4-1-3C10 8 5 7 0 9Z';
+  'M24 1.4L25 3.4L26.4 4.6L26.7 6.6Q33 4 43 6.8L47.8 8.2L44.4 9.6L47.6 10.6L44 11.8L46.6 13L43 13.6L44.8 15.2L41 15.2Q36 17.8 28.6 15.4L27.2 16.6L29 21L24 23.4L19 21L20.8 16.6L19.4 15.4Q12 17.8 7 15.2L3.2 15.2L5 13.6L1.4 13L4 11.8L0.4 10.6L3.6 9.6L0.2 8.2L5 6.8Q15 4 21.3 6.6L21.6 4.6L23 3.4L24 1.4Z';
 
 /** 2–3 власні силуети воронів в одному svg.crows. */
 export function Crows(): JSX.Element {
   return (
     <svg className="crows" viewBox="0 0 120 70" aria-hidden="true" focusable="false">
-      <path className="crow" d={CROW} transform="translate(64 6) scale(1.2)" />
-      <path className="crow" d={CROW} transform="translate(18 26) scale(0.85)" />
-      <path className="crow" d={CROW} transform="translate(78 46) scale(0.6)" />
+      <path className="crow" d={CROW} transform="translate(62 4) rotate(-6 24 11) scale(1.05)" />
+      <path className="crow" d={CROW} transform="translate(14 28) rotate(5 24 11) scale(0.75)" />
+      <path className="crow" d={CROW} transform="translate(78 48) rotate(-3 24 11) scale(0.5)" />
     </svg>
   );
 }

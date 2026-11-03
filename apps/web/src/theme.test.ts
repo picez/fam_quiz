@@ -160,4 +160,17 @@ describe('motifs', () => {
     expect(moonRules.some(({ body }) => body.includes('box-shadow: 0 0 80px rgb(179 16 26 / 0.6)'))).toBe(true);
     expect(moonRules.filter(({ body }) => /filter\s*:[^;]*blur/.test(body)).map(({ selector }) => selector)).toEqual([]);
   });
+
+  it('mirrors the moon highlight for right-to-left pages', () => {
+    const rule = /\[dir='rtl'\] \.moon\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(rule).toContain('radial-gradient(circle at 60% 40%,');
+  });
+
+  it('the hero reaches the screen edge through the shared page padding, not a copied number', () => {
+    const app = /\n\.app\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const hero = /\n\.motif-hero\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(app).toContain('--app-pad: 1.25rem;');
+    expect(app).toMatch(/padding:[^;]*var\(--app-pad\)/);
+    expect(hero).toContain('margin-inline: calc(-1 * var(--app-pad, 0rem));');
+  });
 });

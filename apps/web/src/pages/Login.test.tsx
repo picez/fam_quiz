@@ -42,6 +42,17 @@ describe('Login', () => {
     expect(screen.queryByText(/для ведучого/)).toBeNull();
   });
 
+  it('sets the title over a decorative moon and keeps the form reachable', () => {
+    const { container } = open();
+    const hero = container.querySelector('.motif-hero')!;
+    expect(hero).not.toBeNull();
+    expect(hero.querySelector('.moon')?.getAttribute('aria-hidden')).toBe('true');
+    expect(hero.contains(screen.getByRole('heading', { level: 1 }))).toBe(true);
+    expect(screen.getByLabelText('Email')).toBeTruthy();
+    expect(screen.getByLabelText('Пароль')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Увійти' })).toBeTruthy();
+  });
+
   it('signs in and opens the quiz list', async () => {
     vi.mocked(signIn).mockResolvedValue({ ok: true });
     open();
@@ -165,16 +176,5 @@ describe('Login with Google', () => {
   it('offers the language field to guests', () => {
     open();
     expect((screen.getByLabelText('Мова') as HTMLSelectElement).options).toHaveLength(2);
-  });
-
-  it('sets the title over a decorative moon and keeps the form reachable', () => {
-    const { container } = open();
-    const hero = container.querySelector('.motif-hero')!;
-    expect(hero).not.toBeNull();
-    expect(hero.querySelector('.moon')?.getAttribute('aria-hidden')).toBe('true');
-    expect(hero.contains(screen.getByRole('heading', { level: 1 }))).toBe(true);
-    expect(screen.getByLabelText('Email')).toBeTruthy();
-    expect(screen.getByLabelText('Пароль')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Увійти' })).toBeTruthy();
   });
 });

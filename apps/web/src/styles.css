@@ -157,7 +157,9 @@ a {
   flex-direction: column;
   gap: 1.25rem;
   min-height: 100dvh;
-  padding: max(1.25rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+  /* Бічне поле сторінки; герой мотивів (.motif-hero) виходить на нього до країв екрана. */
+  --app-pad: 1.25rem;
+  padding: max(1.25rem, env(safe-area-inset-top)) var(--app-pad) max(1.5rem, env(safe-area-inset-bottom));
   margin: 0 auto;
   max-width: 34rem;
 }
@@ -14393,12 +14395,29 @@ button.wall-tile:disabled {
   overflow: hidden;
   isolation: isolate;
   /* На телефоні герой виходить до країв екрана (поля .app), тож місяць обрізає край екрана, а не рамка. */
-  margin-inline: -1.25rem;
-  padding: 3.5rem 1.25rem 0.25rem;
+  margin-inline: calc(-1 * var(--app-pad, 0rem));
+  padding: 4.5rem var(--app-pad, 0rem) 0.25rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  min-height: 11rem;
+  min-height: 12rem;
+  /* Довжина згасання бічного краю: на телефоні край героя — це край екрана, на ширшому — край колонки. */
+  --motif-side-fade: 1rem;
+}
+
+@media (min-width: 36rem) {
+  .motif-hero {
+    --motif-side-fade: 4.5rem;
+  }
+
+  .motif-hero .moon-hero {
+    inset-inline-end: 2rem;
+  }
+}
+
+/* Заголовок поверх місяця лишається чітким: тінь, а не розмиття тла. */
+.motif-hero .brand {
+  text-shadow: 0 1px 3px rgb(6 5 5 / 0.85), 0 0 1.25rem rgb(6 5 5 / 0.6);
 }
 
 /* Шар мотивів: краї гаснуть маскою, тож рамка героя не ріже місяць і сяйво прямокутником. */
@@ -14407,14 +14426,15 @@ button.wall-tile:disabled {
   z-index: -1;
   inset: 0;
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem, #000 55%, transparent),
-    linear-gradient(to left, transparent, #000 2.5rem);
+  /* Згори сяйво (80px) гасне за 5rem, тож рамка його не ріже; місяць стоїть нижче цього згасання. */
+  mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to left, transparent, #000 var(--motif-side-fade));
   mask-composite: intersect;
 }
 
 [dir='rtl'] .motif-hero-art {
-  mask-image: linear-gradient(to bottom, transparent, #000 1.5rem, #000 55%, transparent),
-    linear-gradient(to right, transparent, #000 2.5rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 5rem, #000 60%, transparent),
+    linear-gradient(to right, transparent, #000 var(--motif-side-fade));
 }
 
 .motif-hero-content {
@@ -14429,7 +14449,7 @@ button.wall-tile:disabled {
 .moon {
   position: absolute;
   z-index: -1;
-  inset-block-start: 1rem;
+  inset-block-start: 4rem;
   inset-inline-end: -3.5rem;
   width: 12rem;
   height: 12rem;
@@ -14437,6 +14457,11 @@ button.wall-tile:disabled {
   background: radial-gradient(circle at 40% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
   box-shadow: 0 0 80px rgb(179 16 26 / 0.6);
   pointer-events: none;
+}
+
+/* Відблиск місяця дзеркалиться разом зі сторінкою. */
+[dir='rtl'] .moon {
+  background: radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
 }
 
 .moon-hero {
@@ -14451,7 +14476,7 @@ button.wall-tile:disabled {
 .crows {
   position: absolute;
   z-index: -1;
-  inset-block-start: 2.25rem;
+  inset-block-start: 4.75rem;
   inset-inline-end: 1rem;
   width: 7rem;
   height: auto;
