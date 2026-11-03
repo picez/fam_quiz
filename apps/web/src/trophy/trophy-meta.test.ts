@@ -23,6 +23,20 @@ describe('trophyLabel', () => {
       expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Brązowa korona');
     });
   });
+
+  describe('in German', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it('agrees the strong adjective ending with der Pokal / der Stern and die Medaille / Krone / Statuette', async () => {
+      await loadLocale('de');
+      activateLocale('de');
+      expect(trophyLabel({ kind: 'cup', material: 'gold' })).toBe('Goldener Pokal');
+      expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('Diamantener Stern');
+      expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe('Silberne Medaille');
+      expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Bronzene Krone');
+      expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Goldene Statuette');
+    });
+  });
 });
 
 describe('prizeSummary', () => {

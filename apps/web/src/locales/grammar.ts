@@ -119,6 +119,8 @@ export function agoText(ms: number, locale: Locale = currentLocale()): string {
 const TROPHY_GENDER: Record<TrophyKind, 'm' | 'f'> = { cup: 'm', medal: 'f', crown: 'f', star: 'f', statuette: 'f' };
 const TROPHY_GENDER_BY_LOCALE: Partial<Record<Locale, Partial<Record<TrophyKind, 'm' | 'f'>>>> = {
   pl: { medal: 'm' },
+  /** de: der Pokal, der Stern — «Goldener»; die Medaille, Krone, Statuette — «Goldene» (uk-рід зірки жіночий). */
+  de: { cup: 'm', medal: 'f', crown: 'f', star: 'm', statuette: 'f' },
 };
 export function trophyGender(kind: TrophyKind, locale: Locale = currentLocale()): 'm' | 'f' {
   return TROPHY_GENDER_BY_LOCALE[locale]?.[kind] ?? TROPHY_GENDER[kind];
