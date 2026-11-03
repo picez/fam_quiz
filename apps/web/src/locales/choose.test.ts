@@ -22,6 +22,7 @@ beforeEach(() => {
   resetChoiceForTests();
 });
 afterEach(() => {
+  window.history.replaceState(null, '', '/');
   activateLocaleForTests('uk');
   applyDocument('uk');
 });
@@ -39,6 +40,7 @@ describe('detectLocale', () => {
 
   it('falls back to uk', () => {
     expect(detectLocale({ stored: null, browser: ['fr-FR'], enabled })).toBe('uk');
+    expect(detectLocale({ stored: null, browser: ['ru-RU'], enabled })).toBe('uk');
     expect(detectLocale({ stored: 'pl', browser: ['pl-PL'], enabled })).toBe('uk');
     expect(detectLocale({ stored: null, browser: [], enabled })).toBe('uk');
   });
@@ -107,14 +109,14 @@ describe('chooseLocale', () => {
     vi.mocked(saveMyLocale).mockResolvedValueOnce({ ok: false, error: 'offline' });
     expect(await chooseLocale('en', { signedIn: true })).toEqual({ saved: false });
     expect(currentLocale()).toBe('en');
-    await syncAccountLocale('uk');
+    await syncAccountLocale('uk', 'a');
     expect(currentLocale()).toBe('en');
   });
 });
 
 describe('syncAccountLocale', () => {
   it('switches to the profile locale and remembers it on this device', async () => {
-    await syncAccountLocale('en');
+    await syncAccountLocale('en', 'a');
     expect(currentLocale()).toBe('en');
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('en');
     expect(saveMyLocale).not.toHaveBeenCalled();
@@ -122,23 +124,55 @@ describe('syncAccountLocale', () => {
 
   it('sends the current locale once when the profile has none', async () => {
     activateLocaleForTests('en');
-    await syncAccountLocale(null);
-    await syncAccountLocale(null);
+    await syncAccountLocale(null, 'a');
+    await syncAccountLocale(null, 'a');
     expect(saveMyLocale).toHaveBeenCalledTimes(1);
     expect(saveMyLocale).toHaveBeenCalledWith('en');
   });
 
   it('does nothing for an empty profile in uk', async () => {
-    await syncAccountLocale(null);
-    await syncAccountLocale(undefined);
+    await syncAccountLocale(null, 'a');
+    await syncAccountLocale(undefined, 'a');
     expect(currentLocale()).toBe('uk');
     expect(saveMyLocale).not.toHaveBeenCalled();
   });
 
   it('ignores a disabled profile locale', async () => {
-    await syncAccountLocale('pl');
+    await syncAccountLocale('pl', 'a');
     expect(currentLocale()).toBe('uk');
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBeNull();
     expect(saveMyLocale).not.toHaveBeenCalled();
+  });
+
+  it('forgets the previous account choice when another account signs in', async () => {
+    await syncAccountLocale(null, 'a');
+    await chooseLocale('en', { signedIn: true });
+    vi.mocked(saveMyLocale).mockClear();
+    await syncAccountLocale('de', 'b');
+    expect(currentLocale()).toBe('de');
+    expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('de');
+  });
+
+  it('fills an empty profile of the next account once', async () => {
+    await syncAccountLocale(null, 'a');
+    await chooseLocale('en', { signedIn: true });
+    vi.mocked(saveMyLocale).mockClear();
+    await syncAccountLocale(null, 'b');
+    await syncAccountLocale(null, 'b');
+    expect(saveMyLocale).toHaveBeenCalledTimes(1);
+    expect(saveMyLocale).toHaveBeenCalledWith('en');
+  });
+
+  it('does not remount a live game: the profile locale only goes to localStorage', async () => {
+    for (const path of ['/play/123456', '/host/123456', '/stage/123456']) {
+      window.history.replaceState(null, '', path);
+      await syncAccountLocale('en', 'a');
+      expect(currentLocale()).toBe('uk');
+      expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('en');
+      localStorage.clear();
+    }
+    window.history.replaceState(null, '', '/quizzes');
+    await syncAccountLocale('en', 'a');
+    expect(currentLocale()).toBe('en');
   });
 });

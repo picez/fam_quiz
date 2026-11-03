@@ -88,6 +88,8 @@ export async function initLocale(): Promise<Locale> {
 let chosen: Locale | null = null;
 /** Мову, яку вже запропонували порожньому профілю, не шлемо вдруге (useAccount кличеться в багатьох місцях). */
 let offered: Locale | null = null;
+/** Чий профіль бачили востаннє: інший акаунт у тій самій вкладці починає з чистого chosen / offered. */
+let accountOf: string | null = null;
 /** Збереження в профілі йдуть по черзі: швидкі перемикання не перегнать одне одного на сервері. */
 let saving: Promise<unknown> = Promise.resolve();
 
@@ -136,8 +138,23 @@ export async function chooseLocale(locale: Locale, opts: { signedIn: boolean }):
   return { saved };
 }
 
-/** Відповідь /api/me: мова профілю, якщо увімкнена, перемагає мову пристрою; порожній профіль один раз дістає поточну мову. */
-export async function syncAccountLocale(profile: Locale | null | undefined): Promise<void> {
+/** Сторінки живої гри (гравець, пульт, сцена): тут дерево не перемонтовуємо, бо це обірвало б гру. */
+const LIVE_GAME_PATH = /^\/(play|host|stage)\//;
+
+function inLiveGame(): boolean {
+  return typeof window !== 'undefined' && LIVE_GAME_PATH.test(window.location.pathname);
+}
+
+/**
+ * Відповідь /api/me: мова профілю, якщо увімкнена, перемагає мову пристрою; порожній профіль один раз дістає поточну мову.
+ * Посеред живої гри мова профілю лише пишеться в localStorage: вона ввімкнеться на наступній сторінці чи після перезавантаження.
+ */
+export async function syncAccountLocale(profile: Locale | null | undefined, accountId: string): Promise<void> {
+  if (accountOf !== null && accountOf !== accountId) {
+    chosen = null;
+    offered = null;
+  }
+  accountOf = accountId;
   if (chosen !== null) return;
   if (profile === null || profile === undefined) {
     const locale = currentLocale();
@@ -149,12 +166,13 @@ export async function syncAccountLocale(profile: Locale | null | undefined): Pro
   if (!isEnabled(profile)) return;
   offered = profile;
   writeStored(profile);
-  if (profile !== currentLocale()) await switchLocale(profile).catch(() => false);
+  if (profile !== currentLocale() && !inLiveGame()) await switchLocale(profile).catch(() => false);
 }
 
 /** Для тестів: забуває явний вибір і запропоновану мову. */
 export function resetChoiceForTests(): void {
   chosen = null;
   offered = null;
+  accountOf = null;
   saveFailed = false;
 }
