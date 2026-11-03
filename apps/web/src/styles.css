@@ -3111,6 +3111,7 @@ button.match-item {
 
 .menu a {
   display: flex;
+  border-block-end: 2px solid transparent;
   align-items: center;
   gap: 0.4rem;
   padding: 0.75rem 0.9rem;
@@ -3120,7 +3121,8 @@ button.match-item {
 }
 
 .menu a[aria-current='page'] {
-  color: var(--amber);
+  color: var(--accent-text);
+  border-block-end-color: var(--accent);
 }
 
 .history-tabs {
@@ -3162,10 +3164,13 @@ button.match-item {
     justify-content: center;
     flex-direction: column;
     gap: 0.1rem;
-    /* Вісім пунктів (з «Друзями»): без бічних полів і з підписом, що меншає разом з екраном (12 px з 400 px, 10,8 px на 360,
-       9,6 px на 320) — найдовші короткі підписи («Профіль», «Nagrody», «Bacheca») влазять у восьму частину ширини. */
+    /* П'ять пунктів: без бічних полів, підпис меншає разом з екраном (13 px з 406 px, 11 px на 344 px і вужче) —
+       найдовші короткі підписи («Профіль», «Bacheca») влазять у п'яту частину ширини. */
     padding: 0.15rem 0;
-    font-size: clamp(0.6rem, 3vw, 0.75rem);
+    font-size: clamp(0.6875rem, 3.2vw, 0.8125rem);
+    /* Активна смужка зверху (на телефоні панель унизу), а не знизу. */
+    border-block-end: 0;
+    border-block-start: 2px solid transparent;
     /* Підпис у два рядки («Мої вікторини» з п'ятьма пунктами) не робить панель вищою за --menu-h. */
     line-height: 1.05;
     text-align: center;
@@ -3174,6 +3179,11 @@ button.match-item {
   .menu a span {
     font-size: 1.25rem;
     line-height: 1.2;
+  }
+
+  .menu a[aria-current='page'] {
+    border-block-end-color: transparent;
+    border-block-start-color: var(--accent);
   }
 
   .with-menu .app {
@@ -12489,7 +12499,7 @@ button.wall-tile:disabled {
   accent-color: var(--amber);
 }
 
-/* Вісім пунктів нижнього меню: на 360 px по 45 px, короткі підписи (data-short) до 7 літер; шрифт — clamp вище (≤ 700 px). */
+/* П'ять пунктів нижнього меню: на 360 px по 72 px, короткі підписи (data-short); шрифт — clamp вище (≤ 700 px). */
 @media (max-width: 400px) {
   .menu a {
     padding: 0.15rem 0;
@@ -12510,8 +12520,7 @@ button.wall-tile:disabled {
   .menu a .menu-badge { inset-inline-start: auto; inset-inline-end: 0.1rem; top: 0.1rem; min-width: 1rem; height: 1rem; padding: 0 0.2rem; font-size: 0.625rem; }
 }
 
-/* 22a: на 401–700 px сім повних підписів не влазять (на 412 px пункт 59 px, а «Neuigkeiten», «Aktualności», «Achievements»
-   і навіть українські «Досягнення» ширші — меню на 393–412 px вилазило на 79 px): усі мови й тут показують короткі. */
+/* На 401–700 px довгі повні підписи («Neuigkeiten», «Aktualności», «Мої вікторини») тісні для п'ятої частини ширини: усі мови й тут показують короткі. */
 @media (min-width: 401px) and (max-width: 700px) {
   .menu a .menu-full {
     display: none;
@@ -12520,51 +12529,6 @@ button.wall-tile:disabled {
   .menu a::after {
     content: attr(data-short);
     content: attr(data-short) / '';
-  }
-}
-
-/* Вісім повних підписів у верхній панелі потребують до 1141 px (uk; pl 1098, de 1090): на 701–1199 px верхня панель
-   складається як нижня — пункти рівної ширини, значок над коротким підписом (data-short), бейдж у куті значка. */
-@media (min-width: 701px) and (max-width: 1199px) {
-  .menu {
-    gap: 0;
-    padding: 0 0.5rem;
-  }
-
-  .menu a {
-    position: relative;
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 8rem;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.1rem;
-    padding: 0.35rem 0.25rem;
-    font-size: 0.8125rem;
-    line-height: 1.1;
-    text-align: center;
-  }
-
-  .menu a span {
-    font-size: 1.25rem;
-    line-height: 1.2;
-  }
-
-  .menu a .menu-full {
-    display: none;
-  }
-
-  .menu a::after {
-    content: attr(data-short);
-    content: attr(data-short) / '';
-  }
-
-  .menu a .menu-badge {
-    position: absolute;
-    top: 0.2rem;
-    inset-inline-start: calc(50% + 0.4rem);
-    font-size: 0.75rem;
-    line-height: 1;
   }
 }
 

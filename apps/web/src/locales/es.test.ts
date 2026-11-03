@@ -14,6 +14,6 @@ describe('es', () => {
     expect([1, 5, 1000000].map((n) => countText('questionCount', n, { count: n }))).toEqual(['1 pregunta', '5 preguntas', '1000000 de preguntas']);
     expect(t('menuShortHistory')).toBe('Historia');
     expect(t('menuHistory')).toBe('Historial');
-    expect(t('menuShortAchievements')).toBe('Logros');
+    expect(t('menuShortProfile')).toBe('Perfil');
   });
 });

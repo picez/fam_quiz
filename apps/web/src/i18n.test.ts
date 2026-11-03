@@ -63,11 +63,11 @@ describe('points in words', () => {
 
 describe('uk golden (22a)', () => {
   /** Ключі, які 22a свідомо прибирає з uk. Задача 4 дописує 'agoMinutes' і 'agoHours'. */
-  const REMOVED: string[] = ['agoMinutes', 'agoHours', /* друзі переїхали з профілю на /friends */ 'openProfile'];
+  const REMOVED: string[] = ['agoMinutes', 'agoHours', /* меню з п'яти пунктів: призи, досягнення й друзі живуть у профілі */ 'menuAchievements', 'menuPrizes', 'menuShortPrizes', 'menuShortAchievements', /* друзі переїхали з профілю на /friends */ 'openProfile'];
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
   /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
-  const ADDED_LATER = ['menuFriends', 'menuShortFriends', 'openFriends', 'profileQuizzesMore', 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
+  const ADDED_LATER = ['openFriends', 'profileQuizzesMore', 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite'];
 

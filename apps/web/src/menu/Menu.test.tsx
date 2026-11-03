@@ -55,24 +55,17 @@ describe('Menu', () => {
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
-  it('a signed-in person sees join, feed, quizzes, history, prizes, achievements, friends and profile with the current one marked', async () => {
+  it('a signed-in person sees join, feed, quizzes, history and profile with the current one marked', async () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
-    expect(items()).toEqual(['🎮Приєднатися', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '🎁Призи', '🏅Досягнення', '👥Друзі', '👤Профіль']);
+    expect(items()).toEqual(['🎮Приєднатися', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Призи'), href('Досягнення'), href('Друзі'), href('Профіль')]).toEqual([
-      '/',
-      '/feed',
-      '/quizzes',
-      '/history',
-      '/prizes',
-      '/achievements',
-      '/friends',
-      '/profile',
-    ]);
+    expect([href('Приєднатися'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Профіль')]).toEqual(['/', '/feed', '/quizzes', '/history', '/profile']);
     expect(screen.getByRole('link', { name: 'Історія' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
+    const hrefs = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link').map((l) => l.getAttribute('href'));
+    expect(hrefs.filter((h) => ['/prizes', '/achievements', '/friends'].includes(h!))).toEqual([]);
   });
 
   it('every item keeps its full name for assistive tech and carries a short label for the narrow bar', async () => {
@@ -80,45 +73,22 @@ describe('Menu', () => {
     show('/');
     await screen.findByRole('link', { name: 'Профіль' });
     const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
-    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Призи', 'Досягнення', 'Друзі', 'Профіль']);
-    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Стрічка', 'Квізи', 'Історія', 'Призи', 'Ачівки', 'Друзі', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Стрічка', 'Квізи', 'Історія', 'Профіль']);
   });
 
-  it('prizes are marked on their page and a visitor does not see them', async () => {
+  it.each(['/profile', '/profile/prizes', '/prizes', '/achievements', '/friends', '/profile/u2', '/profile/u2/achievements'])('the profile is marked on %s', async (path) => {
     vi.mocked(me).mockResolvedValue(OK);
-    show('/prizes');
-    await screen.findByRole('link', { name: 'Призи' });
-    expect(screen.getByRole('link', { name: 'Призи' }).getAttribute('aria-current')).toBe('page');
-    expect(items().indexOf('🎁Призи')).toBe(4);
-    cleanup();
+    show(path);
+    await screen.findByRole('link', { name: 'Профіль' });
+    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
+    expect(items()).toHaveLength(5);
+  });
+
+  it('a visitor on the prizes page still sees only join and sign in', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/prizes');
     await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
-  });
-
-  it('achievements are marked on their page, and another player’s achievements belong to the profile', async () => {
-    vi.mocked(me).mockResolvedValue(OK);
-    show('/achievements');
-    await screen.findByRole('link', { name: 'Досягнення' });
-    expect(screen.getByRole('link', { name: 'Досягнення' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
-    cleanup();
-    show('/profile/u2/achievements');
-    await screen.findByRole('link', { name: 'Досягнення' });
-    expect(screen.getByRole('link', { name: 'Досягнення' }).getAttribute('aria-current')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
-  });
-
-  it('friends are marked on their page, and a friend’s profile belongs to the profile item', async () => {
-    vi.mocked(me).mockResolvedValue(OK);
-    show('/friends');
-    await screen.findByRole('link', { name: 'Друзі' });
-    expect(screen.getByRole('link', { name: 'Друзі' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
-    cleanup();
-    show('/profile/u2');
-    await screen.findByRole('link', { name: 'Друзі' });
-    expect(screen.getByRole('link', { name: 'Друзі' }).getAttribute('aria-current')).toBeNull();
   });
 
   it('while it is unknown who is here, only join is offered', async () => {

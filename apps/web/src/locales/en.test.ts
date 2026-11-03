@@ -14,6 +14,6 @@ describe('en', () => {
     expect(countText('questionCount', 1, { count: 1 })).toBe('1 question');
     expect(countText('questionCount', 5, { count: 5 })).toBe('5 questions');
     expect(t('menuShortJoin')).toBe('Play');
-    expect(t('menuShortAchievements')).toBe('Badges');
+    expect(t('menuShortProfile')).toBe('Profile');
   });
 });
