@@ -68,6 +68,20 @@ describe('trophyLabel', () => {
       expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe("Statuetta d'oro");
     });
   });
+
+  describe('in Arabic', () => {
+    afterEach(() => activateLocaleForTests('uk'));
+
+    it('puts the noun first and the adjective agrees with its gender', async () => {
+      await loadLocale('ar');
+      activateLocale('ar');
+      expect(trophyLabel({ kind: 'cup', material: 'gold' })).toBe('كأس ذهبية');
+      expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe('ميدالية فضية');
+      expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('تاج برونزي');
+      expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('نجمة ماسية');
+      expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('تمثال ذهبي');
+    });
+  });
 });
 
 describe('prizeSummary', () => {

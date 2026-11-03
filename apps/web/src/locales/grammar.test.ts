@@ -60,6 +60,12 @@ describe('grammar', () => {
     expect((['cup', 'medal', 'crown', 'star', 'statuette'] as const).map((kind) => trophyGender(kind, 'it'))).toEqual(['f', 'f', 'f', 'f', 'f']);
     expect(trophyPhrase("d'oro", 'coppa', 'it')).toBe("Coppa d'oro");
     expect(trophyPhrase('di bronzo', 'statuetta', 'it')).toBe('Statuetta di bronzo');
+  });
+
+  it('ar: cup, medal and star are feminine, crown and statuette masculine; the noun comes first', () => {
+    expect((['cup', 'medal', 'crown', 'star', 'statuette'] as const).map((kind) => trophyGender(kind, 'ar'))).toEqual(['f', 'f', 'm', 'f', 'm']);
+    expect(trophyPhrase('ذهبية', 'كأس', 'ar')).toBe('كأس ذهبية');
+    expect(trophyPhrase('فضي', 'تاج', 'ar')).toBe('تاج فضي');
     expect(trophyPhrase('de oro', 'copa', 'es')).toBe('Copa de oro');
     expect(trophyPhrase('Золотий', 'кубок', 'uk')).toBe('Золотий кубок');
   });

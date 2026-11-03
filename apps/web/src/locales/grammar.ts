@@ -125,6 +125,8 @@ const TROPHY_GENDER_BY_LOCALE: Partial<Record<Locale, Partial<Record<TrophyKind,
   es: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f' },
   /** it: la coppa, la medaglia, la corona, la stella, la statuetta — усі жіночого роду. */
   it: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f' },
+  /** ar: كأس، ميدالية، نجمة — жіночого роду («كأس ذهبية»); تاج، تمثال — чоловічого («تاج فضي»). */
+  ar: { cup: 'f', medal: 'f', crown: 'm', star: 'f', statuette: 'm' },
 };
 export function trophyGender(kind: TrophyKind, locale: Locale = currentLocale()): 'm' | 'f' {
   return TROPHY_GENDER_BY_LOCALE[locale]?.[kind] ?? TROPHY_GENDER[kind];
@@ -132,9 +134,11 @@ export function trophyGender(kind: TrophyKind, locale: Locale = currentLocale())
 
 /**
  * Назва трофея з матеріалу й виду: uk «Золотий кубок» (прикметник попереду). es, it — іменник попереду з великої,
- * матеріал після: «Copa de oro», «Coppa d'oro» (елізія «d'» уже в словнику матеріалу).
+ * матеріал після: «Copa de oro», «Coppa d'oro» (елізія «d'» уже в словнику матеріалу). ar — іменник попереду,
+ * прикметник узгоджений за родом: «كأس ذهبية», «تاج فضي» (регістру немає).
  */
 export function trophyPhrase(adjective: string, noun: string, locale: Locale = currentLocale()): string {
+  if (locale === 'ar') return `${noun} ${adjective}`;
   if (locale === 'es' || locale === 'it') return `${noun.charAt(0).toLocaleUpperCase(intlTag(locale))}${noun.slice(1)} ${adjective}`;
   return `${adjective} ${noun}`;
 }
