@@ -1,12 +1,14 @@
-import { PUSH_MAX_SUBSCRIPTIONS, type PushSubscriptionInput } from '@quiz/shared';
+import { PUSH_MAX_SUBSCRIPTIONS, type Locale, type PushSubscriptionInput } from '@quiz/shared';
 import { and, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { pushSubscription } from './db/schema';
+import { profile, pushSubscription } from './db/schema';
 
 export interface StoredSubscription {
   endpoint: string;
   userId: string;
   keys: { p256dh: string; auth: string };
+  /** Мова профілю власника (22a); null — не обрана, пуші йдуть українською. */
+  locale: Locale | null;
 }
 
 /** Upsert за endpoint (рядок переходить до userId, created_at = now); далі лишає userId щонайбільше PUSH_MAX_SUBSCRIPTIONS найновіших. */
@@ -50,6 +52,16 @@ export async function dropEndpoint(db: Db, endpoint: string): Promise<void> {
 /** Усі підписки цих людей (порожній масив → []). */
 export async function subscriptionsOf(db: Db, userIds: string[]): Promise<StoredSubscription[]> {
   if (userIds.length === 0) return [];
-  const rows = await db.select().from(pushSubscription).where(inArray(pushSubscription.userId, userIds));
-  return rows.map((row) => ({ endpoint: row.endpoint, userId: row.userId, keys: { p256dh: row.p256dh, auth: row.auth } }));
+  const rows = await db
+    .select({
+      endpoint: pushSubscription.endpoint,
+      userId: pushSubscription.userId,
+      p256dh: pushSubscription.p256dh,
+      auth: pushSubscription.auth,
+      locale: profile.locale,
+    })
+    .from(pushSubscription)
+    .leftJoin(profile, eq(profile.userId, pushSubscription.userId))
+    .where(inArray(pushSubscription.userId, userIds));
+  return rows.map((row) => ({ endpoint: row.endpoint, userId: row.userId, keys: { p256dh: row.p256dh, auth: row.auth }, locale: row.locale }));
 }

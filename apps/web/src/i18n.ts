@@ -3,7 +3,7 @@ import { intlTag, setCurrentLocale } from './locales/current';
 import { loadMessages, type Messages } from './locales/load';
 import { helpUk } from './help/help-uk';
 import { isEnabled } from './locales/locales';
-import { pushStrings } from './push/push-strings';
+import { PUSH_STRINGS, pushStrings } from './push/push-strings';
 
 const uk = {
   appName: 'Вікторина',
@@ -2751,7 +2751,9 @@ function fill(text: string, vars: Record<string, string | number>): string {
 export async function loadLocale(locale: Locale): Promise<void> {
   if (!isEnabled(locale)) throw new Error(`Locale ${locale} is not enabled`);
   if (locale === 'uk' || loaded.has(locale)) return;
-  loaded.set(locale, await loadMessages(locale));
+  const messages = await loadMessages(locale);
+  // Пуш-ключі мови живуть у push/strings/<lang>.json (їх читає й сервіс-воркер).
+  loaded.set(locale, { ui: { ...messages.ui, ...PUSH_STRINGS[locale] }, help: messages.help });
 }
 
 /** Робить мову активною. Її словник уже має бути в кеші (loadLocale). */

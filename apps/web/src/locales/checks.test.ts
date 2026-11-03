@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Locale } from '@quiz/shared';
 import { ukMessages } from '../i18n';
-import { pushStrings } from '../push/push-strings';
+import { PUSH_STRINGS, pushStrings } from '../push/push-strings';
 import { checkLocale, digitRuns, glossary, integerForms, placeholders, pluralBases, type Issue } from './checks';
 import { loadMessages, type Messages } from './load';
 import { ENABLED_LOCALES } from './locales';
@@ -118,7 +118,7 @@ describe('real dictionaries', () => {
   for (const locale of others) {
     it(`${locale} is complete`, async () => {
       const loaded = await loadMessages(locale);
-      expect(checkLocale(locale, sources, { ui: loaded.ui, help: loaded.help, push: {} })).toEqual([]);
+      expect(checkLocale(locale, sources, { ui: loaded.ui, help: loaded.help, push: PUSH_STRINGS[locale] as Messages })).toEqual([]);
     });
   }
 

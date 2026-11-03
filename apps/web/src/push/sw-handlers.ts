@@ -1,5 +1,5 @@
 import type { PushPayload } from '@quiz/shared';
-import { pushString } from './push-strings';
+import { pushStringsFor } from './push-strings';
 import { pushNotice, type PushNotice } from './push-text';
 
 export interface SwClient {
@@ -40,9 +40,9 @@ export function isPushPayload(raw: unknown): raw is PushPayload {
 }
 
 function fallbackNotice(raw: unknown): PushNotice {
-  const title =
-    isObject(raw) && typeof raw.title === 'string' && raw.title !== '' ? raw.title : pushString('pushFallbackTitle');
-  return { title, body: pushString('pushFallbackBody'), url: '/', tag: 'push-fallback' };
+  const t = pushStringsFor(isObject(raw) ? raw.locale : undefined);
+  const title = isObject(raw) && typeof raw.title === 'string' && raw.title !== '' ? raw.title : t('pushFallbackTitle');
+  return { title, body: t('pushFallbackBody'), url: '/', tag: 'push-fallback' };
 }
 
 /** Браузер вимагає показати сповіщення на кожен пуш: що б не прийшло, показуємо хоч загальне. */

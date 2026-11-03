@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('./strings/en.json', () => ({ default: { pushOpenedTitle: 'Game “{title}” has started' } }));
+
 import {
   isPushPayload,
   loadServerKey,
@@ -26,6 +29,37 @@ const throwing = {
     throw new Error('bad');
   },
 };
+
+describe('onPush language', () => {
+  const opened = { kind: 'opened', eventId: 'e1', title: 'Писанки', code: '123456' };
+  const titleFor = async (extra: object) => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ ...opened, ...extra }) }, 'Europe/Kyiv');
+    return (scope.registration.showNotification.mock.calls[0] as unknown as [string, unknown])[0];
+  };
+
+  it('uses the payload locale', async () => {
+    expect(await titleFor({ locale: 'en' })).toBe('Game “Писанки” has started');
+  });
+  it('falls back to uk for an unknown or missing locale', async () => {
+    expect(await titleFor({ locale: 'ru' })).toBe('Гра «Писанки» почалась');
+    expect(await titleFor({})).toBe('Гра «Писанки» почалась');
+  });
+  it('uses uk text for a key the locale lacks', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ ...opened, locale: 'en' }) }, 'Europe/Kyiv');
+    expect((scope.registration.showNotification.mock.calls[0] as unknown as [string, { body: string }])[1].body).toBe(
+      'Ведучий відкрив гру. Торкнися, щоб приєднатися.',
+    );
+  });
+  it('formats the cancelled date with Western digits in ar', async () => {
+    const scope = fakeScope();
+    await onPush(scope, { json: () => ({ kind: 'cancelled', eventId: 'e1', title: 'x', startsAt: '2026-11-08T16:30:00.000Z', locale: 'ar' }) }, 'Europe/Kyiv');
+    const body = (scope.registration.showNotification.mock.calls[0] as unknown as [string, { body: string }])[1].body;
+    expect(body).toMatch(/[0-9]/);
+    expect(body).not.toMatch(/[٠-٩]/);
+  });
+});
 
 describe('onPush', () => {
   it('shows the opened notice', async () => {

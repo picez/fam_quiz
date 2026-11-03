@@ -29,11 +29,11 @@ describe('push store', () => {
     const o = await person();
     await saveSubscription(db, o, sub(1), NOW);
     expect(await subscriptionsOf(db, [o])).toEqual([
-      { endpoint: URL + '1', userId: o, keys: { p256dh: 'BP1', auth: 'au1' } },
+      { endpoint: URL + '1', userId: o, keys: { p256dh: 'BP1', auth: 'au1' }, locale: null },
     ]);
     await saveSubscription(db, o, { ...sub(1), keys: { p256dh: 'NEW', auth: 'newauth' } }, NOW);
     expect(await subscriptionsOf(db, [o])).toEqual([
-      { endpoint: URL + '1', userId: o, keys: { p256dh: 'NEW', auth: 'newauth' } },
+      { endpoint: URL + '1', userId: o, keys: { p256dh: 'NEW', auth: 'newauth' }, locale: null },
     ]);
   });
 
