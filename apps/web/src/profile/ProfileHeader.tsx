@@ -28,8 +28,8 @@ export function HeadlineStats({ stats }: { stats: ProfileStats }): JSX.Element {
 }
 
 /**
- * header.profile-head у MotifHero: аватар у TomoeRing (рамка --accent), h1 нік + ProfileLevelMark + nick-title,
- * плашка «🏆 N перемог», editTo → посилання t('editProfile'), progress → LevelBar, HeadlineStats, children (дії).
+ * header.profile-head у MotifHero: аватар у TomoeRing (рамка --accent), h1 нік + nick-title, під ним ряд плашок як у макеті:
+ * суцільна «Рів. N» (ProfileLevelMark) і контурна «🏆 N перемог», editTo → посилання t('editProfile'), progress → LevelBar, HeadlineStats, children (дії).
  */
 export function ProfileHeader(props: {
   profile: ProfileCard;
@@ -52,10 +52,10 @@ export function ProfileHeader(props: {
           <div className="profile-id-text">
             <h1 className="brand">
               {nickText(profile.nickname)}
-              <ProfileLevelMark level={level} badge={badge} />
               {title !== null && <span className="nick-title">{title}</span>}
             </h1>
             <p className="profile-pills">
+              <ProfileLevelMark level={level} badge={badge} />
               <span className="profile-pill">{`🏆 ${stats.wins} ${countText('statWins', stats.wins)}`}</span>
             </p>
             {editTo !== undefined && (

@@ -60,7 +60,7 @@ export function ProfileSettings(): JSX.Element {
             <p className="meta">{profile.email}</p>
           </section>
           <div className="toolbar">
-            <Link to={`/profile/${profile.id}`}>{t('publicProfileLink')}</Link>
+            <Link to={`/profile/${encodeURIComponent(profile.id)}`}>{t('publicProfileLink')}</Link>
             {state.status === 'ready' && state.account.admin && (
               <Link className="btn" to="/admin">
                 {t('profileAdminLink')}

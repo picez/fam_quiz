@@ -126,9 +126,9 @@ describe('Achievements, own page', () => {
     await screen.findByText('Отримано 2 з 48');
     expect(within(cardOf('10 ігор')).queryByRole('button')).toBeNull();
     const first = await within(cardOf('Перша гра')).findByRole('button', { name: '📌 Прибрати з вітрини: Перша гра' });
-    expect(first.getAttribute('aria-pressed')).toBe('true');
+    expect(first.hasAttribute('aria-pressed')).toBe(false);
     const fast = within(cardOf('Швидкі пальці')).getByRole('button', { name: '📌 На вітрину: Швидкі пальці' });
-    expect(fast.getAttribute('aria-pressed')).toBe('false');
+    expect(fast.hasAttribute('aria-pressed')).toBe(false);
     expect(screen.getAllByRole('button', { name: /^📌 / })).toHaveLength(2);
     fireEvent.click(fast);
     await waitFor(() => expect(pinToShowcase).toHaveBeenCalledWith({ kind: 'achievement', id: 'fast_answer' }));
@@ -157,6 +157,17 @@ describe('Achievements, another player', () => {
     expect(container.querySelectorAll('.achievement-card')).toHaveLength(2);
     expect(container.querySelectorAll('.is-locked')).toHaveLength(0);
     expect(container.querySelector('progress')).toBeNull();
+  });
+
+  it('shows no title while loading, so «Досягнення» never flashes before «Досягнення: Оля»', async () => {
+    let finish: (value: Awaited<ReturnType<typeof getAchievements>>) => void = () => undefined;
+    vi.mocked(getAchievements).mockReturnValue(new Promise((done) => (finish = done)));
+    open('/profile/u2/achievements');
+    expect(await screen.findByText('Завантажуємо…')).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile/u2');
+    finish({ ok: true, data: theirs });
+    await screen.findByRole('heading', { level: 1, name: 'Досягнення: Оля' });
   });
 
   it('has no 📌 buttons and does not ask for pins', async () => {

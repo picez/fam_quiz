@@ -8,8 +8,8 @@ export function loginFor(pathname: string): string {
   return `/login?next=${encodeURIComponent(pathname)}`;
 }
 
-/** Підсторінка профілю: «‹» назад (посилання, тож працює й на глибокому посиланні) і заголовок плитки. */
-export function ProfileSubpage({ title, back = '/profile', className, children }: { title: ReactNode; back?: string; className?: string; children: ReactNode }): JSX.Element {
+/** Підсторінка профілю: «‹» назад (посилання, тож працює й на глибокому посиланні) і заголовок плитки; title null — без h1 (ще вантажимо). */
+export function ProfileSubpage({ title, back = '/profile', className, children }: { title: ReactNode | null; back?: string; className?: string; children: ReactNode }): JSX.Element {
   return (
     <main className={className === undefined ? 'app wide profile-sub' : `app wide profile-sub ${className}`}>
       <div className="profile-sub-head">
@@ -18,7 +18,7 @@ export function ProfileSubpage({ title, back = '/profile', className, children }
             ‹
           </span>
         </Link>
-        <h1 className="brand">{title}</h1>
+        {title !== null && <h1 className="brand">{title}</h1>}
       </div>
       {children}
     </main>

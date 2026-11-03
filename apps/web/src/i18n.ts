@@ -1581,8 +1581,6 @@ const uk = {
   achievementEarnedLongAgo: 'Отримано давно',
   achievementProgress: '{current} / {goal}',
   achievementLockedNote: ', ще не отримано',
-  achievementsMore: 'ще {count} →',
-  achievementsAll: 'Усі досягнення →',
   achievementsNone: 'Ще жодного досягнення',
   achievementsEmptyPublic: 'Ще жодного досягнення. Усе попереду!',
   avatarOf: 'Аватар {nickname}',

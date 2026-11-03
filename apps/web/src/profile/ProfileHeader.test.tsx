@@ -27,10 +27,12 @@ const header = (props: Partial<Parameters<typeof ProfileHeader>[0]> = {}) =>
   );
 
 describe('ProfileHeader', () => {
-  it('shows the nickname in h1 with the level pill', () => {
+  it('shows the nickname in h1 and, under it, a filled level pill before the outlined wins pill', () => {
     const { container } = header();
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Олена');
-    expect(container.querySelector('.profile-head h1 .nick-level')?.textContent).toBe('Рів. 7');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Олена');
+    const pills = container.querySelector('.profile-head .profile-pills');
+    expect(pills?.querySelector('.nick-level')?.textContent).toBe('Рів. 7');
+    expect([...(pills?.querySelectorAll('.nick-level, .profile-pill') ?? [])].map((pill) => pill.textContent)).toEqual(['Рів. 7', '🏆 17 перемог']);
   });
 
   it('shows the wins pill in the right plural form', () => {

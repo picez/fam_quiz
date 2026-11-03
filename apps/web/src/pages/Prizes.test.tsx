@@ -116,12 +116,12 @@ describe('Prizes', () => {
     vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [id], achievements: [] } });
     open();
     const pin = await screen.findByRole('button', { name: /^📌 На вітрину: / });
-    expect(pin.getAttribute('aria-pressed')).toBe('false');
+    expect(pin.hasAttribute('aria-pressed')).toBe(false);
     expect(pin.textContent).toBe('📌 На вітрину');
     fireEvent.click(pin);
     await waitFor(() => expect(pinToShowcase).toHaveBeenCalledWith({ kind: 'prize', id }));
     const unpin = await screen.findByRole('button', { name: /^📌 Прибрати з вітрини: / });
-    expect(unpin.getAttribute('aria-pressed')).toBe('true');
+    expect(unpin.hasAttribute('aria-pressed')).toBe(false);
     expect(getShowcasePins).not.toHaveBeenCalled();
   });
 

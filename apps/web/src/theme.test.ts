@@ -100,6 +100,29 @@ describe('theme tokens «Кривавий місяць»', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('the profile header keeps its text readable over the moon: edit link in --paper, numbers on the surface, a filled level pill', () => {
+    const body = (selector: string) => cssRules(css).find((rule) => rule.selector === selector)?.body ?? '';
+    expect(body('.profile-edit')).toContain('color: var(--paper);');
+    expect(contrast(tokenColor(tokens, '--paper'), tokenColor(tokens, '--stage'))).toBeGreaterThanOrEqual(4.5);
+    expect(body('.headline-stats')).toContain('background: var(--surface);');
+    expect(body('.profile-pills .profile-mark .nick-level')).toContain('background: var(--accent);');
+    expect(contrast(tokenColor(tokens, '--on-accent'), tokenColor(tokens, '--accent'))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('a shelf of two stands centred like a shelf of three', () => {
+    expect(cssRules(css).find((rule) => rule.selector === '.shelf-stand')?.body ?? '').toContain('justify-content: center;');
+  });
+
+  it('the body glow fades through several stops, so no band shows where it ends', () => {
+    const glow = cssRules(css).find((rule) => rule.selector === 'body' && rule.body.includes('background-image'))?.body ?? '';
+    expect((glow.match(/rgb\(224 37 49 \/ [\d.]+\) \d+%/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    expect(glow).toMatch(/transparent 7\d%/);
+  });
+
+  it('native progress bars are red, not the system blue', () => {
+    expect(cssRules(css).find((rule) => rule.selector === 'progress')?.body ?? '').toContain('accent-color: var(--accent);');
+  });
+
   it('the primary button is a red fill with white text', () => {
     const rule = /\n\.btn-primary\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
     expect(rule).toContain('background: var(--accent);');

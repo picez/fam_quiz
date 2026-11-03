@@ -45,7 +45,8 @@ function PublicAchievements({ id }: { id: string }) {
       current = false;
     };
   }, [id]);
-  if (state.status === 'loading') return <Shell back={profileOf(id)}><p className="meta">{t('loading')}</p></Shell>;
+  // Без заголовка, поки вантажимо: інакше «Досягнення» блимне перед «Досягнення: Оля».
+  if (state.status === 'loading') return <Shell title={null} back={profileOf(id)}><p className="meta">{t('loading')}</p></Shell>;
   if (state.status === 'error') return <Failure back={profileOf(id)} message={state.message} />;
   return <PageView page={state.page} />;
 }
@@ -53,7 +54,7 @@ function PublicAchievements({ id }: { id: string }) {
 /** Чужі ачівки ведуть назад на профіль їхнього власника. */
 const profileOf = (id: string) => `/profile/${encodeURIComponent(id)}`;
 
-function Shell({ title = t('profileTileAchievements'), back, children }: { title?: ReactNode; back?: string; children: ReactNode }) {
+function Shell({ title = t('profileTileAchievements'), back, children }: { title?: ReactNode | null; back?: string; children: ReactNode }) {
   return (
     <ProfileSubpage title={title} back={back} className="achievements-page">
       {children}

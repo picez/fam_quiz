@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -13,7 +13,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import webpush from 'web-push';
 import { buildApp, type AppOptions } from '../src/app';
 import type { PushOptions } from '../src/push';
-import { calendarEvent, feedEvent, game as gameRow, pushSubscription, quiz as quizRow, user, userLike, xpEntry } from '../src/db/schema';
+import { calendarEvent, feedEvent, game as gameRow, prizeAward, pushSubscription, quiz as quizRow, user, userAchievement, userLike, xpEntry } from '../src/db/schema';
+import { deleteAward } from '../src/prizes';
 import { adminEmails } from '../src/config';
 import { TEST_AUTH } from '../src/testing/accounts';
 import { createTestDb } from '../src/testing/test-db';
@@ -1730,8 +1731,8 @@ async function menuProfileFriends() {
   expect(await olya.locator('.achievement-showcase').getByRole('button', { name: '10 ігор', ...exact }).count()).toBe(0);
   await shot(olya, 'profile-own-phone');
   // Нікнейм за замовчуванням — лише ім'я з акаунта «Оля Гравець».
-  // У шапці профілю біля ніку — «Рів. N» (15a), тож ім'я заголовка — нік і «Рівень N».
-  await olya.getByRole('heading', { level: 1, name: /^Оля Рівень \d+$/ }).waitFor();
+  // «Рів. N» (15a) стоїть у ряду плашок під ніком (23a), тож ім'я заголовка — лише нік.
+  await olya.getByRole('heading', { level: 1, name: 'Оля', ...exact }).waitFor();
   await openProfileTile(olya, 'Статистика');
   expect(await stat(olya, 'гра').textContent()).toBe('1гра');
   expect(await stat(olya, 'перемога').textContent()).toBe('1перемога');
@@ -1752,7 +1753,7 @@ async function menuProfileFriends() {
   await olya.waitForURL(/\/profile\/[^/]+$/);
   const publicUrl = olya.url();
   const olyaId = publicUrl.slice(publicUrl.lastIndexOf('/') + 1);
-  await olya.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
+  await olya.getByRole('heading', { level: 1, name: 'Зірка', ...exact }).waitFor();
   expect(await olya.content()).not.toContain('olya8@example.com');
 
   // Телефон 375 пікселів: без прокручування вбік, панель не закриває кінець сторінки.
@@ -1770,7 +1771,7 @@ async function menuProfileFriends() {
 
   // 6. Ведуча відкриває публічний профіль Олі і додає її в друзі.
   await host.goto(publicUrl);
-  await host.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
+  await host.getByRole('heading', { level: 1, name: 'Зірка', ...exact }).waitFor();
   expect(await host.content()).not.toContain('olya8@example.com');
   await shot(host, 'profile-public-desktop');
   await host.getByRole('button', { name: 'Додати в друзі', ...exact }).click();
@@ -1791,7 +1792,7 @@ async function menuProfileFriends() {
   await shot(host, 'friends-desktop');
   await friend.click();
   await host.waitForURL(`${base}/profile/${olyaId}`);
-  await host.getByRole('heading', { level: 1, name: /^Зірка Рівень \d+$/ }).waitFor();
+  await host.getByRole('heading', { level: 1, name: 'Зірка', ...exact }).waitFor();
 
   // 7. Приватність через API: у відповіді немає приватних ключів.
   const response = await host.request.get(`${base}/api/profiles/${olyaId}`);
@@ -19911,6 +19912,322 @@ async function l10n22a() {
 it('part 22a: localisation — a German browser opens the site in German, every language keeps the five-item menu within 60 px on 360 and 375 px with no side scroll, Оля picks Deutsch in the profile and gets it back on a fresh Ukrainian browser after sign-in, Богдан hosts in English, Віра plays from an Arabic phone right to left with the room code, timer and scores left to right and the Ukrainian questions untranslated', async () => {
   try {
     await l10n22a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Скінченні анімації (розкриття, мигання вердикту) скінчились; нескінченні (мотиви) не рахуються. */
+const VERDICT_SETTLED_23A = `document.getAnimations().every((a) => a.playState !== 'running' || a.effect.getComputedTiming().iterations === Infinity)`;
+
+/** getComputedStyle сторінки: у типах сервера немає DOM. */
+type Css23a = { getComputedStyle: (element: unknown, pseudo?: string) => Record<string, string | undefined> };
+
+/** Нагорода Олі прямою вставкою (23a): place 1, своя дата, вміст за зразком складу призів. */
+function award23a(userId: string, quizTitle: string, awardedAt: Date, content: Partial<PrizeContent>) {
+  return {
+    id: randomUUID(),
+    userId,
+    prizeId: randomUUID(),
+    gameId: randomUUID(),
+    place: 1 as const,
+    content: { name: quizTitle, trophy: null, engraving: null, real: null, title: null, diploma: false, ...content },
+    quizTitle,
+    nickname: 'Оля 23a',
+    awardedAt,
+  };
+}
+
+/** Полиця: назви вікторин предметів у DOM-порядку, центральний і його підпис. */
+async function shelf23a(page: Page): Promise<{ order: string[]; main: string; caption: string }> {
+  const shelf = page.locator('section.shelf');
+  await shelf.locator('.shelf-item').first().waitFor();
+  const order = await shelf.locator('.shelf-item .shelf-quiz').allTextContents();
+  const main = (await shelf.locator('.shelf-item.is-main .shelf-quiz').textContent())!;
+  const caption = (await shelf.locator('.shelf-item.is-main .shelf-caption').textContent())!;
+  return { order, main, caption };
+}
+
+async function bloodMoon23a() {
+  const PASSWORD = 'correct horse battery';
+  const K = 'Кубок Києва 23a';
+  const M = 'Медаль Львова 23a';
+  const S = 'Зірка Одеси 23a';
+  const D = 'Диплом Полтави 23a';
+  const R = 'Вареники 23a';
+  const QUIZ = 'Дніпро 23a';
+  const ACCENT = 'rgb(224, 37, 49)';
+
+  // ── 1. Акаунти; нагороди й ачівки Олі — прямо в базу. ──
+  const olya = await open('olya23a', 375, 812);
+  const petro = await open('petro23a', 1280, 800);
+  const taras = await open('taras23a', 1280, 800);
+  for (const [page, nickname, email] of [
+    [olya, 'Оля 23a', 'olya23a@example.com'],
+    [petro, 'Петро 23a', 'petro23a@example.com'],
+    [taras, 'Тарас 23a', 'taras23a@example.com'],
+  ] as const) {
+    await register(page, 'menu', nickname, email);
+    const named = await page.request.put(`${base}/api/me/profile`, { data: { nickname, avatar: null } });
+    expect(named.ok(), await named.text()).toBe(true);
+  }
+  const olyaId = await myId(olya);
+  const day = (n: number) => new Date(Date.UTC(2026, 9, n, 12));
+  // K — найновіший трофей; D і R новіші за M і S, але без трофея, тож на автополицю не потрапляють.
+  const awards = {
+    K: award23a(olyaId, K, day(20), { trophy: { kind: 'cup', material: 'gold' }, engraving: 'Найкраща в Києві' }),
+    M: award23a(olyaId, M, day(18), { trophy: { kind: 'medal', material: 'silver' } }),
+    S: award23a(olyaId, S, day(16), { trophy: { kind: 'star', material: 'bronze' } }),
+    D: award23a(olyaId, D, day(19), { diploma: true }),
+    R: award23a(olyaId, R, day(21), { real: { text: R, photoUrl: null } }),
+  };
+  await db.insert(prizeAward).values(Object.values(awards));
+  const ACHIEVED = ['first_game', 'host', 'sniper', 'games_10', 'fast_answer', 'night_owl'] as const;
+  await db.insert(userAchievement).values(ACHIEVED.map((achievementId, index) => ({ userId: olyaId, achievementId, earnedAt: day(10 + index) })));
+
+  // ── 2. Меню у всіх семи мовах на 320–1280 px; плитки профілю не обрізані на 320. ──
+  await olya.goto(`${base}/profile`);
+  await olya.locator('nav.profile-tiles').waitFor();
+  expect(await menuLinks(olya)).toEqual(MENU_ITEMS_23A);
+  for (const lang of LOCALES) {
+    const saved = await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } });
+    expect(saved.status()).toBe(200);
+    await olya.setViewportSize({ width: 375, height: 812 });
+    await olya.goto(`${base}/profile`);
+    await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
+    await olya.locator('nav.profile-tiles a').nth(7).waitFor();
+    for (const width of [320, 360, 375, 414, 701, 768, 1024, 1280]) await expectFiveItems(olya, width);
+    await olya.setViewportSize({ width: 320, height: 812 });
+    const clipped = await olya.locator('.profile-tiles a').evaluateAll((tiles) =>
+      tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent),
+    );
+    expect(clipped, `p23a-${lang}-320: clipped tiles`).toEqual([]);
+    // Слово підпису не розривається посеред (як «Налаштуванн-я»): кожне слово — один рядок.
+    const split = await olya.locator('.profile-tiles .tile-label').evaluateAll((labels) =>
+      labels.flatMap((label) => {
+        const node = label.firstChild;
+        if (node === null) return [];
+        return [...(node.textContent ?? '').matchAll(/\S+/g)].flatMap((match) => {
+          const range = label.ownerDocument.createRange();
+          range.setStart(node, match.index);
+          range.setEnd(node, match.index + match[0].length);
+          return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1 ? [match[0]] : [];
+        });
+      }),
+    );
+    expect(split, `p23a-${lang}-320: tile words split`).toEqual([]);
+    expect(await noSideScroll(olya), `p23a-${lang}-320: horizontal scroll`).toBe(true);
+    await shot(olya, `p23a-menu-${lang}-320`);
+    if (lang === 'ar') {
+      const [first, second] = await olya.locator('.profile-tiles a').evaluateAll((tiles) => tiles.slice(0, 2).map((tile) => tile.getBoundingClientRect().left));
+      expect(first!, 'ar: the first tile is right of the second').toBeGreaterThan(second!);
+      await olya.setViewportSize({ width: 375, height: 812 });
+      await shot(olya, 'p23a-profile-ar');
+    }
+  }
+  const back = await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } });
+  expect(back.status()).toBe(200);
+
+  // ── 3. Шапка й плитки на 375. ──
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(`${base}/profile`);
+  await expect.poll(() => htmlLang(olya), POLL).toBe('uk');
+  expect(await olya.evaluate('getComputedStyle(document.body).backgroundColor')).toBe('rgb(6, 5, 5)');
+  await olya.getByRole('heading', { level: 1, name: 'Оля 23a', ...exact }).waitFor();
+  await olya.locator('.profile-head .profile-pills').getByText(/^Рів\. \d+$/).waitFor();
+  expect(await olya.locator('.headline-stats dd').count()).toBe(4);
+  expect(await olya.locator('nav.profile-tiles a').count()).toBe(8);
+  await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Призи, 5', ...exact }).waitFor();
+  await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Досягнення, 6', ...exact }).waitFor();
+  expect(await noSideScroll(olya)).toBe(true);
+  await shot(olya, 'p23a-profile');
+
+  // ── 4. Автополиця: три трофеї, найновіший кубок у центрі; без диплома й вареників. ──
+  const auto = await shelf23a(olya);
+  expect(auto.main).toBe(K);
+  expect(auto.caption.toLowerCase()).toContain('кубок');
+  expect(auto.order).toEqual([M, K, S]);
+  await olya.locator('section.shelf .shelf-item.is-main').getByRole('button').click();
+  const viewer = olya.getByRole('dialog', { name: /^Приз за \d місце$/ });
+  await viewer.waitFor();
+  await shot(olya, 'p23a-shelf');
+  await viewer.getByRole('button', { name: 'Закрити', ...exact }).click();
+  await viewer.waitFor({ state: 'detached' });
+
+  // ── 5. Закріплення призів: D, M, K; четвертий (S) — повідомлення про ліміт. ──
+  await openProfileTile(olya, 'Призи');
+  expect(new URL(olya.url()).pathname).toBe('/profile/prizes');
+  await olya.getByRole('heading', { level: 2, name: 'Нагороди', ...exact }).waitFor();
+  const pinPrize = (quiz: string) => olya.getByRole('button', { name: new RegExp(`^📌 На вітрину: .* · ${quiz}$`) });
+  const unpinPrize = (quiz: string) => olya.getByRole('button', { name: new RegExp(`^📌 Прибрати з вітрини: .* · ${quiz}$`) });
+  for (const quiz of [D, M, K]) {
+    await pinPrize(quiz).click();
+    await unpinPrize(quiz).waitFor();
+  }
+  await pinPrize(S).click();
+  await olya.locator('.pin-message').getByText('На вітрині вже 3 кубки — спершу прибери один.', exact).waitFor();
+  // Стан каже лише підпис (без aria-pressed, задача 11): у S він лишився «На вітрину».
+  expect(await pinPrize(S).count(), 'S stays unpinned').toBe(1);
+  expect(await pinPrize(S).getAttribute('aria-pressed')).toBeNull();
+  await shot(olya, 'p23a-pin-limit');
+  await olya.getByRole('link', { name: 'Назад', ...exact }).click();
+  await olya.waitForURL(`${base}/profile`);
+  const pinned = await shelf23a(olya);
+  expect(pinned.order).toEqual([M, D, K]);
+  expect(pinned.main).toBe(D);
+  expect(pinned.caption).toBe('Диплом');
+  await shot(olya, 'p23a-pinned');
+
+  // ── 6. Ачівки через стару адресу /achievements: п'ять закріплених, шоста — ліміт. ──
+  await olya.goto(`${base}/achievements`);
+  await olya.getByRole('heading', { level: 1, name: 'Досягнення', ...exact }).waitFor();
+  await olya.getByRole('link', { name: 'Назад', ...exact }).waitFor();
+  expect(await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBe('page');
+  const NAMES = { sniper: 'Снайперська точність', host: 'За пультом', first_game: 'Перша гра', games_10: '10 ігор', fast_answer: 'Швидкі пальці', night_owl: 'Нічна сова' };
+  const PINNED = ['sniper', 'host', 'first_game', 'games_10', 'fast_answer'] as const;
+  for (const id of PINNED) {
+    await olya.getByRole('button', { name: `📌 На вітрину: ${NAMES[id]}`, ...exact }).click();
+    await olya.getByRole('button', { name: `📌 Прибрати з вітрини: ${NAMES[id]}`, ...exact }).waitFor();
+  }
+  await olya.getByRole('button', { name: `📌 На вітрину: ${NAMES.night_owl}`, ...exact }).click();
+  await olya.locator('.pin-message').getByText('На вітрині вже 5 ачівок — спершу прибери одну.', exact).waitFor();
+  await olya.goto(`${base}/profile`);
+  const squares = olya.locator('.achievement-showcase .achievement-square');
+  await squares.first().waitFor();
+  expect(await squares.evaluateAll((list) => list.map((square) => square.getAttribute('aria-label')))).toEqual(PINNED.map((id) => NAMES[id]));
+  await squares.first().click();
+  await olya.locator('.achievement-caption').getByText(NAMES.sniper, exact).waitFor();
+
+  // ── 7. Видалена нагорода сходить з полиці; місце звільнилось — S закріплюється без повідомлення. ──
+  expect(await deleteAward(db, awards.M.id)).not.toBeNull();
+  await olya.reload();
+  await expect.poll(async () => (await shelf23a(olya)).order, POLL).toEqual([D, K]);
+  await shot(olya, 'p23a-shelf-two');
+  await olya.goto(`${base}/profile/prizes`);
+  await pinPrize(S).click();
+  await unpinPrize(S).waitFor();
+  expect((await olya.locator('.pin-message').textContent())?.trim() ?? '').toBe('');
+  await olya.goto(`${base}/profile`);
+  const own = await shelf23a(olya);
+  expect(own.order).toEqual([K, D, S]);
+  const ownNumbers = await olya.locator('.headline-stats dd').allTextContents();
+
+  // ── 8. Петро бачить публічний профіль Олі: ті самі числа, полиця й ачівки, без плиток. ──
+  await petro.goto(`${base}/profile/${olyaId}`);
+  await petro.getByRole('heading', { level: 1, name: 'Оля 23a', ...exact }).waitFor();
+  expect(await petro.locator('.headline-stats dd').allTextContents()).toEqual(ownNumbers);
+  expect(await petro.locator('.profile-tiles').count()).toBe(0);
+  expect(await shelf23a(petro)).toEqual(own);
+  const publicSquares = petro.locator('.achievement-showcase .achievement-square');
+  expect(await publicSquares.evaluateAll((list) => list.map((square) => square.getAttribute('aria-label')))).toEqual(PINNED.map((id) => NAMES[id]));
+  await petro.getByRole('button', { name: 'Усі нагороди (4)', ...exact }).click();
+  await expect.poll(() => petro.locator('.award-card').count(), POLL).toBe(4);
+  expect(await noSideScroll(petro)).toBe(true);
+  await shot(petro, 'p23a-public');
+
+  // ── 9. Старі й нові адреси без сесії ведуть на вхід і назад. ──
+  for (const [path, title] of [
+    ['/friends', 'Друзі'],
+    ['/profile/settings', 'Налаштування'],
+  ] as const) {
+    const visitor = await open(`visitor23a${path.replaceAll('/', '-')}`, 375, 812);
+    await visitor.goto(`${base}${path}`);
+    await visitor.waitForURL(`${base}/login?next=${encodeURIComponent(path)}`);
+    await field(visitor, 'Email').fill('olya23a@example.com');
+    await field(visitor, 'Пароль').fill(PASSWORD);
+    await click(visitor, 'Увійти');
+    await visitor.waitForURL(`${base}${path}`);
+    await visitor.getByRole('heading', { level: 1, name: title, ...exact }).waitFor();
+  }
+
+  // ── 10. Гра: неправильна відповідь — ✗ у своєму тоні на телефоні, правильний варіант на сцені. ──
+  const questions = [
+    { ...boolQ, id: 'q1', text: 'Дніпро впадає в Чорне море?', correct: true },
+    { ...boolQ, id: 'q2', text: 'Говерла вища за Монблан?', correct: false },
+  ];
+  const quiz = { ...makeRoundsQuiz([classicRound('r1', questions as never, { title: 'Річки й гори', speedBonus: false, shuffleOptions: false })]), title: QUIZ };
+  const created = await taras.request.post(`${base}/api/quizzes`, { data: quiz });
+  expect(created.status()).toBe(201);
+  await taras.goto(`${base}/quizzes`);
+  await taras.locator('.quiz-list li', { hasText: QUIZ }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await taras.waitForURL(/\/host\/\d{6}$/);
+  const code = taras.url().slice(-6);
+  const stageHref = await taras.locator('a[href*="/stage/"]').first().getAttribute('href');
+  const stage = await open('stage23a', 1280, 800);
+  await stage.goto(new URL(stageHref!, base).href);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  await join(olya, code, 'Оля 23a', false);
+
+  await click(taras, 'Почати гру');
+  await click(taras, 'Почати раунд');
+  await olya.getByRole('heading', { name: questions[0]!.text, ...exact }).waitFor();
+  await stage.getByRole('heading', { name: questions[0]!.text, ...exact }).waitFor();
+  await click(olya, 'Ні');
+  await click(taras, 'Показати відповідь');
+  const wrong = olya.locator('.result.is-wrong');
+  await wrong.locator('h2').waitFor();
+  const tone = await wrong.evaluate((section) => {
+    const { getComputedStyle: style } = globalThis as unknown as Css23a;
+    const h2 = section.querySelector('h2')!;
+    return { mark: style(h2, '::before').content!, border: style(section).borderColor!, color: style(h2).color! };
+  });
+  expect(tone.mark).toContain('✗');
+  expect(tone.border, 'the wrong frame is not the accent red').not.toBe(ACCENT);
+  expect(tone.color, 'the wrong text is not the accent red').not.toBe(ACCENT);
+  // Так/ні на сцені — рядок «Правильна відповідь» у тоні --correct (варіантів-карток там немає).
+  await stage.locator('.answer', { hasText: 'Правильна відповідь: Так' }).waitFor();
+  for (const page of [olya, stage, taras]) expect(await page.locator('.game-bg').count()).toBeGreaterThan(0);
+  expect(await noSideScroll(olya)).toBe(true);
+  // Кадри — після розкриття й мигання вердикту (3 с): інакше на знімку напівпрозорий вердикт.
+  for (const page of [olya, stage, taras]) await page.waitForFunction(VERDICT_SETTLED_23A, undefined, { timeout: 6000 });
+  await shot(olya, 'p23a-phone-wrong');
+  await shot(stage, 'p23a-stage');
+  await shot(taras, 'p23a-host');
+
+  await click(taras, 'Далі');
+  const nextQuestion = taras.getByRole('button', { name: 'Наступне запитання', ...exact });
+  const second = olya.getByRole('heading', { name: questions[1]!.text, ...exact });
+  await Promise.race([nextQuestion.waitFor(), second.waitFor()]);
+  if (await nextQuestion.isVisible()) await nextQuestion.click();
+  await second.waitFor();
+  await click(olya, 'Ні');
+  await click(taras, 'Показати відповідь');
+  await olya.locator('.result.is-correct').waitFor();
+  await shot(olya, 'p23a-phone-right');
+  await click(taras, 'Далі');
+  await olya.getByText('Гру завершено').first().waitFor();
+  // Інші сторінки в новій темі (лише кадри для огляду): вікторини, редактор, історія.
+  const quizId = ((await created.json()) as { id: string }).id;
+  for (const [path, name] of [
+    ['/quizzes', 'p23a-quizzes'],
+    [`/quizzes/${quizId}`, 'p23a-editor'],
+    ['/history', 'p23a-history'],
+  ] as const) {
+    await taras.goto(`${base}${path}`);
+    await taras.locator('main h1, main h2').first().waitFor();
+    expect(await noSideScroll(taras), `${name}: horizontal scroll`).toBe(true);
+    await shot(taras, name);
+  }
+
+  // ── 11. Менше руху: місяць і ворони стоять; без емуляції ворони летять. ──
+  await olya.emulateMedia({ reducedMotion: 'reduce' });
+  await olya.goto(`${base}/profile`);
+  const crows = olya.locator('.profile-hero .crows');
+  await crows.waitFor();
+  expect(await crows.evaluate((el) => (globalThis as unknown as Css23a).getComputedStyle(el).animationName)).toBe('none');
+  expect(await olya.locator('.profile-hero .moon').evaluate((el) => (globalThis as unknown as Css23a).getComputedStyle(el).animationName)).toBe('none');
+  await olya.emulateMedia({ reducedMotion: 'no-preference' });
+  await olya.reload();
+  await crows.waitFor();
+  expect(await crows.evaluate((el) => (globalThis as unknown as Css23a).getComputedStyle(el).animationName)).not.toBe('none');
+
+  expect(problems).toEqual([]);
+}
+
+it('part 23a: blood moon — five menu items fit 320–1280 px in all seven languages, the profile is a header with four numbers and eight tiles, the auto shelf puts the newest cup in the middle, Оля pins three prizes and five achievements with a clear limit message, a deleted award leaves the shelf, Петро sees her pinned shelf on the public profile, old addresses open the new sub-pages, a wrong answer shows ✗ in its own tone on the phone and the stage, and motifs stay still under reduced motion', async () => {
+  try {
+    await bloodMoon23a();
   } catch (error) {
     await snapshot();
     throw error;
