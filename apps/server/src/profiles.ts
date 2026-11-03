@@ -14,12 +14,12 @@ import {
   type ProfileUpdate,
   type ProfileWin,
 } from '@quiz/shared';
-import { and, asc, count, eq, isNull, like, lt, ne, or } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
 import { achievementList, careerInputs, syncAchievements } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
-import { follow, profile, user } from './db/schema';
+import { follow, game, profile, user } from './db/schema';
 import { notHidden } from './feed-store';
 import { likeTotals } from './like-store';
 import { showcaseOf } from './prizes';
@@ -208,12 +208,26 @@ export async function isFollowing(db: Db, followerId: string, followeeId: string
   return row.n > 0;
 }
 
+/** Вікторини власника з числом завершених ігор (plays), найзіграніші першими; за рівності — новіші (порядок listQuizzes). */
+export async function popularQuizzes(db: Db, ownerId: string): Promise<OwnProfile['quizzes']> {
+  const list = await listQuizzes(db, ownerId);
+  if (list.length === 0) return [];
+  const counted = await db
+    .select({ quizId: game.quizId, n: count() })
+    .from(game)
+    .where(and(inArray(game.quizId, list.map(({ id }) => id)), eq(game.status, 'finished')))
+    .groupBy(game.quizId);
+  const plays = new Map(counted.map((row) => [row.quizId, row.n]));
+  // sort стабільний: за рівності лишається порядок listQuizzes (новіші першими).
+  return list.map(({ id, title }) => ({ id, title, plays: plays.get(id) ?? 0 })).sort((a, b) => b.plays - a.plays);
+}
+
 /** Повний профіль власника; лише для нього. */
 export async function ownProfile(db: Db, current: CurrentUser): Promise<OwnProfile> {
   const base = await ensureProfile(db, current.id);
   if (!base) throw new Error('profile of a signed-in user must exist');
   const facts = await profileFacts(db, current.id);
-  const quizzes = (await listQuizzes(db, current.id)).map(({ id, title }) => ({ id, title }));
+  const quizzes = await popularQuizzes(db, current.id);
   return {
     ...base,
     email: current.email,
