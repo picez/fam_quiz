@@ -1,26 +1,27 @@
 import type { AchievementCard, AchievementsPage } from '@quiz/shared';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { getAchievements, getMyAchievements } from '../api';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
 import { groupCards } from '../achievements';
 import { formatDay } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
+import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { usePrivateData } from '../usePrivateData';
 import { nickText } from '../nick';
 
-const LOGIN = '/login?next=%2Fachievements';
 const NAME = '\u0000';
 
-/** Свої ачівки (/achievements, лише після входу) чи чужі (/profile/:id/achievements, лише отримані). */
+/** Свої ачівки (/profile/achievements і аліас /achievements, лише після входу) чи чужі (/profile/:id/achievements, лише отримані). */
 export function Achievements() {
   const { id } = useParams();
   return id === undefined ? <OwnAchievements /> : <PublicAchievements key={id} id={id} />;
 }
 
 function OwnAchievements() {
+  const location = useLocation();
   const state = usePrivateData(getMyAchievements);
-  if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
+  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
   if (state.status === 'loading') return <Shell><p className="meta">{t('loading')}</p></Shell>;
   if (state.status === 'error') return <Failure message={state.message} />;
   return <PageView page={state.data} />;
@@ -41,18 +42,25 @@ function PublicAchievements({ id }: { id: string }) {
       current = false;
     };
   }, [id]);
-  if (state.status === 'loading') return <Shell><p className="meta">{t('loading')}</p></Shell>;
-  if (state.status === 'error') return <Failure message={state.message} />;
+  if (state.status === 'loading') return <Shell back={profileOf(id)}><p className="meta">{t('loading')}</p></Shell>;
+  if (state.status === 'error') return <Failure back={profileOf(id)} message={state.message} />;
   return <PageView page={state.page} />;
 }
 
-function Shell({ children }: { children: ReactNode }) {
-  return <main className="app wide achievements-page">{children}</main>;
+/** Чужі ачівки ведуть назад на профіль їхнього власника. */
+const profileOf = (id: string) => `/profile/${encodeURIComponent(id)}`;
+
+function Shell({ title = t('profileTileAchievements'), back, children }: { title?: ReactNode; back?: string; children: ReactNode }) {
+  return (
+    <ProfileSubpage title={title} back={back} className="achievements-page">
+      {children}
+    </ProfileSubpage>
+  );
 }
 
-function Failure({ message }: { message: string }) {
+function Failure({ back, message }: { back?: string; message: string }) {
   return (
-    <Shell>
+    <Shell back={back}>
       <p className="error" role="alert">
         {message}
       </p>
@@ -65,17 +73,17 @@ function PageView({ page }: { page: AchievementsPage }) {
   const groups = groupCards(page.items);
   // Ім’я в заголовку «Ачівки: Оля» — посилання на профіль; текст навколо береться з перекладу.
   const [before = '', after = ''] = t('achievementsOf', { name: NAME }).split(NAME);
+  const title = page.own ? (
+    t('profileTileAchievements')
+  ) : (
+    <>
+      {before}
+      <Link to={profileOf(profile.id)}>{nickText(profile.nickname)}</Link>
+      {after}
+    </>
+  );
   return (
-    <Shell>
-      {page.own ? (
-        <h1 className="brand">{t('achievementsTitle')}</h1>
-      ) : (
-        <h1 className="brand">
-          {before}
-          <Link to={`/profile/${encodeURIComponent(profile.id)}`}>{nickText(profile.nickname)}</Link>
-          {after}
-        </h1>
-      )}
+    <Shell title={title} back={page.own ? undefined : profileOf(profile.id)}>
       <p className="achievements-count">{t('achievementsCount', { earned: page.earned, total: page.total })}</p>
       {!page.own && groups.length === 0 && <p className="meta">{t('achievementsEmptyPublic')}</p>}
       {groups.map(({ group, items }) => (

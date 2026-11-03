@@ -3266,6 +3266,72 @@ button.match-item {
   margin: 0;
 }
 
+/* Підсторінка профілю (23a): «‹» назад і заголовок плитки в один рядок; розділи — картки. */
+.profile-sub-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.profile-sub-head h1 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Кругла кнопка 2.25 rem; невидиме поле довкола робить зону дотику 2.75 rem (44 px). */
+.profile-back {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--paper);
+  font-size: 1.5rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.profile-back::after {
+  content: '';
+  position: absolute;
+  inset: -0.25rem;
+}
+
+.profile-back:hover {
+  border-color: var(--accent);
+}
+
+.profile-sub .profile-section {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.settings-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.settings-identity strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-row .meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Перемикач мови (вхід і профіль): поле на всю ширину колонки, не ширше екрана, ≥ 44 px заввишки. */
 .language-switcher {
   display: flex;

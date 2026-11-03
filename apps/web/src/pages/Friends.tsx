@@ -1,15 +1,15 @@
 import { useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { getMyFriends } from '../api';
 import { t } from '../i18n';
 import { AddFriend } from '../profile/AddFriend';
 import { FriendList } from '../profile/FriendList';
+import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { usePrivateData } from '../usePrivateData';
 
-const LOGIN = '/login?next=%2Ffriends';
-
-/** Сторінка «Друзі» (пункт меню): список друзів і додавання за нікнеймом; раніше це був розділ власного профілю. */
+/** Підсторінка «Друзі» (/profile/friends і аліас /friends): список друзів і додавання за нікнеймом. */
 export function Friends() {
+  const location = useLocation();
   const [version, setVersion] = useState(0);
   const fresh = usePrivateData(getMyFriends, String(version));
   // Після додавання лишаємо попередній список, поки вантажиться новий: сторінка не блимає.
@@ -17,10 +17,9 @@ export function Friends() {
   if (fresh.status === 'ready') last.current = fresh;
   const state = fresh.status === 'loading' && last.current !== null ? last.current : fresh;
 
-  if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
+  if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
   return (
-    <main className="app wide">
-      <h1 className="brand">{t('friendsTitle')}</h1>
+    <ProfileSubpage title={t('profileTileFriends')}>
       {state.status === 'error' && (
         <p className="error" role="alert">
           {state.message}
@@ -33,6 +32,6 @@ export function Friends() {
           <AddFriend onAdded={() => setVersion((value) => value + 1)} />
         </section>
       )}
-    </main>
+    </ProfileSubpage>
   );
 }

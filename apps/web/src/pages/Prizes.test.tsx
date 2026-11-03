@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import type { PrizeContent, PrizeItem } from '@quiz/shared';
+import { ACHIEVEMENTS, levelProgress, type OwnProfile, type PrizeContent, type PrizeItem } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPrize, deletePrize, me, myPrizes, updatePrize } from '../api';
+import { createPrize, deletePrize, getMyProfile, me, myPrizes, updatePrize } from '../api';
 import { Prizes } from './Prizes';
 
-vi.mock('../api', () => ({ me: vi.fn(), myPrizes: vi.fn(), createPrize: vi.fn(), updatePrize: vi.fn(), deletePrize: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyProfile: vi.fn(), myPrizes: vi.fn(), createPrize: vi.fn(), updatePrize: vi.fn(), deletePrize: vi.fn() }));
 vi.mock('../editor/ImageField', () => ({ ImageField: () => <div /> }));
 vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
 
@@ -27,8 +27,24 @@ const item = (id: string, name: string, over: Partial<PrizeItem> = {}): PrizeIte
   ...over,
 });
 
+const profile: OwnProfile = {
+  id: 'u1',
+  nickname: 'Олена',
+  avatar: null,
+  email: 'o@example.com',
+  stats: { games: 0, wins: 0, accuracy: null, quizzes: 0, hosted: 0, podium: { first: 0, second: 0, third: 0 }, top3: null, bestScore: null, avgPlace: null },
+  achievements: ACHIEVEMENTS.map((id) => ({ id, earned: false, earnedAt: null })),
+  quizzes: [],
+  wins: [],
+  friends: [],
+  showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+  likes: { author: 0, host: 0, player: 0 },
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: profile });
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(myPrizes).mockResolvedValue({ ok: true, data: [item('p1', 'Кубок року'), item('p2', 'Піца', { status: 'reserved' })] });
   vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -49,6 +65,31 @@ const open = () =>
   );
 
 describe('Prizes', () => {
+  it('is the profile sub-page «Призи» with the won awards above the store', async () => {
+    open();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Призи' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Назад' }).getAttribute('href')).toBe('/profile');
+    expect(await screen.findByText('Нагород поки немає — їх вручають у іграх із призами.')).toBeTruthy();
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(['Нагороди', 'Мої призи']);
+  });
+
+  it('shows the won awards', async () => {
+    vi.mocked(getMyProfile).mockResolvedValue({
+      ok: true,
+      data: {
+        ...profile,
+        showcase: {
+          title: null,
+          pins: { prizes: [], achievements: [] },
+          awards: [{ id: 'a1', place: 1, quizTitle: 'Столиці', nickname: 'Олена', awardedAt: '2026-10-30T10:00:00.000Z', content: { trophy: null, engraving: null, real: { text: 'Піца', photoUrl: null }, title: null, diploma: false } }],
+        },
+      },
+    });
+    open();
+    expect(await screen.findByText('🎁 Піца')).toBeTruthy();
+    expect(screen.queryByText('Нагород поки немає — їх вручають у іграх із призами.')).toBeNull();
+  });
+
   it('sends a visitor to sign in', async () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open();

@@ -121,7 +121,7 @@ export function Profile() {
       </section>
       <section className="profile-section">
         <h2>{t('myQuizzesTitle')}</h2>
-        <PopularQuizzes quizzes={profile.quizzes} />
+        <PopularQuizzes quizzes={profile.quizzes} limit={3} />
       </section>
       <section className="profile-section">
         <h2>{t('winsTitle')}</h2>

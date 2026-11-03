@@ -67,7 +67,9 @@ describe('uk golden (22a)', () => {
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
   /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
-  const ADDED_LATER = ['openFriends', 'profileQuizzesMore', 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
+  const ADDED_LATER = ['openFriends', /* «Ще N» у профілі прибрано в 23a: 'profileQuizzesMore' */ 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
+  /** Нові uk-ключі 23a: підсторінки профілю (задача 6). */
+  const ADDED_23A = ['profileBack', 'profileTileQuizzes', 'profileTilePrizes', 'profileTileAchievements', 'profileTileFriends', 'profileTileStats', 'profileTileLikes', 'profileTileLooks', 'profileTileSettings', 'settingsNickAvatar', 'settingsEmail', 'noAwardsYet'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite'];
 
@@ -81,7 +83,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key))).toEqual([]);
   });
 });
 

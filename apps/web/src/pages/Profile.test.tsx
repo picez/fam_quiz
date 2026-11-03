@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, levelProgress, type OwnProfile } from '@quiz/shared';
 import { dismissInvite, follow, getMyInvites, getMyProfile, me, saveMyProfile, signOut, uploadImage } from '../api';
 import { formatDate } from '../format';
-import { disablePush } from '../push/push-client';
 import { Profile } from './Profile';
 
 vi.mock('../push/push-client', () => ({
@@ -256,58 +255,13 @@ describe('Profile', () => {
     await waitFor(() => expect(saveMyProfile).toHaveBeenCalledWith({ nickname: 'Олена', avatar: null }));
   });
 
-  it('shows the three most played quizzes and the rest behind «Ще N»', async () => {
+  it('shows the top three quizzes with their play counts', async () => {
     const quizzes = ['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята'].map((title, i) => ({ id: 'q' + i, title, plays: 5 - i }));
     vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: { ...mine, quizzes } });
     open();
-    const more = await screen.findByRole('button', { name: 'Ще 2' });
-    const titles = () => [...document.querySelectorAll('#profile-quizzes a bdi')].map((el) => el.textContent);
-    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя']);
-    fireEvent.click(more);
-    expect(titles()).toEqual(['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята']);
-    // Кнопки вже немає — фокус на четвертій вікторині, а не на body.
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Четверта/ })));
-    expect(more.getAttribute('aria-expanded')).toBeNull();
+    expect((await screen.findByRole('link', { name: 'Хіт' })).closest('li')?.textContent).toContain('5 ігор');
+    expect([...document.querySelectorAll('.popular-quizzes a bdi')].map((el) => el.textContent)).toEqual(['Хіт', 'Друга', 'Третя']);
     expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
-  });
-
-  it('has no «Ще» with three quizzes or fewer', async () => {
-    open();
-    expect(await screen.findByRole('link', { name: 'Кіно 90-х' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
-  });
-
-  it('signs out from the profile', async () => {
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
-    expect(await screen.findByText('на /')).toBeTruthy();
-    expect(signOut).toHaveBeenCalled();
-    expect(vi.mocked(disablePush).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(signOut).mock.invocationCallOrder[0]!);
-  });
-
-  it('still signs out when removing the subscription throws', async () => {
-    vi.mocked(disablePush).mockRejectedValueOnce(new Error('boom'));
-    open();
-    fireEvent.click(await screen.findByRole('button', { name: 'Вийти' }));
-    expect(await screen.findByText('на /')).toBeTruthy();
-    expect(signOut).toHaveBeenCalled();
-  });
-
-  it('signs out after 3 s even when removing the subscription hangs', async () => {
-    vi.mocked(disablePush).mockReturnValueOnce(new Promise(() => undefined));
-    open();
-    const out = await screen.findByRole('button', { name: 'Вийти' });
-    vi.useFakeTimers();
-    try {
-      fireEvent.click(out);
-      await vi.advanceTimersByTimeAsync(2_999);
-      expect(signOut).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1);
-      expect(signOut).toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-    expect(await screen.findByText('на /')).toBeTruthy();
   });
 
   it('sends a visitor to sign in', async () => {

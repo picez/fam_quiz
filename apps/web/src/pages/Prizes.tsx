@@ -1,28 +1,52 @@
 import type { PrizeContent, PrizeItem } from '@quiz/shared';
 import { useState, type JSX } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { createPrize, deletePrize, myPrizes, updatePrize } from '../api';
 import { errorText, t } from '../i18n';
 import { PrizeEditor } from '../prizes/PrizeEditor';
+import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
+import { Showcase } from '../profile/Showcase';
+import { useMyProfile } from '../profile/useMyProfile';
 import { prizeSummary } from '../trophy/trophy-meta';
-import { usePrivateData } from '../usePrivateData';
+import { usePrivateData, type PrivateData } from '../usePrivateData';
 
-const LOGIN = '/login?next=%2Fprizes';
-
-/** «Мої призи» (/prizes): склад призів власника. */
+/** Підсторінка «Призи» (/profile/prizes і аліас /prizes): виграні нагороди й склад призів для своїх ігор. */
 export function Prizes(): JSX.Element {
-  const state = usePrivateData(myPrizes);
-  if (state.status === 'signed-out') return <Navigate to={LOGIN} replace />;
-  if (state.status === 'loading') return <main className="app wide"><p className="meta">{t('loading')}</p></main>;
-  if (state.status === 'error')
-    return (
-      <main className="app wide">
+  const location = useLocation();
+  const store = usePrivateData(myPrizes);
+  const { state: profile } = useMyProfile();
+  if (store.status === 'signed-out' || profile.status === 'signed-out') return <Navigate to={loginFor(location.pathname)} replace />;
+  return (
+    <ProfileSubpage title={t('profileTilePrizes')} className="prizes-page">
+      {profile.status === 'ready' && profile.data.showcase.awards.length === 0 && profile.data.showcase.title === null ? (
+        <section className="profile-section showcase is-own">
+          <h2>{t('showcaseTitle')}</h2>
+          <p className="meta">{t('noAwardsYet')}</p>
+        </section>
+      ) : profile.status === 'ready' ? (
+        <Showcase showcase={profile.data.showcase} own />
+      ) : (
+        <Pending state={profile} title={t('showcaseTitle')} />
+      )}
+      {store.status === 'ready' ? <Store initial={store.data} /> : <Pending state={store} title={t('prizesTitle')} />}
+    </ProfileSubpage>
+  );
+}
+
+/** Розділ, дані якого ще вантажаться чи не завантажились. */
+function Pending({ state, title }: { state: PrivateData<unknown>; title: string }): JSX.Element {
+  return (
+    <section className="profile-section">
+      <h2>{title}</h2>
+      {state.status === 'error' ? (
         <p className="error" role="alert">
           {state.message}
         </p>
-      </main>
-    );
-  return <Store initial={state.data} />;
+      ) : (
+        <p className="meta">{t('loading')}</p>
+      )}
+    </section>
+  );
 }
 
 /** Що робить з редактором сторінка: нічого, новий приз чи зміна наявного. */
@@ -55,8 +79,8 @@ function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
   };
 
   return (
-    <main className="app wide prizes-page">
-      <h1>{t('prizesTitle')}</h1>
+    <section className="profile-section prize-store">
+      <h2>{t('prizesTitle')}</h2>
       {editing.mode === 'none' ? (
         <div className="toolbar">
           <button type="button" className="btn btn-primary" onClick={() => setEditing({ mode: 'new' })}>
@@ -113,6 +137,6 @@ function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }
