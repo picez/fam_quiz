@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, LEVEL_REWARDS, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
@@ -46,6 +46,48 @@ describe('LevelCard', () => {
     fireEvent.click(info);
     expect(meter.classList.contains('is-open')).toBe(true);
     fireEvent.pointerDown(document.body);
+    expect(meter.classList.contains('is-open')).toBe(false);
+  });
+
+  it('keyboard: focus on ⓘ opens the tooltip, Escape hides it while ⓘ keeps focus, blur closes it', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    act(() => info.focus());
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.keyDown(info, { key: 'Escape' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    expect(document.activeElement).toBe(info);
+    expect(info.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    act(() => info.blur());
+    expect(meter.classList.contains('is-open')).toBe(false);
+  });
+
+  it('a second click on ⓘ hides it even though ⓘ is focused; a tap that focuses ⓘ opens it once, not open-then-closed', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    const info = screen.getByRole('button', { name: 'Як нараховують досвід' });
+    // Дотик: pointerdown → фокус → click.
+    fireEvent.pointerDown(info);
+    act(() => info.focus());
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.click(info);
+    expect(meter.classList.contains('is-open')).toBe(false);
+    expect(document.activeElement).toBe(info);
+  });
+
+  it('a mouse opens it on hover and closes it on leave; a touch pointer does not', () => {
+    const { container } = render(<LevelBar progress={level.progress} />);
+    const meter = container.querySelector('.level-meter')!;
+    fireEvent.pointerEnter(meter, { pointerType: 'touch' });
+    expect(meter.classList.contains('is-open')).toBe(false);
+    fireEvent.pointerEnter(meter, { pointerType: 'mouse' });
+    expect(meter.classList.contains('is-open')).toBe(true);
+    fireEvent.pointerLeave(meter, { pointerType: 'mouse' });
     expect(meter.classList.contains('is-open')).toBe(false);
   });
 

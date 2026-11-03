@@ -48,12 +48,21 @@ export function ProfileLevelMark({ level, badge }: { level: number; badge: strin
 
 /**
  * Шкала рівня з правилами досвіду в підказці (не текстом під шкалою): наведення мишею, фокус на «ⓘ» з клавіатури,
- * дотик до шкали чи «ⓘ» на телефоні. Підказка — role=tooltip, пов'язана з «ⓘ» через aria-describedby; Escape і дотик поза нею закривають.
+ * дотик до шкали чи «ⓘ» на телефоні. Видимість — лише стан open (клас is-open), без :hover/:focus-within у CSS: відкривають наведення,
+ * фокус з клавіатури і дотик; закривають відведення миші, втрата фокусу, Escape, другий дотик і дотик поза підказкою.
+ * Підказка — role=tooltip, пов'язана з «ⓘ» через aria-describedby.
  */
 function LevelMeter({ value, max, level, xp }: { value: number; max: number; level: number; xp: string }) {
   const [open, setOpen] = useState(false);
   const tipId = useId();
   const box = useRef<HTMLDivElement>(null);
+  // Фокус від дотику чи кліку не відкриває підказку сам: інакше той самий дотик її одразу й закрив би (фокус → click-перемикач).
+  const pointerFocus = useRef(false);
+  // Мишею підказку вже відкрило наведення: клік її не перемикає (інакше клік по шкалі закривав би щойно показане); дотик і клавіатура — перемикають.
+  const toggle = (event: { nativeEvent: Event }) => {
+    const mouse = (event.nativeEvent as PointerEvent).pointerType === 'mouse';
+    setOpen((was) => (mouse ? true : !was));
+  };
   useEffect(() => {
     if (!open) return;
     const away = (event: PointerEvent) => {
@@ -66,7 +75,13 @@ function LevelMeter({ value, max, level, xp }: { value: number; max: number; lev
     <div
       ref={box}
       className={open ? 'level-meter is-open' : 'level-meter'}
-      onClick={() => setOpen((was) => !was)}
+      onClick={toggle}
+      onPointerEnter={(event) => {
+        if (event.pointerType === 'mouse') setOpen(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === 'mouse') setOpen(false);
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') setOpen(false);
       }}
@@ -80,9 +95,17 @@ function LevelMeter({ value, max, level, xp }: { value: number; max: number; lev
           aria-label={t('levelRulesHint')}
           aria-describedby={tipId}
           aria-expanded={open}
+          onPointerDown={() => {
+            pointerFocus.current = true;
+          }}
+          onFocus={() => {
+            if (!pointerFocus.current) setOpen(true);
+            pointerFocus.current = false;
+          }}
+          onBlur={() => setOpen(false)}
           onClick={(event) => {
             event.stopPropagation();
-            setOpen((was) => !was);
+            toggle(event);
           }}
         >
           <span aria-hidden="true">ⓘ</span>

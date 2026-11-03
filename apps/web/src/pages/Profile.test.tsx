@@ -264,6 +264,9 @@ describe('Profile', () => {
     expect(titles()).toEqual(['Хіт', 'Друга', 'Третя']);
     fireEvent.click(more);
     expect(titles()).toEqual(['Хіт', 'Друга', 'Третя', 'Четверта', 'П’ята']);
+    // Кнопки вже немає — фокус на четвертій вікторині, а не на body.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Четверта/ })));
+    expect(more.getAttribute('aria-expanded')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Ще / })).toBeNull();
   });
 

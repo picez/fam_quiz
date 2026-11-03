@@ -13790,14 +13790,9 @@ button.wall-tile:disabled {
   font-size: 0.875rem;
   line-height: 1.4;
 }
-.level-meter.is-open .level-tip,
-.level-meter:focus-within .level-tip {
+/* Видимість — лише стан open у LevelMeter (наведення, фокус, дотик), щоб Escape і другий дотик справді ховали підказку. */
+.level-meter.is-open .level-tip {
   display: block;
-}
-@media (hover: hover) {
-  .level-meter:hover .level-tip {
-    display: block;
-  }
 }
 .look-group {
   display: grid;
