@@ -17629,9 +17629,11 @@ async function levels15a() {
     await db.insert(xpEntry).values({ userId: ids.get(page)!, source: 'game', gameId: randomUUID(), amount, counted: false, day: kyivDay(yesterday), at: yesterday, createdAt: yesterday });
   }
   await olya.goto(`${base}/profile`);
+  // Шкала — одразу під ніком (section.level-bar), нагороди й вигляд — нижче (section.level-card).
+  const bar = olya.locator('section.level-bar');
+  await bar.getByRole('heading', { name: 'Рівень 10', ...exact }).waitFor();
   const card = olya.locator('section.level-card');
-  await card.getByRole('heading', { name: 'Рівень 10', ...exact }).waitFor();
-  expect(await card.locator('p.meta').first().textContent()).toBe(`3200 / ${xpForLevel(11)} досвіду`);
+  expect(await bar.locator('p.meta').first().textContent()).toBe(`3200 / ${xpForLevel(11)} досвіду`);
   await card.getByRole('radiogroup', { name: 'Колір ніку', ...exact }).getByRole('radio', { name: 'Небо', ...exact }).check();
   await card.getByRole('radiogroup', { name: 'Рамка', ...exact }).getByRole('radio', { name: 'Бронза', ...exact }).check();
   await card.getByRole('radiogroup', { name: 'Значок', ...exact }).getByRole('radio', { name: '⭐', ...exact }).check();
@@ -17832,7 +17834,7 @@ async function levels15a() {
     .toBeGreaterThanOrEqual(3200 + 200);
   const olyaTotal = await olyaXp();
   await olya.goto(`${base}/profile`);
-  const after = olya.locator('section.level-card');
+  const after = olya.locator('section.level-bar');
   await after.waitFor();
   expect(await after.locator('p.meta').first().textContent()).toBe(`${olyaTotal} / ${xpForLevel(levelOf(olyaTotal) + 1)} досвіду`);
   await expectNoSideScroll(olya, 'p15a-profile-after');

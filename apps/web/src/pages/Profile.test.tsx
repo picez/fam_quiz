@@ -156,7 +156,7 @@ describe('Profile', () => {
     const { container } = open();
     expect(await screen.findByText('o@example.com')).toBeTruthy();
     const headings = [...container.querySelectorAll('h2')].map((h) => h.textContent);
-    expect(headings).toEqual(['Рівень 1', 'Статистика', 'Вподобання', 'Досягнення', 'Мої вікторини', 'Перемоги']);
+    expect(headings).toEqual(['Рівень 1', 'Статистика', 'Вподобання', 'Нагороди рівнів', 'Досягнення', 'Мої вікторини', 'Перемоги']);
     expect(screen.getByRole('link', { name: 'Кіно 90-х' }).getAttribute('href')).toBe('/quizzes/q1');
     expect(screen.getByText(`${formatDate(mine.wins[0].startedAt)} — «Кіно 90-х», 1 місце`)).toBeTruthy();
     // Друзі переїхали на свою сторінку (пункт меню «Друзі»): у профілі їх немає.

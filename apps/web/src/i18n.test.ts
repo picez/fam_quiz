@@ -67,7 +67,7 @@ describe('uk golden (22a)', () => {
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
   /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
-  const ADDED_LATER = ['menuFriends', 'menuShortFriends', 'openFriends', 'profileQuizzesMore', 'levelRulesHint', 'pushUnsupported'];
+  const ADDED_LATER = ['menuFriends', 'menuShortFriends', 'openFriends', 'profileQuizzesMore', 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite'];
 

@@ -13722,14 +13722,15 @@ button.wall-tile:disabled {
 .profile-badge {
   font-size: 0.8em;
 }
-.level-card {
+.level-card,
+.level-bar {
   min-width: 0;
 }
 .level-card h3 {
   margin: 0.5rem 0 0;
   font-size: 1rem;
 }
-.level-card progress {
+.level-bar progress {
   width: 100%;
   max-width: 100%;
 }

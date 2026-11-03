@@ -1445,6 +1445,7 @@
   "levelFromLevel": "from level {n}",
   "levelLongAgo": "long ago",
   "levelNextTitle": "Next",
+  "levelRewardsTitle": "Level rewards",
   "levelRulesHint": "How XP is earned",
   "levelTitle": "Level {n}",
   "levelUnlockedTitle": "Unlocked",

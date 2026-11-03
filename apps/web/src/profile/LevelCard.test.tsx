@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, LEVEL_REWARDS, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
-import { LevelCard } from './LevelCard';
+import { LevelBar, LevelCard } from './LevelCard';
 
 vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 
@@ -18,14 +18,18 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe('LevelCard', () => {
-  it('shows the level and the bar to the next one', () => {
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+  it('shows the level and the bar to the next one; the rewards card below has its own heading and no bar', () => {
+    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Нагороди рівнів' })).toBeTruthy();
+    expect(container.querySelector('progress')).toBeNull();
+    cleanup();
+    render(<LevelBar progress={level.progress} />);
     expect(screen.getByRole('heading', { name: 'Рівень 3' })).toBeTruthy();
     expect(screen.getByText('600 / 800 досвіду')).toBeTruthy();
   });
 
   it('keeps the XP rules in a tooltip of the bar: described by it, opened by a tap, closed by Escape or a tap elsewhere', () => {
-    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const { container } = render(<LevelBar progress={level.progress} />);
     // Правил немає текстом під шкалою (p.meta) — лише підказка.
     expect([...container.querySelectorAll('p.meta')].map((p) => p.textContent)).toEqual(['600 / 800 досвіду']);
     const info = screen.getByRole('button', { name: 'Як нараховують досвід' });

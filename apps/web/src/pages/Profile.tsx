@@ -8,7 +8,7 @@ import { Avatar } from '../profile/Avatar';
 import { LanguageSwitcher } from '../locales/LanguageSwitcher';
 import { PushSettings } from '../push/PushSettings';
 import { disablePush } from '../push/push-client';
-import { LevelCard, ProfileLevelMark } from '../profile/LevelCard';
+import { LevelBar, LevelCard, ProfileLevelMark } from '../profile/LevelCard';
 import { LikesCard } from '../profile/LikesCard';
 import { PopularQuizzes } from '../profile/PopularQuizzes';
 import { ProfileEditor } from '../profile/ProfileEditor';
@@ -106,13 +106,14 @@ export function Profile() {
           announceInvitesChanged();
         }}
       />
-      {/* Рівень — одразу під ніком (лише запрошення в гру, якщо є, вище: на них чекають зараз), перед статистикою. */}
-      <LevelCard level={profile.level} nickname={nickText(profile.nickname)} onSaved={reload} />
+      {/* Шкала рівня — одразу під ніком (лише запрошення в гру, якщо є, вище: на них чекають зараз), перед статистикою; нагороди й вигляд — нижче, як раніше. */}
+      <LevelBar progress={profile.level.progress} />
       <section className="profile-section">
         <h2>{t('statsTitle')}</h2>
         <StatsView stats={profile.stats} />
       </section>
       <LikesCard likes={profile.likes} />
+      <LevelCard level={profile.level} nickname={nickText(profile.nickname)} onSaved={reload} />
       <Showcase showcase={profile.showcase} own />
       <section className="profile-section">
         <h2>{t('achievementsTitle')}</h2>

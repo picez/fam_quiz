@@ -102,14 +102,22 @@ const GROUPS: { slot: Slot; title: TextKey; none: TextKey }[] = [
   { slot: 'badge', title: 'lookBadge', none: 'lookNoBadge' },
 ];
 
-/** Власний профіль: рівень, шкала, правила досвіду, відкрите з датами, 3 наступні, вибір вбрання. */
+/** Власний профіль, одразу під ніком: «Рівень N», шкала, «X / Y досвіду» і правила досвіду в підказці «ⓘ». */
+export function LevelBar({ progress }: { progress: OwnLevel['progress'] }) {
+  const span = Math.max(1, progress.nextAt - progress.levelAt);
+  return (
+    <section className="profile-section level-bar">
+      <h2>{t('levelTitle', { n: progress.level })}</h2>
+      <LevelMeter value={progress.xp - progress.levelAt} max={span} level={progress.level} xp={t('levelXp', { xp: progress.xp, next: progress.nextAt })} />
+    </section>
+  );
+}
+
+/** Власний профіль, нижче статистики: «Нагороди рівнів» — відкрите з датами, 3 наступні, вибір вбрання. */
 export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickname: string; onSaved: (looks: NickLooks) => void }) {
   const [looks, setLooks] = useState<NickLooks>(level.looks);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const { progress } = level;
-  const span = Math.max(1, progress.nextAt - progress.levelAt);
-
   const options = (slot: Slot): { id: string; name: string }[] =>
     level.unlocked.flatMap(({ reward }): { id: string; name: string }[] => {
       if (reward.kind === 'color' && slot === 'color') return [{ id: reward.id, name: t(`color_${reward.id}` as TextKey) }];
@@ -140,8 +148,7 @@ export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickn
 
   return (
     <section className="profile-section level-card">
-      <h2>{t('levelTitle', { n: progress.level })}</h2>
-      <LevelMeter value={progress.xp - progress.levelAt} max={span} level={progress.level} xp={t('levelXp', { xp: progress.xp, next: progress.nextAt })} />
+      <h2>{t('levelRewardsTitle')}</h2>
       <h3>{t('levelUnlockedTitle')}</h3>
       <ul className="profile-list level-list">
         {level.unlocked.map((row) => (
