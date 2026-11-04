@@ -299,7 +299,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
         <CluesList clues={question.clues} offsetMs={offsetMs} all={reveal?.type === 'clues' ? reveal.clues : undefined} big />
       )}
       {question.clues?.opens != null && !finalReveal && <ClueOpens opens={question.clues.opens} revealed={view.phase === 'reveal'} big />}
-      {!finalReveal && question.pin === null && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} />}
+      {!finalReveal && question.pin === null && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(revealP)} zoomable={false} />}
       {question.audio?.clip != null && (
         <QuestionAudio
           key={`${view.round?.index ?? 0}:${view.questionIndex}`}
@@ -382,7 +382,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           {view.cloudVoters !== null && view.cloudVoters > 0 && <p className="meta">{t('cloudCaption', { voters: view.cloudVoters })}</p>}
         </div>
       ) : spotlit ? (
-        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} />
+        <SpotlightChoices question={question} spotlight={view.spotlight} reveal={reveal} stats={stats} voice={voice} blink={blink} removed={view.removed} zoom={false} />
       ) : question.type === 'match' ? (
         reveal === null ? (
           <MatchColumns left={question.choices} right={question.right} />
@@ -578,7 +578,7 @@ function LadderStage({ view, offsetMs, audioCommand }: { view: StageView; offset
             )}
           </div>
           <LadderLifelineBadges info={info} />
-          <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(1)} />
+          <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStage(1)} zoomable={false} />
           {question.audio?.clip != null && (
             <QuestionAudio
               key={`${view.round?.index ?? 0}:${view.questionIndex}`}
@@ -710,7 +710,7 @@ function SurvivalBetween({ view, offsetMs }: { view: StageView; offsetMs: number
       <div className="survival-body">
         {trial !== null && (
           <div className="survival-trial-area">
-            {question !== null && <QuestionImage url={question.imageUrl} />}
+            {question !== null && <QuestionImage url={question.imageUrl} zoomable={false} />}
             {question !== null && question.choices.length > 0 && (
               <ul className={choicesClass(question.choices)}>
                 {question.choices.map((choice, index) => (

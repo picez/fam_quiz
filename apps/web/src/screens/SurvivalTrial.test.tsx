@@ -99,7 +99,8 @@ describe('SurvivalTrial', () => {
     expect(screen.getByText('Вісім')).toBeTruthy();
     expect(screen.getByText('Шість')).toBeTruthy();
     expect(container.querySelector('.choice.is-correct')).toBeNull();
-    expect(screen.queryByRole('button')).toBeNull();
+    // Кнопок дії немає; лише картинку можна розгорнути на весь екран.
+    expect(screen.queryAllByRole('button').filter((button) => !button.classList.contains('question-image-zoom'))).toEqual([]);
     expect(container.querySelector('input, textarea, fieldset')).toBeNull();
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
     expect(screen.getByRole('timer')).toBeTruthy();

@@ -17,7 +17,7 @@ function TrialChoices({ question, reveal }: { question: PublicQuestion; reveal: 
     <ul className={`${choicesClass(question.choices)} survival-watch-choices`} aria-disabled="true">
       {question.choices.map((choice, index) => (
         <li key={choice.id} className={choice.id === correctId ? 'choice is-correct' : 'choice'}>
-          <ChoiceFace choice={choice} letter={LETTERS[index]} />
+          <ChoiceFace choice={choice} letter={LETTERS[index]} zoom />
         </li>
       ))}
     </ul>

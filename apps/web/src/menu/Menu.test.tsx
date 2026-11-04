@@ -54,7 +54,7 @@ describe('Menu', () => {
   it('a visitor sees only join and sign in, and sign in returns to the page', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/history/abc');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
     expect(screen.getByRole('link', { name: 'Увійти' }).getAttribute('href')).toBe('/login?next=%2Fhistory%2Fabc');
   });
 
@@ -62,9 +62,9 @@ describe('Menu', () => {
     vi.mocked(me).mockResolvedValue(OK);
     show('/me');
     await screen.findByRole('link', { name: 'Профіль' });
-    expect(items()).toEqual(['🎮Приєднатися', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '👤Профіль']);
+    expect(items()).toEqual(['🎮Меню', '📰Стрічка', '📝Мої вікторини', '🕘Історія', '👤Профіль']);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
-    expect([href('Приєднатися'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Профіль')]).toEqual(['/', '/feed', '/quizzes', '/history', '/profile']);
+    expect([href('Меню'), href('Стрічка'), href('Мої вікторини'), href('Історія'), href('Профіль')]).toEqual(['/', '/feed', '/quizzes', '/history', '/profile']);
     expect(screen.getByRole('link', { name: 'Історія' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Профіль' }).getAttribute('aria-current')).toBeNull();
     const hrefs = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link').map((l) => l.getAttribute('href'));
@@ -76,8 +76,8 @@ describe('Menu', () => {
     show('/');
     await screen.findByRole('link', { name: 'Профіль' });
     const links = within(screen.getByRole('navigation', { name: 'Меню' })).getAllByRole('link');
-    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль']);
-    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Гра', 'Стрічка', 'Квізи', 'Історія', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('aria-label'))).toEqual(['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль']);
+    expect(links.map((l) => l.getAttribute('data-short'))).toEqual(['Меню', 'Стрічка', 'Квізи', 'Історія', 'Профіль']);
   });
 
   it.each(['/profile', '/profile/prizes', '/prizes', '/achievements', '/friends', '/profile/u2', '/profile/u2/achievements'])('the profile is marked on %s', async (path) => {
@@ -91,25 +91,25 @@ describe('Menu', () => {
   it('a visitor on the prizes page still sees only join and sign in', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/prizes');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
   });
 
   it('while it is unknown who is here, only join is offered', async () => {
     vi.mocked(me).mockReturnValue(new Promise(() => {}));
     show('/');
-    expect(items()).toEqual(['🎮Приєднатися']);
+    expect(items()).toEqual(['🎮Меню']);
   });
 
   it('the menu follows sign-in and sign-out without a reload', async () => {
     vi.mocked(me).mockResolvedValue(OUT);
     show('/login');
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
     vi.mocked(me).mockResolvedValue(OK);
     fireEvent.click(screen.getByRole('button', { name: 'далі' }));
     expect(await screen.findByRole('link', { name: 'Профіль' })).toBeTruthy();
     vi.mocked(me).mockResolvedValue(OUT);
     fireEvent.click(screen.getByRole('button', { name: 'далі' }));
-    await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+    await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
   });
 
   it('sign in keeps the query of the page, and on the login page does not nest itself', async () => {
@@ -159,7 +159,7 @@ describe('Menu', () => {
     it('a visitor does not see the feed and the badge is not requested', async () => {
       vi.mocked(me).mockResolvedValue(OUT);
       show('/quizzes');
-      await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
       expect(getFeedBadge).not.toHaveBeenCalled();
     });
   });
@@ -180,7 +180,7 @@ describe('Menu', () => {
       vi.mocked(getMyInvites).mockClear();
       vi.mocked(me).mockResolvedValue(OUT);
       show('/quizzes');
-      await vi.waitFor(() => expect(items()).toEqual(['🎮Приєднатися', '🔑Увійти']));
+      await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
       expect(getMyInvites).not.toHaveBeenCalled();
     });
 

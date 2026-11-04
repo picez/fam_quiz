@@ -194,7 +194,7 @@ describe('Play: whether the game will be kept', () => {
   it('the join form has the menu like the other pages (backlog 24)', async () => {
     open();
     const nav = await screen.findByRole('navigation');
-    expect(within(nav).getByRole('link', { name: /Приєднатися/ }).getAttribute('href')).toBe('/');
+    expect(within(nav).getByRole('link', { name: /Меню/ }).getAttribute('href')).toBe('/');
   });
 
   it('leaves the name empty for a visitor and asks no profile', async () => {

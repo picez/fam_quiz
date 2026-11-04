@@ -1,7 +1,7 @@
 import type { Answer, Choice, PublicQuestion, Question, RevealStats, Spotlight } from '@quiz/shared';
 import { LETTERS, choiceLabel, correctPairs, pairTexts, pickedText, shownChoices } from '../format';
 import { t } from '../i18n';
-import { ChoiceFace, choicesClass } from './ChoiceFace';
+import { ChoiceFace, choicesClass, ZoomCell } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
 
 interface Props {
@@ -21,6 +21,8 @@ interface Props {
   onName?: (answer: Answer | null) => void;
   /** 50/50 на клітинці поля: прибрані варіанти закреслені з позначкою «прибрано» (лише показ). */
   removed?: string[];
+  /** Лупа на картинках варіантів (телефон, ведучий); сцена на великому екрані — false. */
+  zoom?: boolean;
 }
 
 const NONE: string[] = [];
@@ -32,7 +34,7 @@ function toneOf(spotlight: Spotlight): string {
 }
 
 /** Запитання для тих, хто не відповідає: варіанти лише для показу з кольором відповіді гравця. */
-export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, placeholder = true, onName, removed = NONE }: Props) {
+export function SpotlightChoices({ question, spotlight, reveal, stats = null, blink = false, voice = false, placeholder = true, onName, removed = NONE, zoom = true }: Props) {
   const answer = spotlight?.answer ?? null;
   const blinking = blink && spotlight !== null && spotlight.grade !== null ? ' is-blinking' : '';
   const tone = spotlight === null ? '' : `${toneOf(spotlight)}${blinking}`;
@@ -62,18 +64,19 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
       return (
         <div className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
-            <button
-              key={choice.id}
-              type="button"
-              className={classOf(choice.id)}
-              aria-pressed={pickedIds.includes(choice.id)}
-              disabled={removed.includes(choice.id)}
-              {...a11y(choice, index)}
-              onClick={() => tap(choice.id)}
-            >
-              <ChoiceFace choice={choice} letter={LETTERS[index]} />
-              {tag(choice.id)}
-            </button>
+            <ZoomCell key={choice.id} choice={choice} letter={LETTERS[index]}>
+              <button
+                type="button"
+                className={classOf(choice.id)}
+                aria-pressed={pickedIds.includes(choice.id)}
+                disabled={removed.includes(choice.id)}
+                {...a11y(choice, index)}
+                onClick={() => tap(choice.id)}
+              >
+                <ChoiceFace choice={choice} letter={LETTERS[index]} />
+                {tag(choice.id)}
+              </button>
+            </ZoomCell>
           ))}
         </div>
       );
@@ -83,7 +86,7 @@ export function SpotlightChoices({ question, spotlight, reveal, stats = null, bl
         <ul className={choicesClass(question.choices)}>
           {question.choices.map((choice, index) => (
             <li key={choice.id} className={classOf(choice.id)} {...a11y(choice, index)}>
-              <ChoiceFace choice={choice} letter={LETTERS[index]} />
+              <ChoiceFace choice={choice} letter={LETTERS[index]} zoom={zoom} />
               {tag(choice.id)}
               {stats !== null && <span className="count">{stats.counts[choice.id] ?? 0}</span>}
             </li>

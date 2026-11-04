@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { Answer, SubmittedAnswer, Choice, PlayerScope, PublicQuestion } from '@quiz/shared';
 import { choiceLabel, LETTERS } from '../format';
 import { t } from '../i18n';
-import { ChoiceFace, choicesClass } from './ChoiceFace';
+import { ChoiceFace, choicesClass, ZoomCell } from './ChoiceFace';
 import { CloudInput } from './CloudInput';
 import { MatchInput } from './MatchView';
 import { PinInput } from './PinInput';
@@ -51,18 +51,19 @@ function ChoiceButtons({
       {choices.map((choice, index) => {
         const gone = removed.includes(choice.id);
         return (
-          <button
-            type="button"
-            key={choice.id}
-            className={gone ? 'choice is-removed' : picked.includes(choice.id) ? 'choice is-picked' : 'choice'}
-            aria-pressed={picked.includes(choice.id)}
-            aria-label={gone ? t('choiceRemoved', { choice: choiceLabel(choice, index) }) : undefined}
-            disabled={gone}
-            onClick={() => onPick(choice.id)}
-          >
-            <ChoiceFace choice={choice} letter={LETTERS[index]} />
-            {gone && <span className="removed-tag">{t('removedTag')}</span>}
-          </button>
+          <ZoomCell key={choice.id} choice={choice} letter={LETTERS[index]}>
+            <button
+              type="button"
+              className={gone ? 'choice is-removed' : picked.includes(choice.id) ? 'choice is-picked' : 'choice'}
+              aria-pressed={picked.includes(choice.id)}
+              aria-label={gone ? t('choiceRemoved', { choice: choiceLabel(choice, index) }) : undefined}
+              disabled={gone}
+              onClick={() => onPick(choice.id)}
+            >
+              <ChoiceFace choice={choice} letter={LETTERS[index]} />
+              {gone && <span className="removed-tag">{t('removedTag')}</span>}
+            </button>
+          </ZoomCell>
         );
       })}
     </div>

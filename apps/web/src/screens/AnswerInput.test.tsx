@@ -452,3 +452,18 @@ describe('AnswerInput onDraft', () => {
     expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
   });
 });
+
+describe('AnswerInput: choice pictures full screen', () => {
+  it('the magnifier opens a choice picture full screen without picking that choice', () => {
+    const pic = '/uploads/abcdefabcdefabcd.png';
+    const onSubmit = setup({ type: 'single', choices: [{ id: 'a', text: 'Львів' }, { id: 'b', text: 'Київ', imageUrl: pic }] });
+    expect(screen.queryByRole('button', { name: 'Відкрити картинку варіанта A' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Відкрити картинку варіанта B' }));
+    expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe(pic);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Закрити картинку' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(onSubmit).toHaveBeenCalledWith({ type: 'single', optionId: 'b' });
+  });
+});

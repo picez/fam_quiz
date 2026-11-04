@@ -215,7 +215,7 @@ describe('motifs', () => {
   it('on phones the profile crows are smaller, fly above the nick and drift only sideways', () => {
     const phone = /@media \(max-width: 35\.99rem\) \{\s*\.profile-hero \.crows\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
     expect(phone).toContain('width: 5rem;');
-    expect(phone).toContain('inset-block-start: 1.75rem;');
+    expect(phone).toContain('inset-block-start: 1.25rem;');
     expect(css).toMatch(/\.profile-hero \.crows\s*\{\s*animation-name: crows-drift-flat;/);
     expect(css).toMatch(/@keyframes crows-drift-flat \{[^@]*translate: -1\.5rem 0;/);
   });
