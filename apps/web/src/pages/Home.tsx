@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type JSX } from 'react';
+import { useEffect, useState, type FormEvent, type JSX } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { checkCode } from '../api';
@@ -11,6 +11,8 @@ import { useFeedBadge } from '../useFeedBadge';
 import { useInvites } from '../useInvites';
 
 const JOIN_FORM = 'join-form';
+/** Скільки чекати на перевірку входу, перш ніж показати гостю форму коду. */
+export const ACCOUNT_WAIT_MS = 4000;
 
 /** Форма коду гри: та сама для гостя й під плиткою «Доєднатись до гри». */
 function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; autoFocus?: boolean }): JSX.Element {
@@ -115,7 +117,7 @@ function StartMenu({ initialCode }: { initialCode: string }): JSX.Element {
           type="button"
           className="start-tile"
           aria-expanded={open}
-          aria-controls={JOIN_FORM}
+          aria-controls={open ? JOIN_FORM : undefined}
           onClick={() => {
             setClicked(true);
             setOpen(!open);
@@ -152,10 +154,17 @@ export function Home() {
   // /?code=123456: форма розкрита й уже з кодом (такого посилання застосунок поки не дає, але адреса працює).
   const initialCode = (params.get('code') ?? '').replace(/\D/g, '').slice(0, 6);
 
+  // Якщо перевірка зависла, гість усе одно отримує форму за кілька секунд.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), ACCOUNT_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   if (account.status === 'signed-in') return <StartMenu initialCode={initialCode} />;
 
   // Поки не відомо, чи людина увійшла, лише шапка: тому, хто увійшов, замість форми з'явиться меню.
-  const known = account.status !== 'loading';
+  const known = account.status !== 'loading' || waited;
   return (
     <main className="app narrow">
       <MotifHero>

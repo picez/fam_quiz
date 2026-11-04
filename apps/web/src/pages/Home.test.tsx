@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkCode, getFeedBadge, getMyInvites, me } from '../api';
 import { savePlayer } from '../storage';
-import { Home } from './Home';
+import { ACCOUNT_WAIT_MS, Home } from './Home';
 
 vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn() }));
 
@@ -32,6 +32,25 @@ async function enter(code: string) {
 const STARTED = 'Ця гра вже почалася, приєднатися до неї не можна. Попросіть того, хто її запустив, створити нову.';
 
 describe('Home', () => {
+  it('shows a guest the code form even when the account check hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(me).mockReturnValue(new Promise(() => {}));
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <Home />
+        </MemoryRouter>,
+      );
+      expect(screen.queryByLabelText('Код гри')).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(ACCOUNT_WAIT_MS);
+      });
+      expect(screen.getByLabelText('Код гри')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('opens the game page when the game is waiting in the lobby', async () => {
     vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра' });
     await enter('123 456');
