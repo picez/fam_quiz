@@ -297,6 +297,18 @@ export async function attachGame(
   return done.length > 0;
 }
 
+/** Чи схвалено userId на подію, до якої прикріплено кімнату gameId (24c: такий учасник входить без пароля). */
+export async function approvedForGame(db: Db, gameId: string, userId: string): Promise<boolean> {
+  if (!UUID.test(gameId)) return false;
+  const [found] = await db
+    .select({ id: calendarRequest.eventId })
+    .from(calendarRequest)
+    .innerJoin(calendarEvent, eq(calendarEvent.id, calendarRequest.eventId))
+    .where(and(eq(calendarEvent.gameId, gameId), eq(calendarRequest.userId, userId), eq(calendarRequest.status, 'approved')))
+    .limit(1);
+  return found !== undefined;
+}
+
 /** Видима подія (calendarVisibility; скасована — лише ведучому й тим, хто мав pending/approved) із сирим рядком і обчисленим станом; інакше null. */
 async function visibleRow(db: Db, viewerId: string, eventId: string, now: Date, probe: CalendarProbe): Promise<{ row: EventRow; state: CalendarState } | null> {
   if (!UUID.test(eventId)) return null;

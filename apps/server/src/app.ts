@@ -1,6 +1,6 @@
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
-import { joinSchema } from '@quiz/shared';
+import { joinSchema, type CodeInfo } from '@quiz/shared';
 import Fastify from 'fastify';
 import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
@@ -10,13 +10,15 @@ import { createPushService, startPushReminders, type PushSend } from './push';
 import { registerPushRoutes } from './push-routes';
 import { registerFeedRoutes, startFeedPrune } from './feed-routes';
 import { Invites, registerInviteRoutes } from './invites';
+import { gateStatus, LobbyGate } from './lobby-access';
+import { registerLobbyRoutes } from './lobby-routes';
 import { registerSavedGameRoutes } from './saved-games';
 import { registerProfileRoutes } from './profile-routes';
 import { registerPrizeRoutes } from './prize-routes';
 import { registerShowcaseRoutes } from './showcase-routes';
 import { registerAdminRoutes } from './admin-routes';
 import { attachRecorder } from './recorder';
-import { RoomManager } from './rooms/manager';
+import { joinableOf, RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
@@ -114,6 +116,8 @@ export async function buildApp(options: AppOptions) {
   await registerAdminRoutes(app, { db: options.db, manager, adminEmails: options.adminEmails ?? new Set<string>(), currentUser });
   const invites = new Invites(manager);
   await registerInviteRoutes(app, { db: options.db, manager, invites, currentUser });
+  const gate = new LobbyGate(options.db, invites, () => manager.now());
+  await registerLobbyRoutes(app, { db: options.db, manager, gate, invites, locate, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => console.error(message, error) });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
@@ -128,13 +132,17 @@ export async function buildApp(options: AppOptions) {
   await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: calendarNotify });
   const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => console.error('Нагадування не вдалося:', error));
   const stopPrune = startFeedPrune(options.db);
-  await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms });
+  await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms, gate });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code', CODE_LIMIT, async (request, reply) => {
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const room = manager.get(request.params.code);
     if (room === undefined) return reply.code(404).send({ error: 'game_not_found' });
-    return { phase: room.state.phase, title: room.state.quiz.title };
+    // locked — для того, хто питає: ведучий, гравець кімнати, запрошений чи схвалений учасник події входять без пароля. Сам пароль сюди не йде.
+    const account = await currentUser(request);
+    const locked = room.lobby.password !== null && !(await gate.trusted(room, account?.id ?? null));
+    const info: CodeInfo = { phase: room.state.phase, title: room.state.quiz.title, locked, late: joinableOf(room) === 'late' };
+    return info;
   });
 
   app.post<{ Params: { code: string } }>('/api/games/by-code/:code/join', CODE_LIMIT, async (request, reply) => {
@@ -143,6 +151,11 @@ export async function buildApp(options: AppOptions) {
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     // Гравець з акаунтом потрапляє у власну історію ігор; без акаунта чи з простроченою сесією грає як гість.
     const account = await currentUser(request);
+    const room = manager.get(request.params.code);
+    if (room === undefined) return reply.code(404).send({ error: 'game_not_found' });
+    // Пароль лобі (24c) — на кожному вході, крім довірених.
+    const access = await gate.check(room, { userId: account?.id ?? null, password: body.data.password, ip: request.ip, device: body.data.device });
+    if (access !== 'ok') return reply.code(gateStatus(access)).send({ error: access });
     const joined = manager.join(request.params.code, body.data.nickname, account?.id ?? null);
     if (!joined.ok) {
       const status = joined.error === 'game_not_found' ? 404 : joined.error === 'restarting' ? 503 : 409;

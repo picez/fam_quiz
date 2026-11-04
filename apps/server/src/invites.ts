@@ -75,6 +75,12 @@ export class Invites {
     if (entry?.users.has(userId)) entry.dismissed.add(userId);
   }
 
+  /** Чи пропускає запрошення в запаролену кімнату (24c): запрошений, не відхилив і ще не входив, кімната жива й у лобі. */
+  admits(room: Room, userId: string): boolean {
+    const entry = this.rooms.get(room.id);
+    return entry !== undefined && entry.users.has(userId) && !entry.dismissed.has(userId) && this.live(room);
+  }
+
   /** Приєднання використовує запрошення: вилучений з кімнати гравець не побачить його знову. */
   private consumeJoined(room: Room): void {
     const entry = this.rooms.get(room.id);

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { CODE_LIMIT, type CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { game, liveRoom, participant, savedGame } from './db/schema';
+import { gateStatus, type LobbyGate } from './lobby-access';
 import { releasePrizes, releaseUnsaved, reservedFor } from './prizes';
 import { playerCounts, questionCountOf, resumeRound, snapshotOf, teamGameIds } from './history';
 import { markAborted, saveSavedGame, trimToCheckpoint } from './recorder';
@@ -208,12 +209,14 @@ export interface SavedGameRouteDeps {
   locate: (code: string) => Promise<Located>;
   currentUser: (request: FastifyRequest) => Promise<CurrentUser | null>;
   maxRooms: number;
+  /** Пароль лобі (24c) при зайнятті місця. */
+  gate: LobbyGate;
 }
 
 const UUID = z.string().uuid();
 
 export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedGameRouteDeps): Promise<void> {
-  const { db, manager, locate, currentUser, maxRooms } = deps;
+  const { db, manager, locate, currentUser, maxRooms, gate } = deps;
   const CREATE_LIMIT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
   const UNAUTHORIZED = { error: 'unauthorized' };
   const NOT_FOUND = { error: 'not_found' };
@@ -312,6 +315,11 @@ export async function registerSavedGameRoutes(app: FastifyInstance, deps: SavedG
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     if ((await locate(request.params.code)) === 'restarting') return reply.code(503).send(RESTARTING);
     const account = await currentUser(request);
+    const room = manager.get(request.params.code);
+    if (room === undefined) return reply.code(404).send({ error: 'game_not_found' });
+    // Пароль лобі (24c): займати місце в продовженій грі — теж вхід.
+    const access = await gate.check(room, { userId: account?.id ?? null, password: body.data.password, ip: request.ip, device: body.data.device });
+    if (access !== 'ok') return reply.code(gateStatus(access)).send({ error: access });
     const claimed = manager.claim(request.params.code, body.data.slotId, account?.id ?? null);
     if (!claimed.ok) {
       const status = claimed.error === 'game_not_found' || claimed.error === 'not_found' ? 404 : claimed.error === 'not_allowed' ? 403 : claimed.error === 'restarting' ? 503 : 409;
