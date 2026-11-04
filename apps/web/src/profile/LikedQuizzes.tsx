@@ -86,7 +86,7 @@ function GivenRow({ row }: { row: GivenLike }): JSX.Element {
       <p className="liked-meta">
         <span className="liked-count">
           <span aria-hidden="true">❤️ {num(row.count)}</span>
-          <span className="liked-sr">{countText('likedMineCount', row.count, { count: row.count })}</span>
+          <span className="sr-only">{countText('likedMineCount', row.count, { count: row.count })}</span>
         </span>
         <span>{date}</span>
       </p>
@@ -117,14 +117,20 @@ function ReceivedRow({ row }: { row: ReceivedLike }): JSX.Element {
         <Link to={`/quizzes/${row.quizId}`}>{row.title}</Link>
       </p>
       <p className="liked-meta">
-        <span aria-hidden="true">❤️ {num(row.total)}</span>
+        <span>
+          <span aria-hidden="true">❤️ {num(row.total)}</span>
+          <span className="sr-only">{countText('likedMineCount', row.total, { count: row.total })}</span>
+        </span>
         <span>{countText('likedPeople', row.people, { count: row.people })}</span>
       </p>
       {row.top.length > 0 && (
         <ol className="liked-top">
           {row.top.map((question, index) => (
             <li key={index}>
-              <span>{question.text}</span> <span className="liked-top-count" aria-hidden="true">❤️ {num(question.count)}</span>
+              <span>{question.text}</span> <span className="liked-top-count">
+                <span aria-hidden="true">❤️ {num(question.count)}</span>
+                <span className="sr-only">{countText('likedMineCount', question.count, { count: question.count })}</span>
+              </span>
             </li>
           ))}
         </ol>

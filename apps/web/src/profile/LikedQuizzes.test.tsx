@@ -99,12 +99,14 @@ describe('LikedQuizzes', () => {
     expect(container.querySelector('.liked-row')?.textContent).toContain('❤️ 5');
     expect(screen.getByText('2 людини')).toBeTruthy();
     expect(container.querySelectorAll('ol.liked-top li')).toHaveLength(3);
+    expect(container.querySelector('.liked-row .sr-only')?.textContent).toBe('5 вподобань');
+    expect(container.querySelector('ol.liked-top li .sr-only')?.textContent).toBe('2 вподобання');
   });
 
   it('empty tabs show their hint', async () => {
     givenPage([]);
     show();
-    expect(await screen.findByText(/Ти ще нічого не вподобав/)).toBeTruthy();
+    expect(await screen.findByText(/Тут з’являться вікторини/)).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Сподобались іншим' }));
     expect(await screen.findByText('Твоїм вікторинам ще ніхто не ставив ❤️.')).toBeTruthy();
   });
@@ -129,7 +131,7 @@ describe('LikedQuizzes', () => {
     show();
     await screen.findByText('Космос');
     fireEvent.click(screen.getByRole('button', { name: 'Показати ще' }));
-    expect((await screen.findByRole('alert')).textContent).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося завантажити список. Спробуй оновити сторінку.');
     expect(screen.getByText('Космос')).toBeTruthy();
   });
 
@@ -153,6 +155,6 @@ describe('LikedQuizzes', () => {
   it('a failed load shows an error, not a crash', async () => {
     vi.mocked(getLikesGiven).mockResolvedValue({ ok: false, error: 'network' });
     show();
-    expect((await screen.findByRole('alert')).textContent).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося завантажити список. Спробуй оновити сторінку.');
   });
 });
