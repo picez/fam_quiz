@@ -1,6 +1,7 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
 import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
+import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import type { Locale } from '@quiz/shared';
 
@@ -159,6 +160,8 @@ export async function uploadAudio(file: File): Promise<ApiResult<{ url: string }
 }
 
 const prizeUrl = (id: string) => `/api/me/prizes/${encodeURIComponent(id)}`;
+export const getLikesGiven = (offset = 0) => fetchData<LikesPage<GivenLike>>(`/api/me/likes/given?offset=${offset}`);
+export const getLikesReceived = (offset = 0) => fetchData<LikesPage<ReceivedLike>>(`/api/me/likes/received?offset=${offset}`);
 export const myPrizes = () => fetchData<PrizeItem[]>('/api/me/prizes');
 export const createPrize = (content: PrizeContent) => request<PrizeItem>('/api/me/prizes', { body: content });
 export const updatePrize = (id: string, content: PrizeContent) => request<PrizeItem>(prizeUrl(id), { method: 'PUT', body: content });
