@@ -12,6 +12,7 @@ import { perkSchema } from './levels';
 import { likeSchema } from './likes';
 import { ANSWERER_SCOPES, TEAM_FORMS } from './teams';
 import { UNSTORABLE, isStorable } from './text';
+import { entryFields } from './lobby';
 import type { GameView } from './views';
 
 export type Role = 'host' | 'stage' | 'player';
@@ -163,7 +164,7 @@ export const teamFormSchema = z.object({ form: z.enum(TEAM_FORMS) });
 export const teamAssignSchema = z.object({ memberId: playerId, teamId: playerId.nullable() });
 /** Ведучий: капітан команди. */
 export const captainSchema = z.object({ teamId: playerId, memberId: playerId });
-export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE) });
+export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE), ...entryFields });
 
 export interface ClientToServerEvents {
   'player:answer': (answer: Answer, ack: Ack) => void;

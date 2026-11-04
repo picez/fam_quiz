@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { entryFields } from './lobby';
 
 /** Як продовжити збережену гру (13b): exact — зі знімка стану; restart — лобі «Продовжити гру» (12r); blocked — не можна. */
 export type SavedMode = 'exact' | 'restart' | 'blocked';
@@ -46,4 +47,4 @@ export type ContinueResponse =
   | { gameId: string; code: string; stageToken: string; token: string; playerId: string };
 
 /** POST …/claim: зайняти слот збереженої гри. */
-export const claimSchema = z.object({ slotId: z.string().uuid() }).strict();
+export const claimSchema = z.object({ slotId: z.string().uuid(), ...entryFields }).strict();

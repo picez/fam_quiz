@@ -37,3 +37,4 @@ export * from './calendar';
 export * from './push';
 export * from './admin';
 export * from './locale';
+export * from './lobby';
