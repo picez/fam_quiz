@@ -323,10 +323,19 @@ async function arrange(page: Page, wanted: string[]) {
   }
 }
 
+/** Поле коду на головній; тому, хто увійшов, — спершу плитка «Доєднатись до гри» стартового меню (24a). */
+async function homeCodeField(page: Page): Promise<Locator> {
+  const input = field(page, 'Код гри');
+  const tile = page.getByRole('button', { name: 'Доєднатись до гри', ...exact });
+  await input.or(tile).first().waitFor();
+  if ((await tile.isVisible()) && (await tile.getAttribute('aria-expanded')) !== 'true') await tile.click();
+  return input;
+}
+
 async function join(page: Page, code: string, nickname: string, viaHome: boolean) {
   if (viaHome) {
     await page.goto(base);
-    await field(page, 'Код гри').fill(code);
+    await (await homeCodeField(page)).fill(code);
     await click(page, 'Увійти');
   } else {
     await page.goto(`${base}/play/${code}`);
@@ -1696,7 +1705,7 @@ async function menuProfileFriends() {
   await click(olya, 'Зареєструватися');
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
   await olya.locator(MENU).getByRole('link', { name: 'Приєднатися' }).click();
-  await field(olya, 'Код гри').fill(code);
+  await (await homeCodeField(olya)).fill(code);
   await click(olya, 'Увійти');
   await field(olya, 'Ваше ім’я').fill('Оля');
   await click(olya, 'Увійти в гру');
@@ -20248,3 +20257,86 @@ it('part 23a: blood moon — five menu items fit 320–1280 px in all seven lang
     throw error;
   }
 });
+
+it('part 24a: start menu — a signed-in player sees seven tiles on «/» that fit 320 and 1280 px in Ukrainian and Arabic without side scroll, «Створити гру» → «Почати гру» opens the host room, «Доєднатись до гри» with the code brings Оля to the lobby, and a guest on «/» still gets the code form', async () => {
+  try {
+    await startMenu24a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function startMenu24a() {
+  const START = 'nav.start-menu';
+  const TILES = ['Створити гру', 'Доєднатись до гри', 'Друзі', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
+  const host = await open('host24a', 1280, 800);
+  const olya = await open('olya24a', 375, 812);
+  await register(host, 'menu', 'Ведуча 24a', 'host24a@example.com');
+  await register(olya, 'menu', 'Оля 24a', 'olya24a@example.com');
+
+  // ── 1. Сім плиток у порядку; 320 і 1280 px у uk та ar без бокового скролу; ar — дзеркально. ──
+  for (const lang of ['uk', 'ar'] as const) {
+    expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
+    for (const width of [320, 375, 1280]) {
+      await olya.setViewportSize({ width, height: 812 });
+      await olya.goto(base);
+      await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
+      await olya.locator(`${START} > *`).nth(6).waitFor();
+      expect(await olya.locator(`${START} > *`).count()).toBe(7);
+      if (lang === 'uk') expect(await olya.locator(`${START} .start-label`).allTextContents()).toEqual(TILES);
+      expect(await noSideScroll(olya), `p24a-${lang}-${width}: horizontal scroll`).toBe(true);
+      const clipped = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.filter((tile) => tile.scrollWidth > tile.clientWidth).map((tile) => tile.textContent));
+      expect(clipped, `p24a-${lang}-${width}: clipped tiles`).toEqual([]);
+      const boxes = await olya.locator(`${START} > *`).evaluateAll((tiles) => tiles.map((tile) => tile.getBoundingClientRect()).map((r) => ({ left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width) })));
+      const columns = new Set(boxes.slice(0, 4).map((box) => box.top)).size === 1 ? 4 : 2;
+      expect(columns, `p24a-${lang}-${width}: columns`).toBe(width > 700 ? 4 : 2);
+      // На телефоні сьома плитка — на всю ширину сітки.
+      if (width <= 700) expect(boxes[6]!.width).toBeGreaterThan(boxes[0]!.width * 1.8);
+      if (lang === 'ar') expect(boxes[0]!.left, `p24a-ar-${width}: the first tile is right of the second`).toBeGreaterThan(boxes[1]!.left);
+      await shot(olya, `p24a-start-${lang}-${width}`);
+    }
+  }
+  expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
+
+  // ── 2. «Створити гру» → «Почати гру» відкриває кімнату ведучого. ──
+  const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Старт 24a' } });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(base);
+  await host.locator(START).getByRole('link', { name: 'Створити гру', ...exact }).click();
+  await host.waitForURL(`${base}/create`);
+  await host.getByRole('heading', { level: 1, name: 'Створити гру', ...exact }).waitFor();
+  await host.getByRole('heading', { level: 2, name: 'Старт 24a', ...exact }).waitFor();
+  await shot(host, 'p24a-create');
+  await click(host, 'Почати гру');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+
+  // ── 3. «Доєднатись до гри» з кодом — у лобі. ──
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(base);
+  await expect.poll(() => htmlLang(olya), POLL).toBe('uk');
+  const joinTile = olya.getByRole('button', { name: 'Доєднатись до гри', ...exact });
+  await joinTile.waitFor();
+  expect(await field(olya, 'Код гри').count()).toBe(0);
+  await joinTile.click();
+  expect(await joinTile.getAttribute('aria-expanded')).toBe('true');
+  await field(olya, 'Код гри').fill(code);
+  await shot(olya, 'p24a-join-open');
+  await click(olya, 'Увійти');
+  await olya.waitForURL(`${base}/play/${code}`);
+  const nick = field(olya, 'Ваше ім’я');
+  await nick.waitFor();
+  if ((await nick.inputValue()) === '') await nick.fill('Оля 24a');
+  await click(olya, 'Увійти в гру');
+  await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  await host.getByText('Оля 24a').first().waitFor();
+
+  // ── 4. Гість на «/» бачить форму коду й «Я ведучий», без стартового меню. ──
+  const guest = await open('guest24a', 320, 700);
+  await guest.goto(base);
+  await field(guest, 'Код гри').waitFor();
+  await guest.getByRole('link', { name: 'Я ведучий' }).waitFor();
+  expect(await guest.locator(START).count()).toBe(0);
+  expect(await noSideScroll(guest)).toBe(true);
+}

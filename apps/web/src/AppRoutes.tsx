@@ -4,6 +4,7 @@ import { WithMenu } from './menu/WithMenu';
 import { Achievements } from './pages/Achievements';
 import { EditQuiz } from './pages/EditQuiz';
 import { Calendar } from './pages/Calendar';
+import { CreateGame } from './pages/CreateGame';
 import { Feed } from './pages/Feed';
 import { Friends } from './pages/Friends';
 import { GameHistory } from './pages/GameHistory';
@@ -31,6 +32,7 @@ export function AppRoutes() {
       <Route element={<WithMenu />}>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/create" element={<CreateGame />} />
         <Route path="/quizzes" element={<Quizzes />} />
         <Route path="/quizzes/new" element={<EditQuiz />} />
         <Route path="/quizzes/:id" element={<EditQuiz />} />

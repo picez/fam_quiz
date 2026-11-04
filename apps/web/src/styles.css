@@ -3508,6 +3508,76 @@ button.match-item {
   font-variant-numeric: tabular-nums;
 }
 
+/* Стартове меню (24a): плитки як у профілі, але більші. Телефон — 2 колонки, сьома на всю ширину; від 701 px — 4 колонки.
+   Підписи переносяться лише між словами: найдовше слово всіх 7 мов уміщається в плитку й на 320 px. */
+.start-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.start-menu > :last-child {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 701px) {
+  .start-menu {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .start-menu > :last-child {
+    grid-column: auto;
+  }
+}
+
+.start-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-width: 0;
+  min-height: 6.5rem;
+  margin: 0;
+  padding: 0.875rem 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.start-tile:hover,
+.start-tile[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.start-icon {
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.start-label {
+  max-width: 100%;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}
+
+.start-badge {
+  position: absolute;
+  inset-block-start: 0.375rem;
+  inset-inline-end: 0.375rem;
+}
+
 /* Заголовок розділу з «усі ›» у кінці рядка. */
 .profile-section-head {
   display: flex;
