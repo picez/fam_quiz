@@ -34,7 +34,10 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
   // Гра з паролем (24c): поле з'являється, коли сервер каже locked, чи після відповіді password_required.
   const [locked, setLocked] = useState(false);
   const [password, setPassword] = useState('');
+  // Форма після втраченої гри (notice: «Цієї гри вже немає», вилучення) не питає код наперед — інакше 404 у консолі;
+  // якщо гра є й має пароль, поле однаково з'явиться за відповіддю password_required.
   useEffect(() => {
+    if (notice !== null) return;
     let current = true;
     void checkCode(code).then((result) => {
       if (current && result.ok && result.locked) setLocked(true);
@@ -42,7 +45,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     return () => {
       current = false;
     };
-  }, [code]);
+  }, [code, notice]);
   // Місця збереженої гри (13b): поки не прочитано чи їх немає, форма як досі.
   const [slots, setSlots] = useState<SlotOption[]>([]);
   const [choice, setChoice] = useState<string | null>(null);

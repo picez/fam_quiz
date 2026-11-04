@@ -134,6 +134,14 @@ describe('Play', () => {
     expect(await screen.findByText('Цієї гри вже немає. Перевірте код або попросіть ведучого створити нову.')).toBeTruthy();
   });
 
+  it('does not ask about the code of a game that is gone: no 404 in the console', async () => {
+    savePlayer('123456', 'old-token');
+    open();
+    act(() => sockets[0].fire('connect_error', new Error('unauthorized')));
+    await screen.findByText(/Цієї гри вже немає/);
+    expect(checkCode).not.toHaveBeenCalled();
+  });
+
   it('lets a player with a token that no longer works join again', async () => {
     savePlayer('123456', 'stale-token');
     vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
