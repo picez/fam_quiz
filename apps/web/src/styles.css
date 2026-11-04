@@ -13948,6 +13948,21 @@ button.wall-tile:disabled {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+.nick-c-blood { background: linear-gradient(90deg, #ff4d5a, #ff8a8a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-flame { background: linear-gradient(90deg, #ff6a3d, #ffc93c); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-ice { background: linear-gradient(90deg, #7dd3fc, #e0f2fe); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-venom { background: linear-gradient(90deg, #4ade80, #bef264); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-amethyst { background: linear-gradient(90deg, #c084fc, #f0abfc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-moonsilver { background: linear-gradient(90deg, #cbd5e1, #f8fafc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+/* Шрифти ніку (24d): CSS шрифту вантажить nick-fonts.ts; множник вирівнює ширину, щоб довгий нік обрізався «…» */
+.nick-font-hand { --nick-font-scale: 1.12; font-family: 'Caveat Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-round { --nick-font-scale: 0.95; font-family: 'Comfortaa Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-mono { --nick-font-scale: 0.92; font-family: 'Fira Code Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-poster { --nick-font-scale: 1; font-family: 'Oswald Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-brush { --nick-font-scale: 1.2; font-family: 'Amatic SC', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-pixel { --nick-font-scale: 0.8; font-family: 'Pixelify Sans Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-elegant { --nick-font-scale: 1.1; font-family: 'Cormorant Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-heavy { --nick-font-scale: 0.88; font-family: 'Dela Gothic One', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
 .nick-f-bronze { outline: 2px solid #b45309; outline-offset: 2px; }
 .nick-f-silver { outline: 2px solid #cbd5e1; outline-offset: 2px; }
 .nick-f-gold { outline: 2px solid #eab308; outline-offset: 2px; }
