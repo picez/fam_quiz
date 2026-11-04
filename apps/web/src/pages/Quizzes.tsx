@@ -1,41 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { checkCode, createGame, createQuiz, deleteQuiz, listQuizzes, type QuizSummary } from '../api';
-import { demoQuiz } from '../demo-quiz';
+import { Link, Navigate } from 'react-router-dom';
+import { deleteQuiz, listQuizzes, type QuizSummary } from '../api';
+import { RunningGameBanner, addDemoQuiz, useStartGame } from '../host-game';
 import { errorText, t } from '../i18n';
-import { clearLastGame, loadAuthor, loadHost, loadLastGame, saveHost, saveLastGame } from '../storage';
 import { useAccount } from '../useAccount';
 import { AutopilotLaunch } from './AutopilotLaunch';
 
 const LOGIN = '/login?next=%2Fquizzes';
 
 export function Quizzes() {
-  const navigate = useNavigate();
+  const startGame = useStartGame();
   const account = useAccount();
   const [quizzes, setQuizzes] = useState<QuizSummary[] | null>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
   const [launch, setLaunch] = useState<QuizSummary | null>(null);
   const signedIn = account.status === 'signed-in';
-
-  // Ведучий міг закрити вкладку посеред гри: показати шлях назад до пульта, якщо гра ще триває.
-  useEffect(() => {
-    if (!signedIn) return;
-    const code = loadLastGame();
-    if (code === null || (loadHost(code) === null && loadAuthor(code) === null)) return;
-    let current = true;
-    void checkCode(code).then((result) => {
-      if (!current) return;
-      if (result.ok && result.phase !== 'finished') setRunning(code);
-      else if (!result.ok && result.error === 'offline') return;
-      else clearLastGame();
-    });
-    return () => {
-      current = false;
-    };
-  }, [signedIn]);
 
   /** Показує помилку; закінчену сесію перетворює на перехід до входу. */
   const fail = useCallback((code: string) => {
@@ -81,11 +62,8 @@ export function Quizzes() {
 
   const play = (quiz: QuizSummary) =>
     run(async () => {
-      const result = await createGame(quiz.id);
-      if (!result.ok) return fail(result.error);
-      saveHost(result.code, { hostToken: result.hostToken, stageToken: result.stageToken });
-      saveLastGame(result.code);
-      navigate(`/host/${result.code}`);
+      const error = await startGame(quiz.id);
+      if (error !== null) fail(error);
     });
 
   const remove = (quiz: QuizSummary) => {
@@ -99,8 +77,8 @@ export function Quizzes() {
 
   const addDemo = () =>
     run(async () => {
-      const result = await createQuiz(demoQuiz);
-      if (!result.ok) return fail(result.error);
+      const error = await addDemoQuiz();
+      if (error !== null) return fail(error);
       await reload();
     });
 
@@ -108,11 +86,7 @@ export function Quizzes() {
     <main className="app wide">
       <h1 className="brand">{t('quizzesTitle')}</h1>
 
-      {running !== null && (
-        <Link className="banner" to={loadHost(running) === null && loadAuthor(running) !== null ? `/play/${running}` : `/host/${running}`}>
-          {t('backToGame', { code: `${running.slice(0, 3)} ${running.slice(3)}` })}
-        </Link>
-      )}
+      <RunningGameBanner enabled={signedIn} />
 
       <div className="toolbar">
         <Link className="btn btn-primary" to="/quizzes/new">

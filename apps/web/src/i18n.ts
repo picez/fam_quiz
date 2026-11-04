@@ -1732,6 +1732,11 @@ const uk = {
   menuShortHistory: 'Історія',
   menuShortProfile: 'Профіль',
   menuShortSignIn: 'Вхід',
+  // Стартове меню на головній (24a) і сторінка «Створити гру»
+  startMenuLabel: 'Стартове меню',
+  startCreate: 'Створити гру',
+  startJoin: 'Доєднатись до гри',
+  createMoreHint: 'Автопілот, редагування — у «Мої вікторини»',
   historyTabHosted: 'Проведені',
   historyTabPlayed: 'Зіграні',
   playingAs: 'Ви увійшли як {name}: гра потрапить у «Мої ігри».',

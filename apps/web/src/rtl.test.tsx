@@ -60,12 +60,12 @@ describe('right to left (ar)', () => {
     for (const name of names) expect(name.getAttribute('dir')).toBe('auto');
   });
 
-  it('the code field on Home is ltr', () => {
+  it('the code field on Home is ltr', async () => {
     render(
       <MemoryRouter>
         <Home />
       </MemoryRouter>,
     );
-    expect(screen.getByLabelText('Код гри').getAttribute('dir')).toBe('ltr');
+    expect((await screen.findByLabelText('Код гри')).getAttribute('dir')).toBe('ltr');
   });
 });
