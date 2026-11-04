@@ -39,7 +39,7 @@ describe('levels of accounts in the room', () => {
     if (!joined.ok) throw new Error(joined.error);
     await w.levels.idle();
     expect(w.errors).toEqual([]);
-    expect(w.manager.view(w.room, STAGE)?.levels).toEqual({ Оля: { level: 1, color: null, frame: null } });
+    expect(w.manager.view(w.room, STAGE)?.levels).toEqual({ Оля: { level: 1, color: null, frame: null, font: null } });
     const calls = vi.mocked(xp.roomLevels).mock.calls.length;
     w.manager.connect(w.room, { role: 'player', playerId: joined.playerId });
     w.manager.join(w.room.code, 'Петро', null);
@@ -58,7 +58,7 @@ describe('levels of accounts in the room', () => {
     expect(w.manager.view(w.room, STAGE)?.levels).toBeUndefined();
     w.manager.connect(w.room, { role: 'player', playerId: joined.playerId });
     await w.levels.idle();
-    expect(w.manager.view(w.room, STAGE)?.levels).toEqual({ Оля: { level: 1, color: null, frame: null } });
+    expect(w.manager.view(w.room, STAGE)?.levels).toEqual({ Оля: { level: 1, color: null, frame: null, font: null } });
   });
 
   it('a closed room does not get setLevels', async () => {
@@ -69,7 +69,7 @@ describe('levels of accounts in the room', () => {
     const joined = w.manager.join(w.room.code, 'Оля', 'u2');
     if (!joined.ok) throw new Error(joined.error);
     w.manager.evict(w.room);
-    release(new Map([['u2', { level: 7, color: 'mint', frame: null }]]));
+    release(new Map([['u2', { level: 7, color: 'mint', frame: null, font: null }]]));
     await w.levels.idle();
     expect(setLevels).not.toHaveBeenCalled();
     expect(w.errors).toEqual([]);

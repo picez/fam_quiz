@@ -2,14 +2,15 @@ import {
   ACHIEVEMENT_XP,
   ACHIEVEMENTS,
   achievementRarity,
-  LEVEL_REWARDS,
   levelOf,
   levelProgress,
   looksAllowed,
   looksShown,
+  nextRewards,
   rewardsUpTo,
   xpForLevel,
   type AchievementId,
+  type LooksInput,
   type NickLevel,
   type NickLooks,
   type OwnLevel,
@@ -289,10 +290,10 @@ async function looksOf(db: Db, userIds: string[]): Promise<Map<string, NickLooks
     .select({ userId: profile.userId, color: profile.nickColor, frame: profile.nickFrame, badge: profile.badge })
     .from(profile)
     .where(inArray(profile.userId, userIds));
-  return new Map(rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null }]));
+  return new Map(rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null, photo: null, font: null }]));
 }
 
-const NO_LOOKS: NickLooks = { color: null, frame: null, badge: null };
+const NO_LOOKS: NickLooks = { color: null, frame: null, badge: null, photo: null, font: null };
 
 /** Для кімнати: syncXp тим, хто без мітки (збій — onError, рівень з наявного), далі NickLevel з looksShown. */
 export async function roomLevels(db: Db, userIds: string[], onError: (e: unknown) => void = logError): Promise<Map<string, NickLevel>> {
@@ -314,7 +315,7 @@ export async function roomLevels(db: Db, userIds: string[], onError: (e: unknown
   for (const id of ids) {
     const level = levelOf(totals.get(id) ?? 0);
     const shown = looksShown(looks.get(id) ?? NO_LOOKS, level);
-    levels.set(id, { level, color: shown.color, frame: shown.frame });
+    levels.set(id, { level, color: shown.color, frame: shown.frame, font: shown.font });
   }
   return levels;
 }
@@ -355,7 +356,7 @@ export async function ownLevel(db: Db, userId: string): Promise<OwnLevel> {
   return {
     progress,
     unlocked: rewardsUpTo(progress.level).map(({ level, reward }) => ({ level, reward, at: times.get(level)?.toISOString() ?? null })),
-    next: LEVEL_REWARDS.filter((r) => r.level > progress.level).slice(0, 3),
+    next: nextRewards(progress.level),
     looks: looksShown(looks, progress.level),
   };
 }
@@ -368,12 +369,13 @@ export async function publicLevel(db: Db, userId: string): Promise<PublicLevel> 
 }
 
 /** Вбрання з відкритого рівнем; закрите → look_locked. */
-export async function saveLooks(db: Db, userId: string, looks: NickLooks): Promise<{ ok: true; looks: NickLooks } | { ok: false; error: 'look_locked' }> {
+export async function saveLooks(db: Db, userId: string, looks: LooksInput): Promise<{ ok: true; looks: NickLooks } | { ok: false; error: 'look_locked' }> {
   // Спершу наздогнати: без ретро користувач бачив би рівень 1 і хибне look_locked.
   await synced(db, userId);
   const level = levelOf((await xpTotals(db, [userId])).get(userId) ?? 0);
-  if (!looksAllowed(looks, level)) return { ok: false, error: 'look_locked' };
+  const full: NickLooks = { ...looks, photo: looks.photo ?? null, font: looks.font ?? null };
+  if (!looksAllowed(full, level)) return { ok: false, error: 'look_locked' };
   await ensureProfile(db, userId);
   await db.update(profile).set({ nickColor: looks.color, nickFrame: looks.frame, badge: looks.badge, updatedAt: new Date() }).where(eq(profile.userId, userId));
-  return { ok: true, looks: { color: looks.color, frame: looks.frame, badge: looks.badge } };
+  return { ok: true, looks: { color: looks.color, frame: looks.frame, badge: looks.badge, photo: full.photo, font: full.font } };
 }

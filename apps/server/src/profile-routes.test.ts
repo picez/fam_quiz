@@ -363,7 +363,7 @@ describe('wearing looks (15a)', () => {
     await db.insert(xpEntry).values({ userId: tarasId, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
     const worn = await request('PUT', '/api/me/looks', taras.cookie, { ...none, color: 'sky' });
     expect(worn.statusCode).toBe(200);
-    expect(worn.json()).toEqual({ looks: { ...none, color: 'sky' } });
+    expect(worn.json()).toEqual({ looks: { ...none, color: 'sky', photo: null, font: null } });
     const shown = await request('GET', `/api/profiles/${tarasId}`);
     expect(shown.json().level.looks.color).toBe('sky');
   });

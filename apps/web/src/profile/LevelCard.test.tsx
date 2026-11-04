@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { levelProgress, LEVEL_REWARDS, rewardsUpTo, type OwnLevel } from '@quiz/shared';
+import { levelProgress, nextRewards, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
 import { LevelBar, LevelCard } from './LevelCard';
 
@@ -10,8 +10,8 @@ vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 const level: OwnLevel = {
   progress: levelProgress(600),
   unlocked: rewardsUpTo(3).map((r, i) => ({ level: r.level, reward: r.reward, at: i === 0 ? null : '2026-10-12T12:00:00.000Z' })),
-  next: LEVEL_REWARDS.filter((r) => r.level > 3).slice(0, 3),
-  looks: { color: null, frame: null, badge: null },
+  next: nextRewards(3).slice(0, 3),
+  looks: { color: null, frame: null, badge: null, photo: null, font: null },
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -94,7 +94,7 @@ describe('LevelCard', () => {
   it('lists what is unlocked with dates and the next three', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     const rows = screen.getAllByTestId('level-unlocked');
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows[0]!.textContent).toContain('давно');
     expect(rows[1]!.textContent).toContain('12.10.2026');
     const next = screen.getAllByTestId('level-next');
@@ -111,13 +111,13 @@ describe('LevelCard', () => {
   });
 
   it('saves the chosen look and reports it', async () => {
-    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: 'sky', frame: null, badge: null } } });
+    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: 'sky', frame: null, badge: null, photo: null, font: null } } });
     const onSaved = vi.fn();
     render(<LevelCard level={level} nickname="Олена" onSaved={onSaved} />);
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null }));
-    expect(saveLooks).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null }));
+    expect(saveLooks).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null });
   });
 
   it('shows the error text on 409', async () => {

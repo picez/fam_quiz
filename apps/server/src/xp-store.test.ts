@@ -463,16 +463,16 @@ describe('levels and looks', () => {
     await db.insert(xpEntry).values({ userId: me, source: 'game', amount: 600, counted: true, day: '2026-10-19', at, createdAt: at });
     const own = await ownLevel(db, me);
     expect(own.progress).toEqual({ level: 3, xp: 600, levelAt: 520, nextAt: 800 });
-    expect(own.unlocked.map((u) => u.level)).toEqual([1, 2, 3]);
+    expect(own.unlocked.map((u) => u.level)).toEqual([1, 2, 3, 3]);
     expect(own.unlocked[2]).toEqual({ level: 3, reward: { kind: 'stickers', series: 'nyaa' }, at: at.toISOString() });
-    expect(own.next.map((n) => n.level)).toEqual([4, 5, 6]);
-    expect(own.looks).toEqual({ color: null, frame: null, badge: null });
+    expect(own.next.map((n) => n.level)).toEqual([4, 4, 5, 6, 6]);
+    expect(own.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null });
   });
 
   it('saveLooks refuses a colour above the level and saves it once the level is there', async () => {
     const [me] = await accounts(1);
     await synced(me);
-    const looks = { color: 'sky' as const, frame: null, badge: null };
+    const looks = { color: 'sky' as const, frame: null, badge: null, photo: null, font: null };
     expect(await saveLooks(db, me, looks)).toEqual({ ok: false, error: 'look_locked' });
     const at = new Date('2026-10-20T10:00:00Z');
     await db.insert(xpEntry).values({ userId: me, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
@@ -488,8 +488,8 @@ describe('levels and looks', () => {
     // Рамка bronze — з 8-го рівня: її не показують на 2-му.
     await db.update(profile).set({ nickColor: 'sky', nickFrame: 'bronze' }).where(eq(profile.userId, worn));
     const levels = await roomLevels(db, [fresh, worn]);
-    expect(levels.get(fresh)).toEqual({ level: 1, color: null, frame: null });
-    expect(levels.get(worn)).toEqual({ level: 2, color: 'sky', frame: null });
+    expect(levels.get(fresh)).toEqual({ level: 1, color: null, frame: null, font: null });
+    expect(levels.get(worn)).toEqual({ level: 2, color: 'sky', frame: null, font: null });
     const [mark] = await db.select({ at: profile.xpSyncedAt }).from(profile).where(eq(profile.userId, fresh));
     expect(mark.at).toBeInstanceOf(Date);
   });

@@ -16,7 +16,7 @@ function levelQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('r1', [hinted, withId(single, 'q2'), withId(single, 'q3')])], { leaderboard: 'end', ...settings });
 }
 
-const lv = (level: number, color: NickLevel['color'] = null, frame: NickLevel['frame'] = null): NickLevel => ({ level, color, frame });
+const lv = (level: number, color: NickLevel['color'] = null, frame: NickLevel['frame'] = null): NickLevel => ({ level, color, frame, font: null });
 const sticker = (series: StickerSeries): ReactionItem => ({ kind: 'sticker', value: STICKERS.find((s) => s.series === series)!.id });
 
 function world(quiz: Quiz = levelQuiz()) {
@@ -44,7 +44,7 @@ describe('levels in the room (15a)', () => {
     const olya = w.enter('Оля', 'u1');
     const guest = w.enter('Гість', null);
     w.manager.setLevels(w.room, new Map([['u1', lv(12, 'sky', 'bronze')]]));
-    const expected = { Оля: { level: 12, color: 'sky', frame: 'bronze' } };
+    const expected = { Оля: { level: 12, color: 'sky', frame: 'bronze', font: null } };
     expect(w.manager.view(w.room, STAGE)?.levels).toEqual(expected);
     expect(w.manager.view(w.room, HOST)?.levels).toEqual(expected);
     expect(w.manager.view(w.room, { role: 'player', playerId: guest })?.levels).toEqual(expected);

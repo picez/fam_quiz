@@ -53,18 +53,30 @@ export interface PerkGrant {
   timeMs: number;
 }
 
-export const NICK_COLORS = ['sky', 'mint', 'sun', 'coral', 'violet', 'gold', 'rainbow'] as const;
+export const NICK_COLORS = ['sky', 'mint', 'sun', 'coral', 'violet', 'gold', 'rainbow', 'blood', 'flame', 'ice', 'venom', 'amethyst', 'moonsilver'] as const;
 export type NickColor = (typeof NICK_COLORS)[number];
 export const NICK_FRAMES = ['bronze', 'silver', 'gold', 'neon', 'fire', 'rainbow'] as const;
 export type NickFrame = (typeof NICK_FRAMES)[number];
-export const PROFILE_BADGES = ['⭐', '🎯', '🧠', '⚡', '🦉', '🚀', '🏅', '💎', '🔱'] as const;
+export const PROFILE_BADGES = [
+  '⭐', '🎯', '🧠', '⚡', '🦉', '🚀', '🏅', '💎', '🔱',
+  '🔥', '😎', '🎮', '📚', '🎵', '⚽', '☕', '🐱', '🦊', '🌙', '🍀', '🎲', '🧩', '🎨', '🌻', '🍕', '🎸', '🏀', '🌊', '🌸',
+  '🦄', '🥷', '🐺', '👑', '🐉', '💀', '👻',
+] as const;
 export type ProfileBadge = (typeof PROFILE_BADGES)[number];
+export const PHOTO_FRAMES = ['crimson', 'silver', 'ink', 'gold', 'cloud', 'crows', 'fire', 'neon', 'thorns', 'eclipse', 'storm', 'aura'] as const;
+export type PhotoFrame = (typeof PHOTO_FRAMES)[number];
+export const NICK_FONTS = ['hand', 'round', 'mono', 'poster', 'brush', 'pixel', 'elegant', 'heavy'] as const;
+export type NickFont = (typeof NICK_FONTS)[number];
+
+export type LookSlot = 'color' | 'frame' | 'badge' | 'photo' | 'font';
 
 export type LevelReward =
   | { kind: 'stickers'; series: StickerSeries }
   | { kind: 'color'; id: NickColor }
   | { kind: 'frame'; id: NickFrame }
   | { kind: 'badge'; id: ProfileBadge }
+  | { kind: 'photo'; id: PhotoFrame }
+  | { kind: 'font'; id: NickFont }
   | { kind: 'perk'; perk: LevelPerk }
   | { kind: 'perk_boost'; perk: 'time' };
 
@@ -101,8 +113,61 @@ const REWARD_ROWS: LevelReward[] = [
   { kind: 'frame', id: 'rainbow' },
 ];
 
-/** Одна нагорода на рівень 1..30. */
-export const LEVEL_REWARDS: readonly { level: number; reward: LevelReward }[] = REWARD_ROWS.map((reward, i) => ({ level: i + 1, reward }));
+/** Відкрите з першого рівня, у нагороди не входить. */
+export const FREE_LOOKS: { readonly [S in LookSlot]: readonly string[] } = {
+  color: ['blood'],
+  frame: [],
+  badge: PROFILE_BADGES.slice(9, 29),
+  photo: ['crimson', 'silver', 'ink'],
+  font: ['hand', 'round'],
+};
+
+export const LOOK_IDS: { readonly [S in LookSlot]: readonly string[] } = {
+  color: NICK_COLORS,
+  frame: NICK_FRAMES,
+  badge: PROFILE_BADGES,
+  photo: PHOTO_FRAMES,
+  font: NICK_FONTS,
+};
+
+const EXTRA_REWARDS: { level: number; reward: LevelReward }[] = [
+  { level: 3, reward: { kind: 'font', id: 'mono' } },
+  { level: 4, reward: { kind: 'photo', id: 'gold' } },
+  { level: 6, reward: { kind: 'color', id: 'flame' } },
+  { level: 7, reward: { kind: 'font', id: 'poster' } },
+  { level: 8, reward: { kind: 'photo', id: 'cloud' } },
+  { level: 9, reward: { kind: 'color', id: 'ice' } },
+  { level: 10, reward: { kind: 'badge', id: '💀' } },
+  { level: 11, reward: { kind: 'badge', id: '🦄' } },
+  { level: 12, reward: { kind: 'font', id: 'brush' } },
+  { level: 13, reward: { kind: 'photo', id: 'crows' } },
+  { level: 14, reward: { kind: 'color', id: 'venom' } },
+  { level: 15, reward: { kind: 'badge', id: '👻' } },
+  { level: 16, reward: { kind: 'font', id: 'pixel' } },
+  { level: 17, reward: { kind: 'photo', id: 'fire' } },
+  { level: 18, reward: { kind: 'badge', id: '🥷' } },
+  { level: 19, reward: { kind: 'font', id: 'elegant' } },
+  { level: 20, reward: { kind: 'photo', id: 'neon' } },
+  { level: 21, reward: { kind: 'color', id: 'amethyst' } },
+  { level: 22, reward: { kind: 'badge', id: '🐺' } },
+  { level: 23, reward: { kind: 'photo', id: 'thorns' } },
+  { level: 24, reward: { kind: 'font', id: 'heavy' } },
+  { level: 25, reward: { kind: 'badge', id: '👑' } },
+  { level: 26, reward: { kind: 'photo', id: 'eclipse' } },
+  { level: 27, reward: { kind: 'color', id: 'moonsilver' } },
+  { level: 28, reward: { kind: 'badge', id: '🐉' } },
+  { level: 29, reward: { kind: 'photo', id: 'storm' } },
+  { level: 30, reward: { kind: 'photo', id: 'aura' } },
+];
+
+/** Нагороди рівнів 1..30 (на рівні їх може бути кілька), стабільно за рівнем. */
+export const LEVEL_REWARDS: readonly { level: number; reward: LevelReward }[] = [
+  ...REWARD_ROWS.map((reward, i) => ({ level: i + 1, reward })),
+  ...EXTRA_REWARDS,
+]
+  .map((r, i) => ({ r, i }))
+  .sort((x, y) => x.r.level - y.r.level || x.i - y.i)
+  .map(({ r }) => r);
 
 export function rewardsUpTo(level: number): { level: number; reward: LevelReward }[] {
   return LEVEL_REWARDS.filter((r) => r.level <= level);
@@ -113,6 +178,12 @@ export function perksFor(level: number): PerkGrant {
   for (const { reward } of rewardsUpTo(level)) if (reward.kind === 'perk') got.add(reward.perk);
   const boostAt = LEVEL_REWARDS.find((r) => r.reward.kind === 'perk_boost')?.level ?? Infinity;
   return { kinds: LEVEL_PERKS.filter((k) => got.has(k)), timeMs: level >= boostAt ? PERK_TIME_MS.boosted : PERK_TIME_MS.base };
+}
+
+/** Нагороди трьох найближчих рівнів, на яких щось відкривається. */
+export function nextRewards(level: number): { level: number; reward: LevelReward }[] {
+  const levels = [...new Set(LEVEL_REWARDS.filter((r) => r.level > level).map((r) => r.level))].slice(0, 3);
+  return LEVEL_REWARDS.filter((r) => levels.includes(r.level));
 }
 
 /** Рівень, з якого відкрито серію (для «з рівня N»). */
@@ -135,34 +206,44 @@ export interface NickLooks {
   color: NickColor | null;
   frame: NickFrame | null;
   badge: ProfileBadge | null;
+  photo: PhotoFrame | null;
+  font: NickFont | null;
 }
 
-export const looksSchema: z.ZodType<NickLooks> = z
+/** Старий клієнт шле тіло без photo і font: відсутнє означає «лишити збережене». */
+export type LooksInput = Omit<NickLooks, 'photo' | 'font'> & Partial<Pick<NickLooks, 'photo' | 'font'>>;
+
+export const looksSchema: z.ZodType<LooksInput> = z
   .object({
     color: z.enum(NICK_COLORS).nullable(),
     frame: z.enum(NICK_FRAMES).nullable(),
     badge: z.enum(PROFILE_BADGES).nullable(),
+    photo: z.enum(PHOTO_FRAMES).nullable().optional(),
+    font: z.enum(NICK_FONTS).nullable().optional(),
   })
   .strict();
 
-function unlockLevel(kind: 'color' | 'frame' | 'badge', id: string): number {
-  return LEVEL_REWARDS.find((r) => r.reward.kind === kind && (r.reward as { id: string }).id === id)?.level ?? Infinity;
+/** Рівень, з якого відкрито вигляд: вільне — 1, нагорода — її рівень, невідоме — Infinity. */
+export function lookLevel(slot: LookSlot, id: string): number {
+  if (FREE_LOOKS[slot].includes(id)) return 1;
+  return LEVEL_REWARDS.find((r) => r.reward.kind === slot && (r.reward as { id: string }).id === id)?.level ?? Infinity;
 }
 
+const LOOK_SLOTS: readonly LookSlot[] = ['color', 'frame', 'badge', 'photo', 'font'];
+
 export function looksAllowed(looks: NickLooks, level: number): boolean {
-  return (
-    (looks.color === null || unlockLevel('color', looks.color) <= level) &&
-    (looks.frame === null || unlockLevel('frame', looks.frame) <= level) &&
-    (looks.badge === null || unlockLevel('badge', looks.badge) <= level)
-  );
+  return LOOK_SLOTS.every((slot) => looks[slot] === null || lookLevel(slot, looks[slot]) <= level);
 }
 
 /** Відкидає закрите (рівень упав): кожне поле або відкрите, або null. */
 export function looksShown(looks: NickLooks, level: number): NickLooks {
+  const open = <T extends string>(slot: LookSlot, id: T | null): T | null => (id !== null && lookLevel(slot, id) <= level ? id : null);
   return {
-    color: looks.color !== null && unlockLevel('color', looks.color) <= level ? looks.color : null,
-    frame: looks.frame !== null && unlockLevel('frame', looks.frame) <= level ? looks.frame : null,
-    badge: looks.badge !== null && unlockLevel('badge', looks.badge) <= level ? looks.badge : null,
+    color: open('color', looks.color),
+    frame: open('frame', looks.frame),
+    badge: open('badge', looks.badge),
+    photo: open('photo', looks.photo),
+    font: open('font', looks.font),
   };
 }
 
@@ -171,6 +252,7 @@ export interface NickLevel {
   level: number;
   color: NickColor | null;
   frame: NickFrame | null;
+  font: NickFont | null;
 }
 
 export interface LevelUnlock {

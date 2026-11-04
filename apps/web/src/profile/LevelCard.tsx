@@ -15,6 +15,9 @@ export function rewardText(reward: LevelReward): string {
       return t('reward_frame', { name: t(`frame_${reward.id}` as TextKey) });
     case 'badge':
       return t('reward_badge', { id: reward.id });
+    case 'photo':
+    case 'font':
+      return reward.id; // тексти — задача 5
     case 'perk':
       return t('reward_perk', { name: t(`perk_${reward.perk}` as TextKey) });
     case 'perk_boost':
@@ -154,7 +157,7 @@ export function LevelCard({ level, nickname, onSaved }: { level: OwnLevel; nickn
     return (
       <span className="look-preview" aria-hidden="true">
         {slot === 'badge' && next.badge !== null && `${next.badge} `}
-        <Nick nickname={nickname} levels={{ [nickname]: { level: 1, color: next.color, frame: next.frame } }} />
+        <Nick nickname={nickname} levels={{ [nickname]: { level: 1, color: next.color, frame: next.frame, font: next.font } }} />
       </span>
     );
   };

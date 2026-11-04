@@ -811,8 +811,8 @@ export class RoomManager {
     let changed = false;
     for (const [userId, level] of levels) {
       const was = room.levels.get(userId);
-      if (was !== undefined && was.level === level.level && was.color === level.color && was.frame === level.frame) continue;
-      room.levels.set(userId, { level: level.level, color: level.color, frame: level.frame });
+      if (was !== undefined && was.level === level.level && was.color === level.color && was.frame === level.frame && was.font === level.font) continue;
+      room.levels.set(userId, { level: level.level, color: level.color, frame: level.frame, font: level.font });
       changed = true;
     }
     if (!changed) return;
