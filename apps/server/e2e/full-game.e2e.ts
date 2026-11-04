@@ -18459,7 +18459,9 @@ async function likes17a() {
     (await page.locator('section.likes-card .likes-tile', { hasText: label }).locator('strong').innerText()).replace(/\D/g, '');
   await host.setViewportSize({ width: 375, height: 812 });
   await host.goto(`${base}/profile/likes`);
-  await host.locator('section.likes-card').getByRole('heading', { name: 'Вподобання', ...exact }).waitFor();
+  // На сторінці «Вподобання» заголовок лише в шапці сторінки, картка без свого (24b).
+  await host.locator('section.likes-card .likes-tile').first().waitFor();
+  expect(await host.locator('section.likes-card h2').count(), 'no second «Вподобання» heading').toBe(0);
   expect([await tileValue(host, 'як автор'), await tileValue(host, 'як ведучий'), await tileValue(host, 'як гравець')], 'the host profile').toEqual(['3', '1', '0']);
   const tops = await Promise.all((await host.locator('.likes-tile').all()).map(async (one) => (await one.boundingBox())!.y));
   expect(new Set(tops).size, 'p17a-profile: the three tiles are not in one row').toBe(1);

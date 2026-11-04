@@ -55,7 +55,7 @@ function MoreAndError<T>({ state, onMore }: { state: ListState<T>; onMore: () =>
         </p>
       )}
       {state.next !== null && (
-        <button type="button" className="secondary liked-more" disabled={state.loading} onClick={onMore}>
+        <button type="button" className="btn btn-small liked-more" disabled={state.loading} onClick={onMore}>
           {t('feedMore')}
         </button>
       )}
@@ -92,7 +92,7 @@ function GivenRow({ row }: { row: GivenLike }): JSX.Element {
       </p>
       {expandable && (
         <>
-          <button type="button" className="secondary liked-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
+          <button type="button" className="btn btn-small liked-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
             {t('likedShowQuestions')}
           </button>
           {open && (

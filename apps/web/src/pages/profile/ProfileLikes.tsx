@@ -12,7 +12,7 @@ export function ProfileLikes(): JSX.Element {
     <SubpageData state={state} title={t('profileTileLikes')}>
       {(profile) => (
         <>
-          <LikesCard likes={profile.likes} />
+          <LikesCard likes={profile.likes} heading={false} />
           <LikedQuizzes />
         </>
       )}
