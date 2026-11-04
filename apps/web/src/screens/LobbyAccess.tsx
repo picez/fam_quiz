@@ -17,6 +17,7 @@ export function LobbyAccess({ code }: { code: string }) {
 
   const [loadFailed, setLoadFailed] = useState(false);
   const saving = useRef(false);
+  const [choice, setChoice] = useState<LobbyVisibility | null>(null);
 
   const load = useCallback(() => {
     let alive = true;
@@ -25,7 +26,8 @@ export function LobbyAccess({ code }: { code: string }) {
     void getLobbySettings(code).then((result) => {
       if (!alive) return;
       if (result.ok) {
-        setSettings({ visibility: result.visibility, password: result.password });
+        confirmed.current = { visibility: result.visibility, password: result.password };
+        setSettings(confirmed.current);
         setDraft(result.password ?? '');
       } else {
         setError(errorText(result.error));
@@ -39,20 +41,40 @@ export function LobbyAccess({ code }: { code: string }) {
 
   useEffect(() => load(), [load]);
 
-  const save = async (next: LobbySettings) => {
-    if (saving.current) return;
+  /** Остання відповідь сервера: основа для наступного збереження (стан у змінній, бо цикл живе довше за рендер). */
+  const confirmed = useRef<LobbySettings | null>(null);
+  const queued = useRef<Partial<LobbySettings> | null>(null);
+  const draftNow = useRef('');
+  draftNow.current = draft;
+
+  /** Зміни під час збереження не губляться: найновіший вибір ставиться в чергу і йде одразу після поточного. */
+  const save = async (patch: Partial<LobbySettings>) => {
+    queued.current = { ...queued.current, ...patch };
+    if (patch.visibility !== undefined) setChoice(patch.visibility);
+    if (saving.current || confirmed.current === null) return;
     saving.current = true;
     setBusy(true);
     setSaved(false);
     setError(null);
-    const result = await saveLobbySettings(code, next);
+    let failure: string | null = null;
+    while (queued.current !== null && confirmed.current !== null) {
+      const sent = queued.current;
+      queued.current = null;
+      const draftAtSend = draftNow.current;
+      const result = await saveLobbySettings(code, { ...confirmed.current, ...sent });
+      if (result.ok) {
+        failure = null;
+        confirmed.current = { visibility: result.visibility, password: result.password };
+        setSettings(confirmed.current);
+        // Чернетку скидаємо лише коли це вона щойно збережена і поле не змінили за час запиту.
+        if (sent.password !== undefined && draftNow.current === draftAtSend) setDraft(result.password ?? '');
+      } else failure = result.error.startsWith('invalid_payload') ? t('err_lobby_password') : errorText(result.error);
+    }
     saving.current = false;
     setBusy(false);
-    if (result.ok) {
-      setSettings({ visibility: result.visibility, password: result.password });
-      setDraft(result.password ?? '');
-      setSaved(true);
-    } else setError(result.error.startsWith('invalid_payload') ? t('err_lobby_password') : errorText(result.error));
+    setChoice(null);
+    if (failure === null) setSaved(true);
+    else setError(failure);
   };
 
   const trimmed = draft.trim();
@@ -70,8 +92,8 @@ export function LobbyAccess({ code }: { code: string }) {
               type="radio"
               name={`lobby-vis-${code}`}
               value={value}
-              checked={settings?.visibility === value}
-              onChange={() => settings !== null && void save({ visibility: value, password: settings.password })}
+              checked={(choice ?? settings?.visibility) === value}
+              onChange={() => settings !== null && void save({ visibility: value })}
             />
             <span>{t(VISIBILITY_LABEL[value])}</span>
           </label>
@@ -99,11 +121,11 @@ export function LobbyAccess({ code }: { code: string }) {
         </p>
       </div>
       <div className="lobby-access-actions">
-        <button type="button" className="btn btn-small" disabled={busy || settings === null || !dirty || !valid} onClick={() => settings !== null && void save({ visibility: settings.visibility, password: trimmed })}>
+        <button type="button" className="btn btn-small" disabled={busy || settings === null || !dirty || !valid} onClick={() => settings !== null && void save({ password: trimmed })}>
           {t('lobbyPasswordSave')}
         </button>
         {settings?.password != null && (
-          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void save({ visibility: settings.visibility, password: null })}>
+          <button type="button" className="btn btn-small" disabled={busy} onClick={() => void save({ password: null })}>
             {t('lobbyPasswordRemove')}
           </button>
         )}

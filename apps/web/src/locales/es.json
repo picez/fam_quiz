@@ -1539,6 +1539,7 @@
   "lobbyListTitle": "Partidas abiertas",
   "lobbyLocked": "con contraseña",
   "lobbyOpened": "creada {ago}",
+  "lobbyJustNow": "creada hace un momento",
   "lobbyPasswordAsk": "Contraseña de la partida",
   "lobbyPasswordHint": "De 4 a 32 caracteres. Díselo a los jugadores: las amistades invitadas entran sin ella.",
   "lobbyPasswordLabel": "Contraseña de la partida (opcional)",

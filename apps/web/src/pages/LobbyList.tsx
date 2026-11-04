@@ -17,9 +17,13 @@ export function LobbyList(): JSX.Element {
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let loading = false;
     const load = async () => {
       timer = undefined;
+      if (loading) return;
+      loading = true;
       const result = await listLobbies();
+      loading = false;
       if (!alive) return;
       if (result.ok) {
         // Старий список лишається, поки йде запит; нова відповідь замінює його разом із часом для «тому».
@@ -59,13 +63,15 @@ export function LobbyList(): JSX.Element {
       {rows !== null && rows.length === 0 && <p className="meta">{t('lobbyListEmpty')}</p>}
       {rows !== null && rows.length > 0 && (
         <ul className="lobby-rows">
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const age = Math.max(0, now - Date.parse(row.openedAt));
+            return (
             <li key={row.code}>
-              <Link className="lobby-row" to={`/play/${row.code}`}>
+              <Link className="lobby-row" to={`/play/${row.code}`} aria-labelledby={`lobby-title-${row.code} lobby-host-${row.code}`}>
                 <Avatar profile={row.host} size="small" />
                 <span className="lobby-body">
                   <span className="lobby-head">
-                    <span className="lobby-title" dir="auto">
+                    <span className="lobby-title" id={`lobby-title-${row.code}`} dir="auto">
                       {row.title}
                     </span>
                     {row.locked && (
@@ -75,14 +81,14 @@ export function LobbyList(): JSX.Element {
                     )}
                     {row.late && <span className="lobby-flag lobby-running">{t('lobbyRunning')}</span>}
                   </span>
-                  <span className="meta lobby-host" dir="auto">
+                  <span className="meta lobby-host" id={`lobby-host-${row.code}`} dir="auto">
                     <Nick nickname={nickText(row.host.nickname)} levels={row.host.level === null ? undefined : { [nickText(row.host.nickname)]: row.host.level }} />
                   </span>
                   <span className="meta lobby-facts">
                     <span>{t('lobbyPlayers', { count: row.players, max: row.maxPlayers })}</span>
                     <span>{countText('lobbyRounds', row.rounds, { count: row.rounds })}</span>
                     <span>{countText('lobbyQuestions', row.questions, { count: row.questions })}</span>
-                    <span>{t('lobbyOpened', { ago: agoText(Math.max(0, now - Date.parse(row.openedAt))) })}</span>
+                    <span>{age < 60_000 ? t('lobbyJustNow') : t('lobbyOpened', { ago: agoText(age) })}</span>
                   </span>
                   {row.friends.length > 0 && (
                     <span className="meta lobby-friends" dir="auto">
@@ -92,7 +98,8 @@ export function LobbyList(): JSX.Element {
                 </span>
               </Link>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>

@@ -1516,6 +1516,7 @@
   "lobbyListTitle": "Offene Spiele",
   "lobbyLocked": "mit Passwort",
   "lobbyOpened": "erstellt {ago}",
+  "lobbyJustNow": "gerade erstellt",
   "lobbyPasswordAsk": "Spielpasswort",
   "lobbyPasswordHint": "4 bis 32 Zeichen. Sag es den Spielenden — eingeladene Freunde kommen auch ohne rein.",
   "lobbyPasswordLabel": "Spielpasswort (optional)",

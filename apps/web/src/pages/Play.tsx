@@ -141,7 +141,9 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 maxLength={64}
-                autoComplete="off"
+                autoComplete="one-time-code"
+                aria-invalid={error !== null && locked}
+                aria-describedby={error !== null ? 'play-error' : undefined}
               />
             </label>
           )}
@@ -149,7 +151,7 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
             {t(busy ? 'checking' : 'enterGame')}
           </button>
           {error !== null && (
-            <p className="error" role="alert">
+            <p className="error" role="alert" id="play-error">
               {error}
             </p>
           )}

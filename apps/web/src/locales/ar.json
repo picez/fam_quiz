@@ -1608,6 +1608,7 @@
   "lobbyListTitle": "الألعاب المفتوحة",
   "lobbyLocked": "بكلمة مرور",
   "lobbyOpened": "أُنشئت {ago}",
+  "lobbyJustNow": "أُنشئت للتو",
   "lobbyPasswordAsk": "كلمة مرور اللعبة",
   "lobbyPasswordHint": "من 4 إلى 32 حرفًا. أخبرها للاعبين — الأصدقاء المدعوون يدخلون من دونها.",
   "lobbyPasswordLabel": "كلمة مرور اللعبة (اختيارية)",

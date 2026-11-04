@@ -1516,6 +1516,7 @@
   "lobbyListTitle": "Open games",
   "lobbyLocked": "password-protected",
   "lobbyOpened": "created {ago}",
+  "lobbyJustNow": "created just now",
   "lobbyPasswordAsk": "Game password",
   "lobbyPasswordHint": "4 to 32 characters. Tell it to the players — invited friends get in without it.",
   "lobbyPasswordLabel": "Game password (optional)",

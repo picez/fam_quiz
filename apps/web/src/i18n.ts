@@ -2663,6 +2663,7 @@ const uk = {
   lobbyQuestions_few: '{count} запитання',
   lobbyQuestions_many: '{count} запитань',
   lobbyOpened: 'створено {ago}',
+  lobbyJustNow: 'створено щойно',
   lobbyPasswordAsk: 'Пароль гри',
   err_password_required: 'Ця гра з паролем — спитай його у ведучого',
   err_password_wrong: 'Неправильний пароль. Перевір і спробуй ще',

@@ -63,6 +63,23 @@ describe('LobbyList', () => {
     expect(inside.getByRole('img', { name: /Ведуча/ })).toBeTruthy();
   });
 
+  it('rows: a lobby under a minute old says «створено щойно», and the link is named by title and host', async () => {
+    vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [row({ openedAt: new Date(NOW - 20_000).toISOString() })] });
+    await show();
+    const link = screen.getByRole('link');
+    expect(within(link).getByText('створено щойно')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /^Вечір кіно Ведуча/ })).toBeTruthy();
+  });
+
+  it('poll: becoming visible while a load is running does not start a second one', async () => {
+    let finish: (value: { ok: true; data: LobbyRow[] }) => void = () => {};
+    vi.mocked(listLobbies).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    await show();
+    await act(async () => void document.dispatchEvent(new Event('visibilitychange')));
+    expect(listLobbies).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ ok: true, data: [] }));
+  });
+
   it('rows: no lock, running flag or friends line when not set', async () => {
     vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [row()] });
     await show();

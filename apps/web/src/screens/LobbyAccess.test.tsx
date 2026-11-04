@@ -99,4 +99,30 @@ describe('LobbyAccess', () => {
     expect(((await group()).getByRole('radio', { name: 'Лише друзі' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.queryByRole('button', { name: 'Спробувати ще' })).toBeNull();
   });
+
+  it('keeps what the host types while a radio save is in flight', async () => {
+    let release: () => void = () => {};
+    vi.mocked(saveLobbySettings).mockImplementationOnce((_code, settings) => new Promise((resolve) => { release = () => resolve({ ok: true, ...settings }); }));
+    render(<LobbyAccess code="123456" />);
+    fireEvent.click((await group()).getByRole('radio', { name: 'Усі' }));
+    const input = screen.getByLabelText('Пароль гри (необов’язково)') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'сова42' } });
+    release();
+    await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
+    expect(input.value).toBe('сова42');
+  });
+
+  it('saves the latest radio choice made during an in-flight save', async () => {
+    let release: () => void = () => {};
+    vi.mocked(saveLobbySettings).mockImplementationOnce((_code, settings) => new Promise((resolve) => { release = () => resolve({ ok: true, ...settings }); }));
+    render(<LobbyAccess code="123456" />);
+    const radios = await group();
+    fireEvent.click(radios.getByRole('radio', { name: 'Усі' }));
+    fireEvent.click(radios.getByRole('radio', { name: 'Прихована (лише за кодом)' }));
+    expect((radios.getByRole('radio', { name: 'Прихована (лише за кодом)' }) as HTMLInputElement).checked).toBe(true);
+    release();
+    await waitFor(() => expect(saveLobbySettings).toHaveBeenCalledTimes(2));
+    expect(saveLobbySettings).toHaveBeenLastCalledWith('123456', { visibility: 'hidden', password: null });
+    await waitFor(() => expect((radios.getByRole('radio', { name: 'Прихована (лише за кодом)' }) as HTMLInputElement).checked).toBe(true));
+  });
 });

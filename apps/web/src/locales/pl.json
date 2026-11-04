@@ -1539,6 +1539,7 @@
   "lobbyListTitle": "Otwarte gry",
   "lobbyLocked": "z hasłem",
   "lobbyOpened": "utworzono {ago}",
+  "lobbyJustNow": "utworzono przed chwilą",
   "lobbyPasswordAsk": "Hasło gry",
   "lobbyPasswordHint": "Od 4 do 32 znaków. Podaj je graczom — zaproszeni znajomi wejdą bez niego.",
   "lobbyPasswordLabel": "Hasło gry (opcjonalne)",

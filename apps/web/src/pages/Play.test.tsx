@@ -420,6 +420,8 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
       expect((await screen.findByRole('alert')).textContent).toBe('Неправильний пароль. Перевір і спробуй ще');
       expect((screen.getByLabelText('Пароль гри') as HTMLInputElement).value).toBe('сова00');
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+      expect(field.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
       fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
       await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Забагато спроб'));
     });
