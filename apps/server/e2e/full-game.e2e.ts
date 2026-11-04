@@ -20499,3 +20499,179 @@ async function likedQuizzes24b() {
   await olya.locator('section.likes-card').waitFor();
   expect(await olya.locator('section.liked-quizzes').count()).toBe(0);
 }
+
+it('part 24c: lobby list — the host keeps «Лише друзі» by default, Оля sees the lobby under the code field with the host, player count and «друзі тут», a guest sees it only after «Усі», a password shows 🔒 and is asked on tap and by code, a wrong one is refused and the sixth try is limited, an invited friend and a rejoining player skip it, «Прихована» hides the row while the code still works, the password never reaches players, and 375/320 px in uk and ar has no side scroll', async () => {
+  try {
+    await lobbyList24c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function lobbyList24c() {
+  const TITLE = 'Лобі 24c';
+  const SECRET = 'сова42';
+  const EMPTY = 'Зараз немає відкритих ігор — введи код або створи свою';
+  const host = await open('host24c', 1280, 900);
+  const olya = await open('olya24c', 375, 812);
+  const petro = await open('petro24c', 375, 812);
+  await register(host, 'menu', 'Галина 24c', 'host24c@example.com');
+  await register(olya, 'menu', 'Оля 24c', 'olya24c@example.com');
+  await register(petro, 'menu', 'Петро 24c', 'petro24c@example.com');
+  const [olyaId, petroId] = [await myId(olya), await myId(petro)];
+  // ── 1. Галина підписана на Олю, Оля — на Петра. ──
+  expect((await host.request.put(`${base}/api/me/friends/${olyaId}`)).ok()).toBe(true);
+  expect((await olya.request.put(`${base}/api/me/friends/${petroId}`)).ok()).toBe(true);
+  const olyaFrames = socketFrames(olya);
+  const guest = await open('guest24c', 375, 812);
+  const guestFrames = socketFrames(guest);
+
+  // ── 2. Галина створює гру з «Мої вікторини»; у лобі «Хто бачить гру» з «Лише друзі». ──
+  const saved = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: TITLE } });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const access = host.locator('.lobby-access');
+  await access.waitFor();
+  await access.getByText('Хто бачить гру', exact).first().waitFor();
+  await expect.poll(() => access.getByRole('radio', { name: 'Лише друзі', ...exact }).isChecked(), POLL).toBe(true);
+  await shot(host, 'part24c-host-lobby-desktop');
+  await host.setViewportSize({ width: 375, height: 812 });
+  expect(await noSideScroll(host), 'host lobby panel 375: horizontal scroll').toBe(true);
+  await shot(host, 'part24c-host-lobby-phone');
+  await host.setViewportSize({ width: 1280, height: 900 });
+
+  // Петро входить за кодом.
+  await join(petro, code, 'Петро 24c', false);
+
+  // ── 3. Оля бачить рядок; гість — порожній список. ──
+  const listOf = async (page: Page, lang = 'uk') => {
+    await page.goto(base);
+    await expect.poll(() => htmlLang(page), POLL).toBe(lang);
+    if (lang === 'uk') await (await homeCodeField(page)).waitFor();
+    else await page.locator('nav.start-menu > *').nth(1).click();
+    await page.locator('section.lobby-list').waitFor();
+    return page.locator('section.lobby-list');
+  };
+  const rowOf = (page: Page) => page.locator('section.lobby-list a.lobby-row', { hasText: TITLE });
+  await listOf(olya);
+  const row = rowOf(olya);
+  await row.waitFor();
+  const text = (await row.textContent())!;
+  expect(text).toContain('Галина');
+  expect(text).toContain('гравців: 1 з 50');
+  expect(text).toContain('друзі тут: Петро');
+  expect(await row.getByRole('button', { name: 'Увійти', ...exact }).count()).toBe(0);
+  await shot(olya, 'part24c-list-olya-375-uk');
+  expect(await olya.locator('input[type="password"]').count()).toBe(0);
+
+  const guestList = await listOf(guest);
+  await guestList.getByText(EMPTY, exact).waitFor();
+  expect(await rowOf(guest).count()).toBe(0);
+
+  // ── 4. «Усі» — у гостя рядок з'являється без перезавантаження. ──
+  await access.getByRole('radio', { name: 'Усі', ...exact }).click();
+  await expect.poll(() => access.getByRole('radio', { name: 'Усі', ...exact }).isChecked(), POLL).toBe(true);
+  await expect.poll(() => rowOf(guest).count(), { timeout: 12_000 }).toBe(1);
+
+  // ── 5. Пароль: 🔒 у гостя, поле при дотику, хибний — відмова, правильний — у грі. ──
+  await access.getByLabel('Пароль гри (необов’язково)', exact).fill(SECRET);
+  await click(host, 'Зберегти пароль');
+  await expect.poll(() => rowOf(guest).getByRole('img', { name: 'з паролем', ...exact }).count(), { timeout: 12_000 }).toBe(1);
+  await rowOf(guest).click();
+  await guest.waitForURL(`${base}/play/${code}`);
+  const password = field(guest, 'Пароль гри');
+  await password.waitFor();
+  await field(guest, 'Ваше ім’я').fill('Гість 24c');
+  await password.fill('хибний');
+  await click(guest, 'Увійти в гру');
+  await guest.getByText('Неправильний пароль. Перевір і спробуй ще').waitFor();
+  await shot(guest, 'part24c-password-wrong-375-uk');
+  await password.fill(SECRET);
+  await click(guest, 'Увійти в гру');
+  await guest.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+
+  // ── 6. Шоста хибна спроба з іншого пристрою — 429 password_limited. ──
+  let last = { status: 0, error: '' };
+  for (let i = 0; i < 6; i++) {
+    const res = await guest.request.post(`${base}/api/games/by-code/${code}/join`, { data: { nickname: 'Підбирач', password: 'x', device: 'brute-24c' } });
+    last = { status: res.status(), error: ((await res.json()) as { error: string }).error };
+    if (i < 5) expect(last, `try ${i + 1}`).toEqual({ status: 403, error: 'password_wrong' });
+  }
+  expect(last).toEqual({ status: 429, error: 'password_limited' });
+
+  // ── 7. Запрошена Оля входить дотиком без пароля; повторний вхід того, хто вже в кімнаті, — теж. ──
+  await click(host, 'Запросити друзів');
+  const invite = host.locator('.invite-friends li', { hasText: 'Оля' });
+  await invite.getByRole('button', { name: 'Запросити', ...exact }).click();
+  await invite.getByRole('button', { name: 'Запрошено', ...exact }).waitFor();
+  await listOf(olya);
+  await rowOf(olya).getByRole('img', { name: 'з паролем', ...exact }).waitFor();
+  await rowOf(olya).click();
+  await olya.waitForURL(`${base}/play/${code}`);
+  expect(await olya.locator('input[type="password"]').count()).toBe(0);
+  const nick = field(olya, 'Ваше ім’я');
+  await nick.waitFor();
+  if ((await nick.inputValue()) === '') await nick.fill('Оля 24c');
+  await click(olya, 'Увійти в гру');
+  await olya.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+  await expect.poll(() => host.getByRole('button', { name: /Вилучити/ }).count(), POLL).toBe(3);
+  const again = await olya.request.post(`${base}/api/games/by-code/${code}/join`, { data: { nickname: 'Оля 24c', device: 'olya-dev' } });
+  expect([403, 429], `rejoin: ${again.status()}`).not.toContain(again.status());
+
+  // ── 8. Розкладка списку: uk і ar, 375 і 320. ──
+  for (const lang of ['uk', 'ar'] as const) {
+    expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
+    for (const width of [375, 320]) {
+      await olya.setViewportSize({ width, height: 812 });
+      await listOf(olya, lang);
+      await olya.locator('section.lobby-list a.lobby-row').first().waitFor();
+      if (lang === 'ar') expect(await olya.evaluate('document.documentElement.dir')).toBe('rtl');
+      const clipped = await olya.locator('section.lobby-list a.lobby-row').evaluateAll((rows) => rows.filter((r) => r.scrollWidth > r.clientWidth).map((r) => r.textContent));
+      expect(clipped, `p24c-${lang}-${width}: clipped rows`).toEqual([]);
+      await expectNoSideScroll(olya, `part24c-list-olya-${width}-${lang}`);
+    }
+  }
+  expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
+  // Форма пароля гостя на 320 px у uk й ar.
+  for (const [lang, locale] of [['uk', 'uk-UA'], ['ar', 'ar-EG']] as const) {
+    const visitor = await open(`visitor24c-${lang}`, 320, 700, { locale });
+    await visitor.goto(`${base}/play/${code}`);
+    await expect.poll(() => htmlLang(visitor), POLL).toBe(lang);
+    await visitor.locator('input[type="password"]').waitFor();
+    await expectNoSideScroll(visitor, `part24c-password-guest-320-${lang}`);
+  }
+
+  // ── 9. «Прихована»: рядок зникає, а код працює. ──
+  await access.getByRole('radio', { name: 'Прихована (лише за кодом)', ...exact }).click();
+  await expect.poll(() => access.getByRole('radio', { name: 'Прихована (лише за кодом)', ...exact }).isChecked(), POLL).toBe(true);
+  await listOf(olya);
+  await olya.locator('section.lobby-list').getByText(EMPTY, exact).waitFor();
+  await listOf(guest);
+  await guest.locator('section.lobby-list').getByText(EMPTY, exact).waitFor();
+  expect(await rowOf(guest).count()).toBe(0);
+  const late = await open('late24c', 375, 812);
+  await late.goto(base);
+  await (await homeCodeField(late)).fill(code);
+  await click(late, 'Увійти');
+  await late.waitForURL(`${base}/play/${code}`);
+  await field(late, 'Пароль гри').waitFor();
+  await field(late, 'Ваше ім’я').fill('Пізній 24c');
+  await field(late, 'Пароль гри').fill(SECRET);
+  await click(late, 'Увійти в гру');
+  await late.getByText('Ви в грі. Чекаємо на старт.').waitFor();
+
+  // ── 10. Пароль не виходить до гравців: кадри сокетів, список і відповідь за кодом. ──
+  const bodies = [
+    await (await guest.request.get(`${base}/api/lobbies`)).text(),
+    await (await olya.request.get(`${base}/api/lobbies`)).text(),
+    await (await guest.request.get(`${base}/api/games/by-code/${code}`)).text(),
+    await (await olya.request.get(`${base}/api/games/by-code/${code}`)).text(),
+  ];
+  for (const body of [...bodies, ...olyaFrames, ...guestFrames]) expect(body.includes(SECRET)).toBe(false);
+  expect(olyaFrames.length).toBeGreaterThan(0);
+  expect(guestFrames.length).toBeGreaterThan(0);
+}

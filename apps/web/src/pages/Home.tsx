@@ -6,6 +6,7 @@ import { RunningGameBanner } from '../host-game';
 import { errorText, t, type TextKey } from '../i18n';
 import { MotifHero } from '../motifs/Motifs';
 import { loadPlayer } from '../storage';
+import { LobbyList } from './LobbyList';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useInvites } from '../useInvites';
@@ -28,41 +29,44 @@ function JoinForm({ initialCode, autoFocus = false }: { initialCode: string; aut
     const result = await checkCode(digits);
     setBusy(false);
     if (!result.ok) setError(errorText(result.error));
-    // Після старту повернутися може лише той, хто вже був у грі на цьому пристрої.
-    else if (result.phase !== 'lobby' && loadPlayer(digits) === null) setError(errorText('game_started'));
+    // Після старту повернутися може лише той, хто вже був у грі на цьому пристрої; у продовжену гру пускає сервер (late).
+    else if (result.phase !== 'lobby' && !result.late && loadPlayer(digits) === null) setError(errorText('game_started'));
     else navigate(`/play/${digits}`);
   };
 
   return (
-    <form className="panel" id={JOIN_FORM} onSubmit={submit}>
-      <h2>{t('joinTitle')}</h2>
-      <label className="field">
-        <span>{t('codeLabel')}</span>
-        <input
-          className="code-input"
-          dir="ltr"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          inputMode="numeric"
-          autoComplete="off"
-          maxLength={7}
-          placeholder="000 000"
-          aria-describedby="code-hint"
-          autoFocus={autoFocus}
-        />
-      </label>
-      <p className="meta" id="code-hint">
-        {t('codeHint')}
-      </p>
-      <button type="submit" className="btn btn-primary" disabled={digits.length !== 6 || busy}>
-        {t(busy ? 'checking' : 'joinButton')}
-      </button>
-      {error !== null && (
-        <p className="error" role="alert">
-          {error}
+    <div id={JOIN_FORM} className="join-area">
+      <form className="panel" onSubmit={submit}>
+        <h2>{t('joinTitle')}</h2>
+        <label className="field">
+          <span>{t('codeLabel')}</span>
+          <input
+            className="code-input"
+            dir="ltr"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={7}
+            placeholder="000 000"
+            aria-describedby="code-hint"
+            autoFocus={autoFocus}
+          />
+        </label>
+        <p className="meta" id="code-hint">
+          {t('codeHint')}
         </p>
-      )}
-    </form>
+        <button type="submit" className="btn btn-primary" disabled={digits.length !== 6 || busy}>
+          {t(busy ? 'checking' : 'joinButton')}
+        </button>
+        {error !== null && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+      <LobbyList />
+    </div>
   );
 }
 

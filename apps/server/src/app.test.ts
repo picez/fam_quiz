@@ -80,7 +80,7 @@ describe('GET /api/games/by-code/:code', () => {
     const { code } = await createGame();
     const response = await ctx.app.inject({ method: 'GET', url: `/api/games/by-code/${code}` });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ phase: 'lobby', title: 'Тестова вікторина' });
+    expect(response.json()).toEqual({ phase: 'lobby', title: 'Тестова вікторина', locked: false, late: false });
   });
 
   it('answers 404 for an unknown code', async () => {

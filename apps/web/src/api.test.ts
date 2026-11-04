@@ -228,7 +228,7 @@ describe('saved games (13b)', () => {
 
     fetchMock = respond(409, { error: 'slot_taken' });
     expect(await claimSlot('123456', 's1')).toEqual({ ok: false, error: 'slot_taken' });
-    expect(fetchMock).toHaveBeenCalledWith('/api/games/by-code/123456/claim', expect.objectContaining({ method: 'POST', body: '{"slotId":"s1"}' }));
+    expect(fetchMock).toHaveBeenCalledWith('/api/games/by-code/123456/claim', expect.objectContaining({ method: 'POST', body: expect.stringContaining('"slotId":"s1"') }));
   });
 });
 

@@ -139,7 +139,7 @@ describe('Quizzes: a game in progress', () => {
   it('offers a way back to a game that is still running', async () => {
     saveHost('654321', { hostToken: 'h', stageToken: 's' });
     saveLastGame('654321');
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Географія', locked: false, late: false });
     open();
     const link = await screen.findByRole('link', { name: 'Повернутися до гри 654 321' });
     expect(link.getAttribute('href')).toBe('/host/654321');
@@ -156,7 +156,7 @@ describe('Quizzes: a game in progress', () => {
     expect(screen.queryByRole('link', { name: /Повернутися до гри/ })).toBeNull();
 
     saveLastGame('654321');
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'finished', title: 'Географія' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'finished', title: 'Географія', locked: false, late: false });
     cleanup();
     open();
     await screen.findByText('Географія');
@@ -192,7 +192,7 @@ describe('Quizzes: when the session check fails', () => {
   it('sends the back-to-game banner of an author game to the phone screen', async () => {
     saveAuthor('123456', { stageToken: 's' });
     saveLastGame('123456');
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія', locked: false, late: false });
     open();
     const banner = await screen.findByRole('link', { name: /123 456/ });
     expect(banner.getAttribute('href')).toBe('/play/123456');
@@ -203,7 +203,7 @@ describe('Quizzes: when the session check fails', () => {
     localStorage.setItem('quiz:author:123456', JSON.stringify({ stageToken: 'old' }));
     localStorage.setItem('quiz:host:123456', JSON.stringify({ hostToken: 'h', stageToken: 's' }));
     saveLastGame('123456');
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Географія', locked: false, late: false });
     open();
     const banner = await screen.findByRole('link', { name: /123 456/ });
     expect(banner.getAttribute('href')).toBe('/host/123456');

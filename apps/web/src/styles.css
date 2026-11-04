@@ -15400,3 +15400,177 @@ button.wall-tile:disabled {
 [dir='rtl'] .game-bg::before {
   background: var(--moon-rings) center / 100% no-repeat, radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
 }
+
+/* 24c: «Хто бачить гру» у лобі ведучого. */
+.lobby-vis {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lobby-vis legend {
+  margin-block-end: 0.5rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.lobby-vis-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding-inline: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.lobby-vis-option:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.lobby-vis-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lobby-vis-option input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.lobby-vis:disabled .lobby-vis-option {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.lobby-password .meta {
+  margin: 0;
+  font-weight: 400;
+}
+
+.lobby-password .meta.lobby-pw-bad {
+  color: var(--signal);
+}
+
+.lobby-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lobby-access-actions .btn {
+  min-height: 44px;
+}
+
+/* 24c: список відкритих лобі під полем коду. На 320 px і в RTL: логічні властивості, переноси, без бокового скролу. */
+.join-area {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.lobby-list {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.lobby-list h2 {
+  margin: 0;
+  text-align: start;
+}
+
+.lobby-rows {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  text-align: start;
+  text-decoration: none;
+}
+
+.lobby-row:hover {
+  border-color: var(--accent);
+}
+
+.lobby-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lobby-row .avatar {
+  flex: none;
+}
+
+.lobby-body {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.lobby-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.lobby-title {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.lobby-flag {
+  flex: none;
+  max-inline-size: 100%;
+}
+
+.lobby-running {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--accent-text);
+  font-size: 0.875rem;
+}
+
+.lobby-host,
+.lobby-friends {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lobby-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
+  min-width: 0;
+}

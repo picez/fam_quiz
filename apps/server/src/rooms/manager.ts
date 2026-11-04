@@ -128,7 +128,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -145,6 +145,14 @@ export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
 export interface Identity {
   role: Role;
   playerId: string | null;
+}
+
+/** Видимість і пароль лобі (24c); живе на кімнаті й у знімку, не в GameState. */
+export interface LobbyState {
+  visibility: LobbyVisibility;
+  password: string | null;
+  /** Мить відкриття лобі за годинником менеджера (мс). */
+  openedAt: number;
 }
 
 export interface Room {
@@ -216,6 +224,8 @@ export interface Room {
   checkpoint: { state: GameState; at: number } | null;
   /** Кімната продовження збереженої гри (13b); null — звичайна кімната. */
   continued: Continued | null;
+  /** Хто бачить гру в списку й пароль входу (24c). Пароль іде лише ведучому. */
+  lobby: LobbyState;
   /** Призи на місцях (10): кладе лише ведучий/автор у лобі; резерв — у базі. Іде в знімок кімнати. */
   prizes: PlacedPrize[];
   /** Чинні титули акаунтів кімнати (15): userId → текст. Лише в пам'яті; заповнює attachTitles. */
@@ -383,6 +393,8 @@ export interface SavedRoom {
   continued?: { bound: string[]; carry: ResumeSetup | null; replaces: string | null };
   /** Призи на місцях (14a); немає — призів немає (старий сервер поле ігнорує: кімната встає без призів, резерв знімає закриття чи прибирач). */
   prizes?: PlacedPrize[];
+  /** Видимість і пароль лобі (24c); немає чи зіпсовано — типові значення. */
+  lobby?: LobbyState;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
@@ -412,6 +424,24 @@ function continuedOf(raw: unknown): Continued | null {
   const carry = raw.carry;
   const readable = isObject(carry) && typeof carry.roundIndex === 'number' && isObject(carry.points) && !Array.isArray(carry.points);
   return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces };
+}
+
+/** Лобі з рядка бази (24c): що читається — те й береться, інакше типове («Лише друзі», без ведучого — «Прихована»). */
+function lobbyOf(raw: unknown, hostUserId: string | null, savedAt: number): LobbyState {
+  const fallback: LobbyState = { visibility: hostUserId === null ? 'hidden' : 'friends', password: null, openedAt: savedAt };
+  if (!isObject(raw)) return fallback;
+  const visibility = LOBBY_VISIBILITIES.find((v) => v === raw.visibility);
+  const password = raw.password === null ? null : lobbyPasswordSchema.safeParse(raw.password);
+  if (visibility === undefined || typeof raw.openedAt !== 'number') return fallback;
+  if (password !== null && !password.success) return fallback;
+  return { visibility, password: password === null ? null : password.data, openedAt: raw.openedAt };
+}
+
+/** Чи можна зараз увійти нову людину в кімнату (24c): 'lobby' — лобі; 'late' — продовжена гра, що вже йде; інакше null. */
+export function joinableOf(room: Room): 'lobby' | 'late' | null {
+  if (room.state.phase === 'lobby') return 'lobby';
+  if (room.continued !== null && room.state.phase !== 'finished') return 'late';
+  return null;
 }
 
 /** Призи з рядка бази (14a): лише елементи, що проходять placedPrizeSchema; не масив — []. */
@@ -601,6 +631,7 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
+      lobby: { visibility: hostUserId === null ? 'hidden' : 'friends', password: null, openedAt: this.now() },
       prizes: [],
       titles: new Map(),
       levels: new Map(),
@@ -631,6 +662,7 @@ export class RoomManager {
       ...(room.checkpoint === null ? {} : { checkpoint: room.checkpoint }),
       ...(room.continued === null ? {} : { continued: { bound: [...room.continued.bound], carry: room.continued.carry, replaces: room.continued.replaces } }),
       ...(room.prizes.length === 0 ? {} : { prizes: room.prizes }),
+      lobby: room.lobby,
     };
   }
 
@@ -671,6 +703,7 @@ export class RoomManager {
       awayCredit: new Set(),
       checkpoint: checkpointOf(saved.checkpoint),
       continued: continuedOf(saved.continued),
+      lobby: lobbyOf(saved.lobby, saved.hostUserId, saved.savedAt),
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
       levels: new Map(),
@@ -732,6 +765,15 @@ export class RoomManager {
       }
     }
     return changed;
+  }
+
+  /** Видимість і пароль (24c): лише лобі (інакше wrong_phase), frozen → restarting; пише в кімнату й commit, щоб RoomStore записав. */
+  setLobby(room: Room, settings: LobbySettings): AckResult {
+    if (!this.alive(room)) return this.gone();
+    if (room.state.phase !== 'lobby') return { ok: false, error: 'wrong_phase' };
+    room.lobby = { ...room.lobby, visibility: settings.visibility, password: settings.password };
+    this.commit(room, room.state);
+    return { ok: true };
   }
 
   /** Призи на місця (14a): лише лобі (інакше wrong_phase), frozen → restarting; кладе placed, emit changed. Резерв у базі — справа маршруту. */

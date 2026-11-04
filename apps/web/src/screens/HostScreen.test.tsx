@@ -11,6 +11,8 @@ import { teamsView } from './team-test-view';
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   gamePrizes: vi.fn(async () => ({ ok: true as const, data: { options: [], places: [null, null, null] } })),
+  getLobbySettings: vi.fn(async () => ({ ok: true as const, visibility: 'friends' as const, password: null })),
+  saveLobbySettings: vi.fn(),
 }));
 
 afterEach(() => {
@@ -2461,7 +2463,7 @@ describe('HostScreen: bluff (10f)', () => {
 
     it('the team lobby shows the host team form and no plain player list', () => {
       show(teamLobby());
-      expect(screen.getAllByRole('radio')).toHaveLength(4);
+      expect(screen.getAllByRole('radio').filter((radio) => !radio.closest('.lobby-access'))).toHaveLength(4);
       expect(document.querySelector('.host-team-cols')).not.toBeNull();
       expect(document.querySelector('ul.rows')).toBeNull();
     });

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { CloseReason, SlotOption, SocketAuth } from '@quiz/shared';
-import { claimSlot, gameSlots, getMyCard, joinGame } from '../api';
+import { checkCode, claimSlot, gameSlots, getMyCard, joinGame } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { statusTextKey, useGame } from '../live/useGame';
 import { useAwayWatch } from '../live/useAwayWatch';
@@ -31,6 +31,18 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
   }, [signedIn]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(notice);
+  // Гра з паролем (24c): поле з'являється, коли сервер каже locked, чи після відповіді password_required.
+  const [locked, setLocked] = useState(false);
+  const [password, setPassword] = useState('');
+  useEffect(() => {
+    let current = true;
+    void checkCode(code).then((result) => {
+      if (current && result.ok && result.locked) setLocked(true);
+    });
+    return () => {
+      current = false;
+    };
+  }, [code]);
   // Місця збереженої гри (13b): поки не прочитано чи їх немає, форма як досі.
   const [slots, setSlots] = useState<SlotOption[]>([]);
   const [choice, setChoice] = useState<string | null>(null);
@@ -67,9 +79,14 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
     event.preventDefault();
     setBusy(true);
     const slotId = newcomer ? null : choice;
-    const result = slotId === null ? await joinGame(code, nickname) : await claimSlot(code, slotId);
+    const typed = locked && password !== '' ? password : undefined;
+    const result =
+      slotId === null
+        ? await (typed === undefined ? joinGame(code, nickname) : joinGame(code, nickname, typed))
+        : await (typed === undefined ? claimSlot(code, slotId) : claimSlot(code, slotId, typed));
     setBusy(false);
     if (result.ok) return onJoined(result.token);
+    if (result.error === 'password_required') setLocked(true);
     setError(errorText(result.error === 'wrong_phase' ? 'game_started' : result.error));
     if (result.error === 'slot_taken') setSlotReads((count) => count + 1);
   };
@@ -116,11 +133,25 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
               </p>
             </>
           )}
+          {locked && (
+            <label className="field">
+              <span>{t('lobbyPasswordAsk')}</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                maxLength={64}
+                autoComplete="one-time-code"
+                aria-invalid={error !== null && locked}
+                aria-describedby={error !== null ? 'play-error' : undefined}
+              />
+            </label>
+          )}
           <button type="submit" className="btn btn-primary" disabled={!ready || busy}>
             {t(busy ? 'checking' : 'enterGame')}
           </button>
           {error !== null && (
-            <p className="error" role="alert">
+            <p className="error" role="alert" id="play-error">
               {error}
             </p>
           )}

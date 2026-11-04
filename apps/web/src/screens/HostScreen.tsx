@@ -37,6 +37,7 @@ import { LiveAnswers } from './LiveAnswers';
 import { draftsById } from '../live-drafts';
 import { useBlinkingRows, useVerdictBlink } from './verdict-blink';
 import { InviteFriends } from './InviteFriends';
+import { LobbyAccess } from './LobbyAccess';
 import { PrizePlaces } from './PrizePlaces';
 import { HostCeremony } from './HostCeremony';
 import { PrizeResults } from './MyPrize';
@@ -1299,6 +1300,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 
       {phase === 'lobby' && view.levelBonuses !== 'none' && <p className="meta">{t(view.levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
+      {phase === 'lobby' && <LobbyAccess code={code} />}
       {phase === 'lobby' && <InviteFriends code={code} />}
       {phase === 'lobby' && <PrizePlaces code={code} />}
 

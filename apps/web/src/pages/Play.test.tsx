@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { claimSlot, gameSlots, getMyCard, joinGame, me } from '../api';
+import { checkCode, claimSlot, gameSlots, getMyCard, joinGame, me } from '../api';
 import { loadAuthor, loadPlayer, saveAuthor, savePlayer } from '../storage';
 import { Play } from './Play';
 
@@ -33,7 +33,7 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ joinGame: vi.fn(), gameSlots: vi.fn(), claimSlot: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })) }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), joinGame: vi.fn(), gameSlots: vi.fn(), claimSlot: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })) }));
 vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
@@ -43,6 +43,7 @@ beforeEach(() => {
   vi.mocked(getMyCard).mockReset().mockResolvedValue({ ok: false, error: 'unauthorized' });
   vi.mocked(gameSlots).mockReset().mockResolvedValue({ ok: true, data: { slots: [], mine: null } });
   vi.mocked(claimSlot).mockReset();
+  vi.mocked(checkCode).mockReset().mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: false, late: false });
   vi.mocked(joinGame).mockReset();
 });
 afterEach(cleanup);
@@ -372,5 +373,70 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
     open();
     act(() => sockets[0].fire('closed', 'released'));
     expect(await screen.findByText('Ведучий звільнив твоє місце. Вибери себе ще раз.')).toBeTruthy();
+  });
+
+  describe('password (24c)', () => {
+    const lock = () => vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: true, late: false });
+    const typeName = (name: string) => fireEvent.change(screen.getByLabelText('Ваше ім’я'), { target: { value: name } });
+
+    it('asks when locked', async () => {
+      lock();
+      vi.mocked(joinGame).mockResolvedValue({ ok: true, token: 'fresh-token', playerId: 'p9' });
+      open();
+      const field = await screen.findByLabelText('Пароль гри');
+      expect(field.getAttribute('type')).toBe('password');
+      typeName('Оля');
+      fireEvent.change(field, { target: { value: 'сова42' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+      await settle();
+      expect(joinGame).toHaveBeenCalledWith('123456', 'Оля', 'сова42');
+    });
+
+    it('does not show the field for an open game', async () => {
+      open();
+      await screen.findByLabelText('Ваше ім’я');
+      await settle();
+      expect(screen.queryByLabelText('Пароль гри')).toBeNull();
+    });
+
+    it('asks after password_required', async () => {
+      vi.mocked(joinGame).mockResolvedValue({ ok: false, error: 'password_required' });
+      open();
+      await screen.findByLabelText('Ваше ім’я');
+      typeName('Оля');
+      expect(screen.queryByLabelText('Пароль гри')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+      expect(await screen.findByLabelText('Пароль гри')).toBeTruthy();
+      expect((await screen.findByRole('alert')).textContent).toBe('Ця гра з паролем — спитай його у ведучого');
+    });
+
+    it('wrong keeps the field and its text; limited says to wait', async () => {
+      lock();
+      vi.mocked(joinGame).mockResolvedValueOnce({ ok: false, error: 'password_wrong' }).mockResolvedValueOnce({ ok: false, error: 'password_limited' });
+      open();
+      const field = await screen.findByLabelText('Пароль гри');
+      typeName('Оля');
+      fireEvent.change(field, { target: { value: 'сова00' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+      expect((await screen.findByRole('alert')).textContent).toBe('Неправильний пароль. Перевір і спробуй ще');
+      expect((screen.getByLabelText('Пароль гри') as HTMLInputElement).value).toBe('сова00');
+      expect(field.getAttribute('aria-invalid')).toBe('true');
+      expect(field.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+      await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Забагато спроб'));
+    });
+
+    it('claim sends the password with the chosen place', async () => {
+      lock();
+      const petro = { id: '00000000-0000-4000-8000-000000000001', nickname: 'Петро', team: null };
+      vi.mocked(gameSlots).mockResolvedValue({ ok: true, data: { slots: [petro], mine: null } });
+      vi.mocked(claimSlot).mockResolvedValue({ ok: true, token: 'petro-token', playerId: petro.id });
+      open();
+      fireEvent.click(await screen.findByRole('radio', { name: 'Петро' }));
+      fireEvent.change(await screen.findByLabelText('Пароль гри'), { target: { value: 'сова42' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Увійти в гру' }));
+      await settle();
+      expect(claimSlot).toHaveBeenCalledWith('123456', petro.id, 'сова42');
+    });
   });
 });
