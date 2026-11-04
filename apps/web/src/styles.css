@@ -15380,6 +15380,133 @@ button.wall-tile:disabled {
   fill: var(--accent);
 }
 
+/* ---------- Рамки фото (24d) ---------- */
+
+/* Той самий зовнішній розмір, що в .tomoe-ring: розкладка шапки не зсувається. Кільця малює ::before (маска лишає порожню серединку). */
+.photo-frame {
+  --pf-w: 3px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  padding: 0.375rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.photo-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: var(--pf-w);
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+.photo-frame-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.photo-frame-art .pf-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+/* Тонка багряна */
+.photo-frame-crimson { --pf-w: 2px; }
+.photo-frame-crimson::before { background: var(--accent); }
+
+/* Срібло */
+.photo-frame-silver { --pf-w: 3px; }
+.photo-frame-silver::before { background: conic-gradient(#f1f5f9, #94a3b8, #e2e8f0, #64748b, #f1f5f9); }
+
+/* Мазок туші: нерівне світле кільце, подвійний мазок */
+.photo-frame-ink { --pf-w: 0px; }
+.photo-frame-ink::before,
+.photo-frame-ink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 4px solid var(--paper);
+  border-radius: 46% 54% 48% 52% / 54% 46% 55% 45%;
+  -webkit-mask: none;
+  mask: none;
+  padding: 0;
+  background: none;
+}
+.photo-frame-ink::after {
+  inset: 2px;
+  border-width: 1.5px;
+  border-color: var(--dim);
+  border-radius: 54% 46% 52% 48% / 46% 54% 45% 55%;
+}
+
+/* Золото */
+.photo-frame-gold { --pf-w: 4px; box-shadow: 0 0 10px rgb(234 179 8 / 0.45); }
+.photo-frame-gold::before { background: conic-gradient(#fde68a, #eab308, #a16207, #facc15, #fde68a); }
+
+/* Хмаринки Акацукі (svg) */
+.photo-frame-cloud .pf-line { stroke: var(--paper); }
+.photo-frame-cloud .pf-cloud { fill: var(--accent); stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.photo-frame-cloud::before { content: none; }
+
+/* Ворони (svg): світлі силуети, видно на темному */
+.photo-frame-crows .pf-line { stroke: var(--accent); }
+.photo-frame-crows .pf-crow { fill: var(--paper); }
+.photo-frame-crows::before { content: none; }
+[dir='rtl'] .photo-frame-crows .photo-frame-art { transform: scaleX(-1); }
+
+/* Вогонь */
+.photo-frame-fire { --pf-w: 4px; box-shadow: 0 0 12px 1px rgb(239 68 68 / 0.55), 0 0 4px rgb(249 115 22 / 0.8); }
+.photo-frame-fire::before { background: conic-gradient(#fbbf24, #f97316, #dc2626, #f97316, #fbbf24); }
+
+/* Неон */
+.photo-frame-neon { --pf-w: 3px; box-shadow: 0 0 10px 2px #22d3ee, inset 0 0 8px #22d3ee; }
+.photo-frame-neon::before { background: #a5f3fc; }
+
+/* Терни (svg) */
+.photo-frame-thorns .pf-line { stroke: #4f8f45; stroke-width: 2.4; }
+.photo-frame-thorns .pf-thorn { fill: #8bd17c; }
+.photo-frame-thorns::before { content: none; }
+
+/* Кривавий місяць (svg): місяць-серпик нагорі, червоний обідок */
+.photo-frame-eclipse { box-shadow: 0 0 14px rgb(179 16 26 / 0.55); }
+.photo-frame-eclipse .pf-line { stroke: #b3101a; stroke-width: 3; }
+.photo-frame-eclipse .pf-moon { fill: var(--accent-text); }
+.photo-frame-eclipse .pf-moon-cut { fill: var(--surface); }
+.photo-frame-eclipse::before { content: none; }
+
+/* Блискавка (svg) */
+.photo-frame-storm { box-shadow: 0 0 10px rgb(122 167 255 / 0.5); }
+.photo-frame-storm .pf-line { stroke: #7aa7ff; stroke-width: 2.4; }
+.photo-frame-storm .pf-bolt { fill: #ffe66d; stroke: #fff7c2; stroke-width: 0.8; stroke-linejoin: round; }
+.photo-frame-storm::before { content: none; }
+
+/* Сяйво, що обертається */
+.photo-frame-aura { --pf-w: 4px; box-shadow: 0 0 14px rgb(167 139 250 / 0.5); }
+.photo-frame-aura::before { background: conic-gradient(#f472b6, #a78bfa, #38bdf8, #34d399, #fbbf24, #f472b6); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .photo-frame-aura::before {
+    animation: photo-frame-aura-spin 8s linear infinite;
+  }
+  @keyframes photo-frame-aura-spin {
+    to { rotate: 360deg; }
+  }
+}
+
+.profile-id .photo-frame {
+  flex: none;
+}
+
 /* 22a: ім'я з власним dir (dir="auto" біля ніка) рівняється за сторінкою, а не за власним напрямком: латинський нік
    в арабській таблиці стоїть праворуч, як і сусіди. Наприкінці файлу, щоб перебити .score-table .name { text-align: start }. */
 .name[dir] {

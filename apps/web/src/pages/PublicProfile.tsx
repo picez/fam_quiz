@@ -80,7 +80,7 @@ export function PublicProfile() {
 
   return (
     <main className="app wide">
-      <ProfileHeader profile={profile} level={profile.level.level} badge={profile.level.looks.badge} title={profile.showcase.title?.text ?? null} stats={profile.stats}>
+      <ProfileHeader profile={profile} level={profile.level.level} looks={profile.level.looks} title={profile.showcase.title?.text ?? null} stats={profile.stats}>
         {following === false && (
           <button type="button" className="btn btn-small" disabled={busy} onClick={() => void toggle()}>
             {t('addFriend')}
