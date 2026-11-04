@@ -3,10 +3,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, nextRewards, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
+import { NICK_FONT_LOADERS, resetNickFontCache } from '../nick-fonts';
 import { LevelBar, LevelCard } from './LevelCard';
 
 vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 
+const at16: OwnLevel = {
+  progress: { ...levelProgress(600), level: 16 },
+  unlocked: rewardsUpTo(16).map((r) => ({ level: r.level, reward: r.reward, at: null })),
+  next: nextRewards(16).slice(0, 3),
+  looks: { color: null, frame: null, badge: null, photo: null, font: null },
+};
 const level: OwnLevel = {
   progress: levelProgress(600),
   unlocked: rewardsUpTo(3).map((r, i) => ({ level: r.level, reward: r.reward, at: i === 0 ? null : '2026-10-12T12:00:00.000Z' })),
@@ -14,7 +21,11 @@ const level: OwnLevel = {
   looks: { color: null, frame: null, badge: null, photo: null, font: null },
 };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  resetNickFontCache();
+  for (const key of Object.keys(NICK_FONT_LOADERS) as (keyof typeof NICK_FONT_LOADERS)[]) NICK_FONT_LOADERS[key] = vi.fn(() => Promise.resolve({}));
+});
 afterEach(cleanup);
 
 describe('LevelCard', () => {
@@ -94,7 +105,7 @@ describe('LevelCard', () => {
   it('lists what is unlocked with dates and the next three', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     const rows = screen.getAllByTestId('level-unlocked');
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(rewardsUpTo(3).length);
     expect(rows[0]!.textContent).toContain('давно');
     expect(rows[1]!.textContent).toContain('12.10.2026');
     const next = screen.getAllByTestId('level-next');
@@ -106,8 +117,62 @@ describe('LevelCard', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     const colors = screen.getByRole('radiogroup', { name: 'Колір ніку' });
     expect(within(colors).getByRole('radio', { name: /Небо/ })).toBeTruthy();
-    expect(within(colors).queryByRole('radio', { name: /М'ята/ })).toBeNull();
+    expect((within(colors).getByRole('radio', { name: /М'ята/ }) as HTMLInputElement).disabled).toBe(true);
     expect(within(colors).getByRole('radio', { name: /Без кольору/ })).toBeTruthy();
+  });
+
+  it('shows five radio groups in order', () => {
+    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    expect(screen.getAllByRole('radiogroup').map((g) => g.getAttribute('aria-label'))).toEqual(['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Значок']);
+  });
+
+  it('locked looks are disabled with their level', () => {
+    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    const aura = screen.getByRole('radio', { name: /Сяйво/ }) as HTMLInputElement;
+    expect(aura.disabled).toBe(true);
+    expect(aura.closest('label')!.textContent).toContain('🔒 з рівня 30');
+    expect((screen.getByRole('radio', { name: /Піксельний/ }) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it('free looks are open at level 1', () => {
+    const one: OwnLevel = { ...level, progress: levelProgress(0) };
+    render(<LevelCard level={one} nickname="Олена" onSaved={() => {}} />);
+    for (const name of [/Багряна/, /Рукописний/, /^Кривавий$/, /🌻/]) expect((screen.getByRole('radio', { name }) as HTMLInputElement).disabled).toBe(false);
+    const frames = screen.getByRole('radiogroup', { name: 'Рамка ніку' });
+    expect((within(frames).getByRole('radio', { name: /Срібло/ }) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('preview follows the choice', () => {
+    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
+    const preview = screen.getByTestId('look-preview');
+    expect(preview.querySelector('.photo-frame-fire')).not.toBeNull();
+    expect(preview.querySelector('.nick-font-pixel')).not.toBeNull();
+  });
+
+  it('save sends all five slots', async () => {
+    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: null, frame: null, badge: null, photo: 'fire', font: 'pixel' } } });
+    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
+    fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
+    await waitFor(() => expect(saveLooks).toHaveBeenCalledWith({ color: null, frame: null, badge: null, photo: 'fire', font: 'pixel' }));
+  });
+
+  it('opening the page loads every open font for the tiles', () => {
+    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
+    expect(NICK_FONT_LOADERS.hand).toHaveBeenCalled();
+    expect(NICK_FONT_LOADERS.pixel).toHaveBeenCalled();
+    expect(NICK_FONT_LOADERS.heavy).not.toHaveBeenCalled();
+  });
+
+  it('two rewards on one level render without key warnings', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    expect(screen.getAllByTestId('level-unlocked').length).toBeGreaterThan(3);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('saves the chosen look and reports it', async () => {
