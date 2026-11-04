@@ -134,6 +134,13 @@ describe('LevelCard', () => {
     expect((screen.getByRole('radio', { name: /Піксельний/ }) as HTMLInputElement).disabled).toBe(false);
   });
 
+  it('a locked badge shows a compact lock and keeps the full level text for screen readers', () => {
+    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const label = screen.getByRole('radio', { name: /💀/ }).closest('label')!;
+    expect(label.querySelector('[aria-hidden="true"]')!.textContent).toBe('🔒 10');
+    expect(label.querySelector('.sr-only')!.textContent).toBe('🔒 з рівня 10');
+  });
+
   it('free looks are open at level 1', () => {
     const one: OwnLevel = { ...level, progress: levelProgress(0) };
     render(<LevelCard level={one} nickname="Олена" onSaved={() => {}} />);

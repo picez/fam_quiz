@@ -241,8 +241,16 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
             return (
               <label key={id} className={locked ? 'look-option is-locked' : 'look-option'}>
                 <input type="radio" name={`look-${slot}`} disabled={locked} checked={looks[slot] === id} onChange={() => setLooks({ ...looks, [slot]: id } as NickLooks)} />
-                <TileFace slot={slot} id={id} />
-                {locked && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
+                <span className="look-face-wrap">
+                  <TileFace slot={slot} id={id} />
+                </span>
+                {locked && slot === 'badge' && (
+                  <span className="look-lock">
+                    <span aria-hidden="true">{`🔒 ${need}`}</span>
+                    <span className="sr-only">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>
+                  </span>
+                )}
+                {locked && slot !== 'badge' && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
               </label>
             );
           })}

@@ -14520,8 +14520,22 @@ button.wall-tile:disabled {
   outline-offset: 2px;
 }
 .look-option.is-locked {
-  opacity: 0.6;
   cursor: not-allowed;
+}
+.look-option.is-locked .look-face-wrap {
+  opacity: 0.55;
+}
+.look-option:has(input:checked) {
+  border-width: 2px;
+  padding: calc(0.3rem - 1px) calc(0.5rem - 1px);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.look-group-badge .look-option:first-child {
+  grid-column: 1 / -1;
+}
+.look-group-badge .look-option:has(input:checked) .look-face-wrap::after {
+  content: ' ✓';
+  font-size: 0.75rem;
 }
 .look-group-badge .look-option {
   justify-content: center;
@@ -14555,7 +14569,7 @@ button.wall-tile:disabled {
 .look-lock {
   flex-basis: 100%;
   font-size: 0.75rem;
-  color: var(--dim);
+  color: var(--paper);
 }
 .look-preview-box {
   margin-block: 0.5rem 1rem;
