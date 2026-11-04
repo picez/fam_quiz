@@ -20353,3 +20353,147 @@ async function startMenu24a() {
   expect(await guest.locator(START).count()).toBe(0);
   expect(await noSideScroll(guest)).toBe(true);
 }
+
+it('part 24b: liked quizzes — Оля sees the quizzes she liked newest first with the author link and her liked question texts, a deleted quiz stays as «Вікторину видалено», the author sees «Сподобались іншим» with totals, people and top questions that open the editor, Петро gets the empty hints, the tabs work from the keyboard, 320 px in uk and ar has no side scroll, and the public profile shows no lists', async () => {
+  try {
+    await likedQuizzes24b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function likedQuizzes24b() {
+  const MINE = 'Мені сподобались';
+  const OTHERS = 'Сподобались іншим';
+  const author = await open('author24b', 1280, 800);
+  const olya = await open('olya24b', 375, 812);
+  const petro = await open('petro24b', 375, 812);
+  await register(author, 'menu', 'Авторка 24b', 'author24b@example.com');
+  await register(olya, 'menu', 'Оля 24b', 'olya24b@example.com');
+  await register(petro, 'menu', 'Петро 24b', 'petro24b@example.com');
+  const [authorId, olyaId, petroId] = [await myId(author), await myId(olya), await myId(petro)];
+
+  // ── 1. Три вікторини авторки. ──
+  const q = (id: string, text: string) => ({ ...single, id, text });
+  const create = async (title: string, questions: ReturnType<typeof q>[]) => {
+    const saved = await author.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz(questions, { speedBonus: false }), title } });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    return ((await saved.json()) as { id: string }).id;
+  };
+  const forest = await create('Ліси Карпат 24b', [q('k1', 'Яка гора найвища в Карпатах?'), q('k2', 'Який звір живе в карпатських лісах?'), q('k3', 'Скільки ярусів має бук?')]);
+  const rivers = await create('Річки 24b', [q('r1', 'Яка річка тече через Ужгород?'), q('r2', 'Куди впадає Черемош?')]);
+  const temp = await create('Тимчасова 24b', [q('t1', 'Питання тимчасової вікторини?')]);
+
+  // ── 2. Вподобання прямою вставкою, з різницею в хвилину; потім видалення «Тимчасової». ──
+  const start = Date.now() - 3_600_000;
+  let step = 0;
+  const like = async (userId: string, kind: 'quiz' | 'question', quizId: string, questionId: string | null) => {
+    await db.insert(userLike).values({ userId, kind, targetUserId: authorId, quizId, questionId, gameId: randomUUID(), hidden: false, createdAt: new Date(start + 60_000 * step++) });
+  };
+  await like(olyaId, 'quiz', temp, null);
+  await like(olyaId, 'question', rivers, 'r1');
+  await like(olyaId, 'question', forest, 'k1');
+  await like(olyaId, 'question', forest, 'k2');
+  await like(olyaId, 'quiz', forest, null);
+  await like(petroId, 'question', forest, 'k1');
+  expect((await author.request.delete(`${base}/api/quizzes/${temp}`)).ok()).toBe(true);
+
+  const tab = (page: Page, name: string) => page.getByRole('tab', { name, ...exact });
+  const titles = (page: Page, panel: string) => page.locator(`#liked-panel-${panel} .liked-title`).allTextContents();
+
+  // ── 3. Оля: «Мені сподобались». ──
+  await olya.goto(`${base}/profile/likes`);
+  await tab(olya, MINE).waitFor();
+  expect(await tab(olya, MINE).getAttribute('aria-selected')).toBe('true');
+  await olya.locator('#liked-panel-mine li.liked-row').nth(2).waitFor();
+  expect(await titles(olya, 'mine')).toEqual(['Ліси Карпат 24b', 'Річки 24b', 'Вікторину видалено']);
+  const first = olya.locator('#liked-panel-mine li.liked-row').nth(0);
+  expect(await first.locator('.liked-count [aria-hidden="true"]').textContent()).toBe('❤️ 3');
+  await first.locator('a.liked-author').click();
+  await olya.waitForURL(`${base}/profile/${authorId}`);
+  await olya.goBack();
+  await tab(olya, MINE).waitFor();
+  const first2 = olya.locator('#liked-panel-mine li.liked-row').nth(0);
+  await first2.getByRole('button', { name: 'Запитання', ...exact }).click();
+  await first2.getByText('Яка гора найвища в Карпатах?').waitFor();
+  await first2.getByText('Який звір живе в карпатських лісах?').waitFor();
+  expect(await first2.getByText('Скільки ярусів має бук?').count()).toBe(0);
+  await first2.getByText('уся вікторина', exact).waitFor();
+  expect(await olya.locator('#liked-panel-mine li.liked-row').nth(2).getByRole('button', { name: 'Запитання', ...exact }).count()).toBe(0);
+  await shot(olya, 'p24b-mine');
+
+  // ── 4. Клавіатура: ArrowRight на другу вкладку; у Олі порожньо. ──
+  await tab(olya, MINE).focus();
+  await olya.keyboard.press('ArrowRight');
+  await expect.poll(() => tab(olya, OTHERS).getAttribute('aria-selected'), POLL).toBe('true');
+  expect(await olya.evaluate('document.activeElement?.id')).toBe('liked-tab-others');
+  await olya.locator('#liked-panel-others p.liked-empty').waitFor();
+  expect((await olya.locator('#liked-panel-others p.liked-empty').textContent())!.trim()).toBe(ukMessages.likedOthersEmpty);
+
+  // ── 5. Авторка: «Сподобались іншим». ──
+  await author.goto(`${base}/profile/likes`);
+  await tab(author, OTHERS).click();
+  await author.locator('#liked-panel-others li.liked-row').nth(1).waitFor();
+  expect(await titles(author, 'others')).toEqual(['Ліси Карпат 24b', 'Річки 24b']);
+  const top = author.locator('#liked-panel-others li.liked-row').nth(0);
+  expect(await top.locator('.liked-meta [aria-hidden="true"]').first().textContent()).toBe('❤️ 4');
+  await top.getByText('2 людини', exact).waitFor();
+  const topFirst = top.locator('ol.liked-top li').first();
+  expect(await topFirst.textContent()).toContain('Яка гора найвища в Карпатах?');
+  expect(await topFirst.locator('[aria-hidden="true"]').textContent()).toBe('❤️ 2');
+  await shot(author, 'p24b-others');
+  await top.locator('.liked-title a').click();
+  await author.waitForURL(new RegExp(`/quizzes/${forest}$`));
+
+  // ── 6. Порожні стани і Петро. ──
+  await author.goto(`${base}/profile/likes`);
+  await author.locator('#liked-panel-mine p.liked-empty').waitFor();
+  expect((await author.locator('#liked-panel-mine p.liked-empty').textContent())!.trim()).toBe(ukMessages.likedMineEmpty);
+  await petro.goto(`${base}/profile/likes`);
+  await petro.locator('#liked-panel-mine li.liked-row').first().waitFor();
+  expect(await titles(petro, 'mine')).toEqual(['Ліси Карпат 24b']);
+  expect(await petro.locator('#liked-panel-mine li.liked-row .liked-count [aria-hidden="true"]').textContent()).toBe('❤️ 1');
+  await tab(petro, OTHERS).click();
+  await petro.locator('#liked-panel-others p.liked-empty').waitFor();
+  expect((await petro.locator('#liked-panel-others p.liked-empty').textContent())!.trim()).toBe(ukMessages.likedOthersEmpty);
+
+  // ── 7. Розкладка: uk і ar, 320 і 375 px, розгорнутий перший рядок, обидві вкладки. ──
+  for (const lang of ['uk', 'ar'] as const) {
+    expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
+    for (const width of [320, 375]) {
+      await olya.setViewportSize({ width, height: 812 });
+      await olya.goto(`${base}/profile/likes`);
+      await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
+      await olya.locator('#liked-panel-mine li.liked-row').nth(2).waitFor();
+      await olya.locator('#liked-panel-mine li.liked-row').nth(0).locator('button.liked-toggle').click();
+      expect(await olya.locator('#liked-panel-mine li.liked-row').nth(0).locator('ul.liked-questions li').count()).toBe(3);
+      if (lang === 'ar') {
+        expect(await olya.evaluate('document.documentElement.dir')).toBe('rtl');
+        const box = await olya.locator('#liked-panel-mine li.liked-row').nth(0).locator('a.liked-author').boundingBox();
+        expect(box!.x + box!.width / 2, 'p24b-ar: author link sits on the right half').toBeGreaterThan(width / 2);
+      }
+      await expectNoSideScroll(olya, `p24b-mine-${lang}-${width}`);
+      await olya.locator('#liked-tab-others').click();
+      await olya.locator('#liked-panel-others p.liked-empty').waitFor();
+      await expectNoSideScroll(olya, `p24b-others-${lang}-${width}`);
+    }
+  }
+  // Авторка: «Сподобались іншим» в ar на 320 px.
+  expect((await author.request.put(`${base}/api/me/locale`, { data: { locale: 'ar' } })).status()).toBe(200);
+  await author.setViewportSize({ width: 320, height: 812 });
+  await author.goto(`${base}/profile/likes`);
+  await expect.poll(() => htmlLang(author), POLL).toBe('ar');
+  await author.locator('#liked-tab-others').click();
+  await author.locator('#liked-panel-others li.liked-row').nth(1).waitFor();
+  await expectNoSideScroll(author, 'p24b-others-ar-author-320');
+  expect((await author.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
+  expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
+
+  // ── 8. Публічний профіль не має списків. ──
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(`${base}/profile/${authorId}`);
+  await expect.poll(() => htmlLang(olya), POLL).toBe('uk');
+  await olya.locator('section.likes-card').waitFor();
+  expect(await olya.locator('section.liked-quizzes').count()).toBe(0);
+}
