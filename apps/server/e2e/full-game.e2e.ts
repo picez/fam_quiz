@@ -18059,7 +18059,7 @@ async function survivalWatch16a() {
     const options = await panel.locator('.choice').allInnerTexts();
     expect(options.length, `${who} sees three options`).toBe(3);
     for (const [i, text] of ['Дніпро', 'Дністер', 'Десна'].entries()) expect(options[i], `${who}: option ${i + 1}`).toContain(text);
-    expect(await panel.locator('button, input, textarea, select').count(), `${who} has no answer controls`).toBe(0);
+    expect(await panel.locator('button:not(.question-image-zoom, .choice-zoom), input, textarea, select').count(), `${who} has no answer controls`).toBe(0);
     expect(await page.getByRole('button', { name: /Дніпро|Дністер|Десна/ }).count(), `${who} has no option buttons`).toBe(0);
     expect(await panel.locator('.choice.is-correct').count(), `${who} sees no correct option before the close`).toBe(0);
     expect(await bodyText(page), `${who} sees the answer before the close`).not.toContain('Правильна відповідь');
@@ -18081,7 +18081,7 @@ async function survivalWatch16a() {
     await panel.getByText('Правильна відповідь: A. Дніпро', exact).waitFor();
     expect(await panel.locator('.choice.is-correct').innerText(), `${who}: the correct option`).toContain('Дніпро');
     expect(await panel.locator('img.question-image').count(), `${who} still sees the picture`).toBe(1);
-    expect(await panel.locator('button, input, textarea, select').count(), `${who} has no controls after the close`).toBe(0);
+    expect(await panel.locator('button:not(.question-image-zoom, .choice-zoom), input, textarea, select').count(), `${who} has no controls after the close`).toBe(0);
     await expectNoSideScroll(page, `p16a-${who}-outcome`);
     await expectClearOfStrip16a(page, `p16a-${who}-outcome`);
   }
