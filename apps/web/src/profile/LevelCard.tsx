@@ -137,28 +137,45 @@ function lookName(slot: LookSlot, id: string): string {
   return slot === 'badge' ? id : t(`${slot}_${id}` as TextKey);
 }
 
-/** Вміст плитки: рамка фото в мініатюрі, нік потрібним шрифтом/кольором/рамкою, емодзі. */
-function TileFace({ slot, id }: { slot: LookSlot; id: string }) {
-  const name = lookName(slot, id);
+/** Вміст плитки: власне фото в рамці, нік власним шрифтом, назва кольором/рамкою, емодзі. Підпис — назва вигляду. */
+function TileFace({ slot, id, nickname, avatar }: { slot: LookSlot; id: string | null; nickname: string; avatar: ProfileCard }) {
+  const name = id === null ? null : lookName(slot, id);
   switch (slot) {
     case 'photo':
       return (
-        <span className="look-face">
-          <AvatarFrame frame={id as PhotoFrame}>
-            <span className="look-swatch" aria-hidden="true" />
+        <span className="look-art" aria-hidden="true">
+          <AvatarFrame frame={id as PhotoFrame | null}>
+            <Avatar profile={avatar} size="medium" />
           </AvatarFrame>
-          <span>{name}</span>
         </span>
       );
     case 'font':
-      return <span className={nickNameClass(null, id as NickFont)}>{name}</span>;
+      return (
+        <span className="look-art look-art-font" aria-hidden="true">
+          <span className={nickNameClass(null, id as NickFont | null)} dir="auto">
+            {nickname}
+          </span>
+        </span>
+      );
     case 'color':
-      return <Nick nickname={name} levels={{ [name]: { level: 1, color: id as NickLooks['color'], frame: null, font: null } }} />;
+      return name === null ? null : <Nick nickname={name} levels={{ [name]: { level: 1, color: id as NickLooks['color'], frame: null, font: null } }} />;
     case 'frame':
-      return <Nick nickname={name} levels={{ [name]: { level: 1, color: null, frame: id as NickLooks['frame'], font: null } }} />;
+      return name === null ? null : <Nick nickname={name} levels={{ [name]: { level: 1, color: null, frame: id as NickLooks['frame'], font: null } }} />;
     case 'badge':
       return <span className="look-emoji">{name}</span>;
   }
+}
+
+/** Відкрите, згруповане за рівнем, найновіше першим: «Рівень 17 · Значок 🧠, Рамка фото: Вогонь · 04.11.2026». */
+export function unlockedByLevel(rows: OwnLevel['unlocked']): { level: number; text: string }[] {
+  const byLevel = new Map<number, OwnLevel['unlocked']>();
+  for (const row of rows) byLevel.set(row.level, [...(byLevel.get(row.level) ?? []), row]);
+  return [...byLevel.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([lvl, group]) => {
+      const at = group.find((row) => row.at !== null)?.at ?? null;
+      return { level: lvl, text: `${t('levelAria', { n: lvl })} · ${group.map((row) => rewardText(row.reward)).join(', ')} · ${dateText(at)}` };
+    });
 }
 
 /** Власний профіль, одразу під ніком: «Рівень N», шкала, «X / Y досвіду» і правила досвіду в підказці «ⓘ». */
@@ -178,6 +195,7 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const current = level.progress.level;
+  const groupId = useId();
   // Плитки шрифтів показують нік їхнім шрифтом: вантажимо лише відкриті.
   useEffect(() => {
     for (const id of LOOK_IDS.font) if (lookLevel('font', id) <= current) void loadNickFont(id as NickFont);
@@ -193,35 +211,17 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
     else setProblem(errorText(result.error));
   }
 
+  const avatar = profile ?? { id: '', nickname, avatar: null };
+  const unlocked = unlockedByLevel(level.unlocked);
   return (
     <section className="profile-section level-card">
       <h2>{t('levelRewardsTitle')}</h2>
-      <h3>{t('levelUnlockedTitle')}</h3>
-      <ul className="profile-list level-list">
-        {level.unlocked.map((row, index) => (
-          <li key={`${row.level}-${index}`} data-testid="level-unlocked">
-            {`${t('levelAria', { n: row.level })} · ${rewardText(row.reward)} · ${dateText(row.at)}`}
-          </li>
-        ))}
-      </ul>
-      {level.next.length > 0 && (
-        <>
-          <h3>{t('levelNextTitle')}</h3>
-          <ul className="profile-list level-list">
-            {level.next.map((row, index) => (
-              <li key={`${row.level}-${index}`} data-testid="level-next">
-                {`${rewardText(row.reward)} · ${t('levelFromLevel', { n: row.level })}`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
       <h3>{t('looksTitle')}</h3>
       <div className="look-preview-box" data-testid="look-preview" aria-live="polite">
         <p className="meta">{t('lookPreview')}</p>
         <div className="look-preview-row">
           <AvatarFrame frame={looks.photo}>
-            <Avatar profile={profile ?? { id: '', nickname, avatar: null }} size="large" />
+            <Avatar profile={avatar} size="large" />
           </AvatarFrame>
           <span className="look-preview">
             {looks.badge !== null && <span className="profile-badge">{looks.badge} </span>}
@@ -230,30 +230,31 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
         </div>
       </div>
       {GROUPS.map(({ slot, title, none }) => (
-        <div key={slot} role="radiogroup" aria-label={t(title)} className={slot === 'badge' ? 'look-group look-group-badge' : 'look-group'}>
-          <label className="look-option">
-            <input type="radio" name={`look-${slot}`} checked={looks[slot] === null} onChange={() => setLooks({ ...looks, [slot]: null })} />
-            <span>{t(none)}</span>
-          </label>
-          {LOOK_IDS[slot].map((id) => {
-            const need = lookLevel(slot, id);
-            const locked = need > current;
-            return (
-              <label key={id} className={locked ? 'look-option is-locked' : 'look-option'}>
-                <input type="radio" name={`look-${slot}`} disabled={locked} checked={looks[slot] === id} onChange={() => setLooks({ ...looks, [slot]: id } as NickLooks)} />
-                <span className="look-face-wrap">
-                  <TileFace slot={slot} id={id} />
-                </span>
-                {locked && slot === 'badge' && (
-                  <span className="look-lock">
-                    <span aria-hidden="true">{`🔒 ${need}`}</span>
-                    <span className="sr-only">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>
-                  </span>
-                )}
-                {locked && slot !== 'badge' && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
-              </label>
-            );
-          })}
+        <div key={slot} className="look-group-box">
+          <h4 id={`${groupId}-${slot}`} className="look-group-title">
+            {t(title)}
+          </h4>
+          <div role="radiogroup" aria-labelledby={`${groupId}-${slot}`} data-slot={slot} className={`look-group look-group-${slot}`}>
+            {[null, ...LOOK_IDS[slot]].map((id) => {
+              const need = id === null ? 1 : lookLevel(slot, id);
+              const locked = need > current;
+              const face = <TileFace slot={slot} id={id} nickname={nickname} avatar={avatar} />;
+              return (
+                <label key={id ?? ''} className={`look-option${id === null ? ' is-none' : ''}${locked ? ' is-locked' : ''}`}>
+                  <input type="radio" name={`look-${slot}`} disabled={locked} checked={looks[slot] === id} onChange={() => setLooks({ ...looks, [slot]: id } as NickLooks)} />
+                  {(id !== null || slot === 'photo' || slot === 'font') && <span className="look-face-wrap">{face}</span>}
+                  {(id === null || slot === 'photo' || slot === 'font') && <span className="look-name">{id === null ? t(none) : lookName(slot, id)}</span>}
+                  {locked && slot === 'badge' && (
+                    <span className="look-lock">
+                      <span aria-hidden="true">{`🔒 ${need}`}</span>
+                      <span className="sr-only">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>
+                    </span>
+                  )}
+                  {locked && slot !== 'badge' && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
+                </label>
+              );
+            })}
+          </div>
         </div>
       ))}
       {problem !== null && (
@@ -266,6 +267,30 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
           {t('lookSave')}
         </button>
       </div>
+      {level.next.length > 0 && (
+        <>
+          <h3>{t('levelNextTitle')}</h3>
+          <ul className="profile-list level-list">
+            {level.next.map((row, index) => (
+              <li key={`${row.level}-${index}`} data-testid="level-next">
+                {`${rewardText(row.reward)} · ${t('levelFromLevel', { n: row.level })}`}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <details className="level-unlocked">
+        <summary>
+          <h3>{`${t('levelUnlockedTitle')} · ${unlocked.length}`}</h3>
+        </summary>
+        <ul className="profile-list level-list">
+          {unlocked.map((row) => (
+            <li key={row.level} data-testid="level-unlocked">
+              {row.text}
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }

@@ -3370,6 +3370,12 @@ button.match-item {
   font-size: 1.75rem;
 }
 
+.avatar-medium {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.375rem;
+}
+
 .avatar-small {
   width: 2.25rem;
   height: 2.25rem;
@@ -3401,7 +3407,17 @@ button.match-item {
 
 .profile-head h1 {
   margin: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+/* Довгий нік у шапці переноситься (як до 24d), а не обрізається краєм героя. */
+.profile-head h1 .nick-name {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  /* Кольоровий нік лишається читким і над червоним місяцем героя (тінь працює й з градієнтом через background-clip). */
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.9));
 }
 
 /* Довгий email і кнопки шапки не розпирають сторінку на 320 px: колонка біля аватарки може стискатися. */
@@ -14485,91 +14501,143 @@ button.wall-tile:disabled {
 .level-meter.is-open .level-tip {
   display: block;
 }
+/* «Вигляд» (24d): п'ять груп з видимою назвою; плитки-картки однакової висоти, радіо приховане — вибір видно з рамки, тла й ✓. */
+.look-group-box {
+  min-width: 0;
+}
+.look-group-title {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 1rem;
+}
 .look-group {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(6.5rem, 100%), 1fr));
+  grid-auto-rows: 1fr;
   gap: 0.4rem;
   min-width: 0;
-  margin-block: 0.5rem 1rem;
+  margin-block: 0 0.5rem;
 }
 .look-group-badge {
   grid-template-columns: repeat(auto-fill, minmax(min(44px, 100%), 1fr));
 }
 .look-option {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 0.3rem 0.5rem;
+  justify-content: flex-start;
+  gap: 0.3rem;
   min-width: 0;
   min-height: 44px;
-  padding: 0.3rem 0.5rem;
+  padding: 0.4rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+  text-align: center;
   overflow-wrap: anywhere;
   cursor: pointer;
 }
 .look-option input {
-  accent-color: var(--accent, currentColor);
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
 }
 .look-option:has(input:checked) {
   border-color: var(--accent, currentColor);
+  box-shadow: inset 0 0 0 1px var(--accent, currentColor);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.look-option:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  inset-block-start: -0.4rem;
+  inset-inline-end: -0.4rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
 }
 .look-option:has(input:focus-visible) {
-  outline: 2px solid var(--accent, currentColor);
+  outline: 2px solid var(--paper);
   outline-offset: 2px;
 }
 .look-option.is-locked {
   cursor: not-allowed;
 }
-.look-option.is-locked .look-face-wrap {
+.look-option.is-locked .look-face-wrap,
+.look-option.is-locked .look-name {
   opacity: 0.55;
 }
-.look-option:has(input:checked) {
-  border-width: 2px;
-  padding: calc(0.3rem - 1px) calc(0.5rem - 1px);
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+.look-face-wrap {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
 }
-.look-group-badge .look-option:first-child {
-  grid-column: 1 / -1;
-}
-.look-group-badge .look-option:has(input:checked) .look-face-wrap::after {
-  content: ' ✓';
-  font-size: 0.75rem;
+.look-name {
+  max-width: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.25;
 }
 .look-group-badge .look-option {
   justify-content: center;
+  padding: 0.3rem;
 }
-.look-group-badge .look-option input {
-  position: absolute;
-  opacity: 0;
-  inline-size: 1px;
-  block-size: 1px;
+/* Назви кольорів і рамок ніку в плитці переносяться, а не обрізаються «…» («Місячне срібло»). */
+.look-group-color .look-option,
+.look-group-frame .look-option {
+  justify-content: center;
 }
-.look-group-badge .look-option {
-  position: relative;
+.look-group-color .nick-name,
+.look-group-frame .nick-name {
+  white-space: normal;
+}
+.look-group-badge .look-option:has(input:checked)::after {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  font-size: 0.6rem;
+}
+.look-group-badge .look-option.is-none {
+  grid-column: 1 / -1;
 }
 .look-emoji {
   font-size: 1.5rem;
   line-height: 1;
 }
-.look-face {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-}
-.look-swatch {
+.look-art {
   display: block;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  border-radius: 50%;
-  background: var(--line);
+  max-width: 100%;
+}
+.look-art-font {
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+.look-art-font .nick-name {
+  display: block;
+  max-width: 100%;
 }
 .look-lock {
-  flex-basis: 100%;
   font-size: 0.75rem;
+  line-height: 1.2;
   color: var(--paper);
+}
+.level-unlocked summary {
+  cursor: pointer;
+}
+.level-unlocked summary h3 {
+  display: inline;
+  font-size: 1rem;
+}
+.level-unlocked[open] summary {
+  margin-block-end: 0.5rem;
 }
 .look-preview-box {
   margin-block: 0.5rem 1rem;
@@ -15568,7 +15636,6 @@ button.wall-tile:disabled {
 .photo-frame-eclipse { box-shadow: 0 0 14px rgb(179 16 26 / 0.55); }
 .photo-frame-eclipse .pf-line { stroke: #b3101a; stroke-width: 3; }
 .photo-frame-eclipse .pf-moon { fill: var(--accent-text); }
-.photo-frame-eclipse .pf-moon-cut { fill: var(--surface); }
 .photo-frame-eclipse::before { content: none; }
 
 /* Блискавка (svg) */
@@ -15576,6 +15643,7 @@ button.wall-tile:disabled {
 .photo-frame-storm .pf-line { stroke: #7aa7ff; stroke-width: 2.4; }
 .photo-frame-storm .pf-bolt { fill: #ffe66d; stroke: #fff7c2; stroke-width: 0.8; stroke-linejoin: round; }
 .photo-frame-storm::before { content: none; }
+[dir='rtl'] .photo-frame-storm .photo-frame-art { transform: scaleX(-1); }
 
 /* Сяйво, що обертається */
 .photo-frame-aura { --pf-w: 4px; box-shadow: 0 0 14px rgb(167 139 250 / 0.5); }

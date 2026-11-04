@@ -36,4 +36,12 @@ describe('AvatarFrame', () => {
     cleanup();
     expect(withSvg).toEqual(['cloud', 'crows', 'thorns', 'eclipse', 'storm']);
   });
+
+  it('draws the eclipse crescent as one path, with no disc painted in the background colour', () => {
+    const { container } = render(<AvatarFrame frame="eclipse">x</AvatarFrame>);
+    const moon = container.querySelector('.pf-moon')!;
+    expect(moon.tagName).toBe('path');
+    expect(moon.getAttribute('d')).toMatch(/A8 8 .*A6\.6 6\.6 /);
+    expect(container.querySelector('.pf-moon-cut')).toBeNull();
+  });
 });

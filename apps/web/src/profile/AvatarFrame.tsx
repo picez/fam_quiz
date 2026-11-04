@@ -11,6 +11,8 @@ function onRing(angle: number): [x: number, y: number] {
 const CLOUD_ANGLES = [0, 90, 180, 270];
 const CROW_ANGLES = [-50, 0, 50];
 const THORN_ANGLES = Array.from({ length: 12 }, (_, index) => index * 30);
+// Серп: коло r = 8 з центром (0, -46) мінус коло r = 6.6 з центром (3, -48); одна фігура, без заливки кольором тла.
+const CRESCENT = 'M7.48 -43.15A8 8 0 1 1 0.24 -54A6.6 6.6 0 1 0 7.48 -43.15Z';
 const BOLT = 'M2.5-9L-3.5 1H-0.5L-2.5 9L4 -2.5H1Z';
 
 /** Декоративний svg-малюнок для п'яти рамок з ілюстрацією; решта рамок — лише CSS. */
@@ -54,8 +56,7 @@ function FrameArt({ frame }: { frame: PhotoFrame }): JSX.Element | null {
       return svg(
         <>
           <circle className="pf-line" r="46" />
-          <circle className="pf-moon" cx="0" cy="-46" r="8" />
-          <circle className="pf-moon-cut" cx="3" cy="-48" r="6.6" />
+          <path className="pf-moon" d={CRESCENT} />
         </>,
       );
     case 'storm':

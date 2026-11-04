@@ -42,4 +42,29 @@ describe('photo frame css', () => {
     expect(moving(rest).map((match) => match[1].trim())).toEqual([]);
     expect(motionBlocks(css).some((block) => moving(block).length > 0 && /aura/.test(block))).toBe(true);
   });
+
+  it('mirrors crows and storm bolts in RTL, and paints no background-coloured cut over the eclipse', () => {
+    expect(css).toContain("[dir='rtl'] .photo-frame-crows .photo-frame-art");
+    expect(css).toContain("[dir='rtl'] .photo-frame-storm .photo-frame-art");
+    expect(css).not.toContain('pf-moon-cut');
+  });
+});
+
+describe('looks layout css', () => {
+  /** Тіло правила з точним селектором (останнє, якщо їх кілька). */
+  const rules = (selector: string) => css.split('}').filter((chunk) => chunk.split('{')[0]!.trim() === selector);
+
+  it('the header nick wraps instead of being clipped by the hero', () => {
+    const [rule] = rules('.profile-head h1 .nick-name');
+    expect(rule).toMatch(/white-space:\s*normal/);
+    expect(rule).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(rule).toMatch(/overflow:\s*visible/);
+  });
+
+  it('defines each look tile rule once, with equal-height rows and a ✓ on the chosen tile', () => {
+    for (const selector of ['.look-option', '.look-option:has(input:checked)', '.look-group-badge .look-option', '.look-group']) expect(rules(selector), selector).toHaveLength(1);
+    expect(rules('.look-group')[0]).toMatch(/grid-auto-rows:\s*1fr/);
+    expect(rules('.look-option:has(input:checked)::after')[0]).toContain("content: '✓'");
+    expect(rules('.look-option:has(input:focus-visible)')[0]).toMatch(/outline:\s*2px solid/);
+  });
 });

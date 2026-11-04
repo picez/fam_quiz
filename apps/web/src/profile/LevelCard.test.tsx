@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, nextRewards, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
 import { NICK_FONT_LOADERS, resetNickFontCache } from '../nick-fonts';
-import { LevelBar, LevelCard } from './LevelCard';
+import { LevelBar, LevelCard, unlockedByLevel } from './LevelCard';
 
 vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 
@@ -102,15 +102,38 @@ describe('LevelCard', () => {
     expect(meter.classList.contains('is-open')).toBe(false);
   });
 
-  it('lists what is unlocked with dates and the next three', () => {
+  it('lists what is unlocked one line per level, newest first, folded under «Відкрито · N», and the next three', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const levels = new Set(rewardsUpTo(3).map((r) => r.level));
     const rows = screen.getAllByTestId('level-unlocked');
-    expect(rows).toHaveLength(rewardsUpTo(3).length);
-    expect(rows[0]!.textContent).toContain('давно');
-    expect(rows[1]!.textContent).toContain('12.10.2026');
+    expect(rows).toHaveLength(levels.size);
+    expect(rows[0]!.textContent).toMatch(/^Рівень 3 · /);
+    expect(rows[0]!.textContent).toContain('12.10.2026');
+    expect(rows.at(-1)!.textContent).toMatch(/^Рівень 1 · /);
+    const details = rows[0]!.closest('details')!;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')!.textContent).toBe(`Відкрито · ${levels.size}`);
     const next = screen.getAllByTestId('level-next');
     expect(next).toHaveLength(3);
     expect(next[0]!.textContent).toContain('з рівня 4');
+  });
+
+  it('groups two rewards on one level into one line joined by commas', () => {
+    const rows = unlockedByLevel([
+      { level: 17, reward: { kind: 'badge', id: '🧠' }, at: '2026-11-04T10:00:00.000Z' },
+      { level: 17, reward: { kind: 'photo', id: 'fire' }, at: '2026-11-04T10:00:00.000Z' },
+      { level: 2, reward: { kind: 'color', id: 'sky' }, at: null },
+    ]);
+    expect(rows).toEqual([
+      { level: 17, text: 'Рівень 17 · Значок 🧠, Рамка фото: Вогонь · 04.11.2026' },
+      { level: 2, text: expect.stringMatching(/^Рівень 2 · .*Небо.* · давно$/) },
+    ]);
+  });
+
+  it('puts the preview and the pickers first, then «Далі», then «Відкрито»', () => {
+    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    const order = [...container.querySelectorAll('h3, [data-testid="look-preview"], [role="radiogroup"], .toolbar')].map((el) => (el.tagName === 'H3' ? el.textContent : el.getAttribute('data-slot') ?? el.className));
+    expect(order).toEqual(['Вигляд', 'look-preview-box', 'photo', 'font', 'color', 'frame', 'badge', 'toolbar', 'Далі', `Відкрито · ${new Set(rewardsUpTo(3).map((r) => r.level)).size}`]);
   });
 
   it('offers only unlocked looks', () => {
@@ -121,9 +144,36 @@ describe('LevelCard', () => {
     expect(within(colors).getByRole('radio', { name: /Без кольору/ })).toBeTruthy();
   });
 
-  it('shows five radio groups in order', () => {
+  it('shows five radio groups in order, each named by its visible heading', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
-    expect(screen.getAllByRole('radiogroup').map((g) => g.getAttribute('aria-label'))).toEqual(['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Значок']);
+    const groups = screen.getAllByRole('radiogroup');
+    const names = ['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Значок'];
+    expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent)).toEqual(names);
+    expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual(names);
+    for (const name of names) expect(screen.getByRole('radiogroup', { name })).toBeTruthy();
+  });
+
+  it('photo tiles show her own avatar in each frame, font tiles show her nick in each font', () => {
+    const own = { id: 'u1', nickname: 'Олена', avatar: '/a.png' };
+    render(<LevelCard level={at16} nickname="Олена" profile={own} onSaved={() => {}} />);
+    const photos = screen.getByRole('radiogroup', { name: 'Рамка фото' });
+    const fire = within(photos).getByRole('radio', { name: /^Вогонь/ }).closest('label')!;
+    expect(fire.querySelector('.photo-frame-fire img.avatar-medium')!.getAttribute('src')).toBe('/a.png');
+    expect(within(photos).getByRole('radio', { name: 'Томое (звичайна)' }).closest('label')!.querySelector('.tomoe-ring .avatar-medium')).not.toBeNull();
+    const pixel = screen.getByRole('radio', { name: /^Піксельний/ }).closest('label')!;
+    expect(pixel.querySelector('.nick-font-pixel')!.textContent).toBe('Олена');
+  });
+
+  it('every tile has the same structure: a hidden radio, the face or name, the lock line last; the choice is marked on the tile', () => {
+    const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    for (const tile of container.querySelectorAll('label.look-option')) {
+      expect(tile.firstElementChild!.tagName).toBe('INPUT');
+      const lock = tile.querySelector('.look-lock');
+      if (lock !== null) expect(tile.lastElementChild).toBe(lock);
+    }
+    fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
+    expect(container.querySelectorAll('label.look-option input:checked')).toHaveLength(5);
+    expect((screen.getByRole('radio', { name: /Небо/ }) as HTMLInputElement).checked).toBe(true);
   });
 
   it('locked looks are disabled with their level', () => {
@@ -176,7 +226,7 @@ describe('LevelCard', () => {
 
   it('two rewards on one level render without key warnings', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
+    render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
     expect(screen.getAllByTestId('level-unlocked').length).toBeGreaterThan(3);
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
