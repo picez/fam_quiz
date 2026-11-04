@@ -71,9 +71,9 @@ describe('uk golden (22a)', () => {
   /** Нові uk-ключі 23a: підсторінки профілю (задача 6). */
   const ADDED_23A = ['profileBack', 'profileTileQuizzes', 'profileTilePrizes', 'profileTileAchievements', 'profileTileFriends', 'profileTileStats', 'profileTileLikes', 'profileTileLooks', 'profileTileSettings', 'settingsNickAvatar', 'settingsEmail', 'noAwardsYet', /* головна профілю (задача 7) */ 'profileTilesLabel', 'profilePopularTitle', 'profileSeeAll', /* вітрини (задача 8) */ 'shelfTitle', 'shelfAll', 'shelfEmpty', 'achievementShelfTitle', 'pinAdd', 'pinRemove', 'pinFullPrizes', 'pinFullAchievements', /* публічний профіль (задача 9) */ 'publicAwardsAll', 'publicAwardsHide'];
   /** 24a: стартове меню на головній і сторінка «Створити гру». */
-  const ADDED_24A = ['startMenuLabel', 'startCreate', 'startJoin', 'createMoreHint'];
+  const ADDED_24A = ['startMenuLabel', 'startCreate', 'startJoin', 'createMoreHint', /* картинка запитання на весь екран */ 'imageZoomOpen', 'imageZoomClose', 'imageZoomChoice'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
-  const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite'];
+  const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin'];
 
   it('keeps every uk text as it was before localisation', () => {
     const current: Record<string, string> = ukMessages;

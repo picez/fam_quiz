@@ -78,6 +78,8 @@ describe('StageScreen', () => {
     const both = { ...question, imageUrl: '/uploads/a.png', video: { id: 'dQw4w9WgXcQ', start: 0 }, timeLimit: null };
     show(view({ phase: 'question', questionIndex: 0, question: both, endsAt: null, remainingMs: null }));
     expect(document.querySelector('img.question-image')).not.toBeNull();
+    // На великому екрані картинку ніхто не тисне: вона не кнопка й без знака «розгорнути».
+    expect(document.querySelector('.question-image-zoom')).toBeNull();
     expect(document.querySelector('iframe')).not.toBeNull();
     expect(screen.queryByRole('timer')).toBeNull();
   });

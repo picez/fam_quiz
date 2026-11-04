@@ -98,7 +98,7 @@ function DraftChoices({ question, draft, mark }: { question: PublicQuestion; dra
         const on = marked.includes(choice.id);
         return (
           <div key={choice.id} className={on ? 'choice is-draft' : 'choice'}>
-            <ChoiceFace choice={choice} letter={LETTERS[index]} />
+            <ChoiceFace choice={choice} letter={LETTERS[index]} zoom />
             {on && <span className="draft-mark">{mark}</span>}
           </div>
         );

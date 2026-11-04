@@ -20,7 +20,7 @@ describe('ar', () => {
     const counts = [0, 1, 2, 3, 11, 100].map((n) => countText('questionCount', n, { count: n }));
     expect(new Set(counts).size).toBe(6);
     for (const key of Object.keys(uk) as TextKey[]) expect(t(key)).not.toMatch(/[٠-٩۰-۹]/);
-    expect(t('menuShortJoin')).toBe('لعب');
+    expect(t('menuShortJoin')).toBe('القائمة');
     expect(t('menuProfile')).toBe('حسابي');
     applyDocument('ar');
     expect(document.documentElement.dir).toBe('rtl');

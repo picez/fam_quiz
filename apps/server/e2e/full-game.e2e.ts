@@ -462,6 +462,13 @@ async function scenario() {
     const drawn = await page.locator('img.question-image').evaluate((image) => (image as unknown as { naturalWidth: number }).naturalWidth);
     expect(drawn).toBe(1);
   }
+  // Дрібну картинку гравець розгортає на весь екран і закриває ×, а сцена лишає її просто картинкою.
+  expect(await stage.locator('.question-image-zoom').count(), 'the stage picture is not a button').toBe(0);
+  await olya.getByRole('button', { name: 'Відкрити картинку на весь екран', ...exact }).click();
+  const zoomed = (await olya.locator('.image-zoom-img').boundingBox())!;
+  expect(zoomed.width, 'the picture fills the phone width').toBeGreaterThan(300);
+  await olya.getByRole('button', { name: 'Закрити картинку', ...exact }).click();
+  expect(await olya.getByRole('dialog').count()).toBe(0);
   await olya.getByRole('button', { name: /Київ/ }).click();
   await taras.getByRole('button', { name: /Львів/ }).click();
   await reveal();
@@ -1618,7 +1625,7 @@ it('the menu stays off the game screens; a player’s profile counts the game, c
 });
 
 const MENU = 'nav.menu';
-const MENU_ITEMS_23A = ['Приєднатися', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
+const MENU_ITEMS_23A = ['Меню', 'Стрічка', 'Мої вікторини', 'Історія', 'Профіль'];
 const menuLinks = async (page: Page) =>
   (await page.locator(MENU).getByRole('link').allTextContents()).map((text) => text.replace(/^[^\p{L}]+/u, ''));
 
@@ -1662,7 +1669,7 @@ async function menuProfileFriends() {
   const visitor = await open('visitor', 390, 844);
   await visitor.goto(base);
   await visitor.locator(MENU).getByRole('link', { name: 'Увійти' }).waitFor();
-  expect(await menuLinks(visitor)).toEqual(['Приєднатися', 'Увійти']);
+  expect(await menuLinks(visitor)).toEqual(['Меню', 'Увійти']);
   const barBox = (await visitor.locator(MENU).boundingBox())!;
   expect(Math.abs(barBox.y + barBox.height - 844)).toBeLessThanOrEqual(2);
   await shot(visitor, 'menu-visitor-phone');
@@ -1704,7 +1711,7 @@ async function menuProfileFriends() {
   await field(olya, 'Пароль').fill('correct horse battery');
   await click(olya, 'Зареєструватися');
   await olya.locator(MENU).getByRole('link', { name: 'Профіль' }).waitFor();
-  await olya.locator(MENU).getByRole('link', { name: 'Приєднатися' }).click();
+  await olya.locator(MENU).getByRole('link', { name: 'Меню' }).click();
   await (await homeCodeField(olya)).fill(code);
   await click(olya, 'Увійти');
   await field(olya, 'Ваше ім’я').fill('Оля');
@@ -2270,6 +2277,12 @@ async function clarityGame() {
   await shot(stage, 'image-options-stage');
   await shot(taras, 'image-options-phone');
   await expectNoSideScroll(olya, 'image-options-phone-375');
+  // Лупа в куті варіанта відкриває його картинку на весь екран і не обирає варіант; на сцені луп немає.
+  expect(await stage.locator('.choice-zoom').count(), 'no magnifiers on the stage').toBe(0);
+  await olya.getByRole('button', { name: 'Відкрити картинку варіанта B', ...exact }).click();
+  await olya.locator('.image-zoom-img').waitFor();
+  await olya.getByRole('button', { name: 'Закрити картинку', ...exact }).click();
+  expect(await olya.locator('.choice.is-picked').count(), 'the magnifier picks nothing').toBe(0);
   await olya.getByRole('button').filter({ has: olya.locator('img[alt="Картинка A"]') }).click();
   await taras.getByRole('button', { name: /Італія/ }).click();
   await click(host, 'Показати відповідь');
