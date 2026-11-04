@@ -72,4 +72,31 @@ describe('LobbyAccess', () => {
     expect(screen.queryByRole('status')).toBeNull();
     expect(((await group()).getByRole('radio', { name: 'Лише друзі' }) as HTMLInputElement).checked).toBe(true);
   });
+
+  it('keeps keyboard focus on the radio after a save', async () => {
+    render(<LobbyAccess code="123456" />);
+    const radio = (await group()).getByRole('radio', { name: 'Усі' }) as HTMLInputElement;
+    radio.focus();
+    fireEvent.click(radio);
+    await screen.findByRole('status');
+    expect(document.activeElement).toBe(radio);
+  });
+
+  it('marks a short password invalid', async () => {
+    render(<LobbyAccess code="123456" />);
+    const input = await screen.findByLabelText('Пароль гри (необов’язково)');
+    expect(input.getAttribute('aria-invalid')).toBe('false');
+    fireEvent.change(input, { target: { value: 'abc' } });
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('offers a retry when the first load fails', async () => {
+    vi.mocked(getLobbySettings).mockResolvedValueOnce({ ok: false, error: 'offline' });
+    render(<LobbyAccess code="123456" />);
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Спробувати ще' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(((await group()).getByRole('radio', { name: 'Лише друзі' }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Спробувати ще' })).toBeNull();
+  });
 });

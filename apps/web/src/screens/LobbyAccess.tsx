@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOBBY_PASSWORD_MAX, LOBBY_PASSWORD_MIN, LOBBY_VISIBILITIES } from '@quiz/shared';
 import type { LobbySettings, LobbyVisibility } from '@quiz/shared';
 import { getLobbySettings, saveLobbySettings } from '../api';
@@ -15,25 +15,38 @@ export function LobbyAccess({ code }: { code: string }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const saving = useRef(false);
+
+  const load = useCallback(() => {
     let alive = true;
+    setLoadFailed(false);
+    setError(null);
     void getLobbySettings(code).then((result) => {
       if (!alive) return;
       if (result.ok) {
         setSettings({ visibility: result.visibility, password: result.password });
         setDraft(result.password ?? '');
-      } else setError(errorText(result.error));
+      } else {
+        setError(errorText(result.error));
+        setLoadFailed(true);
+      }
     });
     return () => {
       alive = false;
     };
   }, [code]);
 
+  useEffect(() => load(), [load]);
+
   const save = async (next: LobbySettings) => {
+    if (saving.current) return;
+    saving.current = true;
     setBusy(true);
     setSaved(false);
     setError(null);
     const result = await saveLobbySettings(code, next);
+    saving.current = false;
     setBusy(false);
     if (result.ok) {
       setSettings({ visibility: result.visibility, password: result.password });
@@ -49,7 +62,7 @@ export function LobbyAccess({ code }: { code: string }) {
 
   return (
     <section className="panel lobby-access">
-      <fieldset className="lobby-vis" disabled={settings === null || busy}>
+      <fieldset className="lobby-vis" disabled={settings === null}>
         <legend>{t('lobbyWhoSees')}</legend>
         {LOBBY_VISIBILITIES.map((value) => (
           <label key={value} className="lobby-vis-option">
@@ -75,6 +88,7 @@ export function LobbyAccess({ code }: { code: string }) {
           value={draft}
           disabled={settings === null}
           aria-describedby={`lobby-pw-hint-${code}`}
+          aria-invalid={draft !== '' && !valid}
           onChange={(event) => {
             setDraft(event.target.value);
             setSaved(false);
@@ -103,6 +117,13 @@ export function LobbyAccess({ code }: { code: string }) {
         <p className="error" role="alert">
           {error}
         </p>
+      )}
+      {loadFailed && (
+        <div className="lobby-access-actions">
+          <button type="button" className="btn btn-small" onClick={load}>
+            {t('prizesRetry')}
+          </button>
+        </div>
       )}
     </section>
   );
