@@ -52,14 +52,14 @@ describe('Home', () => {
   });
 
   it('opens the game page when the game is waiting in the lobby', async () => {
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: false, late: false });
     await enter('123 456');
     expect(await screen.findByText('сторінка гри')).toBeTruthy();
     expect(checkCode).toHaveBeenCalledWith('123456');
   });
 
   it('explains that a game which has started cannot be joined', async () => {
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра', locked: false, late: false });
     await enter('123456');
     expect((await screen.findByRole('alert')).textContent).toBe(STARTED);
     expect(screen.queryByText('сторінка гри')).toBeNull();
@@ -67,7 +67,7 @@ describe('Home', () => {
 
   it('lets a returning player back into a game that has started', async () => {
     savePlayer('123456', 'saved-token');
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра', locked: false, late: false });
     await enter('123456');
     expect(await screen.findByText('сторінка гри')).toBeTruthy();
   });
@@ -115,7 +115,7 @@ describe('Home for a signed-in person', () => {
     const input = screen.getByLabelText('Код гри');
     expect(document.activeElement).toBe(input);
 
-    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра' });
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'lobby', title: 'Гра', locked: false, late: false });
     fireEvent.change(input, { target: { value: '123 456' } });
     fireEvent.click(screen.getByRole('button', { name: 'Увійти' }));
     expect(await screen.findByText('сторінка гри')).toBeTruthy();

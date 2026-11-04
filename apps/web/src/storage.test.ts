@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAuthor, clearPlayer, loadAlarmSeen, loadAuthor, loadHost, loadPlayer, saveAlarmSeen, saveAuthor, saveHost, savePlayer } from './storage';
+import { clearAuthor, clearPlayer, loadAlarmSeen, loadAuthor, loadDeviceId, loadHost, loadPlayer, saveAlarmSeen, saveAuthor, saveHost, savePlayer } from './storage';
 
 beforeEach(() => localStorage.clear());
 
@@ -81,5 +81,13 @@ describe('storage', () => {
     expect(loadAlarmSeen()).toBeNull();
     getItem.mockRestore();
     setItem.mockRestore();
+  });
+
+  it('keeps one device id per browser', () => {
+    const first = loadDeviceId();
+    expect(first.length).toBeGreaterThan(10);
+    expect(loadDeviceId()).toBe(first);
+    localStorage.clear();
+    expect(loadDeviceId()).not.toBe(first);
   });
 });

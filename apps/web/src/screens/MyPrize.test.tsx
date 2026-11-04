@@ -146,7 +146,7 @@ describe('useQuizTitle', () => {
   it('asks the room once when needed and never without a code', async () => {
     const check = vi.mocked(checkCode);
     check.mockReset();
-    check.mockResolvedValue({ ok: true, phase: 'finished', title: 'Новорічна вікторина' });
+    check.mockResolvedValue({ ok: true, phase: 'finished', title: 'Новорічна вікторина', locked: false, late: false });
     const idle = renderHook(() => useQuizTitle('', true));
     expect(idle.result.current).toBe('');
     const off = renderHook(() => useQuizTitle('123456', false));

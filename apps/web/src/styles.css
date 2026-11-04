@@ -15400,3 +15400,75 @@ button.wall-tile:disabled {
 [dir='rtl'] .game-bg::before {
   background: var(--moon-rings) center / 100% no-repeat, radial-gradient(circle at 60% 40%, #ff3b3b, #9b0c14 60%, #4a0508);
 }
+
+/* 24c: «Хто бачить гру» у лобі ведучого. */
+.lobby-vis {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lobby-vis legend {
+  margin-block-end: 0.5rem;
+  padding: 0;
+  font-weight: 700;
+}
+
+.lobby-vis-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding-inline: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.lobby-vis-option:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.lobby-vis-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lobby-vis-option input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.lobby-vis:disabled .lobby-vis-option {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.lobby-password .meta {
+  margin: 0;
+  font-weight: 400;
+}
+
+.lobby-password .meta.lobby-pw-bad {
+  color: var(--signal);
+}
+
+.lobby-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lobby-access-actions .btn {
+  min-height: 44px;
+}

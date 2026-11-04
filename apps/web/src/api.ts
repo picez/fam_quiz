@@ -1,8 +1,10 @@
 import { AUDIO_LIMITS } from '@quiz/shared';
 import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
+import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
 import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import type { HostTokens } from './storage';
+import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
@@ -134,9 +136,15 @@ export const createAutopilotGame = (quizId: string, nickname: string) =>
 export const hostAccess = (code: string) => request<HostTokens>(`${gameUrl(code)}/host-access`);
 /** Недавні власні ігри цієї вікторини для «Підставити з попередньої гри» (12r), найновіша перша. */
 export const resumeOptions = (code: string) => fetchData<ResumeOption[]>(`${gameUrl(code)}/resume`);
-export const checkCode = (code: string) => request<{ phase: Phase; title: string }>(gameUrl(code));
-export const joinGame = (code: string, nickname: string) =>
-  request<{ token: string; playerId: string }>(`${gameUrl(code)}/join`, { body: { nickname } });
+export const checkCode = (code: string) => request<CodeInfo>(gameUrl(code));
+/** Пароль (якщо гра з паролем) і токен пристрою для лічильника спроб гостя (24c). */
+export const joinGame = (code: string, nickname: string, password?: string) =>
+  request<{ token: string; playerId: string }>(`${gameUrl(code)}/join`, { body: { nickname, ...(password !== undefined ? { password } : {}), device: loadDeviceId() } });
+/** Налаштування лобі: лише ведучий, пароль іде назовні тільки тут (24c). */
+export const getLobbySettings = (code: string) => request<LobbySettings>(`${gameUrl(code)}/lobby`);
+export const saveLobbySettings = (code: string, settings: LobbySettings) => request<LobbySettings>(`${gameUrl(code)}/lobby`, { method: 'PUT', body: settings });
+/** Відкриті лобі для списку на «/». */
+export const listLobbies = () => fetchData<LobbyRow[]>('/api/lobbies');
 
 /** Надсилає зображення до запитання; тілом запиту є сам файл. */
 export async function uploadImage(file: File): Promise<ApiResult<{ url: string }>> {
@@ -179,7 +187,8 @@ export const continueGame = (id: string) => request<ContinueResponse>(`/api/game
 export const deleteSavedGame = (id: string) => request<object>(`/api/games/${encodeURIComponent(id)}`, { method: 'DELETE' });
 /** Вільні місця збереженої гри для форми входу й місце акаунта того, хто питає (13b). */
 export const gameSlots = (code: string) => fetchData<SlotsResponse>(`${gameUrl(code)}/slots`);
-export const claimSlot = (code: string, slotId: string) => request<{ token: string; playerId: string }>(`${gameUrl(code)}/claim`, { body: { slotId } });
+export const claimSlot = (code: string, slotId: string, password?: string) =>
+  request<{ token: string; playerId: string }>(`${gameUrl(code)}/claim`, { body: { slotId, ...(password !== undefined ? { password } : {}), device: loadDeviceId() } });
 
 export const getMyProfile = () => fetchData<OwnProfile>('/api/me/profile');
 export const getMyCard = () => fetchData<ProfileCard>('/api/me/card');

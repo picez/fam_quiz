@@ -22,6 +22,15 @@ function write(name: string, value: string | null): void {
   }
 }
 
+/** Токен цього браузера: сервер рахує по ньому невдалі спроби пароля гостя (24c). Один раз на браузер. */
+export function loadDeviceId(): string {
+  const saved = read('quiz:device');
+  if (saved !== null && saved !== '') return saved;
+  const id = crypto.randomUUID();
+  write('quiz:device', id);
+  return id;
+}
+
 export const loadPlayer = (code: string): string | null => read(key('player', code));
 export const savePlayer = (code: string, token: string): void => write(key('player', code), token);
 export const clearPlayer = (code: string): void => write(key('player', code), null);
