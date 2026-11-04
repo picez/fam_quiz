@@ -72,6 +72,8 @@ describe('uk golden (22a)', () => {
   const ADDED_23A = ['profileBack', 'profileTileQuizzes', 'profileTilePrizes', 'profileTileAchievements', 'profileTileFriends', 'profileTileStats', 'profileTileLikes', 'profileTileLooks', 'profileTileSettings', 'settingsNickAvatar', 'settingsEmail', 'noAwardsYet', /* головна профілю (задача 7) */ 'profileTilesLabel', 'profilePopularTitle', 'profileSeeAll', /* вітрини (задача 8) */ 'shelfTitle', 'shelfAll', 'shelfEmpty', 'achievementShelfTitle', 'pinAdd', 'pinRemove', 'pinFullPrizes', 'pinFullAchievements', /* публічний профіль (задача 9) */ 'publicAwardsAll', 'publicAwardsHide'];
   /** 24a: стартове меню на головній і сторінка «Створити гру». */
   const ADDED_24A = ['startMenuLabel', 'startCreate', 'startJoin', 'createMoreHint', /* картинка запитання на весь екран */ 'imageZoomOpen', 'imageZoomClose', 'imageZoomChoice'];
+  /** 24b: списки «Мені сподобались» і «Сподобались іншим» на /profile/likes. */
+  const ADDED_24B = ['likedTabsLabel', 'likedMineTab', 'likedOthersTab', 'likedMineEmpty', 'likedOthersEmpty', 'likedError', 'likedLastAt', 'likedShowQuestions', 'likedQuizWhole', 'likedMineCount_one', 'likedMineCount_few', 'likedMineCount_many', 'likedGone_one', 'likedGone_few', 'likedGone_many', 'likedPeople_one', 'likedPeople_few', 'likedPeople_many'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin'];
 
@@ -85,7 +87,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key))).toEqual([]);
   });
 });
 

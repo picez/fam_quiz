@@ -1,9 +1,10 @@
-import { favoriteStickersSchema, localeUpdateSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
+import { favoriteStickersSchema, likesOffsetSchema, localeUpdateSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { achievementsPage } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
+import { givenLikes, receivedLikes } from './like-store';
 import { versusOf } from './versus';
 import { saveLooks } from './xp-store';
 import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
@@ -190,6 +191,32 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
       return versusOf(db, user.id, id);
     },
   );
+
+  for (const [path, list] of [
+    ['given', givenLikes],
+    ['received', receivedLikes],
+  ] as const) {
+    app.get<{ Querystring: { offset?: string } }>(
+      `/api/me/likes/${path}`,
+      {
+        config: {
+          rateLimit: {
+            max: 60,
+            timeWindow: '1 minute',
+            keyGenerator: async (request: FastifyRequest) => `likes-${path}:${(await currentUser(request))?.id ?? request.ip}`,
+          },
+        },
+      },
+      async (request, reply) => {
+        const user = await currentUser(request);
+        if (user === null) return reply.code(401).send(UNAUTHORIZED);
+        const { offset } = request.query;
+        const parsed = offset === undefined ? { success: true as const, data: 0 } : likesOffsetSchema.safeParse(offset);
+        if (!parsed.success) return reply.code(400).send({ error: 'invalid_payload' });
+        return list(db, user.id, parsed.data);
+      },
+    );
+  }
 
   app.get('/api/me/friends', async (request, reply) => {
     const user = await currentUser(request);

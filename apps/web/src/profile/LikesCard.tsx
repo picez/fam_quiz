@@ -3,7 +3,8 @@ import { num } from '../format';
 import { t } from '../i18n';
 
 /** «Вподобання» (17a): скільки лайків людина зібрала як автор, ведучий і гравець. Три плитки показуються завжди, навіть із нулями. */
-export function LikesCard({ likes }: { likes: LikeTotals }) {
+/** heading={false} — на сторінці «Вподобання», де той самий заголовок уже є в шапці сторінки. */
+export function LikesCard({ likes, heading = true }: { likes: LikeTotals; heading?: boolean }) {
   const tiles: [value: number, label: string][] = [
     [likes.author, t('likesAsAuthor')],
     [likes.host, t('likesAsHost')],
@@ -11,7 +12,7 @@ export function LikesCard({ likes }: { likes: LikeTotals }) {
   ];
   return (
     <section className="profile-section likes-card">
-      <h2>{t('likesTitle')}</h2>
+      {heading && <h2>{t('likesTitle')}</h2>}
       <div className="likes-tiles">
         {tiles.map(([value, label]) => (
           <div className="likes-tile" key={label}>

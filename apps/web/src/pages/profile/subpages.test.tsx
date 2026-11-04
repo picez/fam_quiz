@@ -39,6 +39,8 @@ vi.mock('../../api', () => ({
   getMyFriends: vi.fn(),
   getMyAchievements: vi.fn(),
   getAchievements: vi.fn(),
+  getLikesGiven: vi.fn(async () => ({ ok: true, data: { items: [], next: null } })),
+  getLikesReceived: vi.fn(async () => ({ ok: true, data: { items: [], next: null } })),
   getShowcasePins: vi.fn(async () => ({ ok: true, data: { prizes: [], achievements: [] } })),
   pinToShowcase: vi.fn(),
   unpinFromShowcase: vi.fn(),

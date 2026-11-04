@@ -7,7 +7,7 @@ import { eq, sql } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIGRATIONS, type Db } from './db/client';
 import { profile, quiz, user, userLike } from './db/schema';
-import { likeTotals, quizLikes, roomLikes, saveLike, type LikeChange } from './like-store';
+import { givenLikes, likeTotals, quizLikes, receivedLikes, roomLikes, saveLike, type LikeChange } from './like-store';
 import { createQuiz, deleteQuiz, updateQuiz } from './quizzes';
 import { createTestDb, createTestDbUpTo } from './testing/test-db';
 
@@ -323,5 +323,147 @@ describe('міграція 0024_feed', () => {
     expect(newRow.feedSeenAt).toBeNull();
     expect(newRow.feedLevel).toBeNull();
     expect(await old.select().from(userLike)).toMatchObject([{ userId: 'u-old', kind: 'player', gameId: g1, eventKey: null }]);
+  });
+});
+
+describe('givenLikes, receivedLikes (24b)', () => {
+  const textOf = (id: string) => [...full().rounds.flatMap((r) => ('questions' in r ? r.questions : [])), ...(full().spares ?? [])].find((q) => q.id === id)!.text;
+  const at = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, n));
+
+  beforeEach(async () => {
+    await db.delete(profile);
+    await db.insert(profile).values({ userId: A, nickname: 'Автор', nicknameKey: 'avtor' });
+  });
+
+  it('given: рядок на вікторину, мої вподобання вікторині й запитанням, тексти в порядку вікторини', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q2' });
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'quiz' });
+    const page = await givenLikes(db, O, 0);
+    expect(page.next).toBeNull();
+    expect(page.items).toEqual([
+      {
+        quizId,
+        quiz: { title: expect.any(String), author: { id: A, nickname: 'Автор', avatar: null } },
+        count: 3,
+        lastAt: expect.any(String),
+        quizLiked: true,
+        questions: [textOf('q1'), textOf('q2')],
+        gone: 0,
+      },
+    ]);
+  });
+
+  it('given: автор без профілю — нік і аватар null', async () => {
+    await db.delete(profile);
+    await like({ userId: O, kind: 'quiz' });
+    expect((await givenLikes(db, O, 0)).items[0]!.quiz!.author).toEqual({ id: A, nickname: null, avatar: null });
+  });
+
+  it('given: чужі вподобання й host/player/event не входять', async () => {
+    await like({ userId: P, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'host', targetUserId: A });
+    await like({ userId: O, kind: 'player', targetUserId: P });
+    await saveLike(db, { userId: O, kind: 'event', eventKey: 'level:p:3', gameId: null, targetUserId: P, quizId: null, liked: true });
+    expect((await givenLikes(db, O, 0)).items).toEqual([]);
+  });
+
+  it('given: новіші вище', async () => {
+    const second = await createQuiz(db, A, { ...full(), title: 'Друга' });
+    await like({ userId: O, kind: 'quiz' });
+    await like({ userId: O, kind: 'quiz', quizId: second });
+    await db.update(userLike).set({ createdAt: at(1) }).where(eq(userLike.quizId, second));
+    await db.update(userLike).set({ createdAt: at(2) }).where(eq(userLike.quizId, quizId));
+    expect((await givenLikes(db, O, 0)).items.map((i) => i.quizId)).toEqual([quizId, second]);
+    await db.update(userLike).set({ createdAt: at(3) }).where(eq(userLike.quizId, second));
+    expect((await givenLikes(db, O, 0)).items.map((i) => i.quizId)).toEqual([second, quizId]);
+  });
+
+  it('given: removed question — без тексту й лічильника, gone = 1', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q2' });
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await updateQuiz(db, A, quizId, withoutQ2());
+    const [item] = (await givenLikes(db, O, 0)).items;
+    expect(item).toMatchObject({ count: 1, quizLiked: false, questions: [textOf('q1')], gone: 1 });
+  });
+
+  it('given: усі мої вподобання приховані, вікторина є — рядка немає', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q2' });
+    await updateQuiz(db, A, quizId, withoutQ2());
+    expect((await givenLikes(db, O, 0)).items).toEqual([]);
+  });
+
+  it('given: deleted quiz — quiz null, count 0, questions [], gone 0', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'quiz' });
+    await deleteQuiz(db, A, quizId);
+    expect((await givenLikes(db, O, 0)).items).toEqual([{ quizId, quiz: null, count: 0, lastAt: expect.any(String), quizLiked: false, questions: [], gone: 0 }]);
+  });
+
+  it('received: total, people, top-3 з лічильником, лише мої вікторини', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'question', questionId: 'q2' });
+    await like({ userId: O, kind: 'quiz' });
+    await like({ userId: P, kind: 'question', questionId: 'q1' });
+    const other = await createQuiz(db, O, full());
+    await saveLike(db, { userId: P, kind: 'quiz', liked: true, gameId: g1, quizId: other });
+    const page = await receivedLikes(db, A, 0);
+    expect(page).toEqual({
+      items: [{ quizId, title: expect.any(String), total: 4, people: 2, top: [{ text: textOf('q1'), count: 2 }, { text: textOf('q2'), count: 1 }] }],
+      next: null,
+    });
+    expect((await receivedLikes(db, P, 0)).items).toEqual([]);
+  });
+
+  it('received: top не більше трьох', async () => {
+    await updateQuiz(db, A, quizId, { ...full(), spares: [withId(text, 's1'), withId(text, 's2')] });
+    for (const id of ['q1', 'q2', 's1', 's2']) await like({ userId: O, kind: 'question', questionId: id });
+    await like({ userId: P, kind: 'question', questionId: 's2' });
+    const [item] = (await receivedLikes(db, A, 0)).items;
+    expect(item!.top).toHaveLength(3);
+    expect(item!.top[0]).toEqual({ text: text.text, count: 2 });
+  });
+
+  it('received: removed question не рахується й не в топі; deleted quiz зникає', async () => {
+    await like({ userId: O, kind: 'question', questionId: 'q1' });
+    await like({ userId: O, kind: 'question', questionId: 'q2' });
+    await updateQuiz(db, A, quizId, withoutQ2());
+    const [item] = (await receivedLikes(db, A, 0)).items;
+    expect(item).toMatchObject({ total: 1, people: 1, top: [{ text: textOf('q1'), count: 1 }] });
+    await deleteQuiz(db, A, quizId);
+    expect((await receivedLikes(db, A, 0)).items).toEqual([]);
+  });
+
+  it('received: більше вподобань — вище; рівно — за назвою', async () => {
+    const b = await createQuiz(db, A, { ...full(), title: 'Б' });
+    const a = await createQuiz(db, A, { ...full(), title: 'А' });
+    const c = await createQuiz(db, A, { ...full(), title: 'В' });
+    await saveLike(db, { userId: O, kind: 'quiz', liked: true, gameId: g1, quizId: b });
+    await saveLike(db, { userId: O, kind: 'quiz', liked: true, gameId: g1, quizId: a });
+    await saveLike(db, { userId: O, kind: 'quiz', liked: true, gameId: g1, quizId: c });
+    await saveLike(db, { userId: P, kind: 'quiz', liked: true, gameId: g1, quizId: c });
+    expect((await receivedLikes(db, A, 0)).items.map((i) => i.quizId)).toEqual([c, a, b]);
+  });
+
+  it('pages: 20 → next null; 21 → next 20, друга сторінка — один інший рядок', async () => {
+    const ids = [quizId];
+    for (let i = 1; i < 21; i++) ids.push(await createQuiz(db, A, { ...full(), title: `Вікторина ${i}` }));
+    for (const id of ids.slice(0, 20)) await saveLike(db, { userId: O, kind: 'quiz', liked: true, gameId: g1, quizId: id });
+    expect((await givenLikes(db, O, 0)).items).toHaveLength(20);
+    expect((await givenLikes(db, O, 0)).next).toBeNull();
+    expect((await receivedLikes(db, A, 0)).next).toBeNull();
+    await saveLike(db, { userId: O, kind: 'quiz', liked: true, gameId: g1, quizId: ids[20]! });
+    const first = await givenLikes(db, O, 0);
+    const second = await givenLikes(db, O, 20);
+    expect(first.items).toHaveLength(20);
+    expect(first.next).toBe(20);
+    expect(second.items).toHaveLength(1);
+    expect(second.next).toBeNull();
+    expect(new Set([...first.items, ...second.items].map((i) => i.quizId)).size).toBe(21);
+    const r1 = await receivedLikes(db, A, 0);
+    const r2 = await receivedLikes(db, A, 20);
+    expect(r1.next).toBe(20);
+    expect(r2.items).toHaveLength(1);
+    expect(new Set([...r1.items, ...r2.items].map((i) => i.quizId)).size).toBe(21);
   });
 });
