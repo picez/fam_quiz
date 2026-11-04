@@ -2,16 +2,17 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkCode, getFeedBadge, getMyInvites, me } from '../api';
+import { checkCode, getFeedBadge, getMyInvites, listLobbies, me } from '../api';
 import { savePlayer } from '../storage';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
 
-vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn() }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn() }));
 
 beforeEach(() => {
   localStorage.clear();
   vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(listLobbies).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
 });
 afterEach(cleanup);
@@ -68,6 +69,24 @@ describe('Home', () => {
   it('lets a returning player back into a game that has started', async () => {
     savePlayer('123456', 'saved-token');
     vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра', locked: false, late: false });
+    await enter('123456');
+    expect(await screen.findByText('сторінка гри')).toBeTruthy();
+  });
+
+  it('shows a guest the open games under the code field', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Home />
+      </MemoryRouter>,
+    );
+    const field = await screen.findByLabelText('Код гри');
+    const heading = await screen.findByRole('heading', { name: 'Відкриті ігри' });
+    expect(field.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(listLobbies).toHaveBeenCalled();
+  });
+
+  it('opens a continued game that is already running without a saved player', async () => {
+    vi.mocked(checkCode).mockResolvedValue({ ok: true, phase: 'question', title: 'Гра', locked: false, late: true });
     await enter('123456');
     expect(await screen.findByText('сторінка гри')).toBeTruthy();
   });
