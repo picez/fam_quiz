@@ -1,7 +1,20 @@
-import { questionIdsOf, type LikeKind, type LikeTotals, type Quiz, type QuizLikes } from '@quiz/shared';
-import { and, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import {
+  allSpares,
+  LIKES_PAGE,
+  questionIdsOf,
+  roundQuestions,
+  type GivenLike,
+  type LikeKind,
+  type LikesPage,
+  type LikeTotals,
+  type ProfileCard,
+  type Quiz,
+  type QuizLikes,
+  type ReceivedLike,
+} from '@quiz/shared';
+import { and, asc, desc, eq, inArray, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { quiz, userLike } from './db/schema';
+import { profile, quiz, userLike } from './db/schema';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -181,4 +194,124 @@ export async function syncHiddenLikes(db: Db | Tx, quizId: string, quiz: Quiz | 
     .update(userLike)
     .set({ hidden: ids.length === 0 ? true : sql`not (${inArray(userLike.questionId, ids)})` })
     .where(and(eq(userLike.quizId, quizId), eq(userLike.kind, 'question')));
+}
+
+type QuizBody = Pick<Quiz, 'rounds' | 'spares'>;
+
+/** Усі запитання вікторини (основні в порядку раундів, потім запасні): id і текст. */
+function questionTexts(body: QuizBody): { id: string; text: string }[] {
+  const seen = new Set<string>();
+  const result: { id: string; text: string }[] = [];
+  for (const q of [...body.rounds.flatMap(roundQuestions), ...allSpares(body)]) {
+    if (seen.has(q.id)) continue;
+    seen.add(q.id);
+    result.push({ id: q.id, text: q.text });
+  }
+  return result;
+}
+
+const LIST_KINDS = ['quiz', 'question'] as const;
+
+/** «Мені сподобались»: рядок на вікторину, де я ставив ❤️ вікторині чи запитанням (видимі — лічильником, усі — датою); видалена — рядок без тексту; де всі приховані, а вікторина є — рядка немає. */
+export async function givenLikes(db: Db, userId: string, offset: number): Promise<LikesPage<GivenLike>> {
+  const lastAt = sql`max(${userLike.createdAt})`.mapWith(userLike.createdAt);
+  const visible = sql<number>`(count(*) filter (where not ${userLike.hidden}))::int`;
+  const groups = await db
+    .select({ quizId: userLike.quizId, lastAt, visible })
+    .from(userLike)
+    .leftJoin(quiz, eq(quiz.id, userLike.quizId))
+    .where(and(eq(userLike.userId, userId), inArray(userLike.kind, [...LIST_KINDS]), isNotNull(userLike.quizId)))
+    .groupBy(userLike.quizId)
+    .having(sql`count(${quiz.id}) = 0 or count(*) filter (where not ${userLike.hidden}) > 0`)
+    .orderBy(sql`max(${userLike.createdAt}) desc`, asc(userLike.quizId))
+    .limit(LIKES_PAGE + 1)
+    .offset(offset);
+  const page = groups.slice(0, LIKES_PAGE);
+  const next = groups.length > LIKES_PAGE ? offset + LIKES_PAGE : null;
+  if (page.length === 0) return { items: [], next };
+  const ids = page.map((g) => g.quizId!);
+  const [mine, quizzes] = await Promise.all([
+    db
+      .select({ quizId: userLike.quizId, kind: userLike.kind, questionId: userLike.questionId, hidden: userLike.hidden })
+      .from(userLike)
+      .where(and(eq(userLike.userId, userId), inArray(userLike.kind, [...LIST_KINDS]), inArray(userLike.quizId, ids))),
+    db
+      .select({ id: quiz.id, ownerId: quiz.ownerId, title: quiz.title, rounds: quiz.rounds, settings: quiz.settings })
+      .from(quiz)
+      .where(inArray(quiz.id, ids)),
+  ]);
+  const owners = [...new Set(quizzes.map((q) => q.ownerId))];
+  const cards =
+    owners.length === 0
+      ? []
+      : await db.select({ id: profile.userId, nickname: profile.nickname, avatar: profile.avatar }).from(profile).where(inArray(profile.userId, owners));
+  const items: GivenLike[] = page.map((group) => {
+    const found = quizzes.find((q) => q.id === group.quizId);
+    const iso = group.lastAt.toISOString();
+    if (found === undefined) return { quizId: group.quizId!, quiz: null, count: 0, lastAt: iso, quizLiked: false, questions: [], gone: 0 };
+    const rows = mine.filter((r) => r.quizId === group.quizId);
+    const liked = new Set(rows.filter((r) => r.kind === 'question' && !r.hidden).map((r) => r.questionId));
+    const author: ProfileCard = cards.find((c) => c.id === found.ownerId) ?? { id: found.ownerId, nickname: null, avatar: null };
+    return {
+      quizId: group.quizId!,
+      quiz: { title: found.title, author },
+      count: group.visible,
+      lastAt: iso,
+      quizLiked: rows.some((r) => r.kind === 'quiz' && !r.hidden),
+      questions: questionTexts({ rounds: found.rounds, spares: found.settings.spares })
+        .filter((q) => liked.has(q.id))
+        .map((q) => q.text),
+      gone: rows.filter((r) => r.kind === 'question' && r.hidden).length,
+    };
+  });
+  return { items, next };
+}
+
+/** «Сподобались іншим»: мої вікторини з видимими ❤️ (вікторині й запитанням), найвподобаніші першими; до 3 найвподобаніших запитань. */
+export async function receivedLikes(db: Db, userId: string, offset: number): Promise<LikesPage<ReceivedLike>> {
+  const total = sql<number>`count(*)::int`;
+  const groups = await db
+    .select({
+      quizId: quiz.id,
+      title: quiz.title,
+      rounds: quiz.rounds,
+      settings: quiz.settings,
+      total,
+      people: sql<number>`count(distinct ${userLike.userId})::int`,
+    })
+    .from(quiz)
+    .innerJoin(userLike, and(eq(userLike.quizId, quiz.id), eq(userLike.hidden, false), inArray(userLike.kind, [...LIST_KINDS])))
+    .where(eq(quiz.ownerId, userId))
+    .groupBy(quiz.id)
+    .orderBy(desc(total), asc(quiz.title), asc(quiz.id))
+    .limit(LIKES_PAGE + 1)
+    .offset(offset);
+  const page = groups.slice(0, LIKES_PAGE);
+  const next = groups.length > LIKES_PAGE ? offset + LIKES_PAGE : null;
+  if (page.length === 0) return { items: [], next };
+  const perQuestion = await db
+    .select({ quizId: userLike.quizId, questionId: userLike.questionId, n: sql<number>`count(*)::int` })
+    .from(userLike)
+    .where(
+      and(
+        eq(userLike.kind, 'question'),
+        eq(userLike.hidden, false),
+        inArray(
+          userLike.quizId,
+          page.map((g) => g.quizId),
+        ),
+      ),
+    )
+    .groupBy(userLike.quizId, userLike.questionId);
+  const items: ReceivedLike[] = page.map((group) => {
+    const counts = new Map(perQuestion.filter((r) => r.quizId === group.quizId).map((r) => [r.questionId, r.n]));
+    const top = questionTexts({ rounds: group.rounds, spares: group.settings.spares })
+      .map((q, order) => ({ text: q.text, count: counts.get(q.id) ?? 0, order }))
+      .filter((q) => q.count > 0)
+      .sort((a, b) => b.count - a.count || a.order - b.order)
+      .slice(0, 3)
+      .map(({ text, count }) => ({ text, count }));
+    return { quizId: group.quizId, title: group.title, total: group.total, people: group.people, top };
+  });
+  return { items, next };
 }

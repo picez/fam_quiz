@@ -47,3 +47,26 @@ describe('GET /api/quizzes/:id/likes (17a)', () => {
     expect((await get('/api/quizzes/not-a-uuid/likes', owner.cookie)).statusCode).toBe(404);
   });
 });
+
+describe('GET /api/me/likes/* (24b)', () => {
+  it('given/received only for the signed-in owner, offset validated', async () => {
+    const owner = await signUp(ctx.app, 'Автор2');
+    const other = await signUp(ctx.app, 'Інший2');
+    const ownerId = ((await (await get('/api/me', owner.cookie)).json()) as { id: string }).id;
+    const otherId = ((await (await get('/api/me', other.cookie)).json()) as { id: string }).id;
+    const quizId = await createQuiz(db, ownerId, makeQuiz([single, withId(bool, 'q2')]));
+    await saveLike(db, { userId: otherId, kind: 'question', liked: true, gameId: randomUUID(), quizId, questionId: 'q1' });
+    expect((await get('/api/me/likes/given')).statusCode).toBe(401);
+    expect((await get('/api/me/likes/received')).statusCode).toBe(401);
+    expect((await get('/api/me/likes/given', other.cookie)).json()).toMatchObject({ items: [{ quizId, count: 1 }], next: null });
+    expect((await get('/api/me/likes/received', owner.cookie)).json()).toMatchObject({ items: [{ quizId, total: 1, people: 1 }], next: null });
+    expect((await get('/api/me/likes/received', other.cookie)).json()).toEqual({ items: [], next: null });
+    for (const bad of ['-1', 'abc', '1.5', '10001']) {
+      const r = await get(`/api/me/likes/given?offset=${bad}`, other.cookie);
+      expect(r.statusCode).toBe(400);
+      expect(r.json()).toEqual({ error: 'invalid_payload' });
+    }
+    expect((await get('/api/me/likes/received?offset=0', owner.cookie)).statusCode).toBe(200);
+    expect((await get('/api/me/likes/received', owner.cookie)).body).not.toContain(otherId);
+  });
+});
