@@ -16,7 +16,7 @@ function levelQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('r1', [hinted, withId(single, 'q2'), withId(single, 'q3')])], { leaderboard: 'end', ...settings });
 }
 
-const lv = (level: number, color: NickLevel['color'] = null, frame: NickLevel['frame'] = null): NickLevel => ({ level, color, frame, font: null });
+const lv = (level: number, color: NickLevel['color'] = null, frame: NickLevel['frame'] = null, font: NickLevel['font'] = null): NickLevel => ({ level, color, frame, font });
 const sticker = (series: StickerSeries): ReactionItem => ({ kind: 'sticker', value: STICKERS.find((s) => s.series === series)!.id });
 
 function world(quiz: Quiz = levelQuiz()) {
@@ -69,6 +69,11 @@ describe('levels in the room (15a)', () => {
     expect(w.events.length).toBe(count);
     w.manager.setLevels(w.room, new Map([['u1', lv(3, 'sky')]]));
     expect(w.events.length).toBe(count + 1);
+    w.manager.setLevels(w.room, new Map([['u1', lv(3, 'sky', null, 'hand')]]));
+    expect(w.events.length).toBe(count + 2);
+    w.manager.setLevels(w.room, new Map([['u1', lv(3, 'sky', null, 'hand')]]));
+    expect(w.events.length).toBe(count + 2);
+    expect(levelsView(w.room)).toEqual({ Оля: { level: 3, color: 'sky', frame: null, font: 'hand' } });
   });
 
   it('the start grants the level perks of account players; the guest gets none', () => {

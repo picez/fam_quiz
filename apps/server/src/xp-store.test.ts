@@ -2,6 +2,7 @@ import { makeQuiz, single } from '@quiz/engine/testing';
 import { and, eq, inArray } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
+import { xpForLevel } from '@quiz/shared';
 import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
@@ -478,6 +479,45 @@ describe('levels and looks', () => {
     await db.insert(xpEntry).values({ userId: me, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
     expect(await saveLooks(db, me, looks)).toEqual({ ok: true, looks });
     expect(await publicLevel(db, me)).toEqual({ level: 2, looks });
+  });
+
+  async function giveXp(userId: string, amount: number) {
+    await synced(userId);
+    const at = new Date('2026-10-22T10:00:00Z');
+    await db.insert(xpEntry).values({ userId, source: 'game', amount, counted: true, day: '2026-10-22', at, createdAt: at });
+  }
+
+  it('saveLooks keeps stored photo and font when an old client omits them', async () => {
+    const [me] = await accounts(1);
+    await giveXp(me, xpForLevel(2));
+    const first = { color: null, frame: null, badge: null, photo: 'crimson' as const, font: 'hand' as const };
+    expect(await saveLooks(db, me, first)).toEqual({ ok: true, looks: first });
+    expect(await saveLooks(db, me, { color: null, frame: null, badge: '🌻' })).toEqual({ ok: true, looks: { color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand' } });
+    expect((await publicLevel(db, me)).looks).toEqual({ color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand' });
+  });
+
+  it('saveLooks refuses a locked photo frame', async () => {
+    const [me] = await accounts(1);
+    await synced(me);
+    expect(await saveLooks(db, me, { color: null, frame: null, badge: null, photo: 'aura', font: null })).toEqual({ ok: false, error: 'look_locked' });
+    const [row] = await db.select({ photo: profile.photoFrame }).from(profile).where(eq(profile.userId, me));
+    expect(row?.photo ?? null).toBeNull();
+  });
+
+  it('roomLevels carries the shown font', async () => {
+    const [low, high] = await accounts(2);
+    await giveXp(low, xpForLevel(15));
+    await giveXp(high, xpForLevel(16));
+    await db.update(profile).set({ nickFont: 'pixel' }).where(inArray(profile.userId, [low, high]));
+    const levels = await roomLevels(db, [low, high]);
+    expect(levels.get(low)).toMatchObject({ level: 15, font: null });
+    expect(levels.get(high)).toMatchObject({ level: 16, font: 'pixel' });
+  });
+
+  it('ownLevel.next at level 15', async () => {
+    const [me] = await accounts(1);
+    await giveXp(me, xpForLevel(15));
+    expect((await ownLevel(db, me)).next.map((n) => n.level)).toEqual([16, 16, 17, 17, 18, 18]);
   });
 
   it('roomLevels: an account without rows is level 1 with nothing worn; worn looks above the level are hidden', async () => {

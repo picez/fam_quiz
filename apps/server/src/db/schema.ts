@@ -18,7 +18,9 @@ import type {
   LikeKind,
   LadderOutcomeKind,
   NickColor,
+  NickFont,
   NickFrame,
+  PhotoFrame,
   PrizeContent,
   PrizePlace,
   ShowcasePinKind,
@@ -351,6 +353,9 @@ export const profile = pgTable('profile', {
   nickColor: text('nick_color').$type<NickColor>(),
   nickFrame: text('nick_frame').$type<NickFrame>(),
   badge: text('badge').$type<ProfileBadge>(),
+  /** Рамка фото й шрифт ніку (24d); закрите рівнем не показується. */
+  photoFrame: text('photo_frame').$type<PhotoFrame>(),
+  nickFont: text('nick_font').$type<NickFont>(),
   /** Стрічку переглянуто до цієї миті (18a): бейдж рахує події з created_at пізніше; null — ще ні (усі події друзів за 90 днів нові). */
   feedSeenAt: at('feed_seen_at'),
   /** Найвищий оголошений у стрічці рівень (18a); null = 1. */

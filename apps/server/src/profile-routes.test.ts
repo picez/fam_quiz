@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
-import { STICKERS } from '@quiz/shared';
+import { STICKERS, xpForLevel } from '@quiz/shared';
 import { buildApp } from './app';
 import { follow, profile, user, xpEntry } from './db/schema';
 import { awardPrizes, createPrize, reservePlaces } from './prizes';
@@ -366,5 +366,17 @@ describe('wearing looks (15a)', () => {
     expect(worn.json()).toEqual({ looks: { ...none, color: 'sky', photo: null, font: null } });
     const shown = await request('GET', `/api/profiles/${tarasId}`);
     expect(shown.json().level.looks.color).toBe('sky');
+  });
+
+  it('wears a photo frame and a font, and refuses bad or locked ones', async () => {
+    const at = new Date('2026-10-23T10:00:00Z');
+    await db.insert(xpEntry).values({ userId: tarasId, source: 'game', amount: xpForLevel(17), counted: true, day: '2026-10-23', at, createdAt: at });
+    const ok = await request('PUT', '/api/me/looks', taras.cookie, { ...none, photo: 'fire', font: 'hand' });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().looks).toMatchObject({ photo: 'fire', font: 'hand' });
+    expect((await request('PUT', '/api/me/looks', taras.cookie, { ...none, font: 'comic' })).statusCode).toBe(400);
+    const locked = await request('PUT', '/api/me/looks', taras.cookie, { ...none, photo: 'aura' });
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json()).toEqual({ error: 'look_locked' });
   });
 });
