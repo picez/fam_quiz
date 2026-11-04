@@ -4,7 +4,8 @@ import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import type { Invites } from './invites';
 import type { LobbyGate } from './lobby-access';
-import type { Room, RoomManager } from './rooms/manager';
+import { lobbyRows } from './lobby-store';
+import { joinableOf, type Room, type RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
 
 export interface LobbyDeps {
@@ -23,7 +24,7 @@ const RESTARTING = { error: 'restarting' };
 const settingsOf = (room: Room): LobbySettings => ({ visibility: room.lobby.visibility, password: room.lobby.password });
 
 export async function registerLobbyRoutes(app: FastifyInstance, deps: LobbyDeps): Promise<void> {
-  const { manager, locate, currentUser } = deps;
+  const { db, manager, locate, currentUser } = deps;
   const perUser = (prefix: string, max: number) => ({
     config: {
       rateLimit: {
@@ -41,6 +42,18 @@ export async function registerLobbyRoutes(app: FastifyInstance, deps: LobbyDeps)
     const room = manager.get(code);
     return user !== null && room !== undefined && room.hostUserId === user.id ? room : null;
   };
+
+  /** Відкриті лобі для того, хто дивиться (гостям теж); пароля в рядках нема. */
+  app.get('/api/lobbies', perUser('lobbies', 60), async (request) => {
+    const viewerId = (await currentUser(request))?.id ?? null;
+    const open = manager
+      .rooms()
+      .filter(
+        (room) =>
+          joinableOf(room) !== null && room.hostUserId !== null && room.hostUserId !== viewerId && room.lobby.visibility !== 'hidden',
+      );
+    return lobbyRows(db, open, viewerId);
+  });
 
   app.get<{ Params: { code: string } }>('/api/games/by-code/:code/lobby', perUser('lobby', 30), async (request, reply) => {
     const room = await hostedRoom(request.params.code, request);

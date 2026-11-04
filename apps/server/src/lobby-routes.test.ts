@@ -1,10 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { classicRound, makeQuiz, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import type { ContinueResponse, SlotsResponse } from '@quiz/shared';
+import type { ContinueResponse, LobbyRow, SlotsResponse } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { follow, user } from './db/schema';
+import { follow, user, userBan } from './db/schema';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 import { toQuestion } from './testing/team-game';
@@ -177,5 +177,145 @@ describe('lobby settings and password (24c)', () => {
     } finally {
       await first.app.close().catch(() => undefined);
     }
+  });
+});
+
+describe('GET /api/lobbies (24c)', () => {
+  type World = Awaited<ReturnType<typeof world>>;
+  let w: World;
+  const rowsFor = async (cookie?: string) => (await call('GET', '/api/lobbies', cookie, undefined, w.ctx.app)).json() as LobbyRow[];
+
+  async function world() {
+    const wdb = await createTestDb();
+    const wctx = await buildApp({ db: wdb, auth: TEST_AUTH });
+    const make = async (name: string) => {
+      const made = await signUp(wctx.app, name);
+      const [row] = await wdb.select().from(user).where(eq(user.email, made.email));
+      return { ...made, id: row.id };
+    };
+    const galyna = await make('Галина');
+    const olya2 = await make('Оля');
+    const taras = await make('Тарас');
+    const petro = await make('Петро');
+    await wdb.insert(follow).values([
+      { followerId: galyna.id, followeeId: olya2.id },
+      { followerId: olya2.id, followeeId: petro.id },
+    ]);
+    return { db: wdb, ctx: wctx, galyna, olya: olya2, taras, petro };
+  }
+
+  const open = async (visibility: string, password: string | null = null) => {
+    const code = (await startGame(w.ctx.app, makeQuiz([single]), w.galyna.cookie)).game.code;
+    const put = await call('PUT', `/api/games/by-code/${code}/lobby`, w.galyna.cookie, { visibility, password }, w.ctx.app);
+    expect(put.statusCode).toBe(200);
+    return code;
+  };
+
+  beforeEach(async () => {
+    w = await world();
+  });
+  afterEach(async () => {
+    await w.ctx.app.close();
+  });
+
+  it('visibility', async () => {
+    const code = await open('friends');
+    expect((await rowsFor(w.olya.cookie)).map((r) => r.code)).toEqual([code]);
+    expect(await rowsFor(w.taras.cookie)).toEqual([]);
+    expect(await rowsFor()).toEqual([]);
+    expect(await rowsFor(w.galyna.cookie)).toEqual([]);
+    await call('PUT', `/api/games/by-code/${code}/lobby`, w.galyna.cookie, { visibility: 'all', password: null }, w.ctx.app);
+    for (const cookie of [w.olya.cookie, w.taras.cookie, undefined]) expect((await rowsFor(cookie)).map((r) => r.code)).toEqual([code]);
+    expect(await rowsFor(w.galyna.cookie)).toEqual([]);
+    await call('PUT', `/api/games/by-code/${code}/lobby`, w.galyna.cookie, { visibility: 'hidden', password: null }, w.ctx.app);
+    for (const cookie of [w.olya.cookie, w.taras.cookie, undefined]) expect(await rowsFor(cookie)).toEqual([]);
+  });
+
+  it('unfollowed', async () => {
+    const code = await open('friends');
+    expect((await rowsFor(w.olya.cookie)).map((r) => r.code)).toEqual([code]);
+    await w.db.delete(follow).where(eq(follow.followerId, w.galyna.id));
+    expect(await rowsFor(w.olya.cookie)).toEqual([]);
+  });
+
+  it('row', async () => {
+    const code = await open('friends', 'сова42');
+    await call('POST', `/api/games/by-code/${code}/join`, w.petro.cookie, { nickname: 'Петро', password: 'сова42' }, w.ctx.app);
+    const response = await call('GET', '/api/lobbies', w.olya.cookie, undefined, w.ctx.app);
+    expect(response.body).not.toContain('сова42');
+    const [row] = response.json() as LobbyRow[];
+    expect(row).toEqual({
+      code,
+      title: 'Тестова вікторина',
+      host: { id: w.galyna.id, nickname: 'Галина', avatar: null, level: expect.objectContaining({ level: 1 }) },
+      players: 1,
+      maxPlayers: 50,
+      rounds: 1,
+      questions: 1,
+      locked: true,
+      late: false,
+      friends: ['Петро'],
+      openedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+    });
+    const other = ((await rowsFor(w.taras.cookie)) as LobbyRow[]).length;
+    expect(other).toBe(0);
+  });
+
+  it('joinable only', async () => {
+    const code = await open('all');
+    const room = w.ctx.manager.get(code)!;
+    await call('POST', `/api/games/by-code/${code}/join`, undefined, { nickname: 'Іра' }, w.ctx.app);
+    expect(await rowsFor(w.taras.cookie)).toHaveLength(1);
+    expect(w.ctx.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(await rowsFor(w.taras.cookie)).toEqual([]);
+
+    const quiz = makeRoundsQuiz([
+      classicRound('r0', [single, withId(single, 'q2')], { speedBonus: false }),
+      classicRound('r1', [withId(single, 'q3')], { speedBonus: false }),
+    ]);
+    const quizId = ((await call('POST', '/api/quizzes', w.galyna.cookie, quiz, w.ctx.app)).json() as { id: string }).id;
+    const created = (await call('POST', '/api/games', w.galyna.cookie, { quizId }, w.ctx.app)).json() as { gameId: string; code: string };
+    const first = w.ctx.manager.get(created.code)!;
+    for (const nickname of ['Іван', 'Марко']) {
+      const { playerId } = (await call('POST', `/api/games/by-code/${created.code}/join`, undefined, { nickname }, w.ctx.app)).json() as { playerId: string };
+      w.ctx.manager.connect(first, { role: 'player', playerId });
+    }
+    expect(w.ctx.manager.host(first, { type: 'start' })).toEqual({ ok: true });
+    toQuestion(w.ctx.manager, first);
+    expect(w.ctx.manager.host(first, { type: 'save' })).toEqual({ ok: true });
+    await w.ctx.recorder.idle();
+    const body = (await call('POST', `/api/games/${created.gameId}/continue`, w.galyna.cookie, undefined, w.ctx.app)).json() as ContinueResponse;
+    w.ctx.manager.get(body.code)!.lobby.visibility = 'all';
+    const rows = await rowsFor(w.taras.cookie);
+    expect(rows.map((r) => [r.code, r.late])).toEqual([[body.code, true]]);
+    const done = w.ctx.manager.get(body.code)!;
+    done.state = { ...done.state, phase: 'finished' };
+    expect(await rowsFor(w.taras.cookie)).toEqual([]);
+  });
+
+  it('banned host', async () => {
+    await open('all');
+    expect(await rowsFor(w.taras.cookie)).toHaveLength(1);
+    await w.db.insert(userBan).values({ userId: w.galyna.id, bannedAt: new Date() });
+    expect(await rowsFor(w.taras.cookie)).toEqual([]);
+  });
+
+  it('order and cap', async () => {
+    const older = await open('all');
+    const newer = await open('all');
+    w.ctx.manager.get(older)!.lobby.openedAt = 1_000;
+    w.ctx.manager.get(newer)!.lobby.openedAt = 2_000;
+    expect((await rowsFor(w.taras.cookie)).map((r) => r.code)).toEqual([newer, older]);
+    const filler = () => {
+      const { lobby } = w.ctx.manager.create(makeQuiz([single]), w.galyna.id);
+      lobby.visibility = 'all';
+      lobby.openedAt = 500;
+    };
+    for (let i = 0; i < 49; i += 1) filler();
+    const rows = await rowsFor(w.taras.cookie);
+    expect(rows).toHaveLength(50);
+    expect(rows[0].code).toBe(newer);
+    filler();
+    expect(await rowsFor(w.taras.cookie)).toHaveLength(50);
   });
 });
