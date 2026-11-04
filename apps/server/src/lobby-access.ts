@@ -8,6 +8,10 @@ import type { Room } from './rooms/manager';
 export const PASSWORD_FAILS = 5;
 export const PASSWORD_WINDOW_MS = 60_000;
 export const PASSWORD_BLOCK_MS = 60_000;
+/** Друга межа — невдачі з однієї IP-адреси в кімнату за вікно, хоч би які пристрій і акаунт: токен пристрою вигадує клієнт. */
+export const PASSWORD_IP_FAILS = 20;
+/** Як часто, не частіше, прибирати застарілі записи лічильника. */
+const PRUNE_EVERY_MS = 10_000;
 
 export type GateResult = 'ok' | 'password_required' | 'password_wrong' | 'password_limited';
 
@@ -40,6 +44,7 @@ const safeEqual = (a: string, b: string) => timingSafeEqual(digest(a), digest(b)
  */
 export class LobbyGate {
   private readonly attempts = new Map<string, Attempts>();
+  private prunedAt = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly db: Db,
@@ -66,19 +71,33 @@ export class LobbyGate {
     const now = this.now();
     this.prune(now);
     const key = `${room.id}:${entry.userId !== null ? `u:${entry.userId}` : `g:${entry.ip}|${entry.device ?? ''}`}`;
-    const record = this.attempts.get(key);
-    if (record !== undefined && record.blockedUntil > now) return 'password_limited';
+    const ipKey = `${room.id}:ip:${entry.ip}`;
+    if (this.blocked(key, now) || this.blocked(ipKey, now)) return 'password_limited';
     if (entry.password === undefined) return 'password_required';
     if (safeEqual(entry.password.trim(), current)) return 'ok';
-    const open = record !== undefined && record.since + PASSWORD_WINDOW_MS > now ? record : { fails: 0, since: now, blockedUntil: 0 };
-    open.fails += 1;
-    if (open.fails >= PASSWORD_FAILS) open.blockedUntil = now + PASSWORD_BLOCK_MS;
-    this.attempts.set(key, open);
+    this.fail(key, PASSWORD_FAILS, now);
+    this.fail(ipKey, PASSWORD_IP_FAILS, now);
     return 'password_wrong';
   }
 
-  /** Прибирає записи, у яких минули і вікно, і блок. */
+  private blocked(key: string, now: number): boolean {
+    const record = this.attempts.get(key);
+    return record !== undefined && record.blockedUntil > now;
+  }
+
+  /** Невдача: вікно від першої невдачі; на cap-й — блок до now + PASSWORD_BLOCK_MS. */
+  private fail(key: string, cap: number, now: number): void {
+    const record = this.attempts.get(key);
+    const open = record !== undefined && record.since + PASSWORD_WINDOW_MS > now ? record : { fails: 0, since: now, blockedUntil: 0 };
+    open.fails += 1;
+    if (open.fails >= cap) open.blockedUntil = now + PASSWORD_BLOCK_MS;
+    this.attempts.set(key, open);
+  }
+
+  /** Не частіше ніж раз на PRUNE_EVERY_MS прибирає записи, у яких минули і вікно, і блок. */
   private prune(now: number): void {
+    if (now - this.prunedAt < PRUNE_EVERY_MS) return;
+    this.prunedAt = now;
     for (const [key, record] of this.attempts) {
       if (record.since + PASSWORD_WINDOW_MS <= now && record.blockedUntil <= now) this.attempts.delete(key);
     }

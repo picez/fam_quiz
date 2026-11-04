@@ -103,6 +103,23 @@ describe('lobby gate (24c)', () => {
     expect(await gate.check(room, { userId: vira, ip: '9.9.9.9', device: 'z', password: 'сова42' })).toBe('password_limited');
   });
 
+  it('a fresh device per try does not reset the limit for that IP', async () => {
+    const { manager, scheduler, gate } = setup();
+    const room = manager.create(makeQuiz([single]), await person());
+    manager.setLobby(room, { visibility: 'all', password: 'сова42' });
+    const from = (device: string, password: string, ip = '3.3.3.3') => gate.check(room, { userId: null, ip, device, password });
+    for (let i = 0; i < 5; i += 1) expect(await from('d0', 'хибний')).toBe('password_wrong');
+    expect(await from('d0', 'сова42')).toBe('password_limited');
+    // Шостий новий пристрій із тієї ж адреси межа одного пристрою не зупиняє.
+    for (let d = 1; d <= 5; d += 1) for (let i = 0; i < 3; i += 1) expect(await from(`d${d}`, 'хибний')).toBe('password_wrong');
+    // 20 невдач з адреси — далі будь-який новий пристрій, навіть із правильним паролем, у блоці.
+    expect(await from('d6', 'сова42')).toBe('password_limited');
+    expect(await gate.check(room, { userId: await person(), ip: '3.3.3.3', password: 'сова42' })).toBe('password_limited');
+    expect(await from('d6', 'сова42', '4.4.4.4')).toBe('ok');
+    scheduler.advance(60_001);
+    expect(await from('d7', 'сова42')).toBe('ok');
+  });
+
   it('a missing password does not count as an attempt, and the window restarts after a minute', async () => {
     const { manager, scheduler, gate } = setup();
     const room = manager.create(makeQuiz([single]), await person());
