@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { levelProgress, type ProfileStats } from '@quiz/shared';
+import { levelProgress, type NickLooks, type ProfileStats } from '@quiz/shared';
 import { HeadlineStats, ProfileHeader } from './ProfileHeader';
 
 afterEach(cleanup);
@@ -19,14 +19,30 @@ const stats: ProfileStats = {
   avgPlace: null,
 };
 
+const NO_LOOKS: NickLooks = { frame: null, color: null, badge: null, photo: null, font: null };
+
 const header = (props: Partial<Parameters<typeof ProfileHeader>[0]> = {}) =>
   render(
     <MemoryRouter>
-      <ProfileHeader profile={{ id: 'u1', nickname: 'Олена', avatar: null }} level={7} badge={null} title={null} stats={stats} {...props} />
+      <ProfileHeader profile={{ id: 'u1', nickname: 'Олена', avatar: null }} level={7} looks={NO_LOOKS} title={null} stats={stats} {...props} />
     </MemoryRouter>,
   );
 
 describe('ProfileHeader', () => {
+  it('wears the chosen photo frame, nick font, colour and badge', () => {
+    const { container } = header({ looks: { ...NO_LOOKS, photo: 'fire', font: 'pixel', color: 'blood', badge: '🌻' } });
+    expect(container.querySelector('.profile-head .photo-frame-fire .avatar')).toBeTruthy();
+    expect(container.querySelector('.tomoe-ring')).toBeNull();
+    expect(container.querySelector('h1 .nick-font-pixel.nick-c-blood')?.textContent).toBe('Олена');
+    expect(container.querySelector('.profile-pills')?.textContent).toContain('🌻');
+  });
+
+  it('keeps the tomoe ring without a photo frame', () => {
+    const { container } = header();
+    expect(container.querySelector('.tomoe-ring')).toBeTruthy();
+    expect(container.querySelector('.photo-frame')).toBeNull();
+  });
+
   it('shows the nickname in h1 and, under it, a filled level pill before the outlined wins pill', () => {
     const { container } = header();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Олена');

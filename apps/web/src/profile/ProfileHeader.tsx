@@ -1,10 +1,13 @@
-import type { OwnLevel, ProfileCard, ProfileStats } from '@quiz/shared';
+import type { NickLooks, OwnLevel, ProfileCard, ProfileStats } from '@quiz/shared';
 import type { JSX, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { countText, t } from '../i18n';
-import { MotifHero, TomoeRing } from '../motifs/Motifs';
+import { useNickFont } from '../nick-fonts';
+import { MotifHero } from '../motifs/Motifs';
 import { nickText } from '../nick';
+import { nickNameClass } from '../screens/Nick';
 import { Avatar } from './Avatar';
+import { AvatarFrame } from './AvatarFrame';
 import { LevelBar, ProfileLevelMark } from './LevelCard';
 
 /** Чотири числа: ігор, перемог, влучність, проведено. dl.headline-stats. */
@@ -28,34 +31,37 @@ export function HeadlineStats({ stats }: { stats: ProfileStats }): JSX.Element {
 }
 
 /**
- * header.profile-head у MotifHero: аватар у TomoeRing (рамка --accent), h1 нік + nick-title, під ним ряд плашок як у макеті:
+ * header.profile-head у MotifHero: аватар у AvatarFrame (рамка фото; без неї кільце томое), h1 нік + nick-title, під ним ряд плашок як у макеті:
  * суцільна «Рів. N» (ProfileLevelMark) і контурна «🏆 N перемог», editTo → посилання t('editProfile'), progress → LevelBar, HeadlineStats, children (дії).
  */
 export function ProfileHeader(props: {
   profile: ProfileCard;
   level: number;
-  badge: string | null;
+  looks: NickLooks;
   title: string | null;
   stats: ProfileStats;
   progress?: OwnLevel['progress'];
   editTo?: string;
   children?: ReactNode;
 }): JSX.Element {
-  const { profile, level, badge, title, stats, progress, editTo, children } = props;
+  const { profile, level, looks, title, stats, progress, editTo, children } = props;
+  useNickFont(looks.font);
   return (
     <MotifHero className="profile-hero">
       <header className="profile-head">
         <div className="profile-id">
-          <TomoeRing>
+          <AvatarFrame frame={looks.photo}>
             <Avatar profile={profile} size="large" />
-          </TomoeRing>
+          </AvatarFrame>
           <div className="profile-id-text">
             <h1 className="brand">
-              {nickText(profile.nickname)}
+              <span className={nickNameClass(looks.color, looks.font)} dir="auto">
+                {nickText(profile.nickname)}
+              </span>
               {title !== null && <span className="nick-title">{title}</span>}
             </h1>
             <p className="profile-pills">
-              <ProfileLevelMark level={level} badge={badge} />
+              <ProfileLevelMark level={level} badge={looks.badge} />
               <span className="profile-pill">{`🏆 ${stats.wins} ${countText('statWins', stats.wins)}`}</span>
             </p>
             {editTo !== undefined && (

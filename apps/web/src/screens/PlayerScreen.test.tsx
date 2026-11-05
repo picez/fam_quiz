@@ -4105,7 +4105,7 @@ describe('PlayerScreen prizes (14a)', () => {
     expect(screen.getByText('👑 Король').closest('li')?.textContent).toContain('Оля');
   });
   it('a level stands next to the nickname in the lobby list, only for who has one', () => {
-    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], levels: { Оля: { level: 12, color: 'sky', frame: null } } }));
+    show(view({ phase: 'lobby', lobby: ['Оля', 'Петро'], levels: { Оля: { level: 12, color: 'sky', frame: null, font: null } } }));
     expect(screen.getByText('Рів. 12').closest('li')?.textContent).toContain('Оля');
     expect(screen.getAllByText(/Рів\./)).toHaveLength(1);
   });

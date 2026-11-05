@@ -48,7 +48,7 @@ const profile: OwnProfile = {
   wins: [],
   friends: [],
   showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null } },
   likes: { author: 0, host: 0, player: 0 },
 };
 

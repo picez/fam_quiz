@@ -10,7 +10,7 @@ function tone(id: string): number {
 }
 
 /** Аватар: зображення або перша літера нікнейма на тлі одного з чотирьох кольорів (за id). */
-export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' | 'small' }) {
+export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' | 'medium' | 'small' }) {
   const label = t('avatarOf', { nickname: nickText(profile.nickname) });
   if (profile.avatar !== null) {
     return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} />;

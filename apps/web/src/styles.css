@@ -3370,6 +3370,12 @@ button.match-item {
   font-size: 1.75rem;
 }
 
+.avatar-medium {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.375rem;
+}
+
 .avatar-small {
   width: 2.25rem;
   height: 2.25rem;
@@ -3401,7 +3407,17 @@ button.match-item {
 
 .profile-head h1 {
   margin: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+/* Довгий нік у шапці переноситься (як до 24d), а не обрізається краєм героя. */
+.profile-head h1 .nick-name {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  /* Кольоровий нік лишається читким і над червоним місяцем героя (тінь працює й з градієнтом через background-clip). */
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.9));
 }
 
 /* Довгий email і кнопки шапки не розпирають сторінку на 320 px: колонка біля аватарки може стискатися. */
@@ -13948,6 +13964,21 @@ button.wall-tile:disabled {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+.nick-c-blood { background: linear-gradient(90deg, #ff4d5a, #ff8a8a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-flame { background: linear-gradient(90deg, #ff6a3d, #ffc93c); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-ice { background: linear-gradient(90deg, #7dd3fc, #e0f2fe); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-venom { background: linear-gradient(90deg, #4ade80, #bef264); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-amethyst { background: linear-gradient(90deg, #c084fc, #f0abfc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.nick-c-moonsilver { background: linear-gradient(90deg, #cbd5e1, #f8fafc); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+/* Шрифти ніку (24d): CSS шрифту вантажить nick-fonts.ts; множник вирівнює ширину, щоб довгий нік обрізався «…» */
+.nick-font-hand { --nick-font-scale: 1.12; font-family: 'Caveat Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-round { --nick-font-scale: 0.95; font-family: 'Comfortaa Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-mono { --nick-font-scale: 0.92; font-family: 'Fira Code Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-poster { --nick-font-scale: 1; font-family: 'Oswald Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-brush { --nick-font-scale: 1.2; font-family: 'Amatic SC', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-pixel { --nick-font-scale: 0.8; font-family: 'Pixelify Sans Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-elegant { --nick-font-scale: 1.1; font-family: 'Cormorant Variable', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
+.nick-font-heavy { --nick-font-scale: 0.88; font-family: 'Dela Gothic One', system-ui, sans-serif; font-size: calc(1em * var(--nick-font-scale, 1)); line-height: 1.2; }
 .nick-f-bronze { outline: 2px solid #b45309; outline-offset: 2px; }
 .nick-f-silver { outline: 2px solid #cbd5e1; outline-offset: 2px; }
 .nick-f-gold { outline: 2px solid #eab308; outline-offset: 2px; }
@@ -14470,24 +14501,163 @@ button.wall-tile:disabled {
 .level-meter.is-open .level-tip {
   display: block;
 }
-.look-group {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
-  gap: 0.4rem;
+/* «Вигляд» (24d): п'ять груп з видимою назвою; плитки-картки однакової висоти, радіо приховане — вибір видно з рамки, тла й ✓. */
+.look-group-box {
   min-width: 0;
 }
+.look-group-title {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 1rem;
+}
+.look-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(6.5rem, 100%), 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-block: 0 0.5rem;
+}
+.look-group-badge {
+  grid-template-columns: repeat(auto-fill, minmax(min(44px, 100%), 1fr));
+}
 .look-option {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.3rem;
   min-width: 0;
+  min-height: 44px;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
   overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.look-option input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+}
+.look-option:has(input:checked) {
+  border-color: var(--accent, currentColor);
+  box-shadow: inset 0 0 0 1px var(--accent, currentColor);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+.look-option:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  inset-block-start: -0.4rem;
+  inset-inline-end: -0.4rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.look-option:has(input:focus-visible) {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+.look-option.is-locked {
+  cursor: not-allowed;
+}
+.look-option.is-locked .look-face-wrap,
+.look-option.is-locked .look-name {
+  opacity: 0.55;
+}
+.look-face-wrap {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+}
+.look-name {
+  max-width: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+.look-group-badge .look-option {
+  justify-content: center;
+  padding: 0.3rem;
+}
+/* Назви кольорів і рамок ніку в плитці переносяться, а не обрізаються «…» («Місячне срібло»). */
+.look-group-color .look-option,
+.look-group-frame .look-option {
+  justify-content: center;
+}
+.look-group-color .nick-name,
+.look-group-frame .nick-name {
+  white-space: normal;
+}
+.look-group-badge .look-option:has(input:checked)::after {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  font-size: 0.6rem;
+}
+.look-group-badge .look-option.is-none {
+  grid-column: 1 / -1;
+}
+.look-emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.look-art {
+  display: block;
+  max-width: 100%;
+}
+.look-art-font {
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+.look-art-font .nick-name {
+  display: block;
+  max-width: 100%;
+}
+.look-lock {
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--paper);
+}
+.level-unlocked summary {
+  cursor: pointer;
+}
+.level-unlocked summary h3 {
+  display: inline;
+  font-size: 1rem;
+}
+.level-unlocked[open] summary {
+  margin-block-end: 0.5rem;
+}
+.look-preview-box {
+  margin-block: 0.5rem 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.look-preview-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-width: 0;
 }
 .look-preview {
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
+  font-size: 1.25rem;
 }
 
 /* Лайки (17a): ❤️ у шапці тієї ж висоти, що «Таблиця» (не росте й не стискається); блок фіналу — у потоці, чипи переносяться. */
@@ -15363,6 +15533,133 @@ button.wall-tile:disabled {
 
 .tomoe-ring .tomoe {
   fill: var(--accent);
+}
+
+/* ---------- Рамки фото (24d) ---------- */
+
+/* Той самий зовнішній розмір, що в .tomoe-ring: розкладка шапки не зсувається. Кільця малює ::before (маска лишає порожню серединку). */
+.photo-frame {
+  --pf-w: 3px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  padding: 0.375rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.photo-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: var(--pf-w);
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+
+.photo-frame-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.photo-frame-art .pf-line {
+  fill: none;
+  stroke-width: 2;
+}
+
+/* Тонка багряна */
+.photo-frame-crimson { --pf-w: 2px; }
+.photo-frame-crimson::before { background: var(--accent); }
+
+/* Срібло */
+.photo-frame-silver { --pf-w: 3px; }
+.photo-frame-silver::before { background: conic-gradient(#f1f5f9, #94a3b8, #e2e8f0, #64748b, #f1f5f9); }
+
+/* Мазок туші: нерівне світле кільце, подвійний мазок */
+.photo-frame-ink { --pf-w: 0px; }
+.photo-frame-ink::before,
+.photo-frame-ink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 4px solid var(--paper);
+  border-radius: 46% 54% 48% 52% / 54% 46% 55% 45%;
+  -webkit-mask: none;
+  mask: none;
+  padding: 0;
+  background: none;
+}
+.photo-frame-ink::after {
+  inset: 2px;
+  border-width: 1.5px;
+  border-color: var(--dim);
+  border-radius: 54% 46% 52% 48% / 46% 54% 45% 55%;
+}
+
+/* Золото */
+.photo-frame-gold { --pf-w: 4px; box-shadow: 0 0 10px rgb(234 179 8 / 0.45); }
+.photo-frame-gold::before { background: conic-gradient(#fde68a, #eab308, #a16207, #facc15, #fde68a); }
+
+/* Хмаринки Акацукі (svg) */
+.photo-frame-cloud .pf-line { stroke: var(--paper); }
+.photo-frame-cloud .pf-cloud { fill: var(--accent); stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.photo-frame-cloud::before { content: none; }
+
+/* Ворони (svg): світлі силуети, видно на темному */
+.photo-frame-crows .pf-line { stroke: var(--accent); }
+.photo-frame-crows .pf-crow { fill: var(--paper); }
+.photo-frame-crows::before { content: none; }
+[dir='rtl'] .photo-frame-crows .photo-frame-art { transform: scaleX(-1); }
+
+/* Вогонь */
+.photo-frame-fire { --pf-w: 4px; box-shadow: 0 0 12px 1px rgb(239 68 68 / 0.55), 0 0 4px rgb(249 115 22 / 0.8); }
+.photo-frame-fire::before { background: conic-gradient(#fbbf24, #f97316, #dc2626, #f97316, #fbbf24); }
+
+/* Неон */
+.photo-frame-neon { --pf-w: 3px; box-shadow: 0 0 10px 2px #22d3ee, inset 0 0 8px #22d3ee; }
+.photo-frame-neon::before { background: #a5f3fc; }
+
+/* Терни (svg) */
+.photo-frame-thorns .pf-line { stroke: #4f8f45; stroke-width: 2.4; }
+.photo-frame-thorns .pf-thorn { fill: #8bd17c; }
+.photo-frame-thorns::before { content: none; }
+
+/* Кривавий місяць (svg): місяць-серпик нагорі, червоний обідок */
+.photo-frame-eclipse { box-shadow: 0 0 14px rgb(179 16 26 / 0.55); }
+.photo-frame-eclipse .pf-line { stroke: #b3101a; stroke-width: 3; }
+.photo-frame-eclipse .pf-moon { fill: var(--accent-text); }
+.photo-frame-eclipse::before { content: none; }
+
+/* Блискавка (svg) */
+.photo-frame-storm { box-shadow: 0 0 10px rgb(122 167 255 / 0.5); }
+.photo-frame-storm .pf-line { stroke: #7aa7ff; stroke-width: 2.4; }
+.photo-frame-storm .pf-bolt { fill: #ffe66d; stroke: #fff7c2; stroke-width: 0.8; stroke-linejoin: round; }
+.photo-frame-storm::before { content: none; }
+[dir='rtl'] .photo-frame-storm .photo-frame-art { transform: scaleX(-1); }
+
+/* Сяйво, що обертається */
+.photo-frame-aura { --pf-w: 4px; box-shadow: 0 0 14px rgb(167 139 250 / 0.5); }
+.photo-frame-aura::before { background: conic-gradient(#f472b6, #a78bfa, #38bdf8, #34d399, #fbbf24, #f472b6); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .photo-frame-aura::before {
+    animation: photo-frame-aura-spin 8s linear infinite;
+  }
+  @keyframes photo-frame-aura-spin {
+    to { rotate: 360deg; }
+  }
+}
+
+.profile-id .photo-frame {
+  flex: none;
 }
 
 /* 22a: ім'я з власним dir (dir="auto" біля ніка) рівняється за сторінкою, а не за власним напрямком: латинський нік

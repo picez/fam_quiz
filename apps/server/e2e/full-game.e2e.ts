@@ -17663,7 +17663,7 @@ async function levels15a() {
   await olya.goto(`${base}/profile/looks`);
   const card = olya.locator('section.level-card');
   await card.getByRole('radiogroup', { name: 'Колір ніку', ...exact }).getByRole('radio', { name: 'Небо', ...exact }).check();
-  await card.getByRole('radiogroup', { name: 'Рамка', ...exact }).getByRole('radio', { name: 'Бронза', ...exact }).check();
+  await card.getByRole('radiogroup', { name: 'Рамка ніку', ...exact }).getByRole('radio', { name: 'Бронза', ...exact }).check();
   await card.getByRole('radiogroup', { name: 'Значок', ...exact }).getByRole('radio', { name: '⭐', ...exact }).check();
   const [saved] = await Promise.all([olya.waitForResponse((r) => r.url().endsWith('/api/me/looks') && r.request().method() === 'PUT'), click(olya, 'Зберегти вигляд')]);
   expect(saved.ok(), await saved.text()).toBe(true);
@@ -20674,4 +20674,183 @@ async function lobbyList24c() {
   for (const body of [...bodies, ...olyaFrames, ...guestFrames]) expect(body.includes(SECRET)).toBe(false);
   expect(olyaFrames.length).toBeGreaterThan(0);
   expect(guestFrames.length).toBeGreaterThan(0);
+}
+
+it('part 24d: profile looks — Оля at level 17 picks the «Вогонь» photo frame, the «Піксельний» font, «Отрута» and 🌻 on «Вигляд» with a live preview, a level-30 frame stays locked and the server refuses it, her profile header and public profile show the frame and font, the font reaches the host lobby and her phone with an ellipsis, a fresh page loads no nick font, and 375/320 px in uk and ar has no side scroll', async () => {
+  try {
+    await profileLooks24d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function profileLooks24d() {
+  const LONG = 'Олександра-Вікторія 24d з дуже довгим ніком';
+  const host = await open('host24d', 1280, 800);
+  const olya = await open('olya24d', 375, 812);
+  const petro = await open('petro24d', 375, 812);
+  await register(host, 'menu', 'Галина 24d', 'host24d@example.com');
+  await register(olya, 'menu', 'Оля 24d', 'olya24d@example.com');
+  await register(petro, 'menu', 'Петро 24d', 'petro24d@example.com');
+  const [olyaId, petroId] = [await myId(olya), await myId(petro)];
+  void petroId;
+  const pour = (userId: string, amount: number) => {
+    const at = new Date(Date.now() - 24 * 3600 * 1000);
+    return db.insert(xpEntry).values({ userId, source: 'game', gameId: randomUUID(), amount, counted: false, day: kyivDay(at), at, createdAt: at });
+  };
+  await pour(olyaId, xpForLevel(17));
+  const lookTile = (page: Page, text: string) => page.locator('[role="radiogroup"]:not([data-slot="frame"]) label.look-option', { hasText: text });
+
+  // ── 2. Свіжа сторінка не вантажить жодного шрифту ніку. ──
+  await petro.goto(base);
+  await petro.waitForLoadState('load');
+  const fontFiles = (await petro.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name))) as string[];
+  expect(fontFiles.filter((name) => /caveat|comfortaa|fira-code|oswald|amatic|pixelify|cormorant|dela-gothic/i.test(name)), 'fresh page font files').toEqual([]);
+
+  // ── 3. «Вигляд»: закрите лишається закритим, вибір із живим переглядом, збереження. ──
+  await olya.goto(`${base}/profile/looks`);
+  await olya.locator('section.level-card').waitFor();
+  const aura = lookTile(olya, 'Сяйво');
+  await aura.waitFor();
+  expect(await aura.locator('input').isDisabled()).toBe(true);
+  expect(await aura.textContent()).toContain('з рівня 30');
+  await lookTile(olya, 'Вогонь').click();
+  await lookTile(olya, 'Піксельний').click();
+  await lookTile(olya, 'Отрута').click();
+  await lookTile(olya, '🌻').click();
+  const preview = olya.getByTestId('look-preview');
+  await preview.locator('.photo-frame-fire').waitFor();
+  await preview.locator('.nick-font-pixel').waitFor();
+  expect(await preview.textContent()).toContain('🌻');
+  await shot(olya, 'p24d-looks-picked-375');
+  const [saved] = await Promise.all([olya.waitForResponse((r) => r.url().endsWith('/api/me/looks') && r.request().method() === 'PUT'), click(olya, 'Зберегти вигляд')]);
+  expect(saved.status()).toBe(200);
+  await olya.reload();
+  await olya.locator('section.level-card').waitFor();
+  expect(await lookTile(olya, 'Вогонь').locator('input').isChecked()).toBe(true);
+  expect(await lookTile(olya, 'Піксельний').locator('input').isChecked()).toBe(true);
+  expect(await lookTile(olya, 'Отрута').locator('input').isChecked()).toBe(true);
+  expect(await lookTile(olya, '🌻').locator('input').isChecked()).toBe(true);
+
+  // ── 4. Сервер не пускає закритого. ──
+  const refused = await olya.request.put(`${base}/api/me/looks`, { data: { color: 'venom', frame: null, badge: '🌻', photo: 'aura', font: 'pixel' } });
+  expect(refused.status()).toBe(409);
+
+  // ── 5. Шапка власного й публічного профілю. ──
+  await olya.goto(`${base}/profile`);
+  await olya.locator('.profile-head .photo-frame-fire').waitFor();
+  const title = olya.locator('.profile-head h1 .nick-font-pixel').first();
+  await title.waitFor();
+  expect(await title.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Pixelify Sans');
+  await expect.poll(() => olya.evaluate(() => document.fonts.check('16px "Pixelify Sans Variable"')), POLL).toBe(true);
+  await shot(olya, 'p24d-header-own-375');
+  await petro.goto(`${base}/profile/${olyaId}`);
+  await petro.locator('.profile-head .photo-frame-fire').waitFor();
+  const publicTitle = petro.locator('.profile-head h1 .nick-font-pixel').first();
+  await publicTitle.waitFor();
+  expect(await publicTitle.evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Pixelify Sans');
+  await expect.poll(() => petro.evaluate(() => document.fonts.check('16px "Pixelify Sans Variable"')), POLL).toBe(true);
+  await shot(petro, 'p24d-header-public-375');
+
+  // ── 6. Шрифт у грі: пульт ведучої й телефон Олі, довгий нік обрізано «…». ──
+  const quiz24d = await host.request.post(`${base}/api/quizzes`, { data: { ...makeQuiz([single], { speedBonus: false }), title: 'Вікторина 24d' } });
+  expect(quiz24d.ok(), await quiz24d.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  await olya.setViewportSize({ width: 320, height: 640 });
+  await join(olya, code, LONG, false);
+  for (const [who, page] of [['host', host], ['olya', olya]] as const) {
+    const nameEl = page.locator('.nick-name.nick-font-pixel', { hasText: 'Олександра' }).first();
+    await nameEl.waitFor();
+    // Нік у грі обмежений 18 знаками, тож на цих екранах він ще вміщається; перевіряємо правило обрізання і що рядок не виходить із батька.
+    const style = await nameEl.evaluate((el) => ({ overflow: getComputedStyle(el).textOverflow, white: getComputedStyle(el).whiteSpace, fits: el.scrollWidth <= (el.parentElement?.clientWidth ?? 0) }));
+    expect(style, `${who}: nick-name rule`).toEqual({ overflow: 'ellipsis', white: 'nowrap', fits: true });
+  }
+  expect(await noSideScroll(olya), 'olya phone 320: horizontal scroll').toBe(true);
+  expect(await noSideScroll(host), 'host 1280: horizontal scroll').toBe(true);
+  await shot(host, 'p24d-lobby-host-1280');
+  await shot(olya, 'p24d-lobby-olya-320');
+
+  // ── 7. uk й ar, 375 і 320: «Вигляд» і шапка без бокового скролу. ──
+  for (const lang of ['uk', 'ar'] as const) {
+    expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: lang } })).status()).toBe(200);
+    for (const width of [375, 320]) {
+      await olya.setViewportSize({ width, height: 812 });
+      await olya.goto(`${base}/profile/looks`);
+      await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
+      await olya.locator('section.level-card').waitFor();
+      if (lang === 'ar') expect(await olya.evaluate('document.documentElement.dir')).toBe('rtl');
+      await expectNoSideScroll(olya, `p24d-looks-${lang}-${width}`);
+      await olya.goto(`${base}/profile`);
+      await olya.locator('.profile-head').waitFor();
+      await expectNoSideScroll(olya, `p24d-header-${lang}-${width}`);
+    }
+  }
+  expect((await olya.request.put(`${base}/api/me/locale`, { data: { locale: 'uk' } })).status()).toBe(200);
+
+  // ── 7б. Довгий нік без пробілів (18 знаків) найширшим шрифтом у шапці на 320 px переноситься, а не обрізається. ──
+  const longNick = await open('long24d', 320, 700);
+  await register(longNick, 'menu', 'ОлександраВікторія', 'long24d@example.com');
+  await pour(await myId(longNick), xpForLevel(30));
+  expect((await longNick.request.put(`${base}/api/me/looks`, { data: { color: 'venom', frame: null, badge: '🌻', photo: 'eclipse', font: 'heavy' } })).status()).toBe(200);
+  await longNick.goto(`${base}/profile`);
+  const longName = longNick.locator('.profile-head h1 .nick-name.nick-font-heavy');
+  await longName.waitFor();
+  await longNick.evaluate('document.fonts.ready');
+  const fit = await longName.evaluate((el) => {
+    const h1 = el.closest('h1')!;
+    const hero = el.closest('.motif-hero') ?? h1.parentElement!;
+    const [name, box] = [el.getBoundingClientRect(), hero.getBoundingClientRect()];
+    return { h1: h1.scrollWidth <= h1.clientWidth, inHero: name.left >= box.left - 0.5 && name.right <= box.right + 0.5 };
+  });
+  expect(fit.h1, 'long nick: h1 scrolls sideways').toBe(true);
+  expect(fit.inHero, 'long nick: clipped by the hero').toBe(true);
+  await expectNoSideScroll(longNick, 'p24d-header-long-320');
+  // Сторінка «Вигляд» на 320 px не розтягується стіною тексту: вибір угорі, «Відкрито» згорнуте.
+  await longNick.goto(`${base}/profile/looks`);
+  await longNick.locator('section.level-card').waitFor();
+  expect(await longNick.locator('details.level-unlocked').evaluate((el) => el.hasAttribute('open'))).toBe(false);
+  const photoTops = await longNick.getByRole('radiogroup', { name: 'Рамка фото', exact: true }).evaluate((group) => [...group.querySelectorAll('label.look-option')].slice(0, 3).map((tile) => (tile as unknown as { offsetTop: number }).offsetTop));
+  expect(photoTops[0], 'photo tiles: two per row at 320 px').toBe(photoTops[1]);
+  expect(photoTops[2]!, 'photo tiles: the third starts a new row').toBeGreaterThan(photoTops[0]!);
+  for (const name of ['Шрифт ніку', 'Колір ніку']) {
+    const tops = await longNick.getByRole('radiogroup', { name, exact: true }).evaluate((group) => [...group.querySelectorAll('label.look-option')].slice(0, 2).map((tile) => (tile as unknown as { offsetTop: number }).offsetTop));
+    expect(tops[0], `${name}: two per row at 320 px`).toBe(tops[1]);
+  }
+  await expectNoSideScroll(longNick, 'p24d-looks-long-320');
+
+  // ── 8. Рівень 30: Оля вмикає «Сяйво», рух живий; з reduce — обертання вимкнене. ──
+  await pour(olyaId, xpForLevel(30) - xpForLevel(17));
+  await olya.setViewportSize({ width: 375, height: 812 });
+  await olya.goto(`${base}/profile/looks`);
+  await olya.locator('section.level-card').waitFor();
+  expect(await lookTile(olya, 'Сяйво').locator('input').isDisabled()).toBe(false);
+  await lookTile(olya, 'Сяйво').click();
+  await Promise.all([olya.waitForResponse((r) => r.url().endsWith('/api/me/looks') && r.request().method() === 'PUT'), click(olya, 'Зберегти вигляд')]);
+  await olya.goto(`${base}/profile`);
+  const auraOf = (page: Page) => page.locator('.profile-head .photo-frame-aura');
+  await auraOf(olya).waitFor();
+  expect(await auraOf(olya).evaluate((el) => getComputedStyle(el, '::before').animationName)).not.toBe('none');
+
+  const calm = await open('calm24d', 375, 812, { reducedMotion: 'reduce' });
+  await register(calm, 'menu', 'Ігор 24d', 'igor24d@example.com');
+  await pour(await myId(calm), xpForLevel(30));
+  await calm.goto(`${base}/profile/looks`);
+  await calm.locator('section.level-card').waitFor();
+  // Усі 12 рамок фото й 8 шрифтів поруч у сітках — 375 і 1280 px.
+  expect(await calm.getByRole('radiogroup', { name: 'Рамка фото', exact: true }).locator('label.look-option').count()).toBe(13);
+  expect(await calm.getByRole('radiogroup', { name: 'Шрифт ніку', exact: true }).locator('label.look-option').count()).toBe(9);
+  expect(await calm.locator('label.look-option.is-locked').count()).toBe(0);
+  await shot(calm, 'p24d-all-frames-fonts-375');
+  await calm.setViewportSize({ width: 1280, height: 900 });
+  await shot(calm, 'p24d-all-frames-fonts-1280');
+  await calm.setViewportSize({ width: 375, height: 812 });
+  await lookTile(calm, 'Сяйво').click();
+  await click(calm, 'Зберегти вигляд');
+  await calm.goto(`${base}/profile`);
+  await auraOf(calm).waitFor();
+  expect(await auraOf(calm).evaluate((el) => getComputedStyle(el, '::before').animationName)).toBe('none');
 }

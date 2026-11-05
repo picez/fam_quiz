@@ -12,7 +12,7 @@ const NOW = Date.parse('2026-11-04T12:00:00Z');
 const row = (over: Partial<LobbyRow> = {}): LobbyRow => ({
   code: '123456',
   title: 'Вечір кіно',
-  host: { id: 'h1', nickname: 'Ведуча', avatar: null, level: { level: 3, color: null, frame: null } },
+  host: { id: 'h1', nickname: 'Ведуча', avatar: null, level: { level: 3, color: null, frame: null, font: null } },
   players: 2,
   maxPlayers: 50,
   rounds: 1,

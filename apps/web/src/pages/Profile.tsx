@@ -49,7 +49,7 @@ export function Profile() {
         <ProfileHeader
           profile={profile}
           level={profile.level.progress.level}
-          badge={profile.level.looks.badge}
+          looks={profile.level.looks}
           title={profile.showcase.title?.text ?? null}
           stats={profile.stats}
           progress={profile.level.progress}

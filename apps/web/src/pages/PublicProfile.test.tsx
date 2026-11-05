@@ -17,7 +17,7 @@ const profile = (over: Partial<PublicProfileData> = {}): PublicProfileData => ({
   achievements: [{ id: 'first_game', earned: true, earnedAt: null }],
   following: false,
   showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
-  level: { level: 1, looks: { color: null, frame: null, badge: null } },
+  level: { level: 1, looks: { color: null, frame: null, badge: null, photo: null, font: null } },
   likes: { author: 0, host: 0, player: 0 },
   ...over,
 });
@@ -151,7 +151,7 @@ describe('PublicProfile', () => {
   });
 
   it('shows the level and the badge of another player, without the bar', async () => {
-    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ level: { level: 5, looks: { color: null, frame: null, badge: '⭐' } } }) });
+    vi.mocked(getProfile).mockResolvedValue({ ok: true, data: profile({ level: { level: 5, looks: { color: null, frame: null, badge: '⭐', photo: null, font: null } } }) });
     const { container } = open();
     expect(await screen.findByText('Рів. 5')).toBeTruthy();
     expect(container.querySelector('.profile-head .profile-badge')?.textContent).toBe('⭐');

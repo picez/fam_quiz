@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from './achievements';
 import {
-  COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, LEVEL_REWARDS, NICK_COLORS, NICK_FRAMES, PROFILE_BADGES,
-  achievementRarity, levelOf, levelProgress, looksAllowed, looksSchema, looksShown, perkSchema, perksFor,
+  COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LOOK_IDS, NICK_COLORS, NICK_FONTS, PHOTO_FRAMES, PROFILE_BADGES,
+  achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards, perkSchema, perksFor,
   stickerOpen, stickerSeriesOpen, xpForLevel,
 } from './levels';
 import { STICKERS, STICKER_SERIES } from './stickers';
@@ -27,24 +27,66 @@ describe('level curve', () => {
 });
 
 describe('rewards', () => {
-  it('has one reward per level 1..30', () => {
-    expect(LEVEL_REWARDS.map((r) => r.level)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
-    const at = (n: number) => LEVEL_REWARDS[n - 1].reward;
-    expect(at(5)).toEqual({ kind: 'perk', perk: 'time' });
-    expect(at(10)).toEqual({ kind: 'perk', perk: 'hint' });
-    expect(at(15)).toEqual({ kind: 'perk', perk: 'ward' });
-    expect(at(20).kind).toBe('perk_boost');
+  it('keeps the 30 old rewards on their levels', () => {
+    const OLD: [number, object][] = [
+      [1, { kind: 'stickers', series: 'nya' }], [2, { kind: 'color', id: 'sky' }], [3, { kind: 'stickers', series: 'nyaa' }],
+      [4, { kind: 'badge', id: '⭐' }], [5, { kind: 'perk', perk: 'time' }], [6, { kind: 'stickers', series: 'nyas' }],
+      [7, { kind: 'color', id: 'mint' }], [8, { kind: 'frame', id: 'bronze' }], [9, { kind: 'stickers', series: 'other' }],
+      [10, { kind: 'perk', perk: 'hint' }], [11, { kind: 'color', id: 'sun' }], [12, { kind: 'frame', id: 'silver' }],
+      [13, { kind: 'badge', id: '🎯' }], [14, { kind: 'color', id: 'coral' }], [15, { kind: 'perk', perk: 'ward' }],
+      [16, { kind: 'frame', id: 'gold' }], [17, { kind: 'badge', id: '🧠' }], [18, { kind: 'color', id: 'violet' }],
+      [19, { kind: 'badge', id: '⚡' }], [20, { kind: 'perk_boost', perk: 'time' }], [21, { kind: 'frame', id: 'neon' }],
+      [22, { kind: 'color', id: 'gold' }], [23, { kind: 'badge', id: '🦉' }], [24, { kind: 'badge', id: '🚀' }],
+      [25, { kind: 'frame', id: 'fire' }], [26, { kind: 'color', id: 'rainbow' }], [27, { kind: 'badge', id: '🏅' }],
+      [28, { kind: 'badge', id: '💎' }], [29, { kind: 'badge', id: '🔱' }], [30, { kind: 'frame', id: 'rainbow' }],
+    ];
+    const got = LEVEL_REWARDS.filter((r) => OLD.some(([l, o]) => l === r.level && JSON.stringify(o) === JSON.stringify(r.reward))).map((r) => [r.level, r.reward]);
+    expect(got).toEqual(OLD);
   });
-  it('gives every colour, frame and badge exactly once', () => {
-    const count = (kind: string, id: string) => LEVEL_REWARDS.filter((r) => r.reward.kind === kind && (r.reward as { id?: string }).id === id).length;
-    for (const c of NICK_COLORS) expect(count('color', c)).toBe(1);
-    for (const f of NICK_FRAMES) expect(count('frame', f)).toBe(1);
-    for (const b of PROFILE_BADGES) expect(count('badge', b)).toBe(1);
+  it('every look id is free or rewarded exactly once', () => {
+    for (const slot of Object.keys(LOOK_IDS) as (keyof typeof LOOK_IDS)[]) {
+      for (const id of LOOK_IDS[slot]) {
+        const free = FREE_LOOKS[slot].includes(id) ? 1 : 0;
+        const rewarded = LEVEL_REWARDS.filter((r) => r.reward.kind === slot && (r.reward as { id?: string }).id === id).length;
+        expect(free + rewarded, `${slot} ${id}`).toBe(1);
+      }
+    }
+  });
+  it('levels are sorted, within 1..30 and each has a reward', () => {
+    const levels = LEVEL_REWARDS.map((r) => r.level);
+    expect(levels).toEqual([...levels].sort((x, y) => x - y));
+    expect(Math.min(...levels)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...levels)).toBeLessThanOrEqual(30);
+    for (let n = 1; n <= 30; n++) expect(levels).toContain(n);
+  });
+  it('counts', () => {
+    expect(PHOTO_FRAMES).toHaveLength(12);
+    expect(NICK_FONTS).toHaveLength(8);
+    expect(NICK_COLORS).toHaveLength(13);
+    expect(PROFILE_BADGES).toHaveLength(36);
+    for (const list of [PHOTO_FRAMES, NICK_FONTS, NICK_COLORS, PROFILE_BADGES]) expect(new Set(list).size).toBe(list.length);
+    expect(PROFILE_BADGES.some((b) => /\p{Regional_Indicator}|🏳|🏴/u.test(b))).toBe(false);
+  });
+  it('lookLevel', () => {
+    expect(lookLevel('photo', 'aura')).toBe(30);
+    expect(lookLevel('font', 'pixel')).toBe(16);
+    expect(lookLevel('color', 'venom')).toBe(14);
+    expect(lookLevel('badge', '👑')).toBe(25);
+    expect(lookLevel('photo', 'crimson')).toBe(1);
+    expect(lookLevel('badge', '🌻')).toBe(1);
+    expect(lookLevel('color', 'sky')).toBe(2);
+    expect(lookLevel('font', 'comic')).toBe(Infinity);
+  });
+  it('nextRewards', () => {
+    expect(nextRewards(15).map((r) => r.level)).toEqual([16, 16, 17, 17, 18, 18]);
+    expect(nextRewards(30)).toEqual([]);
   });
   it('perksFor', () => {
     expect(perksFor(4)).toEqual({ kinds: [], timeMs: 5000 });
     expect(perksFor(10)).toEqual({ kinds: ['time', 'hint'], timeMs: 5000 });
     expect(perksFor(20)).toEqual({ kinds: ['time', 'hint', 'ward'], timeMs: 10000 });
+    expect(perksFor(20).timeMs).toBe(10_000);
+    expect(perksFor(5).kinds).toEqual(['time']);
   });
 });
 
@@ -62,15 +104,22 @@ describe('stickers', () => {
 });
 
 describe('looks', () => {
+  const none = { color: null, frame: null, badge: null, photo: null, font: null };
   it('schema', () => {
     expect(looksSchema.safeParse({ color: 'sky', frame: null, badge: '⭐' }).success).toBe(true);
+    expect(looksSchema.safeParse({ color: 'sky', frame: null, badge: '⭐', photo: 'fire', font: null }).success).toBe(true);
+    expect(looksSchema.safeParse({ ...none, photo: 'tomoe' }).success).toBe(false);
     expect(looksSchema.safeParse({ color: 'pink', frame: null, badge: null }).success).toBe(false);
     expect(looksSchema.safeParse({ color: null, frame: null, badge: null, extra: 1 }).success).toBe(false);
   });
   it('allowed and shown', () => {
-    expect(looksAllowed({ color: 'sky', frame: null, badge: null }, 1)).toBe(false);
-    expect(looksAllowed({ color: 'sky', frame: null, badge: null }, 2)).toBe(true);
-    expect(looksShown({ color: 'rainbow', frame: 'bronze', badge: '⭐' }, 10)).toEqual({ color: null, frame: 'bronze', badge: '⭐' });
+    expect(looksAllowed({ ...none, color: 'sky' }, 1)).toBe(false);
+    expect(looksAllowed({ ...none, color: 'sky' }, 2)).toBe(true);
+    expect(looksAllowed({ ...none, photo: 'fire' }, 16)).toBe(false);
+    expect(looksAllowed({ ...none, photo: 'fire' }, 17)).toBe(true);
+    expect(looksAllowed({ ...none, font: 'hand' }, 1)).toBe(true);
+    expect(looksShown({ color: 'rainbow', frame: 'bronze', badge: '⭐', photo: 'aura', font: 'hand' }, 10))
+      .toEqual({ color: null, frame: 'bronze', badge: '⭐', photo: null, font: 'hand' });
   });
 });
 

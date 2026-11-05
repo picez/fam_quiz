@@ -247,7 +247,7 @@ describe('GET /api/lobbies (24c)', () => {
     expect(row).toEqual({
       code,
       title: 'Тестова вікторина',
-      host: { id: w.galyna.id, nickname: 'Галина', avatar: null, level: expect.objectContaining({ level: 1 }) },
+      host: { id: w.galyna.id, nickname: 'Галина', avatar: null, level: expect.objectContaining({ level: 1, font: null }) },
       players: 1,
       maxPlayers: 50,
       rounds: 1,

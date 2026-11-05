@@ -9,8 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/caveat": "^5.3.0",
+    "@fontsource-variable/comfortaa": "^5.3.0",
+    "@fontsource-variable/cormorant": "^5.3.0",
+    "@fontsource-variable/fira-code": "^5.3.0",
     "@fontsource-variable/onest": "^5.3.1",
+    "@fontsource-variable/oswald": "^5.3.0",
+    "@fontsource-variable/pixelify-sans": "^5.3.0",
     "@fontsource-variable/unbounded": "^5.3.0",
+    "@fontsource/amatic-sc": "^5.3.0",
+    "@fontsource/dela-gothic-one": "^5.3.0",
     "@google/model-viewer": "^4.4.0",
     "@quiz/shared": "workspace:*",
     "qrcode.react": "^4.2.0",
