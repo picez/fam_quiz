@@ -10,6 +10,7 @@ interface Entry {
 const list = readdirSync as (dir: string, options: { withFileTypes: true }) => Entry[];
 const read = (file: string) => readFileSync(file, 'utf8') as string;
 const src = ['apps/web/src', 'src'].find((path) => existsSync(path) as boolean)!;
+const web = src.slice(0, -'/src'.length) || '.';
 
 function sources(dir: string): string[] {
   return list(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -19,18 +20,53 @@ function sources(dir: string): string[] {
   });
 }
 
-describe('model-viewer stays lazy', () => {
-  it('is named only in trophy/loadViewer.ts and only as a dynamic import', () => {
+const relative = (file: string) => file.slice(src.length + 1);
+const isTest = (file: string) => /\.test\.tsx?$/.test(file);
+/** Модуль three чи його addons у рядку імпорту (статичному чи динамічному). */
+const THREE = /(?:from\s*|import\s*\(?\s*)'three(?:\/[^']*)?'/;
+/** Усі статичні імпорти файлу: шляхи після from чи голого import. */
+const staticImports = (code: string) => [...code.matchAll(/^\s*import\s[^;]*?from\s*'([^']+)'|^\s*import\s*'([^']+)'/gm)].map((m) => (m[1] ?? m[2])!);
+const MODEL_VIEWER = ['@google', 'model-viewer'].join('/');
+
+describe('three stays lazy', () => {
+  it('three is named only in trophy/engine/', () => {
     const users = sources(src)
-      .filter((file) => !file.endsWith('trophy/lazy.test.ts'))
-      .filter((file) => read(file).includes('@google/model-viewer'))
-      .map((file) => file.slice(src.length + 1));
-    expect(users).toEqual(['trophy/loadViewer.ts']);
-    const code = read(`${src}/trophy/loadViewer.ts`);
-    const mentions = code.match(/.*@google\/model-viewer.*/g) ?? [];
-    expect(mentions.length).toBeGreaterThan(0);
-    for (const line of mentions) expect(line).toMatch(/import\(\s*'@google\/model-viewer'\s*\)/);
-    expect(code).not.toMatch(/import\s[^(]*from\s*'@google\/model-viewer'/);
-    expect(code).not.toMatch(/^\s*import\s*'@google\/model-viewer'/m);
+      .filter((file) => THREE.test(read(file)))
+      .map(relative)
+      .filter((file) => !file.startsWith('trophy/engine/'));
+    expect(users).toEqual([]);
+  });
+
+  it('trophy/engine/ is statically imported only by trophy/engine/ and tests', () => {
+    const outside = sources(src)
+      .filter((file) => !relative(file).startsWith('trophy/engine/') && !isTest(file))
+      .filter((file) => staticImports(read(file)).some((path) => /(^|\/)engine\//.test(path)))
+      .map(relative);
+    expect(outside).toEqual([]);
+  });
+
+  it('loadEngine.ts reaches the engine only by import()', () => {
+    const code = read(`${src}/trophy/loadEngine.ts`);
+    expect(code).toMatch(/import\(\s*'\.\/engine\/trophy-engine'\s*\)/);
+    const mentions = code.match(/.*'\.\/engine\/.*/g) ?? [];
+    for (const line of mentions) expect(line).toMatch(/import\(\s*'\.\/engine\/trophy-engine'\s*\)/);
+    expect(code).not.toMatch(/^\s*import\s[^(]*from\s*'\.\/engine\//m);
+  });
+
+  it('model-viewer is gone from the code and the package', () => {
+    const users = sources(src)
+      .filter((file) => read(file).includes(MODEL_VIEWER))
+      .map(relative);
+    expect(users).toEqual([]);
+    const pkg = JSON.parse(read(`${web}/package.json`)) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    expect(Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })).not.toContain(MODEL_VIEWER);
+    expect(pkg.dependencies).toHaveProperty('three');
+    expect(existsSync(`${src}/trophy/loadViewer.ts`)).toBe(false);
+  });
+});
+
+describe('pure decor modules do not import three', () => {
+  it.each(['anchors.ts', 'decor-layout.ts', 'decor-canvas.ts', 'engine-types.ts', 'loadEngine.ts'])('%s', (name) => {
+    expect(read(`${src}/trophy/${name}`)).not.toMatch(THREE);
   });
 });

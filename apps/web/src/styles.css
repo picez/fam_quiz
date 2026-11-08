@@ -13712,7 +13712,7 @@ button.wall-tile:disabled {
   background: transparent;
 }
 
-/* Трофей (14a): квадрат під модель; поки model-viewer не готовий чи без WebGL — значок у кольорі матеріалу. */
+/* Трофей (14a): квадрат під модель; поки рушій не намалював кадр чи без WebGL — значок у кольорі матеріалу. */
 .trophy {
   display: grid;
   place-items: center;
@@ -13741,20 +13741,30 @@ button.wall-tile:disabled {
   font-size: 8rem;
 }
 
-.trophy-model {
-  width: 100%;
-  height: 100%;
-  --poster-color: transparent;
-  background: transparent;
-}
-
-/* Значок і модель в одній клітинці: поки модель вантажиться (чи після помилки), вона прозора, а значок видно. */
+/* Значок і полотно в одній клітинці: поки модель вантажиться (чи після збою), полотно прозоре, а значок видно. */
 .trophy > * {
   grid-area: 1 / 1;
 }
 
-.trophy-model.is-loading {
+.trophy.is-loading .trophy-canvas {
   opacity: 0;
+}
+
+/* Полотно рушія трофеїв (25a): кадр спільного рендерера; інтерактивне тягнеться вбік, а сторінка гортається вертикально. */
+.trophy-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trophy-canvas[tabindex] {
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.trophy-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .trophy-fallback {

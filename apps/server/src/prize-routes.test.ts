@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import type { PrizeContent, PrizeItem, PrizePlacesInfo } from '@quiz/shared';
+import type { PrizeContent, PrizeItem, PrizePlacesInfo, TrophyDecor } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { game, user } from './db/schema';
@@ -98,6 +98,54 @@ describe('the store of prizes (14a)', () => {
     const renamed = await call('PUT', `/api/me/prizes/${seeded.prize.id}`, cookie, { ...grail, name: 'Наш Ґрааль' });
     expect(renamed.statusCode).toBe(200);
     expect((renamed.json() as PrizeItem).content.trophy).toEqual({ kind: 'grail', material: 'gold' });
+  });
+});
+
+describe('trophy decor over HTTP (25a)', () => {
+  const photo = (n: number) => ({ url: `/uploads/${n.toString(16).padStart(32, '0')}.jpg`, crop: { x: 0.5, y: 0.5, scale: 1 } });
+  const decor: TrophyDecor = {
+    photos: [photo(1), photo(2)],
+    photoPlace: 'ring',
+    frame: 'none',
+    photoStyle: 'normal',
+    inscriptions: [{ place: 'rim', text: 'Для найкращих', font: null, look: 'engraved', color: '#3a2a0e' }],
+    effect: { kind: 'none' },
+    appearance: 'spin',
+    stickers: [],
+  };
+
+  it('stores a valid decor and returns it from POST and GET', async () => {
+    const { cookie } = await signUp(ctx.app, 'Оформлення');
+    const response = await call('POST', '/api/me/prizes', cookie, content('Кубок', { trophy: { kind: 'cup', material: 'gold', decor } }));
+    expect(response.statusCode).toBe(201);
+    expect((response.json() as PrizeItem).content.trophy?.decor).toEqual(decor);
+    const listed = (await call('GET', '/api/me/prizes', cookie)).json() as PrizeItem[];
+    expect(listed[0]!.content.trophy?.decor).toEqual(decor);
+  });
+
+  it('refuses 17 photos on the ring', async () => {
+    const { cookie } = await signUp(ctx.app, 'Багато');
+    const many = { ...decor, photos: Array.from({ length: 17 }, (_, i) => photo(i + 1)) };
+    const response = await call('POST', '/api/me/prizes', cookie, content('Кубок', { trophy: { kind: 'cup', material: 'gold', decor: many } }));
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'invalid_payload' });
+  });
+
+  it('still refuses a new grail, even with decor', async () => {
+    const { cookie } = await signUp(ctx.app, 'Грааль з оформленням');
+    const response = await call('POST', '/api/me/prizes', cookie, content('Грааль', { trophy: { kind: 'grail', material: 'gold', decor } }));
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: 'trophy_unavailable' });
+  });
+
+  it('keeps the decor of a seeded grail when an old client renames it', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Ясин грааль');
+    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
+    const seeded = await createPrize(db, owner!.id, content('Грааль', { trophy: { kind: 'grail', material: 'gold', decor } }));
+    if (!seeded.ok) throw new Error('seed failed');
+    const renamed = await call('PUT', `/api/me/prizes/${seeded.prize.id}`, cookie, content('Наш Ґрааль', { trophy: { kind: 'grail', material: 'gold' } }));
+    expect(renamed.statusCode).toBe(200);
+    expect((renamed.json() as PrizeItem).content.trophy).toEqual({ kind: 'grail', material: 'gold', decor });
   });
 });
 

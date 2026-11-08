@@ -1,19 +1,37 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadViewer, webglAvailable } from './loadViewer';
+import type { TrophyEngine, TrophyMount } from './engine-types';
+import type { TrophyLook } from './trophy-meta';
+import { loadTrophyEngine, webglAvailable } from './loadEngine';
 import { TrophyView } from './TrophyView';
 
-vi.mock('./loadViewer', () => ({ loadViewer: vi.fn(), webglAvailable: vi.fn() }));
+vi.mock('./loadEngine', () => ({ loadTrophyEngine: vi.fn(), webglAvailable: vi.fn() }));
 
-const load = vi.mocked(loadViewer);
+const load = vi.mocked(loadTrophyEngine);
 const webgl = vi.mocked(webglAvailable);
 
+interface Mounted {
+  host: HTMLElement;
+  options: TrophyMount;
+  events: { onReady(): void; onError(): void };
+  dispose: ReturnType<typeof vi.fn>;
+}
+let mounts: Mounted[] = [];
+const fakeEngine: TrophyEngine = {
+  mount(host, options, events) {
+    const dispose = vi.fn();
+    mounts.push({ host, options, events, dispose });
+    return { dispose };
+  },
+};
+
 beforeEach(() => {
+  mounts = [];
   load.mockReset();
   webgl.mockReset();
   webgl.mockReturnValue(true);
-  load.mockResolvedValue(true);
+  load.mockResolvedValue(fakeEngine);
 });
 afterEach(() => {
   cleanup();
@@ -24,7 +42,7 @@ const gold = { kind: 'cup', material: 'gold' } as const;
 const flush = () => act(async () => {});
 
 describe('TrophyView', () => {
-  it('without WebGL shows the emoji in the material colour and never loads the viewer', async () => {
+  it('without WebGL shows the emoji in the material colour and never loads the engine', async () => {
     webgl.mockReturnValue(false);
     render(<TrophyView trophy={gold} size="card" spin interactive={false} />);
     await flush();
@@ -33,73 +51,89 @@ describe('TrophyView', () => {
     expect(icon.getAttribute('aria-label')).toBe('Золотий кубок');
     expect(icon.style.color).not.toBe('');
     expect(load).not.toHaveBeenCalled();
-    expect(document.querySelector('model-viewer')).toBeNull();
+    expect(mounts).toEqual([]);
   });
 
-  it('keeps the emoji when the viewer module fails to load', async () => {
-    load.mockResolvedValue(false);
+  it('keeps the emoji when the engine chunk fails to load', async () => {
+    load.mockResolvedValue(null);
     render(<TrophyView trophy={gold} size="card" spin interactive={false} />);
     await flush();
     expect(load).toHaveBeenCalledTimes(1);
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
-    expect(document.querySelector('model-viewer')).toBeNull();
+    expect(mounts).toEqual([]);
   });
 
-  it('puts a model-viewer of the kind once the module is ready', async () => {
-    render(<TrophyView trophy={{ kind: 'medal', material: 'silver' }} size="stage" spin interactive />);
+  it('mounts with the full look', async () => {
+    const trophy: TrophyLook = {
+      kind: 'medal',
+      material: 'silver',
+      decor: {
+        photos: [],
+        photoPlace: 'medallion',
+        frame: 'none',
+        photoStyle: 'normal',
+        inscriptions: [{ place: 'back', text: 'Для Оді', font: null, look: 'engraved', color: '#3a2a0e' }],
+        effect: { kind: 'none' },
+        appearance: 'spin',
+        stickers: [],
+      },
+    };
+    const { container } = render(<TrophyView trophy={trophy} size="stage" spin interactive />);
     await flush();
-    const viewer = document.querySelector('model-viewer')!;
-    expect(viewer.getAttribute('src')).toBe('/models/medal.glb');
-    expect(viewer.getAttribute('alt')).toBe('Срібна медаль');
-    expect(viewer.hasAttribute('auto-rotate')).toBe(true);
-    expect(viewer.hasAttribute('camera-controls')).toBe(true);
-    expect(viewer.hasAttribute('disable-zoom')).toBe(true);
+    expect(mounts).toHaveLength(1);
+    const [mounted] = mounts;
+    expect(mounted!.host).toBe(container.querySelector('.trophy'));
+    expect(mounted!.options).toEqual({ look: trophy, size: 'stage', spin: true, interactive: true, label: 'Срібна медаль' });
   });
 
-  it('keeps the emoji until the model loads and brings it back on an error', async () => {
+  it('keeps the emoji until ready and brings it back on error', async () => {
     render(<TrophyView trophy={gold} size="stage" spin interactive={false} />);
     await flush();
-    const viewer = document.querySelector('model-viewer')!;
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
-    expect(viewer.classList.contains('is-loading')).toBe(true);
-    await act(async () => {
-      viewer.dispatchEvent(new Event('load'));
-    });
+    expect(document.querySelector('.trophy.is-loading')).not.toBeNull();
+    await act(async () => mounts[0]!.events.onReady());
     expect(document.querySelector('.trophy-fallback')).toBeNull();
-    expect(viewer.classList.contains('is-loading')).toBe(false);
-    await act(async () => {
-      viewer.dispatchEvent(new Event('error'));
-    });
+    expect(document.querySelector('.trophy.is-loading')).toBeNull();
+    await act(async () => mounts[0]!.events.onError());
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
-    expect(viewer.classList.contains('is-loading')).toBe(true);
+    expect(document.querySelector('.trophy.is-loading')).not.toBeNull();
   });
 
-  it('does not spin under reduced motion and has no camera controls when not interactive', async () => {
+  it('reduced motion turns the spin off', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)', media: query }));
     render(<TrophyView trophy={gold} size="phone" spin interactive={false} />);
     await flush();
-    const viewer = document.querySelector('model-viewer')!;
-    expect(viewer.hasAttribute('auto-rotate')).toBe(false);
-    expect(viewer.hasAttribute('camera-controls')).toBe(false);
+    expect(mounts[0]!.options.spin).toBe(false);
+    expect(mounts[0]!.options.interactive).toBe(false);
   });
 
-  it('paints every material of the model on load', async () => {
-    render(<TrophyView trophy={{ kind: 'star', material: 'bronze' }} size="card" spin={false} interactive={false} />);
+  it('remounts on change, disposes on unmount', async () => {
+    const { rerender, unmount } = render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
     await flush();
-    const viewer = document.querySelector('model-viewer')! as HTMLElement & { model?: unknown };
-    const material = () => ({
-      pbrMetallicRoughness: { setBaseColorFactor: vi.fn(), setMetallicFactor: vi.fn(), setRoughnessFactor: vi.fn() },
-    });
-    const materials = [material(), material()];
-    viewer.model = { materials };
-    await act(async () => {
-      viewer.dispatchEvent(new Event('load'));
-    });
-    for (const { pbrMetallicRoughness: pbr } of materials) {
-      expect(pbr.setBaseColorFactor).toHaveBeenCalledWith('#B0703A');
-      expect(pbr.setMetallicFactor).toHaveBeenCalledWith(1);
-      expect(pbr.setRoughnessFactor).toHaveBeenCalledWith(0.35);
-    }
-    expect(viewer.hasAttribute('auto-rotate')).toBe(false);
+    expect(mounts).toHaveLength(1);
+    await act(async () => mounts[0]!.events.onReady());
+    rerender(<TrophyView trophy={{ kind: 'cup', material: 'bronze' }} size="card" spin={false} interactive={false} />);
+    await flush();
+    expect(mounts[0]!.dispose).toHaveBeenCalledTimes(1);
+    expect(mounts).toHaveLength(2);
+    expect(mounts[1]!.options.look).toEqual({ kind: 'cup', material: 'bronze' });
+    expect(mounts[1]!.options.label).toBe('Бронзовий кубок');
+    // Новий кубок ще не намалювався: до його onReady знову значок.
+    expect(document.querySelector('.trophy-fallback')).not.toBeNull();
+    // Той самий вигляд новим об'єктом — без перемонтування.
+    rerender(<TrophyView trophy={{ kind: 'cup', material: 'bronze' }} size="card" spin={false} interactive={false} />);
+    await flush();
+    expect(mounts).toHaveLength(2);
+    unmount();
+    expect(mounts[1]!.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a late onReady from a disposed mount does not hide the emoji', async () => {
+    const { rerender } = render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
+    await flush();
+    rerender(<TrophyView trophy={{ kind: 'star', material: 'gold' }} size="card" spin={false} interactive={false} />);
+    await flush();
+    await act(async () => mounts[0]!.events.onReady());
+    expect(document.querySelector('.trophy-fallback')).not.toBeNull();
   });
 });

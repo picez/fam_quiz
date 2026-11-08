@@ -49,7 +49,7 @@ vi.mock('../../api', () => ({
 // Вхід і головна тут — лише адреси, куди ведуть підсторінки.
 vi.mock('../Login', () => ({ Login: () => <p>Login</p> }));
 vi.mock('../Home', () => ({ Home: () => <p>Home</p> }));
-vi.mock('../../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
+vi.mock('../../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 
 vi.mock('../../locales/locales', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../locales/locales')>();

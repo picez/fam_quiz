@@ -50,7 +50,8 @@ describe('renderDiploma', () => {
         texts.push({ text, y, fill: this.fillStyle });
       },
     };
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    // as never: @types/three тягне @webgpu/types, і остання перевантажена сигнатура getContext — 'webgpu'.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never);
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(new Blob(['png'], { type: 'image/png' })));
     return texts;
   }

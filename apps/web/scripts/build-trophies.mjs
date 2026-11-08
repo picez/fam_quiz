@@ -3,7 +3,7 @@
  *
  *   node apps/web/scripts/build-trophies.mjs
  *
- * Пише apps/web/public/models/{cup,medal,crown,star,statuette}.glb — glTF 2.0, один меш і один матеріал
+ * Пише apps/web/public/models/{cup,medal,crown,star,statuette,grail}.glb — glTF 2.0, один меш і один матеріал
  * (колір і металевість клієнт ставить сам після load). Моделі — власна робота проєкту, CC0 1.0 (див. CREDITS.txt).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -40,18 +40,28 @@ const normalize = ([x, y, z]) => {
  * Тіло обертання навколо Y. profile — [[радіус, висота], …] знизу вгору; кожен відрізок — окремий пояс,
  * тож грані між відрізками гострі, а навколо осі — гладкі. phase — поворот (для квадратного постаменту з 4 сегментів).
  */
-function lathe(profile, segments, phase = 0) {
+function lathe(profile, segments, phase = 0, { smooth = false } = {}) {
   const out = mesh();
+  // Нормаль у площині профілю: перпендикуляр до відрізка, назовні.
+  const segmentNormal = (i) => {
+    const dr = profile[i + 1][0] - profile[i][0];
+    const dy = profile[i + 1][1] - profile[i][1];
+    const length = Math.hypot(dr, dy) || 1;
+    return [dy / length, -dr / length];
+  };
+  // smooth: у спільній точці двох відрізків нормаль — середнє обох (як LatheGeometry); решта — як було.
+  const pointNormal = (i, j) => {
+    const own = segmentNormal(i);
+    if (!smooth || j < 0 || j > profile.length - 2) return own;
+    const other = segmentNormal(j);
+    return normalize([own[0] + other[0], own[1] + other[1], 0]).slice(0, 2);
+  };
   for (let i = 0; i < profile.length - 1; i++) {
     const [r0, y0] = profile[i];
     const [r1, y1] = profile[i + 1];
-    const dr = r1 - r0;
-    const dy = y1 - y0;
-    // Нормаль у площині профілю: перпендикуляр до відрізка, назовні.
-    const [nr, ny] = (() => {
-      const length = Math.hypot(dr, dy) || 1;
-      return [dy / length, -dr / length];
-    })();
+    const [nr, ny] = segmentNormal(i);
+    const [nr0, ny0] = pointNormal(i, i - 1);
+    const [nr1, ny1] = pointNormal(i, i + 1);
     const base = out.positions.length / 3;
     const flat = segments <= 6;
     for (let s = 0; s <= segments; s++) {
@@ -59,7 +69,7 @@ function lathe(profile, segments, phase = 0) {
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
       out.positions.push(r0 * cos, y0, r0 * sin, r1 * cos, y1, r1 * sin);
-      if (!flat) out.normals.push(nr * cos, ny, nr * sin, nr * cos, ny, nr * sin);
+      if (!flat) out.normals.push(nr0 * cos, ny0, nr0 * sin, nr1 * cos, ny1, nr1 * sin);
       else out.normals.push(0, 0, 0, 0, 0, 0);
     }
     for (let s = 0; s < segments; s++) {
@@ -267,6 +277,20 @@ function crown() {
   return merge(...parts);
 }
 
+/** Грааль: лише тіло за профілем запеченого сімейного (кільце фото, рим і табличку малює рушій з decor). */
+function grail() {
+  return lathe(
+    [
+      [0, 0], [0.26, 0], [0.27, 0.03], [0.22, 0.065], [0.09, 0.1], [0.075, 0.16], [0.11, 0.23], [0.075, 0.3], [0.09, 0.36],
+      [0.12, 0.42], [0.26, 0.52], [0.37, 0.7], [0.405, 0.95], [0.41, 1.22], [0.435, 1.44], [0.44, 1.48], [0.4, 1.45],
+      [0.37, 1.22], [0.35, 0.95], [0.3, 0.7], [0.18, 0.52], [0, 0.48],
+    ],
+    120,
+    0,
+    { smooth: true },
+  );
+}
+
 function star() {
   const shape = translate(starShape(0.4, 0.17, 0.12, 0.04), [0, 0.62, 0]);
   const stem = lathe([[0, 0.18], [0.05, 0.18], [0.035, 0.25], [0.035, 0.3], [0, 0.3]], 20);
@@ -342,7 +366,7 @@ function glb(name, geometry) {
 }
 
 mkdirSync(outDir, { recursive: true });
-for (const [name, build] of Object.entries({ cup, medal, crown, star, statuette })) {
+for (const [name, build] of Object.entries({ cup, medal, crown, star, statuette, grail })) {
   const file = glb(name, build());
   if (file.length > MAX_BYTES) throw new Error(`${name}.glb: ${file.length} B > ${MAX_BYTES}`);
   writeFileSync(resolve(outDir, `${name}.glb`), file);

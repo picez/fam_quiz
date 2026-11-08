@@ -19,8 +19,8 @@ export function prizeViewLabel(content: Content): string {
   return noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
-/** Що може взяти фокус у діалозі: і model-viewer (обертання 3D з клавіатури). */
-const FOCUSABLE = 'button, [href], model-viewer, [tabindex]:not([tabindex="-1"])';
+/** Що може взяти фокус у діалозі: і полотно 3D-трофея (tabindex 0, обертання з клавіатури). */
+const FOCUSABLE = 'button, [href], [tabindex]:not([tabindex="-1"])';
 
 /**
  * Перегляд призу на весь екран (портал у body, модальний): фото справжнього призу великим, а без фото — 3D-трофей,

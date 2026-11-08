@@ -1,4 +1,4 @@
-import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyLook, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { trophyGender, trophyPhrase } from '../locales/grammar';
 
@@ -12,7 +12,7 @@ export const TROPHY_EMOJI: Record<TrophyKind, string> = {
   grail: '🍷',
 };
 
-/** Вигляд матеріалу: колір, металевість і шорсткість для model-viewer, колір — і для значка та рамки диплома. */
+/** Вигляд матеріалу: колір, металевість і шорсткість для рушія трофеїв, колір — і для значка та рамки диплома. */
 export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: number; roughness: number }> = {
   bronze: { color: '#B0703A', metallic: 1, roughness: 0.35 },
   silver: { color: '#C9CED6', metallic: 1, roughness: 0.25 },
@@ -20,9 +20,12 @@ export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: nu
   diamond: { color: '#CFEFFF', metallic: 0, roughness: 0.02 },
 };
 
-export interface TrophyLook {
-  kind: TrophyKind;
-  material: TrophyMaterial;
+export type { TrophyLook } from '@quiz/shared';
+
+/** Тимчасово (до задачі 12): грааль без decor — запечений сімейний. */
+export function modelUrl(trophy: TrophyLook): string {
+  if (trophy.kind === 'grail' && trophy.decor == null) return '/models/grail-family.glb';
+  return `/models/${trophy.kind}.glb`;
 }
 
 /** «Золотий кубок», «Срібна медаль», … (es «Copa de oro»). */

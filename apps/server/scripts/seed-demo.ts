@@ -9,8 +9,6 @@
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand і family так само завантажують по три картинки.
  * logic потребує SITE_URL: завантажує намальовані PNG з scripts/logic/img і фото з Вікіпедії.
  */
-import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { quizSchema, type Quiz } from '@quiz/shared';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -38,6 +36,7 @@ import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { MOVIES90_IMAGES, movies90Quiz } from './movies90-quiz';
 import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
 import { worldQuiz } from './world-quiz';
+import { UA, uploadImages as uploadSiteImages } from './site-uploads';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -67,8 +66,6 @@ const ARTICLES: Record<string, string> = {
   fallingwater: 'Fallingwater',
   flytrap: 'Venus_flytrap',
 };
-
-const UA = { 'user-agent': 'fam-quiz-seed/1.0 (demo content)' };
 
 async function thumbnails(keys: readonly string[]): Promise<Record<string, string>> {
   const titles = keys.map((key) => ARTICLES[key]).join('|');
@@ -108,54 +105,13 @@ async function wideSources(map: Record<string, string>): Promise<Record<string, 
   return result;
 }
 
-/** Завантажує картинки keys на сайт від імені тимчасового акаунта; повертає ключ → /uploads/… */
-async function uploadImages(
+/** Картинки keys на сайт (site-uploads); за замовчуванням — головні ілюстрації статей ARTICLES. */
+const uploadImages = (
   site: string,
   db: Db,
   keys: readonly string[] = Object.keys(ARTICLES),
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
-): Promise<Record<string, string>> {
-  const email = `seed-${randomBytes(6).toString('hex')}@example.invalid`;
-  const signUp = await fetch(`${site}/api/auth/sign-up/email`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', origin: site },
-    body: JSON.stringify({ email, password: randomBytes(16).toString('hex'), name: 'Seed' }),
-  });
-  if (!signUp.ok) throw new Error(`Sign-up failed: ${signUp.status} ${await signUp.text()}`);
-  const cookie = signUp.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
-  try {
-    const urls: Record<string, string> = {};
-    for (const [key, source] of Object.entries(await sources())) {
-      // «file:<шлях>» — локальний PNG (намальовані картинки logic), інакше — адреса в мережі.
-      const local = source.startsWith('file:');
-      const image = local ? null : await fetch(source, { headers: UA });
-      const type = local ? 'image/png' : (image!.headers.get('content-type')?.split(';')[0] ?? '');
-      if (image && (!image.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(type))) {
-        console.warn(`Skip ${key}: ${image.status} ${type}`);
-        continue;
-      }
-      const bytes = local ? readFileSync(source.slice('file:'.length)) : Buffer.from(await image!.arrayBuffer());
-      const send = () => fetch(`${site}/api/uploads`, { method: 'POST', headers: { 'content-type': type, cookie, origin: site }, body: bytes });
-      let upload = await send();
-      // Ліміт завантажень (429): чекаємо retry-after (або 30 с) і пробуємо знову, до 6 разів.
-      for (let attempt = 0; upload.status === 429 && attempt < 6; attempt += 1) {
-        const wait = Number(upload.headers.get('retry-after')) || 30;
-        console.log(`Upload ${key}: rate limited, waiting ${wait} s`);
-        await new Promise((resolve) => setTimeout(resolve, (wait + 1) * 1000));
-        upload = await send();
-      }
-      if (!upload.ok) {
-        console.warn(`Upload ${key} failed: ${upload.status} ${await upload.text()}`);
-        continue;
-      }
-      urls[key] = ((await upload.json()) as { url: string }).url;
-      console.log(`Uploaded ${key} → ${urls[key]}`);
-    }
-    return urls;
-  } finally {
-    await db.delete(user).where(eq(user.email, email));
-  }
-}
+): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
 const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world'] as const;
 type SeedName = (typeof SEEDS)[number];

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { PrizeContent } from '@quiz/shared';
+import type { PrizeContent, TrophyDecor } from '@quiz/shared';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { createTestDb } from './testing/test-db';
 import { liveRoom, prize, user } from './db/schema';
@@ -47,6 +47,68 @@ describe('prize storage', () => {
     expect(await updatePrize(db, 'u2', a, content('X'))).toEqual({ ok: false, error: 'not_found' });
     await reservePlaces(db, 'u1', randomUUID(), [a, null, null]);
     expect(await updatePrize(db, 'u1', a, content('Y'))).toEqual({ ok: false, error: 'prize_in_game' });
+  });
+});
+
+const photo = (n: number) => ({ url: `/uploads/${n.toString(16).padStart(32, '0')}.jpg`, crop: { x: 0.5, y: 0.5, scale: 1 } });
+const decor: TrophyDecor = {
+  photos: [photo(1), photo(2)],
+  photoPlace: 'ring',
+  frame: 'none',
+  photoStyle: 'normal',
+  inscriptions: [{ place: 'rim', text: 'Для найкращих', font: null, look: 'engraved', color: '#3a2a0e' }],
+  effect: { kind: 'none' },
+  appearance: 'spin',
+  stickers: [],
+};
+const withTrophy = (name: string, trophy: PrizeContent['trophy']): PrizeContent => ({ ...content(name), trophy });
+
+describe('trophy decor', () => {
+  const makeDecorated = async () => {
+    const r = await createPrize(db, 'u1', withTrophy('D', { kind: 'cup', material: 'gold', decor }));
+    if (!r.ok) throw new Error('create failed');
+    return r.prize.id;
+  };
+
+  it('old client omits decor: the stored decor survives an update without it', async () => {
+    const id = await makeDecorated();
+    const result = await updatePrize(db, 'u1', id, withTrophy('D', { kind: 'cup', material: 'silver' }));
+    expect(result.ok).toBe(true);
+    expect((await rowOf(id))!.content.trophy).toEqual({ kind: 'cup', material: 'silver', decor });
+  });
+
+  it('decor null removes it', async () => {
+    const id = await makeDecorated();
+    await updatePrize(db, 'u1', id, withTrophy('D', { kind: 'cup', material: 'gold', decor: null }));
+    const trophy = (await rowOf(id))!.content.trophy!;
+    expect(trophy).toEqual({ kind: 'cup', material: 'gold' });
+    expect('decor' in trophy).toBe(false);
+  });
+
+  it('kind change keeps decor', async () => {
+    const id = await makeDecorated();
+    await updatePrize(db, 'u1', id, withTrophy('D', { kind: 'star', material: 'gold' }));
+    expect((await rowOf(id))!.content.trophy).toEqual({ kind: 'star', material: 'gold', decor });
+  });
+
+  it('an explicit new decor replaces the stored one', async () => {
+    const id = await makeDecorated();
+    const next = { ...decor, photos: [photo(3)] };
+    await updatePrize(db, 'u1', id, withTrophy('D', { kind: 'cup', material: 'gold', decor: next }));
+    expect((await rowOf(id))!.content.trophy).toEqual({ kind: 'cup', material: 'gold', decor: next });
+  });
+
+  it('a prize without a trophy stays without one', async () => {
+    const id = await makeDecorated();
+    await updatePrize(db, 'u1', id, withTrophy('D', null));
+    expect((await rowOf(id))!.content.trophy).toBeNull();
+  });
+
+  it('create drops a null decor', async () => {
+    const r = await createPrize(db, 'u1', withTrophy('N', { kind: 'cup', material: 'gold', decor: null }));
+    if (!r.ok) throw new Error('create failed');
+    expect('decor' in (await rowOf(r.prize.id))!.content.trophy!).toBe(false);
+    expect('decor' in r.prize.content.trophy!).toBe(false);
   });
 });
 

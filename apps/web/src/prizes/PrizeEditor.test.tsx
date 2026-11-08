@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type { PrizeContent, TrophyDecor } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrizeEditor } from './PrizeEditor';
 
 vi.mock('../editor/ImageField', () => ({ ImageField: () => <div data-testid="image-field" /> }));
-vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
+vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 
 afterEach(cleanup);
 
@@ -54,6 +55,39 @@ describe('PrizeEditor', () => {
     const grail = { name: 'Наш Ґрааль', trophy: { kind: 'grail', material: 'gold' }, engraving: null, real: null, title: null, diploma: false } as const;
     render(<PrizeEditor initial={grail} busy={false} onSave={vi.fn()} onCancel={() => {}} />);
     expect((screen.getByRole('radio', { name: /грааль/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
+  const decor: TrophyDecor = {
+    photos: [{ url: '/uploads/abcdefabcdefabcd.jpg', crop: { x: 0.5, y: 0.5, scale: 1 } }],
+    photoPlace: 'ring',
+    frame: 'none',
+    photoStyle: 'normal',
+    inscriptions: [{ place: 'rim', text: 'Hi', font: null, look: 'engraved', color: '#3a2a0e' }],
+    effect: { kind: 'none' },
+    appearance: 'spin',
+    stickers: [],
+  };
+  const withDecor: PrizeContent = { name: 'Кубок', trophy: { kind: 'cup', material: 'gold', decor }, engraving: null, real: null, title: null, diploma: false };
+
+  it('keeps decor on save', () => {
+    const onSave = vi.fn();
+    render(<PrizeEditor initial={withDecor} busy={false} onSave={onSave} onCancel={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Назва'), { target: { value: 'Інша назва' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'Срібло' }));
+    fireEvent.click(save());
+    const trophy = onSave.mock.calls[0]![0].trophy;
+    expect(trophy.decor).toEqual(decor);
+    expect(trophy.material).toBe('silver');
+  });
+
+  it('the preview gets the decor', async () => {
+    vi.resetModules();
+    vi.doMock('../trophy/TrophyView', () => ({ TrophyView: vi.fn(() => null) }));
+    const view = await import('../trophy/TrophyView');
+    const { PrizeEditor: Editor } = await import('./PrizeEditor');
+    render(<Editor initial={withDecor} busy={false} onSave={vi.fn()} onCancel={() => {}} />);
+    expect((view.TrophyView as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0].trophy.decor).toEqual(decor);
+    vi.doUnmock('../trophy/TrophyView');
   });
 
   it('a switched-off real prize is saved as null even with text typed', () => {

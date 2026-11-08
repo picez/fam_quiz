@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { TITLE_MS, type PrizeContent } from '@quiz/shared';
+import { TITLE_MS, type PrizeContent, type TrophyDecor } from '@quiz/shared';
 import { createTestDb } from './testing/test-db';
 import { prize, prizeAward, user, userTitle } from './db/schema';
 import { awardPrizes, createPrize, currentTitles, deleteAward, listPrizes, reservePlaces, showcaseOf } from './prizes';
@@ -110,6 +110,30 @@ describe('awardPrizes', () => {
   it('ignores an outcome for a prize that no longer exists', async () => {
     await run([{ place: 1, prizeId: randomUUID(), winners: [{ userId: 'u2', nickname: 'Оля' }] }]);
     expect(await awards()).toEqual([]);
+  });
+});
+
+describe('awarding a decorated prize', () => {
+  it('copies the decor into the award and the showcase', async () => {
+    const decor: TrophyDecor = {
+      photos: [{ url: `/uploads/${'a'.repeat(32)}.jpg`, crop: { x: 0.5, y: 0.5, scale: 1 } }],
+      photoPlace: 'ring',
+      frame: 'none',
+      photoStyle: 'normal',
+      inscriptions: [{ place: 'rim', text: 'Для найкращих', font: null, look: 'engraved', color: '#3a2a0e' }],
+      effect: { kind: 'none' },
+      appearance: 'spin',
+      stickers: [],
+    };
+    const created = await createPrize(db, 'u1', { ...content('Оформлений'), trophy: { kind: 'cup', material: 'gold', decor } });
+    if (!created.ok) throw new Error('create failed');
+    const id = created.prize.id;
+    await reservePlaces(db, 'u1', g1, [id, null, null]);
+    await run([{ place: 1, prizeId: id, winners: [{ userId: 'u2', nickname: 'Оля' }] }]);
+    const [row] = await awards();
+    expect(row!.content.trophy?.decor).toEqual(decor);
+    const { awards: list } = await showcaseOf(db, 'u2');
+    expect(list[0]!.content.trophy?.decor).toEqual(decor);
   });
 });
 

@@ -77,3 +77,38 @@ describe('constants', () => {
     expect(SHOWCASE_MAX).toBe(60);
   });
 });
+
+describe('trophy decor in prize content', () => {
+  const decor = {
+    photos: [],
+    photoPlace: 'ring',
+    frame: 'none',
+    photoStyle: 'normal',
+    inscriptions: [],
+    effect: { kind: 'none' },
+    appearance: 'spin',
+    stickers: [],
+  };
+  const trophy = { kind: 'cup', material: 'gold' };
+  it('old content stays valid', () => {
+    for (const c of [
+      { ...base, trophy },
+      { ...base, trophy: { kind: 'medal', material: 'silver' } },
+      { ...base, trophy: { kind: 'grail', material: 'gold' }, engraving: 'Ясі' },
+    ]) {
+      const r = prizeContentSchema.safeParse(c);
+      expect(r.success).toBe(true);
+      if (r.success && r.data.trophy) expect('decor' in r.data.trophy).toBe(false);
+    }
+  });
+  it('trophy decor is optional, nullable and strict', () => {
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, decor } }).success).toBe(true);
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, decor: null } }).success).toBe(true);
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, decor: {} } }).success).toBe(false);
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, extra: 1 } }).success).toBe(false);
+  });
+  it('placedPrizeSchema accepts decorated content', () => {
+    const content = { ...base, trophy: { ...trophy, decor } };
+    expect(placedPrizeSchema.safeParse({ place: 1, id: A, content }).success).toBe(true);
+  });
+});
