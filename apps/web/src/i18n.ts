@@ -2543,6 +2543,7 @@ const uk = {
   trophy_crown: 'корона',
   trophy_star: 'зірка',
   trophy_statuette: 'статуетка',
+  trophy_grail: 'грааль',
   material_bronze_m: 'Бронзовий',
   material_bronze_f: 'Бронзова',
   material_silver_m: 'Срібний',
