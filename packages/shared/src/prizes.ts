@@ -3,7 +3,7 @@ import { IMAGE_URL } from './quiz';
 import type { ShowcasePins } from './showcase';
 import { UNSTORABLE, isStorable } from './text';
 
-export const TROPHY_KINDS = ['cup', 'medal', 'crown', 'star', 'statuette'] as const;
+export const TROPHY_KINDS = ['cup', 'medal', 'crown', 'star', 'statuette', 'grail'] as const;
 export type TrophyKind = (typeof TROPHY_KINDS)[number];
 export const TROPHY_MATERIALS = ['bronze', 'silver', 'gold', 'diamond'] as const;
 export type TrophyMaterial = (typeof TROPHY_MATERIALS)[number];

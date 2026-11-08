@@ -9,6 +9,7 @@ export const TROPHY_EMOJI: Record<TrophyKind, string> = {
   crown: '👑',
   star: '🌟',
   statuette: '🎖️',
+  grail: '🍷',
 };
 
 /** Вигляд матеріалу: колір, металевість і шорсткість для model-viewer, колір — і для значка та рамки диплома. */

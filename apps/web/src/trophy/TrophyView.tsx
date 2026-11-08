@@ -7,6 +7,8 @@ interface PbrSetters {
   setBaseColorFactor(color: string): void;
   setMetallicFactor(value: number): void;
   setRoughnessFactor(value: number): void;
+  /** Є texture — матеріал має власну базову текстуру (фото й написи грааля); такий не перефарбовуємо. */
+  readonly baseColorTexture?: { readonly texture: unknown | null };
 }
 /** Те, що TrophyView бере в model-viewer після load (без типів бібліотеки: її знає лише loadViewer.ts). */
 type ViewerElement = HTMLElement & { model?: { materials: { pbrMetallicRoughness: PbrSetters }[] } };
@@ -55,9 +57,12 @@ export function TrophyView({ trophy, size, spin, interactive }: TrophyViewProps)
     viewer.className = 'trophy-model is-loading';
     const paint = () => {
       for (const material of viewer.model?.materials ?? []) {
-        material.pbrMetallicRoughness.setBaseColorFactor(look.color);
-        material.pbrMetallicRoughness.setMetallicFactor(look.metallic);
-        material.pbrMetallicRoughness.setRoughnessFactor(look.roughness);
+        const pbr = material.pbrMetallicRoughness;
+        // Матеріали з власною текстурою (фото й написи грааля) лишаємо як є — колір матеріалу їх не стосується.
+        if (pbr.baseColorTexture?.texture != null) continue;
+        pbr.setBaseColorFactor(look.color);
+        pbr.setMetallicFactor(look.metallic);
+        pbr.setRoughnessFactor(look.roughness);
       }
     };
     const onLoad = () => {

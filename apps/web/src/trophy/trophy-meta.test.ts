@@ -10,6 +10,7 @@ describe('trophyLabel', () => {
     expect(trophyLabel({ kind: 'star', material: 'diamond' })).toBe('Діамантова зірка');
     expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Золота статуетка');
     expect(trophyLabel({ kind: 'cup', material: 'diamond' })).toBe('Діамантовий кубок');
+    expect(trophyLabel({ kind: 'grail', material: 'gold' })).toBe('Золотий грааль');
   });
 
   describe('in Polish', () => {
@@ -35,6 +36,7 @@ describe('trophyLabel', () => {
       expect(trophyLabel({ kind: 'medal', material: 'silver' })).toBe('Silberne Medaille');
       expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('Bronzene Krone');
       expect(trophyLabel({ kind: 'statuette', material: 'gold' })).toBe('Goldene Statuette');
+      expect(trophyLabel({ kind: 'grail', material: 'gold' })).toBe('Goldener Gral');
     });
   });
 
@@ -91,6 +93,10 @@ describe('prizeSummary', () => {
     expect(prizeSummary({ ...none, trophy: { kind: 'cup', material: 'gold' }, real: { text: 'Піца', photoUrl: null } })).toBe(
       '🏆 Золотий кубок · 🎁 Піца',
     );
+  });
+
+  it('labels the grail kind with its goblet emoji', () => {
+    expect(prizeSummary({ ...none, trophy: { kind: 'grail', material: 'gold' } })).toBe('🍷 Золотий грааль');
   });
 
   it('lists the title and the diploma too, in order', () => {
