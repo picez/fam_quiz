@@ -13757,6 +13757,23 @@ button.wall-tile:disabled {
   opacity: 0;
 }
 
+/* Полотно рушія трофеїв (25a): кадр спільного рендерера; інтерактивне тягнеться вбік, а сторінка гортається вертикально. */
+.trophy-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trophy-canvas[tabindex] {
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.trophy-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .trophy-fallback {
   font-size: calc(var(--trophy-icon, 1) * 3.5rem);
   line-height: 1;
