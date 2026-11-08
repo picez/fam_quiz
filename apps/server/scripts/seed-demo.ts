@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -38,6 +38,7 @@ import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { MOVIES90_IMAGES, movies90Quiz } from './movies90-quiz';
 import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
 import { worldQuiz } from './world-quiz';
+import { funQuiz } from './fun-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -157,7 +158,7 @@ async function uploadImages(
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -169,6 +170,8 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       return demoQuiz;
     case 'world':
       return worldQuiz();
+    case 'fun':
+      return funQuiz();
     case 'party':
       return partyQuiz();
     case 'movies':
