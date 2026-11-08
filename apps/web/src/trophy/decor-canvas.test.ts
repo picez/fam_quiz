@@ -239,4 +239,22 @@ describe('decor canvas', () => {
     expect(calls.some((c) => c.name === 'drawImage')).toBe(false);
     expect(calls.find((c) => c.name === 'fillRect')!.args).toEqual([0, 0, 512, 256]);
   });
+
+  it('the disc rim is drawn after the photo is toned', () => {
+    const { ctx, calls } = fakeCtx();
+    drawPhotoDisc(ctx, img, decor().photos[0]!, decor({ frame: 'gold', photoStyle: 'sepia' }), 256);
+    const put = calls.findIndex((c) => c.name === 'putImageData');
+    const rim = calls.findIndex((c) => c.name === 'fill' && c.args[0] === 'evenodd');
+    expect(put).toBeGreaterThan(-1);
+    expect(rim).toBeGreaterThan(put);
+  });
+
+  it('a framed card tones before the frame stroke', () => {
+    const { ctx, calls } = fakeCtx();
+    drawPhotoCard(ctx, img, decor().photos[0]!, decor({ frame: 'gold', photoStyle: 'bw' }), { width: 200, height: 100 });
+    const put = calls.findIndex((c) => c.name === 'putImageData');
+    const stroke = calls.findIndex((c) => c.name === 'stroke');
+    expect(put).toBeGreaterThan(-1);
+    expect(stroke).toBeGreaterThan(put);
+  });
 });

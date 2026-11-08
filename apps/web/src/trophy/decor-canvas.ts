@@ -176,14 +176,8 @@ export function drawPhotoDisc(
 ): void {
   ctx.clearRect(0, 0, px, px);
   const half = px / 2;
-  let inner = half;
-  if (decor.frame !== 'none') {
-    ctx.fillStyle = gradientDown(ctx, px, metalStops(material, 'plate'));
-    ctx.beginPath();
-    ctx.arc(half, half, half, 0, Math.PI * 2);
-    ctx.fill();
-    inner = half - px * 0.07;
-  }
+  const framed = decor.frame !== 'none';
+  const inner = framed ? half - px * 0.07 : half;
   ctx.save();
   ctx.beginPath();
   ctx.arc(half, half, inner, 0, Math.PI * 2);
@@ -205,6 +199,14 @@ export function drawPhotoDisc(
     }
   }
   ctx.restore();
+  // ободок після тонування, щоб метал лишився кольоровим
+  if (framed) {
+    ctx.fillStyle = gradientDown(ctx, px, metalStops(material, 'plate'));
+    ctx.beginPath();
+    ctx.arc(half, half, half, 0, Math.PI * 2);
+    ctx.arc(half, half, inner, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+  }
 }
 
 /** Табличка або фон: прямокутна картка на весь розмір. */
