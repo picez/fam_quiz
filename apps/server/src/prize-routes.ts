@@ -1,4 +1,4 @@
-import { placesSchema, prizeContentSchema, type PrizePlacesInfo } from '@quiz/shared';
+import { isPickableTrophy, placesSchema, prizeContentSchema, type PrizePlacesInfo } from '@quiz/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CurrentUser } from './account-routes';
@@ -37,6 +37,7 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const parsed = prizeContentSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
+    if (parsed.data.trophy !== null && !isPickableTrophy(parsed.data.trophy.kind)) return reply.code(409).send({ error: 'trophy_unavailable' });
     const result = await createPrize(db, user.id, parsed.data);
     return result.ok ? reply.code(201).send(result.prize) : reply.code(409).send({ error: result.error });
   });

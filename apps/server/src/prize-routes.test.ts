@@ -4,7 +4,8 @@ import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testi
 import type { PrizeContent, PrizeItem, PrizePlacesInfo } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { game } from './db/schema';
+import { game, user } from './db/schema';
+import { createPrize } from './prizes';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -76,6 +77,27 @@ describe('the store of prizes (14a)', () => {
     const empty = await call('POST', '/api/me/prizes', owner.cookie, { ...content('Пусто'), trophy: null, engraving: null, real: null, title: null, diploma: false });
     expect(empty.statusCode).toBe(400);
     expect(empty.json()).toEqual({ error: 'invalid_payload' });
+  });
+
+  it('keeps the family grail one of a kind: no new grail, no switch to it, but its own prize stays editable', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Грааль');
+    const grail = content('Грааль', { trophy: { kind: 'grail', material: 'gold' } });
+    const made = await call('POST', '/api/me/prizes', cookie, grail);
+    expect(made.statusCode).toBe(409);
+    expect(made.json()).toEqual({ error: 'trophy_unavailable' });
+
+    const cup = await newPrize(cookie, 'Кубок');
+    const switched = await call('PUT', `/api/me/prizes/${cup.id}`, cookie, grail);
+    expect(switched.statusCode).toBe(409);
+    expect(switched.json()).toEqual({ error: 'trophy_unavailable' });
+
+    // Наявний грааль (як Ясин, покладений сідом) лишається граалем після редагування.
+    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
+    const seeded = await createPrize(db, owner!.id, grail);
+    if (!seeded.ok) throw new Error('seed failed');
+    const renamed = await call('PUT', `/api/me/prizes/${seeded.prize.id}`, cookie, { ...grail, name: 'Наш Ґрааль' });
+    expect(renamed.statusCode).toBe(200);
+    expect((renamed.json() as PrizeItem).content.trophy).toEqual({ kind: 'grail', material: 'gold' });
   });
 });
 

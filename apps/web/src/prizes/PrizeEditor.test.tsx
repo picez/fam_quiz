@@ -45,6 +45,17 @@ describe('PrizeEditor', () => {
     });
   });
 
+  it('does not offer the grail for a new prize, but keeps it for a prize that already is one', () => {
+    open();
+    fireEvent.click(screen.getByLabelText('3D-трофей'));
+    expect(screen.queryByRole('radio', { name: /грааль/ })).toBeNull();
+    cleanup();
+
+    const grail = { name: 'Наш Ґрааль', trophy: { kind: 'grail', material: 'gold' }, engraving: null, real: null, title: null, diploma: false } as const;
+    render(<PrizeEditor initial={grail} busy={false} onSave={vi.fn()} onCancel={() => {}} />);
+    expect((screen.getByRole('radio', { name: /грааль/ }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it('a switched-off real prize is saved as null even with text typed', () => {
     const onSave = open();
     fireEvent.click(screen.getByLabelText('Справжній приз'));
