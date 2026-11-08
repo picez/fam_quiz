@@ -50,6 +50,17 @@ export async function listAllPrizes(
   return rows.map((row) => ({ id: row.id, content: row.content, createdAt: row.createdAt!.toISOString(), ownerId: row.ownerId, status: row.status, reservedGame: row.reservedGame }));
 }
 
+/** Оформлення trophy.decor (25a): відсутнє в запиті — лишаємо збережене (старий клієнт його не знає), null — прибираємо; у базу null не потрапляє. */
+function withDecor(next: PrizeContent, stored: PrizeContent | null): PrizeContent {
+  const trophy = next.trophy;
+  if (trophy === null) return next;
+  const { decor, ...rest } = trophy;
+  if (decor === null) return { ...next, trophy: rest };
+  if (decor !== undefined) return next;
+  const kept = stored?.trophy?.decor;
+  return kept === undefined || kept === null ? next : { ...next, trophy: { ...rest, decor: kept } };
+}
+
 export async function createPrize(
   db: Db,
   ownerId: string,
@@ -63,7 +74,7 @@ export async function createPrize(
       .where(and(eq(prize.ownerId, ownerId), ne(prize.status, 'awarded')));
     if (n >= PRIZE_LIMITS.perOwner) return { ok: false as const, error: 'too_many_prizes' as const };
     const now = new Date();
-    const [row] = await tx.insert(prize).values({ ownerId, content, status: 'free', createdAt: now, updatedAt: now }).returning();
+    const [row] = await tx.insert(prize).values({ ownerId, content: withDecor(content, null), status: 'free', createdAt: now, updatedAt: now }).returning();
     return { ok: true as const, prize: itemOf(row!) };
   });
 }
@@ -83,7 +94,7 @@ export async function updatePrize(
   if (kind !== undefined && !isPickableTrophy(kind) && row.content.trophy?.kind !== kind) return { ok: false, error: 'trophy_unavailable' };
   const [updated] = await db
     .update(prize)
-    .set({ content, updatedAt: new Date() })
+    .set({ content: withDecor(content, row.content), updatedAt: new Date() })
     .where(and(eq(prize.id, id), eq(prize.status, 'free')))
     .returning();
   // Приз встигли покласти в гру між читанням і записом.
