@@ -22,7 +22,10 @@ export function webglAvailable(): boolean {
   if (webgl === null) {
     try {
       const canvas = document.createElement('canvas');
-      webgl = (canvas.getContext('webgl2') ?? canvas.getContext('webgl')) !== null;
+      const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+      webgl = gl !== null;
+      // Пробний контекст не тримаємо: ліміт WebGL-контекстів у браузера малий.
+      gl?.getExtension('WEBGL_lose_context')?.loseContext();
     } catch {
       webgl = false;
     }

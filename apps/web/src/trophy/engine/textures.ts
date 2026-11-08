@@ -17,12 +17,22 @@ export interface DecorTextures {
 const images = new Map<string, Promise<Img | null>>();
 const stickers = new Map<string, Promise<Texture | null>>();
 
+/** Скільки чекаємо картинку: запит, що завис, не повинен лишати трофей значком назавжди. */
+export const IMAGE_LOAD_TIMEOUT_MS = 8000;
+
 function loadImage(url: string): Promise<Img | null> {
   return new Promise((resolve) => {
     const image = new Image();
+    const timer = setTimeout(() => resolve(null), IMAGE_LOAD_TIMEOUT_MS);
     image.decoding = 'async';
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
+    image.onload = () => {
+      clearTimeout(timer);
+      resolve(image);
+    };
+    image.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
     image.src = url;
   });
 }

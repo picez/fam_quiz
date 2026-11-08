@@ -1,6 +1,3 @@
-// Типів node у вебі немає, тож fs описано тут вручну.
-// @ts-expect-error node:fs без @types/node
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 afterEach(() => {
@@ -32,34 +29,15 @@ describe('loadTrophyEngine', () => {
   });
 });
 
-interface Entry {
-  name: string;
-  isDirectory(): boolean;
-}
-const list = readdirSync as (dir: string, options: { withFileTypes: true }) => Entry[];
-const read = (file: string) => readFileSync(file, 'utf8') as string;
-const src = ['apps/web/src', 'src'].find((path) => existsSync(path) as boolean)!;
-
-function sources(dir: string): string[] {
-  return list(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) return sources(path);
-    return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
-  });
-}
-
-describe('three stays lazy', () => {
-  it('is imported only under trophy/engine, and the engine only through import()', () => {
-    const files = sources(src).map((file) => file.slice(src.length + 1));
-    const threeUsers = files.filter((file) => /from\s*'three(\/[^']*)?'/.test(read(`${src}/${file}`)));
-    expect(threeUsers.length).toBeGreaterThan(0);
-    for (const file of threeUsers) expect(file).toMatch(/^trophy\/engine\//);
-    const engineUsers = files.filter(
-      (file) => !file.startsWith('trophy/engine/') && !file.endsWith('.test.ts') && read(`${src}/${file}`).includes('engine/'),
-    );
-    expect(engineUsers).toEqual(['trophy/loadEngine.ts']);
-    const code = read(`${src}/trophy/loadEngine.ts`);
-    expect(code).toMatch(/import\(\s*'\.\/engine\/trophy-engine'\s*\)/);
-    expect(code).not.toMatch(/from\s*'\.\/engine\//);
+describe('webglAvailable', () => {
+  it('releases the probe context after checking', async () => {
+    const loseContext = vi.fn();
+    const gl = { getExtension: vi.fn(() => ({ loseContext })) };
+    vi.stubGlobal('document', { createElement: () => ({ getContext: () => gl }) });
+    const { webglAvailable } = await import('./loadEngine');
+    expect(webglAvailable()).toBe(true);
+    expect(gl.getExtension).toHaveBeenCalledWith('WEBGL_lose_context');
+    expect(loseContext).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
   });
 });

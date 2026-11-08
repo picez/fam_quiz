@@ -178,8 +178,7 @@ export class Stage {
     return true;
   }
 
-  private readonly onContextLost = (event: Event): void => {
-    event.preventDefault();
+  private readonly onContextLost = (): void => {
     this.isLost = true;
     this.observer?.disconnect();
     this.resizer?.disconnect();
