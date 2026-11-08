@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { trophyDecorSchema } from './decor';
+import type { TrophyDecor } from './decor';
 import { IMAGE_URL } from './quiz';
 import type { ShowcasePins } from './showcase';
 import { UNSTORABLE, isStorable } from './text';
@@ -20,9 +22,11 @@ export const TITLE_MS = 7 * 24 * 60 * 60_000;
 export const CEREMONY_MS = { step: 3500, winner: 6000 } as const;
 export const SHOWCASE_MAX = 60;
 
+export type TrophyLook = { kind: TrophyKind; material: TrophyMaterial; decor?: TrophyDecor | null };
+
 export interface PrizeContent {
   name: string;
-  trophy: { kind: TrophyKind; material: TrophyMaterial } | null;
+  trophy: TrophyLook | null;
   engraving: string | null;
   real: { text: string; photoUrl: string | null } | null;
   title: string | null;
@@ -40,7 +44,14 @@ const text = (max: number) =>
 export const prizeContentSchema = z
   .object({
     name: text(PRIZE_LIMITS.name),
-    trophy: z.object({ kind: z.enum(TROPHY_KINDS), material: z.enum(TROPHY_MATERIALS) }).strict().nullable(),
+    trophy: z
+      .object({
+        kind: z.enum(TROPHY_KINDS),
+        material: z.enum(TROPHY_MATERIALS),
+        decor: trophyDecorSchema.nullable().optional(),
+      })
+      .strict()
+      .nullable(),
     engraving: text(PRIZE_LIMITS.engraving).nullable(),
     real: z
       .object({ text: text(PRIZE_LIMITS.realText), photoUrl: z.string().regex(IMAGE_URL).nullable() })

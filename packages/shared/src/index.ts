@@ -29,6 +29,7 @@ export * from './stickers';
 export * from './reactions';
 export * from './saved';
 export * from './prizes';
+export * from './decor';
 export * from './showcase';
 export * from './levels';
 export * from './likes';
