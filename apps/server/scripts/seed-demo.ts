@@ -37,6 +37,7 @@ import { EVENING_IMAGES, eveningQuiz } from './evening-quiz';
 import { CLASSROOM_IMAGES, classroomQuiz } from './classroom-quiz';
 import { MOVIES90_IMAGES, movies90Quiz } from './movies90-quiz';
 import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
+import { worldQuiz } from './world-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -156,7 +157,7 @@ async function uploadImages(
   }
 }
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -166,6 +167,8 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
   switch (name) {
     case 'demo':
       return demoQuiz;
+    case 'world':
+      return worldQuiz();
     case 'party':
       return partyQuiz();
     case 'movies':
