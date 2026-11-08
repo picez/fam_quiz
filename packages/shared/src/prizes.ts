@@ -5,6 +5,12 @@ import { UNSTORABLE, isStorable } from './text';
 
 export const TROPHY_KINDS = ['cup', 'medal', 'crown', 'star', 'statuette', 'grail'] as const;
 export type TrophyKind = (typeof TROPHY_KINDS)[number];
+/**
+ * Види, які можна обрати для нового призу. Грааль поки один на весь сайт: його модель запечена з сімейними фото власника,
+ * тож новий грааль чи перехід на нього не дозволені, а наявний (Ясин) лишається граалем. Повернеться з редактором кубків.
+ */
+export const PICKABLE_TROPHY_KINDS: readonly TrophyKind[] = TROPHY_KINDS.filter((kind) => kind !== 'grail');
+export const isPickableTrophy = (kind: TrophyKind): boolean => PICKABLE_TROPHY_KINDS.includes(kind);
 export const TROPHY_MATERIALS = ['bronze', 'silver', 'gold', 'diamond'] as const;
 export type TrophyMaterial = (typeof TROPHY_MATERIALS)[number];
 export type PrizePlace = 1 | 2 | 3;

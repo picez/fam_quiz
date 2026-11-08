@@ -78,6 +78,8 @@ describe('uk golden (22a)', () => {
   const ADDED_24C = ['lobbyWhoSees', 'lobbyVisAll', 'lobbyVisFriends', 'lobbyVisHidden', 'lobbyPasswordLabel', 'lobbyPasswordHint', 'lobbyPasswordSave', 'lobbyPasswordRemove', 'lobbySaved', 'lobbyListTitle', 'lobbyListEmpty', 'lobbyListError', 'lobbyRunning', 'lobbyLocked', 'lobbyFriendsHere', 'lobbyPlayers', 'lobbyRounds_one', 'lobbyRounds_few', 'lobbyRounds_many', 'lobbyQuestions_one', 'lobbyQuestions_few', 'lobbyQuestions_many', 'lobbyOpened', 'lobbyJustNow', 'lobbyPasswordAsk', 'err_password_required', 'err_password_wrong', 'err_password_limited', 'err_lobby_password'];
   /** 24d: рамки фото, шрифти ніку, нові кольори. */
   const ADDED_24D = ['lookPhoto', 'lookNoPhoto', 'lookFont', 'lookNoFont', 'lookPreview', 'lookLocked', 'reward_photo', 'reward_font', 'photo_crimson', 'photo_silver', 'photo_ink', 'photo_gold', 'photo_cloud', 'photo_crows', 'photo_fire', 'photo_neon', 'photo_thorns', 'photo_eclipse', 'photo_storm', 'photo_aura', 'font_hand', 'font_round', 'font_mono', 'font_poster', 'font_brush', 'font_pixel', 'font_elegant', 'font_heavy', 'color_blood', 'color_flame', 'color_ice', 'color_venom', 'color_amethyst', 'color_moonsilver'];
+  /** Сімейний грааль (2026-11-08): новий вид трофея. */
+  const ADDED_GRAIL = ['trophy_grail'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
 
@@ -91,7 +93,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key))).toEqual([]);
   });
 });
 

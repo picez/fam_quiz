@@ -2,6 +2,7 @@ import {
   PRIZE_LIMITS,
   SHOWCASE_MAX,
   TITLE_MS,
+  isPickableTrophy,
   publicContent,
   type AwardCard,
   type PlacedPrize,
@@ -73,10 +74,13 @@ export async function updatePrize(
   ownerId: string,
   id: string,
   content: PrizeContent,
-): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' }> {
+): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' | 'trophy_unavailable' }> {
   const [row] = await db.select().from(prize).where(and(eq(prize.id, id), eq(prize.ownerId, ownerId)));
   if (row === undefined || row.status === 'awarded') return { ok: false, error: 'not_found' };
   if (row.status === 'reserved') return { ok: false, error: 'prize_in_game' };
+  // Незмінний вид лишається навіть недоступним (Ясин грааль); перейти на недоступний вид не можна.
+  const kind = content.trophy?.kind;
+  if (kind !== undefined && !isPickableTrophy(kind) && row.content.trophy?.kind !== kind) return { ok: false, error: 'trophy_unavailable' };
   const [updated] = await db
     .update(prize)
     .set({ content, updatedAt: new Date() })
