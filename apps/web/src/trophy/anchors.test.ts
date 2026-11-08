@@ -88,4 +88,13 @@ describe('trophy anchors', () => {
       });
     }
   });
+
+  it('cup left and right stickers sit clear of the handles', () => {
+    const { left, right } = TROPHY_ANCHORS.cup.stickers;
+    for (const spot of [left!, right!]) {
+      const [x, , z] = spot.position;
+      // Ручки лежать у площині XY (z = 0): відстань від осі X за кутом.
+      expect((Math.atan2(Math.abs(z), Math.abs(x)) * 180) / Math.PI).toBeGreaterThan(30);
+    }
+  });
 });

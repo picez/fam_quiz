@@ -90,8 +90,9 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     stickers: {
       front: spot([0, 0.75, 0.3], unit(0, -0.2, 1), 0.12),
       back: spot([0, 0.75, -0.3], unit(0, -0.2, -1), 0.12),
-      left: spot([-0.28, 0.75, 0], unit(-1, -0.2, 0), 0.12),
-      right: spot([0.28, 0.75, 0], unit(1, -0.2, 0), 0.12),
+      // Повернуті на 50° від осі ручок (±X) до переду: на чаші між ручкою й front.
+      left: spot([-0.21, 0.75, 0.177], unit(-0.766, -0.2, 0.643), 0.12),
+      right: spot([0.21, 0.75, 0.177], unit(0.766, -0.2, 0.643), 0.12),
       'base-left': spot([-0.186, 0.1, 0], LEFT, 0.12),
       'base-right': spot([0.186, 0.1, 0], RIGHT, 0.12),
     },
