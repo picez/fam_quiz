@@ -26,8 +26,12 @@ export function inscriptionFont(font: NickFont | null, px: number): string {
   return `${weight} ${px}px '${NICK_FONT_FAMILY[font]}', Georgia, serif`;
 }
 
-/** Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. */
-export function loadInscriptionFont(font: NickFont | null): Promise<void> {
+/**
+ * Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. text — літери напису:
+ * шрифти поділені на підмножини (unicode-range), і без тексту FontFaceSet.load вантажить лише латинську, тож кирилиця
+ * на полотні малювалася б запасним шрифтом. Рим пишеться великими, тому вантажимо й їх.
+ */
+export function loadInscriptionFont(font: NickFont | null, text = ' '): Promise<void> {
   if (font === null) return Promise.resolve();
   return new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, FONT_TIMEOUT_MS);
@@ -38,7 +42,7 @@ export function loadInscriptionFont(font: NickFont | null): Promise<void> {
     loadNickFont(font)
       .then(() => {
         const fonts = typeof document === 'undefined' ? undefined : document.fonts;
-        return fonts ? fonts.load(inscriptionFont(font, 40)) : undefined;
+        return fonts ? fonts.load(inscriptionFont(font, 40), `${text.toUpperCase()} ${text}`) : undefined;
       })
       .then(finish, finish);
   });

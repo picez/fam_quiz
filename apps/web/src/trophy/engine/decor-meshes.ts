@@ -164,7 +164,7 @@ async function addInscription(
   metal: MeshStandardMaterial,
 ): Promise<void> {
   const anchors = TROPHY_ANCHORS[kind];
-  await loadInscriptionFont(inscription.font);
+  await loadInscriptionFont(inscription.font, inscription.text);
   switch (inscription.place) {
     case 'rim': {
       if (anchors.rim === undefined) return;

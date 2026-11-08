@@ -180,6 +180,16 @@ describe('decor canvas', () => {
     vi.unstubAllGlobals();
   });
 
+  it('loads the faces for the inscription letters', async () => {
+    vi.spyOn(NICK_FONT_LOADERS, 'hand').mockResolvedValue(undefined);
+    const fonts = { load: vi.fn(() => Promise.resolve([])) };
+    vi.stubGlobal('document', { fonts });
+    await loadInscriptionFont('hand', 'Чемпіон');
+    // Без тексту FontFaceSet.load бере лише пробіл (латинський підмножина), і кирилиця малюється запасним шрифтом.
+    expect(fonts.load).toHaveBeenCalledWith(inscriptionFont('hand', 40), 'ЧЕМПІОН Чемпіон');
+    vi.unstubAllGlobals();
+  });
+
   it('null font loads nothing', async () => {
     const spies = Object.values(NICK_FONT_LOADERS).length;
     const loaders = (Object.keys(NICK_FONT_LOADERS) as (keyof typeof NICK_FONT_LOADERS)[]).map((k) =>
