@@ -13,6 +13,18 @@ export const NICK_FONT_LOADERS: Record<NickFont, () => Promise<unknown>> = {
   heavy: () => import('@fontsource/dela-gothic-one'),
 };
 
+/** Назви родин, як у `.nick-font-<id>` у styles.css; canvas малює ними без CSS-класу. */
+export const NICK_FONT_FAMILY: Record<NickFont, string> = {
+  hand: 'Caveat Variable',
+  round: 'Comfortaa Variable',
+  mono: 'Fira Code Variable',
+  poster: 'Oswald Variable',
+  brush: 'Amatic SC',
+  pixel: 'Pixelify Sans Variable',
+  elegant: 'Cormorant Variable',
+  heavy: 'Dela Gothic One',
+};
+
 const loads = new Map<NickFont, Promise<void>>();
 
 /** Один import на шрифт. Збій (офлайн, чанк не прийшов) ковтається: лишається запасний шрифт зі стека. */
