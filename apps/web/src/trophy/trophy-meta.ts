@@ -1,4 +1,4 @@
-import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { PrizeContent, PrizePlace, PrizeShown, PrizesView, TrophyKind, TrophyLook, TrophyMaterial } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
 import { trophyGender, trophyPhrase } from '../locales/grammar';
 
@@ -20,10 +20,7 @@ export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: nu
   diamond: { color: '#CFEFFF', metallic: 0, roughness: 0.02 },
 };
 
-export interface TrophyLook {
-  kind: TrophyKind;
-  material: TrophyMaterial;
-}
+export type { TrophyLook } from '@quiz/shared';
 
 /** «Золотий кубок», «Срібна медаль», … (es «Copa de oro»). */
 export function trophyLabel(trophy: TrophyLook): string {

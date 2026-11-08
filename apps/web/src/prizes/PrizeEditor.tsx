@@ -48,7 +48,7 @@ export function PrizeEditor({ initial, busy, onSave, onCancel }: PrizeEditorProp
 
   const content: PrizeContent = {
     name,
-    trophy: trophyOn ? { kind, material } : null,
+    trophy: trophyOn ? { ...initial?.trophy, kind, material } : null,
     engraving: engravingOn ? engraving : null,
     real: realOn ? { text: realText, photoUrl } : null,
     title: titleOn ? title : null,
@@ -101,7 +101,7 @@ export function PrizeEditor({ initial, busy, onSave, onCancel }: PrizeEditorProp
             ))}
           </fieldset>
           <div className="prize-preview">
-            <TrophyView trophy={{ kind, material }} size="card" spin interactive={false} />
+            <TrophyView trophy={{ ...initial?.trophy, kind, material }} size="card" spin interactive={false} />
           </div>
         </div>
       )}
