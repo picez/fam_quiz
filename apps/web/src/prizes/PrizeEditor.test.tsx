@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PrizeEditor } from './PrizeEditor';
 
 vi.mock('../editor/ImageField', () => ({ ImageField: () => <div data-testid="image-field" /> }));
-vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
+vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 
 afterEach(cleanup);
 

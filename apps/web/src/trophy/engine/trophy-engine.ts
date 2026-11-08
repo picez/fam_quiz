@@ -7,7 +7,6 @@ import {
   PerspectiveCamera,
   PlaneGeometry,
   Scene,
-  Sphere,
   Vector3,
   type Material,
   type Texture,
@@ -17,7 +16,7 @@ import { decorSummary, fitDistance } from '../decor-layout';
 import type { TrophyEngine, TrophyHandle, TrophyMount } from '../engine-types';
 import { modelUrl } from '../trophy-meta';
 import { buildDecor } from './decor-meshes';
-import { loadModel, paintModel } from './models';
+import { framingSphere, loadModel, paintModel } from './models';
 import { getStage, type StageView } from './stage';
 import { domTextures } from './textures';
 
@@ -208,7 +207,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
           if (built.backdrop !== null) scene.background = built.backdrop;
         }
         const size = box.getSize(new Vector3());
-        const sphere = new Box3().setFromObject(trophy).getBoundingSphere(new Sphere());
+        const sphere = framingSphere(trophy);
         target.copy(sphere.center);
         radius = Math.max(sphere.radius, 0.01);
         const footprint = Math.max(size.x, size.z) * 1.6;

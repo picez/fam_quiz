@@ -6,7 +6,7 @@ import type { AwardCard } from '@quiz/shared';
 import { renderDiploma, shareDiploma } from '../trophy/diploma';
 import { ShowcaseShelf } from './ShowcaseShelf';
 
-vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
+vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 vi.mock('../trophy/diploma', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../trophy/diploma')>()),
   renderDiploma: vi.fn(),

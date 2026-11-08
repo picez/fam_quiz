@@ -1,6 +1,6 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Texture } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Texture } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { loadModel, paintModel } from './models';
+import { framingSphere, loadModel, paintModel } from './models';
 
 const loads = vi.hoisted(() => ({ count: 0, flaky: 0 }));
 vi.mock('three/addons/loaders/GLTFLoader.js', async () => {
@@ -51,5 +51,22 @@ describe('models', () => {
     await expect(loadModel('/models/flaky.glb')).rejects.toThrow('404');
     const group = await loadModel('/models/flaky.glb');
     expect(group.children).toHaveLength(1);
+  });
+
+  it('framingSphere is centred on the box and reaches the farthest vertex, not the box corner', () => {
+    // Як model-viewer: куля з центру рамки до найдальшої вершини; куля навколо кута рамки завелика.
+    const group = new Group();
+    const ball = new Mesh(new SphereGeometry(1, 32, 16), new MeshStandardMaterial());
+    ball.position.set(0, 2, 0);
+    group.add(ball);
+    group.position.x = 5;
+    const sphere = framingSphere(group);
+    expect(sphere.center.x).toBeCloseTo(5);
+    expect(sphere.center.y).toBeCloseTo(2);
+    expect(sphere.radius).toBeCloseTo(1, 2);
+  });
+
+  it('framingSphere of an empty group is a point', () => {
+    expect(framingSphere(new Group()).radius).toBe(0);
   });
 });

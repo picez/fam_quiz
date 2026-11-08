@@ -22,7 +22,7 @@ describe('PlayingFor', () => {
     expect(screen.getByText('Піца 🍕')).toBeTruthy();
     expect(screen.getByText('👑 Король вікторини')).toBeTruthy();
     expect(container.querySelectorAll('li')).toHaveLength(2);
-    expect(container.querySelector('model-viewer')).toBeNull();
+    expect(container.querySelector('.trophy, .trophy-canvas')).toBeNull();
   });
 
   it('stage: a title that starts with an emoji gets no second crown', () => {

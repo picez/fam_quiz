@@ -12,7 +12,7 @@ export const TROPHY_EMOJI: Record<TrophyKind, string> = {
   grail: '🍷',
 };
 
-/** Вигляд матеріалу: колір, металевість і шорсткість для model-viewer, колір — і для значка та рамки диплома. */
+/** Вигляд матеріалу: колір, металевість і шорсткість для рушія трофеїв, колір — і для значка та рамки диплома. */
 export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: number; roughness: number }> = {
   bronze: { color: '#B0703A', metallic: 1, roughness: 0.35 },
   silver: { color: '#C9CED6', metallic: 1, roughness: 0.25 },

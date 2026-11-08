@@ -1,5 +1,5 @@
 import type { TrophyMaterial } from '@quiz/shared';
-import { Mesh, MeshStandardMaterial, type Group, type Material } from 'three';
+import { Box3, Mesh, MeshStandardMaterial, Sphere, Vector3, type Group, type Material, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MATERIAL_LOOK } from '../trophy-meta';
 
@@ -39,3 +39,26 @@ export function paintModel(group: Group, material: TrophyMaterial): void {
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map(paint) : paint(mesh.material);
   });
 }
+
+/**
+ * Куля для кадру (як у model-viewer): центр — центр рамки, радіус — до найдальшої вершини. Куля навколо рамки
+ * (getBoundingSphere) для кубка з ручками на чверть більша, і трофей виходив дрібнішим, ніж був.
+ */
+export function framingSphere(object: Object3D): Sphere {
+  const box = new Box3().setFromObject(object);
+  if (box.isEmpty()) return new Sphere(new Vector3(), 0);
+  const center = box.getCenter(new Vector3());
+  const vertex = new Vector3();
+  let farthest = 0;
+  object.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+    const position = child.geometry.getAttribute('position');
+    if (position === undefined) return;
+    for (let i = 0; i < position.count; i += 1) {
+      vertex.fromBufferAttribute(position, i).applyMatrix4(child.matrixWorld);
+      farthest = Math.max(farthest, vertex.distanceToSquared(center));
+    }
+  });
+  return new Sphere(center, Math.sqrt(farthest));
+}
+

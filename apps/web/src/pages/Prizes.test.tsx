@@ -18,7 +18,7 @@ vi.mock('../api', () => ({
   unpinFromShowcase: vi.fn(),
 }));
 vi.mock('../editor/ImageField', () => ({ ImageField: () => <div /> }));
-vi.mock('../trophy/loadViewer', () => ({ loadViewer: vi.fn(async () => false), webglAvailable: () => false }));
+vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 
 const content = (name: string, over: Partial<PrizeContent> = {}): PrizeContent => ({
   name,

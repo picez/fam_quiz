@@ -83,17 +83,24 @@ describe('PrizeViewer', () => {
     root.remove();
   });
 
-  it('the focus trap includes the 3D model-viewer', () => {
+  it('the focus trap goes round through the 3D canvas', () => {
     render(<PrizeViewer content={content()} place={1} onClose={() => {}} />);
     const dialog = screen.getByRole('dialog');
-    const viewer = document.createElement('model-viewer');
-    dialog.append(viewer);
+    // Так полотно кладе рушій (engine.mount) для інтерактивного трофея.
+    const canvas = document.createElement('canvas');
+    canvas.className = 'trophy-canvas';
+    canvas.tabIndex = 0;
+    dialog.append(canvas);
+    // Старий елемент без tabindex більше не фокусується.
+    const stale = document.createElement('model-viewer');
+    dialog.append(stale);
     const close = screen.getByRole('button', { name: 'Закрити' });
-    // × перший, model-viewer (без власного tabindex) останній: Shift+Tab з × веде на нього.
-    const focus = vi.spyOn(viewer, 'focus');
     expect(document.activeElement).toBe(close);
+    // × перший, полотно останнє: Shift+Tab з × веде на нього, Tab з нього — знову на ×.
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
-    expect(focus).toHaveBeenCalled();
+    expect(document.activeElement).toBe(dialog.querySelector('canvas.trophy-canvas[tabindex="0"]'));
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
   });
 
   it('a modal dialog with the photo large, the engraving, the caption and the title', () => {

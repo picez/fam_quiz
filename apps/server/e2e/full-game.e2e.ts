@@ -17230,8 +17230,8 @@ function prizeQuestions14a() {
   ];
 }
 
-/** Запити до 3D: файли моделей і чанк model-viewer. */
-const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/model-viewer[^/]*\.js/.test(url);
+/** Запити до 3D: файли моделей і чанк рушія трофеїв (three.js). */
+const isTrophyRequest = (url: string) => /\.glb(\?|$)/.test(url) || /\/assets\/(trophy-engine|three)[^/]*\.js/.test(url);
 
 /** Перегляд призу (кнопка з видом трофея, тут «Кубок»): модальний діалог у межах вузького екрана, × не менше 44 px; закривається Escape, тоді тлом, тоді ×. */
 async function expectPrizeViewer(page: Page, opener: Locator, label: string, engraving: string) {
@@ -17383,7 +17383,7 @@ async function prizes14a() {
   await expectNoSideScroll(olya, 'p14a-phone-lobby');
   await petro.locator('.playing-for').waitFor();
 
-  // Лобі без трофеїв: жодного запиту на модель чи чанк model-viewer.
+  // Лобі без трофеїв: жодного запиту на модель чи чанк рушія.
   for (const [name, list] of requests) expect(list.filter(isTrophyRequest), `${name} loaded 3D in the lobby`).toEqual([]);
 
   // ── 3. Гра: Оля 200, Петро 100. ──
