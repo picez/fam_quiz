@@ -16,8 +16,10 @@ import { reducedMotion } from '../../motion';
 import { decorSummary, fitDistance } from '../decor-layout';
 import type { TrophyEngine, TrophyHandle, TrophyMount } from '../engine-types';
 import { modelUrl } from '../trophy-meta';
+import { buildDecor } from './decor-meshes';
 import { loadModel, paintModel } from './models';
 import { getStage, type StageView } from './stage';
+import { domTextures } from './textures';
 
 /** Кут поля зору камери, градуси. */
 const FOV = 30;
@@ -54,6 +56,28 @@ function shadow(): Texture {
     shadowTexture = new CanvasTexture(canvas);
   }
   return shadowTexture;
+}
+
+type BuiltDecor = Awaited<ReturnType<typeof buildDecor>>;
+
+/** Геометрії, матеріали й текстури оформлення — наші; текстури наліпок спільні (кеш) і лишаються. */
+function decorResources(built: BuiltDecor): { dispose(): void }[] {
+  const resources: { dispose(): void }[] = [];
+  if (built.backdrop !== null) resources.push(built.backdrop);
+  built.group.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    resources.push(object.geometry);
+    for (const material of [object.material].flat() as Material[]) {
+      resources.push(material);
+      const map = (material as { map?: Texture | null }).map;
+      if (map != null && !object.name.startsWith('decor-sticker-')) resources.push(map);
+    }
+  });
+  return resources;
+}
+
+function disposeDecor(built: BuiltDecor): void {
+  for (const resource of new Set(decorResources(built))) resource.dispose();
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -153,9 +177,17 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     queueMicrotask(fail);
   } else {
     scene.environment = stage.environment;
-    loadModel(modelUrl(look)).then(
-      (model) => {
-        if (disposed || failed) return;
+    // Оформлення будується разом із моделлю; його збій не ховає кубок — той показується без оформлення.
+    const decor =
+      look.decor == null
+        ? Promise.resolve(null)
+        : buildDecor(look.kind, look.material, look.decor, options.size, domTextures).catch(() => null);
+    Promise.all([loadModel(modelUrl(look)), decor]).then(
+      ([model, built]) => {
+        if (disposed || failed) {
+          if (built !== null) disposeDecor(built);
+          return;
+        }
         paintModel(model, look.material);
         model.traverse((object) => {
           if (!(object instanceof Mesh)) return;
@@ -169,6 +201,12 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
         const center = box.getCenter(new Vector3());
         model.position.set(-center.x, -box.min.y, -center.z);
         trophy.add(model);
+        if (built !== null) {
+          // У просторі моделі: точки кріплення виміряно за її профілем.
+          model.add(built.group);
+          owned.push(...decorResources(built));
+          if (built.backdrop !== null) scene.background = built.backdrop;
+        }
         const size = box.getSize(new Vector3());
         const sphere = new Box3().setFromObject(trophy).getBoundingSphere(new Sphere());
         target.copy(sphere.center);
@@ -188,7 +226,12 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
         scene.add(floor);
         stage.add(view);
       },
-      () => fail(),
+      () => {
+        fail();
+        void decor.then((built) => {
+          if (built !== null) disposeDecor(built);
+        });
+      },
     );
   }
 
@@ -208,5 +251,5 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
   };
 }
 
-/** Рушій трофеїв. У задачі 7 — лише модель у кольорі матеріалу; decor додає задача 8. */
+/** Рушій трофеїв: модель у кольорі матеріалу й оформлення decor на точках кріплення форми. */
 export const engine: TrophyEngine = { mount };
