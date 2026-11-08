@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { reducedMotion } from '../motion';
 import { loadViewer, webglAvailable } from './loadViewer';
-import { MATERIAL_LOOK, TROPHY_EMOJI, trophyLabel, type TrophyLook } from './trophy-meta';
+import { MATERIAL_LOOK, TROPHY_EMOJI, modelUrl, trophyLabel, type TrophyLook } from './trophy-meta';
 
 interface PbrSetters {
   setBaseColorFactor(color: string): void;
@@ -47,7 +47,7 @@ export function TrophyView({ trophy, size, spin, interactive }: TrophyViewProps)
     const box = holder.current;
     if (!ready || box === null) return;
     const viewer = document.createElement('model-viewer') as ViewerElement;
-    viewer.setAttribute('src', `/models/${trophy.kind}.glb`);
+    viewer.setAttribute('src', modelUrl(trophy));
     viewer.setAttribute('alt', label);
     viewer.setAttribute('disable-zoom', '');
     viewer.setAttribute('interaction-prompt', 'none');

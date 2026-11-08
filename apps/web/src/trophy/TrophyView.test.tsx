@@ -45,6 +45,12 @@ describe('TrophyView', () => {
     expect(document.querySelector('model-viewer')).toBeNull();
   });
 
+  it('shows the baked family model for a grail without decor', async () => {
+    render(<TrophyView trophy={{ kind: 'grail', material: 'gold' }} size="card" spin interactive={false} />);
+    await flush();
+    expect(document.querySelector('model-viewer[src="/models/grail-family.glb"]')).not.toBeNull();
+  });
+
   it('puts a model-viewer of the kind once the module is ready', async () => {
     render(<TrophyView trophy={{ kind: 'medal', material: 'silver' }} size="stage" spin interactive />);
     await flush();

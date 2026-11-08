@@ -22,6 +22,12 @@ export const MATERIAL_LOOK: Record<TrophyMaterial, { color: string; metallic: nu
 
 export type { TrophyLook } from '@quiz/shared';
 
+/** Тимчасово (до задачі 12): грааль без decor — запечений сімейний. */
+export function modelUrl(trophy: TrophyLook): string {
+  if (trophy.kind === 'grail' && trophy.decor == null) return '/models/grail-family.glb';
+  return `/models/${trophy.kind}.glb`;
+}
+
 /** «Золотий кубок», «Срібна медаль», … (es «Copa de oro»). */
 export function trophyLabel(trophy: TrophyLook): string {
   const adjective = t(`material_${trophy.material}_${trophyGender(trophy.kind)}` as TextKey);

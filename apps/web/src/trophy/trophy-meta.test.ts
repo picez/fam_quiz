@@ -1,6 +1,7 @@
+import type { TrophyDecor } from '@quiz/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocale, activateLocaleForTests, loadLocale } from '../i18n';
-import { podiumColumns, prizeSummary, titleBadge, trophyLabel } from './trophy-meta';
+import { modelUrl, podiumColumns, prizeSummary, titleBadge, trophyLabel } from './trophy-meta';
 
 describe('trophyLabel', () => {
   it('agrees the material with the gender of the kind', () => {
@@ -130,5 +131,18 @@ describe('podiumColumns', () => {
     expect(podiumColumns([shown(1)])).toEqual([1]);
     expect(podiumColumns([shown(3), shown(1)])).toEqual([1, 3]);
     expect(podiumColumns([])).toEqual([]);
+  });
+});
+
+describe('modelUrl', () => {
+  const decor: TrophyDecor = { photos: [], photoPlace: 'ring', frame: 'none', photoStyle: 'normal', inscriptions: [], effect: { kind: 'none' }, appearance: 'spin', stickers: [] };
+  it('keeps the baked family grail only for a grail without decor', () => {
+    expect(modelUrl({ kind: 'grail', material: 'gold' })).toBe('/models/grail-family.glb');
+    expect(modelUrl({ kind: 'grail', material: 'gold', decor: null })).toBe('/models/grail-family.glb');
+    expect(modelUrl({ kind: 'grail', material: 'gold', decor })).toBe('/models/grail.glb');
+  });
+  it('is the kind model for everything else', () => {
+    expect(modelUrl({ kind: 'cup', material: 'gold' })).toBe('/models/cup.glb');
+    expect(modelUrl({ kind: 'cup', material: 'gold', decor })).toBe('/models/cup.glb');
   });
 });
