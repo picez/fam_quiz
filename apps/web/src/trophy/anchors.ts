@@ -392,11 +392,12 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     band: { shape: 'profile', surface: 'foot', y0: 0.005, y1: 0.035, tori: [], tube: 0 },
     medallion: spot([0, 0.5, 0.272], FRONT, 0.2, 'belly'),
     gems: { center: [0, 0.5, 0], axis: 'y', radius: 0.272, size: 0.07, surface: 'belly' },
+    // Наліпки — під кільцем (0.38–0.62): фото кільцем чи самоцвітами їх не витісняють. Черево там r 0.22, схил 0.4.
     stickers: {
-      front: spot([0, 0.44, 0.27], unit(0, -0.06, 1), 0.12, 'belly'),
-      back: spot([0, 0.44, -0.27], unit(0, -0.06, -1), 0.12, 'belly'),
-      left: spot([-0.27, 0.44, 0], unit(-1, -0.06, 0), 0.12, 'belly'),
-      right: spot([0.27, 0.44, 0], unit(1, -0.06, 0), 0.12, 'belly'),
+      front: spot([0, 0.27, 0.219], unit(0, -0.4, 1), 0.1, 'belly'),
+      back: spot([0, 0.27, -0.219], unit(0, -0.4, -1), 0.1, 'belly'),
+      left: spot([-0.219, 0.27, 0], unit(-1, -0.4, 0), 0.1, 'belly'),
+      right: spot([0.219, 0.27, 0], unit(1, -0.4, 0), 0.1, 'belly'),
     },
   },
   // Диск r 0.4 лицем до +Z з центром (0, 0.68): гладке заглиблення z 0.012 до r 0.3, зворот z −0.03 до r 0.36;
@@ -447,10 +448,11 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     medallion: spot([0, 0.74, 0.267], unit(0, -0.15, 1), 0.18, 'bowl'),
     gems: { center: [0, 0.74, 0], axis: 'y', radius: 0.267, size: 0.06, surface: 'bowl' },
     stickers: {
-      front: spot([0, 0.72, 0.262], unit(0, -0.2, 1), 0.1, 'bowl'),
-      back: spot([0, 0.72, -0.262], unit(0, -0.2, -1), 0.1, 'bowl'),
-      left: spot([-0.262, 0.72, 0], unit(-1, -0.2, 0), 0.1, 'bowl'),
-      right: spot([0.262, 0.72, 0], unit(1, -0.2, 0), 0.1, 'bowl'),
+      // Під кільцем (0.64–0.845) на схилі чаші (r 0.21, схил 0.625): фото кільцем чи самоцвітами їх не витісняють.
+      front: spot([0, 0.59, 0.21], unit(0, -0.65, 1), 0.08, 'bowl'),
+      back: spot([0, 0.59, -0.21], unit(0, -0.65, -1), 0.08, 'bowl'),
+      left: spot([-0.21, 0.59, 0], unit(-1, -0.65, 0), 0.08, 'bowl'),
+      right: spot([0.21, 0.59, 0], unit(1, -0.65, 0), 0.08, 'bowl'),
     },
   },
   // starShape(0.36, 0.15, 0.06, 0.02) з центром (0, 0.2912): лице z 0.06 у центрі → 0.02 на краях; бічні промені на 162° і 18°.
@@ -478,7 +480,7 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     },
   },
   // Восьмикутник r 0.34 з центром (0, 0.3141), лице z 0.035, бічні грані x ±0.314 (z ±0.035 з фасками);
-  // піднятий r 0.25: пласке лице z ±0.055, апофема 0.216.
+  // піднятий r 0.25: лице z ±0.055, апофема 0.231 (пласке лице без фаски 0.015 — до 0.216).
   octagon: {
     surfaces: { face: 'flat', back: 'flat', 'edge-left': 'flat', 'edge-right': 'flat' },
     medallion: spot([0, 0.3141, 0.056], FRONT, 0.3, 'face'),

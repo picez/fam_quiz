@@ -179,6 +179,20 @@ describe('layoutDecor', () => {
     }
   });
 
+  it('every photo place leaves room for a sticker', () => {
+    // Для кожної форми й кожного місця фото (самоцвіти — 1…8, кільце — 1 і 16) хоч одне місце наліпки вільне.
+    for (const kind of Object.keys(DECOR_SUPPORT) as TrophyKind[]) {
+      const support = DECOR_SUPPORT[kind];
+      for (const place of support.photo) {
+        const counts = place === 'gems' ? [1, 2, 3, 4, 5, 6, 7, 8] : place === 'ring' ? [1, 16] : [1];
+        for (const n of counts) {
+          const choices = stickerPlaceChoices(kind, decor({ photos: photos(n), photoPlace: place }), null);
+          expect(choices.some((c) => c.takenBy === null), `${kind} ${place} ×${n}`).toBe(true);
+        }
+      }
+    }
+  });
+
   it('lovingcup back inscription under the ring moves to the base back', () => {
     const ring = layoutDecor('lovingcup', decor({ photos: photos(3), photoPlace: 'ring', inscriptions: [inscription('back')] }));
     expect(ring.inscriptions).toEqual([
