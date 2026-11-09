@@ -9,6 +9,7 @@ const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board'>, number> = {
   classic: 1,
   blitz: 1,
   final: 1,
+  bets: 1,
   wipeout: LIMITS.minWipeoutQuestions,
   survival: LIMITS.minSurvivalQuestions,
   ladder: LIMITS.minLadderQuestions,

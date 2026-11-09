@@ -122,6 +122,10 @@ export type ErrorCode =
   | 'no_players'
   /** «Мільйонер»: ведучий ще не вибрав учасника (10i). */
   | 'ladder_pick'
+  /** «Ставки»: гравець пропускає це запитання (27a). */
+  | 'bet_skipped'
+  /** «Ставки»: ставка не ціла, нижча за мінімум чи вища за межу (27a). */
+  | 'bet_range'
   | 'room_full'
   | 'nickname_invalid'
   | 'nickname_taken'

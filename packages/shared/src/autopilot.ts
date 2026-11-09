@@ -86,7 +86,7 @@ function roundChanges(quiz: Quiz, round: Round, hintBuff: boolean): Set<Autopilo
   const found = new Set<AutopilotChange>();
   const questions: Question[] = roundQuestions(round);
   if (round.type === 'board' && hasVoice(round)) found.add('voice');
-  if ((round.type === 'blitz' || round.type === 'board' || round.type === 'final') && round.check === 'manual') found.add('manual');
+  if ((round.type === 'blitz' || round.type === 'board' || round.type === 'final' || round.type === 'bets') && round.check === 'manual') found.add('manual');
   if (round.type === 'ladder' && round.pick === 'host') found.add('ladder_pick');
   if (hintBuff && (round.type === 'classic' || round.type === 'board') && [...questions, ...swapSpares(quiz, round)].some((q) => q.hint === undefined)) {
     found.add('hint');
@@ -120,6 +120,7 @@ function convert(round: Round): Round {
         })),
       };
     case 'final':
+    case 'bets':
       return round.check === 'manual' ? { ...round, check: 'auto' } : round;
     case 'ladder':
       return round.pick === 'host' ? { ...round, pick: 'random' } : round;

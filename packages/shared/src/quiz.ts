@@ -3,6 +3,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, t
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
 import { ladderPathIssue } from './wordladder';
+import { betsRoundIssue } from './bets';
 
 export const LIMITS = {
   questionText: 300,
@@ -159,6 +160,10 @@ export const LIMITS = {
   maxWordLadderWords: 40,
   wordLadderWord: 30,
   defaultWordLadderTime: 90,
+  /** «Ставки» (27a): стеля початкової ставки, кроку й найбільшої ставки; типові початок і крок. */
+  maxBet: 100_000,
+  defaultBetStart: 200,
+  defaultBetStep: 100,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -242,6 +247,8 @@ const base = {
   audio: audioSchema.optional(),
   /** Режим картинки (10b): немає — звичайна. */
   reveal: z.enum(REVEAL_MODES).optional(),
+  /** Раунд «Ставки»: скільки перших слів тексту видно під час ставок; лише в такому раунді (і там обов'язково). */
+  betsCut: z.number().int().min(0).max(LIMITS.questionText).optional(),
 };
 
 /** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
@@ -870,6 +877,24 @@ export const finalRoundSchema = z.object({
 
 export type FinalRound = z.infer<typeof finalRoundSchema>;
 
+/** «Ставки»: перед кожним запитанням таємна ставка від мінімуму (росте на крок) до найбільшої чи своїх балів; бали дає лише банк. */
+export const betsRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('bets'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  shuffleOptions: z.boolean(),
+  check: z.enum(['auto', 'manual']),
+  betStart: z.number().int().min(1).max(LIMITS.maxBet),
+  betStep: z.number().int().min(0).max(LIMITS.maxBet),
+  /** null — можна ставити всі свої бали. */
+  betMax: z.number().int().min(1).max(LIMITS.maxBet).nullable(),
+  questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
+});
+
+export type BetsRound = z.infer<typeof betsRoundSchema>;
+
 /** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
 export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
 
@@ -947,7 +972,7 @@ export const ladderRoundSchema = z.object({
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'wipeout', 'survival', 'ladder'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'wipeout', 'survival', 'ladder'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -955,6 +980,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   blitzRoundSchema,
   boardRoundSchema,
   finalRoundSchema,
+  betsRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
   ladderRoundSchema,
@@ -967,9 +993,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'bets' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -1106,9 +1132,16 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'bluff')
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'bluff');
       if (bluffPlace) ctx.addIssue({ code: 'custom', message: 'bluff_place' });
-      // Словесна драбина (26c): лише класика й фінал; жодної клітинки поля.
-      if (round.type !== 'classic' && round.type !== 'final' && roundQuestions(round).some((q) => q.type === 'wordladder')) {
+      // Словесна драбина (26c): лише класика, фінал і «Ставки»; жодної клітинки поля.
+      if (round.type !== 'classic' && round.type !== 'final' && round.type !== 'bets' && roundQuestions(round).some((q) => q.type === 'wordladder')) {
         ctx.addIssue({ code: 'custom', message: 'wordladder_place' });
+      }
+      // «Ставки»: мінімум останнього запитання не більший за найбільшу ставку; позначка обрізу в кожному запитанні.
+      if (round.type === 'bets') {
+        if (betsRoundIssue(round, round.questions.length) !== null) ctx.addIssue({ code: 'custom', message: 'bets_max' });
+        if (round.questions.some((q) => q.betsCut === undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_missing' });
+      } else if ([...roundQuestions(round), ...roundTrials(round)].some((q) => q.betsCut !== undefined)) {
+        ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });
       }
       // «Ва-банк»: лише прості типи з однозначною відповіддю.
       if (round.type === 'wipeout') {
@@ -1162,6 +1195,7 @@ export const quizSchema = z
     }
     if (buffs?.some((kind) => !READY_BUFFS.includes(kind))) ctx.addIssue({ code: 'custom', message: 'buff_unavailable' });
     const pools = [...(quiz.spares ?? []), ...categorySparesOf(quiz)];
+    if (pools.some((s) => s.betsCut !== undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });
     if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;
       if (pools.some((s) => !types.includes(s.type))) ctx.addIssue({ code: 'custom', message: 'spare_type' });

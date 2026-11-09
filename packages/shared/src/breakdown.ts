@@ -2,7 +2,7 @@ import type { AdjustmentSource } from './game';
 import type { Round } from './quiz';
 
 /** Джерела балів у порядку розбивки (11f). */
-export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder'] as const;
+export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets'] as const;
 export type ScoreSource = (typeof SCORE_SOURCES)[number];
 
 /** Один рядок балів (11f): відповідь, спроба бліцу, штраф чи коригування. */
@@ -26,9 +26,10 @@ export interface ScoreBreakdown {
   minus: number;
 }
 
-/** Джерело рядка відповіді за типом раунду: фінал — 'final', «Ва-банк» — 'wipeout', решта й невідомий — 'answers'. */
+/** Джерело рядка відповіді за типом раунду: фінал — 'final', «Ставки» — 'bets', «Ва-банк» — 'wipeout', решта й невідомий — 'answers'. */
 export function answerSource(type: Round['type'] | undefined): ScoreSource {
   if (type === 'final') return 'final';
+  if (type === 'bets') return 'bets';
   if (type === 'wipeout') return 'wipeout';
   return 'answers';
 }
