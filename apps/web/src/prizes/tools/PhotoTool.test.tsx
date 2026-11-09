@@ -166,6 +166,20 @@ describe('PhotoTool', () => {
     expect(document.activeElement).toBe(done);
   });
 
+  it('a smaller place hides the extra photos and a bigger one brings them back', () => {
+    open('cup', ['/uploads/a.png', '/uploads/b.png', '/uploads/c.png', '/uploads/d.png', '/uploads/e.png']);
+    fireEvent.click(screen.getByRole('radio', { name: 'Медальйон спереду' }));
+    expect(screen.getAllByRole('img').map((img) => img.getAttribute('alt'))).toEqual(['Фото 1']);
+    expect(screen.getByText('1 з 1')).toBeTruthy();
+    expect(screen.getByText('Більше фото сюди не влізе.')).toBeTruthy();
+    expect(fileInput().disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Пізніше: Фото 1' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(current.decor.photos).toHaveLength(5);
+    fireEvent.click(screen.getByRole('radio', { name: 'Кільце по чаші' }));
+    expect(screen.getAllByRole('img')).toHaveLength(5);
+    expect(screen.getByText('5 з 16')).toBeTruthy();
+  });
+
   it('frame and style', () => {
     open('cup');
     fireEvent.click(screen.getByRole('radio', { name: 'Золота' }));

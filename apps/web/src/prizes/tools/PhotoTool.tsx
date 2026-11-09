@@ -11,7 +11,7 @@ const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).in
 
 /**
  * «Фото»: місце (лише ті, що має форма), кілька файлів за раз у межах місця, порядок, кадрування кожного фото,
- * рамка і стиль. Файли вантажаться по одному: неприйнятий пропускається, помилка сервера (зокрема too_many)
+ * рамка і стиль. Видно й рахується лише те, що влазить у місце (як і зберігається). Файли вантажаться по одному: неприйнятий пропускається, помилка сервера (зокрема too_many)
  * зупиняє пачку, а вже завантажені лишаються на кубку.
  */
 export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
@@ -19,7 +19,9 @@ export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
   const places = draft.trophy === null ? [] : DECOR_SUPPORT[draft.trophy.kind].photo;
   const placeShown = places.includes(decor.photoPlace);
   const limit = photoLimit(decor.photoPlace);
-  const count = decor.photos.length;
+  // Фото понад межу місця чекають у чернетці (місце можна змінити назад), але не зберігаються й тут не видні.
+  const shown = decor.photos.slice(0, limit);
+  const count = shown.length;
   const full = count >= limit;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +105,7 @@ export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
 
           {count > 0 && (
             <ol className="studio-photos">
-              {decor.photos.map((item, index) => (
+              {shown.map((item, index) => (
                 <li key={`${index}:${item.url}`} className="studio-photo">
                   <img className="studio-photo-thumb" src={item.url} alt={t('studioPhotoN', { n: index + 1 })} />
                   <div className="studio-photo-actions">

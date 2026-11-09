@@ -91,7 +91,8 @@ describe('studio draft', () => {
     expect(run(draft, { type: 'addPhotos', urls: [url(99)] })).toBe(draft);
 
     draft = run(draft, { type: 'photoPlace', place: 'medallion' });
-    expect(draft.decor.photos.map((p) => p.url)).toEqual([url(0)]);
+    expect(draft.decor.photos).toHaveLength(16);
+    expect(run(draft, { type: 'addPhotos', urls: [url(99)] })).toBe(draft);
 
     draft = run(draftFrom(null), { type: 'addPhotos', urls: [url(1), url(2), url(3)] }, { type: 'movePhoto', from: 2, to: 0 });
     expect(draft.decor.photos.map((p) => p.url)).toEqual([url(3), url(1), url(2)]);
@@ -100,6 +101,20 @@ describe('studio draft', () => {
     const next = { x: 0.2, y: 0.8, scale: 2 };
     draft = run(draft, { type: 'crop', index: 1, crop: next });
     expect(draft.decor.photos.map((p) => p.crop)).toEqual([crop, next]);
+  });
+
+  it('switching the photo place keeps the photos; only what fits is saved and shown', () => {
+    const ring = run(draftFrom(null), { type: 'name', value: 'К' }, { type: 'addPhotos', urls: [url(1), url(2), url(3), url(4), url(5)] });
+    const medallion = run(ring, { type: 'photoPlace', place: 'medallion' });
+    expect(medallion.decor.photos).toHaveLength(5);
+    const saved = contentOf(medallion, null).trophy?.decor;
+    expect(saved?.photoPlace).toBe('medallion');
+    expect(saved?.photos.map((p) => p.url)).toEqual([url(1)]);
+    expect(studioLook(medallion)?.decor?.photos.map((p) => p.url)).toEqual([url(1)]);
+    expect(studioIssues(contentOf(medallion, null))).toEqual([]);
+    const back = run(medallion, { type: 'photoPlace', place: 'ring' });
+    expect(back.decor.photos.map((p) => p.url)).toEqual([url(1), url(2), url(3), url(4), url(5)]);
+    expect(contentOf(back, null).trophy?.decor?.photos).toHaveLength(5);
   });
 
   it('inscriptions and stickers stay in place order', () => {

@@ -75,7 +75,7 @@ export function draftFrom(initial: PrizeContent | null): StudioDraft {
 }
 
 /**
- * Чернетка → зміст. Оформлення без місць, яких форма не має. Порожнє оформлення:
+ * Чернетка → зміст. Оформлення без місць, яких форма не має, і без фото понад межу місця. Порожнє оформлення:
  * у призу, що мав decor, — `null` (прибрати); у призу без нього — ключа немає (лишається як було);
  * грааль завжди зберігає decor (сервер теж це гарантує).
  */
@@ -83,7 +83,7 @@ export function contentOf(draft: StudioDraft, initial: PrizeContent | null): Pri
   let trophy: PrizeContent['trophy'] = null;
   if (draft.trophy !== null) {
     const { kind, material } = draft.trophy;
-    const decor = shownDecor(kind, draft.decor);
+    const decor = shownDecor(kind, withinPlaceLimit(draft.decor));
     if (!isEmptyDecor(decor) || kind === 'grail') trophy = { kind, material, decor };
     else if (initial?.trophy?.decor != null) trophy = { kind, material, decor: null };
     else trophy = { kind, material };
@@ -100,7 +100,16 @@ export function contentOf(draft: StudioDraft, initial: PrizeContent | null): Pri
 
 /** Що показує кубок на сцені; null — приз без трофея. */
 export function studioLook(draft: StudioDraft): TrophyLook | null {
-  return draft.trophy === null ? null : { kind: draft.trophy.kind, material: draft.trophy.material, decor: draft.decor };
+  return draft.trophy === null ? null : { kind: draft.trophy.kind, material: draft.trophy.material, decor: withinPlaceLimit(draft.decor) };
+}
+
+/**
+ * Фото, що влазять у вибране місце (перші photoLimit). Чернетка тримає всі: місце можна змінити туди й назад без
+ * втрат, а в збережене й на кубок ідуть лише ці.
+ */
+export function withinPlaceLimit(decor: TrophyDecor): TrophyDecor {
+  const limit = photoLimit(decor.photoPlace);
+  return decor.photos.length <= limit ? decor : { ...decor, photos: decor.photos.slice(0, limit) };
 }
 
 export type StudioAction =
@@ -149,7 +158,7 @@ export function studioReducer(draft: StudioDraft, action: StudioAction): StudioD
     case 'material':
       return draft.trophy === null ? draft : { ...draft, trophy: { ...draft.trophy, material: action.material } };
     case 'photoPlace':
-      return withDecor(draft, { photoPlace: action.place, photos: decor.photos.slice(0, photoLimit(action.place)) });
+      return withDecor(draft, { photoPlace: action.place });
     case 'addPhotos': {
       const room = Math.max(0, photoLimit(decor.photoPlace) - decor.photos.length);
       const added = action.urls.slice(0, room).map((url): DecorPhoto => ({ url, crop: { ...CROP_RESET } }));
