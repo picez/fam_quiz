@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carryLine, debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wipeoutLines } from './GameHistory';
+import { carryLine, debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {
@@ -178,5 +178,12 @@ describe('carryLine', () => {
       ]),
     ).toBe('Перенесено з попередньої гри: Оля +42434, Петро −1200');
     expect(carryLine([{ seq: 3, roundIndex: 1, afterQuestion: 2, nickname: 'Оля', points: 50, source: 'host' }])).toBeNull();
+  });
+});
+
+describe('wagerLine', () => {
+  it('a bets round line and a final line', () => {
+    expect(wagerLine(true, { nickname: 'Олена', wager: 400, points: 500 })).toBe('Олена: ставка 400, +500');
+    expect(wagerLine(false, { nickname: 'Олена', wager: 400, points: -400 })).toBe('Олена: ставка 400, −400');
   });
 });

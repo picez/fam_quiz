@@ -5,6 +5,12 @@ import { roundSummary } from './round-summary';
 import { t } from './i18n';
 
 describe('roundSummary', () => {
+  it('bets: the minimum with its step, then the maximum or all the points', () => {
+    const bets = { betStart: 200, betStep: 100, betMax: 600, count: 5 };
+    expect(roundSummary({ ...emptyBrief('bets'), bets })).toEqual(['Мінімальна ставка: 200, далі щоразу +100', 'Найбільша ставка: 600']);
+    expect(roundSummary({ ...emptyBrief('bets'), bets: { ...bets, betMax: null } })[1]).toBe('Можна ставити всі свої бали');
+  });
+
   it('a default classic round: everyone answers, faster is more', () => {
     expect(roundSummary({ ...emptyBrief('classic'), speedBonus: true })).toEqual([
       'Відповідають усі: бали отримує кожен, хто відповів правильно.',

@@ -16,6 +16,7 @@ const LIMIT_KEYS = [
   'ladderOptions',
   'maxAccepted',
   'maxAudioSeconds',
+  'maxBet',
   'maxBluffSpares',
   'maxCategories',
   'maxCategoryQuestions',

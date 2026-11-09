@@ -192,6 +192,11 @@ export function survivalBonusLines(adjustments: GameAdjustment[]): string[] {
 }
 
 /** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
+/** Рядок ставки: у фіналі й у раунді «Ставки» різні формулювання. */
+export function wagerLine(bets: boolean, entry: { nickname: string; wager: number; points: number }): string {
+  return t(bets ? 'betsHistoryLine' : 'finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
+}
+
 export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, question: GameQuestionResult['question']): string[] {
   const choices = choicesOf(question);
   const text = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
@@ -395,11 +400,11 @@ export function GameHistory() {
                         </span>
                         {question.final !== null && (
                           <div className="wager-list">
-                            <h4>{t(question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
+                            <h4>{t(question.bets ? 'roundTypeBets' : question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
                             <ul>
                               {question.final.entries.map((entry, at) => (
                                 <li key={at} className={`${entry.accepted ? 'is-correct' : 'is-wrong'}${ledger.answers.has(undoAnswerKey(entry.nickname, question.index)) ? ' is-undone' : ''}`}>
-                                  {t('finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) })}
+                                  {wagerLine(question.bets, entry)}
                                   {entry.awayMs != null && <span className="meta history-away">{` ${t('historyAway', { seconds: awaySeconds(entry.awayMs) })}`}</span>}
                                 </li>
                               ))}
