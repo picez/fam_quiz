@@ -83,7 +83,7 @@ describe('buildDecor', () => {
       radiusTop: 0.49,
       radiusBottom: 0.475,
       height: 0.52,
-      radialSegments: 104,
+      radialSegments: 120,
       openEnded: true,
     });
     expect(ring!.position.y).toBe(1.0);

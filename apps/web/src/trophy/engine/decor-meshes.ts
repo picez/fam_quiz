@@ -12,7 +12,7 @@ import {
   type BufferGeometry,
   type Texture,
 } from 'three';
-import { TROPHY_ANCHORS, type Band, type Plate, type Spot, type Vec3 } from '../anchors';
+import { TROPHY_ANCHORS, profileRadius, type BandAnchor, type Plate, type Spot, type Vec3 } from '../anchors';
 import {
   drawBack,
   drawBand,
@@ -96,16 +96,56 @@ function placeOnSpot(object: Mesh, position: Vec3, normal: Vec3, lift: number): 
   object.lookAt(new Vector3(...position).add(new Vector3(...normal).multiplyScalar(lift + 1)));
 }
 
-/** Стрічка навколо осі Y (відкритий циліндр без повороту) з обідками-торами. */
-function band(group: Group, name: string, anchor: Band, segments: number, look: MeshStandardMaterial, metal: MeshStandardMaterial): void {
+/** Підйом смуги над профілем форми. */
+const BAND_LIFT = 0.003;
+
+/**
+ * Смуга оформлення. Тимчасовий перехідник 25d (до задачі 5): profile — колишній відкритий циліндр з радіусами
+ * профілю на краях + BAND_LIFT, raised — як було, face — пластина на грані. ringSegments — сегменти кільця фото (n×8).
+ */
+function band(
+  group: Group,
+  name: string,
+  kind: TrophyKind,
+  anchor: BandAnchor,
+  map: Texture,
+  look: MetalLook,
+  metal: MeshStandardMaterial,
+  ringSegments?: number,
+): void {
+  if (anchor.shape === 'face') {
+    plate(group, anchor.plate, map, look, name);
+    return;
+  }
+  let shape: { y: number; height: number; radiusTop: number; radiusBottom: number; segments: number };
+  let tori: readonly { y: number; radius: number; tube: number }[];
+  if (anchor.shape === 'raised') {
+    shape = anchor;
+    tori = anchor.tori;
+  } else {
+    const profile = TROPHY_ANCHORS[kind].profile!;
+    const radius = (y: number) => profileRadius(profile, y) + BAND_LIFT;
+    shape = {
+      y: (anchor.y0 + anchor.y1) / 2,
+      height: anchor.y1 - anchor.y0,
+      radiusTop: radius(anchor.y1),
+      radiusBottom: radius(anchor.y0),
+      segments: ringSegments ?? profile.segments * 3,
+    };
+    tori = anchor.tori.map((edge) => {
+      const y = edge === 'bottom' ? anchor.y0 : anchor.y1;
+      return { y, radius: radius(y) + anchor.tube, tube: anchor.tube };
+    });
+  }
+  const segments = shape.segments;
   const strip = mesh(
     name,
-    new CylinderGeometry(anchor.radiusTop, anchor.radiusBottom, anchor.height, segments, 1, true),
-    look,
+    new CylinderGeometry(shape.radiusTop, shape.radiusBottom, shape.height, segments, 1, true),
+    new MeshStandardMaterial({ map, ...look }),
   );
-  strip.position.y = anchor.y;
+  strip.position.y = shape.y;
   group.add(strip);
-  for (const torus of anchor.tori) {
+  for (const torus of tori) {
     const ring = mesh(`${name}-torus`, new TorusGeometry(torus.radius, torus.tube, 12, Math.max(segments, 64)), metal);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = torus.y;
@@ -113,9 +153,9 @@ function band(group: Group, name: string, anchor: Band, segments: number, look: 
   }
 }
 
-function plate(group: Group, anchor: Plate, map: Texture, look: MetalLook): void {
+function plate(group: Group, anchor: Plate, map: Texture, look: MetalLook, name = 'decor-plaque'): void {
   const card = mesh(
-    'decor-plaque',
+    name,
     new PlaneGeometry(anchor.width, anchor.height),
     new MeshStandardMaterial({ map, ...look, transparent: true }),
   );
@@ -144,8 +184,7 @@ async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMate
       const map = paint(painter, 'photo-ring', photos.map(photoData), loadedFlags(images), atlas.width, atlas.height, (ctx) =>
         drawPhotoRing(ctx, images, decor, material),
       );
-      const segments = anchors.ring.segments || photos.length * 8;
-      band(group, 'decor-ring', anchors.ring, segments, new MeshStandardMaterial({ map, ...BAKED_RING }), metal);
+      band(group, 'decor-ring', kind, anchors.ring, map, BAKED_RING, metal, photos.length * 8);
       return null;
     }
     case 'medallion': {
@@ -169,7 +208,7 @@ async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMate
         const map = paint(painter, 'photo-gem', photoData(photos[i]!), loadedFlags([images[i]]), GEM_PX, GEM_PX, (ctx) =>
           drawPhotoDisc(ctx, images[i] ?? null, photos[i]!, decor, GEM_PX, material),
         );
-        group.add(disc('decor-gem', { ...spot, size: circle.size }, map, BAKED_RING, 0));
+        group.add(disc('decor-gem', { ...spot, size: circle.size, surface: circle.surface }, map, BAKED_RING, 0));
       });
       return null;
     }
@@ -203,13 +242,13 @@ async function addInscription(group: Group, painter: Painter, inscription: Inscr
     case 'rim': {
       if (anchors.rim === undefined) return;
       const map = text(2048, 96, (ctx) => drawRim(ctx, inscription, material));
-      band(group, 'decor-rim', anchors.rim, anchors.rim.segments, new MeshStandardMaterial({ map, ...BAKED_RIM }), metal);
+      band(group, 'decor-rim', kind, anchors.rim, map, BAKED_RIM, metal);
       return;
     }
     case 'band': {
       if (anchors.band === undefined) return;
       const map = text(1024, 64, (ctx) => drawBand(ctx, inscription, material));
-      band(group, 'decor-band', anchors.band, anchors.band.segments, new MeshStandardMaterial({ map, ...BAKED_RIM }), metal);
+      band(group, 'decor-band', kind, anchors.band, map, BAKED_RIM, metal);
       return;
     }
     case 'plaque': {

@@ -71,7 +71,7 @@ describe('coverCrop', () => {
 
 describe('gemSpots', () => {
   it('spreads evenly starting at the front', () => {
-    const spots = gemSpots({ center: [0, 0.23, 0], axis: 'y', radius: 0.11, size: 0.05 }, 4);
+    const spots = gemSpots({ center: [0, 0.23, 0], axis: 'y', radius: 0.11, size: 0.05, surface: 'body' }, 4);
     expect(spots).toHaveLength(4);
     expect(spots[0]!.position[0]).toBeCloseTo(0, 9);
     expect(spots[0]!.position[1]).toBeCloseTo(0.23, 9);
@@ -81,7 +81,7 @@ describe('gemSpots', () => {
     expect(Math.abs(angles[1]! - angles[0]!)).toBeCloseTo(Math.PI / 2, 9);
   });
   it('starts at the top for a z circle', () => {
-    const spots = gemSpots({ center: [0, 0.4, 0.05], axis: 'z', radius: 0.3, size: 0.04 }, 3);
+    const spots = gemSpots({ center: [0, 0.4, 0.05], axis: 'z', radius: 0.3, size: 0.04, surface: 'front' }, 3);
     expect(spots[0]!.position[0]).toBeCloseTo(0, 9);
     expect(spots[0]!.position[1]).toBeCloseTo(0.7, 9);
     expect(spots[0]!.position[2]).toBeCloseTo(0.05, 9);
