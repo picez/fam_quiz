@@ -43,6 +43,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   order: '↕',
   match: '⇆',
   chain: '⛓',
+  wordladder: '🔤',
   sort: '▤',
   slider: '⟷',
   clues: '…?',

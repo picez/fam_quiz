@@ -124,6 +124,17 @@ describe('LiveAnswers', () => {
     expect(body).toContain('ставка 300');
   });
 
+  it('writes the steps and words of a word ladder, and only the words once it is finished', () => {
+    show([
+      row({ progress: { kind: 'wordladder', steps: 2, words: ['пола', 'пора'], finished: false } }),
+      row({ id: 'a', nickname: 'А', answered: true, answer: { type: 'wordladder', words: ['пола', 'пора', 'пара', 'тара'], steps: 4, finished: true }, progress: { kind: 'wordladder', steps: 4, words: ['пола', 'пора', 'пара', 'тара'], finished: true } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows[0]).toContain('Кроків: 2 · пола → пора');
+    expect(rows[1]).toContain('Дійшли за кроків: 4 · пола → пора → пара → тара');
+    expect(rows[1]).not.toContain('Кроків: 4');
+  });
+
   it('writes the slider distance', () => {
     show([row({ answered: true, answer: { type: 'slider', value: 47 } as never })], base({ correct: slider }));
     expect(document.querySelector('.live-answer')?.textContent).toBe('47 % · відстань 3 %');
