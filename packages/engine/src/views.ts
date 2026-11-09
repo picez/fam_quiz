@@ -1929,9 +1929,10 @@ function teamsView(state: GameState): TeamsView | null {
   if (!teamsOn(state)) return null;
   const { form, list, members, dice } = state.teams;
   const lobby = state.phase === 'lobby';
-  // На запитанні — лише ті, хто на ньому справді відповідає (поле — хто вибрав клітинку, «Ва-банк» — хто ще в грі, бліц — ніхто).
+  // На запитанні — лише ті, хто на ньому справді відповідає (поле — хто вибрав клітинку, «Ва-банк» — хто ще в грі, бліц — ніхто,
   const play = onQuestion(state) ? state.plays[state.questionIndex] : undefined;
-  const answering = play === undefined ? null : answeringTeams(state, play);
+  // «Ставки» — хто грає запитання).
+  const answering = play === undefined ? null : (betsPlaying(state) ?? answeringTeams(state, play));
   return {
     form,
     answerer: answererMode(state),

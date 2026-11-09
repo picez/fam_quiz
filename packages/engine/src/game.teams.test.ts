@@ -6,6 +6,7 @@ import { suspend } from './restore';
 import { assignTeam, captainOf, dealTeams, pickTeam, presentMembers, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { placeWager } from './final';
 import { betsRound, boardRound, classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { stageView } from './views';
 import { decideWipeout, decisionOpen, wipeoutTable } from './wipeout';
 import { must } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
@@ -419,5 +420,27 @@ describe('team game: bets (27a)', () => {
     s = must(placeWager(s, 't2', 300, 6000, () => 0));
     expect(s.phase).toBe('question');
     expect(s.plays[s.questionIndex].final?.wagers).toEqual({ t1: 500, t2: 300 });
+  });
+
+  it('a team that skips the question has no answerer on the stage', () => {
+    const quiz = teamQuiz([classicRound('r1', [single]), betsRound('r2', [withId(single, 'b1')])], 2, 'rotate');
+    let s = teamGame(quiz, [
+      ['Олена', 'Тарас'],
+      ['Віра', 'Хосе'],
+    ]);
+    s = must(next(s, 0));
+    s = must(next(must(lock(s)), 1000));
+    s = must(next(s, 2000));
+    s = must(adjustScore(s, 't1', 700, 3000));
+    s = must(adjustScore(s, 't2', 300, 3000));
+    s = must(next(must(next(s, 4000)), 5000));
+    // Лише t1 ставить; ведучий відкриває раніше — t2 пропускає.
+    s = must(next(must(placeWager(s, 't1', 500, 6000, () => 0)), 7000));
+    expect(s.phase).toBe('question');
+    const answerers = stageView(s).teams?.teams.map((t) => [t.id, t.answererId !== null]);
+    expect(answerers).toEqual([
+      ['t1', true],
+      ['t2', false],
+    ]);
   });
 });

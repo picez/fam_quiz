@@ -89,7 +89,7 @@ describe('the bets round (27a)', () => {
 
   it('refuses bets outside the range and from players below the minimum', () => {
     const wager = toWager();
-    const before = structuredClone(wager);
+    const before = JSON.parse(JSON.stringify(wager)) as GameState;
     for (const [id, amount, error] of [
       ['p1', 700, 'bet_range'],
       ['p1', 199, 'bet_range'],
@@ -275,7 +275,7 @@ describe('the bets round (27a)', () => {
 
   it('a bet after the question opened is refused', () => {
     const s = opened();
-    const before = structuredClone(s);
+    const before = JSON.parse(JSON.stringify(s)) as GameState;
     expect(placeWager(s, 'p1', 400, T + 1000, rng)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(s).toEqual(before);
   });
