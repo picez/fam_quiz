@@ -47,7 +47,7 @@ describe('WordLadderView', () => {
     expect(screen.getByText('поле → тара')).toBeTruthy();
     expect(screen.getByText('поле').closest('ol')?.getAttribute('dir')).toBe('ltr');
     expect(container.querySelectorAll('.wordladder-cell').length).toBe(4);
-    expect(screen.getByText('Бали — до 8 кроків')).toBeTruthy();
+    expect(screen.getByText('Бали — за щонайбільше 8 кроків')).toBeTruthy();
     const input = field();
     expect(input.maxLength).toBe(LIMITS.wordLadderWord);
     expect(input.getAttribute('autocapitalize')).toBe('none');
@@ -79,6 +79,36 @@ describe('WordLadderView', () => {
     typeAndAdd('поже');
     await waitFor(() => expect(status.textContent).toBe('Такого слова не існує'));
     expect(field().value).toBe('поже');
+  });
+
+  it('the maximum takes the plural form of its number', () => {
+    for (const [maxSteps, text] of [[1, 'Бали — за щонайбільше 1 крок'], [3, 'Бали — за щонайбільше 3 кроки'], [20, 'Бали — за щонайбільше 20 кроків']] as const) {
+      render(<WordLadderPlay ladder={ladderOf()} question={{ ...question, wordladder: { ...question.wordladder!, maxSteps } }} paused={false} send={ok()} />);
+      expect(screen.getByText(text)).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it('a failed send shows a generic reason and keeps the word', async () => {
+    const send = vi.fn<Send>(async () => {
+      throw new Error('offline');
+    });
+    play(ladderOf(), send);
+    typeAndAdd('пола');
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Щось пішло не так. Спробуйте ще раз.'));
+    expect(field().value).toBe('пола');
+  });
+
+  it('text typed while a word is checked stays in the field', async () => {
+    let answer: (result: SendResult) => void = () => undefined;
+    const send = vi.fn<Send>(() => new Promise<SendResult>((resolve) => (answer = resolve)));
+    play(ladderOf(), send);
+    typeAndAdd('пола');
+    fireEvent.change(field(), { target: { value: 'по' } });
+    answer({ ok: true });
+    await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(field().value).toBe('по');
   });
 
   it('a double tap sends one request', async () => {
@@ -133,6 +163,9 @@ describe('WordLadderView', () => {
     );
     expect(screen.getByText('Готово! Кроків: 4')).toBeTruthy();
     expect(screen.getByText('Чекаємо на інших')).toBeTruthy();
+    // «Готово!» — у живій області, і фокус на ньому (форми з полем уже немає).
+    expect(screen.getByRole('status').textContent).toContain('Готово! Кроків: 4');
+    expect(document.activeElement?.textContent).toBe('Готово! Кроків: 4');
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(container.querySelectorAll('.wordladder-cell').length).toBe(0);
   });
@@ -165,6 +198,12 @@ describe('WordLadderBoard', () => {
     expect(first.querySelector('.wordladder-words')?.textContent).toBe('пора → тара');
     expect(first.querySelector('.score')?.textContent).toContain('400');
     expect(document.querySelectorAll('.wordladder-board li')[1].className).toBe('is-out');
+  });
+
+  it('a finisher over the maximum has no place and is dimmed', () => {
+    render(<WordLadderBoard info={infoOf([row('p1', 'А', 4, true, { points: 500 }), row('p2', 'Б', 9, true, { points: 0 }), row('p3', 'В', 2, false, { points: 0 })])} reveal />);
+    expect([...document.querySelectorAll('.rank')].map((n) => n.textContent)).toEqual(['1', '—', '—']);
+    expect([...document.querySelectorAll('.wordladder-board li')].map((li) => li.className)).toEqual(['', 'is-out', 'is-out']);
   });
 
   it('gives equal steps the same place', () => {

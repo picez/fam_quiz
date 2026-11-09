@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { collapseLadder, LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
 import { signed } from '../format';
-import { errorText, t } from '../i18n';
+import { countText, errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 
 /** Скільки чекати, поки телефонна клавіатура відкриється, перш ніж прокрутити поле у видиму частину. */
@@ -52,19 +52,24 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
+  const done = useRef<HTMLHeadingElement>(null);
   const busy = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (timer.current !== null) clearTimeout(timer.current);
   }, []);
+  // Після фінішу форми вже немає: фокус переходить на «Готово!», а не губиться в body.
+  useEffect(() => {
+    if (ladder.finished) done.current?.focus();
+  }, [ladder.finished]);
 
   const info = question.wordladder;
   if (info === undefined) return null;
   const off = paused || !ladder.canAdd;
 
-  /** Поле й повідомлення під ним — над клавіатурою. */
+  /** Поле й повідомлення під ним — над клавіатурою. Уже заплановане (клавіатура ще відкривається) не скасовується. */
   const keepVisible = (delay: number) => {
-    if (timer.current !== null) clearTimeout(timer.current);
+    if (timer.current !== null) return;
     timer.current = setTimeout(() => {
       timer.current = null;
       status.current?.scrollIntoView?.({ block: 'nearest' });
@@ -72,17 +77,20 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   };
 
   /** Один запит за раз: подвійний дотик не шле другого, поки сервер не відповів на перший. */
-  const run = async (request: () => Promise<SendResult>, clear: boolean) => {
+  const run = async (request: () => Promise<SendResult>, sent: string | null) => {
     if (busy.current) return;
     busy.current = true;
     try {
       const result = await request();
       if (result.ok) {
-        if (clear) setWord('');
+        // Те, що гравець устиг набрати, поки слово перевірялось, лишається в полі.
+        if (sent !== null) setWord((current) => (current === sent ? '' : current));
         setError(null);
       } else {
         setError(errorText(result.error));
       }
+    } catch {
+      setError(t('err_unknown'));
     } finally {
       busy.current = false;
       input.current?.focus();
@@ -93,19 +101,23 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
   const add = (event: FormEvent) => {
     event.preventDefault();
     if (off || word.trim() === '') return;
-    void run(() => send('player:wordladder', { word }), true);
+    const sent = word;
+    void run(() => send('player:wordladder', { word: sent }), sent);
   };
 
   return (
     <section className="wordladder-play">
       <WordLadderGoal start={info.start} target={info.target} />
-      <p className="meta">{t('wordLadderMax', { max: info.maxSteps })}</p>
+      <p className="meta">{countText('wordLadderMax', info.maxSteps, { count: info.maxSteps })}</p>
       <WordLadderColumn start={info.start} target={info.target} words={ladder.words} letters={info.letters} current={!ladder.finished} />
       {ladder.finished ? (
-        <>
-          <h2>{t('wordLadderDone', { steps: ladder.steps })}</h2>
+        // Жива область: «Готово!» озвучується, бо форма з рядком причини зникла разом із полем.
+        <div role="status">
+          <h2 ref={done} tabIndex={-1}>
+            {t('wordLadderDone', { steps: ladder.steps })}
+          </h2>
           <p className="lead">{t('wordLadderWait')}</p>
-        </>
+        </div>
       ) : (
         <form className="wordladder-form" onSubmit={add}>
           <label className="field">
@@ -136,7 +148,7 @@ export function WordLadderPlay({ ladder, question, paused, send }: { ladder: Pla
             <button type="submit" className="btn btn-primary" disabled={off}>
               {t('wordLadderAdd')}
             </button>
-            <button type="button" className="btn" disabled={off || !ladder.canBack} onClick={() => void run(() => send('player:wordladder-back'), false)}>
+            <button type="button" className="btn" disabled={off || !ladder.canBack} onClick={() => void run(() => send('player:wordladder-back'), null)}>
               {t('wordLadderBack')}
             </button>
           </div>
@@ -159,10 +171,13 @@ export function WordLadderOutcome({ ladder, question }: { ladder: PlayerWordLadd
   );
 }
 
-/** Місце за кроками: рівні кроки ділять місце; хто не дійшов, місця не має. */
+/** Хто дійшов не більше ніж за максимум кроків: лише такі мають місце й бали. */
+const placed = (info: WordLadderInfo, row: { steps: number; finished: boolean }) => row.finished && row.steps <= info.maxSteps;
+
+/** Місце за кроками: рівні кроки ділять місце; хто не дійшов або дійшов понад максимум, місця не має. */
 function rankOf(info: WordLadderInfo, steps: number, finished: boolean): string {
-  if (!finished) return '—';
-  return String(1 + info.rows.filter((row) => row.finished && row.steps < steps).length);
+  if (!placed(info, { steps, finished })) return '—';
+  return String(1 + info.rows.filter((row) => placed(info, row) && row.steps < steps).length);
 }
 
 /** Шлях ведучого: слова зліва направо, навіть в арабському інтерфейсі. */
@@ -189,8 +204,8 @@ export function WordLadderBoard({ info, reveal }: { info: WordLadderInfo; reveal
   return (
     <ol className="rows wordladder-board">
       {info.rows.map((row) => (
-        // Під час запитання «не дійшов» означає «ще грає»: тьмяніє лише на розкритті.
-        <li key={row.playerId} className={reveal && !row.finished ? 'is-out' : undefined}>
+        // Під час запитання «не дійшов» означає «ще грає»: тьмяніє лише на розкритті (і той, хто дійшов понад максимум).
+        <li key={row.playerId} className={reveal && !placed(info, row) ? 'is-out' : undefined}>
           {reveal && <span className="rank">{rankOf(info, row.steps, row.finished)}</span>}
           <span className="name" dir="auto">{row.nickname}</span>
           <span className="tag">{row.finished ? t('wordLadderRowFinished') : t('wordLadderRowSteps', { steps: row.steps })}</span>

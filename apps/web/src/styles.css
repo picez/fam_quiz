@@ -1873,6 +1873,14 @@ a.banner {
   overflow-wrap: anywhere;
 }
 
+/* Порожня жива область лишається в DOM (щоб поява попередження озвучувалась), але не видна й не додає проміжку сітки. */
+.wordladder-unknown.is-empty {
+  padding: 0;
+  border: 0;
+  background: none;
+  margin-block-start: -0.75rem;
+}
+
 .answer-row {
   display: flex;
   align-items: center;
@@ -4582,6 +4590,9 @@ button.shelf-cup {
 .wordladder-actions .btn {
   flex: 1 1 8rem;
   min-block-size: 44px;
+  /* «Крок назад» в один рядок і на 320 px: дві кнопки по ≈130 px уміщаються з вужчими полями. */
+  padding-inline: 0.75rem;
+  white-space: nowrap;
 }
 
 /* Шлях ведучого: слова в рядок, що переноситься; старт і ціль — бурштинові. */
@@ -4633,7 +4644,7 @@ button.shelf-cup {
 }
 
 .stage .wordladder-words {
-  font-size: 1.25rem;
+  font-size: 1.75rem;
 }
 
 .menu-badge {
