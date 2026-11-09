@@ -869,15 +869,20 @@ describe('history: bets (27a)', () => {
       ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
     const anna = await join('Анна');
     const bohdan = await join('Богдан');
+    const vira = await join('Віра');
     const room = ctx.manager.get(created.code);
     if (room === undefined) throw new Error('room missing');
-    for (const playerId of [anna, bohdan]) ctx.manager.connect(room, { role: 'player', playerId });
+    for (const playerId of [anna, bohdan, vira]) ctx.manager.connect(room, { role: 'player', playerId });
     const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
     step('start');
     step('next');
-    toBetsWager(ctx.manager, room, { [anna]: 800, [bohdan]: 500 });
+    toBetsWager(ctx.manager, room, { [anna]: 800, [bohdan]: 500, [vira]: 600 });
     expect(ctx.manager.wager(room, anna, 400)).toEqual({ ok: true });
     expect(ctx.manager.wager(room, bohdan, 300)).toEqual({ ok: true });
+    // Віра не ставить: ведуча відкриває запитання раніше, Віра його пропускає.
+    expect(room.state.phase).toBe('wager');
+    step('next');
+    expect(room.state.phase).toBe('question');
     expect(ctx.manager.answer(room, anna, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
     expect(ctx.manager.host(room, { type: 'lock' })).toEqual({ ok: true });
     step('next');
@@ -885,13 +890,18 @@ describe('history: bets (27a)', () => {
     await ctx.recorder.idle();
 
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
-      questions: { bets: boolean; final: unknown; answered: number }[];
+      questions: { bets: boolean; final: { mode: string; entries: { nickname: string; wager: number; points: number }[] } | null; answered: number }[];
     };
     // «Ставки» ведуть ставки тими ж записами, що й фінал, лише завжди «класичними».
     expect(detail.questions.map((q) => q.bets)).toEqual([false, true]);
     expect(detail.questions[0].final).toBeNull();
     expect(detail.questions[1].final).toMatchObject({ mode: 'classic' });
     expect(detail.questions[1].answered).toBe(1);
+    // Банк Богдана (300) — Анні; хто пропускав (Віра), у списку ставок немає.
+    expect(detail.questions[1].final?.entries.map(({ nickname, wager, points }) => [nickname, wager, points])).toEqual([
+      ['Анна', 400, 300],
+      ['Богдан', 300, -300],
+    ]);
   });
 });
 

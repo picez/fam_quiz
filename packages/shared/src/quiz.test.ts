@@ -76,6 +76,8 @@ import {
   type BoardRound,
   type Question,
   type Quiz,
+  emptyBrief,
+  roundBrief,
 } from './index';
 
 const single = {
@@ -2107,6 +2109,22 @@ describe('bets round (27a)', () => {
       categories: [cell(cut, 'a'), cell({ ...single, id: 'b1' }, 'b'), cell({ ...single, id: 'c1x' }, 'c')] };
     expect(issues(quizOf([board]))).toContain('bets_cut_place');
     expect(issues(quizOf([round('r', [single])], { spares: [withCut({ ...single, id: 'sp' })] }))).toContain('bets_cut_place');
+    // «Вибування»: зріз не дозволено ні в запитаннях, ні у випробуваннях.
+    const survival = (questions: object[], trials: object[]) => ({ id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions, trials, trial: 'question', survivors: 1, bonus: 500 });
+    const plain = [1, 2, 3].map((i) => ({ ...single, id: `s${i}` }));
+    expect(issues(quizOf([survival(plain, [{ ...bool, id: 't1' }])]))).toEqual([]);
+    expect(issues(quizOf([survival(plain, [withCut({ ...bool, id: 't1' })])]))).toContain('bets_cut_place');
+    expect(issues(quizOf([survival([withCut(plain[0]!), ...plain.slice(1)], [{ ...bool, id: 't1' }])]))).toContain('bets_cut_place');
+  });
+
+  it('roundBrief(bets) carries the start, step, maximum and count; emptyBrief has no bets', () => {
+    expect(emptyBrief('bets').bets).toBeNull();
+    expect(emptyBrief('final').bets).toBeNull();
+    const parsed = quizSchema.parse(quizOf([betsRound(three, { betStep: 0, betMax: null })]));
+    expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('bets'), bets: { betStart: 200, betStep: 0, betMax: null, count: 3 } });
+    const capped = quizSchema.parse(quizOf([betsRound(three)]));
+    expect(roundBrief(capped.rounds[0]!).bets).toEqual({ betStart: 200, betStep: 100, betMax: 600, count: 3 });
   });
 
   it('bets takes the final question types', () => {

@@ -204,9 +204,12 @@ describe('history facts (12d)', () => {
     expect(betsQuestion).toMatchObject({ final: true, limitMs: null });
     expect(revealFacts(live, betsQuestion!.index)).toBeNull();
     expect(revealFacts(found!.factInput, betsQuestion!.index)).toBeNull();
-    // Швидкісних карток ставки не дають: усі рядки гри на їхньому запитанні без часу в таблиці цікавинок.
-    const speed = ['lightning', 'nerves'];
-    expect(gameAwards(live).filter((a) => speed.includes(a.kind) && (a as { question?: { roundIndex: number } }).question?.roundIndex === 1)).toEqual([]);
+    // Швидкісних карток ставки не дають. Єдина правильна відповідь гри — швидка відповідь Олі на ставках (r1 ніхто не відповідав),
+    // тож без захисту «Блискавка» була б саме з неї: у грі немає жодної швидкісної картки.
+    expect(live.rows.filter((r) => r.accepted).map((r) => [r.playerId, r.questionIndex])).toEqual([[olya, betsQuestion!.index]]);
+    const kinds = gameAwards(live).map((a) => a.kind);
+    expect(kinds).not.toContain('lightning');
+    expect(kinds).not.toContain('nerves');
     expect(found?.detail.facts.awards).toEqual(gameAwards(live));
     await local.app.close();
   });
