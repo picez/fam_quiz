@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
+import { newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -2762,6 +2762,17 @@ describe('QuizEditor: blitz series', () => {
     expect(rulesOf(blitz)).toMatchObject({ streak: null, penalty: 'minus', streakPlus: { step: 400 }, streakMinus: { step: 250 } });
     fireEvent.click(plus());
     expect(screen.getByLabelText(t('ruleStreak'))).toBeTruthy();
+  });
+
+  it('an imported blitz round with both series keeps the old streak controls so it can be cleared', () => {
+    const base = newBlitzRound();
+    const round = { ...base, questions: base.questions.map((q) => ({ ...q, text: 'Q?' })), rules: { ...base.rules, penalty: 'none' as const, streak: { length: 3, bonus: { kind: 'percent' as const, value: 20 } }, streakPlus: { step: 250 }, streakMinus: { step: 250 } } };
+    open({ ...newQuiz(), title: 'Гра', rounds: [round] });
+    fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+    expect(screen.getByLabelText(t('ruleStreak'))).toBeTruthy();
+    const penalty = screen.getByLabelText(t('ruleMinus')) as HTMLInputElement;
+    expect(penalty.checked).toBe(true);
+    expect(penalty.disabled).toBe(true);
   });
 
   it('series switches exist only in a blitz round', () => {

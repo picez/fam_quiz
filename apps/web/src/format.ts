@@ -295,7 +295,6 @@ export function roundFacts(round: RoundInfo, total: number): string | null {
   return `${count} · ${time}`;
 }
 
-/** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
 /** Серії бліц-раунду за id гравця (число зі знаком; без ключа — серії немає). */
 export function seriesOf(players: LobbyPlayer[]): Record<string, number> {
   const result: Record<string, number> = {};
@@ -303,6 +302,7 @@ export function seriesOf(players: LobbyPlayer[]): Record<string, number> {
   return result;
 }
 
+/** Серії гравців за id; показуються біля імені від двох правильних відповідей підряд. */
 export function streaksOf(players: LobbyPlayer[]): Record<string, number> {
   return Object.fromEntries(players.map((player) => [player.id, player.streak]));
 }

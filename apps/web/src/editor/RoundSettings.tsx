@@ -368,7 +368,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         <label className="check">
           <input
             type="checkbox"
-            checked={rules.penalty === 'minus'}
+            checked={rules.penalty === 'minus' || seriesMinus !== null}
             disabled={seriesMinus !== null}
             onChange={(event) => setRules({ penalty: event.target.checked ? 'minus' : 'none' })}
           />
@@ -419,7 +419,6 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
               />
               <span>{t('ruleSeriesMinus')}</span>
             </label>
-            <HelpButton id="setting.blitzSeries" />
           </div>
           {seriesMinus !== null && (
             <div className="round-streak" role="group" aria-label={t('ruleSeriesMinus')}>
@@ -467,7 +466,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         </>
       )}
 
-      {seriesPlus === null && (
+      {(seriesPlus === null || streak !== null) && (
       <>
       <div className="with-help">
         <label className="check">
