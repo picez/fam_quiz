@@ -27,24 +27,26 @@ export function inscriptionFont(font: NickFont | null, px: number): string {
 }
 
 /**
- * Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. text — літери напису:
+ * Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. Результат — чи шрифт
+ * справді завантажився (класичний, null, є завжди): false означає, що малюватиметься запасним. text — літери напису:
  * шрифти поділені на підмножини (unicode-range), і без тексту FontFaceSet.load вантажить лише латинську, тож кирилиця
  * на полотні малювалася б запасним шрифтом. Рим пишеться великими, тому вантажимо й їх.
  */
-export function loadInscriptionFont(font: NickFont | null, text = ' '): Promise<void> {
-  if (font === null) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, FONT_TIMEOUT_MS);
-    const finish = () => {
+export function loadInscriptionFont(font: NickFont | null, text = ' '): Promise<boolean> {
+  if (font === null) return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), FONT_TIMEOUT_MS);
+    const finish = (loaded: boolean) => {
       clearTimeout(timer);
-      resolve();
+      resolve(loaded);
     };
     loadNickFont(font)
       .then(() => {
         const fonts = typeof document === 'undefined' ? undefined : document.fonts;
-        return fonts ? fonts.load(inscriptionFont(font, 40), `${text.toUpperCase()} ${text}`) : undefined;
+        // Без FontFaceSet перевірити нічим — вважаємо готовим. Порожній список граней — шрифт не знайшовся (запасний).
+        return fonts ? fonts.load(inscriptionFont(font, 40), `${text.toUpperCase()} ${text}`).then((faces) => faces.length > 0) : true;
       })
-      .then(finish, finish);
+      .then(finish, () => finish(false));
   });
 }
 

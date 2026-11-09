@@ -6,20 +6,33 @@ import { gemSpots, ringAtlasSize } from '../decor-layout';
 import { TEXTURE_SCALE, buildDecor } from './decor-meshes';
 import type { DecorTextures, Img } from './textures';
 
+/** null — справжній loadInscriptionFont; true/false — підмінений результат (шрифт завантажився чи ні). */
+const font = vi.hoisted(() => ({ loaded: null as boolean | null }));
+vi.mock('../decor-canvas', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../decor-canvas')>();
+  return {
+    ...actual,
+    loadInscriptionFont: (...args: Parameters<typeof actual.loadInscriptionFont>) =>
+      font.loaded === null ? actual.loadInscriptionFont(...args) : Promise.resolve(font.loaded),
+  };
+});
+
 const url = (i: number) => `/uploads/${'a'.repeat(15)}${i.toString(16)}.jpg`;
 
 function stub(options: { failing?: string[]; stickers?: string[] } = {}) {
   const canvases: [number, number][] = [];
+  const keys: string[] = [];
   const textures: DecorTextures = {
     image: async (u) => (options.failing?.includes(u) ? null : ({ width: 800, height: 600 } as unknown as Img)),
-    canvas: (_key, width, height) => {
+    canvas: (key, width, height) => {
+      keys.push(key);
       canvases.push([width, height]);
       return new Texture();
     },
     release: () => {},
     sticker: async (id) => (options.stickers === undefined || options.stickers.includes(id) ? new Texture() : null),
   };
-  return { textures, canvases };
+  return { textures, canvases, keys };
 }
 
 const yasya: TrophyDecor = {
@@ -268,5 +281,28 @@ describe('buildDecor: shared textures and resolution', () => {
     const after = await build('grail', 'gold', changed, 'view', textures);
     expect(mapOf(after.group, 'decor-ring')).toBe(mapOf(before.group, 'decor-ring'));
     expect(mapOf(after.group, 'decor-rim')).not.toBe(mapOf(before.group, 'decor-rim'));
+  });
+});
+
+describe('buildDecor: inscription font', () => {
+  afterEach(() => {
+    font.loaded = null;
+  });
+
+  it('a fallback-font inscription does not share the key of the loaded font', async () => {
+    const decor: TrophyDecor = {
+      ...yasya,
+      photos: [],
+      inscriptions: [{ ...yasya.inscriptions[0]!, font: 'hand' }],
+    };
+    font.loaded = false;
+    const timedOut = stub();
+    await buildDecor('grail', 'gold', decor, 'view', timedOut.textures);
+    font.loaded = true;
+    const loaded = stub();
+    await buildDecor('grail', 'gold', decor, 'view', loaded.textures);
+    expect(timedOut.keys).toHaveLength(1);
+    expect(loaded.keys).toHaveLength(1);
+    expect(loaded.keys[0]).not.toBe(timedOut.keys[0]);
   });
 });

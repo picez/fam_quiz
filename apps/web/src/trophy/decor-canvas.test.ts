@@ -159,7 +159,10 @@ describe('decor canvas', () => {
 
   it('a failed font resolves', async () => {
     vi.spyOn(NICK_FONT_LOADERS, 'pixel').mockRejectedValue(new Error('chunk'));
-    await expect(loadInscriptionFont('pixel')).resolves.toBeUndefined();
+    // Шрифт не підвантажився: FontFaceSet не знаходить жодної грані.
+    vi.stubGlobal('document', { fonts: { load: vi.fn(() => Promise.resolve([])) } });
+    await expect(loadInscriptionFont('pixel')).resolves.toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('a hanging font times out', async () => {
@@ -168,13 +171,14 @@ describe('decor canvas', () => {
     const fonts = { load: vi.fn(() => new Promise<never>(() => {})) };
     vi.stubGlobal('document', { fonts });
     let done = false;
-    const p = loadInscriptionFont('elegant').then(() => {
+    const p = loadInscriptionFont('elegant').then((loaded) => {
       done = true;
+      return loaded;
     });
     await vi.advanceTimersByTimeAsync(2999);
     expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
-    await p;
+    expect(await p).toBe(false);
     expect(done).toBe(true);
     expect(fonts.load).toHaveBeenCalled();
     vi.unstubAllGlobals();
@@ -182,9 +186,9 @@ describe('decor canvas', () => {
 
   it('loads the faces for the inscription letters', async () => {
     vi.spyOn(NICK_FONT_LOADERS, 'hand').mockResolvedValue(undefined);
-    const fonts = { load: vi.fn(() => Promise.resolve([])) };
+    const fonts = { load: vi.fn(() => Promise.resolve([{}])) };
     vi.stubGlobal('document', { fonts });
-    await loadInscriptionFont('hand', 'Чемпіон');
+    await expect(loadInscriptionFont('hand', 'Чемпіон')).resolves.toBe(true);
     // Без тексту FontFaceSet.load бере лише пробіл (латинський підмножина), і кирилиця малюється запасним шрифтом.
     expect(fonts.load).toHaveBeenCalledWith(inscriptionFont('hand', 40), 'ЧЕМПІОН Чемпіон');
     vi.unstubAllGlobals();
@@ -195,7 +199,7 @@ describe('decor canvas', () => {
     const loaders = (Object.keys(NICK_FONT_LOADERS) as (keyof typeof NICK_FONT_LOADERS)[]).map((k) =>
       vi.spyOn(NICK_FONT_LOADERS, k).mockResolvedValue(undefined),
     );
-    await loadInscriptionFont(null);
+    await expect(loadInscriptionFont(null)).resolves.toBe(true);
     expect(spies).toBe(8);
     for (const l of loaders) expect(l).not.toHaveBeenCalled();
   });

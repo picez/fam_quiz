@@ -195,9 +195,10 @@ async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMate
 async function addInscription(group: Group, painter: Painter, inscription: Inscription, metal: MeshStandardMaterial): Promise<void> {
   const { kind, material } = painter;
   const anchors = TROPHY_ANCHORS[kind];
-  await loadInscriptionFont(inscription.font, inscription.text);
+  // Запасний шрифт (збій чи таймаут) — інший малюнок: окремий ключ, щоб пізніша збірка після шрифту малювала знову.
+  const fontLoaded = await loadInscriptionFont(inscription.font, inscription.text);
   const text = (width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) =>
-    paint(painter, `text-${inscription.place}`, inscription, [], width, height, draw);
+    paint(painter, `text-${inscription.place}`, inscription, [fontLoaded], width, height, draw);
   switch (inscription.place) {
     case 'rim': {
       if (anchors.rim === undefined) return;
