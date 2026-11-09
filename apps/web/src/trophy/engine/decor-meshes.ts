@@ -1,18 +1,16 @@
 import { shownDecor } from '@quiz/shared';
-import type { DecorPhoto, Inscription, TrophyDecor, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import {
-  CircleGeometry,
   CylinderGeometry,
   Group,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
   TorusGeometry,
-  Vector3,
   type BufferGeometry,
   type Texture,
 } from 'three';
-import { TROPHY_ANCHORS, profileRadius, type BandAnchor, type Plate, type Spot, type Vec3 } from '../anchors';
+import { TROPHY_ANCHORS, type BandAnchor, type Plate, type Spot } from '../anchors';
 import {
   drawBack,
   drawBand,
@@ -24,12 +22,12 @@ import {
   loadInscriptionFont,
 } from '../decor-canvas';
 import { BAND_PX, PHOTO_BOX, gemSpots, ringAtlasSize } from '../decor-layout';
+import { layoutDecor, type PlacedInscription, type PlacedSticker } from '../decor-places';
 import type { TrophySize } from '../engine-types';
 import { MATERIAL_LOOK } from '../trophy-meta';
+import { bandEdgeRadius, profileBand, projectDecal, sharedGeometry, type Surface } from './surface-geometry';
 import type { DecorTextures } from './textures';
 
-/** Зсув наліпки й медальйона від поверхні по нормалі. */
-const LIFT = 0.004;
 /** Розмір текстури кружечка: медальйон і зворот / самоцвіт. */
 const DISC_PX = 512;
 const GEM_PX = 256;
@@ -40,6 +38,11 @@ const BIG_SIZES: readonly TrophySize[] = ['stage', 'view'];
 /** Роздільність полотен оформлення за розміром вигляду: на картці й телефоні вдвічі менше (GPU-пам'ять вітрини). */
 export const TEXTURE_SCALE: Record<TrophySize, number> = { stage: 1, view: 1, phone: 0.5, card: 0.5 };
 
+/** Оформлення ближче до камери за модель під ним: без z-fighting на підйомі 0.0015–0.003. */
+const OFFSET = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 } as const;
+/** Декалі прозорі по краях і не пишуть глибину; малюються після моделі (renderOrder 1). */
+const DECAL = { ...OFFSET, transparent: true, alphaTest: 0.05, depthWrite: false } as const;
+
 /** Полотна одного buildDecor: спільні за ключем, кожне взяте записується в taken (звільнити — release). */
 interface Painter {
   kind: TrophyKind;
@@ -47,6 +50,7 @@ interface Painter {
   decor: TrophyDecor;
   size: TrophySize;
   textures: DecorTextures;
+  surface: Promise<Surface>;
   taken: Texture[];
 }
 
@@ -83,6 +87,7 @@ type MetalLook = { metalness: number; roughness: number };
 const BAKED_RING: MetalLook = { metalness: 0, roughness: 0.6 };
 const BAKED_RIM: MetalLook = { metalness: 1, roughness: 0.34 };
 const BAKED_PLATE: MetalLook = { metalness: 0.9, roughness: 0.34 };
+const STICKER_LOOK: MetalLook = { metalness: 0, roughness: 0.7 };
 
 function mesh(name: string, geometry: BufferGeometry, material: MeshStandardMaterial): Mesh {
   const result = new Mesh(geometry, material);
@@ -90,18 +95,9 @@ function mesh(name: string, geometry: BufferGeometry, material: MeshStandardMate
   return result;
 }
 
-/** Лицем (+Z площини) по нормалі, піднято над поверхнею на lift. */
-function placeOnSpot(object: Mesh, position: Vec3, normal: Vec3, lift: number): void {
-  object.position.set(position[0] + normal[0] * lift, position[1] + normal[1] * lift, position[2] + normal[2] * lift);
-  object.lookAt(new Vector3(...position).add(new Vector3(...normal).multiplyScalar(lift + 1)));
-}
-
-/** Підйом смуги над профілем форми. */
-const BAND_LIFT = 0.003;
-
 /**
- * Смуга оформлення. Тимчасовий перехідник 25d (до задачі 5): profile — колишній відкритий циліндр з радіусами
- * профілю на краях + BAND_LIFT, raised — як було, face — пластина на грані. ringSegments — сегменти кільця фото (n×8).
+ * Смуга оформлення: profile — смуга з профілю форми (спільна геометрія), raised — піднятий конус запеченого вигляду,
+ * face — пластина на грані. Обідки-тори — на краях смуги.
  */
 function band(
   group: Group,
@@ -111,40 +107,35 @@ function band(
   map: Texture,
   look: MetalLook,
   metal: MeshStandardMaterial,
-  ringSegments?: number,
 ): void {
   if (anchor.shape === 'face') {
     plate(group, anchor.plate, map, look, name);
     return;
   }
-  let shape: { y: number; height: number; radiusTop: number; radiusBottom: number; segments: number };
+  const material = new MeshStandardMaterial({ map, ...look, ...OFFSET });
   let tori: readonly { y: number; radius: number; tube: number }[];
+  let segments: number;
   if (anchor.shape === 'raised') {
-    shape = anchor;
+    segments = anchor.segments;
+    const strip = mesh(
+      name,
+      new CylinderGeometry(anchor.radiusTop, anchor.radiusBottom, anchor.height, segments, 1, true),
+      material,
+    );
+    strip.position.y = anchor.y;
+    group.add(strip);
     tori = anchor.tori;
   } else {
     const profile = TROPHY_ANCHORS[kind].profile!;
-    const radius = (y: number) => profileRadius(profile, y) + BAND_LIFT;
-    shape = {
-      y: (anchor.y0 + anchor.y1) / 2,
-      height: anchor.y1 - anchor.y0,
-      radiusTop: radius(anchor.y1),
-      radiusBottom: radius(anchor.y0),
-      segments: ringSegments ?? profile.segments * 3,
-    };
+    segments = profile.segments * 3;
+    // Від даних не залежить: ключ — форма й слот.
+    const geometry = sharedGeometry(JSON.stringify(['band', kind, name]), () => profileBand(profile, anchor.y0, anchor.y1))!;
+    group.add(mesh(name, geometry, material));
     tori = anchor.tori.map((edge) => {
       const y = edge === 'bottom' ? anchor.y0 : anchor.y1;
-      return { y, radius: radius(y) + anchor.tube, tube: anchor.tube };
+      return { y, radius: bandEdgeRadius(profile, y, anchor.tube), tube: anchor.tube };
     });
   }
-  const segments = shape.segments;
-  const strip = mesh(
-    name,
-    new CylinderGeometry(shape.radiusTop, shape.radiusBottom, shape.height, segments, 1, true),
-    new MeshStandardMaterial({ map, ...look }),
-  );
-  strip.position.y = shape.y;
-  group.add(strip);
   for (const torus of tori) {
     const ring = mesh(`${name}-torus`, new TorusGeometry(torus.radius, torus.tube, 12, Math.max(segments, 64)), metal);
     ring.rotation.x = Math.PI / 2;
@@ -157,16 +148,25 @@ function plate(group: Group, anchor: Plate, map: Texture, look: MetalLook, name 
   const card = mesh(
     name,
     new PlaneGeometry(anchor.width, anchor.height),
-    new MeshStandardMaterial({ map, ...look, transparent: true }),
+    new MeshStandardMaterial({ map, ...look, transparent: true, ...OFFSET }),
   );
   card.position.set(...anchor.position);
   card.rotation.x = anchor.tiltX;
   group.add(card);
 }
 
-function disc(name: string, spot: Spot, map: Texture, look: MetalLook, lift: number): Mesh {
-  const result = mesh(name, new CircleGeometry(spot.size / 2, 64), new MeshStandardMaterial({ map, ...look, transparent: true }));
-  placeOnSpot(result, spot.position, spot.normal, lift);
+/**
+ * Декаль плями на поверхні моделі, спільна між збірками: ключ — модель, слот і пляма (скінченний набір: місця форми,
+ * самоцвіти за кількістю фото). null — під плямою немає поверхні.
+ */
+async function decalGeometry(painter: Painter, slot: string, spot: Spot): Promise<BufferGeometry | null> {
+  const surface = await painter.surface;
+  return sharedGeometry(JSON.stringify([surface.key, slot, spot]), () => projectDecal(surface.geometry, spot));
+}
+
+function decal(name: string, geometry: BufferGeometry, map: Texture, look: MetalLook): Mesh {
+  const result = mesh(name, geometry, new MeshStandardMaterial({ map, ...look, ...DECAL }));
+  result.renderOrder = 1;
   return result;
 }
 
@@ -184,31 +184,36 @@ async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMate
       const map = paint(painter, 'photo-ring', photos.map(photoData), loadedFlags(images), atlas.width, atlas.height, (ctx) =>
         drawPhotoRing(ctx, images, decor, material),
       );
-      band(group, 'decor-ring', kind, anchors.ring, map, BAKED_RING, metal, photos.length * 8);
+      band(group, 'decor-ring', kind, anchors.ring, map, BAKED_RING, metal);
       return null;
     }
     case 'medallion': {
       const spot = anchors.medallion;
       if (spot === undefined) return null;
-      const [image] = await load(photos.slice(0, 1));
+      const [[image], geometry] = await Promise.all([load(photos.slice(0, 1)), decalGeometry(painter, 'medallion', spot)]);
+      if (geometry === null) return null;
+      // Обідок медальйона — у текстурі (bezel завжди true, тож у ключі полотна його немає).
       const map = paint(painter, 'photo-medallion', photoData(photos[0]!), loadedFlags([image]), DISC_PX, DISC_PX, (ctx) =>
-        drawPhotoDisc(ctx, image ?? null, photos[0]!, decor, DISC_PX, material),
+        drawPhotoDisc(ctx, image ?? null, photos[0]!, decor, DISC_PX, material, true),
       );
-      group.add(disc('decor-medallion', spot, map, BAKED_RING, LIFT));
-      const bezel = mesh('decor-medallion-bezel', new TorusGeometry(spot.size / 2, spot.size * 0.035, 12, 64), metal);
-      placeOnSpot(bezel, spot.position, spot.normal, LIFT);
-      group.add(bezel);
+      group.add(decal('decor-medallion', geometry, map, BAKED_RING));
       return null;
     }
     case 'gems': {
       const circle = anchors.gems;
       if (circle === undefined) return null;
-      const images = await load(photos);
-      gemSpots(circle, photos.length).forEach((spot, i) => {
+      const spots = gemSpots(circle, photos.length);
+      const [images, geometries] = await Promise.all([
+        load(photos),
+        Promise.all(spots.map((spot) => decalGeometry(painter, 'gem', spot))),
+      ]);
+      spots.forEach((_, i) => {
+        const geometry = geometries[i];
+        if (geometry == null) return;
         const map = paint(painter, 'photo-gem', photoData(photos[i]!), loadedFlags([images[i]]), GEM_PX, GEM_PX, (ctx) =>
           drawPhotoDisc(ctx, images[i] ?? null, photos[i]!, decor, GEM_PX, material),
         );
-        group.add(disc('decor-gem', { ...spot, size: circle.size, surface: circle.surface }, map, BAKED_RING, 0));
+        group.add(decal('decor-gem', geometry, map, BAKED_RING));
       });
       return null;
     }
@@ -231,76 +236,72 @@ async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMate
   }
 }
 
-async function addInscription(group: Group, painter: Painter, inscription: Inscription, metal: MeshStandardMaterial): Promise<void> {
+async function addInscription(group: Group, painter: Painter, placed: PlacedInscription, metal: MeshStandardMaterial): Promise<void> {
   const { kind, material } = painter;
+  const { inscription, at } = placed;
+  if (at === null) return;
   const anchors = TROPHY_ANCHORS[kind];
   // Запасний шрифт (збій чи таймаут) — інший малюнок: окремий ключ, щоб пізніша збірка після шрифту малювала знову.
-  const fontLoaded = await loadInscriptionFont(inscription.font, inscription.text);
-  const text = (width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) =>
-    paint(painter, `text-${inscription.place}`, inscription, [fontLoaded], width, height, draw);
+  const fontLoaded = loadInscriptionFont(inscription.font, inscription.text);
+  const text = async (width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) =>
+    paint(painter, `text-${inscription.place}`, inscription, [await fontLoaded], width, height, draw);
   switch (inscription.place) {
     case 'rim': {
       if (anchors.rim === undefined) return;
-      const map = text(2048, 96, (ctx) => drawRim(ctx, inscription, material));
+      const map = await text(2048, 96, (ctx) => drawRim(ctx, inscription, material));
       band(group, 'decor-rim', kind, anchors.rim, map, BAKED_RIM, metal);
       return;
     }
     case 'band': {
       if (anchors.band === undefined) return;
       const size = anchors.band.shape === 'face' ? BAND_PX.face : BAND_PX.ring;
-      const map = text(size.width, size.height, (ctx) => drawBand(ctx, inscription, material, size));
+      const map = await text(size.width, size.height, (ctx) => drawBand(ctx, inscription, material, size));
       band(group, 'decor-band', kind, anchors.band, map, BAKED_RIM, metal);
       return;
     }
     case 'plaque': {
       if (anchors.plaque === undefined) return;
-      const map = text(PLAQUE.width, PLAQUE.height, (ctx) => drawPlaque(ctx, inscription, material));
+      const map = await text(PLAQUE.width, PLAQUE.height, (ctx) => drawPlaque(ctx, inscription, material));
       plate(group, anchors.plaque, map, BAKED_PLATE);
       return;
     }
     case 'back': {
-      if (anchors.back === undefined) return;
-      const map = text(DISC_PX, DISC_PX, (ctx) => drawBack(ctx, inscription, material));
-      group.add(disc('decor-back', anchors.back, map, BAKED_PLATE, LIFT));
+      // Зворот під іншою частиною — на задній грані постаменту.
+      const slot = at === 'base-back' ? 'base-back' : 'back';
+      const spot = at === 'base-back' ? anchors.baseBack : anchors.back;
+      if (spot === undefined) return;
+      const geometry = await decalGeometry(painter, slot, spot);
+      if (geometry === null) {
+        await fontLoaded;
+        return;
+      }
+      const map = await text(DISC_PX, DISC_PX, (ctx) => drawBack(ctx, inscription, material));
+      group.add(decal('decor-back', geometry, map, BAKED_PLATE));
       return;
     }
   }
 }
 
-async function addSticker(
-  group: Group,
-  kind: TrophyKind,
-  sticker: TrophyDecor['stickers'][number],
-  textures: DecorTextures,
-): Promise<void> {
-  const spot = TROPHY_ANCHORS[kind].stickers[sticker.place];
+async function addSticker(group: Group, painter: Painter, sticker: PlacedSticker): Promise<void> {
+  // Не вміщується — не малюється й текстури не бере.
+  if (sticker.at === null) return;
+  const spot = TROPHY_ANCHORS[painter.kind].stickers[sticker.at];
   if (spot === undefined) return;
-  const map = await textures.sticker(sticker.id).catch(() => null);
-  if (map === null) return;
-  const result = mesh(
-    `decor-sticker-${sticker.place}`,
-    new PlaneGeometry(spot.size, spot.size),
-    new MeshStandardMaterial({
-      map,
-      metalness: 0,
-      roughness: 0.7,
-      transparent: true,
-      alphaTest: 0.05,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    }),
-  );
-  placeOnSpot(result, spot.position, spot.normal, LIFT);
-  group.add(result);
+  const [map, geometry] = await Promise.all([
+    painter.textures.sticker(sticker.id).catch(() => null),
+    decalGeometry(painter, `sticker-${sticker.at}`, spot),
+  ]);
+  if (map === null || geometry === null) return;
+  group.add(decal(`decor-sticker-${sticker.at}`, geometry, map, STICKER_LOOK));
 }
 
 /**
- * Меші оформлення в просторі моделі (основа на y = 0, лице до +Z) за точками кріплення форми.
- * Місця, яких форма не має, мовчки пропускаються; effect і appearance тут не малюються (25b).
+ * Меші оформлення в просторі моделі (основа на y = 0, лице до +Z): місця — з layoutDecor (зайняте місце — переїзд
+ * чи пропуск), смуги — з профілю форми, плями — декалі на поверхні моделі surface (вантажиться паралельно з фото).
+ * Місця, яких форма не має, і плями без поверхні під ними мовчки пропускаються; effect і appearance тут не малюються.
  * backdrop — фото для scene.background, лише в розмірах stage і view.
  * textures — усі полотна, взяті через textures.canvas (backdrop серед них): кожне звільняти через textures.release.
- * Текстури наліпок спільні й сюди не входять.
+ * Текстури наліпок і геометрії з userData.shared спільні й не звільняються.
  */
 export async function buildDecor(
   kind: TrophyKind,
@@ -308,21 +309,25 @@ export async function buildDecor(
   decor: TrophyDecor,
   size: TrophySize,
   textures: DecorTextures,
+  surface: Promise<Surface>,
 ): Promise<{ group: Group; backdrop: Texture | null; textures: Texture[] }> {
+  // Без плям поверхню ніхто не чекає: збій моделі обробляє той, хто її вантажив.
+  surface.catch(() => {});
   const shown = shownDecor(kind, decor);
+  const layout = layoutDecor(kind, decor);
   const group = new Group();
   group.name = 'decor';
   const look = MATERIAL_LOOK[material];
   const metal = new MeshStandardMaterial({ color: look.color, metalness: look.metallic, roughness: look.roughness });
   // Кожна частина — своя підгрупа: порядок у сцені не залежить від того, що довантажилось першим.
-  const parts = [shown.photos, ...shown.inscriptions, ...shown.stickers].map(() => new Group());
+  const parts = [shown.photos, ...layout.inscriptions, ...layout.stickers].map(() => new Group());
   group.add(...parts);
-  const painter: Painter = { kind, material, decor: shown, size, textures, taken: [] };
-  const photos = addPhotos(parts[0]!, painter, metal);
+  const painter: Painter = { kind, material, decor: shown, size, textures, surface, taken: [] };
+  const photos = layout.photos === null ? Promise.resolve(null) : addPhotos(parts[0]!, painter, metal);
   const results = await Promise.allSettled([
     photos,
-    ...shown.inscriptions.map((inscription, i) => addInscription(parts[1 + i]!, painter, inscription, metal)),
-    ...shown.stickers.map((sticker, i) => addSticker(parts[1 + shown.inscriptions.length + i]!, kind, sticker, textures)),
+    ...layout.inscriptions.map((placed, i) => addInscription(parts[1 + i]!, painter, placed, metal)),
+    ...layout.stickers.map((sticker, i) => addSticker(parts[1 + layout.inscriptions.length + i]!, painter, sticker)),
   ]);
   const failed = results.find((result) => result.status === 'rejected');
   if (failed !== undefined) {

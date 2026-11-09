@@ -57,6 +57,8 @@ export function projectDecal(surface: BufferGeometry, spot: Spot, lift: number =
   const half = spot.size / 2;
 
   const position = surface.getAttribute('position');
+  // Порожня геометрія (меша без вершин) — поверхні немає.
+  if (position === undefined) return null;
   const normals = surface.getAttribute('normal');
   const index = surface.getIndex();
   const count = index ? index.count : position.count;

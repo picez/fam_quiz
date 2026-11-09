@@ -1,6 +1,6 @@
 import { shownDecor } from '@quiz/shared';
 import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial, TrophyPhotoPlace } from '@quiz/shared';
-import type { Circle, Vec3 } from './anchors';
+import type { Circle, Spot, Vec3 } from './anchors';
 import { layoutDecor } from './decor-places';
 
 /** Клітинка атласу кільця: як у запеченому грааль. */
@@ -49,16 +49,20 @@ export function coverCrop(
   };
 }
 
-/** Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z); 'z' — у площині XY, перший угорі. */
-export function gemSpots(circle: Circle, count: number): { position: Vec3; normal: Vec3 }[] {
+/**
+ * Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z); 'z' — у площині XY, перший угорі.
+ * Кожен — пляма з розміром і поверхнею кола.
+ */
+export function gemSpots(circle: Circle, count: number): Spot[] {
   const [cx, cy, cz] = circle.center;
+  const { size, surface } = circle;
   return Array.from({ length: count }, (_, i) => {
     const angle = (i / count) * Math.PI * 2;
     const s = Math.sin(angle);
     const c = Math.cos(angle);
     return circle.axis === 'y'
-      ? { position: [cx + circle.radius * s, cy, cz + circle.radius * c] as Vec3, normal: [s, 0, c] as Vec3 }
-      : { position: [cx + circle.radius * s, cy + circle.radius * c, cz] as Vec3, normal: [0, 0, 1] as Vec3 };
+      ? { position: [cx + circle.radius * s, cy, cz + circle.radius * c] as Vec3, normal: [s, 0, c] as Vec3, size, surface }
+      : { position: [cx + circle.radius * s, cy + circle.radius * c, cz] as Vec3, normal: [0, 0, 1] as Vec3, size, surface };
   });
 }
 

@@ -80,4 +80,10 @@ describe('models', () => {
     expect(surface.key).toBe('/models/cup.glb');
     expect(surface.geometry).toBe(geometry);
   });
+
+  it('surfaceOf refuses the family grail (several meshes with node transforms)', () => {
+    const group = new Group();
+    group.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()));
+    expect(() => surfaceOf(group, '/models/grail-family.glb')).toThrow();
+  });
 });

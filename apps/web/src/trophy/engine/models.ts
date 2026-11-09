@@ -23,6 +23,8 @@ export function loadModel(url: string): Promise<Group> {
 
 /** Поверхня для оформлення: геометрія першого меша моделі (у .glb один меш без перетворення вузла; спільна з кешем loadModel). */
 export function surfaceOf(model: Group, key: string): Surface {
+  // Перетворення вузлів не враховуються: лише для моделей з одним мешем. Сімейний грааль — 8 мешів і без оформлення.
+  if (key.includes('grail-family')) throw new Error(`${key} has no decor surface`);
   // Обхід у глибину, як traverse: перший меш.
   const mesh = model.getObjectByProperty('isMesh', true) as Mesh | undefined;
   if (mesh === undefined) throw new Error(`no mesh in ${key}`);

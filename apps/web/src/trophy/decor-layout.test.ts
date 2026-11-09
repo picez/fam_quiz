@@ -77,6 +77,7 @@ describe('gemSpots', () => {
     expect(spots[0]!.position[1]).toBeCloseTo(0.23, 9);
     expect(spots[0]!.position[2]).toBeCloseTo(0.11, 9);
     expect(spots[0]!.normal.map((v) => Math.round(v))).toEqual([0, 0, 1]);
+    for (const spot of spots) expect(spot).toMatchObject({ size: 0.05, surface: 'body' });
     const angles = spots.map((s) => Math.atan2(s.position[0], s.position[2]));
     expect(Math.abs(angles[1]! - angles[0]!)).toBeCloseTo(Math.PI / 2, 9);
   });

@@ -22,12 +22,18 @@ const fake = vi.hoisted(() => ({
   canvasKeys: [] as string[],
   /** Stub loadModel: тест може підмінити одну збірку відкладеною (mockImplementationOnce). */
   loadModel: null as unknown as ReturnType<typeof vi.fn<(url: string) => Promise<import('three').Group>>>,
+  /** Поверхня, з якою викликали stub buildDecor (кожен виклик). */
+  surfaces: [] as Promise<import('./surface-geometry').Surface>[],
+  /** Меші, які stub buildDecor кладе в групу оформлення. */
+  decorMeshes: [] as (() => import('three').Mesh)[],
 }));
 
-vi.mock('./models', async () => {
+vi.mock('./models', async (importOriginal) => {
   const three = await import('three');
+  const actual = await importOriginal<typeof import('./models')>();
   return {
     loadModel: (url: string) => fake.loadModel(url),
+    surfaceOf: actual.surfaceOf,
     paintModel: () => {},
     framingSphere: () => new three.Sphere(new three.Vector3(0, 0.5, 0), 0.6),
   };
@@ -36,11 +42,19 @@ vi.mock('./stage', () => ({ getStage: () => fake.stage }));
 vi.mock('./decor-meshes', async () => {
   const three = await import('three');
   return {
-    buildDecor: async (_kind: unknown, _material: unknown, _decor: unknown, _size: unknown, textures: typeof domTextures) => ({
-      group: new three.Group(),
-      backdrop: null,
-      textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})),
-    }),
+    buildDecor: async (
+      _kind: unknown,
+      _material: unknown,
+      _decor: unknown,
+      _size: unknown,
+      textures: typeof domTextures,
+      surface: Promise<import('./surface-geometry').Surface>,
+    ) => {
+      fake.surfaces.push(surface);
+      const group = new three.Group();
+      for (const make of fake.decorMeshes) group.add(make());
+      return { group, backdrop: null, textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})) };
+    },
   };
 });
 
@@ -87,6 +101,8 @@ beforeEach(() => {
   reduce = false;
   handles = [];
   fake.canvasKeys = [];
+  fake.surfaces = [];
+  fake.decorMeshes = [];
   fake.loadModel = vi.fn(async () => model());
   fake.stage = {
     view: null,
@@ -336,6 +352,40 @@ describe('trophy engine: effect and appearance', () => {
     second.handle.dispose();
     expect(release).toHaveBeenCalledTimes(4);
     for (const spy of disposes) expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose keeps shared decor geometries', async () => {
+    const shared = new BoxGeometry();
+    shared.userData.shared = true;
+    const own = new BoxGeometry();
+    fake.decorMeshes = [() => new Mesh(shared, new MeshStandardMaterial()), () => new Mesh(own, new MeshStandardMaterial())];
+    const sharedDispose = vi.spyOn(shared, 'dispose');
+    const ownDispose = vi.spyOn(own, 'dispose');
+    const first = await mount({ decor: decor('spin') });
+    // Заміна збірки звільняє стару, але спільну геометрію лишає.
+    first.handle.update({ kind: 'cup', material: 'gold', decor: decor('drop') }, 'cup');
+    await vi.waitFor(() => expect(ownDispose).toHaveBeenCalledTimes(1));
+    first.handle.dispose();
+    expect(ownDispose).toHaveBeenCalledTimes(2);
+    expect(sharedDispose).not.toHaveBeenCalled();
+  });
+
+  it('decor gets its surface from the same model that goes into the scene', async () => {
+    const { trophy } = await mount({ decor: decor('spin') });
+    expect(fake.loadModel).toHaveBeenCalledTimes(1);
+    expect(fake.loadModel).toHaveBeenCalledWith('/models/cup.glb');
+    expect(fake.surfaces).toHaveLength(1);
+    const surface = await fake.surfaces[0]!;
+    expect(surface.key).toBe('/models/cup.glb');
+    await vi.waitFor(() => expect(trophy.children).toHaveLength(1));
+    const [shown] = trophy.children;
+    expect(surface.geometry).toBe((shown!.children[0] as Mesh).geometry);
+  });
+
+  it('the awarded family grail without decor loads its own model and builds no decor', async () => {
+    await mount({ look: { kind: 'grail', material: 'gold' } });
+    expect(fake.loadModel).toHaveBeenCalledWith('/models/grail-family.glb');
+    expect(fake.surfaces).toHaveLength(0);
   });
 
   it('dispose frees effect resources', async () => {

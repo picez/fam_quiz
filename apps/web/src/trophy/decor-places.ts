@@ -97,7 +97,7 @@ function photoFootprints(kind: TrophyKind, anchors: KindAnchors, place: TrophyPh
     case 'gems': {
       const circle = anchors.gems;
       if (!circle) return [];
-      return gemSpots(circle, count).map((gem) => spotFootprint(kind, { ...gem, size: circle.size, surface: circle.surface }));
+      return gemSpots(circle, count).map((gem) => spotFootprint(kind, gem));
     }
     case 'plaque':
       return anchors.plaque ? [plateFootprint(kind, anchors.plaque)] : [];
