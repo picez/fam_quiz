@@ -67,6 +67,8 @@ describe('grammar', () => {
     expect(trophyPhrase('ذهبية', 'كأس', 'ar')).toBe('كأس ذهبية');
     expect(trophyPhrase('فضي', 'تاج', 'ar')).toBe('تاج فضي');
     expect(trophyPhrase('de oro', 'copa', 'es')).toBe('Copa de oro');
+    // «con asas», не «de asas»: «Copa de asas de oro» читалося б двома «de» поспіль.
+    expect(trophyPhrase('de oro', 'copa con asas', 'es')).toBe('Copa con asas de oro');
     expect(trophyPhrase('Золотий', 'кубок', 'uk')).toBe('Золотий кубок');
   });
 

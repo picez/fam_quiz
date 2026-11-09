@@ -20,7 +20,8 @@ export const TROPHY_EMOJI: Record<TrophyKind, string> = {
   ribbon: '🎗️',
   diadem: '👑',
   laurel: '🌿',
-  olive: '🫒',
+  // 🌿, а не 🫒 (Unicode 13): старі Android і Windows 10 малюють маслину квадратиком.
+  olive: '🌿',
   figure: '🏆',
   flame: '🔥',
   wings: '🕊️',

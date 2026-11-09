@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { diplomaFileName, diplomaLines, renderDiploma, shareDiploma, type DiplomaData } from './diploma';
+import { contrast, diplomaFileName, diplomaLines, renderDiploma, shareDiploma, type DiplomaData } from './diploma';
+import { MATERIAL_LOOK } from './trophy-meta';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -81,6 +82,22 @@ describe('renderDiploma', () => {
     expect(at('«Чемпіон 2026»')).toBeDefined();
     expect(at('01.01.2027')!.y).toBe(740);
     expect(texts.some((entry) => entry.text.trim() === '')).toBe(false);
+  });
+
+  it('light new materials get a darker frame that stands out on the paper; old frames stay as they were', async () => {
+    const frameOf = async (material: 'pearl' | 'marble' | 'platinum' | 'gold' | 'silver' | 'diamond') => {
+      const texts = fakeCanvas();
+      await renderDiploma({ ...data, trophy: { kind: 'cup', material } });
+      return texts.strokes[0]!;
+    };
+    for (const material of ['pearl', 'marble', 'platinum'] as const) {
+      expect(contrast(MATERIAL_LOOK[material].color, '#FFFBF0'), material).toBeLessThan(1.5);
+      const frame = await frameOf(material);
+      expect(frame, material).toMatch(/^#[0-9A-F]{6}$/);
+      expect(contrast(frame, '#FFFBF0'), material).toBeGreaterThanOrEqual(3);
+    }
+    // Старі — колір матеріалу без змін, навіть світлі.
+    for (const material of ['gold', 'silver', 'diamond'] as const) expect(await frameOf(material)).toBe(MATERIAL_LOOK[material].color);
   });
 
   it('the frame takes the material colour and the place stays readable on stone frames', async () => {

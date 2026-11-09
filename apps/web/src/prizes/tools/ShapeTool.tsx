@@ -15,9 +15,8 @@ export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: Tool
   const kind = draft.trophy?.kind ?? null;
   const material = draft.trophy?.material ?? null;
   // Підказка про «преміум» — один раз під виборами, і лише коли серед показаних плиток є преміум.
-  const premiumShown =
-    TROPHY_GROUPS.some((group) => group.kinds.some((value) => PREMIUM_KINDS.includes(value))) ||
-    (draft.trophy !== null && MATERIAL_GROUPS.some((group) => group.materials.some((value) => PREMIUM_MATERIALS.includes(value))));
+  // Плитки форм показано завжди (усі TROPHY_KINDS у групах), плитки матеріалів — лише з трофеєм.
+  const premiumShown = PREMIUM_KINDS.length > 0 || (draft.trophy !== null && PREMIUM_MATERIALS.length > 0);
   return (
     <div className="studio-tool">
       <fieldset className="studio-choice studio-grouped">
