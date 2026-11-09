@@ -16883,6 +16883,214 @@ it('backlog 3: blitz answer fields never move — a buzzer blitz keeps the queue
   }
 }, 300_000);
 
+const PLUS_26B = 'Плюсова серія: кожна правильна поспіль дає на крок більше';
+const MINUS_26B = 'Мінусова серія: кожна помилка поспіль знімає на крок більше';
+/** Рядок серії на телефоні (26b) — рівно цей текст. */
+async function seriesLine26b(page: Page, text: string) {
+  await page.locator('.blitz-series', { hasText: text }).waitFor();
+  expect(await page.locator('.blitz-series').textContent()).toBe(text);
+}
+/** Позначка серії в рядку гравця name (26b): сцена — таблиця, пульт — список гравців. */
+async function seriesMark26b(rows: Locator, name: string, text: string) {
+  const row = rows.filter({ has: rows.page().locator('.name', { hasText: name }) });
+  await row.locator('.series', { hasText: text }).waitFor();
+  expect(await row.locator('.series').textContent()).toBe(text);
+}
+
+it('part 26b: blitz streaks — a plus series grows by the step, a minus series takes a step more, the phone shows the next step, stage and host mark the series, the editor sets them', async () => {
+  try {
+    // ── Редактор: обидві серії з кроком, штраф тримається ввімкненим. ──
+    const host = await open('host26b', 1280, 900);
+    await register(host, 'host', 'Ірина Ведуча', 'host26b@example.com');
+    await host.getByRole('link', { name: 'Нова вікторина' }).click();
+    await field(host, 'Назва вікторини').fill('Серії в бліці');
+    await click(host, '+ Раунд');
+    await click(host, 'Бліц');
+    await host.getByRole('button', { name: 'Раунд 1', ...exact }).click();
+    await click(host, 'Видалити раунд');
+    await openRoundSettings(host);
+    await host.getByRole('checkbox', { name: PLUS_26B, ...exact }).check();
+    await host.getByRole('checkbox', { name: MINUS_26B, ...exact }).check();
+    const plusStep = host.getByRole('group', { name: PLUS_26B, ...exact }).getByLabel('Крок, балів', exact);
+    expect(await plusStep.inputValue(), 'the default plus step').toBe('250');
+    await plusStep.fill('250');
+    expect(await host.getByRole('group', { name: MINUS_26B, ...exact }).getByLabel('Крок, балів', exact).inputValue(), 'the default minus step').toBe('250');
+    const penalty = field(host, 'Штраф: мінус ціна запитання за хибну відповідь');
+    expect(await penalty.isChecked(), 'the minus series turns the penalty on').toBe(true);
+    expect(await penalty.isDisabled(), 'the penalty stays locked under the minus series').toBe(true);
+    await host.getByText('Мінусова серія вже штрафує за помилки', exact).waitFor();
+    // Плюсова серія замінює стару «Серії»: її перемикача немає.
+    expect(await host.getByRole('checkbox', { name: 'Серії: бонус за правильні відповіді підряд', ...exact }).count()).toBe(0);
+    const preview = host.locator('details.round-settings .round-brief-preview');
+    await preview.getByText('серія: кожна правильна поспіль +250').waitFor();
+    await preview.getByText('серія: кожна помилка поспіль −250').waitFor();
+    await questionText(host).fill('Столиця України?');
+    await field(host, 'Варіант 1').fill('Львів');
+    await field(host, 'Варіант 2').fill('Київ');
+    await field(host, 'Правильний: варіант 2').click();
+    await shot(host, '26b-editor');
+    await host.setViewportSize({ width: 375, height: 812 });
+    await host.getByRole('checkbox', { name: MINUS_26B, ...exact }).scrollIntoViewIfNeeded();
+    await expectFitsWidth13a(host, '26b-editor-phone');
+    await expectNoSideScroll(host, '26b-editor-phone');
+    await shot(host, '26b-editor-phone');
+    await host.setViewportSize({ width: 1280, height: 900 });
+    await click(host, 'Зберегти');
+    await host.getByRole('heading', { name: 'Серії в бліці' }).waitFor();
+    const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+    const editedId = list.find((entry) => entry.title === 'Серії в бліці')!.id;
+    const stored = (await (await host.request.get(`${base}/api/quizzes/${editedId}`)).json()) as { rounds: { type: string; rules: Record<string, unknown> }[] };
+    expect(stored.rounds).toHaveLength(1);
+    expect(stored.rounds[0]!.type).toBe('blitz');
+    expect(stored.rounds[0]!.rules).toMatchObject({ streakPlus: { step: 250 }, streakMinus: { step: 250 }, penalty: 'minus' });
+
+    // ── Гра: три запитання по 500, бліц з кнопкою. ──
+    const q1 = { ...single, id: 'q26b-1', points: 500, timeLimit: 60 };
+    const q2 = {
+      ...single,
+      id: 'q26b-2',
+      points: 500,
+      timeLimit: 60,
+      text: 'Найбільша річка України?',
+      options: [
+        { id: 'a', text: 'Дніпро' },
+        { id: 'b', text: 'Дунай' },
+        { id: 'c', text: 'Десна' },
+      ],
+      correctId: 'a',
+    };
+    const q3 = {
+      ...single,
+      id: 'q26b-3',
+      points: 500,
+      timeLimit: 60,
+      text: 'Найвища гора України?',
+      options: [
+        { id: 'a', text: 'Петрос' },
+        { id: 'b', text: 'Піп Іван' },
+        { id: 'c', text: 'Говерла' },
+      ],
+      correctId: 'c',
+    };
+    // q4 — лише щоб телефони показали серію після q3 (рядок живе на відкритому запитанні); на нього не відповідають.
+    const q4 = {
+      ...single,
+      id: 'q26b-4',
+      points: 500,
+      timeLimit: 60,
+      text: 'Яке місто стоїть на Ужі?',
+      options: [
+        { id: 'a', text: 'Ужгород' },
+        { id: 'b', text: 'Луцьк' },
+        { id: 'c', text: 'Рівне' },
+      ],
+      correctId: 'a',
+    };
+    const data = {
+      ...makeRoundsQuiz([
+        blitzRound('r26b', [q1, q2, q3, q4] as never, {
+          title: 'Бліц із серіями',
+          check: 'manual',
+          attempts: 1,
+          answerWindow: 20,
+          rules: { ...DEFAULT_RULES, partial: null, penalty: 'minus', streakPlus: { step: 250 }, streakMinus: { step: 250 } },
+        }),
+      ]),
+      title: 'Бліц із серіями',
+    };
+    const saved = await host.request.post(`${base}/api/quizzes`, { data });
+    expect(saved.ok(), await saved.text()).toBe(true);
+    await host.goto(`${base}/quizzes`);
+    await host.locator('.quiz-list li', { hasText: 'Бліц із серіями' }).getByRole('button', { name: 'Грати', ...exact }).click();
+    await host.waitForURL(/\/host\/\d{6}$/);
+    const code = host.url().slice(-6);
+    const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+    const stage = await open('stage26b', 1280, 720);
+    await stage.goto(stageUrl);
+    const olya = await open('olya26b', 375, 812);
+    const taras = await open('taras26b', 375, 812);
+    await join(olya, code, 'Оля', false);
+    await join(taras, code, 'Тарас', false);
+    await host.getByText('Тарас').first().waitFor();
+    await click(host, 'Почати гру');
+    await click(host, 'Почати раунд');
+
+    const buzz = async (page: Page, option: string) => {
+      await page.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+      await click(page, 'Відповісти');
+      await page.locator('fieldset.inputs').getByRole('button', { name: new RegExp(option) }).click();
+    };
+    const hostRows = host.locator('.player-row');
+
+    // q1 і q2: Тарас перший і помиляється, Оля відповідає правильно.
+    // Рядок серії живе, поки запитання відкрите: після «Правильно» запитання закрите й телефон чекає розкриття.
+    for (const [wrong, right] of [['Львів', 'Київ'], ['Дунай', 'Дніпро']] as const) {
+      if (wrong === 'Дунай') {
+        await olya.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+        await seriesLine26b(olya, 'Серія +1 · наступна правильна +750');
+      }
+      await buzz(taras, wrong);
+      await click(host, 'Неправильно');
+      // Помилка Тараса оцінена, а запитання ще відкрите для Олі: рядок уже з цим кроком.
+      await seriesLine26b(taras, wrong === 'Львів' ? 'Серія −1 · наступна помилка −750' : 'Серія −2 · наступна помилка −1000');
+      await buzz(olya, right);
+      await click(host, 'Правильно');
+      await click(host, 'Показати відповідь');
+      await click(host, 'Далі');
+      if (wrong === 'Дунай') {
+        // Між запитаннями сцена показує таблицю з позначками серій.
+        await seriesMark26b(stage.locator('.standings li'), 'Оля', 'Серія +2');
+        await seriesMark26b(stage.locator('.standings li'), 'Тарас', 'Серія −2');
+        await shot(stage, '26b-stage');
+      }
+      await click(host, 'Наступне запитання');
+    }
+
+    // q3 до відповідей: телефони кажуть наступний крок, пульт позначає серії.
+    await olya.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+    await seriesLine26b(olya, 'Серія +2 · наступна правильна +1000');
+    await seriesLine26b(taras, 'Серія −2 · наступна помилка −1000');
+    await expectFitsWidth13a(olya, '26b-olya-plus');
+    await expectFitsWidth13a(taras, '26b-taras-minus');
+    await shot(olya, '26b-olya-plus');
+    await shot(taras, '26b-taras-minus');
+    await seriesMark26b(hostRows, 'Оля', 'Серія +2');
+    await seriesMark26b(hostRows, 'Тарас', 'Серія −2');
+    await shot(host, '26b-host');
+
+    // q3: Оля не тисне; Тарас відповідає правильно — мінус обнуляється, плюс з першого кроку.
+    await buzz(taras, 'Говерла');
+    await click(host, 'Правильно');
+    // Пульт бачить серію наживо; телефон Тараса — з наступного відкритого запитання (q4 нижче).
+    await seriesMark26b(hostRows, 'Тарас', 'Серія +1');
+    await seriesMark26b(hostRows, 'Оля', 'Серія +2');
+    await click(host, 'Показати відповідь');
+
+    // Рахунок: Оля 500 + 750, Тарас −500 − 750 + 500.
+    const score = (name: string) => hostRows.filter({ has: host.locator('.name', { hasText: name }) }).locator('.score');
+    await expect.poll(() => score('Оля').textContent(), POLL).toBe('1250');
+    await expect.poll(() => score('Тарас').textContent(), POLL).toBe('−750');
+    await click(host, 'Далі');
+    const stageScore = (name: string) => stage.locator('.standings li', { has: stage.locator('.name', { hasText: name }) }).locator('.score');
+    await expect.poll(() => stageScore('Оля').textContent(), POLL).toBe('1250');
+    await expect.poll(() => stageScore('Тарас').textContent(), POLL).toBe('−750');
+    await seriesMark26b(stage.locator('.standings li'), 'Тарас', 'Серія +1');
+    await seriesMark26b(stage.locator('.standings li'), 'Оля', 'Серія +2');
+    await shot(stage, '26b-stage-after-q3');
+
+    // q4 (без відповідей, рахунку не змінює): телефони показують серії після q3.
+    await click(host, 'Наступне запитання');
+    await taras.getByRole('button', { name: 'Відповісти', ...exact }).waitFor();
+    await seriesLine26b(taras, 'Серія +1 · наступна правильна +750');
+    await seriesLine26b(olya, 'Серія +2 · наступна правильна +1000');
+    await shot(taras, '26b-taras-plus');
+    expect(problems).toEqual([]);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
 const sticker13a = STICKERS[0]!;
 const src13a = stickerPath(sticker13a);
 /** Рядок гравця name у таблиці (13a). */
