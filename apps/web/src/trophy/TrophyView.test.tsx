@@ -116,25 +116,43 @@ describe('TrophyView', () => {
     expect(mounts[0]!.options.interactive).toBe(false);
   });
 
-  it('remounts on change, disposes on unmount', async () => {
+  it('a new material or kind updates in place, disposes on unmount', async () => {
     const { rerender, unmount } = render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
     await flush();
     expect(mounts).toHaveLength(1);
     await act(async () => mounts[0]!.events.onReady());
+    const update = mountedHandles[0]!.update;
     rerender(<TrophyView trophy={{ kind: 'cup', material: 'bronze' }} size="card" spin={false} interactive={false} />);
     await flush();
+    expect(update).toHaveBeenLastCalledWith({ kind: 'cup', material: 'bronze' }, 'Бронзовий кубок');
+    rerender(<TrophyView trophy={{ kind: 'medal', material: 'bronze' }} size="card" spin={false} interactive={false} />);
+    await flush();
+    expect(update).toHaveBeenLastCalledWith({ kind: 'medal', material: 'bronze' }, 'Бронзова медаль');
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(mounts).toHaveLength(1);
+    expect(mounts[0]!.dispose).not.toHaveBeenCalled();
+    // Старий кубок видно, доки рушій не поставить новий: значок не повертається.
+    expect(document.querySelector('.trophy-fallback')).toBeNull();
+    // Той самий вигляд новим об'єктом — без update.
+    rerender(<TrophyView trophy={{ kind: 'medal', material: 'bronze' }} size="card" spin={false} interactive={false} />);
+    await flush();
+    expect(update).toHaveBeenCalledTimes(2);
+    unmount();
     expect(mounts[0]!.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('a remount mounts the latest look and label', async () => {
+    const { rerender } = render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
+    await flush();
+    rerender(<TrophyView trophy={{ kind: 'star', material: 'silver' }} size="card" spin={false} interactive={false} />);
+    rerender(<TrophyView trophy={{ kind: 'star', material: 'silver' }} size="phone" spin={false} interactive={false} />);
+    await flush();
     expect(mounts).toHaveLength(2);
-    expect(mounts[1]!.options.look).toEqual({ kind: 'cup', material: 'bronze' });
-    expect(mounts[1]!.options.label).toBe('Бронзовий кубок');
+    expect(mounts[1]!.options.look).toEqual({ kind: 'star', material: 'silver' });
+    expect(mounts[1]!.options.label).toBe(mounts[1]!.host.querySelector('.trophy-fallback')!.getAttribute('aria-label'));
     // Новий кубок ще не намалювався: до його onReady знову значок.
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
-    // Той самий вигляд новим об'єктом — без перемонтування.
-    rerender(<TrophyView trophy={{ kind: 'cup', material: 'bronze' }} size="card" spin={false} interactive={false} />);
-    await flush();
-    expect(mounts).toHaveLength(2);
-    unmount();
-    expect(mounts[1]!.dispose).toHaveBeenCalledTimes(1);
+    expect(mountedHandles[1]!.update).not.toHaveBeenCalled();
   });
 
   it('appear defaults to true', async () => {
@@ -162,7 +180,7 @@ describe('TrophyView', () => {
   it('a late onReady from a disposed mount does not hide the emoji', async () => {
     const { rerender } = render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
     await flush();
-    rerender(<TrophyView trophy={{ kind: 'star', material: 'gold' }} size="card" spin={false} interactive={false} />);
+    rerender(<TrophyView trophy={gold} size="phone" spin={false} interactive={false} />);
     await flush();
     await act(async () => mounts[0]!.events.onReady());
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
@@ -190,7 +208,7 @@ describe('TrophyView', () => {
     expect(mounts).toHaveLength(1);
     expect(mounts[0]!.dispose).not.toHaveBeenCalled();
     expect(mountedHandles[0]!.update).toHaveBeenCalledTimes(1);
-    expect(mountedHandles[0]!.update).toHaveBeenCalledWith(next);
+    expect(mountedHandles[0]!.update).toHaveBeenCalledWith(next, 'Золотий кубок');
     expect(document.querySelector('.trophy-fallback')).toBeNull();
     // Той самий вигляд новим об'єктом — без повторного update.
     rerender(<TrophyView trophy={{ ...next }} size="view" spin={false} interactive />);

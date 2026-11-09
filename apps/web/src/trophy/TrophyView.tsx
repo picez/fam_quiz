@@ -32,9 +32,12 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
   const look = MATERIAL_LOOK[trophy.material];
   // Поверхні передають новий об'єкт trophy на кожне оновлення: порівнюємо вигляд за вмістом.
   const lookKey = JSON.stringify(trophy);
-  // Вигляд для наступного mount і вигляд, який має живий handle: зміна лише вигляду йде в update без перемонтування.
+  // Вигляд для наступного mount і вигляд, який має живий handle: зміна вигляду (з ним і label) іде в update без
+  // перемонтування; перемонтовують лише size, spin, interactive, appear.
   const lookRef = useRef(lookKey);
   lookRef.current = lookKey;
+  const labelRef = useRef(label);
+  labelRef.current = label;
   const shownKey = useRef<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +56,7 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
     if (engine === null || box === null) return;
     let live = true;
     const key = lookRef.current;
+    const label = labelRef.current;
     const handle = engine.mount(
       box,
       { look: JSON.parse(key) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear },
@@ -74,14 +78,14 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
       handle.dispose();
       setLoaded(false);
     };
-  }, [engine, size, spin, interactive, label, appear]);
+  }, [engine, size, spin, interactive, appear]);
 
   // Після ефекту mount: щойно змонтований handle уже має цей вигляд, тож update іде лише за справжньою зміною.
   useEffect(() => {
     const handle = handleRef.current;
     if (handle === null || shownKey.current === lookKey) return;
     shownKey.current = lookKey;
-    handle.update(JSON.parse(lookKey) as TrophyLook);
+    handle.update(JSON.parse(lookKey) as TrophyLook, labelRef.current);
   }, [lookKey]);
 
   useImperativeHandle(ref, () => ({ replayAppearance: () => handleRef.current?.replayAppearance() }), []);

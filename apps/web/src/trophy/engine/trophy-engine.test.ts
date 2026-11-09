@@ -378,7 +378,7 @@ describe('trophy engine: update in place', () => {
       ...decor('spin'),
       inscriptions: [{ place: 'rim', text: 'Ася', font: null, look: 'engraved', color: '#3a2a0e' }],
     };
-    handle.update(withDecor(spec));
+    handle.update(withDecor(spec), 'new label');
     await settle();
     // Доки нова збірка не готова, у сцені стара — без значка й без другого onReady.
     expect(trophy.children).toEqual([old]);
@@ -387,6 +387,7 @@ describe('trophy engine: update in place', () => {
     expect(onError).not.toHaveBeenCalled();
     expect(freed).not.toHaveBeenCalled();
     expect(canvas.dataset.decor).toBe(decorSummary('cup', decor('spin')));
+    expect(canvas.getAttribute('aria-label')).toBe('cup');
 
     next.resolve();
     await vi.waitFor(() => expect(trophy.children).toEqual([next.model]));
@@ -400,6 +401,7 @@ describe('trophy engine: update in place', () => {
     expect(onError).not.toHaveBeenCalled();
     expect(canvas.dataset.decor).toBe(decorSummary('cup', spec));
     expect(canvas.dataset.decor).not.toBe(decorSummary('cup', decor('spin')));
+    expect(canvas.getAttribute('aria-label')).toBe('new label');
   });
 
   it('the latest update wins', async () => {
@@ -410,8 +412,8 @@ describe('trophy engine: update in place', () => {
     const b = deferred();
     fake.loadModel.mockImplementationOnce(() => a.promise).mockImplementationOnce(() => b.promise);
     const aFreed = vi.spyOn((a.model.children[0] as Mesh).material as Material, 'dispose');
-    handle.update(withDecor(decor('drop')));
-    handle.update(withDecor(decor('rise')));
+    handle.update(withDecor(decor('drop')), 'cup');
+    handle.update(withDecor(decor('rise')), 'cup');
     b.resolve();
     await vi.waitFor(() => expect(trophy.children).toEqual([b.model]));
     expect(release).not.toHaveBeenCalled();
@@ -431,7 +433,7 @@ describe('trophy engine: update in place', () => {
     played.frame(0);
     played.run(1.3);
     expect(played.canvas.dataset.appearance).toBe('drop:done');
-    played.handle.update(withDecor(decor('drop', 'sparks')));
+    played.handle.update(withDecor(decor('drop', 'sparks')), 'cup');
     await vi.waitFor(() => expect(played.canvas.dataset.effect).toBe('sparks:animated'));
     expect(played.canvas.dataset.appearance).toBe('drop:done');
     expect(named(played.scene, 'effect-sparks')).toHaveLength(1);
@@ -441,13 +443,13 @@ describe('trophy engine: update in place', () => {
     fake.stage!.view = null;
     const bare = await mount();
     expect(bare.canvas.dataset.appearance).toBeUndefined();
-    bare.handle.update(withDecor(decor('rise')));
+    bare.handle.update(withDecor(decor('rise')), 'cup');
     await vi.waitFor(() => expect(bare.canvas.dataset.appearance).toBe('rise:skipped'));
     expect(bare.canvas.dataset.effect).toBe('none:off');
     expect(bare.view.needsFrame()).toBe(false);
 
     // І назад без decor: атрибути зникають, поза нейтральна.
-    bare.handle.update({ kind: 'cup', material: 'gold' });
+    bare.handle.update({ kind: 'cup', material: 'gold' }, 'cup');
     await vi.waitFor(() => expect(bare.canvas.dataset.appearance).toBeUndefined());
     expect(bare.canvas.dataset.effect).toBeUndefined();
   });
@@ -457,7 +459,7 @@ describe('trophy engine: update in place', () => {
     expect(canvas.dataset.appearance).toBe('spin:skipped');
     const next = deferred();
     fake.loadModel.mockImplementationOnce(() => next.promise);
-    handle.update(withDecor(decor('drop')));
+    handle.update(withDecor(decor('drop')), 'cup');
     handle.replayAppearance();
     await settle();
     expect(canvas.dataset.appearance).toBe('spin:skipped');
@@ -471,7 +473,7 @@ describe('trophy engine: update in place', () => {
     const { handle } = await mount({ decor: decor('spin') });
     handle.dispose();
     fake.loadModel.mockClear();
-    expect(() => handle.update(withDecor(decor('drop')))).not.toThrow();
+    expect(() => handle.update(withDecor(decor('drop')), 'cup')).not.toThrow();
     await settle();
     expect(fake.loadModel).not.toHaveBeenCalled();
   });

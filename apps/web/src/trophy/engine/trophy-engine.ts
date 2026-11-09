@@ -101,6 +101,7 @@ function clamp(value: number, min: number, max: number): number {
 /** Одна збірка вигляду: модель з оформленням, тінь, ефект і реквізит появи — усе, що update міняє за один кадр. */
 interface Build {
   look: TrophyLook;
+  label: string;
   spec: TrophyDecor | null;
   plan: EffectPlan | null;
   model: Group;
@@ -243,7 +244,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
    * звільняє своє оформлення тут (рівно раз) і дає null. Збій моделі останньої збірки — onError, як при mount;
    * збій лише decor — кубок без оформлення.
    */
-  const build = (next: TrophyLook, gen: number): Promise<Build | null> => {
+  const build = (next: TrophyLook, label: string, gen: number): Promise<Build | null> => {
     const nextSpec = next.decor ?? null;
     // Оформлення будується разом із моделлю; його збій не ховає кубок — той показується без оформлення.
     const decor =
@@ -306,6 +307,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
         }
         return {
           look: next,
+          label,
           spec: nextSpec,
           plan,
           model,
@@ -356,6 +358,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     props = next.props;
     shadowMaterial = next.spec === null ? null : next.floorMaterial;
     canvas.dataset.decor = decorSummary(next.look.kind, next.look.decor);
+    canvas.setAttribute('aria-label', next.label);
 
     const replay = replayQueued && !calm;
     replayQueued = false;
@@ -379,8 +382,8 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     else stage?.invalidate(view);
   };
 
-  const start = (next: TrophyLook, gen: number) => {
-    void build(next, gen).then((built) => {
+  const start = (next: TrophyLook, label: string, gen: number) => {
+    void build(next, label, gen).then((built) => {
       if (built !== null) swap(built, gen);
     });
   };
@@ -420,7 +423,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     queueMicrotask(fail);
   } else {
     scene.environment = stage.environment;
-    start(look, generation);
+    start(look, options.label, generation);
   }
 
   return {
@@ -453,10 +456,10 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
       }
       stage?.invalidate(view);
     },
-    update(next) {
+    update(next, label) {
       if (disposed || failed || stage === null) return;
       generation += 1;
-      start(next, generation);
+      start(next, label, generation);
     },
   };
 }
