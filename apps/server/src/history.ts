@@ -183,7 +183,8 @@ function factInputOf(
       board: ref?.cell !== undefined,
       blitz: round?.type === 'blitz' || cell?.cell.kind === 'blitz',
       bluff: question.type === 'bluff',
-      final: round?.type === 'final',
+      // Ставки (27a) — як фінал для цікавинок: без рядка розкриття, а мовчання не відповідь.
+      final: round?.type === 'final' || round?.type === 'bets',
     });
   });
   const finals = new Set(questions.filter((q) => q.final).map((q) => q.index));
@@ -644,6 +645,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
         final: round?.type === 'final' ? finalResult(round, given, standings) : null,
+        bets: round?.type === 'bets',
       },
     ];
   });

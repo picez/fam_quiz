@@ -183,6 +183,8 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   if (round?.type === 'ladder' && round.timer === false) return null;
   // Словесна драбина рахує кроки, а не швидкість: її час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
   if (question.type === 'wordladder') return null;
+  // Ставки (27a): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
+  if (round?.type === 'bets') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;
   return answerWindowMs(question);
 }

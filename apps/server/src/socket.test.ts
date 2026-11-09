@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
+import { betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -975,6 +975,19 @@ describe('host presence', () => {
     expect(await send(olena, 'player:wager', { amount: 0, allIn: 'yes' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:wager', { amount: 0, allIn: true })).toEqual({ ok: true });
     expect(await send(olena, 'player:wager', { amount: 0, allIn: false })).toEqual({ ok: true });
+  });
+  it('player:wager in a bets round answers with the bet errors', async () => {
+    const game = (await startGame(ctx.app, makeRoundsQuiz([betsRound('b', [withId(single, 'b1')])]))).game;
+    const { host, olena, taras, olenaJoin } = await lobby(game);
+    await send(host, 'host:start');
+    await send(host, 'host:next');
+    await until(olena, inPhase('wager'));
+    // Бали від ведучого на етапі ставок піднімають межу Олени; Тарас лишається з нулем.
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 800 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wager', { amount: 100 })).toEqual({ ok: false, error: 'bet_range' });
+    expect(await send(olena, 'player:wager', { amount: 900 })).toEqual({ ok: false, error: 'bet_range' });
+    expect(await send(taras, 'player:wager', { amount: 200 })).toEqual({ ok: false, error: 'bet_skipped' });
+    expect(await send(olena, 'player:wager', { amount: 300 })).toEqual({ ok: true });
   });
 });
 

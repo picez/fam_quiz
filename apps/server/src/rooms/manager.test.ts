@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
+import { betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { hostView, sortOf } from '@quiz/engine';
 import { defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
+import { toBetsWager } from '../testing/bets-game';
 import { nounsOf } from '../wordladder/nouns';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
 import {
@@ -1394,6 +1395,17 @@ describe('teams (10j)', () => {
     expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
     expect(room.state.plays[0].answers[red]).toBeDefined();
     expect(manager.buff(room, taras.playerId, 'double')).toEqual({ ok: false, error: 'not_captain' });
+  });
+
+  it('only the captain bets for the team in a bets round', () => {
+    const { manager, room, olena, taras, red } = teamPlaying([classicRound('r1', [single]), betsRound('r2', [withId(single, 'b1')], { betMax: 600 })]);
+    toBetsWager(manager, room, { [red]: 800 });
+    expect(manager.wager(room, taras.playerId, 300)).toEqual({ ok: false, error: 'not_captain' });
+    expect(room.state.final?.wagers[red]).toBeUndefined();
+    // Стеля раунду — 600, хоч у команди 800 спільних балів.
+    expect(manager.wager(room, olena.playerId, 601)).toEqual({ ok: false, error: 'bet_range' });
+    expect(manager.wager(room, olena.playerId, 300)).toEqual({ ok: true });
+    expect(room.state.final?.wagers[red]).toBe(300);
   });
 
   it('blitz: anyone buzzes and the one who buzzed answers', () => {

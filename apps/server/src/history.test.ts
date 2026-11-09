@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
+import { toBetsWager } from './testing/bets-game';
 import { playToEnd } from './testing/final-game';
 import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
@@ -855,6 +856,39 @@ describe('host history: answers', () => {
       ['Олена', 500, 500],
       ['Тарас', 300, -300],
     ]);
+  });
+});
+
+describe('history: bets (27a)', () => {
+  it('bets questions are marked in the history', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([classicRound('r1', [withId(single, 's1')], { speedBonus: false }), betsRound('b', [withId(single, 'b1')])]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const join = async (nickname: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+    const anna = await join('Анна');
+    const bohdan = await join('Богдан');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [anna, bohdan]) ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'next') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    toBetsWager(ctx.manager, room, { [anna]: 800, [bohdan]: 500 });
+    expect(ctx.manager.wager(room, anna, 400)).toEqual({ ok: true });
+    expect(ctx.manager.wager(room, bohdan, 300)).toEqual({ ok: true });
+    expect(ctx.manager.answer(room, anna, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(ctx.manager.host(room, { type: 'lock' })).toEqual({ ok: true });
+    step('next');
+    expect(room.state.phase).toBe('reveal');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+      questions: { bets: boolean; final: unknown; answered: number }[];
+    };
+    expect(detail.questions.map((q) => [q.bets, q.final])).toEqual([[false, null], [true, null]]);
+    expect(detail.questions[1].answered).toBe(1);
   });
 });
 

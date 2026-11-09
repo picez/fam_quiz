@@ -158,6 +158,11 @@ describe('new achievements', () => {
     expect(hitFinal(one({ accepted: false, points: -500, wager: 500 }), 'a')).toBe(false);
   });
 
+  it('27a: a right answer with a stake in a bets round is no final hit', () => {
+    const bets = table(['classic', 'bets'], [{ participantId: 'a', userId: 'a', memberUserIds: [], rank: 1, score: 0, rows: [{ roundIndex: 1, attempt: 0, accepted: true, points: 500, wager: 400 }] }]);
+    expect(hitFinal(bets, 'a')).toBe(false);
+  });
+
   it('adjustments count for blitz rounds and comebacks but never for the final hit', () => {
     const row = (roundIndex: number, points: number, accepted = points > 0) => ({ roundIndex, attempt: 0, accepted, points, wager: null });
     const adj = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null });

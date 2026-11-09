@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
+import { betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -9,6 +9,7 @@ import { hostGame } from './history';
 import { attachRecorder, markAborted, markInterrupted } from './recorder';
 import { FINISHED_TTL_MS, RoomManager, type Room } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
+import { toBetsWager } from './testing/bets-game';
 import { playToEnd } from './testing/final-game';
 import { LADDER_RIGHT, playLadderQuestion } from './testing/ladder-game';
 import { TRIAL_WRONG, playSurvivalQuestion } from './testing/survival-game';
@@ -1000,6 +1001,47 @@ describe('recorder: board', () => {
       const sum = rows.filter((a) => a.participantId === saved.id).reduce((total, a) => total + a.points, 0);
       expect(sum).toBe(saved.score);
     }
+  });
+
+  it('a bets answer is recorded with its wager and bank points', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), betsRound('b', [withId(single, 'b1')], { betStart: 100 })]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [olena, taras, vira] = ['Олена', 'Тарас', 'Віра'].map(enter);
+    const host = (type: 'start' | 'next') => expect(manager.host(room, { type })).toEqual({ ok: true });
+    host('start');
+    host('next');
+    toBetsWager(manager, room, { [olena]: 800, [taras]: 500 });
+    // Віра без балів пропускає; Олена ставить 400 і відповідає правильно, Тарас ставить 500 і помиляється: його ставка — виграш Олени.
+    expect(manager.wager(room, olena, 400)).toEqual({ ok: true });
+    expect(manager.wager(room, taras, 500)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(manager.answer(room, vira, correct)).toEqual({ ok: false, error: 'bet_skipped' });
+    expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
+    expect(manager.answer(room, taras, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('locked');
+    host('next');
+    expect(room.state.phase).toBe('reveal');
+    await recorder.idle();
+
+    const rows = (await db.select().from(answer).where(eq(answer.questionIndex, 1))).map((a) => [a.participantId, a.wager, a.points, a.accepted]);
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        [olena, 400, 500, true],
+        [taras, 500, -500, false],
+      ]),
+    );
+    expect(rows.some(([id]) => id === vira)).toBe(false);
   });
 });
 
