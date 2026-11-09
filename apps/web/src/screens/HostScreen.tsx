@@ -3,6 +3,7 @@ import { clueShare, reactionAllowed, revealShare, type Answer, type Reaction, ty
 import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
+import { HostBetsPanel } from './BetsView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -254,7 +255,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           : duelStage === 'result'
             ? { label: 'duelContinue' as const, event: 'host:next' as const }
             : undefined
-        : isFinal && phase === 'intro'
+        : view.bets !== undefined && phase === 'wager'
+      ? { label: 'betsOpen' as const, event: 'host:next' as const }
+      : isFinal && phase === 'intro'
       ? { label: 'finalStart' as const, event: 'host:next' as const }
       : isFinal && phase === 'wager'
         ? { label: 'finalShowQuestion' as const, event: 'host:next' as const }
@@ -843,6 +846,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </button>
           </div>
         </section>
+      )}
+
+      {view.bets !== undefined && (phase === 'wager' || phase === 'question' || phase === 'locked' || phase === 'reveal') && (
+        <HostBetsPanel bets={view.bets} send={send} openButton={false} />
       )}
 
       {phase === 'wager' && final !== null && (

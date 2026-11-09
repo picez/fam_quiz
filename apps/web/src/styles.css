@@ -16937,3 +16937,36 @@ button.wall-tile:disabled {
 .bets-result {
   overflow-wrap: anywhere;
 }
+
+/* ---------- «Ставки» (27a): сцена й пульт ---------- */
+
+/* Початок запитання на сцені до відкриття: довгий текст переноситься. */
+.bets-stage-teaser {
+  overflow-wrap: anywhere;
+}
+
+/* Банк і імена тих, хто поставив: імена переносяться, суми не показуються. */
+.bets-strip {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.stage .bets-strip {
+  font-size: clamp(1.1rem, 2vw, 2rem);
+}
+
+.bets-skipping {
+  overflow-wrap: anywhere;
+}
+
+/* Пульт: частина тексту, яку бачать гравці, виділена. */
+.bets-host-text {
+  margin: 0 0 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+.bets-cut-seen {
+  background: var(--bank);
+  color: inherit;
+  padding: 0 0.15em;
+}

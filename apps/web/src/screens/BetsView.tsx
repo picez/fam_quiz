@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
-import type { BetsInfo, PlayerBets } from '@quiz/shared';
-import { num } from '../format';
+import type { BetsInfo, Grade, HostBets, PlayerBets } from '@quiz/shared';
+import { answerText, num, signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
 
@@ -102,4 +102,130 @@ export function BetResult({ bets, mine, playerId }: { bets: BetsInfo; mine: Play
         ? t('betsWon', { wager, points: num(row.points) })
         : t('betsKeptNoBank');
   return <p className="wager-note bets-result">{text}</p>;
+}
+
+/** Імена через кому: «Олена, Тарас». */
+const names = (list: { nickname: string }[]) => list.map((entry) => entry.nickname).join(', ');
+
+/** Рядок «Банк: N · Поставили: …» (або «Ще ніхто не поставив»): без жодної окремої суми. */
+export function BetsStrip({ bets }: { bets: BetsInfo }) {
+  const who = bets.placed.length === 0 ? t('betsNobodyYet') : t('betsPlacedNames', { names: names(bets.placed) });
+  return (
+    <p className="meta bets-strip" role="status">
+      {t('betsBank', { bank: num(bets.bank) })} · {who}
+    </p>
+  );
+}
+
+/** Сцена під час ставок: тема, «Запитання k з n», початок тексту, мінімум і найбільша ставка, банк і хто поставив (без сум). */
+export function BetsStage({ bets }: { bets: BetsInfo }) {
+  return (
+    <div className="stage-board bets-stage">
+      {bets.theme !== '' && <h1 className="question wager-theme">{bets.theme}</h1>}
+      <p className="meta">{t('betsQuestionOf', { index: bets.index + 1, total: bets.total })}</p>
+      {bets.teaser !== null && bets.teaser !== '' && (
+        <p className="question bets-stage-teaser" dir="auto">
+          {bets.teaser}
+        </p>
+      )}
+      <p className="lead">{t('betsMinimumStage', { min: num(bets.minimum) })}</p>
+      {bets.maximum !== null && <p className="lead">{t('betsMaximumStage', { max: num(bets.maximum) })}</p>}
+      <div className="bank-meter" role="status">
+        <span className="bank-meter-text">{t('betsBank', { bank: num(bets.bank) })}</span>
+      </div>
+      <p className="meta bets-strip" role="status">
+        {bets.placed.length === 0 ? t('betsNobodyYet') : t('betsPlacedNames', { names: names(bets.placed) })}
+      </p>
+    </div>
+  );
+}
+
+/** Розкриття: кожен, хто грав, — ставка, ✓/✗ і бали; «Ставки повернуто»; нижче — хто пропускав. */
+export function BetsResults({ bets, players }: { bets: BetsInfo; players: { id: string; nickname: string }[] }) {
+  const rows = bets.rows ?? [];
+  const skipping = players.filter((player) => !rows.some((entry) => entry.playerId === player.id));
+  return (
+    <>
+      {bets.refund && (
+        <div className="bank-meter" role="status">
+          <span className="bank-meter-text">{t('betsRefundStage')}</span>
+        </div>
+      )}
+      <ol className="rows wager-list wager-reveal bets-results">
+        {rows.map((entry) => (
+          <li key={entry.playerId}>
+            <span className="wager-who">
+              <span className="name" dir="auto">{entry.nickname}</span>
+            </span>
+            <span className="tag wager-stake">{t('betsRowStake', { wager: num(entry.wager) })}</span>
+            <span className={entry.grade === 'correct' ? 'tag is-correct' : 'tag is-wrong'}>{entry.grade === 'correct' ? '✓' : '✗'}</span>
+            <span className={bets.refund || entry.points === 0 ? 'wager-delta' : entry.points > 0 ? 'wager-delta is-up' : 'wager-delta is-down'} dir="ltr">
+              {signed(entry.points)}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {skipping.length > 0 && <p className="meta bets-skipping">{t('betsSkipping', { names: names(skipping) })}</p>}
+    </>
+  );
+}
+
+/** Пульт: повне запитання з позначеним початком, який бачать гравці; ставки всіх із сумами й межами; «Відкрити запитання»; оцінка для ручної перевірки. */
+export function HostBetsPanel({ bets, send, openButton = true }: { bets: HostBets; send: Send; openButton?: boolean }) {
+  const wager = bets.teaser !== null;
+  const text = bets.question.text;
+  const seen = bets.teaser !== null && bets.teaser !== '' && text.startsWith(bets.teaser) ? bets.teaser : '';
+  const grade = (playerId: string, value: Grade) => void send('host:override', { playerId, grade: value });
+  return (
+    <>
+      <section className="panel bets-host">
+        <h2>{t('betsQuestionOf', { index: bets.index + 1, total: bets.total })}</h2>
+        <p className="bets-host-text" dir="auto">
+          {seen !== '' && <mark className="bets-cut-seen">{seen}</mark>}
+          {text.slice(seen.length)}
+        </p>
+        {bets.teaser !== null && (
+          <p className="meta">{`${t('betsHostCut')}: ${bets.teaser === '' ? bets.theme : bets.teaser}`}</p>
+        )}
+        <BetsStrip bets={bets} />
+        {wager && (
+          <ul className="rows wager-list">
+            {bets.wagers.map((entry) => (
+              <li key={entry.playerId}>
+                <span className="name" dir="auto">{entry.nickname}</span>
+                <span className="given">{entry.wager === null ? t('finalThinking') : num(entry.wager)}</span>
+                <span className="meta">{entry.canBet ? t('betsHostLimit', { limit: num(entry.limit) }) : t('betsHostCannot')}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {wager && openButton && (
+          <button type="button" className="btn btn-primary" onClick={() => void send('host:next', undefined)}>
+            {t('betsOpen')}
+          </button>
+        )}
+      </section>
+      {bets.pending.length > 0 && (
+        <section className="panel">
+          <h2>{t('pendingTitle')}</h2>
+          <ul className="rows">
+            {bets.pending.map((entry) => (
+              <li key={entry.playerId}>
+                <span className="name" dir="auto">{entry.nickname}</span>
+                <span className="given">{answerText(entry.answer, bets.question)}</span>
+                <span className="row-actions">
+                  <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
+                    {t('finalGradeCorrect')}
+                  </button>
+                  <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'wrong')}>
+                    {t('finalGradeWrong')}
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
 }

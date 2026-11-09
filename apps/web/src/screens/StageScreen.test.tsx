@@ -2626,3 +2626,30 @@ describe('StageScreen: the prize ceremony (14a)', () => {
     expect(screen.getByText('Переможці')).toBeTruthy();
   });
 });
+
+describe('StageScreen: bets (27a)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'bets', partial: false, description: '', brief: emptyBrief('bets'), times: null };
+  const bets = (over: object = {}) => ({
+    theme: 'Столиці', index: 0, total: 2, minimum: 200, maximum: null, teaser: 'Яке місто', bank: 600,
+    placed: [{ playerId: 'p1', nickname: 'Олена' }, { playerId: 'p2', nickname: 'Тарас' }], eligible: 2, rows: null, refund: false, ...over,
+  });
+  const secret: Question = { id: 'q9', type: 'text', text: 'Яке місто є столицею Австралії', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Канберра'] };
+  const open = { ...question, type: 'text' as const, text: secret.text, choices: [] };
+
+  it('a bets round shows the teaser while betting and the stakes after reveal', () => {
+    const { unmount, container } = show(view({ phase: 'wager', round, questionIndex: 0, bets: bets() }));
+    expect(screen.getByText('Яке місто')).toBeTruthy();
+    expect(container.textContent).not.toContain('Австралії');
+    expect(screen.getByText('Банк: 600')).toBeTruthy();
+    unmount();
+    const rows = [{ playerId: 'p1', nickname: 'Олена', wager: 400, grade: 'correct' as const, points: 500, score: 1100 }];
+    const second = show(view({ phase: 'reveal', round, questionIndex: 0, question: open, reveal: secret, players: [{ id: 'p1', nickname: 'Олена', connected: true, streak: 0 }], bets: bets({ teaser: null, rows }) }));
+    expect(second.container.textContent).toContain('+500');
+    expect(second.container.textContent).toContain('Австралії');
+  });
+
+  it('shows the bank strip while the question is open', () => {
+    show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 20000, limitMs: 20000, bets: bets({ teaser: null }) }));
+    expect(screen.getByText('Банк: 600 · Поставили: Олена, Тарас')).toBeTruthy();
+  });
+});
