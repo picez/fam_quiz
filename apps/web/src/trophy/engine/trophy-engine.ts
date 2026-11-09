@@ -291,7 +291,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
           // Після framingSphere: кадрування не бачить ні ефекту, ні реквізиту появи. Ефект — у scene, не крутиться з кубком.
           shadowMaterial = floorMaterial;
           const frame = { center: [target.x, target.y, target.z] as const, radius };
-          effect = buildEffect(plan, frame, seed);
+          effect = buildEffect(plan, frame, seed, FOV);
           if (effect !== null) {
             owned.push(effect);
             scene.add(effect.object);

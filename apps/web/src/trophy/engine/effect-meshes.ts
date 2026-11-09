@@ -32,6 +32,7 @@ const RAYS_SPEED = 0.25;
 const GLOW_BASE = 0.75;
 const GLOW_AMPLITUDE = 0.15;
 const GLOW_HZ = 0.8;
+/** Світовий розмір частинки, у r. */
 const POINT_SIZE: Record<ParticleKind, number> = { sparks: 0.06, fire: 0.14, snow: 0.07 };
 
 const textures: { dot: Texture | null; glow: Texture | null; rays: Texture | null } = { dot: null, glow: null, rays: null };
@@ -67,26 +68,34 @@ export function dotTexture(): Texture {
   return textures.dot;
 }
 
-/** Біле радіальне сяйво (колір дає матеріал): одна текстура на сторінку. */
+/**
+ * Половина висоти кадру в r: камера стоїть на fitDistance (сфера радіуса r з запасом 1.05 при 30°), тож край полотна —
+ * 1.05 / cos 15° ≈ 1.09r від центру. Сяйво й промені тануть до нуля раніше, інакше край полотна зрізає їх у квадрат.
+ */
+const FRAME_HALF = 1.05 / Math.cos(Math.PI / 12);
+
+/** Біле радіальне сяйво (колір дає матеріал), прозоре вже до краю кадру: одна текстура на сторінку. */
 export function glowTexture(): Texture {
+  const end = (0.95 * FRAME_HALF) / (GLOW_SCALE / 2);
   textures.glow ??= paintTexture(256, (context, size) =>
     radial(context, size, [
       [0, 'rgba(255,255,255,1)'],
-      [0.35, 'rgba(255,255,255,0.45)'],
-      [1, 'rgba(255,255,255,0)'],
+      [0.3, 'rgba(255,255,255,0.45)'],
+      [end, 'rgba(255,255,255,0)'],
     ]),
   );
   return textures.glow;
 }
 
-/** 12 клинів-променів, що тануть до краю: одна текстура на сторінку. */
+/** 12 клинів-променів, що тануть до краю кадру: одна текстура на сторінку. */
 export function raysTexture(): Texture {
+  const end = (0.95 * FRAME_HALF) / (RAYS_SCALE / 2);
   textures.rays ??= paintTexture(256, (context, size) => {
     const half = size / 2;
     const wedges = 12;
     const gradient = context.createRadialGradient(half, half, 0, half, half, half);
     gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    gradient.addColorStop(end, 'rgba(255,255,255,0)');
     context.fillStyle = gradient;
     for (let w = 0; w < wedges; w++) {
       const from = (w / wedges) * Math.PI * 2;
@@ -133,7 +142,7 @@ function buildSprite(plan: EffectPlan, frame: EffectFrame): BuiltEffect {
   };
 }
 
-function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number): BuiltEffect {
+function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number, fovDeg: number): BuiltEffect {
   const kind = plan.kind as ParticleKind;
   const rng = mulberry32(seed);
   const particles: Particles = createParticles(kind, plan.count, frame, rng);
@@ -143,7 +152,9 @@ function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number): BuiltE
   geometry.setAttribute('position', position);
   geometry.setAttribute('color', color);
   const material = new PointsMaterial({
-    size: POINT_SIZE[kind] * frame.radius,
+    // three малює крапку розміром size·(висота/2)/відстань пікселів, без tan(fov/2) перспективи: без поправки при 30° вона
+    // вчетверо менша за світовий розмір (вогонь — двопіксельні тьмяні цятки).
+    size: (POINT_SIZE[kind] * frame.radius) / Math.tan(((fovDeg / 2) * Math.PI) / 180),
     sizeAttenuation: true,
     map: dotTexture(),
     vertexColors: true,
@@ -173,9 +184,9 @@ function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number): BuiltE
   };
 }
 
-/** Об'єкт ефекту для плану; режим 'off' нічого не будує. */
-export function buildEffect(plan: EffectPlan, frame: EffectFrame, seed: number): BuiltEffect | null {
+/** Об'єкт ефекту для плану; режим 'off' нічого не будує. fovDeg — кут поля зору камери (розмір частинок на екрані). */
+export function buildEffect(plan: EffectPlan, frame: EffectFrame, seed: number, fovDeg: number): BuiltEffect | null {
   if (plan.mode === 'off' || plan.kind === 'none') return null;
   if (plan.kind === 'glow' || plan.kind === 'rays') return buildSprite(plan, frame);
-  return buildPoints(plan, frame, seed);
+  return buildPoints(plan, frame, seed, fovDeg);
 }
