@@ -7,7 +7,7 @@ import { PrizeStudio, type PrizeStudioProps } from './PrizeStudio';
 import { contentOf, draftFrom, studioReducer } from './studio-draft';
 import { useSettled } from './useSettled';
 
-vi.mock('../editor/ImageField', () => ({ ImageField: () => <div data-testid="image-field" /> }));
+vi.mock('../editor/ImageField', () => ({ ACCEPT: 'image/png', ImageField: () => <div data-testid="image-field" /> }));
 vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: vi.fn(() => true) }));
 vi.mock('../trophy/TrophyView', async () => {
   const { useImperativeHandle } = await import('react');

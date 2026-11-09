@@ -14031,6 +14031,117 @@ button.wall-tile:disabled {
   outline-offset: 2px;
 }
 
+/* «Фото»: мініатюра й чотири кнопки на кожне фото (кожна ≥ 44 px). */
+.studio-photo-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.studio-photo-add .btn,
+.studio-photo-actions .btn {
+  min-height: 2.75rem;
+}
+
+.studio-photo-add .file-pick:focus-within {
+  outline: 2px solid var(--accent-text);
+}
+
+.studio-photos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.studio-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.studio-photo-thumb {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: cover;
+  border-radius: var(--radius-small);
+}
+
+.studio-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* Діалог кадрування: поверх редактора (60), полотно в пропорціях рамки фото на кубку. */
+.crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: rgb(0 0 0 / 0.75);
+}
+
+.crop-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 100%;
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.crop-title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.crop-dialog .meta {
+  margin: 0;
+}
+
+.crop-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
+  touch-action: none;
+  cursor: grab;
+}
+
+.crop-canvas:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.crop-dialog .field {
+  align-self: stretch;
+}
+
+.crop-actions .btn {
+  min-height: 2.75rem;
+}
+
 @media (min-width: 900px) {
   .prize-studio {
     grid-template-columns: minmax(0, 1fr) 400px;

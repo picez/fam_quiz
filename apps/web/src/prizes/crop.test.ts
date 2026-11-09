@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RING_TILE } from '../trophy/decor-layout';
-import { CROP_RESET, PHOTO_BOX, panCrop, zoomCrop } from './crop';
+import { PHOTO_FRAME_INSET, RING_TILE, tileRect } from '../trophy/decor-layout';
+import { CROP_RESET, PHOTO_BOX, cropFrameBox, cropShape, panCrop, zoomCrop } from './crop';
 
 const square = { width: 1000, height: 1000 };
 const unit = { width: 1, height: 1 };
@@ -40,5 +40,24 @@ describe('crop', () => {
     expect(PHOTO_BOX.backdrop).toEqual({ width: 1024, height: 1024 });
     expect(PHOTO_BOX.medallion).toEqual({ width: 1, height: 1 });
     expect(PHOTO_BOX.gems).toEqual({ width: 1, height: 1 });
+  });
+
+  it('pan with no view width keeps the crop', () => {
+    const crop = { x: 0.4, y: 0.6, scale: 2 };
+    expect(panCrop(crop, square, unit, 10, 10, 0)).toBe(crop);
+    expect(panCrop(crop, square, unit, 10, 10, -5)).toBe(crop);
+  });
+
+  it('the crop box is where the trophy draws the photo', () => {
+    const tile = tileRect(0);
+    expect(cropFrameBox('ring', 'none')).toEqual({ width: tile.width, height: tile.height });
+    expect(cropFrameBox('ring', 'gold')).toEqual({ width: tile.width - 2 * PHOTO_FRAME_INSET, height: tile.height - 2 * PHOTO_FRAME_INSET });
+    expect(cropFrameBox('plaque', 'none')).toEqual(PHOTO_BOX.plaque);
+    expect(cropFrameBox('backdrop', 'rounded')).toEqual({ width: 1024 - 2 * PHOTO_FRAME_INSET, height: 1024 - 2 * PHOTO_FRAME_INSET });
+    expect(cropFrameBox('medallion', 'gold')).toEqual({ width: 1, height: 1 });
+    expect(cropShape('gems', 'none')).toBe('circle');
+    expect(cropShape('ring', 'round')).toBe('circle');
+    expect(cropShape('plaque', 'rounded')).toBe('rounded');
+    expect(cropShape('backdrop', 'gold')).toBe('rect');
   });
 });

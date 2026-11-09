@@ -14,6 +14,9 @@ export const PHOTO_BOX: Record<TrophyPhotoPlace, { width: number; height: number
   backdrop: { width: 1024, height: 1024 },
 };
 
+/** На скільки фото в рамці (не `none`) відступає від краю прямокутника: місце під обводку. */
+export const PHOTO_FRAME_INSET = 3;
+
 export function ringAtlasSize(count: number): { width: number; height: number } {
   return { width: RING_TILE.width * count, height: RING_TILE.height };
 }

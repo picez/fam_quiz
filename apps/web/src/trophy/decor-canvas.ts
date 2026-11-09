@@ -5,6 +5,7 @@ import {
   fitFontPx,
   LINE_HEIGHT,
   metalStops,
+  PHOTO_FRAME_INSET,
   plaqueLines,
   RING_TILE,
   ringAtlasSize,
@@ -122,7 +123,7 @@ function drawLooked(ctx: Ctx, text: string, x: number, y: number, look: Inscript
 /** Фото в прямокутнику: «заповнити» з crop, форма й обводка за рамкою, стиль фото; null лишає прямокутник як є. */
 function drawPhotoIn(ctx: Ctx, image: Img | null, photo: DecorPhoto, decor: TrophyDecor, rect: Rect, material: TrophyMaterial): void {
   const framed = decor.frame !== 'none';
-  const inset = framed ? 3 : 0;
+  const inset = framed ? PHOTO_FRAME_INSET : 0;
   const x = rect.x + inset;
   const y = rect.y + inset;
   const w = rect.width - 2 * inset;

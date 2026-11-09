@@ -4,6 +4,7 @@ import { t, type TextKey } from '../i18n';
 import { webglAvailable } from '../trophy/loadEngine';
 import { TrophyView, type TrophyViewHandle } from '../trophy/TrophyView';
 import { contentOf, draftFrom, studioIssues, studioLook, studioReducer, type StudioAction, type StudioDraft, type StudioIssue } from './studio-draft';
+import { PhotoTool } from './tools/PhotoTool';
 import { PrizeTool } from './tools/PrizeTool';
 import { ShapeTool } from './tools/ShapeTool';
 import { useSettled } from './useSettled';
@@ -41,10 +42,10 @@ const TOOL_LABEL: Record<StudioTool, TextKey> = {
 const TOOL_ICON: Record<StudioTool, string> = { shape: '🏆', photos: '📷', texts: '✒️', effects: '✨', appear: '🎬', prize: '🎁' };
 /** Інструменти, що оформлюють сам трофей: без трофея їм нічого робити. */
 const NEEDS_TROPHY: readonly StudioTool[] = ['photos', 'texts', 'effects', 'appear'];
-/** Інструменти задач 9–11; поки що порожні панелі. */
+/** Інструменти задач 10–11; поки що порожні панелі. */
 const PANELS: Record<StudioTool, ((props: ToolProps) => JSX.Element) | null> = {
   shape: ShapeTool,
-  photos: null,
+  photos: PhotoTool,
   texts: null,
   effects: null,
   appear: null,
