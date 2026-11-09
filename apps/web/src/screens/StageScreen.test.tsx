@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
+import { SPLASH_MS, emptyBrief, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 import { ladderInfo } from './ladder-fixtures';
@@ -1245,6 +1245,21 @@ describe('StageScreen: splashes', () => {
     });
     expect(document.querySelector('.splash')).toBeNull();
     expect(screen.getByRole('timer').getAttribute('aria-label')).toBe('20');
+  });
+
+  it('the stage question is aria-busy under «БЛІЦ!»', () => {
+    timed();
+    const cell = { id: 'c1', category: 'Міста', price: 300, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const board = { rows: [], cell, turn: null, dice: null, schedule: [] } as unknown as BoardInfo;
+    const ms = SPLASH_MS.cell + SPLASH_MS.blitz;
+    show(view({ phase: 'question', questionIndex: 0, question, board, endsAt: T + ms + 20_000, limitMs: 20_000, splash: at('blitz', ms) }));
+    expect(document.querySelector('.splash.is-blitz')).not.toBeNull();
+    expect(document.querySelector('.stage-question')?.getAttribute('aria-busy')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+    expect(document.querySelector('.splash')).toBeNull();
+    expect(document.querySelector('.stage-question')?.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('a picked cell flips on the stage', () => {

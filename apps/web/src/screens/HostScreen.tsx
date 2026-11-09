@@ -54,7 +54,7 @@ import { MenuLinks } from './MenuLinks';
 import { DebuffPanel, debuffTagText, isSurvivalGhost, PointsPanel } from './HostPlayerTools';
 import { BuffBadge, HintRequests, SharedOvertime, SpareMark } from './Buffs';
 import { BuffToast, DebuffToast, LiveNotices } from '../live/LiveNotices';
-import { SplashChip, useSplash } from '../live/Splash';
+import { Splash, SplashChip, useSplash } from '../live/Splash';
 import { GuidePageView } from '../live/Guide';
 import { HostDuelPanel } from './DuelView';
 import { HelpButton } from '../help/HelpButton';
@@ -321,7 +321,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const skipPace = usePace(view.pace.skip, offsetMs);
   const mainPace = main?.event === 'host:lock' ? lockPace : main?.event === 'host:next' ? nextPace : null;
   const stageGone = useStageGone(stageOnline);
-  const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
+  const underSplash = phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell' || splashNow?.splash.kind === 'blitz');
   // Поступ проявлення потрібен лише запитанню з проявленням: решта не перемальовується щоразу.
   const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
   const noWait = phase === 'question' && view.overtime.length > 0 && sharedOver;
@@ -542,8 +542,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <BuffToast view={view} offsetMs={offsetMs} />
         <DebuffToast notice={view.debuffNotice} offsetMs={offsetMs} />
       </LiveNotices>
-      {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті. */}
-      <SplashChip view={view} offsetMs={offsetMs} />
+      {/* Пульт заставкою не закривається: лише значок position: fixed у правому верхньому куті; виняток — «БЛІЦ!» (26a): повний шар, без натискань. */}
+      {view.splash?.kind === 'blitz' ? <Splash view={view} offsetMs={offsetMs} size="phone" /> : <SplashChip view={view} offsetMs={offsetMs} />}
       <header className="bar">
         <span>{t('hostTitle')}</span>
         {live && (

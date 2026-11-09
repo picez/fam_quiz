@@ -657,7 +657,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
   // Заставка перед запитанням: шар пропускає дотики (pointer-events: none), тож поле й бафи під ним вимкнені до старту.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
-  const notStarted = phase === 'question' && splashNow !== null && (splashNow.splash.kind === 'question' || splashNow.splash.kind === 'cell');
+  const notStarted = phase === 'question' && splashNow !== null && (splashNow.splash.kind === 'question' || splashNow.splash.kind === 'cell' || splashNow.splash.kind === 'blitz');
   const locked = view.paused || notStarted;
   // Під будь-якою заставкою (раунд, фінал, підсумки) кнопки шапки й вступу вимкнені: крізь шар їх не натиснути наосліп.
   const splashUp = splashNow !== null;

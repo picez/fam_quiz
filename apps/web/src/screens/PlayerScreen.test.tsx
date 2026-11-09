@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
+import { SPLASH_MS, emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
@@ -2085,6 +2085,24 @@ describe('PlayerScreen: splashes', () => {
     expect(document.querySelector('main.player')?.hasAttribute('aria-busy')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
     expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'b' });
+  });
+
+  it('answers wait under «БЛІЦ!»', () => {
+    timed();
+    const cell = { id: 'c1', category: 'Міста', price: 300, mark: 'none' as const, kind: 'blitz' as const, answerMode: 'phone' as const, penalty: 'none' as const };
+    const board = { categories: [], order: [], cell, turn: { playerId: 'p1', nickname: 'Олена' }, dice: null, schedule: [] } as unknown as NonNullable<PlayerView['board']>;
+    const ms = SPLASH_MS.cell + SPLASH_MS.blitz;
+    const send = show(onQuestion({ board, round: classic, endsAt: T + ms + 20_000, limitMs: 20_000, splash: at('blitz', ms) }));
+    expect(document.querySelector('.splash.is-blitz.is-phone')).not.toBeNull();
+    expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(true);
+    expect(document.querySelector('main.player')?.getAttribute('aria-busy')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    expect(send).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+    expect((document.querySelector('fieldset.inputs') as HTMLFieldSetElement).disabled).toBe(false);
+    expect(document.querySelector('main.player')?.hasAttribute('aria-busy')).toBe(false);
   });
 
   it('round, cell, duel and podium splashes reach the phone too', () => {

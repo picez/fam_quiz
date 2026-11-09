@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, emptyBrief, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
+import { DEBUFF_KINDS, SPLASH_MS, emptyBrief, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -1645,6 +1645,22 @@ describe('HostScreen: splashes', () => {
       vi.advanceTimersByTime(1200);
     });
     expect(screen.queryByText('На екрані заставка')).toBeNull();
+  });
+
+  it('the host sees the full «БЛІЦ!» layer, not the chip', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T);
+    const cellOf = (kind: 'blitz' | 'normal') => ({ id: 'c1', category: 'Міста', price: 300, mark: 'none' as const, kind, answerMode: 'phone' as const, penalty: 'none' as const });
+    const boardWith = (kind: 'blitz' | 'normal') => ({ rows: [], cell: cellOf(kind), turn: null, dice: null, schedule: [], manual: false }) as unknown as HostView['board'];
+    show(during('question', single, { board: boardWith('blitz'), endsAt: T + 24_000, limitMs: 20_000, splash: { kind: 'blitz', at: T, until: T + SPLASH_MS.cell + SPLASH_MS.blitz } }));
+    expect(document.querySelector('.splash.is-blitz.is-phone .splash-blitz-title')).not.toBeNull();
+    expect(document.querySelector('.splash-chip')).toBeNull();
+    // Шар не ловить натискань: кнопки пульта під ним доступні.
+    expect(button('Пауза').disabled).toBe(false);
+    cleanup();
+    show(during('question', single, { board: boardWith('normal'), endsAt: T + 21_000, limitMs: 20_000, splash: { kind: 'cell', at: T, until: T + SPLASH_MS.cell } }));
+    expect(document.querySelector('.splash-chip')).not.toBeNull();
+    expect(document.querySelector('.splash')).toBeNull();
   });
 
   it('the full time on the host clock: −15 s and +15 s follow the limit, not the splash', () => {
