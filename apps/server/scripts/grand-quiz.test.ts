@@ -33,7 +33,7 @@ describe('the «Велика вікторина» quiz', () => {
 
   it('has every question type and every round type, hosted solo with buffs, debuffs, duels and spares', () => {
     expect(new Set(plain.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
-    expect(new Set(played(plain).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES));
+    expect(new Set(played(plain).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'wordladder'))); // 26c: демо без драбини
     expect(plain.settings.teams).toBeUndefined();
     expect(plain.settings.leaderboard).toBe('each');
     expect(plain.settings.buffs?.length).toBeGreaterThan(0);

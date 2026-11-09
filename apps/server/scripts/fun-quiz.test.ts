@@ -10,7 +10,7 @@ const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
 
 /** Усі типи, крім опитувань, «хмари слів» і «100 до 1» (реального опитування для цієї гри немає). */
-const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'survey');
+const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'survey' && t !== 'wordladder'); // 26c: демо без драбини
 
 /** Заборонені корені: росія й радянський період; шукаються на початку слова. */
 const BANNED = [

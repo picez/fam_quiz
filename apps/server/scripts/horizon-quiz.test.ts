@@ -60,7 +60,8 @@ describe('the «Горизонт» quiz', () => {
 
   it('has every question type', () => {
     const types = new Set(questionsOf(horizonQuiz).map((q) => q.type));
-    for (const type of QUESTION_TYPES) expect(types.has(type)).toBe(true);
+    // 26c: демо без драбини.
+    for (const type of QUESTION_TYPES.filter((t) => t !== 'wordladder')) expect(types.has(type)).toBe(true);
   });
 
   it('every board has 5–6 categories going 100…500 with ×2, ×3, blitz, voice cells, a pin, a 3×3 wall and spares', () => {
