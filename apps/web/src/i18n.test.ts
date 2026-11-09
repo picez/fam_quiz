@@ -82,6 +82,8 @@ describe('uk golden (22a)', () => {
   const ADDED_GRAIL = ['trophy_grail'];
   /** 25c: повноекранний редактор призу. Задача 8 — шапка, вкладки, «Форма» без наліпок, «Приз», помилки оформлення; задачі 9–11 доповнюють. */
   const ADDED_25C = ['studioNewTitle', 'studioEditTitle', 'studioViewTitle', 'studioNotFound', 'studioToolsLabel', 'studioToolShape', 'studioToolPhotos', 'studioToolTexts', 'studioToolEffects', 'studioToolAppear', 'studioToolPrize', 'studioRotateHint', 'studioNoWebgl', 'studioReadOnly', 'studioLeaveConfirm', 'studioNoTrophy', 'studioNoTrophyHint', 'studioNeedsTrophy', 'studioEngraving', 'studioPhotoPlace', 'studioPhotoPlace_ring', 'studioPhotoPlace_medallion', 'studioPhotoPlace_gems', 'studioPhotoPlace_plaque', 'studioPhotoPlace_backdrop', 'studioPhotoAdd', 'studioPhotoCount', 'studioPhotoN', 'studioPhotoEarlier', 'studioPhotoLater', 'studioPhotoRemove', 'studioPhotoCrop', 'studioPhotoFull', 'studioBackdropHint', 'studioFrame', 'studioFrame_none', 'studioFrame_gold', 'studioFrame_round', 'studioFrame_rounded', 'studioPhotoStyle', 'studioPhotoStyle_normal', 'studioPhotoStyle_bw', 'studioPhotoStyle_sepia', 'studioCropTitle', 'studioCropZoom', 'studioCropReset', 'studioCropDone', 'studioCropHint', 'prizeViewOpen', 'err_decor_locked', 'err_decor_text_length', 'err_decor_too_many_photos', 'err_decor_plaque_twice', 'studioStickers', 'studioStickerNone', 'studioPlace_front', 'studioPlace_back', 'studioPlace_left', 'studioPlace_right', 'studioPlace_base_left', 'studioPlace_base_right', 'studioText_rim', 'studioText_band', 'studioText_plaque', 'studioText_back', 'studioTextField', 'studioTextCount', 'studioFont', 'studioFontClassic', 'studioFontSample', 'studioLook', 'studioLook_engraved', 'studioLook_embossed', 'studioLook_colored', 'studioColor', 'studioColorCustom', 'swatch_gold', 'swatch_white', 'swatch_dark', 'swatch_red', 'swatch_blue', 'swatch_mint', 'swatch_violet', 'swatch_orange', 'studioPlaqueTaken', 'studioEffect_glow', 'studioEffect_sparks', 'studioEffect_rays', 'studioEffect_fire', 'studioEffect_snow', 'studioEffect_none', 'studioGlowColor', 'studioAppear_spin', 'studioAppear_rise', 'studioAppear_drop', 'studioAppear_flash', 'studioAppearPlay', 'studioCalmNote'];
+  /** 26a: заставка «БЛІЦ!» перед бліц-клітинкою поля. */
+  const ADDED_26A = ['splashBlitz'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
 
@@ -95,7 +97,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_26A.includes(key))).toEqual([]);
   });
 });
 

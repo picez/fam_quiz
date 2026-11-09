@@ -233,6 +233,52 @@ describe('Splash', () => {
     expect(plain.container.querySelector('.splash-surprise')).toBeNull();
   });
 
+  describe('blitz cell (26a)', () => {
+    const blitzCell = { ...board.cell!, kind: 'blitz' as const, mark: 'none' as const };
+    const blitzView = (until: number, over: { instant?: boolean; mark?: 'x2' | 'none'; at?: number } = {}) =>
+      stage({
+        phase: 'question',
+        round: { ...round, type: 'board' },
+        board: { ...board, cell: { ...blitzCell, mark: over.mark ?? 'none' } },
+        blitz: { instant: over.instant ?? true } as unknown as StageView['blitz'],
+        questionIndex: 0,
+        splash: { kind: 'blitz', at: over.at ?? T, until },
+      });
+
+    it('the cell flips first, then «БЛІЦ!» with one rule line', () => {
+      const { container, rerender } = render(<Splash view={blitzView(T + SPLASH_MS.cell + SPLASH_MS.blitz)} offsetMs={0} size="stage" />);
+      expect(container.querySelector('.splash.is-blitz .splash-blitz-lead .splash-flip')).not.toBeNull();
+      expect(container.querySelector('.splash-blitz-title')?.textContent).toBe('БЛІЦ!');
+      expect(container.querySelector('.splash-blitz-rule')?.textContent).toContain('Відповідають усі одразу');
+      const style = container.querySelector('.splash')?.getAttribute('style');
+      expect(style).toContain('--splash-lead-ms: 1500ms');
+      expect(style).toContain('--splash-flip-ms: 1500ms');
+      rerender(<Splash view={blitzView(T + SPLASH_MS.cell + SPLASH_MS.blitz, { instant: false })} offsetMs={0} size="stage" />);
+      expect(container.querySelector('.splash-blitz-rule')?.textContent).toContain('Відповідає перший');
+    });
+
+    it('without transitions there is no flip, only «БЛІЦ!»', () => {
+      const { container } = render(<Splash view={blitzView(T + SPLASH_MS.blitz)} offsetMs={0} size="stage" />);
+      expect(container.querySelector('.splash-blitz-lead')).toBeNull();
+      expect(container.querySelector('.splash-blitz-title')).not.toBeNull();
+      expect(container.querySelector('.splash')?.getAttribute('style')).toContain('--splash-lead-ms: 0ms');
+    });
+
+    it('a marked blitz cell keeps its «×2!» stamp inside the lead', () => {
+      const { container } = render(<Splash view={blitzView(T + SPLASH_MS.cell + CELL_SURPRISE_MS + SPLASH_MS.blitz, { mark: 'x2' })} offsetMs={0} size="stage" />);
+      expect(container.querySelector('.splash-blitz-lead .splash-surprise')?.textContent).toBe('×2!');
+      const style = container.querySelector('.splash')?.getAttribute('style');
+      expect(style).toContain(`--splash-surprise-ms: ${CELL_SURPRISE_MS}ms`);
+      expect(style).toContain(`--splash-lead-ms: ${SPLASH_MS.cell + CELL_SURPRISE_MS}ms`);
+    });
+
+    it('joined after the lead, the splash shows «БЛІЦ!» at once', () => {
+      const { container } = render(<Splash view={blitzView(T - 2000 + SPLASH_MS.cell + SPLASH_MS.blitz, { at: T - 2000 })} offsetMs={0} size="phone" />);
+      expect(container.querySelector<HTMLElement>('.splash')!.style.getPropertyValue('--splash-elapsed')).toBe('-2000ms');
+      expect(container.querySelector('.splash-blitz-title')).not.toBeNull();
+    });
+  });
+
   it('the host chip shows only during a splash', () => {
     const { container } = render(<SplashChip view={stage({ phase: 'question', questionIndex: 0, splash: at('question', 1200) })} offsetMs={0} />);
     expect(container.querySelector('.splash-chip')?.textContent).toBe('На екрані заставка');
@@ -309,7 +355,7 @@ describe('splash styles', () => {
     for (const selector of ['.splash', '.splash.is-final']) {
       expect(rule(selector).replace(/\s+/g, ' '), selector).toMatch(/background: [^;]*var\(--splash-bg\);/);
     }
-    for (const kind of ['round', 'final', 'question', 'cell', 'duel', 'podium']) {
+    for (const kind of ['round', 'final', 'question', 'cell', 'duel', 'podium', 'blitz']) {
       for (const size of ['', '.is-stage', '.is-phone']) {
         const selector = `.splash.is-${kind}${size}`;
         if (!css.includes(`\n${selector} {`)) continue;
@@ -349,6 +395,20 @@ describe('splash styles', () => {
       expect(sizeAt('.splash-title.is-long', width) * em.finalQuestion, `${width}`).toBeLessThanOrEqual(width - 32);
       expect(sizeAt('.splash-title', width) * em.question12, `${width}`).toBeLessThanOrEqual(width - 32);
     }
+  });
+
+  it('blitz splash: stages run on CSS delays, only the entry moves, and only without reduced motion', () => {
+    const lead = rule('.splash-blitz-lead');
+    expect(lead).toContain('splash-title-out');
+    expect(lead).toContain('var(--splash-lead-ms)');
+    const word = rule('.splash-blitz');
+    expect(word).toContain('var(--splash-lead-ms)');
+    expect(word).not.toContain('transform');
+    expect(insideNoPreference(css.indexOf('@keyframes splash-blitz-in'))).toBe(true);
+    expect(css.indexOf('@keyframes splash-blitz-in')).toBeGreaterThanOrEqual(0);
+    expect(css.indexOf('@keyframes splash-blitz-show')).toBeGreaterThanOrEqual(0);
+    expect(insideNoPreference(css.indexOf('@keyframes splash-blitz-show'))).toBe(false);
+    expect(rule('.splash.is-blitz .splash-flip')).toContain('var(--splash-flip-ms)');
   });
 
   it('the host chip is fixed and never shifts the console', () => {

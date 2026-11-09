@@ -369,6 +369,7 @@ const uk = {
   splashQuestionOf: 'з {total}',
   splashFinalQuestion: 'Запитання фіналу',
   splashDuel: 'Дуель!',
+  splashBlitz: 'БЛІЦ!',
   splashPodium: 'Підсумки',
   splashSurprise: '{mark}!',
   splashPodiumSub: 'Хто ж переміг?',
