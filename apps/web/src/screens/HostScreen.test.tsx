@@ -122,6 +122,12 @@ describe('HostScreen', () => {
     expect(screen.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href')).toBe('http://quiz.test/stage/123456#s');
   });
 
+  it('marks a blitz series next to the player (26b)', () => {
+    show(view({ players: [{ ...players[0]!, series: -2 }, players[1]!] }));
+    expect(screen.getByText('Серія −2')).toBeTruthy();
+    expect(screen.queryByText(/Серія \+/)).toBeNull();
+  });
+
   it('the lobby says whether level bonuses are on (15a)', () => {
     show(view());
     expect(screen.getByText('Бонуси рівнів увімкнено')).toBeTruthy();

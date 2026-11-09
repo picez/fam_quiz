@@ -9,6 +9,8 @@ function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalt
     const { length, bonus } = brief.streak;
     parts.push(t(bonus.kind === 'percent' ? 'summaryStreakPercent' : 'summaryStreakFixed', { length, value: bonus.value }));
   }
+  if (brief.series?.plus != null) parts.push(t('summarySeriesPlus', { step: brief.series.plus }));
+  if (brief.series?.minus != null) parts.push(t('summarySeriesMinus', { step: brief.series.minus }));
   if (brief.multiplier > 1) parts.push(t('summaryMultiplier', { value: brief.multiplier }));
   return parts.join(' · ');
 }

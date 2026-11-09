@@ -638,6 +638,19 @@ describe('PlayerScreen: blitz', () => {
   const inBlitz = (meState: PlayerView['me']) =>
     onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: meState });
 
+  it('the phone shows the blitz series line', () => {
+    const line = (series: NonNullable<PlayerView['me']['blitz']>['series']) => {
+      cleanup();
+      show(inBlitz(blitzMe({ series })));
+      return document.querySelector('.blitz-series');
+    };
+    expect(line({ plus: 3, minus: 0, nextCorrect: 1250, nextWrong: -500 })?.textContent).toBe('Серія +3 · наступна правильна +1250');
+    expect(line({ plus: 0, minus: 2, nextCorrect: 500, nextWrong: -1000 })?.textContent).toBe('Серія −2 · наступна помилка −1000');
+    expect(line({ plus: 0, minus: 0, nextCorrect: 500, nextWrong: -500 })).toBeNull();
+    expect(line(null)).toBeNull();
+    expect(line({ plus: 2, minus: 0, nextCorrect: null, nextWrong: null })).toBeNull();
+  });
+
   it('shows the buzz button and sends player:buzz', async () => {
     const send = show(inBlitz(blitzMe({ canBuzz: true })));
     fireEvent.click(screen.getByRole('button', { name: 'Відповісти' }));

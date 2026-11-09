@@ -66,6 +66,8 @@ describe('uk golden (22a)', () => {
   const REMOVED: string[] = ['agoMinutes', 'agoHours', /* меню з п'яти пунктів: призи, досягнення й друзі живуть у профілі */ 'menuAchievements', 'menuPrizes', 'menuShortPrizes', 'menuShortAchievements', /* друзі переїхали з профілю на /friends */ 'openProfile', /* головна профілю з плиток (23a): «Мої вікторини» стали «Найпопулярніші вікторини», «Друзі» — плиткою */ 'myQuizzesTitle', 'friendsTitle', /* публічний профіль більше не пише «пошта прихована» (задача 9) */ 'emailHidden', /* стара смужка ачівок пішла разом із профілем (задача 11) */ 'achievementsMore', 'achievementsAll', /* заголовок старої смужки ачівок без користувачів (фінальна рецензія 23a) */ 'achievementsTitle'];
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
+  /** 26b: серії бліц-раунду (рядок на телефоні, позначка, пам'ятка раунду). */
+  const ADDED_26B = ['summarySeriesPlus', 'summarySeriesMinus', 'blitzSeriesPlus', 'blitzSeriesMinus', 'seriesMark'];
   /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
   const ADDED_LATER = ['openFriends', /* «Ще N» у профілі прибрано в 23a: 'profileQuizzesMore' */ 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
   /** Нові uk-ключі 23a: підсторінки профілю (задача 6). */
@@ -97,7 +99,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_26A.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key))).toEqual([]);
   });
 });
 

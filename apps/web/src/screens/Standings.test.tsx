@@ -32,3 +32,23 @@ describe('Standings levels (15a)', () => {
     expect(screen.queryByText('Рів. 3')).toBeNull();
   });
 });
+
+describe('Standings series (26b)', () => {
+  const two = [
+    { participantId: 'a', nickname: 'Оля', rank: 1, score: 100 },
+    { participantId: 'b', nickname: 'Іван', rank: 2, score: 50 },
+  ] as unknown as Standing[];
+  it('a series mark stands next to the player', () => {
+    render(<Standings standings={two} teams={null} series={{ a: 2, b: -3 }} />);
+    const plus = screen.getByText('Серія +2');
+    const minus = screen.getByText('Серія −3');
+    expect(plus.closest('li')?.textContent).toContain('Оля');
+    expect(plus.className).not.toContain('is-minus');
+    expect(minus.closest('li')?.textContent).toContain('Іван');
+    expect(minus.className).toContain('is-minus');
+  });
+  it('shows nothing without the prop', () => {
+    render(<Standings standings={two} teams={null} />);
+    expect(screen.queryByText(/Серія/)).toBeNull();
+  });
+});

@@ -41,6 +41,7 @@ export function ScoreTable({
   highlightId,
   teams,
   streaks,
+  series,
   roundTitles,
   firstRound = 0,
 }: {
@@ -50,6 +51,7 @@ export function ScoreTable({
   highlightId?: string;
   teams?: TeamsView | null;
   streaks?: Record<string, number>;
+  series?: Record<string, number>;
   /** Назви раундів для заголовків колонок (title й aria-label «Р1, Назва»); немає — лише «Р1…». */
   roundTitles?: string[];
   /** Перший зіграний раунд (12r): пропущені раунди продовженої гри колонок не мають; заголовки — справжні номери (Р3). */
@@ -90,6 +92,7 @@ export function ScoreTable({
         <tbody>
           {rows.map((row) => {
             const streak = streaks?.[row.participantId] ?? 0;
+            const seriesNow = series?.[row.participantId] ?? 0;
             const team = teams?.teams.find((entry) => entry.id === row.participantId) ?? null;
             const members = team !== null ? team.members.map((member) => member.nickname) : (row.members ?? []);
             const breakdown = breakdowns[row.participantId];
@@ -132,6 +135,7 @@ export function ScoreTable({
                     </span>
                     {members.length > 0 && <span className="standing-members">{members.join(', ')}</span>}
                     {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
+                    {seriesNow !== 0 && <span className={seriesNow < 0 ? 'series is-minus' : 'series'}>{t('seriesMark', { count: signed(seriesNow) })}</span>}
                   </th>
                   {columns.map((i) => (
                     <td key={i} className="round" dir="ltr">

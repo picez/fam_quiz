@@ -2115,10 +2115,28 @@ a.banner {
 
 /* Раунди: серія, бонус за серію, групи запитань в історії */
 .standings .streak,
-.rows .streak {
+.rows .streak,
+.standings .series,
+.rows .series {
   color: var(--amber);
   font-size: 0.875rem;
   white-space: nowrap;
+}
+
+.standings .series.is-minus,
+.rows .series.is-minus {
+  color: var(--signal);
+}
+
+.blitz-series {
+  margin: 0.25rem 0;
+  color: var(--amber);
+  font-size: 0.9375rem;
+  text-align: center;
+}
+
+.blitz-series.is-minus {
+  color: var(--signal);
 }
 
 .streak-bonus {
