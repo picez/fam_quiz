@@ -282,4 +282,31 @@ describe('trophy anchors', () => {
     onFace(stickers.left!.position);
     onFace(stickers.right!.position);
   });
+
+  it('crown side stickers stay on the hoop and grail base stickers above the floor', () => {
+    // Обруч корони — y 0.18–0.42 (вище — зубці); основа грааля — від y = 0.
+    for (const place of ['left', 'right'] as const) {
+      const { position, size } = TROPHY_ANCHORS.crown.stickers[place]!;
+      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0.18);
+      expect(position[1] + size / 2).toBeLessThanOrEqual(0.42);
+    }
+    for (const place of ['base-left', 'base-right'] as const) {
+      const { position, size } = TROPHY_ANCHORS.grail.stickers[place]!;
+      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('cup gems never sit under the handles', () => {
+    const { gems } = TROPHY_ANCHORS.cup;
+    // Ручки на ±X: ±4.9° за cup.glb; самоцвіт — size / 2 / radius в обидва боки.
+    const reach = (4.9 * Math.PI) / 180 + gems!.size / 2 / gems!.radius;
+    for (let n = 1; n <= 8; n++) {
+      for (const g of gemSpots(gems!, n)) {
+        const angle = Math.atan2(g.position[0], g.position[2]);
+        expect(Math.abs(Math.abs(angle) - Math.PI / 2), `${n} gems`).toBeGreaterThanOrEqual(reach);
+      }
+    }
+    // Один самоцвіт — спереду, як і раніше.
+    expect(gemSpots(gems!, 1)[0]!.position[0]).toBeCloseTo(0, 9);
+  });
 });

@@ -49,15 +49,37 @@ export function coverCrop(
   };
 }
 
+/** Кутова відстань між a і b по колу, [0, π]. */
+const angleGap = (a: number, b: number) => {
+  const d = Math.abs(a - b) % (Math.PI * 2);
+  return Math.min(d, Math.PI * 2 - d);
+};
+
 /**
- * Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z); 'z' — у площині XY, перший угорі.
- * Кожен — пляма з розміром і поверхнею кола.
+ * Поворот кола самоцвітів: 0 — перший спереду; якщо так якийсь самоцвіт заходить у сектор avoid (з власною
+ * півшириною size / 2 / radius), коло повертається на пів кроку (для 4 і 8 на кубку — між ручками).
+ */
+function gemPhase(circle: Circle, count: number): number {
+  const avoid = circle.axis === 'y' ? circle.avoid : undefined;
+  if (avoid === undefined || count === 0) return 0;
+  const reach = avoid.halfWidth + circle.size / 2 / circle.radius;
+  const clear = (phase: number) =>
+    Array.from({ length: count }, (_, i) => phase + (i / count) * Math.PI * 2).every((angle) =>
+      avoid.angles.every((sector) => angleGap(angle, sector) >= reach),
+    );
+  return clear(0) ? 0 : Math.PI / count;
+}
+
+/**
+ * Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z), або на пів кроку далі, якщо спереду
+ * якийсь із них лягав би в сектор avoid; 'z' — у площині XY, перший угорі. Кожен — пляма з розміром і поверхнею кола.
  */
 export function gemSpots(circle: Circle, count: number): Spot[] {
   const [cx, cy, cz] = circle.center;
   const { size, surface } = circle;
+  const phase = gemPhase(circle, count);
   return Array.from({ length: count }, (_, i) => {
-    const angle = (i / count) * Math.PI * 2;
+    const angle = phase + (i / count) * Math.PI * 2;
     const s = Math.sin(angle);
     const c = Math.cos(angle);
     return circle.axis === 'y'

@@ -40,8 +40,13 @@ export const TEXTURE_SCALE: Record<TrophySize, number> = { stage: 1, view: 1, ph
 
 /** Оформлення ближче до камери за модель під ним: без z-fighting на підйомі 0.0015–0.003. */
 const OFFSET = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 } as const;
-/** Декалі прозорі по краях і не пишуть глибину; малюються після моделі (renderOrder 1). */
+/** Декалі прозорі по краях і не пишуть глибину; після моделі їх малює прохід прозорих (від z-fighting — OFFSET). */
 const DECAL = { ...OFFSET, transparent: true, alphaTest: 0.05, depthWrite: false } as const;
+/**
+ * Порядок декалей серед прозорих: нижчий за частинки ефекту (PARTICLE_RENDER_ORDER), бо частинки не пишуть глибину
+ * й інакше зникали б за медальйоном чи наліпкою, пролітаючи перед ними.
+ */
+export const DECAL_RENDER_ORDER = 0;
 
 /** Полотна одного buildDecor: спільні за ключем, кожне взяте записується в taken (звільнити — release). */
 interface Painter {
@@ -166,7 +171,7 @@ async function decalGeometry(painter: Painter, slot: string, spot: Spot): Promis
 
 function decal(name: string, geometry: BufferGeometry, map: Texture, look: MetalLook): Mesh {
   const result = mesh(name, geometry, new MeshStandardMaterial({ map, ...look, ...DECAL }));
-  result.renderOrder = 1;
+  result.renderOrder = DECAL_RENDER_ORDER;
   return result;
 }
 
@@ -271,10 +276,7 @@ async function addInscription(group: Group, painter: Painter, placed: PlacedInsc
       const spot = at === 'base-back' ? anchors.baseBack : anchors.back;
       if (spot === undefined) return;
       const geometry = await decalGeometry(painter, slot, spot);
-      if (geometry === null) {
-        await fontLoaded;
-        return;
-      }
+      if (geometry === null) return;
       const map = await text(DISC_PX, DISC_PX, (ctx) => drawBack(ctx, inscription, material));
       group.add(decal('decor-back', geometry, map, BAKED_PLATE));
       return;

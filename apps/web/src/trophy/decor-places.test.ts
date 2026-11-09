@@ -109,7 +109,10 @@ describe('layoutDecor', () => {
       layoutDecor('cup', decor({ photos: photos(n), photoPlace: 'gems', inscriptions: [inscription('back')] })).inscriptions[0]!
         .at;
     expect(at(1)).toBe('own');
-    expect(at(4)).toBe('base-back');
+    // Два самоцвіти — спереду й ззаду: задній на місці звороту.
+    expect(at(2)).toBe('base-back');
+    // Чотири — між ручками (повернуті на 45°): зворот вільний.
+    expect(at(4)).toBe('own');
   });
 
   it('grail back inscription under the raised ring is dropped', () => {

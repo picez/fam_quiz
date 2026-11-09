@@ -12,6 +12,12 @@ export interface Surface {
   geometry: BufferGeometry;
 }
 
+/**
+ * Найменша половина глибини проєктора: на схилах (грані зірки, чаша) поверхня під малою плямою відходить від центру
+ * далі за size / 2, і коробка size³ обрізала б частину фото. Внутрішні стінки й звороти відкидає FACING.
+ */
+export const DECAL_DEPTH = 0.05;
+
 /** Трикутник, повернутий до проєктора менше за це (cos), відкидається: внутрішня стінка чаші, зворот, боки. */
 const FACING = 0.25;
 /** Нормаль вершини, що відхиляється від грані більше за це (cos), — з сусідньої грані на гострому ребрі; береться нормаль грані. */
@@ -26,6 +32,7 @@ interface Point {
 }
 
 function clip(polygon: Point[], axis: 'x' | 'y' | 'z', sign: 1 | -1, half: number): Point[] {
+  // half — половина коробки по цій осі.
   const out: Point[] = [];
   const inside = (point: Point) => sign * point.p[axis] <= half;
   for (let i = 0; i < polygon.length; i++) {
@@ -44,7 +51,8 @@ function clip(polygon: Point[], axis: 'x' | 'y' | 'z', sign: 1 | -1, half: numbe
 
 /**
  * Декаль плями на геометрії моделі (як DecalGeometry з three, але в просторі геометрії й без зворотних граней):
- * трикутники в кубі size³ з центром у spot.position обрізаються по його шести площинах, uv — з координат проєктора.
+ * трикутники в коробці size × size (уздовж right / up) на глибину ±max(size / 2, DECAL_DEPTH) по нормалі з центром
+ * у spot.position обрізаються по її шести площинах, uv — з координат проєктора.
  * up — світовий Y у площині нормалі (для майже вертикальної нормалі — Z), right = up × normal.
  * Неіндексована, з position / normal / uv; null — під плямою немає поверхні.
  */
@@ -55,6 +63,7 @@ export function projectDecal(surface: BufferGeometry, spot: Spot, lift: number =
   const right = new Vector3().crossVectors(up, normal);
   const center = new Vector3(...spot.position);
   const half = spot.size / 2;
+  const halves = { x: half, y: half, z: Math.max(half, DECAL_DEPTH) } as const;
 
   const position = surface.getAttribute('position');
   // Порожня геометрія (меша без вершин) — поверхні немає.
@@ -88,8 +97,8 @@ export function projectDecal(surface: BufferGeometry, spot: Spot, lift: number =
       return { p: local(corner[c]), n: n.dot(face) < SMOOTH ? face.clone() : n };
     });
     for (const axis of ['x', 'y', 'z'] as const) {
-      polygon = clip(polygon, axis, 1, half);
-      polygon = clip(polygon, axis, -1, half);
+      polygon = clip(polygon, axis, 1, halves[axis]);
+      polygon = clip(polygon, axis, -1, halves[axis]);
       if (polygon.length < 3) break;
     }
     if (polygon.length < 3) continue;
@@ -141,16 +150,24 @@ export function bandEdgeRadius(profile: Profile, y: number, tube: number): numbe
   return profileRadius(profile, y) + BAND_LIFT + tube;
 }
 
-const shared = new Map<string, BufferGeometry | null>();
+const shared = new Map<string, BufferGeometry>();
 
 /**
- * Геометрія з модульного кешу (ключ — url моделі, слот, розмір, кількість фото); будується раз, null теж кешується.
+ * Геометрія з модульного кешу (ключ — url моделі, слот, розмір, кількість фото); будується раз. null не кешується:
+ * порожня декаль — рідкість, і ключ не лишається в кеші назавжди.
  * userData.shared = true: decorResources такі геометрії не звільняє. Ключів обмежено: 6 форм × ≤ 50.
  */
 export function sharedGeometry(key: string, make: () => BufferGeometry | null): BufferGeometry | null {
-  if (shared.has(key)) return shared.get(key)!;
+  const cached = shared.get(key);
+  if (cached !== undefined) return cached;
   const geometry = make();
-  if (geometry) geometry.userData.shared = true;
+  if (geometry === null) return null;
+  geometry.userData.shared = true;
   shared.set(key, geometry);
   return geometry;
+}
+
+/** Лише для тестів: порожній кеш спільних геометрій (без dispose — їх ніхто, крім тестів, не тримає). */
+export function resetSharedGeometry(): void {
+  shared.clear();
 }

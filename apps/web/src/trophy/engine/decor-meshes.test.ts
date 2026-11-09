@@ -17,9 +17,9 @@ import type { TrophyDecor, TrophyKind } from '@quiz/shared';
 import { TROPHY_ANCHORS, profileRadius } from '../anchors';
 import { gemSpots, ringAtlasSize } from '../decor-layout';
 import { layoutDecor } from '../decor-places';
-import { TEXTURE_SCALE, buildDecor } from './decor-meshes';
+import { DECAL_RENDER_ORDER, TEXTURE_SCALE, buildDecor } from './decor-meshes';
 import { glbGeometry } from './glb-fixture';
-import type { Surface } from './surface-geometry';
+import { resetSharedGeometry, type Surface } from './surface-geometry';
 import type { DecorTextures, Img } from './textures';
 
 /** null — справжній loadInscriptionFont; true/false — підмінений результат (шрифт завантажився чи ні). */
@@ -118,7 +118,7 @@ function expectDecal(mesh: Mesh | undefined): void {
   expect(mesh!.geometry).not.toBeInstanceOf(PlaneGeometry);
   expect(mesh!.geometry).not.toBeInstanceOf(CircleGeometry);
   expect(mesh!.geometry.userData.shared).toBe(true);
-  expect(mesh!.renderOrder).toBe(1);
+  expect(mesh!.renderOrder).toBe(DECAL_RENDER_ORDER);
   expect(mesh!.material).toMatchObject({
     transparent: true,
     alphaTest: 0.05,
@@ -132,6 +132,7 @@ function expectDecal(mesh: Mesh | undefined): void {
 describe('buildDecor', () => {
   afterEach(() => {
     discs.calls = [];
+    resetSharedGeometry();
   });
 
   it('grail decor matches the bake', async () => {

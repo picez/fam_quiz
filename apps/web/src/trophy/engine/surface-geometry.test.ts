@@ -1,8 +1,12 @@
 import { Vector3, type BufferGeometry } from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { STICKER_PLACES, type TrophyKind } from '@quiz/shared';
 import { TROPHY_ANCHORS, profileRadius, type BandAnchor, type Profile, type Spot } from '../anchors';
+import { gemSpots } from '../decor-layout';
 import { glbGeometry } from './glb-fixture';
-import { BAND_LIFT, bandEdgeRadius, profileBand, projectDecal, sharedGeometry } from './surface-geometry';
+import { BAND_LIFT, bandEdgeRadius, profileBand, projectDecal, resetSharedGeometry, sharedGeometry } from './surface-geometry';
+
+afterEach(() => resetSharedGeometry());
 
 const cup = TROPHY_ANCHORS.cup;
 const cupProfile = cup.profile!;
@@ -89,6 +93,60 @@ describe('projectDecal', () => {
   });
 });
 
+/** Частка точок сітки uv у колі r (центр 0.5) чи в квадраті [0.5 − r, 0.5 + r], накритих трикутниками декалі в uv. */
+function coverage(decal: BufferGeometry, shape: 'disc' | 'square', r: number): number {
+  const uv = decal.getAttribute('uv');
+  const triangles: number[][] = [];
+  for (let k = 0; k + 2 < uv.count; k += 3) triangles.push([0, 1, 2].flatMap((c) => [uv.getX(k + c), uv.getY(k + c)]));
+  const inside = (x: number, y: number, t: number[]) => {
+    const [ax, ay, bx, by, cx, cy] = t as [number, number, number, number, number, number];
+    const d1 = (x - bx) * (ay - by) - (ax - bx) * (y - by);
+    const d2 = (x - cx) * (by - cy) - (bx - cx) * (y - cy);
+    const d3 = (x - ax) * (cy - ay) - (cx - ax) * (y - ay);
+    const eps = 1e-9;
+    return !((d1 < -eps || d2 < -eps || d3 < -eps) && (d1 > eps || d2 > eps || d3 > eps));
+  };
+  const steps = 24;
+  let total = 0;
+  let covered = 0;
+  for (let i = 0; i <= steps; i++) {
+    for (let j = 0; j <= steps; j++) {
+      const x = 0.5 - r + (2 * r * i) / steps;
+      const y = 0.5 - r + (2 * r * j) / steps;
+      if (shape === 'disc' && Math.hypot(x - 0.5, y - 0.5) > r) continue;
+      total++;
+      if (triangles.some((t) => inside(x, y, t))) covered++;
+    }
+  }
+  return covered / total;
+}
+
+/** Кожна пляма кожної форми: медальйон, зворот (і запасний), наліпки, самоцвіти для 1–8 фото. */
+const allSpots = (Object.keys(TROPHY_ANCHORS) as TrophyKind[]).flatMap((kind) => {
+  const anchors = TROPHY_ANCHORS[kind];
+  const spots: { name: string; kind: TrophyKind; spot: Spot }[] = [];
+  const add = (name: string, spot: Spot | undefined) => spot && spots.push({ name: `${kind} ${name}`, kind, spot });
+  add('medallion', anchors.medallion);
+  add('back', anchors.back);
+  add('base-back', anchors.baseBack);
+  for (const place of STICKER_PLACES) add(`sticker ${place}`, anchors.stickers[place]);
+  if (anchors.gems) for (let n = 1; n <= 8; n++) gemSpots(anchors.gems, n).forEach((gem, i) => add(`gem ${n}.${i}`, gem));
+  return spots;
+});
+
+describe('decal coverage', () => {
+  const meshes = new Map<TrophyKind, BufferGeometry>();
+  const meshOf = (kind: TrophyKind) => meshes.get(kind) ?? meshes.set(kind, glbGeometry(kind)).get(kind)!;
+
+  it.each(allSpots)('$name covers its disc and its square', ({ kind, spot }) => {
+    const decal = projectDecal(meshOf(kind), spot);
+    expect(decal).not.toBeNull();
+    // Фото й написи — кружечки (r 0.45 у uv); наліпка — квадратна картинка, поля 0.03.
+    expect(coverage(decal!, 'disc', 0.45)).toBeGreaterThanOrEqual(0.99);
+    expect(coverage(decal!, 'square', 0.47)).toBeGreaterThanOrEqual(0.99);
+  });
+});
+
 describe('profileBand', () => {
   it('cup ring band never sinks into the bowl', () => {
     const band = profileBand(cupProfile, 0.72, 0.94);
@@ -170,10 +228,29 @@ describe('sharedGeometry', () => {
     expect(first!.userData.shared).toBe(true);
   });
 
-  it('null is cached too', () => {
+  it('null is not cached', () => {
     const make = vi.fn(() => null);
     expect(sharedGeometry('empty', make)).toBeNull();
     expect(sharedGeometry('empty', make)).toBeNull();
-    expect(make).toHaveBeenCalledTimes(1);
+    expect(make).toHaveBeenCalledTimes(2);
+  });
+
+  it('reset empties the cache', () => {
+    const make = vi.fn(() => projectDecal(glbGeometry('cup'), cupFront));
+    const first = sharedGeometry('k', make);
+    resetSharedGeometry();
+    const second = sharedGeometry('k', make);
+    expect(second).not.toBe(first);
+    expect(make).toHaveBeenCalledTimes(2);
+  });
+
+  it('a small spot on a slope keeps the full projector depth', () => {
+    // Самоцвіт зірки на схилі грані: коробка size³ (±0.02) обрізала край фото.
+    const gem = gemSpots(TROPHY_ANCHORS.star.gems!, 2)[1]!;
+    const decal = projectDecal(glbGeometry('star'), gem, 0)!;
+    const normal = new Vector3(...gem.normal);
+    const center = new Vector3(...gem.position);
+    const depths = vertices(decal).map(({ p }) => p.clone().sub(center).dot(normal));
+    expect(Math.min(...depths)).toBeLessThan(-gem.size / 2);
   });
 });

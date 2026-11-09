@@ -81,6 +81,24 @@ describe('gemSpots', () => {
     const angles = spots.map((s) => Math.atan2(s.position[0], s.position[2]));
     expect(Math.abs(angles[1]! - angles[0]!)).toBeCloseTo(Math.PI / 2, 9);
   });
+  it('turns half a step when a gem would land in an avoided sector', () => {
+    const circle = {
+      center: [0, 0, 0] as const,
+      axis: 'y' as const,
+      radius: 1,
+      size: 0.02,
+      surface: 'body',
+      avoid: { angles: [Math.PI / 2], halfWidth: 0.1 },
+    };
+    const angles = (n: number) => gemSpots(circle, n).map((s) => Math.atan2(s.position[0], s.position[2]));
+    // 4 самоцвіти: один лягав би на π/2 — коло повертається на π/4.
+    expect(angles(4)[0]).toBeCloseTo(Math.PI / 4, 9);
+    // 3 самоцвіти: 0, 2π/3, −2π/3 — далеко від π/2, без повороту.
+    expect(angles(3)[0]).toBeCloseTo(0, 9);
+    // Нормаль іде за поворотом.
+    const [first] = gemSpots(circle, 4);
+    expect(first!.normal[0]).toBeCloseTo(Math.SQRT1_2, 9);
+  });
   it('starts at the top for a z circle', () => {
     const spots = gemSpots({ center: [0, 0.4, 0.05], axis: 'z', radius: 0.3, size: 0.04, surface: 'front' }, 3);
     expect(spots[0]!.position[0]).toBeCloseTo(0, 9);

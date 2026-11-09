@@ -26,13 +26,17 @@ export interface Plate {
   height: number;
   surface: string;
 }
-/** Самоцвіти по колу; 'y' — коло в площині XZ (перший спереду), 'z' — в площині XY (перший угорі). */
+/**
+ * Самоцвіти по колу; 'y' — коло в площині XZ (перший спереду), 'z' — в площині XY (перший угорі).
+ * avoid — сектори кола 'y' (кут atan2(x, z) ± halfWidth, радіани), де самоцвіт ховався б (ручки кубка).
+ */
 export interface Circle {
   center: Vec3;
   axis: 'y' | 'z';
   radius: number;
   size: number;
   surface: string;
+  avoid?: { angles: readonly number[]; halfWidth: number };
 }
 
 /**
@@ -137,7 +141,15 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     medallion: spot([0, 0.82, 0.31], unit(0, -0.1, 1), 0.2, 'bowl'),
     back: spot([0, 0.82, -0.31], unit(0, -0.1, -1), 0.2, 'bowl'),
     baseBack: spot([0, 0.1, -0.186], BACK, 0.16, 'plinth-back'),
-    gems: { center: [0, 0.8, 0], axis: 'y', radius: 0.31, size: 0.07, surface: 'bowl' },
+    // Ручки на ±X займають ±4.9° (виміряно за cup.glb на висотах чаші) — з запасом 6°.
+    gems: {
+      center: [0, 0.8, 0],
+      axis: 'y',
+      radius: 0.31,
+      size: 0.07,
+      surface: 'bowl',
+      avoid: { angles: [Math.PI / 2, -Math.PI / 2], halfWidth: (6 * Math.PI) / 180 },
+    },
     plaque: { position: [0, 0.09, 0.186], tiltX: 0, width: 0.24, height: 0.1, surface: 'plinth-front' },
     stickers: {
       front: spot([0, 0.75, 0.3], unit(0, -0.2, 1), 0.12, 'bowl'),
@@ -182,8 +194,9 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     stickers: {
       front: spot([0, 0.3, 0.345], FRONT, 0.12, 'hoop'),
       back: spot([0, 0.3, -0.345], BACK, 0.12, 'hoop'),
-      left: spot([-0.342, 0.37, 0], LEFT, 0.12, 'hoop'),
-      right: spot([0.342, 0.37, 0], RIGHT, 0.12, 'hoop'),
+      // y 0.36: уся пляма (0.30–0.42) на обручі, нижче зубців.
+      left: spot([-0.342, 0.36, 0], LEFT, 0.12, 'hoop'),
+      right: spot([0.342, 0.36, 0], RIGHT, 0.12, 'hoop'),
       'base-left': spot([-0.158, 0.04, 0], LEFT, 0.06, 'plinth-left'),
       'base-right': spot([0.158, 0.04, 0], RIGHT, 0.06, 'plinth-right'),
     },
@@ -290,8 +303,9 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       back: spot([0, 0.85, -0.395], BACK, 0.12, 'body'),
       left: spot([-0.395, 0.85, 0], LEFT, 0.12, 'body'),
       right: spot([0.395, 0.85, 0], RIGHT, 0.12, 'body'),
-      'base-left': spot([-0.268, 0.015, 0], LEFT, 0.05, 'base'),
-      'base-right': spot([0.268, 0.015, 0], RIGHT, 0.05, 'base'),
+      // y 0.025: уся пляма (0–0.05) над підлогою.
+      'base-left': spot([-0.268, 0.025, 0], LEFT, 0.05, 'base'),
+      'base-right': spot([0.268, 0.025, 0], RIGHT, 0.05, 'base'),
     },
   },
 };
