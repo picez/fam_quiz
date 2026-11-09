@@ -39,6 +39,9 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
   const labelRef = useRef(label);
   labelRef.current = label;
   const shownKey = useRef<string | null>(null);
+  // Після onError handle уже не оновлюється: наступна зміна вигляду перемонтовує (новий збір після, скажімо, збою мережі).
+  const failed = useRef(false);
+  const [remount, setRemount] = useState(0);
 
   useEffect(() => {
     if (!webglAvailable()) return;
@@ -65,12 +68,15 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
           if (live) setLoaded(true);
         },
         onError: () => {
-          if (live) setLoaded(false);
+          if (!live) return;
+          failed.current = true;
+          setLoaded(false);
         },
       },
     );
     handleRef.current = handle;
     shownKey.current = key;
+    failed.current = false;
     return () => {
       live = false;
       handleRef.current = null;
@@ -78,12 +84,16 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
       handle.dispose();
       setLoaded(false);
     };
-  }, [engine, size, spin, interactive, appear]);
+  }, [engine, size, spin, interactive, appear, remount]);
 
   // Після ефекту mount: щойно змонтований handle уже має цей вигляд, тож update іде лише за справжньою зміною.
   useEffect(() => {
     const handle = handleRef.current;
     if (handle === null || shownKey.current === lookKey) return;
+    if (failed.current) {
+      setRemount((count) => count + 1);
+      return;
+    }
     shownKey.current = lookKey;
     handle.update(JSON.parse(lookKey) as TrophyLook, labelRef.current);
   }, [lookKey]);

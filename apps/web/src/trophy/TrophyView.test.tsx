@@ -227,4 +227,25 @@ describe('TrophyView', () => {
     expect(mountedHandles[0]!.update).not.toHaveBeenCalled();
     expect(mountedHandles[1]!.update).not.toHaveBeenCalled();
   });
+
+  it('after a failed model load the next look change remounts', async () => {
+    const { rerender } = render(<TrophyView trophy={gold} size="view" spin={false} interactive />);
+    await flush();
+    await act(async () => mounts[0]!.events.onError());
+    expect(document.querySelector('.trophy-fallback')).not.toBeNull();
+    rerender(<TrophyView trophy={{ kind: 'cup', material: 'silver' }} size="view" spin={false} interactive />);
+    await flush();
+    expect(mountedHandles[0]!.update).not.toHaveBeenCalled();
+    expect(mounts[0]!.dispose).toHaveBeenCalledTimes(1);
+    expect(mounts).toHaveLength(2);
+    expect(mounts[1]!.options.look).toEqual({ kind: 'cup', material: 'silver' });
+    expect(mounts[1]!.options.label).toBe('Срібний кубок');
+    await act(async () => mounts[1]!.events.onReady());
+    expect(document.querySelector('.trophy-fallback')).toBeNull();
+    // Новий handle живий: далі знову update без перемонтування.
+    rerender(<TrophyView trophy={{ kind: 'cup', material: 'bronze' }} size="view" spin={false} interactive />);
+    await flush();
+    expect(mounts).toHaveLength(2);
+    expect(mountedHandles[1]!.update).toHaveBeenCalledWith({ kind: 'cup', material: 'bronze' }, 'Бронзовий кубок');
+  });
 });
