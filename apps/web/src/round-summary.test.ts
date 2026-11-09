@@ -36,6 +36,12 @@ describe('roundSummary', () => {
       'Спроб без обмежень · Помилка: мінус ціна запитання',
     ]);
   });
+  it('a blitz round with series lists both steps', () => {
+    const lines = roundSummary({ ...emptyBrief('blitz'), penalty: true, series: { plus: 250, minus: 250 } });
+    expect(lines.at(-1)).toContain('серія: кожна правильна поспіль +250');
+    expect(lines.at(-1)).toContain('серія: кожна помилка поспіль −250');
+    expect(roundSummary({ ...emptyBrief('blitz'), penalty: true, series: null })).toEqual(roundSummary({ ...emptyBrief('blitz'), penalty: true }));
+  });
   it('a board round: turns, the answer mode and blitz cells', () => {
     expect(roundSummary({ ...emptyBrief('board'), answerModes: ['phone'] })).toEqual([
       'Гравці по черзі вибирають клітинку; відповідає той, хто вибрав.',

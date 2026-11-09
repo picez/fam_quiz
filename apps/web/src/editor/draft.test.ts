@@ -746,6 +746,16 @@ describe('blitz drafts', () => {
     expect(newBlitzRound()).toMatchObject({ check: 'auto', answerWindow: null, attempts: 1 });
   });
 
+  it('a blitz series step that is empty or zero is a rules problem', () => {
+    const withSeries = (streakPlus: { step: number }): Quiz => {
+      const round = newBlitzRound();
+      return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, questions: round.questions.map(filled), rules: { ...round.rules, streakPlus } }] };
+    };
+    expect(problemsOf(withSeries({ step: Number.NaN })).join()).toContain(t('problemRules'));
+    expect(problemsOf(withSeries({ step: 0 })).join()).toContain(t('problemRules'));
+    expect(problemsOf(withSeries({ step: 250 })).join()).not.toContain(t('problemRules'));
+  });
+
   it('a saved blitz draft comes back unchanged', () => {
     const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [newClassicRound(), newBlitzRound()] };
     saveDraft(undefined, quiz);

@@ -151,7 +151,7 @@ interface Screen {
 
 const pendingSpot = { playerId: 'p1', nickname: 'Олена', answer: { choiceIds: ['b'] } as never, grade: null };
 const manualBlitz = { queue: [{ playerId: 'p1', nickname: 'Олена' }], winner: null, instant: false, rows: [] };
-const mineBlitz = { position: 1, attemptsUsed: 1, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null };
+const mineBlitz = { position: 1, attemptsUsed: 1, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null, series: null };
 const manualBoard: BoardInfo = {
   ...board(null),
   turn: { playerId: 'p1', nickname: 'Олена' },

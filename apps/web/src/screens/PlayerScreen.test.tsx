@@ -633,10 +633,23 @@ describe('PlayerScreen: blitz', () => {
   const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>, over: Partial<PlayerView['me']> = {}) => ({
     ...me,
     ...over,
-    blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null, ...blitz },
+    blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null, series: null, ...blitz },
   });
   const inBlitz = (meState: PlayerView['me']) =>
     onQuestion({ round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: meState });
+
+  it('the phone shows the blitz series line', () => {
+    const line = (series: NonNullable<PlayerView['me']['blitz']>['series']) => {
+      cleanup();
+      show(inBlitz(blitzMe({ series })));
+      return document.querySelector('.blitz-series');
+    };
+    expect(line({ plus: 3, minus: 0, nextCorrect: 1250, nextWrong: -500 })?.textContent).toBe('Серія +3 · наступна правильна +1250');
+    expect(line({ plus: 0, minus: 2, nextCorrect: 500, nextWrong: -1000 })?.textContent).toBe('Серія −2 · наступна помилка −1000');
+    expect(line({ plus: 0, minus: 0, nextCorrect: 500, nextWrong: -500 })).toBeNull();
+    expect(line(null)).toBeNull();
+    expect(line({ plus: 2, minus: 0, nextCorrect: null, nextWrong: null })).toBeNull();
+  });
 
   it('shows the buzz button and sends player:buzz', async () => {
     const send = show(inBlitz(blitzMe({ canBuzz: true })));
@@ -1112,7 +1125,7 @@ describe('PlayerScreen: blitz cell', () => {
     marksHidden: false,
   });
   const blitzMe = (blitz: PlayerBlitz | null, extra = {}) => ({ ...me, blitz, ...extra });
-  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null };
+  const canBuzz = { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null, series: null };
 
   it('on a blitz cell every player gets the buzz button, the chooser too', () => {
     for (const id of ['p1', 'p2']) {
@@ -1237,7 +1250,7 @@ describe('PlayerScreen: spotlight', () => {
 
   it('a queued blitz player on a voice cell sees the options', () => {
     const board = { ...boardOf(anna), cell: { ...boardOf(anna).cell!, kind: 'blitz' as const, answerMode: 'voice' as const } };
-    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null };
+    const queued = { position: 2, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: false, grade: null, series: null };
     show(onQuestion({ round, board, me: { ...me, blitz: queued } }));
     expect(screen.getByText('Київ').closest('.choice')).not.toBeNull();
     expect(screen.getByText('Ви 2-й у черзі')).toBeTruthy();
@@ -3213,7 +3226,7 @@ describe('PlayerScreen: teams', () => {
     const text = { ...publicQuestion, type: 'text' as const, choices: [] };
     const blitzMe = (blitz: Partial<NonNullable<PlayerView['me']['blitz']>>) => ({
       ...baseMe,
-      blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null, ...blitz },
+      blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: true, deadline: null, canAnswer: false, grade: null, series: null, ...blitz },
     });
     const blitz = { queue: [], winner: null, instant: false, rows: [] };
 
@@ -3360,7 +3373,7 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
 
   it('no banner in a blitz or on a poll, even for the one who answers', () => {
     const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
-    const blitzMe = { ...baseMe, blitz: { position: 1, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null } };
+    const blitzMe = { ...baseMe, blitz: { position: 1, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null, series: null } };
     show(asQuestion(petro, { round, question: { ...publicQuestion, type: 'text' as const, choices: [] }, blitz: { queue: [], winner: null, instant: false, rows: [] }, me: blitzMe }));
     expect(document.querySelector('.team-answerer-banner')).toBeNull();
     cleanup();
@@ -3470,7 +3483,7 @@ describe('PlayerScreen: live choices for the host (12b)', () => {
   it('an instant blitz sends no drafts', () =>
     withTimers(() => {
       const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
-      const blitzMe = { ...me, blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null } };
+      const blitzMe = { ...me, blitz: { position: null, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null, series: null } };
       const send = show(onQuestion({ round, question: multi, blitz: { queue: [], winner: null, instant: true, rows: [] }, me: blitzMe }));
       fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
       tick(500);

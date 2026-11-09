@@ -2472,6 +2472,11 @@
   "summaryLadderPick_lowest": "Pójdzie ten, kto ma najmniej punktów.",
   "summaryLadderPick_random": "Uczestnika wybierze los.",
   "summaryMarks": "Są pola ×2 i ×3",
+  "summarySeriesPlus": "seria: każda poprawna z rzędu +{step}",
+  "summarySeriesMinus": "seria: każdy błąd z rzędu −{step}",
+  "blitzSeriesPlus": "Seria {count} · następna poprawna {points}",
+  "blitzSeriesMinus": "Seria {count} · następny błąd {points}",
+  "seriesMark": "Seria {count}",
   "summaryMultiplier": "Wszystkie punkty ×{value}",
   "summaryPenalty": "Błąd: minus wartość pytania",
   "summaryPenaltyAll": "Niektóre pola blitz: minus dla wszystkich oprócz tego, kto zgadł",
@@ -2893,5 +2898,9 @@
   "yourAnswer": "Twoja odpowiedź",
   "yourPick": "Twój ruch: wybierz pole",
   "yourPlace": "Twoje miejsce: {rank} z {total}",
-  "yourResult": "{score} {points}, dobrych odpowiedzi: {correct} z {total}"
+  "yourResult": "{score} {points}, dobrych odpowiedzi: {correct} z {total}",
+  "ruleSeriesPlus": "Seria plusowa: każda poprawna odpowiedź z rzędu daje o jeden krok więcej",
+  "ruleSeriesMinus": "Seria minusowa: każda błędna odpowiedź z rzędu zabiera o jeden krok więcej",
+  "ruleSeriesStep": "Krok, punkty",
+  "ruleSeriesMinusPenalty": "Seria minusowa już karze za błędy"
 }

@@ -16,7 +16,7 @@ import { DecidingLabel, HostWipeout } from './HostWipeout';
 import { HostSurvival } from './HostSurvival';
 import { HostLadder } from './HostLadder';
 import { SurveyBoard } from './SurveyBoard';
-import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, streaksOf } from '../format';
+import { answerText, correctText, markText, num, questionClass, questionLabel, roundLabel, seriesOf, signed, streaksOf } from '../format';
 import { errorText, t, type TextKey } from '../i18n';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import type { Send } from '../live/types';
@@ -223,7 +223,7 @@ function HostScores({ view }: { view: HostView }) {
   return (
     <details className="panel host-scores" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t('hostScoresTitle')}</summary>
-      {open && <ScoreTable size="host" rows={view.standings} firstRound={view.firstRound} breakdowns={view.breakdowns} teams={view.teams} streaks={streaksOf(view.players)} />}
+      {open && <ScoreTable size="host" rows={view.standings} firstRound={view.firstRound} breakdowns={view.breakdowns} teams={view.teams} streaks={streaksOf(view.players)} series={seriesOf(view.players)} />}
     </details>
   );
 }
@@ -1205,7 +1205,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase === 'round_end' && round !== null && (
         <section className="panel">
           <h2>{t('roundResults', { index: round.index + 1 })}</h2>
-          <Standings standings={view.standings} streaks={streaksOf(view.players)} teams={view.teams} titles={view.titles} levels={view.levels} />
+          <Standings standings={view.standings} streaks={streaksOf(view.players)} series={seriesOf(view.players)} teams={view.teams} titles={view.titles} levels={view.levels} />
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
           {view.roundQuestions !== null && view.roundQuestions.length > 0 && (
             <ol className="round-shares" aria-label={t('roundSharesLabel')}>
@@ -1264,6 +1264,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   </span>
                 )}
                 {player.streak >= 2 && <span className="streak">{t('streakMark', { count: player.streak })}</span>}
+                {player.series !== undefined && <span className={player.series < 0 ? 'series is-minus' : 'series'}>{t('seriesMark', { count: signed(player.series) })}</span>}
                 <span className="score" dir="ltr">{num(player.score)}</span>
                 {live &&
                   (debuffKinds.length > 0 && !isSurvivalGhost(view.survival, phase, player.id) ? (['points', 'debuff'] as const) : (['points'] as const)).map((kind) => (

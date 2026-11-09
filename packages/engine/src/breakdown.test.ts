@@ -147,6 +147,21 @@ describe('score lines (11f)', () => {
     expectBalanced(s);
   });
 
+  it('blitz series points add up to the score in the breakdown', () => {
+    const series = { streakPlus: { step: 250 }, streakMinus: { step: 250 } };
+    const questions = ['q1', 'q2', 'q3'].map((id) => withPoints(withId(single, id), 500));
+    const quiz = makeRoundsQuiz([blitzRound('b1', questions, { check: 'manual', attempts: 1, rules: { ...DEFAULT_RULES, partial: null, ...series } })]);
+    const turn = (s: GameState, id: string, correct: boolean, now: number) => must(judge(must(submitAnswer(must(buzz(s, id, now)), id, correct ? kyiv : lviv, now)), id, correct, now));
+    let s = turn(turn(startRound(lobbyWith(quiz, 'Оля', 'Петро'), 0, rng), 'p2', false, 1000), 'p1', true, 1100);
+    s = turn(turn(to(s, 'question', 2000), 'p2', false, 3000), 'p1', true, 3100);
+    s = turn(turn(to(s, 'question', 4000), 'p1', false, 5000), 'p2', true, 5100);
+    s = to(s, 'finished', 6000);
+    expect(linesOf(s, 'p1').map((l) => l.points)).toEqual([500, 750, -500]);
+    expect(linesOf(s, 'p2').map((l) => l.points)).toEqual([-500, -750, 500]);
+    expect(s.players.map((p) => p.score)).toEqual([750, -750]);
+    expectBalanced(s);
+  });
+
   it('a blitz cell penalty for everyone is a line of its own', () => {
     const c11 = withPoints(withId(single, 'c11'), 100);
     const c12 = withPoints(withId(single, 'c12'), 200);

@@ -2472,6 +2472,11 @@
   "summaryLadderPick_lowest": "Irá quien tenga menos puntos.",
   "summaryLadderPick_random": "Al concursante lo elegirá el sorteo.",
   "summaryMarks": "Hay casillas ×2 y ×3",
+  "summarySeriesPlus": "racha: cada acierto seguido +{step}",
+  "summarySeriesMinus": "racha: cada fallo seguido −{step}",
+  "blitzSeriesPlus": "Racha {count} · próximo acierto {points}",
+  "blitzSeriesMinus": "Racha {count} · próximo fallo {points}",
+  "seriesMark": "Racha {count}",
   "summaryMultiplier": "Todos los puntos ×{value}",
   "summaryPenalty": "Fallo: se resta el valor de la pregunta",
   "summaryPenaltyAll": "Algunas casillas blitz: resta para todos menos quien acierte",
@@ -2893,5 +2898,9 @@
   "yourAnswer": "Tu respuesta",
   "yourPick": "Tu turno: elige una casilla",
   "yourPlace": "Tu puesto: {rank} de {total}",
-  "yourResult": "{score} {points}, respuestas correctas: {correct} de {total}"
+  "yourResult": "{score} {points}, respuestas correctas: {correct} de {total}",
+  "ruleSeriesPlus": "Racha de más: cada respuesta correcta seguida da un paso más",
+  "ruleSeriesMinus": "Racha de menos: cada respuesta incorrecta seguida quita un paso más",
+  "ruleSeriesStep": "Paso, puntos",
+  "ruleSeriesMinusPenalty": "La racha de menos ya penaliza los errores"
 }

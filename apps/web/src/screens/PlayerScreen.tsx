@@ -570,6 +570,17 @@ function FinalResult({ view }: { view: PlayerView }) {
   );
 }
 
+/** 26b: серія бліц-раунду — «Серія +3 · наступна правильна +1250» або «Серія −2 · наступна помилка −1000»; порожня серія нічого не показує. */
+function BlitzSeriesLine({ series }: { series: NonNullable<PlayerBlitz['series']> }) {
+  if (series.nextCorrect !== null && series.plus > 0) {
+    return <p className="blitz-series">{t('blitzSeriesPlus', { count: signed(series.plus), points: signed(series.nextCorrect) })}</p>;
+  }
+  if (series.nextWrong !== null && series.minus > 0) {
+    return <p className="blitz-series is-minus">{t('blitzSeriesMinus', { count: signed(-series.minus), points: signed(series.nextWrong) })}</p>;
+  }
+  return null;
+}
+
 /** Рядок стану миттєвого бліцу під варіантами: власне місце в черзі чи вердикт. */
 function instantStatus(blitz: PlayerBlitz, timeOver: boolean, autopilot: boolean): string {
   if (blitz.canAnswer && timeOver) return t('blitzTimeOver');
@@ -941,6 +952,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             </p>
           )}
           {board !== null && <BlitzCellNotes board={board} instant={view.blitz?.instant === true} />}
+          {me.blitz?.series != null && <BlitzSeriesLine series={me.blitz.series} />}
           {me.blitz !== null && !instant ? (
             // Бліц з кнопкою: рядок завжди займає місце, тож поява голови черги не зсуває запитання.
             <p className="lead answering-line">{othersAnswer ? t('boardAnswering', { name: answering.nickname }) : ''}</p>

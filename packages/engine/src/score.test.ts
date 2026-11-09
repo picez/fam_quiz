@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerPoints, chainFactor, scorePoints, speedFactor, streakBonus } from './score';
+import { answerPoints, blitzSeriesPoints, chainFactor, scorePoints, speedFactor, streakBonus } from './score';
 
 describe('speedFactor', () => {
   it('is 1 when the speed bonus is off', () => {
@@ -43,6 +43,26 @@ describe('answerPoints', () => {
 
   it('does not penalize a partial answer', () => {
     expect(answerPoints({ ...base, accuracy: 0.5, penalty: 'minus' })).toBe(500);
+  });
+});
+
+describe('blitzSeriesPoints', () => {
+  const step = { step: 250 };
+  const base = { price: 500, multiplier: 1, penalty: 'none', plus: step, minus: step } as const;
+  const right = (plus: number, extra: object = {}) => blitzSeriesPoints({ ...base, ...extra, correct: true, series: { plus, minus: 0 } });
+  const wrong = (minus: number, extra: object = {}) => blitzSeriesPoints({ ...base, ...extra, correct: false, series: { plus: 0, minus } });
+
+  it("blitz series points follow the owner's formula", () => {
+    expect([0, 1, 2, 3].map((n) => right(n))).toEqual([500, 750, 1000, 1250]);
+    expect([0, 1, 2].map((n) => wrong(n))).toEqual([-500, -750, -1000]);
+    // Множник множить ціну, а не бонус серії.
+    expect(right(2, { multiplier: 2 })).toBe(1500);
+    // Без мінусової серії — штраф як був.
+    expect(wrong(2, { minus: null, penalty: 'minus' })).toBe(-500);
+    expect(wrong(2, { minus: null, penalty: 'none' })).toBe(0);
+    // Мінусова серія штрафує незалежно від penalty.
+    expect(wrong(0, { penalty: 'none' })).toBe(-500);
+    expect(right(3, { plus: null })).toBe(500);
   });
 });
 

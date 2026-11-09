@@ -10,6 +10,8 @@ interface Props {
   limit?: number;
   /** Серії за id учасника; від двох підряд показується 🔥. */
   streaks?: Record<string, number>;
+  /** Серія бліц-раунду за id учасника (число зі знаком): «Серія +2» / «Серія −3». */
+  series?: Record<string, number>;
   /** Командна гра: під назвою команди — її люди, ліворуч — колір команди. */
   teams?: TeamsView | null;
   /** Приріст раунду за id учасника (11f): «+300 за раунд» перед рахунком. */
@@ -22,12 +24,13 @@ interface Props {
   levels?: Record<string, NickLevel>;
 }
 
-export function Standings({ standings, highlightId, limit, streaks, teams, gains, more, titles, levels }: Props) {
+export function Standings({ standings, highlightId, limit, streaks, series, teams, gains, more, titles, levels }: Props) {
   const shown = limit === undefined ? standings : standings.slice(0, limit);
   return (
     <ol className="standings">
       {shown.map((row) => {
         const streak = streaks?.[row.participantId] ?? 0;
+        const seriesNow = series?.[row.participantId] ?? 0;
         // Приріст раунду (gains) або, між запитаннями, бали за щойно закрите запитання (беклог 13).
         const roundGain = gains?.[row.participantId];
         const gain = roundGain ?? row.question;
@@ -42,6 +45,7 @@ export function Standings({ standings, highlightId, limit, streaks, teams, gains
               {team !== null && team.members.length > 0 && <span className="standing-members">{team.members.map((member) => member.nickname).join(', ')}</span>}
             </span>
             {streak >= 2 && <span className="streak">{t('streakMark', { count: streak })}</span>}
+            {seriesNow !== 0 && <span className={seriesNow < 0 ? 'series is-minus' : 'series'}>{t('seriesMark', { count: signed(seriesNow) })}</span>}
             {gain !== undefined && <span className={gain < 0 ? 'round-gain is-minus' : 'round-gain'}>{t(roundGain !== undefined ? 'roundGain' : 'questionGain', { points: signed(gain) })}</span>}
             <span className="score" dir="ltr">{num(row.score)}</span>
           </li>

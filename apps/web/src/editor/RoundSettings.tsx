@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type Round, type RoundRules } from '@quiz/shared';
+import { LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
@@ -25,6 +25,8 @@ export const ROUND_DESCRIPTION_WARN = 500;
 const range = (from: number, to: number, step = 1) => Array.from({ length: (to - from) / step + 1 }, (_, i) => from + i * step);
 /** Порожнє поле дає NaN: перевірка перед збереженням попросить виправити. */
 const toNumber = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
+/** Крок серії бліцу за замовчуванням, коли її вмикають. */
+const DEFAULT_SERIES_STEP = 250;
 const WINDOWS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const ATTEMPTS = [1, 2, 3];
 const toWindow = (value: string): number | null => (value === 'off' ? null : Number(value));
@@ -49,6 +51,12 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
     if (round.type === 'final' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
+  /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
+  const setBlitzRules = (patch: Partial<Omit<BlitzRoundRules, 'partial'>>) => {
+    if (round.type === 'blitz') onChange({ ...round, rules: { ...round.rules, ...patch } });
+  };
+  const seriesPlus = round.type === 'blitz' ? (round.rules.streakPlus ?? null) : null;
+  const seriesMinus = round.type === 'blitz' ? (round.rules.streakMinus ?? null) : null;
   const setPartial = (partial: number | null) => {
     if (round.type === 'classic' || round.type === 'board' || round.type === 'survival') onChange({ ...round, rules: { ...round.rules, partial } });
   };
@@ -360,13 +368,75 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         <label className="check">
           <input
             type="checkbox"
-            checked={rules.penalty === 'minus'}
+            checked={rules.penalty === 'minus' || seriesMinus !== null}
+            disabled={seriesMinus !== null}
             onChange={(event) => setRules({ penalty: event.target.checked ? 'minus' : 'none' })}
           />
           <span>{t('ruleMinus')}</span>
         </label>
         <HelpButton id="setting.penalty" />
       </div>
+      {seriesMinus !== null && <p className="meta">{t('ruleSeriesMinusPenalty')}</p>}
+
+      {round.type === 'blitz' && (
+        <>
+          <div className="with-help">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={seriesPlus !== null}
+                onChange={(event) =>
+                  setBlitzRules(event.target.checked ? { streakPlus: { step: DEFAULT_SERIES_STEP }, streak: null } : { streakPlus: null })
+                }
+              />
+              <span>{t('ruleSeriesPlus')}</span>
+            </label>
+            <HelpButton id="setting.blitzSeries" />
+          </div>
+          {seriesPlus !== null && (
+            <div className="round-streak" role="group" aria-label={t('ruleSeriesPlus')}>
+              <label className="field">
+                <span>{t('ruleSeriesStep')}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={LIMITS.maxPoints}
+                  value={Number.isNaN(seriesPlus.step) ? '' : seriesPlus.step}
+                  onChange={(event) => setBlitzRules({ streakPlus: { step: toNumber(event.target.value) } })}
+                />
+              </label>
+            </div>
+          )}
+          <div className="with-help">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={seriesMinus !== null}
+                onChange={(event) =>
+                  setBlitzRules(event.target.checked ? { streakMinus: { step: DEFAULT_SERIES_STEP }, penalty: 'minus' } : { streakMinus: null })
+                }
+              />
+              <span>{t('ruleSeriesMinus')}</span>
+            </label>
+          </div>
+          {seriesMinus !== null && (
+            <div className="round-streak" role="group" aria-label={t('ruleSeriesMinus')}>
+              <label className="field">
+                <span>{t('ruleSeriesStep')}</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={LIMITS.maxPoints}
+                  value={Number.isNaN(seriesMinus.step) ? '' : seriesMinus.step}
+                  onChange={(event) => setBlitzRules({ streakMinus: { step: toNumber(event.target.value) } })}
+                />
+              </label>
+            </div>
+          )}
+        </>
+      )}
 
       {round.type !== 'blitz' && (
         <>
@@ -396,6 +466,8 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         </>
       )}
 
+      {(seriesPlus === null || streak !== null) && (
+      <>
       <div className="with-help">
         <label className="check">
           <input
@@ -452,6 +524,8 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             />
           </label>
         </div>
+      )}
+      </>
       )}
 
       <div className="with-help">

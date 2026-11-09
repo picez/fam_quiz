@@ -10,7 +10,7 @@ import { audienceOpen } from './ladder';
 import { presentPlayers } from './present';
 import type { AnswerRecord, Attempt, BlitzPlay, BuzzEntry, GameState, Play, Result } from './game';
 import { clockOf, holdAt, thaw } from './hold';
-import { answerPoints } from './score';
+import { answerPoints, blitzSeriesPoints } from './score';
 import { closesAt, isTimed, timeOver } from './timing';
 import { notStarted } from './splash';
 
@@ -26,8 +26,40 @@ export interface BlitzRules {
    * 'voice' — відповідь уголос: голову черги оцінює лише ведучий, без утримання й без автоматичного відкидання.
    */
   check: 'auto' | 'manual' | 'voice';
-  /** Бали спроби (без серії). */
-  points(playerId: string, correct: boolean): number;
+  /**
+   * Бали спроби: з бонусом бліц-серії 26b, без бонусу rules.streak.
+   * current — уже оцінені спроби поточного запитання (і ті, що settle дописав у цьому ж виклику); бліц-клітинки його не беруть.
+   */
+  points(playerId: string, correct: boolean, current: readonly Attempt[]): number;
+}
+
+/** Правильних / неправильних поспіль перед наступною спробою гравця; одне з двох завжди 0. */
+export interface BlitzSeries {
+  plus: number;
+  minus: number;
+}
+
+/**
+ * Серія гравця в бліц-раунді roundIndex, виведена з журналу: його оцінені спроби запитань plays[i] з i < upTo цього раунду
+ * в порядку журналу, далі його спроби з current. Кожна спроба — окремий крок; ненатискання й dropped серію не рухають.
+ * Переоцінки бліцу в рушії немає (override відмовляє wrong_phase, апеляції — лише classic і board), тож бали серії
+ * лягають в Attempt.points у мить оцінки. Якщо колись з'явиться переоцінка бліцу, вона має перерахувати points
+ * наступних спроб раунду через blitzSeries.
+ */
+export function blitzSeries(state: GameState, roundIndex: number, playerId: string, upTo: number, current: readonly Attempt[] = []): BlitzSeries {
+  const earlier = state.plays.slice(0, upTo).flatMap((play) => (play.roundIndex === roundIndex ? (play.blitz?.attempts ?? []) : []));
+  const series: BlitzSeries = { plus: 0, minus: 0 };
+  for (const attempt of [...earlier, ...current]) {
+    if (attempt.playerId !== playerId) continue;
+    if (attempt.grade === 'correct') {
+      series.plus += 1;
+      series.minus = 0;
+    } else {
+      series.minus += 1;
+      series.plus = 0;
+    }
+  }
+  return series;
 }
 
 /** Миттєвий бліц: кнопки «Відповісти» немає, кожен відповідає один раз, черга — порядок відповідей. */
@@ -40,15 +72,29 @@ export function blitzRulesOf(state: GameState, play: Play): BlitzRules | null {
   const round = state.quiz.rounds[play.roundIndex];
   if (round?.type === 'blitz') {
     const { multiplier, penalty } = round.rules;
+    const plus = round.rules.streakPlus ?? null;
+    const minus = round.rules.streakMinus ?? null;
     // Миттєвий бліц ігнорує збережені вікно й спроби: одна відповідь, без вікна.
     const instant = round.check === 'auto';
+    const points: BlitzRules['points'] =
+      plus === null && minus === null
+        ? (_playerId, correct) => answerPoints({ points: play.question.points, accuracy: correct ? 1 : 0, speed: 1, multiplier, penalty })
+        : (playerId, correct, current) =>
+            blitzSeriesPoints({
+              price: play.question.points,
+              multiplier,
+              penalty,
+              plus,
+              minus,
+              correct,
+              series: blitzSeries(state, play.roundIndex, playerId, state.questionIndex, current),
+            });
     return {
       // Без таймера запитання вікно потрібне завжди, інакше мовчазна голова тримала б чергу без кінця.
       answerWindow: instant ? null : (round.answerWindow ?? (isTimed(play.question) ? null : DEFAULT_ANSWER_WINDOW)),
       attempts: instant ? 1 : round.attempts,
       check: round.check,
-      points: (_playerId, correct) =>
-        answerPoints({ points: play.question.points, accuracy: correct ? 1 : 0, speed: 1, multiplier, penalty }),
+      points,
     };
   }
   if (round?.type === 'board' && play.board?.kind === 'blitz') return cellBlitzRules(round, play.board);
@@ -156,7 +202,8 @@ function settle(state: GameState, now: number | null, verdict?: boolean): GameSt
       answer: head.answer,
       timeMs: head.timeMs,
       grade: correct ? 'correct' : 'wrong',
-      points: rules.points(head.playerId, correct),
+      // attempts уже містить спроби, оцінені раніше в цьому ж виклику: серія бачить і їх.
+      points: rules.points(head.playerId, correct, attempts),
     };
     attempts = [...attempts, attempt];
     // Після переможця решта черги лишається лише для показу, без балів і штрафу.

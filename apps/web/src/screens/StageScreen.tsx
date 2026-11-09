@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { hallPoints, type Reaction, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
-import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, streaksOf } from '../format';
+import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, seriesOf, streaksOf } from '../format';
 import { t, type TextKey } from '../i18n';
 import { stageAwayText } from '../away-text';
 import { AwayLabel } from './AwayLabel';
@@ -795,6 +795,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
       limit={standings.length > rows ? rows - 1 : undefined}
       more={standings.length > rows ? standings.length - (rows - 1) : undefined}
       streaks={phase === 'finished' ? undefined : streaksOf(view.players)}
+      series={phase === 'finished' ? undefined : seriesOf(view.players)}
       teams={view.teams}
       titles={view.titles}
       levels={view.levels}

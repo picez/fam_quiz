@@ -220,6 +220,119 @@ describe('blitz scoring', () => {
   });
 });
 
+describe('blitz streaks (26b)', () => {
+  const series = { streakPlus: { step: 250 }, streakMinus: { step: 250 } };
+  const priced = (...ids: string[]) => ids.map((id) => ({ ...single, id, points: 500 }));
+  const QS = ['q1', 'q2', 'q3', 'q4'];
+  /** Бліц з кнопкою, одна спроба, ціни 500, плюсова й мінусова серії з кроком 250. */
+  const game = (extra: Options = {}, ids = QS) => manual({ attempts: 1, rules: { ...rules({}), ...series }, ...extra }, priced(...ids));
+  /** Бали всіх оцінених спроб гравця в порядку журналу. */
+  const pointsOf = (state: GameState, playerId: string) =>
+    state.plays.flatMap((play) => play.blitz?.attempts.filter((a) => a.playerId === playerId).map((a) => a.points) ?? []);
+  /** Наступне запитання; ще відкрите ведучий спершу закриває. */
+  const onward = (state: GameState) => toQuestion(state.phase === 'question' ? must(lock(state)) : state);
+
+  it('a plus series grows by the step across the blitz round', () => {
+    let state = game();
+    for (let i = 0; i < 3; i++) state = onward(buzzAndJudge(state, 'p1', true, 1000));
+    state = buzzAndJudge(state, 'p1', true, 1000);
+    expect(pointsOf(state, 'p1')).toEqual([500, 750, 1000, 1250]);
+    expect(score(state, 'p1')).toBe(3500);
+  });
+
+  it('a minus series grows by the step and a correct answer resets it', () => {
+    let state = game();
+    state = onward(buzzAndJudge(state, 'p2', false, 1000));
+    state = onward(buzzAndJudge(state, 'p2', false, 1000));
+    state = onward(buzzAndJudge(state, 'p2', true, 1000));
+    // Запитання з однією помилкою ще відкрите: рахунок додається, коли ведучий його закриває.
+    state = must(lock(buzzAndJudge(state, 'p2', false, 1000)));
+    expect(pointsOf(state, 'p2')).toEqual([-500, -750, 500, -500]);
+    expect(score(state, 'p2')).toBe(-1250);
+  });
+
+  it('two wrong attempts on one question are two steps', () => {
+    let state = game({ attempts: 2 });
+    state = buzzAndJudge(state, 'p1', false, 1000);
+    state = onward(buzzAndJudge(state, 'p1', false, 2000));
+    state = buzzAndJudge(state, 'p1', true, 1000);
+    expect(pointsOf(state, 'p1')).toEqual([-500, -750, 500]);
+  });
+
+  it('an instant blitz grades each player from their own attempts only', () => {
+    let state = open({ rules: { ...rules({}), ...series } }, priced(...QS));
+    state = sendAndAccept(state, 'p2', wrong, 1000);
+    state = onward(sendAndAccept(state, 'p1', right, 1100));
+    // q2: обидві відповіді чекають у черзі; помилка p2 у спробах цього ж запитання серії p1 не обриває.
+    state = sendBlitz(sendBlitz(state, 'p2', wrong, 1000), 'p1', right, 1100);
+    state = acceptAll(state, 1200);
+    expect(state.phase).toBe('locked');
+    expect(pointsOf(state, 'p2')).toEqual([-500, -750]);
+    expect(pointsOf(state, 'p1')).toEqual([500, 750]);
+  });
+
+  it('silent buzzes that burn out in one tick each take their own player series', () => {
+    let state = game({ answerWindow: 5 });
+    state = buzzAndJudge(state, 'p2', false, 1000);
+    state = onward(buzzAndJudge(state, 'p1', true, 1100));
+    state = must(buzz(must(buzz(state, 'p1', 1000)), 'p2', 1000));
+    state = tick(state, 6000);
+    expect(state.plays[1].blitz?.attempts.map((a) => [a.playerId, a.points])).toEqual([
+      ['p1', -500],
+      ['p2', -750],
+    ]);
+  });
+
+  it('a skipped question leaves the series as it was', () => {
+    let state = game();
+    state = onward(buzzAndJudge(state, 'p1', true, 1000));
+    state = onward(buzzAndJudge(state, 'p2', true, 1000));
+    state = buzzAndJudge(state, 'p1', true, 1000);
+    expect(pointsOf(state, 'p1')).toEqual([500, 750]);
+    expect(pointsOf(state, 'p2')).toEqual([500]);
+  });
+
+  it('a buzz left silent until the window ends is a wrong step', () => {
+    let state = must(buzz(game({ answerWindow: 5 }), 'p1', 1000));
+    state = onward(tick(state, 6000));
+    state = buzzAndJudge(state, 'p1', false, 1000);
+    expect(pointsOf(state, 'p1')).toEqual([-500, -750]);
+  });
+
+  it('the series starts over in the next blitz round', () => {
+    const options: Options = { check: 'manual', attempts: 1, rules: { ...rules({}), ...series } };
+    const quiz = makeRoundsQuiz([blitzRound('b1', priced('q1', 'q2', 'q3'), options), blitzRound('b2', priced('q4', 'q5'), options)]);
+    let state = startRound(lobbyWith(quiz, 'Анна', 'Богдан', 'Віра'), 0);
+    for (let i = 0; i < 3; i++) state = onward(buzzAndJudge(state, 'p1', true, 1000));
+    expect(state.plays[state.questionIndex].roundIndex).toBe(1);
+    state = buzzAndJudge(state, 'p1', true, 1000);
+    expect(pointsOf(state, 'p1')).toEqual([500, 750, 1000, 500]);
+  });
+
+  it('without series rules a blitz round scores exactly as before', () => {
+    const plain = (rulesOf: Options['rules']) => {
+      let state = game({ rules: rulesOf });
+      state = buzzAndJudge(state, 'p2', false, 1000);
+      state = onward(buzzAndJudge(state, 'p1', true, 1100));
+      state = buzzAndJudge(state, 'p2', false, 1000);
+      state = buzzAndJudge(state, 'p1', true, 1100);
+      return { p1: pointsOf(state, 'p1'), p2: pointsOf(state, 'p2'), scores: [score(state, 'p1'), score(state, 'p2')] };
+    };
+    for (const penalty of ['minus', 'none'] as const) {
+      const miss = penalty === 'minus' ? -500 : 0;
+      const expected = { p1: [500, 500], p2: [miss, miss], scores: [1000, 2 * miss] };
+      expect(plain(rules({ penalty }))).toEqual(expected);
+      expect(plain({ ...rules({ penalty }), streakPlus: null, streakMinus: null })).toEqual(expected);
+    }
+  });
+
+  it('blitz grades stay final: override refuses in a blitz round', () => {
+    const revealed = must(next(buzzAndJudge(game(), 'p1', true, 1000), 0));
+    expect(revealed.phase).toBe('reveal');
+    expect(override(revealed, 'p1', 'wrong', 2000)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+});
+
 describe('blitz manual check, pause, kick and deadlines', () => {
   it('manual check waits for the host and judges the head of the queue', () => {
     let state = must(buzz(manual(), 'p1', 1000));
