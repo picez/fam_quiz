@@ -413,7 +413,7 @@ describe('in-game facts (12d)', () => {
     ]);
   });
 
-  it('factLimitMs: no time for video, an untimed ladder or a voice cell; choice time for a bluff; the answer window otherwise', () => {
+  it('factLimitMs: no time for video, an untimed ladder, a word ladder or a voice cell; choice time for a bluff; the answer window otherwise', () => {
     const single = { id: 'q1', type: 'single', text: 'Столиця України?', imageUrl: null, video: null, timeLimit: 20, points: 1000, options: [], correctId: 'b' } as unknown as Question;
     const classic = { type: 'classic' } as Round;
     expect(factLimitMs({ ...single, video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question, classic, false)).toBeNull();
@@ -422,6 +422,8 @@ describe('in-game facts (12d)', () => {
     expect(factLimitMs(single, undefined, true)).toBeNull();
     expect(factLimitMs({ ...single, type: 'bluff', timeLimit: 60, choiceTime: 15 } as unknown as Question, classic, false)).toBe(15000);
     expect(factLimitMs(single, classic, false)).toBe(20000);
+    // 26c: словесна драбина рахує кроки — швидкість не рахується ніде.
+    expect(factLimitMs({ ...single, type: 'wordladder', path: ['поле', 'пола'], maxSteps: 8 } as unknown as Question, classic, false)).toBeNull();
     const audio = { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5, duration: 30 };
     expect(factLimitMs({ ...single, audio } as Question, classic, false)).toBe(50000);
   });

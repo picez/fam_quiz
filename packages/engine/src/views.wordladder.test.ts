@@ -73,6 +73,16 @@ describe('word ladder views', () => {
     ]);
   });
 
+  it('speed counts nowhere on the reveal: no fastest name and no own place by speed', () => {
+    let s = startRound(lobbyWith(makeQuiz([wordladder]), 'Олена', 'Тарас'), 0);
+    s = walk(s, 'p1', ['пола', 'пора', 'пара', 'тара'], 1500);
+    s = walk(s, 'p2', ['пола', 'пора', 'кора', 'кара', 'тара'], 2500);
+    s = must(next(s, 3000, rng));
+    expect(s.phase).toBe('reveal');
+    expect(stageView(s).facts?.reveal).toMatchObject({ accepted: 2, answered: 2, fastest: null });
+    expect(playerView(s, 'p1')?.own?.reveal).toEqual({ kind: 'share', percent: 100 });
+  });
+
   it('finishers are sorted by steps up, then the rest by steps down, then by player order', () => {
     let s = startRound(lobbyWith(makeQuiz([wordladder]), 'Аня', 'Боря', 'Вася', 'Галя'), 0);
     s = walk(s, 'p1', ['пола', 'пора', 'кора', 'кара', 'тара']);
