@@ -1,5 +1,6 @@
 import {
   allowedBuffs,
+  ladderKey,
   allowedDebuffs,
   debuffPrice,
   boardCells,
@@ -23,6 +24,9 @@ import {
   type PlayerDuel,
   type CellMark,
   type ChainInfo,
+  type PlayerWordLadder,
+  type WordLadderInfo,
+  type WordLadderRow,
   type DebuffKind,
   type PlayerChain,
   type AuthorBluffOption,
@@ -134,6 +138,7 @@ import {
 } from './buffs';
 import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
 import { blitzSeriesPoints } from './score';
+import { wordLadderOf } from './wordladder';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -252,6 +257,9 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     choices,
     right,
     orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
+    ...(question.type === 'wordladder'
+      ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
+      : {}),
     chain:
       question.type === 'chain'
         ? { first: question.words[0], masks: question.words.slice(1).map((w) => maskWord(w, 1)), hintSeconds: question.hintSeconds }
@@ -821,7 +829,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort';
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -899,6 +907,62 @@ function playerChain(state: GameState, playerId: string): PlayerChain | null {
     limitMs: limitMsOf(open.play) ?? 0,
     timeMs: finished ? record.timeMs : null,
   };
+}
+
+/** Ключ лише коли значення є: на інших запитаннях зріз лишається без нового ключа. */
+function optional<K extends string, V>(key: K, value: V | undefined): { [P in K]?: V } {
+  return value === undefined ? {} : ({ [key]: value } as { [P in K]?: V });
+}
+
+/** Літер у слові драбини без апострофа (як ключ). */
+function ladderLetters(word: string): number {
+  return [...(ladderKey(word) ?? word)].filter((c) => c !== "'").length;
+}
+
+/** Поточне запитання-драбина з його грою; null поза запитанням або для інших типів. */
+function currentLadder(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'wordladder' ? { play, question: play.question } : null;
+}
+
+/**
+ * Поступ усіх гравців на драбині. Сцена й гравці до reveal бачать лише кроки й «фініш»;
+ * ведучий — слова кожного й шлях завжди. На reveal додаються шлях, слова фінішерів і бали.
+ */
+function wordLadderInfo(state: GameState, forHost: boolean): WordLadderInfo | undefined {
+  const open = currentLadder(state);
+  if (open === null) return undefined;
+  const { path, maxSteps } = open.question;
+  const revealed = state.phase === 'reveal';
+  const rows: WordLadderRow[] = state.players.map((player) => {
+    const record = recordOf(state, state.questionIndex, player.id);
+    const typed = wordLadderOf(state, player.id).words;
+    const done = record?.answer?.type === 'wordladder' ? record.answer : null;
+    const finished = done?.finished === true;
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      steps: done?.steps ?? typed.length,
+      finished,
+      words: forHost || (revealed && finished) ? (done?.words ?? typed) : null,
+      points: revealed && record !== undefined ? record.points : null,
+    };
+  });
+  const order = (row: WordLadderRow) => (row.finished ? [0, row.steps] : [1, -row.steps]);
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => order(a)[0] - order(b)[0] || order(a)[1] - order(b)[1]);
+  return { start: path[0], target: path[path.length - 1], maxSteps, path: forHost || revealed ? path : null, rows };
+}
+
+/** Власні слова гравця на драбині; поза запитанням-драбиною — undefined. */
+function playerWordLadder(state: GameState, playerId: string): PlayerWordLadder | undefined {
+  if (currentLadder(state) === null) return undefined;
+  const record = recordOf(state, state.questionIndex, playerId);
+  const done = record?.answer?.type === 'wordladder' ? record.answer : null;
+  const words = done?.words ?? wordLadderOf(state, playerId).words;
+  const canAdd = state.phase === 'question' && !state.paused && record === undefined;
+  return { words, steps: done?.steps ?? words.length, finished: done?.finished === true, canAdd, canBack: canAdd && words.length > 0 };
 }
 
 /** Поточне запитання-сортування з його грою; null поза запитанням або для інших типів. */
@@ -1718,6 +1782,7 @@ function base(state: GameState, forHost: boolean) {
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
+    ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -2310,6 +2375,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
+      ...optional('wordladder', playerWordLadder(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),

@@ -83,7 +83,7 @@ export function ladderWord(state: GameState, playerId: string, word: string, now
 
   const final = isFinal(state, play);
   const within = words.length <= play.question.maxSteps;
-  const correct = !final || within;
+  const correct = within;
   const points = final ? finalPoints(wagerOf(play, playerId), within) : 0;
   const timeMs = Math.max(0, now - startedAt);
   const record: AnswerRecord = {

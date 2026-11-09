@@ -19,6 +19,7 @@ import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
 import { chainOf } from './chain';
+import { wordLadderOf } from './wordladder';
 import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
 import { buffOf, isSilentRisk, questionFor } from './buffs';
@@ -33,10 +34,10 @@ import { duelistOf, memberOf, teamsOn } from './teams';
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
 
 /** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'sort', 'wall', 'bluff'];
+const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'sort', 'wall', 'bluff'];
 
 /** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'sort', 'wall', 'survey', 'bluff'];
+const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -130,6 +131,12 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
   if (question.type === 'chain') {
     const { solved, hints } = chainOf(state, id);
     return { kind: 'chain', solved, total: question.words.length - 1, word: question.words[solved + 1] ?? null, hints };
+  }
+  if (question.type === 'wordladder') {
+    const { words } = wordLadderOf(state, id);
+    const record = recordOf(state, state.questionIndex, id);
+    const finished = record?.answer?.type === 'wordladder' && record.answer.finished;
+    return { kind: 'wordladder', steps: words.length, words, finished };
   }
   if (question.type === 'sort') {
     const progress = sortOf(state, id);
