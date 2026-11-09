@@ -22,6 +22,31 @@ export function answerPoints({ points, accuracy, speed, multiplier, penalty }: A
   return penalty === 'minus' ? -Math.round(points * multiplier) : 0;
 }
 
+export interface BlitzSeriesPointsInput {
+  price: number;
+  multiplier: number;
+  penalty: 'none' | 'minus';
+  /** Крок плюсової серії; null — її немає. */
+  plus: { step: number } | null;
+  /** Крок мінусової серії; null — її немає. */
+  minus: { step: number } | null;
+  /** Правильних / неправильних поспіль перед цією спробою. */
+  series: { plus: number; minus: number };
+  correct: boolean;
+}
+
+/**
+ * Бали спроби в бліц-раунді з наростальними серіями (26b). Множник множить ціну, а не бонус серії:
+ * правильно — ціна × множник + правильних поспіль × крок; неправильно за мінусової серії — −(ціна × множник + неправильних поспіль × крок),
+ * незалежно від penalty; без неї — штраф як був (penalty 'minus' — −ціна × множник, інакше 0).
+ */
+export function blitzSeriesPoints({ price, multiplier, penalty, plus, minus, series, correct }: BlitzSeriesPointsInput): number {
+  const base = Math.round(price * multiplier);
+  if (correct) return base + (plus === null ? 0 : series.plus * plus.step);
+  if (minus !== null) return -(base + series.minus * minus.step);
+  return penalty === 'minus' ? -base : 0;
+}
+
 export function streakBonus(basePoints: number, bonus: { kind: 'percent' | 'fixed'; value: number }): number {
   return bonus.kind === 'percent' ? Math.round((basePoints * bonus.value) / 100) : bonus.value;
 }
