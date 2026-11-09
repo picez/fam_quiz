@@ -37,6 +37,19 @@ describe('trophy materials', () => {
     expect((pearl as MeshPhysicalMaterial).iridescence).toBe(1);
   });
 
+  it('pearl tints its colour towards the edges so the nacre shows on a pale cup', () => {
+    const shader = {
+      vertexShader: '#include <begin_vertex>',
+      fragmentShader: '#include <normal_fragment_maps>',
+      uniforms: {},
+    } as unknown as WebGLProgramParametersWithUniforms;
+    trophyMaterial('pearl').onBeforeCompile(shader, {} as WebGLRenderer);
+    expect(shader.vertexShader).toContain('vTrophyPos = position;');
+    expect(shader.fragmentShader).toContain('#include <normal_fragment_maps>\n');
+    expect(shader.fragmentShader).toContain('dot(normal, normalize(vViewPosition))');
+    expect(trophyMaterial('pearl').customProgramCacheKey()).toBe('trophy-nacre');
+  });
+
   it('neon glows', () => {
     const neon = trophyMaterial('neon');
     expect(neon.constructor).toBe(MeshStandardMaterial);

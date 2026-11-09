@@ -32,6 +32,33 @@ function withPattern(material: MeshStandardMaterial, pattern: NonNullable<Materi
   material.customProgramCacheKey = () => `trophy-${pattern.kind}`;
 }
 
+/**
+ * Перелив перламутру: плівка iridescence фарбує лише відблиск (у діелектрика F0 ≈ 0.04), і на майже білому кубку
+ * її не видно (e2e 25e — рівно кремовий). Тож і сам колір ледь відтінюється рожевим, блакитним і зеленим: сильніше
+ * до країв (кут до погляду) і хвилями вздовж тіла (координати об'єкта), лице лишається кремовим.
+ */
+const NACRE = `{
+    float trophyFacing = 1.0 - abs(dot(normal, normalize(vViewPosition)));
+    float trophyPhase = trophyFacing * 1.3 + sin(vTrophyPos.y * 11.0 + vTrophyPos.x * 5.0) * 0.15;
+    vec3 trophyHue = mix(vec3(1.0), 0.5 + 0.5 * cos(6.28318 * (trophyPhase + vec3(0.0, 0.33, 0.67))), 0.5);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * trophyHue, 0.25 + 0.5 * smoothstep(0.1, 0.8, trophyFacing));
+  }`;
+
+function withNacre(material: MeshStandardMaterial): void {
+  material.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) => {
+    shader.vertexShader = `varying vec3 vTrophyPos;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\n  vTrophyPos = position;',
+    );
+    // Після normal_fragment_maps: normal уже в просторі камери, а світло ще не пораховане.
+    shader.fragmentShader = `varying vec3 vTrophyPos;\n${shader.fragmentShader}`.replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>\n  ${NACRE}`,
+    );
+  };
+  material.customProgramCacheKey = () => 'trophy-nacre';
+}
+
 function make(look: MaterialLook): MeshStandardMaterial {
   const params = { color: look.color, metalness: look.metallic, roughness: look.roughness };
   // Фізичний (дорожчий) — лише для перламутру; решта, зокрема старі чотири, — звичайний стандартний, як був.
@@ -44,6 +71,7 @@ function make(look: MaterialLook): MeshStandardMaterial {
     material.toneMapped = false;
   }
   if (look.pattern !== undefined) withPattern(material, look.pattern);
+  else if (look.iridescence !== undefined) withNacre(material);
   material.userData.shared = true;
   return material;
 }

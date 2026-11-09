@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, SPLASH_MS, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -22427,5 +22427,270 @@ async function trophyDecals25d() {
     await olya.waitForURL(/\/profile\/prizes$/);
   }
 
+  expect(problems).toEqual([]);
+}
+
+it('part 25e: new trophy shapes and materials — at level 1 Оля sees the plate locked «з рівня 24» and the diadem marked premium, the server refuses a locked plate; at level 30 she builds every new shape in gold and every new material on a cup, saves a neon laurel wreath with a plaque and a base sticker (a wreath has no front place) that shows the same in the prize viewer; contact sheets of all shapes and materials', async () => {
+  try {
+    await trophyShapes25e();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Нові форми 25e: назва в редакторі й рід (для «Золотий» / «Золота»). */
+const SHAPES_25E: Record<string, { name: string; gender: 'm' | 'f' }> = {
+  lovingcup: { name: 'кубок з вухами', gender: 'm' },
+  vase: { name: 'ваза', gender: 'f' },
+  plate: { name: 'тарілка-трофей', gender: 'f' },
+  goblet: { name: 'келих', gender: 'm' },
+  starmedal: { name: 'медаль-зірка', gender: 'f' },
+  cross: { name: 'хрест', gender: 'm' },
+  octagon: { name: 'восьмикутна медаль', gender: 'f' },
+  ribbon: { name: 'медаль на стрічці', gender: 'f' },
+  diadem: { name: 'діадема', gender: 'f' },
+  laurel: { name: 'лавровий вінок', gender: 'm' },
+  olive: { name: 'оливковий вінок', gender: 'm' },
+  figure: { name: 'фігурка на постаменті', gender: 'f' },
+  flame: { name: 'вогонь', gender: 'm' },
+  wings: { name: 'крилата статуетка', gender: 'f' },
+  fist: { name: 'кулак', gender: 'm' },
+};
+/** Нові матеріали 25e: назва в редакторі й прикметник чоловічого роду (для «… кубок»). */
+const MATERIALS_25E: Record<string, { name: string; male: string }> = {
+  rosegold: { name: 'Рожеве золото', male: 'Рожевозолотий' },
+  platinum: { name: 'Платина', male: 'Платиновий' },
+  copper: { name: 'Мідь', male: 'Мідний' },
+  obsidian: { name: 'Обсидіан', male: 'Обсидіановий' },
+  jade: { name: 'Нефрит', male: 'Нефритовий' },
+  pearl: { name: 'Перламутр', male: 'Перламутровий' },
+  ruby: { name: 'Рубін', male: 'Рубіновий' },
+  sapphire: { name: 'Сапфір', male: 'Сапфіровий' },
+  neon: { name: 'Неон', male: 'Неоновий' },
+  marble: { name: 'Мармур', male: 'Мармуровий' },
+  wood: { name: 'Дерево', male: 'Дерев’яний' },
+};
+
+/** Контактний аркуш: сітка 5 стовпців зі знімків (data: URL, без мережі) на світлому тлі. */
+function contactSheet25e(title: string, frames: readonly { id: string; png: Buffer }[]): string {
+  const figures = frames
+    .map(({ id, png }) => `<figure><img src="data:image/png;base64,${png.toString('base64')}" alt="${id}"><figcaption>${id}</figcaption></figure>`)
+    .join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+    body { margin: 0; padding: 16px; background: #f4f1ea; font: 16px/1.3 sans-serif; color: #222; }
+    h1 { font-size: 18px; margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    figure { margin: 0; background: #fff; border: 1px solid #ccc; padding: 6px; }
+    img { display: block; inline-size: 100%; block-size: auto; }
+    figcaption { text-align: center; padding-block-start: 4px; font-weight: 600; }
+  </style></head><body><h1>${title}</h1><div class="grid">${figures}</div></body></html>`;
+}
+
+async function trophyShapes25e() {
+  const NEW_KINDS = TROPHY_KINDS.slice(6);
+  const NEW_MATERIALS = TROPHY_MATERIALS.slice(4);
+  expect(Object.keys(SHAPES_25E).sort()).toEqual([...NEW_KINDS].sort());
+  expect(Object.keys(MATERIALS_25E).sort()).toEqual([...NEW_MATERIALS].sort());
+  const nya = STICKERS.find((sticker) => sticker.series === 'nya')!;
+
+  const olya = await open('olya25e', 1280, 800, { reducedMotion: 'reduce' });
+  // Шейдери мармуру й дерева та світіння неону компілюються в справжньому GL: жодних помилок і попереджень GL чи three.
+  // Виняток — примітки компілятора HLSL під ANGLE (Windows, D3D) «warning X4122 … double precision» про сталі вбудованих
+  // шейдерів three: програма зібрана, це не помилка; будь-який інший рядок журналу програми — проблема.
+  const glProblems: string[] = [];
+  const hlslNotes = (text: string) =>
+    /^THREE\.WebGLProgram: Program Info Log:/.test(text) &&
+    text
+      .replace(/^THREE\.WebGLProgram: Program Info Log:/, '')
+      .split('\n')
+      .every((line) => line.trim() === '' || /^\s*\(\d+,[\d-]+\): warning X4122: /.test(line));
+  olya.on('console', (message) => {
+    const text = message.text();
+    if ((message.type() === 'error' || message.type() === 'warning') && /THREE\.|shader|WebGL|GL_INVALID/i.test(text) && !hlslNotes(text)) glProblems.push(text);
+  });
+  await register(olya, 'menu', 'Оля', 'olya25e@example.com');
+  const olyaId = await myId(olya);
+  const studio = olya.locator('.prize-studio');
+  const studioCanvas = studio.locator('canvas.trophy-canvas');
+  const tab = (name: string) => studio.getByRole('tab', { name, ...exact });
+  /** Плитка форми чи матеріалу: назва, далі можуть іти «🔒 з рівня N» і «преміум». */
+  const tileName = (name: string) => new RegExp(`^${name}(\\s*,\\s*🔒 з рівня \\d+)?(\\s*,\\s*преміум)?$`);
+  const radio = (name: string) => studio.getByRole('radio', { name: tileName(name) });
+  // has: — локатор від сторінки, бо внутрішній шукається всередині label.
+  const tile = (name: string) => studio.locator('.studio-tiles label', { has: olya.getByRole('radio', { name: tileName(name) }) });
+  const textPlace = (name: string) => studio.locator('fieldset.studio-text').filter({ has: olya.getByRole('checkbox', { name, ...exact }) });
+  type Item = { id: string; content: PrizeContent };
+  const store = async () => (await (await olya.request.get(`${base}/api/me/prizes`)).json()) as Item[];
+  const newPrize = async () => {
+    await click(olya, 'Новий приз');
+    await olya.waitForURL(/\/profile\/prizes\/new$/);
+    await studioCanvas.waitFor();
+    await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
+  };
+  const save = async (name: string) => {
+    await tab('Приз').click();
+    await field(olya, 'Назва').fill(name);
+    await click(olya, 'Зберегти');
+    await olya.waitForURL(/\/profile\/prizes$/);
+    await olya.locator('.prize-list li', { hasText: name }).waitFor();
+  };
+
+  // ── 1. Рівень 1: тарілка закрита «з рівня 24», діадема закрита й «преміум», нові матеріали закриті; старі відкриті. ──
+  await openProfileTile(olya, 'Призи');
+  await olya.waitForURL(/\/profile\/prizes$/);
+  await newPrize();
+  const cups = studio.locator('fieldset.studio-tiles', { has: olya.locator('legend', { hasText: /^Кубки$/ }) });
+  await cups.waitFor();
+  const plate = cups.locator('label', { has: olya.getByRole('radio', { name: tileName('тарілка-трофей') }) });
+  expect(await plate.locator('input').isDisabled(), 'the plate is open at level 1').toBe(true);
+  expect(await plate.locator('.look-lock').textContent()).toBe('🔒 з рівня 24');
+  const diadem = tile('діадема');
+  expect(await diadem.locator('.studio-premium').textContent()).toBe('преміум');
+  expect(await diadem.locator('.look-lock').textContent()).toBe('🔒 з рівня 22');
+  for (const legend of ['Кубки', 'Медалі', 'Корони й вінки', 'Статуетки', 'Метали', 'Камені', 'Інше'])
+    await studio.locator('fieldset.studio-tiles > legend', { hasText: new RegExp(`^${legend}$`) }).waitFor();
+  for (const kind of NEW_KINDS) expect(await tile(SHAPES_25E[kind]!.name).locator('input').isDisabled(), `${kind} at level 1`).toBe(true);
+  for (const material of NEW_MATERIALS) expect(await tile(MATERIALS_25E[material]!.name).locator('input').isDisabled(), `${material} at level 1`).toBe(true);
+  expect(await tile('Неон').locator('.studio-premium').textContent()).toBe('преміум');
+  for (const name of ['кубок', 'медаль', 'корона', 'зірка', 'статуетка', 'грааль', 'Бронза', 'Срібло', 'Золото', 'Діамант'])
+    expect(await tile(name).locator('input').isDisabled(), `${name} at level 1`).toBe(false);
+  await shot(olya, 'p25e-picker-level1');
+
+  // Вибір на вузьких телефонах: жодна плитка не виходить за край і не обрізає текст.
+  for (const [width, height] of [[320, 568], [375, 667]] as const) {
+    await olya.setViewportSize({ width, height });
+    expect(await noSideScroll(olya), `studio ${width}×${height}: horizontal scroll`).toBe(true);
+    const clipped = (await olya.evaluate(
+      `[...document.querySelectorAll('.prize-studio .studio-tiles label')].filter((label) => label.scrollWidth > label.clientWidth + 1 || label.getBoundingClientRect().right > innerWidth + 0.5).map((label) => label.textContent)`,
+    )) as string[];
+    expect(clipped, `studio ${width}×${height}: clipped tiles`).toEqual([]);
+    await cups.scrollIntoViewIfNeeded();
+    await shot(olya, `p25e-picker-${width}-shapes`);
+    await tile('Неон').scrollIntoViewIfNeeded();
+    await shot(olya, `p25e-picker-${width}-materials`);
+  }
+  await olya.setViewportSize({ width: 1280, height: 800 });
+
+  // ── 2. Сервер: закриті тарілка й неон — 409 trophy_locked, навіть без decor. ──
+  for (const trophy of [
+    { kind: 'plate', material: 'gold' },
+    { kind: 'cup', material: 'neon' },
+  ] as const) {
+    const locked = await olya.request.post(`${base}/api/me/prizes`, { data: prize25a('Закрите 25e', trophy) });
+    expect(locked.status(), await locked.text()).toBe(409);
+    expect(await locked.json()).toEqual({ error: 'trophy_locked' });
+  }
+
+  // ── 3. Старий приз до рівня 30: золотий кубок з табличкою. ──
+  await radio('кубок').check();
+  await radio('Золото').check();
+  await tab('Написи').click();
+  await textPlace('Табличка').getByRole('checkbox', { name: 'Табличка', ...exact }).check();
+  await textPlace('Табличка').getByLabel('Текст', exact).fill('Чемпіонка');
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:none;inscriptions:plaque');
+  await save('Кубок 25e');
+
+  // ── 4. Рівень 30: усе відкрито, сервер приймає тарілку. ──
+  await db.insert(xpEntry).values({ userId: olyaId, source: 'game', gameId: randomUUID(), amount: xpForLevel(30), day: kyivDay(new Date()), at: new Date(), createdAt: new Date() });
+  const open30 = await olya.request.post(`${base}/api/me/prizes`, { data: prize25a('Тарілка 25e', { kind: 'plate', material: 'gold' }) });
+  expect(open30.status(), await open30.text()).toBe(201);
+  await olya.reload();
+  await olya.locator('.prize-list li', { hasText: 'Тарілка 25e' }).waitFor();
+  await newPrize();
+  expect(await studio.locator('.studio-tiles label.is-locked').count(), 'locked tiles at level 30').toBe(0);
+  expect(await diadem.locator('.studio-premium').textContent()).toBe('преміум');
+  await shot(olya, 'p25e-picker-level30');
+
+  /** Знімок полотна студії, коли рушій поставив вигляд із цим підписом і намалював кадр. */
+  const frame = async (label: string, file: string): Promise<Buffer> => {
+    await expect.poll(() => studioCanvas.getAttribute('aria-label'), { timeout: 10_000 }).toBe(label);
+    expect(await studio.locator('.trophy-fallback').count()).toBe(0);
+    await olya.waitForTimeout(600);
+    const png = await studioCanvas.screenshot();
+    if (process.env.E2E_SHOTS === '1') {
+      mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+      writeFileSync(resolve(ARTIFACTS, 'shots', `${file}.png`), png);
+    }
+    return png;
+  };
+
+  // ── 5. Кожна нова форма в золоті. ──
+  await radio('Золото').check();
+  const shapes: { id: string; png: Buffer }[] = [];
+  for (const kind of NEW_KINDS) {
+    const { name, gender } = SHAPES_25E[kind]!;
+    await radio(name).check();
+    shapes.push({ id: kind, png: await frame(`${gender === 'm' ? 'Золотий' : 'Золота'} ${name}`, `p25e-shape-${kind}`) });
+  }
+  expect(new Set(shapes.map(({ png }) => png.toString('base64'))).size, 'every shape draws its own picture').toBe(NEW_KINDS.length);
+
+  // ── 6. Кожен новий матеріал на кубку. ──
+  await radio('кубок').check();
+  const materials: { id: string; png: Buffer }[] = [];
+  for (const material of NEW_MATERIALS) {
+    const { name, male } = MATERIALS_25E[material]!;
+    await radio(name).check();
+    materials.push({ id: material, png: await frame(`${male} кубок`, `p25e-material-${material}`) });
+  }
+  expect(new Set(materials.map(({ png }) => png.toString('base64'))).size, 'every material draws its own picture').toBe(NEW_MATERIALS.length);
+  expect(glProblems, 'WebGL or shader messages').toEqual([]);
+
+  // ── 7. Контактні аркуші: усі форми й усі матеріали на одній сторінці. ──
+  const sheet = await open('sheet25e', 1280, 800);
+  for (const [name, title, frames] of [
+    ['p25e-contact-shapes', 'Нові форми 25e (золото)', shapes],
+    ['p25e-contact-materials', 'Нові матеріали 25e (кубок)', materials],
+  ] as const) {
+    await sheet.setContent(contactSheet25e(title, frames));
+    await sheet.waitForFunction(`[...document.images].every((img) => img.complete && img.naturalWidth > 0)`);
+    expect(await sheet.locator('figure').count()).toBe(frames.length);
+    await shot(sheet, name);
+  }
+  await sheet.close();
+  pages.delete('sheet25e');
+
+  // ── 8. Неоновий лавровий вінок з табличкою й наліпкою спереду. ──
+  // Вінки не мають місця «Спереду» (8b8ddf1: на гілці воно завбільшки з цятку): наліпка — на основі ліворуч.
+  const WREATH_DECOR = 'photos:none;inscriptions:plaque;stickers:base-left';
+  await radio('лавровий вінок').check();
+  await radio('Неон').check();
+  await tab('Написи').click();
+  await textPlace('Табличка').getByRole('checkbox', { name: 'Табличка', ...exact }).check();
+  await textPlace('Табличка').getByLabel('Текст', exact).fill('Оля 2026');
+  await tab('Форма').click();
+  await studio.getByRole('button', { name: '+ Додати наліпку', ...exact }).click();
+  const dialog = olya.getByRole('dialog', { name: 'Нова наліпка', ...exact });
+  await dialog.getByRole('button', { name: nya.id, ...exact }).click();
+  expect(await dialog.getByRole('radio', { name: 'Спереду', ...exact }).count(), 'a wreath offers a front sticker').toBe(0);
+  await dialog.getByRole('radio', { name: 'Основа ліворуч', ...exact }).check();
+  await dialog.getByRole('button', { name: 'Готово', ...exact }).click();
+  await dialog.waitFor({ state: 'detached' });
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(WREATH_DECOR);
+  await frame('Неоновий лавровий вінок', 'p25e-wreath-studio');
+  await save('Вінок 25e');
+  const wreath = (await store()).find((item) => item.content.name === 'Вінок 25e')!.content.trophy!;
+  expect([wreath.kind, wreath.material]).toEqual(['laurel', 'neon']);
+  expect(wreath.decor!.stickers).toEqual([{ id: nya.id, place: 'base-left' }]);
+  expect(wreath.decor!.inscriptions.map((i) => i.place)).toEqual(['plaque']);
+
+  // ── 9. Переглядач: вінок і старий кубок відкриваються з тим самим оформленням і підписом. ──
+  for (const [name, decor, label] of [
+    ['Вінок 25e', WREATH_DECOR, 'Неоновий лавровий вінок'],
+    ['Кубок 25e', 'photos:none;inscriptions:plaque', 'Золотий кубок'],
+  ] as const) {
+    const row = olya.locator('.prize-list li', { hasText: name });
+    expect(await row.locator('.meta').textContent()).toContain(label);
+    await row.getByRole('button', { name: 'Змінити', ...exact }).click();
+    await olya.waitForURL(/\/profile\/prizes\/[^/]+$/);
+    await studioCanvas.waitFor();
+    await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
+    await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(decor);
+    expect(await studioCanvas.getAttribute('aria-label')).toBe(label);
+    await click(olya, 'Скасувати');
+    await olya.waitForURL(/\/profile\/prizes$/);
+  }
+
+  expect(glProblems, 'WebGL or shader messages').toEqual([]);
   expect(problems).toEqual([]);
 }
