@@ -52,6 +52,7 @@ import {
   reactSchema,
   likeSchema,
   perkSchema,
+  wordLadderWordSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -338,6 +339,17 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = guessSchema.safeParse(payloadOf(args));
       return payload.success ? manager.guess(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:wordladder', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = wordLadderWordSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.wordLadderWord(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:wordladder-back', () => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      return manager.wordLadderBack(room, identity.playerId);
     });
 
     on('player:sort', (args) => {

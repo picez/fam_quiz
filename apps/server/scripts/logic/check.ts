@@ -76,6 +76,9 @@ const answersOf = (q: Question): string[] => {
       return q.accepted;
     case 'chain':
       return q.words.slice(1);
+    // Старт і ціль стоять у тексті самі собою; шлях ведучого (проміжні слова) — ні. Сам шлях перевіряє схема (ladderPathIssue).
+    case 'wordladder':
+      return q.path.slice(1, -1);
     default:
       return [];
   }

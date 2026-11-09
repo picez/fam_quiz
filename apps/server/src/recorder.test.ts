@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -151,6 +151,22 @@ describe('recorder', () => {
     expect(rows[0]).toMatchObject({ accepted: false, points: 0, payload: { type: 'chain', solved: 1, hints: 0 } });
     expect(rows[1]).toMatchObject({ accepted: true, points: 1000, payload: { type: 'chain', solved: 3, hints: 0 } });
     expect((rows[1].payload as { timeMs: number }).timeMs).toEqual(expect.any(Number));
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a word ladder answer is recorded with its summary', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([wordladder], { speedBonus: false }));
+    ctx.host('start');
+    ctx.host('next');
+    // Шлях ведучого: слова шляху приймаються без словника.
+    for (const word of wordladder.path.slice(1)) expect(ctx.manager.wordLadderWord(ctx.room, ctx.olena, word)).toEqual({ ok: true });
+    expect(ctx.manager.wordLadderWord(ctx.room, ctx.taras, 'пола')).toEqual({ ok: true });
+    ctx.host('lock');
+    const { answers } = await ctx.saved();
+
+    expect(answers).toHaveLength(2);
+    expect(answers[0]).toMatchObject({ accepted: false, points: 0, payload: { type: 'wordladder', steps: 1, finished: false } });
+    expect(answers[1]).toMatchObject({ accepted: true, points: 500, payload: { type: 'wordladder', steps: 4, finished: true } });
     expect(ctx.errors).toEqual([]);
   });
 
