@@ -84,7 +84,10 @@ describe('bets views (27a)', () => {
       { playerId: 'p2', nickname: 'Тарас' },
     ]);
     expect(JSON.stringify(view)).not.toContain('"wager":400');
-    expect(JSON.stringify(phone(s, 'p2'))).not.toContain('400');
+    const own = phone(s, 'p2');
+    expect(own.me.bets?.wager).toBe(200);
+    expect(own.bets).toEqual(view.bets);
+    expect(JSON.stringify(own)).not.toContain('"wager":400');
   });
 
   it('never sends the hidden part, options or media during bets', () => {
@@ -96,6 +99,47 @@ describe('bets views (27a)', () => {
       for (const secret of ['Австралії', 'Канберра', 'Сідней', IMAGE, AUDIO]) expect(json).not.toContain(secret);
     }
     expect(hostView(s).bets?.question.text).toBe('Яке місто є столицею Австралії?');
+
+    // Ставки запитання 2: questionIndex ще вказує на розкрите запитання 1, а запитання 2 не видно.
+    const vienna: Question = {
+      ...australia,
+      id: 'b2',
+      text: 'Яка річка тече через Відень?',
+      options: [
+        { id: 'a', text: 'Рейн' },
+        { id: 'b', text: 'Дунай' },
+        { id: 'c', text: 'Ельба' },
+      ],
+      imageUrl: '/uploads/abcdef0123456789.jpg',
+      audio: { source: 'file', url: '/uploads/9876543210fedcba.mp3', start: 0, duration: 2 },
+      betsCut: 2,
+    };
+    const first = answer(bet(toWager({}, [australia, vienna, withId(numeric, 'b3')]), { p1: 400, p2: 200, p3: 300 }), { p1: right, p2: wrong, p3: wrong });
+    const second = must(next(must(next(must(next(first, T + 5000, rng)), T + 6000, rng)), T + 7000, rng));
+    expect(second.phase).toBe('wager');
+    for (const view of [stageView(second), phone(second, 'p1')]) {
+      expect(view.bets).toMatchObject({ index: 1, teaser: 'Яка річка', minimum: 300 });
+      expect(view.question).toBeNull();
+      const json = JSON.stringify(view);
+      for (const secret of ['Відень', 'Дунай', 'Рейн', 'Ельба', vienna.imageUrl, '/uploads/9876543210fedcba.mp3']) expect(json).not.toContain(secret);
+    }
+    expect(hostView(second).bets?.question.text).toBe('Яка річка тече через Відень?');
+  });
+
+  it('«answered N of M» counts only those who play an open question', () => {
+    const early = must(next(bet(toWager(), { p1: 400, p2: 200 }), T, rng));
+    expect(early.phase).toBe('question');
+    expect(stageView(early).playerCount).toBe(2);
+    expect(hostView(early).playerCount).toBe(2);
+    expect(phone(early, 'p3').playerCount).toBe(2);
+    const answered = must(submitAnswer(early, 'p1', right, T + 1000));
+    expect(hostView(answered).answeredCount).toBe(1);
+    const locked = must(submitAnswer(answered, 'p2', wrong, T + 1000));
+    expect(locked.phase).toBe('locked');
+    expect(hostView(locked).playerCount).toBe(2);
+    // Поза question/locked — усі гравці («Місце N з M»).
+    expect(stageView(toWager()).playerCount).toBe(4);
+    expect(stageView(must(next(locked, T + 5000, rng))).playerCount).toBe(4);
   });
 
   it('cut at zero shows nothing and cut past the end shows the whole text', () => {

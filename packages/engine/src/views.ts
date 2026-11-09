@@ -1874,7 +1874,8 @@ function base(state: GameState, forHost: boolean) {
           : null,
     held,
     // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх; поза запитанням («Місце N з M») — команди.
-    playerCount: unscoredNow(state) && ANSWERING.includes(state.phase) ? voterList(state).length : state.players.length,
+    // «Ставки» (27a): на відкритому запитанні «Відповіли N з M» (question, locked) рахує лише тих, хто грає; «Місце N з M» на reveal — усіх.
+    playerCount: unscoredNow(state) && ANSWERING.includes(state.phase) ? voterList(state).length : (answeringBets(state)?.length ?? state.players.length),
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
@@ -2646,4 +2647,9 @@ export function hostView(state: GameState): HostView {
     resume: resumeLobby(state),
     roundQuestions: roundQuestionShares(state),
   };
+}
+
+/** Хто грає відкрите запитання «Ставок» на question і locked (для «Відповіли N з M»); інакше null. */
+function answeringBets(state: GameState): string[] | null {
+  return state.phase === 'question' || state.phase === 'locked' ? betsPlaying(state) : null;
 }
