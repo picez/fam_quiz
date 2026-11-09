@@ -4584,6 +4584,58 @@ button.shelf-cup {
   min-block-size: 44px;
 }
 
+/* Шлях ведучого: слова в рядок, що переноситься; старт і ціль — бурштинові. */
+.wordladder-path h2 {
+  margin: 0 0 0.5rem;
+}
+
+.wordladder-path ol {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wordladder-path li {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.wordladder-path li.is-end {
+  color: var(--amber);
+}
+
+.wordladder-board .is-out {
+  color: var(--dim);
+}
+
+/* Слова гравця — окремим рядком під ім'ям: довгий шлях переноситься, а не розпирає рядок. */
+.wordladder-words {
+  flex-basis: 100%;
+  color: var(--dim);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+/* Сцена читається з кінця кімнати. */
+.stage .wordladder-goal {
+  font-size: 3rem;
+}
+
+.stage .wordladder-path li {
+  font-size: 2.25rem;
+}
+
+.stage .wordladder-words {
+  font-size: 1.25rem;
+}
+
 .menu-badge {
   display: inline-flex;
   align-items: center;

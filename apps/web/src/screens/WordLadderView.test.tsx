@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LIMITS, type PlayerWordLadder, type PublicQuestion } from '@quiz/shared';
+import { LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
-import { WordLadderColumn, WordLadderPlay } from './WordLadderView';
+import { WordLadderBoard, WordLadderColumn, WordLadderPlay } from './WordLadderView';
 
 afterEach(cleanup);
 
@@ -140,5 +140,40 @@ describe('WordLadderView', () => {
   it('renders nothing without the ladder on the question', () => {
     const { container } = render(<WordLadderPlay ladder={ladderOf()} question={{ ...question, wordladder: undefined }} paused={false} send={ok()} />);
     expect(container.innerHTML).toBe('');
+  });
+});
+
+describe('WordLadderBoard', () => {
+  const row = (playerId: string, nickname: string, steps: number, finished: boolean, over: Partial<WordLadderInfo['rows'][number]> = {}) => ({
+    playerId, nickname, steps, finished, words: null, points: null, ...over,
+  });
+  const infoOf = (rows: WordLadderInfo['rows'], path: string[] | null = null): WordLadderInfo => ({ start: 'поле', target: 'тара', maxSteps: 8, path, rows });
+
+  it('shows step counts and no words while the question is open', () => {
+    render(<WordLadderBoard info={infoOf([row('p1', 'Олена', 2, false), row('p2', 'Тарас', 3, true)])} reveal={false} />);
+    expect(screen.getByText('кроків: 2')).toBeTruthy();
+    expect(screen.getByText('фініш')).toBeTruthy();
+    expect(document.querySelector('.wordladder-words')).toBeNull();
+    expect(document.querySelector('.rank')).toBeNull();
+    expect(document.querySelector('.is-out')).toBeNull();
+  });
+
+  it('shows the place, the words and the points at the reveal', () => {
+    render(<WordLadderBoard info={infoOf([row('p1', 'Олена', 2, true, { words: ['пора', 'тара'], points: 400 }), row('p2', 'Тарас', 1, false, { points: 0 })])} reveal />);
+    const first = document.querySelector('.wordladder-board li') as HTMLElement;
+    expect(first.querySelector('.rank')?.textContent).toBe('1');
+    expect(first.querySelector('.wordladder-words')?.textContent).toBe('пора → тара');
+    expect(first.querySelector('.score')?.textContent).toContain('400');
+    expect(document.querySelectorAll('.wordladder-board li')[1].className).toBe('is-out');
+  });
+
+  it('gives equal steps the same place', () => {
+    render(<WordLadderBoard info={infoOf([row('p1', 'А', 2, true), row('p2', 'Б', 2, true), row('p3', 'В', 4, true)])} reveal />);
+    expect([...document.querySelectorAll('.rank')].map((n) => n.textContent)).toEqual(['1', '1', '3']);
+  });
+
+  it('shows the host the words of every player live', () => {
+    render(<WordLadderBoard info={infoOf([row('p1', 'Олена', 1, false, { words: ['пора'] })], ['поле', 'пора', 'тара'])} reveal={false} />);
+    expect(document.querySelector('.wordladder-words')?.textContent).toBe('пора');
   });
 });

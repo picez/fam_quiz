@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { collapseLadder, LIMITS, type PlayerWordLadder, type PublicQuestion } from '@quiz/shared';
+import { collapseLadder, LIMITS, type PlayerWordLadder, type PublicQuestion, type WordLadderInfo } from '@quiz/shared';
+import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 
@@ -155,5 +156,52 @@ export function WordLadderOutcome({ ladder, question }: { ladder: PlayerWordLadd
       <WordLadderColumn start={info.start} target={info.target} words={ladder.words} letters={info.letters} />
       <h2>{ladder.finished ? t('wordLadderDone', { steps: ladder.steps }) : t('wordLadderOut')}</h2>
     </>
+  );
+}
+
+/** Місце за кроками: рівні кроки ділять місце; хто не дійшов, місця не має. */
+function rankOf(info: WordLadderInfo, steps: number, finished: boolean): string {
+  if (!finished) return '—';
+  return String(1 + info.rows.filter((row) => row.finished && row.steps < steps).length);
+}
+
+/** Шлях ведучого: слова зліва направо, навіть в арабському інтерфейсі. */
+export function WordLadderPath({ path }: { path: string[] }) {
+  return (
+    <section className="wordladder-path">
+      <h2>{t('wordLadderHostPath')}</h2>
+      <ol dir="ltr" lang="uk">
+        {path.map((word, index) => (
+          <li key={index} className={index === 0 || index === path.length - 1 ? 'is-end' : undefined}>
+            {word}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/**
+ * Рядки гравців: кроки або «фініш»; на reveal — місце, слова фінішера й бали.
+ * Слова показуються, коли зріз їх дав (ведучому завжди, іншим лише на reveal).
+ */
+export function WordLadderBoard({ info, reveal }: { info: WordLadderInfo; reveal: boolean }) {
+  return (
+    <ol className="rows wordladder-board">
+      {info.rows.map((row) => (
+        // Під час запитання «не дійшов» означає «ще грає»: тьмяніє лише на розкритті.
+        <li key={row.playerId} className={reveal && !row.finished ? 'is-out' : undefined}>
+          {reveal && <span className="rank">{rankOf(info, row.steps, row.finished)}</span>}
+          <span className="name" dir="auto">{row.nickname}</span>
+          <span className="tag">{row.finished ? t('wordLadderRowFinished') : t('wordLadderRowSteps', { steps: row.steps })}</span>
+          {reveal && row.points !== null && <span className="score" dir="ltr">{signed(row.points)}</span>}
+          {row.words !== null && row.words.length > 0 && (
+            <span className="wordladder-words" dir="ltr" lang="uk">
+              {row.words.join(' → ')}
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
   );
 }

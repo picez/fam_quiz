@@ -932,6 +932,35 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it("a word ladder shows the goal and step counts, then the host path and the players' paths", () => {
+    const ladderQ = { ...question, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
+    const info = {
+      start: 'поле',
+      target: 'тара',
+      maxSteps: 8,
+      path: null,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', steps: 2, finished: true, words: null, points: null },
+        { playerId: 'p2', nickname: 'Тарас', steps: 1, finished: false, words: null, points: null },
+      ],
+    };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: ladderQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, wordladder: info }));
+    expect(screen.getByText('поле → тара')).toBeTruthy();
+    expect(screen.getByText('Ведіть драбину на телефоні')).toBeTruthy();
+    expect(screen.getByText('Дійшли 1 з 2')).toBeTruthy();
+    expect(screen.getByText('кроків: 1')).toBeTruthy();
+    expect(screen.getByText('фініш')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('пора');
+    unmount();
+    const rows = [{ ...info.rows[0], words: ['пора', 'тара'], points: 400 }, { ...info.rows[1], points: 0 }];
+    show(view({ phase: 'reveal', questionIndex: 0, question: ladderQ, wordladder: { ...info, path: ['поле', 'пора', 'тара'], rows } }));
+    expect(screen.getByText('Шлях ведучого')).toBeTruthy();
+    expect(document.querySelector('.wordladder-path')?.textContent).toContain('пора');
+    expect(document.querySelector('.wordladder-words')?.textContent).toBe('пора → тара');
+    expect(document.querySelector('.wordladder-board .rank')).not.toBeNull();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   describe('sort', () => {
     const categories = [
       { id: 'c1', text: 'Овочі' },
