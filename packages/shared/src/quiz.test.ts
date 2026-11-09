@@ -336,6 +336,20 @@ describe('quizSchema', () => {
       expect(valid(quizSchema, withBlitz({ attempts: 4 }))).toBe(false);
       expect(valid(quizSchema, withBlitz({ rules: { ...DEFAULT_RULES, partial: 50 } }))).toBe(false);
     });
+
+    it('blitz series steps are optional and bounded', () => {
+      const rules = (patch: object) => ({ rules: { ...DEFAULT_RULES, partial: null, ...patch } });
+      expect(valid(quizSchema, withBlitz())).toBe(true);
+      expect(valid(quizSchema, withBlitz(rules({ streakPlus: null })))).toBe(true);
+      expect(valid(quizSchema, withBlitz(rules({ streakPlus: { step: 250 }, streakMinus: { step: 2000 } })))).toBe(true);
+      for (const bad of [{ step: 0 }, { step: 2001 }, { step: 2.5 }, {}]) {
+        expect(valid(quizSchema, withBlitz(rules({ streakPlus: bad })))).toBe(false);
+        expect(valid(quizSchema, withBlitz(rules({ streakMinus: bad })))).toBe(false);
+      }
+      const parsed = quizSchema.parse(withBlitz(rules({ streakPlus: { step: 250 } })));
+      const parsedRound = parsed.rounds[1];
+      expect(parsedRound?.type === 'blitz' && parsedRound.rules.streakPlus).toEqual({ step: 250 });
+    });
   });
 
   it('lists every question in the order of rounds', () => {

@@ -5,8 +5,10 @@ export interface RoundBrief {
   type: Round['type'];
   /** Класичний: бонус за швидкість. */
   speedBonus: boolean;
-  /** Мінус ціна запитання за хибну відповідь (rules.penalty === 'minus'). */
+  /** Мінус ціна запитання за хибну відповідь (rules.penalty === 'minus'; у бліці — і за самої мінусової серії). */
   penalty: boolean;
+  /** Бліц-раунд: кроки плюсової й мінусової серій (26b), null — тієї серії немає; null — жодної (і поза бліц-раундом). */
+  series: { plus: number | null; minus: number | null } | null;
   streak: RoundRules['streak'];
   multiplier: RoundRules['multiplier'];
   /** Бліц-раунд з автоматичною перевіркою (миттєвий): тоді attempts 1, answerWindow null. */
@@ -31,13 +33,14 @@ export interface RoundBrief {
   ladder: { pick: LadderPick; lifelines: LifelineKind[]; top: number; timer: boolean } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, wagerMode, survival і ladder null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival і ladder null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
     instant: false,
     speedBonus: false,
     penalty: false,
+    series: null,
     streak: null,
     multiplier: 1,
     attempts: null,
@@ -64,9 +67,13 @@ export function roundBrief(round: Round): RoundBrief {
     return { ...withRules, speedBonus: round.speedBonus, survival: { trial: round.trial, survivors: round.survivors, bonus: round.bonus } };
   }
   if (round.type === 'blitz') {
+    const plus = round.rules.streakPlus?.step ?? null;
+    const minus = round.rules.streakMinus?.step ?? null;
+    // Мінусова серія штрафує за помилки й без penalty 'minus' (як і рушій).
+    const blitz = { ...withRules, penalty: withRules.penalty || minus !== null, series: plus === null && minus === null ? null : { plus, minus } };
     // Миттєвий бліц ігнорує збережені вікно й спроби (як і рушій).
-    if (round.check === 'auto') return { ...withRules, instant: true, attempts: 1, answerWindow: null };
-    return { ...withRules, attempts: round.attempts, answerWindow: round.answerWindow };
+    if (round.check === 'auto') return { ...blitz, instant: true, attempts: 1, answerWindow: null };
+    return { ...blitz, attempts: round.attempts, answerWindow: round.answerWindow };
   }
   const cells = boardCells(round).map(({ cell }) => cell);
   const modes = new Set(cells.map((cell) => cellAnswerMode(round, cell)));

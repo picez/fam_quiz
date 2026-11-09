@@ -735,6 +735,21 @@ export type ClassicRound = z.infer<typeof classicRoundSchema>;
 /** Типове вікно відповіді в бліці, секунди. */
 export const DEFAULT_ANSWER_WINDOW = 15;
 
+/** Крок наростальної серії бліцу (26b): на скільки балів більше дає (чи знімає) кожна наступна відповідь поспіль. */
+export const blitzSeriesSchema = z.object({ step: z.number().int().min(1).max(LIMITS.maxPoints) });
+
+/**
+ * Правила бліц-раунду: часткових балів немає; необов'язкові плюсова й мінусова серії (26b).
+ * Немає поля або null — серії немає, бали як раніше. Мінусова серія штрафує незалежно від penalty.
+ */
+export const blitzRulesSchema = roundRulesSchema.extend({
+  partial: z.null(),
+  streakPlus: blitzSeriesSchema.nullable().optional(),
+  streakMinus: blitzSeriesSchema.nullable().optional(),
+});
+
+export type BlitzRoundRules = z.infer<typeof blitzRulesSchema>;
+
 /** Бліц: гравці натискають «Відповісти» й відповідають по черзі; бали отримує перший правильний. */
 export const blitzRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -748,8 +763,7 @@ export const blitzRoundSchema = z.object({
   /** Спроб на запитання; null — без обмежень. */
   attempts: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable(),
   check: z.enum(['auto', 'manual']),
-  // Часткових балів у бліці немає.
-  rules: roundRulesSchema.extend({ partial: z.null() }),
+  rules: blitzRulesSchema,
   questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
 });
 

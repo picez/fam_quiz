@@ -17,6 +17,25 @@ describe('roundBrief', () => {
     expect(roundBrief(blitzRound('b1', [single], { check: 'manual', answerWindow: 15, attempts: 2 }))).toEqual({ ...emptyBrief('blitz'), attempts: 2, answerWindow: 15 });
   });
 
+  it('a blitz brief carries the series steps; streakMinus alone counts as the penalty', () => {
+    const rules = (patch: object) => ({ rules: { penalty: 'none' as const, partial: null, streak: null, multiplier: 1 as const, ...patch } });
+    const plain = roundBrief(blitzRound('b1', [single]));
+    expect(plain.series).toBeNull();
+    expect(plain.penalty).toBe(false);
+    expect(roundBrief(blitzRound('b1', [single], rules({ streakPlus: { step: 250 } }))).series).toEqual({ plus: 250, minus: null });
+    const minus = roundBrief(blitzRound('b1', [single], rules({ streakPlus: null, streakMinus: { step: 100 } })));
+    expect(minus.series).toEqual({ plus: null, minus: 100 });
+    expect(minus.penalty).toBe(true);
+    expect(roundBrief(classicRound('r1', [single])).series).toBeNull();
+    const cells = [
+      { question: { ...single, id: 'a' }, kind: 'blitz' as const },
+      { ...single, id: 'b' },
+      { ...single, id: 'c' },
+    ];
+    expect(roundBrief(boardRound('g1', [{ title: 'A', cells }])).series).toBeNull();
+    expect(emptyBrief('blitz').series).toBeNull();
+  });
+
   it('describes a board round', () => {
     const cells = [
       { ...single, id: 'a' },
