@@ -1,16 +1,20 @@
 import { presentPlayers } from './present';
-import { fail, ok, openFinalQuestion, type GameState, type Result, type Rng } from './game';
+import { betsMinimumNow, openBetsQuestion, wagerLimitOf } from './bets';
+import { currentRound, fail, ok, openFinalQuestion, type GameState, type Result, type Rng } from './game';
 
 /**
  * Таємна ставка гравця у фіналі: ціле число від 0 до межі; до відкриття запитання її можна змінити.
  * allIn — «Ва-банк»: ставиться вся межа (amount ігнорується); якщо межа > 0, ставка йде за межею до відкриття запитання.
  * Звичайна ставка знімає ва-банк. Коли поставили всі підключені гравці (і хоч один підключений), запитання відкривається.
+ * «Ставки» (27a): ставка від мінімуму запитання до межі; межа нижче мінімуму — bet_skipped, поза межами — bet_range;
+ * запитання відкривається, коли поставили всі присутні, хто може ставити (і такий хоч один).
  */
 export function placeWager(state: GameState, playerId: string, amount: number, now: number, rng: Rng, allIn = false): Result {
   if (state.phase !== 'wager' || state.final === null) return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
-  const limit = Object.hasOwn(state.final.limits, playerId) ? state.final.limits[playerId] : 0;
+  if (currentRound(state)?.type === 'bets') return placeBet(state, playerId, amount, now, rng, allIn);
+  const limit = wagerLimitOf(state, playerId);
   const amountToPlace = allIn ? limit : amount;
   if (!Number.isInteger(amountToPlace) || amountToPlace < 0 || amountToPlace > limit) return fail('wager_invalid');
   const others = state.final.allIn.filter((id) => id !== playerId);
@@ -23,4 +27,20 @@ export function placeWager(state: GameState, playerId: string, amount: number, n
   const connected = presentPlayers(placed);
   const everyone = connected.length > 0 && connected.every((p) => Object.hasOwn(final.wagers, p.id));
   return ok(everyone ? openFinalQuestion(placed, now, rng) : placed);
+}
+
+/** Ставка в раунді «Ставки»; етап, пауза й гравець уже перевірені. */
+function placeBet(state: GameState, playerId: string, amount: number, now: number, rng: Rng, allIn: boolean): Result {
+  if (state.final === null) return fail('wrong_phase');
+  const minimum = betsMinimumNow(state);
+  const limit = wagerLimitOf(state, playerId);
+  if (minimum === null || limit < minimum) return fail('bet_skipped');
+  const amountToPlace = allIn ? limit : amount;
+  if (!Number.isInteger(amountToPlace) || amountToPlace < minimum || amountToPlace > limit) return fail('bet_range');
+  const others = state.final.allIn.filter((id) => id !== playerId);
+  const final = { ...state.final, wagers: { ...state.final.wagers, [playerId]: amountToPlace }, allIn: allIn ? [...others, playerId] : others };
+  const placed = { ...state, final };
+  const eligible = presentPlayers(placed).filter((p) => wagerLimitOf(placed, p.id) >= minimum);
+  const everyone = eligible.length > 0 && eligible.every((p) => Object.hasOwn(final.wagers, p.id));
+  return ok(everyone ? openBetsQuestion(placed, now, rng) : placed);
 }

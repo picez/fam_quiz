@@ -45,7 +45,7 @@ describe('the «Родинний марафон» quiz', () => {
   });
 
   it('has every scored question type and every round type, with no polls or word clouds, hosted solo with buffs, debuffs, duels and spares', () => {
-    expect(new Set(plain.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
+    expect(new Set(plain.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets')));
     const scored = QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud' && type !== 'wordladder'); // 26c: демо без драбини
     expect(new Set(played(plain).map((q) => q.type))).toEqual(new Set(scored));
     expect(played(plain).filter((q) => q.type === 'survey' && q.cloudId !== undefined)).toEqual([]);

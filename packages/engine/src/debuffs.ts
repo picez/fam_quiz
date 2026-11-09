@@ -1,6 +1,7 @@
 import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
 import { addAdjustment, afterQuestionNow } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { wagerRound } from './bets';
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
 import { spendWard, wardReady } from './perks';
 import { isGhost, survivalAlive } from './survival';
@@ -48,12 +49,12 @@ export function cancelDebuff(state: GameState, playerId: string): Result {
 export const SHOP_PHASES: readonly Phase[] = ['intro', 'question', 'reveal', 'board', 'leaderboard', 'round_end'];
 
 /**
- * Чому покупцеві зараз не купити: phase (етап поза SHOP_PHASES або фінальний раунд — ставки йдуть за рахунком),
+ * Чому покупцеві зараз не купити: phase (етап поза SHOP_PHASES або раунд зі ставками — фінал чи «Ставки»: ставки йдуть за рахунком),
  * paused, bought (уже купив у цьому циклі запитання); null — можна.
  * Цикл запитання — від закриття попереднього запитання до закриття поточного (той самий лічильник afterQuestion).
  */
 export function shopBlock(state: GameState, buyerId: string): ShopBlock | null {
-  if (!SHOP_PHASES.includes(state.phase) || currentRound(state)?.type === 'final' || debuffsOff(state)) return 'phase';
+  if (!SHOP_PHASES.includes(state.phase) || wagerRound(currentRound(state)) || debuffsOff(state)) return 'phase';
   if (state.paused) return 'paused';
   const cycle = afterQuestionNow(state);
   const bought = state.adjustments.some((a) => a.source === 'debuff' && a.playerId === buyerId && a.afterQuestion === cycle);

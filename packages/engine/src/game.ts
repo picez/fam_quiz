@@ -20,6 +20,7 @@ import {
   type ResumeSetup,
   type SurveyRow,
   type BoardRound,
+  type BetsRound,
   type FinalRound,
   type LadderOutcomeKind,
   type LevelPerk,
@@ -62,6 +63,7 @@ import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQ
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
+import { betsPlaying, betsRefusal, enterBetsWager, openBetsQuestion, wagerRound } from './bets';
 import { chainDone, scoreChain } from './chain';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -1215,10 +1217,14 @@ export function withCurrentPlay(state: GameState, play: Play): GameState {
   return { ...state, plays: state.plays.map((p, index) => (index === state.questionIndex ? play : p)) };
 }
 
-/** Запитання фіналу поточного раунду, якщо його вже відкрито; інакше undefined. */
+/**
+ * Запитання фіналу поточного раунду, якщо його вже відкрито; інакше undefined.
+ * «Ставки» (27a): лише на question, locked і reveal — між запитаннями (ставки наступного, рейтинг) показане запитання стале.
+ */
 function finalPlayOf(state: GameState): (Play & { final: FinalPlay }) | undefined {
   const play = state.plays[state.questionIndex];
   if (state.final === null || play?.final === undefined || play.roundIndex !== state.roundIndex) return undefined;
+  if (currentRound(state)?.type === 'bets' && betsPlaying(state) === null) return undefined;
   return { ...play, final: play.final };
 }
 
@@ -1232,12 +1238,14 @@ export function finalOutcome(state: GameState): BankOutcome | null {
   const play = finalPlayOf(state);
   if (play === undefined) return null;
   const round = state.quiz.rounds[play.roundIndex];
-  const entries = state.players.map((player) => ({
+  // «Ставки»: у банку лише ті, хто грає (поставив до відкриття); хто пропускає, запису не має.
+  const players = round.type === 'bets' ? state.players.filter((p) => Object.hasOwn(play.final.wagers, p.id)) : state.players;
+  const entries = players.map((player) => ({
     playerId: player.id,
     wager: wagerOf(play.final, player.id),
     correct: recordOf(state, state.questionIndex, player.id)?.grade === 'correct',
   }));
-  if (round.type === 'final' && round.wagerMode === 'bank') return splitBank(entries);
+  if (round.type === 'bets' || (round.type === 'final' && round.wagerMode === 'bank')) return splitBank(entries);
   const points = Object.fromEntries(entries.map((e) => [e.playerId, finalPoints(e.wager, e.correct)]));
   return { bank: 0, refund: false, points };
 }
@@ -1303,13 +1311,16 @@ export function finalShown(state: GameState, playerId: string): boolean {
   return index !== -1 && index < state.final.shown;
 }
 
-/** Кожен гравець без запису на запитання фіналу отримує «неправильно» без відповіді й −ставка. */
+/** Кожен гравець без запису на запитання фіналу (у «Ставках» — кожен, хто грає) отримує «неправильно» без відповіді й −ставка. */
 function settleFinal(state: GameState): GameState {
   const play = finalPlayOf(state);
   if (play === undefined) return state;
   let settled = state;
+  // «Ставки»: мовчання оцінюється лише тим, хто грає.
+  const bets = currentRound(state)?.type === 'bets';
   for (const player of state.players) {
     if (recordOf(state, state.questionIndex, player.id) !== undefined) continue;
+    if (bets && !Object.hasOwn(play.final.wagers, player.id)) continue;
     const points = finalPoints(wagerOf(play.final, player.id), false);
     settled = withRecord(settled, player.id, {
       answer: null,
@@ -1342,8 +1353,12 @@ function settleFinalWithOrder(state: GameState): GameState {
 /** Після відкриття запитання фіналу дострокове завершення оцінює всіх, вважає всіх розкритими, а банк — розподіленим. */
 function closeFinal(state: GameState): GameState {
   if (finalPlayOf(state) === undefined) return withTotals(state);
-  const settled = settleFinalWithOrder(state);
-  return settled.final === null ? settled : { ...settled, final: { ...settled.final, shown: settled.final.order.length, split: true } };
+  return showAllFinal(settleFinalWithOrder(state));
+}
+
+/** Усіх гравців розкрито, банк розподілено. */
+function showAllFinal(state: GameState): GameState {
+  return state.final === null ? state : { ...state, final: { ...state.final, shown: state.final.order.length, split: true } };
 }
 
 /** Скидає відлік відсутності гравця, чий хід. */
@@ -1546,7 +1561,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
     return people.every((m) => recordOf(state, state.questionIndex, m.id) !== undefined) ? lockNow(state) : state;
   }
   const type = currentRound(state)?.type;
-  const playing = type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : null;
+  // «Ставки»: лише тих, хто грає; без них запитання закриє таймер чи ведучий.
+  const playing = type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : type === 'bets' ? betsPlaying(state) : null;
   const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
@@ -1605,6 +1621,9 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     return submitVote(state, playerId, answer, now);
   }
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  // «Ставки»: хто не поставив, пропускає запитання.
+  const skipped = betsRefusal(state, playerId);
+  if (skipped !== null) return fail(skipped);
   // «Вибування»: привид відповідає «для себе» — поза answers, без балів; живі йдуть класичним шляхом.
   if (currentRound(state)?.type === 'survival' && isGhost(state, playerId)) return submitGhostAnswer(state, playerId, answer, now);
   const play = state.plays[state.questionIndex];
@@ -1637,7 +1656,7 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     return submitBlitzAnswer(state, playerId, answer, now);
   }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
-  if (round.type === 'final') return submitFinalAnswer(state, round, playerId, answer, now);
+  if (wagerRound(round)) return submitFinalAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   // Після часткової першої відповіді гравець вибирає через chooseRetry.
   if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
@@ -1683,10 +1702,10 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 }
 
 /**
- * Відповідь у фіналі: лише «правильно» (+ставка) або «неправильно» (−ставка), без часткових балів.
+ * Відповідь у фіналі (і в «Ставках»): лише «правильно» (+ставка) або «неправильно» (−ставка), без часткових балів.
  * За ручної перевірки запис тимчасовий («неправильно»), доки ведучий не оцінить.
  */
-function submitFinalAnswer(state: GameState, round: FinalRound, playerId: string, answer: Answer, now: number): Result {
+function submitFinalAnswer(state: GameState, round: FinalRound | BetsRound, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
@@ -1936,7 +1955,7 @@ function enterRound(input: GameState): GameState {
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
-    final: type === 'final' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
+    final: type === 'final' || type === 'bets' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
     ...(type === 'ladder' ? { ladder: { contestantId: null, drawn: false } } : {}),
   };
 }
@@ -1974,17 +1993,24 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
+      if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(state));
       if (state.final !== null) return ok(enterWager(state, state.final));
       // «Мільйонер»: без учасника «Далі» — жереб чи «найменші бали» (етап лишається intro); з учасником — перше запитання.
       if (inLadderRound(state) && (state.ladder?.contestantId ?? null) === null) return drawContestant(state, rng);
       return ok(advance(state, now, rng));
     case 'wager':
+      // «Ставки»: «Відкрити запитання» — хто не поставив, пропускає.
+      if (currentRound(state)?.type === 'bets') return ok(openBetsQuestion(state, now, rng));
       return ok(openFinalQuestion(state, now, rng));
     case 'locked':
-      if (finalPlayOf(state) !== undefined) return ok(settleFinalWithOrder({ ...state, phase: 'reveal' }));
+      if (finalPlayOf(state) !== undefined) {
+        const settled = settleFinalWithOrder({ ...state, phase: 'reveal' });
+        // «Ставки»: розкриття по одному немає — ставки й виграші кожного видно одразу.
+        return ok(currentRound(state)?.type === 'bets' ? showAllFinal(settled) : settled);
+      }
       return ok(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' });
     case 'reveal':
-      if (state.final !== null && finalPlayOf(state) !== undefined) {
+      if (state.final !== null && finalPlayOf(state) !== undefined && currentRound(state)?.type === 'final') {
         // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
         if (state.final.shown < state.final.order.length) return ok({ ...state, final: { ...state.final, shown: state.final.shown + 1 } });
         // Після останнього гравця банк (якщо він не порожній) розподіляється окремим кроком.
@@ -2004,6 +2030,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       // «Ва-банк»: драбина з вікном рішення після кожного запитання, крім останнього, незалежно від налаштування leaderboard.
       if (currentRound(state)?.type === 'wipeout') return ok(openDecision(state, now));
       if (state.quiz.settings.leaderboard === 'each') return ok({ ...state, phase: 'leaderboard' });
+      // «Ставки»: наступне запитання починається зі ставок.
+      if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(state));
       return ok(advance(state, now, rng));
     case 'leaderboard':
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
@@ -2017,6 +2045,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (decisionOpen(state)) return fail('deciding');
       // «Вибування»: відкрите випробування «Далі» закриває; інакше — наступне запитання або кінець раунду з бонусом.
       if (trialOpen(state)) return ok(closeTrial(state));
+      if (currentRound(state)?.type === 'bets') return ok(questionsLeft(state) ? enterBetsWager(state) : finishRound(state, now));
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
@@ -2224,7 +2253,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
-  if (current?.type === 'final') return overrideFinal(state, playerId, grade);
+  if (wagerRound(current)) return overrideFinal(state, playerId, grade);
   // «Вибування»: на сторінці після розкриття — оцінка відповіді на питання на виживання (після закриття випробування).
   if (current?.type === 'survival' && state.phase === 'leaderboard') return overrideTrial(state, playerId, grade);
   if (state.phase !== 'reveal') return fail('wrong_phase');
@@ -2299,8 +2328,10 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))));
+  // «Ставки»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stopped: GameState = {
-    ...withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))),
+    ...(currentRound(scored)?.type === 'bets' ? closeFinal(scored) : scored),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,

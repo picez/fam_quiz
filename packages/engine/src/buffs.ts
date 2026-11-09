@@ -122,7 +122,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -142,9 +142,10 @@ function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock 
 }
 
 /** Раунд, де бафів немає взагалі (поле перевіряється за клітинкою); null — раунд їх дозволяє. */
-function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_wipeout' | 'off_survival' | 'off_ladder' | null {
+function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_bets' | 'off_wipeout' | 'off_survival' | 'off_ladder' | null {
   if (round.type === 'blitz') return 'off_blitz';
   if (round.type === 'final') return 'off_final';
+  if (round.type === 'bets') return 'off_bets';
   if (round.type === 'wipeout') return 'off_wipeout';
   if (round.type === 'survival') return 'off_survival';
   if (round.type === 'ladder') return 'off_ladder';

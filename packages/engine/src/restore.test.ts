@@ -75,6 +75,7 @@ import { writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
 import {
+  betsRound,
   blitzRound,
   bluff,
   classicRound,
@@ -1605,6 +1606,21 @@ describe('the saved state', () => {
     expect(back.adjustments[1]).toMatchObject({ source: 'undo', undoes: { seq: 1 }, batch: 2, points: -300 });
     expect(back.adjustments).toEqual(undone.adjustments);
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
+  });
+
+  it('a bets round snapshot keeps the bets without a new version (27a)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const quiz = makeRoundsQuiz([betsRound('r1', [withId(single, 'b1')])]);
+    let wager = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0));
+    wager = must(adjustScore(wager, 'p1', 500, T0));
+    wager = must(adjustScore(wager, 'p2', 500, T0));
+    wager = must(placeWager(wager, 'p1', 300, T0, () => 0));
+    expect(wager.phase).toBe('wager');
+    const back = roundTrip(suspend(roundTrip(wager), T0 + 1000));
+    expect(back.final).toEqual(wager.final);
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const open = must(next(resumed, T0 + 2000 + HOUR));
+    expect(open.plays[open.questionIndex].final).toEqual({ wagers: { p1: 300 }, allIn: [], graded: [] });
   });
 
   it('a word ladder snapshot keeps every word without a new version', () => {

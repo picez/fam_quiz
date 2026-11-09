@@ -2,6 +2,7 @@ import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   type Answer,
+  type BetsRound,
   type BlitzRound,
   type BoardRound,
   type BoardCell,
@@ -352,6 +353,22 @@ export function finalRound(
   options: Partial<Omit<FinalRound, 'id' | 'type' | 'questions'>> = {},
 ): FinalRound {
   return { id, type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', ...options, questions: [question] };
+}
+
+/** «Ставки»: типово title '', shuffleOptions false, check 'auto', betStart 200, betStep 100, betMax null; запитанню без betsCut — 2. */
+export function betsRound(id: string, questions: Question[], options: Partial<Omit<BetsRound, 'id' | 'type' | 'questions'>> = {}): BetsRound {
+  return {
+    id,
+    type: 'bets',
+    title: '',
+    shuffleOptions: false,
+    check: 'auto',
+    betStart: 200,
+    betStep: 100,
+    betMax: null,
+    ...options,
+    questions: questions.map((question) => (question.betsCut === undefined ? { ...question, betsCut: 2 } : question)),
+  };
 }
 
 /** «Ва-банк»: типово title '', shuffleOptions false. */

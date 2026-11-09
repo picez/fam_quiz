@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type Round, type RoundRules } from '@quiz/shared';
+import { betsMinimums, LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
@@ -48,7 +48,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
     // У фіналі, «Ва-банк» і «Мільйонері» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'wipeout' || round.type === 'ladder') return;
+    if (round.type === 'final' || round.type === 'bets' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
@@ -169,6 +169,55 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             </select>
           </label>
           <p className="meta">{t(round.wagerMode === 'bank' ? 'wagerModeBankHint' : 'wagerModeClassicHint')}</p>
+        </>
+      )}
+      {round.type === 'bets' && (
+        <>
+          <label className="field">
+            <span>{t('finalCheck')}</span>
+            <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+              <option value="auto">{t('blitzCheckAuto')}</option>
+              <option value="manual">{t('blitzCheckManual')}</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>{t('betStartLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={LIMITS.maxBet}
+              value={Number.isNaN(round.betStart) ? '' : round.betStart}
+              onChange={(event) => onChange({ ...round, betStart: toNumber(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('betStepLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={LIMITS.maxBet}
+              value={Number.isNaN(round.betStep) ? '' : round.betStep}
+              onChange={(event) => onChange({ ...round, betStep: toNumber(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('betMaxLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={LIMITS.maxBet}
+              placeholder={t('betMaxPlaceholder')}
+              value={round.betMax === null || Number.isNaN(round.betMax) ? '' : round.betMax}
+              onChange={(event) => onChange({ ...round, betMax: event.target.value.trim() === '' ? null : Number(event.target.value) })}
+            />
+          </label>
+          {Number.isInteger(round.betStart) && Number.isInteger(round.betStep) && (
+            <p className="meta bets-minimums">{t('betsMinimumsNote', { list: betsMinimums(round, round.questions.length).join(', ') })}</p>
+          )}
+          <p className="meta">{t('betsSettingsNote')}</p>
         </>
       )}
       {round.type === 'blitz' && (
@@ -362,7 +411,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'wipeout' && round.type !== 'ladder' && (
+      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'wipeout' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

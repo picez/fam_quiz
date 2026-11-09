@@ -7,6 +7,7 @@ import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
 import { guessWord, chainOf } from '../chain';
 import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, duelWindowOpen, pickDuelCategory } from '../duel';
+import { betLimit, betsMinimumNow, betsPlaying } from '../bets';
 import { placeWager } from '../final';
 import { currentRound, recordOf, submitAnswer, tick, type GameState, type Result, type Rng } from '../game';
 import { contestantOf, decideLadder, decisionPending, ladderPlayOf } from '../ladder';
@@ -167,6 +168,8 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
   const round = currentRound(state);
   if (round?.type === 'survival' && isGhost(state, playerId)) return state;
   if (round?.type === 'wipeout' && !wipeoutIn(state).includes(playerId)) return state;
+  // «Ставки»: хто не поставив, пропускає запитання.
+  if (round?.type === 'bets' && !(betsPlaying(state) ?? []).includes(playerId)) return state;
   if (play.board !== undefined && play.blitz === undefined && (play.board.chooserId !== playerId || play.board.answer !== null)) return state;
   const question = play.question;
   const what = `${playerId} on ${question.id}`;
@@ -298,9 +301,16 @@ export function answerAs(config: Answering = {}): People {
         const cell = firstCell(s);
         return chooser === null || cell === null || !ids.includes(chooser) ? s : act(s, pickCell(s, chooser, cell, now, () => 0), `${chooser} picks a cell`);
       }
-      case 'wager':
-        for (const id of ids) if (!Object.hasOwn(s.final?.wagers ?? {}, id)) s = act(s, placeWager(s, id, 0, now, () => 0), `${id} bets`);
+      case 'wager': {
+        // «Ставки»: мінімум тим, хто може ставити; решта не ставить. Фінал — 0.
+        const minimum = currentRound(s)?.type === 'bets' ? betsMinimumNow(s) : 0;
+        for (const id of ids) {
+          if (s.phase !== 'wager' || Object.hasOwn(s.final?.wagers ?? {}, id)) continue;
+          if (minimum === null || betLimit(s, id) < minimum) continue;
+          s = act(s, placeWager(s, id, minimum, now, () => 0), `${id} bets`);
+        }
         return s;
+      }
       case 'question': {
         const contestant = contestantOf(s);
         for (const id of ids) if (contestant === null || contestant === id) s = answerQuestion(s, id, wrong.includes(id), now, act);

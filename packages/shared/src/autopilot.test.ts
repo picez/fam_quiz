@@ -91,6 +91,18 @@ const final = (id: string, patch: object = {}) => ({
   questions: [single(`${id}q`)],
   ...patch,
 });
+const bets = (id: string, patch: object = {}) => ({
+  id,
+  type: 'bets',
+  title: '',
+  shuffleOptions: false,
+  check: 'auto',
+  betStart: 200,
+  betStep: 100,
+  betMax: null,
+  questions: [single(`${id}q`, { betsCut: 1 })],
+  ...patch,
+});
 const ladder = (id: string, patch: object = {}, questionPatch: object = {}) => ({
   id,
   type: 'ladder',
@@ -167,6 +179,13 @@ describe('autopilotCheck and autopilotQuiz', () => {
     expect(codes(q)).toEqual([{ code: 'manual', rounds: [0, 2] }]);
     const out = autopilotQuiz(q);
     expect(out.rounds.map((r) => ('check' in r ? r.check : null))).toEqual(['manual', null, 'auto']);
+  });
+
+  it('a manual bets round becomes automatic', () => {
+    const q = quiz([bets('r0', { check: 'manual' })]);
+    expect(codes(q)).toEqual([{ code: 'manual', rounds: [0] }]);
+    expect((autopilotQuiz(q).rounds[0] as Extract<Round, { type: 'bets' }>).check).toBe('auto');
+    expect(() => quizSchema.parse(autopilotQuiz(q))).not.toThrow();
   });
 
   it('a host-picked ladder contestant is drawn, the lowest stays', () => {

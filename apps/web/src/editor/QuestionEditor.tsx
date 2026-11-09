@@ -4,6 +4,7 @@ import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
 import { countText, t, type TextKey } from '../i18n';
 import { AudioField } from './AudioField';
+import { BetsCutField } from './BetsCutField';
 import { ImageField } from './ImageField';
 import { OptionImage } from './OptionImage';
 import { PinEditor } from './PinEditor';
@@ -40,6 +41,8 @@ interface Props {
   allowCloud?: boolean;
   /** Рівно стільки варіантів у «одному варіанті» (кнопок додати й прибрати немає); типово кількість вільна. */
   fixedOptions?: number;
+  /** Раунд «Ставки»: під текстом вибір, скільки слів видно під час ставок. */
+  betsCut?: boolean;
 }
 
 interface Row {
@@ -796,7 +799,7 @@ function setReveal(question: Question, onChange: (next: Question) => void, mode:
 }
 
 /** Одне запитання у вигляді, близькому до того, що бачать гравці, з редагуванням на місці. */
-export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false, fixedOptions }: Props) {
+export function QuestionEditor({ question, onChange, types, showPoints = true, showHint = true, showTime = true, showVideo = true, showAudio = true, showReveal = false, cluesByHost = false, clouds = [], allowCloud = false, fixedOptions, betsCut = false }: Props) {
   // Зображення завантажується не миттєво: до того часу текст запитання могли змінити.
   const latest = useRef({ question, onChange });
   latest.current = { question, onChange };
@@ -901,6 +904,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onChange={(event) => onChange({ ...question, text: event.target.value })}
           />
         </label>
+        {betsCut && <BetsCutField text={question.text} cut={question.betsCut} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {showHint && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>

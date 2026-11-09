@@ -6,7 +6,6 @@
     ]
   },
   "include": [
-    "src",
-    "e2e"
+    "src"
   ]
 }

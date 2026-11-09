@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { defaultTeams, factTable, gameAwards } from '@quiz/shared';
+import { defaultTeams, factTable, gameAwards, revealFacts } from '@quiz/shared';
 import { factInput } from '@quiz/engine';
-import { blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
 import { answer, AWAY_ATTEMPT, game, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
+import { toBetsWager } from './testing/bets-game';
 import { FakeScheduler } from './testing/fake-scheduler';
 import { seedGame } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
@@ -160,6 +161,56 @@ describe('history facts (12d)', () => {
 
     expect(detail?.facts.awards).toEqual(gameAwards(live));
     expect(detail?.facts.table).toEqual(factTable(live));
+    await local.app.close();
+  });
+
+  it('a bets question gives the same facts live and in the history: no speed and no reveal facts (27a)', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const [account] = await localDb.select().from(user).where(eq(user.email, host.email));
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), betsRound('b', [withId(single, 'b1')])]);
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const { Оля: olya, Петро: petro } = ids;
+    const host$ = (type: 'start' | 'next' | 'lock') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    host$('start');
+    host$('next');
+    toBetsWager(local.manager, room, { [olya]: 800, [petro]: 500 });
+    expect(local.manager.wager(room, olya, 400)).toEqual({ ok: true });
+    expect(local.manager.wager(room, petro, 300)).toEqual({ ok: true });
+    // Швидка правильна відповідь: у класиці це «найшвидша», у ставках швидкості немає.
+    expect(local.manager.answer(room, olya, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(local.manager.answer(room, petro, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') host$('lock');
+    for (let guard = 0; guard < 10 && room.state.phase !== 'finished'; guard++) host$('next');
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const found = await hostGameWithFacts(localDb, account.id, created.gameId);
+    const live = factInput(room.state);
+    expect(found?.factInput.questions).toEqual(live.questions);
+    const betsQuestion = live.questions.find((q) => q.roundIndex === 1);
+    expect(betsQuestion).toMatchObject({ final: true, limitMs: null });
+    expect(revealFacts(live, betsQuestion!.index)).toBeNull();
+    expect(revealFacts(found!.factInput, betsQuestion!.index)).toBeNull();
+    // Швидкісних карток ставки не дають. Єдина правильна відповідь гри — швидка відповідь Олі на ставках (r1 ніхто не відповідав),
+    // тож без захисту «Блискавка» була б саме з неї: у грі немає жодної швидкісної картки.
+    expect(live.rows.filter((r) => r.accepted).map((r) => [r.playerId, r.questionIndex])).toEqual([[olya, betsQuestion!.index]]);
+    const kinds = gameAwards(live).map((a) => a.kind);
+    expect(kinds).not.toContain('lightning');
+    expect(kinds).not.toContain('nerves');
+    expect(found?.detail.facts.awards).toEqual(gameAwards(live));
     await local.app.close();
   });
 

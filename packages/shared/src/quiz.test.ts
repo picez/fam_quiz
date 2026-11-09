@@ -76,6 +76,8 @@ import {
   type BoardRound,
   type Question,
   type Quiz,
+  emptyBrief,
+  roundBrief,
 } from './index';
 
 const single = {
@@ -2067,5 +2069,93 @@ describe('question ids (17a)', () => {
   it('withUniqueQuestionIds returns the same quiz when nothing repeats', () => {
     const quiz = quizOf([classic('r1', [single('q1'), single('q2')])], [single('s1')]);
     expect(withUniqueQuestionIds(quiz, () => 'never')).toBe(quiz);
+  });
+});
+
+describe('bets round (27a)', () => {
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const withCut = (q: object, betsCut = 2) => ({ ...q, betsCut });
+  const bool = { ...single, id: 'qb', type: 'boolean', correct: true };
+  delete (bool as { options?: unknown }).options;
+  delete (bool as { correctId?: unknown }).correctId;
+  const numeric = { ...single, id: 'qn', type: 'numeric', correct: 5, tolerance: 0 };
+  delete (numeric as { options?: unknown }).options;
+  delete (numeric as { correctId?: unknown }).correctId;
+  const betsRound = (questions: object[], patch: object = {}) => ({
+    id: 'b', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+    questions: questions.map((q) => withCut(q)), ...patch,
+  });
+  const three = [{ ...single, id: 'q1' }, bool, numeric];
+
+  it('accepts a bets round', () => {
+    expect(issues(quizOf([betsRound(three)]))).toEqual([]);
+  });
+
+  it('refuses a last minimum over the maximum', () => {
+    expect(issues(quizOf([betsRound(three, { betMax: 300 })]))).toContain('bets_max');
+    expect(issues(quizOf([betsRound(three, { betMax: null })]))).toEqual([]);
+  });
+
+  it('a bets question needs a cut and only there', () => {
+    expect(issues(quizOf([betsRound(three, { questions: three })]))).toContain('bets_cut_missing');
+    const cut = withCut({ ...single, id: 'c1' });
+    expect(issues(quizOf([round('r', [cut])]))).toContain('bets_cut_place');
+    const cell = (q: object, id: string) => ({ id, title: id, cells: [1, 2, 3].map((n) => ({ mark: 'none', question: n === 1 ? q : { ...single, id: `${id}${n}` } })) });
+    const board = { id: 'bd', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [cell(cut, 'a'), cell({ ...single, id: 'b1' }, 'b'), cell({ ...single, id: 'c1x' }, 'c')] };
+    expect(issues(quizOf([board]))).toContain('bets_cut_place');
+    expect(issues(quizOf([round('r', [single])], { spares: [withCut({ ...single, id: 'sp' })] }))).toContain('bets_cut_place');
+    // «Вибування»: зріз не дозволено ні в запитаннях, ні у випробуваннях.
+    const survival = (questions: object[], trials: object[]) => ({ id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions, trials, trial: 'question', survivors: 1, bonus: 500 });
+    const plain = [1, 2, 3].map((i) => ({ ...single, id: `s${i}` }));
+    expect(issues(quizOf([survival(plain, [{ ...bool, id: 't1' }])]))).toEqual([]);
+    expect(issues(quizOf([survival(plain, [withCut({ ...bool, id: 't1' })])]))).toContain('bets_cut_place');
+    expect(issues(quizOf([survival([withCut(plain[0]!), ...plain.slice(1)], [{ ...bool, id: 't1' }])]))).toContain('bets_cut_place');
+  });
+
+  it('roundBrief(bets) carries the start, step, maximum and count; emptyBrief has no bets', () => {
+    expect(emptyBrief('bets').bets).toBeNull();
+    expect(emptyBrief('final').bets).toBeNull();
+    const parsed = quizSchema.parse(quizOf([betsRound(three, { betStep: 0, betMax: null })]));
+    expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('bets'), bets: { betStart: 200, betStep: 0, betMax: null, count: 3 } });
+    const capped = quizSchema.parse(quizOf([betsRound(three)]));
+    expect(roundBrief(capped.rounds[0]!).bets).toEqual({ betStart: 200, betStep: 100, betMax: 600, count: 3 });
+  });
+
+  it('bets takes the final question types', () => {
+    const base = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
+    const tiles = (p: string) => ['а', 'б', 'в', 'г'].map((text, i) => ({ id: `${p}${i}`, text }));
+    const row = (id: string, text: string, popularity: number) => ({ id, text, popularity, accepted: [] });
+    const rejected: [object, string][] = [
+      [{ ...base, id: 'x1', type: 'clues', text: 'Хто я?', clues: ['а', 'б', 'в'], accepted: ['Х'], interval: 5 }, 'clues_place'],
+      [{ ...base, id: 'x2', type: 'pin', text: 'Де?', map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 }, 'pin_place'],
+      [{ ...base, id: 'x3', type: 'wall', text: 'Стіна', mistakes: 3, groups: ['a', 'b', 'c', 'd'].map((g) => ({ id: g, name: g, tiles: tiles(g) })) }, 'wall_place'],
+      [{ ...base, id: 'x4', type: 'survey', text: 'Фрукт', answers: 3, rows: [row('a', 'Яблуко', 32), row('b', 'Банан', 25), row('c', 'Груша', 15), row('d', 'Кавун', 10)] }, 'survey_place'],
+      [{ ...base, id: 'x5', type: 'bluff', text: 'Факт з …', choiceTime: 30, timeLimit: 60, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] }, 'bluff_place'],
+      [{ ...base, id: 'x6', type: 'poll', text: 'Пора року?', points: 0, options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }] }, 'vote_place'],
+      [{ ...base, id: 'x7', type: 'wordcloud', text: 'Київ?', points: 0, words: 3 }, 'vote_place'],
+    ];
+    for (const [q, message] of rejected) expect(issues(quizOf([betsRound([q])]))).toContain(message);
+    const chain = { ...base, id: 'c1', type: 'chain', text: 'Ланцюжок', timeLimit: 60, words: ['Форель', 'Риба', 'Океан'], hintSeconds: 5 };
+    const ladder = { ...base, id: 'wl', type: 'wordladder', text: 'Від ПОЛЕ до ТАРА', timeLimit: 90, path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8 };
+    expect(issues(quizOf([betsRound([chain, ladder], { betMax: null })]))).toEqual([]);
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('betsCut');
+  });
+
+  it('rulesOf(bets) is the default rules, and the type is listed after final', () => {
+    const parsed = quizSchema.parse(quizOf([betsRound(three)]));
+    expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);
+    expect(ROUND_TYPES.indexOf('bets')).toBe(ROUND_TYPES.indexOf('final') + 1);
+    expect(roundQuestions(parsed.rounds[0]!)).toHaveLength(3);
   });
 });

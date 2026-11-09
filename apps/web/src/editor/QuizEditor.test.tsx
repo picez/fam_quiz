@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
+import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
   click('+ Раунд');
   click(type);
 };
@@ -2852,5 +2852,78 @@ describe('QuizEditor: blitz series', () => {
     addRound('Класичний');
     expect(screen.queryByLabelText(t('ruleSeriesPlus'))).toBeNull();
     expect(screen.queryByLabelText(t('ruleSeriesMinus'))).toBeNull();
+  });
+});
+
+describe('QuizEditor: bets round (27a)', () => {
+  const settingsBlock = () => screen.getAllByText('Налаштування раунду')[0];
+  const cut = (word: string) => fireEvent.click(within(screen.getByRole('radiogroup', { name: t('betsCutLabel') })).getByRole('radio', { name: word }));
+  const fillQuestion = (text: string, word: string) => {
+    fill('Текст запитання', text);
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    cut(word);
+  };
+
+  it('creates a bets round with growing minimums and a cut per question', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Ставки');
+    fireEvent.click(settingsBlock());
+    fill(t('betStartLabel'), '200');
+    fill(t('betStepLabel'), '100');
+    fill(t('betMaxLabel'), '300');
+    fillQuestion('Яке місто столиця', 'місто');
+    click(t('addQuestion'));
+    fillQuestion('Яка річка найдовша', 'річка');
+    click(t('addQuestion'));
+    fillQuestion('Яка гора найвища', t('betsCutNone'));
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(t('problemBetsMax', { min: 400, max: 300 }), { exact: false })).toBeTruthy();
+    fill(t('betMaxLabel'), '600');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(screen.getByText(t('betsMinimumsNote', { list: '200, 300, 400' }))).toBeTruthy();
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'bets', betStart: 200, betStep: 100, betMax: 600 });
+    expect(roundQuestions(quiz.rounds[1]).map((q: Question) => q.betsCut)).toEqual([2, 2, 0]);
+  });
+
+  it('an empty maximum saves as null', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Ставки');
+    fireEvent.click(settingsBlock());
+    fill(t('betMaxLabel'), '500');
+    fill(t('betMaxLabel'), '');
+    fillQuestion('Яке місто столиця', t('betsCutAll'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).rounds[1]).toMatchObject({ type: 'bets', betMax: null });
+  });
+
+  it('bets questions show no price field', () => {
+    open();
+    addRound('Ставки');
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+  });
+});
+
+describe('QuizEditor: bets settings problems open the settings (27a)', () => {
+  it('a blocked save on the maximum bet opens the round settings', () => {
+    const base = newBetsRound();
+    const q = { ...newQuestion('boolean'), text: 'Так?', betsCut: 1 } as Question;
+    const initial: Quiz = { ...newQuiz(), title: 'Т', rounds: [{ ...base, betMax: 100, questions: [q, { ...q, id: 'q2' }] }] };
+    const { onSave } = open(initial);
+    const settings = () => document.querySelector('details.round-settings') as HTMLDetailsElement;
+    expect(settings().open).toBe(false);
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(settings().open).toBe(true);
   });
 });

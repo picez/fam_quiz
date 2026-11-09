@@ -22,6 +22,12 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(t('summaryFinal'), t(brief.wagerMode === 'bank' ? 'summaryFinalBank' : 'summaryFinalScore'));
     return lines;
   }
+  if (brief.type === 'bets' && brief.bets !== null) {
+    const { betStart, betStep, betMax } = brief.bets;
+    const minimum = betStep === 0 ? t('summaryBetsMinimumFlat', { start: betStart }) : t('summaryBetsMinimum', { start: betStart, step: betStep });
+    lines.push(minimum, betMax === null ? t('summaryBetsAll') : t('summaryBetsMax', { max: betMax }));
+    return lines;
+  }
   if (brief.type === 'wipeout') {
     lines.push(t('summaryWipeout'), t('summaryWipeoutTake'));
     return lines;

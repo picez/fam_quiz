@@ -9,6 +9,7 @@ import {
   moveItem,
   newBlitzRound,
   newBoardRound,
+  newBetsRound,
   newFinalRound,
   newWipeoutQuestion,
   newWipeoutRound,
@@ -171,7 +172,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -216,6 +217,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       if (found.some((problem) => problem.includes(trialPrefix) || problem.includes(t('problemSurvivalTrials')))) setSettingsOpen(true);
       // Суми рівнів і неспалимі лежать у налаштуваннях раунду.
       if (found.some((problem) => problem.includes(t('problemLadderLevels', { max: LIMITS.maxLadderLevel })) || problem.includes(t('problemLadderSafe')))) setSettingsOpen(true);
+      // Ставки: найбільша ставка й числа лежать у налаштуваннях раунду.
+      const betsMaxPrefix = t('problemBetsMax', { min: 0, max: 0 }).split('0')[0];
+      if (found.some((problem) => problem.includes(betsMaxPrefix) || problem.includes(t('problemRules')))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
@@ -464,13 +468,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             <QuestionEditor
               key={current.id}
               question={current}
-              showPoints={round.type !== 'final' && round.type !== 'ladder'}
+              showPoints={round.type !== 'final' && round.type !== 'bets' && round.type !== 'ladder'}
               showReveal={round.type === 'classic'}
               showTime={round.type !== 'ladder' || round.timer}
               fixedOptions={round.type === 'ladder' ? LIMITS.ladderOptions : undefined}
               types={questionTypesFor(round.type)}
               clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
               allowCloud={round.type === 'classic'}
+              betsCut={round.type === 'bets'}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />
             {round.type !== 'final' && (

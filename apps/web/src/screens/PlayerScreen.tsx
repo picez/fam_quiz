@@ -14,6 +14,7 @@ import { secondsLeft } from '../clock';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
+import { BetForm, BetResult, BetsHeader } from './BetsView';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
@@ -769,7 +770,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     !view.autopilot &&
     !instant &&
     ((phase === 'question' && question !== null && me.answer === null) || (phase === 'leaderboard' && me.survival?.canAnswerTrial === true));
-  const draftOn = teamDraftOn || soloDraft;
+  // «Ставки» (27a): хто пропускає запитання, нічого не відповідає й не радить.
+  const betsSkipping = me.bets?.status === 'late' || me.bets?.status === 'low';
+  const draftOn = !betsSkipping && (teamDraftOn || soloDraft);
   // Хід стіни, ланцюжка (і підказка) чи етап блефу міняє відбиток відповіді на сервері: «вже надіслано» скидається.
   const draftKey = [
     view.questionIndex,
@@ -917,6 +920,19 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
+      {phase === 'wager' && me.bets !== undefined && view.bets !== undefined && (
+        <>
+          {acting ? (
+            <BetForm key={view.bets.index} bets={view.bets} mine={me.bets} send={send} />
+          ) : (
+            <>
+              <BetsHeader bets={view.bets} />
+              <p className="lead">{t('teamCaptainWager')}</p>
+            </>
+          )}
+        </>
+      )}
+
       {phase === 'board' && board !== null && (
         <>
           <p className="lead">
@@ -1008,15 +1024,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {answersForTeam && <Perks perks={me.perks} ward={ward} holdSpace onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
-            {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
-            {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {/* У фіналі й «Ставках» гравець грає на ставку: ціни за слово немає. */}
+            {isSort && view.round?.type !== 'final' && view.round?.type !== 'bets' &&<p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {me.ladder?.role === 'contestant' && answersForTeam && (
               <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
             )}
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
             {view.wipeout !== null && (phase === 'question' || phase === 'locked') && <WipeoutStrip info={view.wipeout} highlightId={me.id} />}
-            {teamWatching ? (
+            {betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
+              <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
+            ) : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
@@ -1217,6 +1235,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />
+          ) : betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
+            <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
           ) : isBluff ? (
             <BluffResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
@@ -1244,6 +1264,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
               {queue}
               <Result view={view} />
+              {me.bets !== undefined && view.bets !== undefined && <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />}
             </>
           )}
           {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}

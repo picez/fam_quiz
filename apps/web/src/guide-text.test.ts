@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type GuidePage } from '@quiz/shared';
-import { guidePageText, lowerFirst, roundHow, typeHow, typeIcon, TYPE_ICONS } from './guide-text';
+import { ROUND_ICONS, ROUND_NAMES, guidePageText, lowerFirst, roundHow, typeHow, typeIcon, TYPE_ICONS } from './guide-text';
 import { buffIcon, BUFF_ICONS } from './buff-meta';
-import { activateLocaleForTests } from './i18n';
+import { activateLocaleForTests, t } from './i18n';
 import { roundSummary } from './round-summary';
 
 describe('guide texts', () => {
@@ -62,6 +62,14 @@ describe('guide texts', () => {
     expect(guidePageText({ kind: 'duels', after: 1, questions: 3, stake: 2, final: false }).lead).toEqual(
       expect.arrayContaining(['Після 1 запитання у шапці телефона з’явиться кнопка «⚔ Дуель». Викликати можна до останнього раунду.', 'Переможець забирає в суперника 2 бали.']),
     );
+  });
+});
+
+describe('bets round texts', () => {
+  it('has a name, an icon and a how-it-goes line', () => {
+    expect(t(ROUND_NAMES.bets)).toBe('Ставки');
+    expect(ROUND_ICONS.bets).toBe('🎲');
+    expect(roundHow(emptyBrief('bets'))[0]).toContain('таємна ставка');
   });
 });
 

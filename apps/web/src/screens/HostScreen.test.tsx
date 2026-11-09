@@ -3396,3 +3396,25 @@ describe('HostScreen: prize results (14a)', () => {
     expect(screen.queryByRole('button', { name: 'Церемонія тут' })).toBeNull();
   });
 });
+
+describe('HostScreen: bets (27a)', () => {
+  const betsRound: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'bets', partial: false, description: '', brief: emptyBrief('bets'), times: null };
+  const question: Question = { id: 'q9', type: 'text', text: 'Яке місто є столицею Австралії', imageUrl: null, video: null, timeLimit: 20, points: 1000, accepted: ['Канберра'] };
+  const hostBets = {
+    theme: 'Столиці', index: 0, total: 2, minimum: 200, maximum: null, teaser: 'Яке місто', bank: 400,
+    placed: [{ playerId: 'p1', nickname: 'Олена' }], eligible: 2, rows: null, refund: false, question,
+    wagers: [
+      { playerId: 'p1', nickname: 'Олена', wager: 400, limit: 600, canBet: true },
+      { playerId: 'p2', nickname: 'Тарас', wager: null, limit: 80, canBet: false },
+    ],
+    manual: false, pending: [],
+  };
+
+  it('the host opens the bets question early', () => {
+    const send = show(view({ phase: 'wager', round: betsRound, questionIndex: 0, bets: hostBets }));
+    expect(screen.getByText('Гравці бачать: Яке місто')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Відкрити запитання' })).toHaveLength(1);
+    fireEvent.click(button('Відкрити запитання'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+});

@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -22930,5 +22930,281 @@ async function trophyShapes25e() {
   }
 
   expect(glProblems, 'WebGL or shader messages').toEqual([]);
+  expect(problems).toEqual([]);
+}
+
+it('part 27a: a bets round — a partly visible question, a growing minimum, the bank split, a refund, a zero-score player skipping and the host opening early', async () => {
+  try {
+    await betsGame27a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Кнопка ведучого з витримкою (11b): чекає, доки вона стане активною. */
+async function step27a(host: Page, name: string) {
+  const button = host.getByRole('button', { name, ...exact });
+  await expect.poll(() => button.isDisabled().catch(() => true), { timeout: 15_000 }).toBe(false);
+  await button.click();
+}
+
+/** Ставка на телефоні: заповнює поле й тисне «Поставити». confirm=false — остання ставка: запитання відкривається й форма зникає. Без refusal — чекає «Ваша ставка: N»; з refusal — рядок помилки. */
+async function bet27a(page: Page, amount: number, refusal?: string, confirm = true) {
+  await field(page, 'Ставка').fill(String(amount));
+  await click(page, 'Поставити');
+  if (!confirm) return;
+  if (refusal === undefined) await page.locator('.wager-mine').getByText(`Ваша ставка: ${amount}`, exact).waitFor();
+  else await expect.poll(() => page.locator('.bets-error').textContent(), POLL).toBe(refusal);
+}
+
+/** «Далі» після розкриття; якщо раунд показує таблицю після кожного запитання — ще й «Наступне запитання». */
+async function next27a(host: Page) {
+  await step27a(host, 'Далі');
+  const leaderboard = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  if (await leaderboard.waitFor({ timeout: 3000 }).then(() => true, () => false)) await step27a(host, 'Наступне запитання');
+}
+
+/** Рахунок гравця у шапці його телефона. */
+const phoneScore27a = (page: Page) => page.locator('.bar .score');
+
+async function betsGame27a() {
+  // ── Редактор: класичний раунд і «Ставки» 200 / 100 / найбільша 300 із трьома запитаннями. ──
+  const host = await open('host27a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host27a@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Ставки 27a');
+  await openRoundSettings(host);
+  await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
+  await questionText(host).fill('Яка планета найбільша?');
+  await field(host, 'Варіант 1').fill('Сатурн');
+  await field(host, 'Варіант 2').fill('Юпітер');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Бали').fill('500');
+  await click(host, 'Додати запитання');
+  await click(host, 'текст');
+  await questionText(host).fill('Столиця Франції?');
+  await field(host, 'Написання 1').fill('Париж');
+  await field(host, 'Бали').fill('300');
+
+  await click(host, '+ Раунд');
+  await click(host, 'Ставки');
+  await openRoundSettings(host);
+  await field(host, 'Назва раунду').fill('Тихий банк');
+  await field(host, 'Стартова мінімальна ставка').fill('200');
+  await field(host, 'На скільки мінімум росте з кожним запитанням').fill('100');
+  await field(host, 'Найбільша ставка').fill('300');
+  // Б1: один варіант, видно «Яке місто».
+  await questionText(host).fill('Яке місто є столицею Австралії?');
+  await field(host, 'Варіант 1').fill('Сідней');
+  await field(host, 'Варіант 2').fill('Канберра');
+  await host.keyboard.press('Enter');
+  await host.keyboard.type('Мельбурн');
+  await host.keyboard.press('Enter');
+  await host.keyboard.type('Перт');
+  await field(host, 'Правильний: варіант 2').click();
+  await host.getByRole('radio', { name: 'місто', ...exact }).click();
+  await host.getByText('Під час ставок видно: «Яке місто»', exact).waitFor();
+  // Б2: так/ні, правильна «ні», нічого не видно.
+  await click(host, 'Додати запитання');
+  await click(host, 'так чи ні');
+  await questionText(host).fill('Чи є кит рибою?');
+  await click(host, 'Правильна відповідь: Ні');
+  await host.getByRole('radio', { name: 'Нічого', ...exact }).click();
+  await host.getByText('Під час ставок видно лише тему раунду й номер запитання', exact).waitFor();
+  // Б3: число, видно весь текст.
+  await click(host, 'Додати запитання');
+  await click(host, 'число');
+  await questionText(host).fill('Скільки ніг у павука?');
+  await field(host, 'Правильне число').fill('8');
+  await host.getByRole('radio', { name: 'Увесь текст', ...exact }).click();
+  await host.getByText('Мінімальні ставки за запитаннями: 200, 300, 400', exact).waitFor();
+
+  // Мінімум останнього запитання (400) більший за найбільшу ставку (300): збереження називає проблему.
+  const problem = 'Мінімальна ставка останнього запитання (400) більша за найбільшу ставку (300)';
+  await click(host, 'Зберегти');
+  await host.getByText(problem).first().waitFor();
+  await shot(host, 'bets27a-editor');
+  await field(host, 'Найбільша ставка').fill('600');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Ставки 27a' }).waitFor();
+  expect(await host.getByText(problem).count(), 'the minimum problem after raising the maximum').toBe(0);
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Ставки 27a')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: Record<string, unknown>[] };
+  const storedBets = stored.rounds[1] as { type: string; title: string; betStart: number; betStep: number; betMax: number | null; questions: { betsCut: number }[] };
+  expect(storedBets).toMatchObject({ type: 'bets', title: 'Тихий банк', betStart: 200, betStep: 100, betMax: 600 });
+  expect(storedBets.questions.map((question) => question.betsCut)).toEqual([2, 0, LIMITS.questionText]);
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27a', 1600, 900);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya27a', 375, 812);
+  const taras = await open('taras27a', 360, 740);
+  const ira = await open('ira27a', 360, 740);
+  const jose = await open('jose27a', 320, 640, { locale: 'es-ES' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, ira, jose];
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // Класика: Оля правильно на обидва (800), Тарас — на перше (500), Іра — на друге (300), Хосе — ні на що (0).
+  await olya.getByRole('button', { name: /Юпітер/ }).click();
+  await taras.getByRole('button', { name: /Юпітер/ }).click();
+  await ira.getByRole('button', { name: /Сатурн/ }).click();
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await next27a(host);
+  await field(olya, 'Ваша відповідь').waitFor();
+  await field(olya, 'Ваша відповідь').fill('Париж');
+  await click(olya, 'Відповісти');
+  await field(taras, 'Ваша відповідь').fill('Рим');
+  await click(taras, 'Відповісти');
+  await field(ira, 'Ваша відповідь').fill('Париж');
+  await click(ira, 'Відповісти');
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+
+  // ── Б1 (мінімум 200): видно лише «Яке місто». ──
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await stage.locator('.bets-stage-teaser').getByText('Яке місто', exact).waitFor();
+  await olya.locator('.bets-teaser-text').getByText('Яке місто', exact).waitFor();
+  for (const [name, page] of [['stage', stage], ['Оля', olya]] as const) {
+    const html = await page.content();
+    expect(html, `${name}: the full text during betting`).not.toContain('Австралії');
+    expect(html, `${name}: an option during betting`).not.toContain('Канберра');
+  }
+  await stage.getByText('Запитання 1 з 3', exact).waitFor();
+  await stage.getByText('Мінімальна ставка 200', exact).waitFor();
+  await stage.getByText('Найбільша ставка 600', exact).waitFor();
+  await stage.getByText('Ще ніхто не поставив', { exact: false }).waitFor();
+  await olya.getByText('Ваша ставка від 200 до 600', exact).waitFor();
+  // Хосе (0 балів, es): лише пояснення пропуску, без поля.
+  const skipEs = (es as Record<string, string>).betsSkipLow!.replace('{min}', '200');
+  await jose.locator('.bets-skip').getByText(skipEs, exact).waitFor();
+  expect(await jose.locator('.bets-form input').count(), 'a bet field for a player below the minimum').toBe(0);
+  await expectNoSideScroll(jose, 'bets27a-phone-low-es-320');
+  // Ставка Олі: 700 — відмова; 400 — прийнято.
+  await bet27a(olya, 700, 'Ставка має бути від мінімальної до найбільшої.');
+  await shot(olya, 'bets27a-phone-wager');
+  await bet27a(olya, 400);
+  await bet27a(taras, 200);
+  // Форма ставки не вилазить на 360 і 320 px.
+  await expectNoSideScroll(ira, 'bets27a-phone-form-360');
+  await ira.setViewportSize({ width: 320, height: 640 });
+  await expectNoSideScroll(ira, 'bets27a-phone-form-320');
+  await ira.setViewportSize({ width: 360, height: 740 });
+  // Сцена: «Банк: 600», «Поставили: Оля, Тарас» — без жодної окремої суми.
+  const strip = stage.locator('.bets-stage .bets-strip');
+  await expect.poll(() => strip.textContent(), POLL).toBe('Поставили: Оля, Тарас');
+  await stage.locator('.bank-meter').getByText('Банк: 600', exact).waitFor();
+  expect(await bodyText(stage), 'a stake on the stage').not.toContain('400');
+  // Пульт на ставках: повне запитання й суми.
+  const panel = host.locator('.bets-host');
+  await panel.waitFor();
+  const panelText = await panel.innerText();
+  expect(panelText).toContain('Яке місто є столицею Австралії?');
+  expect(panelText).toContain('400');
+  expect(panelText).toContain('Гравці бачать: Яке місто');
+  await shot(stage, 'bets27a-stage-wager');
+  await shot(host, 'bets27a-host-wager');
+  // Іра — 300: поставили всі, хто може, і запитання відкрилося саме.
+  await bet27a(ira, 300, undefined, false);
+  await olya.getByRole('button', { name: /Канберра/ }).waitFor();
+  await stage.getByText('Яке місто є столицею Австралії?', exact).waitFor();
+  await stage.getByText('Банк: 900', { exact: false }).first().waitFor();
+  expect(await jose.getByRole('button', { name: /Канберра/ }).count(), 'answer buttons for a player who skips').toBe(0);
+  await olya.getByRole('button', { name: /Канберра/ }).click();
+  await taras.getByRole('button', { name: /Сідней/ }).click();
+  await ira.getByRole('button', { name: /Сідней/ }).click();
+  // Відповіли всі, хто грає: запитання закрилося само.
+  await step27a(host, 'Показати відповідь');
+  const rows = stage.locator('.bets-results li');
+  await rows.nth(2).waitFor();
+  const read = async (index: number) => ({
+    name: await rows.nth(index).locator('.name').textContent(),
+    stake: await rows.nth(index).locator('.wager-stake').textContent(),
+    delta: await rows.nth(index).locator('.wager-delta').textContent(),
+  });
+  expect(await read(0)).toEqual({ name: 'Оля', stake: 'ставка 400', delta: '+500' });
+  expect(await read(1)).toEqual({ name: 'Тарас', stake: 'ставка 200', delta: '−200' });
+  expect(await read(2)).toEqual({ name: 'Іра', stake: 'ставка 300', delta: '−300' });
+  await stage.locator('.bets-skipping').getByText('Пропускають: Хосе', exact).waitFor();
+  await shot(stage, 'bets27a-stage-reveal');
+  await olya.locator('.bets-result').getByText('Ставка 400: +500 з банку', exact).waitFor();
+  await shot(olya, 'bets27a-phone-won');
+  for (const [page, score] of [[olya, '1300'], [taras, '300'], [ira, '0'], [jose, '0']] as const) {
+    await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(score);
+  }
+
+  // ── Б2 (мінімум 300): на сцені лише тема й номер запитання. ──
+  await next27a(host);
+  await stage.getByText('Запитання 2 з 3', exact).waitFor();
+  await stage.getByText('Мінімальна ставка 300', exact).waitFor();
+  await stage.getByRole('heading', { name: 'Тихий банк' }).waitFor();
+  expect(await bodyText(stage), 'the question text during betting').not.toContain('кит');
+  expect(await stage.locator('.bets-stage-teaser').count(), 'a teaser with a zero cut').toBe(0);
+  await bet27a(taras, 200, 'Ставка має бути від мінімальної до найбільшої.');
+  await bet27a(taras, 300);
+  await bet27a(olya, 500, undefined, false);
+  // Іра теж пропускає: 0 балів.
+  await ira.locator('.bets-skip').getByText('Ваших балів менше за мінімальну ставку 300 — це запитання ви пропускаєте', exact).waitFor();
+  expect(await ira.locator('.bets-form input').count()).toBe(0);
+  await olya.getByRole('button', { name: 'Так', ...exact }).click();
+  await taras.getByRole('button', { name: 'Ні', ...exact }).click();
+  await step27a(host, 'Показати відповідь');
+  await rows.nth(1).waitFor();
+  expect(await read(0)).toEqual({ name: 'Оля', stake: 'ставка 500', delta: '−500' });
+  expect(await read(1)).toEqual({ name: 'Тарас', stake: 'ставка 300', delta: '+500' });
+  await stage.locator('.bets-skipping').getByText('Пропускають: Іра, Хосе', exact).waitFor();
+  for (const [page, score] of [[olya, '800'], [taras, '800']] as const) {
+    await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(score);
+  }
+
+  // ── Б3 (мінімум 400): видно весь текст, ведучий відкриває сам. ──
+  await next27a(host);
+  await stage.getByText('Запитання 3 з 3', exact).waitFor();
+  await stage.locator('.bets-stage-teaser').getByText('Скільки ніг у павука?', exact).waitFor();
+  await olya.locator('.bets-teaser-text').getByText('Скільки ніг у павука?', exact).waitFor();
+  expect(await field(olya, 'Ваша відповідь').count(), 'an answer field during betting').toBe(0);
+  await bet27a(olya, 400);
+  await step27a(host, 'Відкрити запитання');
+  // Тарас не ставив: бачить пояснення й не має поля відповіді.
+  await taras.locator('.bets-skip').getByText('Ставки закрито без вашої — це запитання ви пропускаєте', exact).waitFor();
+  expect(await field(taras, 'Ваша відповідь').count(), 'an answer field for a player who did not bet').toBe(0);
+  await shot(taras, 'bets27a-phone-late');
+  await field(olya, 'Ваша відповідь').fill('6');
+  await click(olya, 'Відповісти');
+  // Відповіли всі, хто грає: запитання закрилося саме.
+  await step27a(host, 'Показати відповідь');
+  await stage.getByText('Ніхто не відповів правильно — ставки повернуто', exact).waitFor();
+  await olya.locator('.bets-result').getByText('Ніхто не відповів правильно — ставку повернуто', exact).waitFor();
+  await expect.poll(() => phoneScore27a(olya).textContent(), POLL).toBe('800');
+  await shot(stage, 'bets27a-stage-refund');
+
+  // ── Історія гри: «Оля: ставка 400, +500». ──
+  await step27a(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Ставки 27a/ }).click();
+  const question = host.locator('.rows.stacked > li', { hasText: 'Яке місто є столицею Австралії?' });
+  const toggle = question.getByText(/Відповіді \(\d+\)/);
+  if ((await toggle.count()) > 0) await toggle.click();
+  await question.getByText('Оля: ставка 400, +500').waitFor();
+
   expect(problems).toEqual([]);
 }

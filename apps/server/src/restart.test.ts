@@ -1,7 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { makeQuiz, single, text, wordladder } from '@quiz/engine/testing';
+import { betsMinimumNow, betsPlaying } from '@quiz/engine';
+import { betsRound, makeQuiz, makeRoundsQuiz, single, text, withId, wordladder } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -198,6 +199,61 @@ describe('a server restart', () => {
     expect(mine.role === 'player' && mine.me.wordladder?.words).toEqual(['пола', 'пора']);
     expect(second.ctx.manager.get(started.code)?.state.plays[0]?.wordladder).toEqual(before);
   });
+
+  it('a restored bets room keeps the wagers and who plays', async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeRoundsQuiz([betsRound('b', [withId(single, 'b1')])]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const viraJoin = await join(first.ctx, started.code, 'Віра');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    const vira = client(first.port, { code: started.code, role: 'player', token: viraJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 3);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('wager'));
+    // Віра лишається без балів і не може ставити.
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 800 })).toEqual({ ok: true });
+    expect(await send(host, 'host:adjust', { playerId: tarasJoin.playerId, points: 500 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wager', { amount: 300 })).toEqual({ ok: true });
+    // Тарас ще не поставив: ставки не закриті.
+    const early = { [olenaJoin.playerId]: 300 };
+    const wagers = { [olenaJoin.playerId]: 300, [tarasJoin.playerId]: 200 };
+    expect(first.ctx.manager.get(started.code)?.state.final?.wagers).toEqual(early);
+    const minimum = betsMinimumNow(first.ctx.manager.get(started.code)!.state);
+    expect(minimum).toBe(200);
+
+    // Збережена на етапі ставок: ставки й мінімум ті самі.
+    await first.ctx.shutdown();
+    host.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'wager' && view.paused);
+    const restoredWager = second.ctx.manager.get(started.code)!.state;
+    expect(restoredWager.final?.wagers).toEqual(early);
+    expect(betsMinimumNow(restoredWager)).toBe(minimum);
+
+    // Тарас ставить — ставили всі, хто може, і запитання відкрито; збережена на запитанні — той, хто пропускає, і далі отримує bet_skipped.
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    await until(taras, (view) => view.phase === 'wager' && !view.paused);
+    expect(await send(taras, 'player:wager', { amount: 200 })).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question' && !view.paused);
+    expect(second.ctx.manager.get(started.code)?.state.plays[0].final?.wagers).toEqual(wagers);
+    await second.ctx.shutdown();
+    host.last = vira.last = null;
+    const third = await boot(db, 'c', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question' && view.paused);
+    const restoredQuestion = third.ctx.manager.get(started.code)!.state;
+    expect(restoredQuestion.plays[0].final?.wagers).toEqual(wagers);
+    expect([...(betsPlaying(restoredQuestion) ?? [])].sort()).toEqual([olenaJoin.playerId, tarasJoin.playerId].sort());
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    await until(vira, (view) => view.phase === 'question' && !view.paused);
+    expect(await send(vira, 'player:answer', correct)).toEqual({ ok: false, error: 'bet_skipped' });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+  }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {
     const db = await createTestDb();

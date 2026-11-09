@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -2372,5 +2372,69 @@ describe('stable question ids (17a)', () => {
       const question = newQuestion(type);
       expect(duplicateQuestion(question).id).not.toBe(question.id);
     }
+  });
+});
+
+describe('bets round (27a)', () => {
+  const single = (text: string, betsCut?: number): Question => {
+    const q = filled(newQuestion('single'));
+    return { ...q, text, ...(betsCut === undefined ? {} : { betsCut }) };
+  };
+  const quizWith = (round: ReturnType<typeof newBetsRound>): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [round] });
+
+  it('a new bets round has the default start, step and no maximum', () => {
+    expect(newBetsRound()).toMatchObject({ type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: LIMITS.defaultBetStart, betStep: LIMITS.defaultBetStep, betMax: null });
+    expect(newBetsRound().questions).toHaveLength(1);
+    expect(newBetsRound().questions[0].betsCut).toBeUndefined();
+  });
+
+  it('bets questions allow the same types as the final', () => {
+    expect(questionTypesFor('bets')).toEqual(questionTypesFor('final'));
+  });
+
+  it('a maximum below the last minimum is a problem with both numbers', () => {
+    const round = { ...newBetsRound(), betMax: 300, questions: [single('А', 1), single('Б', 1), single('В', 1)] };
+    expect(problemsOf(quizWith(round))).toContain(t('problemBetsMax', { min: 400, max: 300 }));
+    expect(problemsOf(quizWith({ ...round, betMax: 400 }))).toEqual([]);
+  });
+
+  it('a question without a cut is a problem', () => {
+    const round = { ...newBetsRound(), questions: [single('Яке місто?')] };
+    expect(problemsOf(quizWith(round))).toContain(t('problemBetsCut'));
+    expect(firstProblem(quizWith(round))).toEqual({ round: 0, question: 0, cell: null });
+  });
+
+  it('a question moved out of a bets round loses its cut', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [single('Яке місто?', 2)] }] };
+    const [round] = cleaned(quiz).rounds;
+    expect('betsCut' in roundQuestions(round)[0]).toBe(false);
+  });
+
+  it('a spare and a final question lose a stray cut too', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newFinalRound(), questions: [single('Яке місто?', 2)] }], spares: [single('Запасне?', 1)] };
+    const result = cleaned(quiz);
+    expect(roundQuestions(result.rounds[0])[0].betsCut).toBeUndefined();
+    expect(result.spares?.[0].betsCut).toBeUndefined();
+  });
+
+  it('a bets draft passes the schema after cleaning', () => {
+    const round = { ...newBetsRound(), betMax: 600, questions: [single('Яке місто є столицею?', 2), single('Яка річка?', 0)] };
+    const quiz = quizWith(round);
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+    expect(roundQuestions(cleaned(quiz).rounds[0]).map((q) => q.betsCut)).toEqual([2, 0]);
+  });
+
+  it('a bets draft survives session storage', () => {
+    const round = { ...newBetsRound(), betMax: 600, questions: [single('Яке місто?', 2)] };
+    saveDraft('bets-x', quizWith(round));
+    const loaded = loadDraft('bets-x');
+    expect(loaded?.rounds[0]).toMatchObject({ type: 'bets', betStart: 200, betStep: 100, betMax: 600 });
+    expect(roundQuestions(loaded!.rounds[0])[0].betsCut).toBe(2);
+  });
+
+  it('a bets question may be a word ladder', () => {
+    const round = { ...newBetsRound(), questions: [{ ...filled(newQuestion('wordladder')), betsCut: 1 }] };
+    expect(problemsOf(quizWith(round))).toEqual([]);
   });
 });

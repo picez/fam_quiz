@@ -4,6 +4,7 @@ import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markT
 import { t, type TextKey } from '../i18n';
 import { stageAwayText } from '../away-text';
 import { AwayLabel } from './AwayLabel';
+import { BetsResults, BetsStage, BetsStrip } from './BetsView';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
@@ -259,6 +260,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
         )}
       </header>
       <StageAnswerers view={view} />
+      {(view.phase === 'question' || view.phase === 'locked') && view.bets !== undefined && <BetsStrip bets={view.bets} />}
       {view.wipeout !== null && view.wipeout.current >= 0 && (
         <p className="meta wipeout-strip">
           {t('wipeoutStageStrip', { index: view.wipeout.current + 1, total: view.wipeout.ladder.length, price: num(view.wipeout.ladder[view.wipeout.current] ?? 0) })}
@@ -299,6 +301,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           </div>
         )}
       </div>
+      {view.phase === 'reveal' && view.bets !== undefined && <BetsResults bets={view.bets} players={view.players} />}
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
       {question.clues !== null && !finalReveal && (
         <CluesList clues={question.clues} offsetMs={offsetMs} all={reveal?.type === 'clues' ? reveal.clues : undefined} big />
@@ -901,6 +904,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
       {phase === 'wager' && <FinalStage view={view} />}
+      {phase === 'wager' && view.bets !== undefined && <BetsStage bets={view.bets} />}
       {phase === 'intro' && <Intro view={view} showPrizes={showPrizes} />}
       {phase === 'board' && view.board !== null && <BoardStage board={view.board} />}
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}

@@ -3,6 +3,7 @@ import { clueShare, reactionAllowed, revealShare, type Answer, type Reaction, ty
 import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
+import { HostBetsPanel } from './BetsView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -245,8 +246,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const guideLast = guide !== null && guide.page >= guide.pages.length - 1;
   // У фіналі свої підписи головної кнопки; без розкритих гравців «Далі» лишається звичайним.
   const duelStage = view.duel?.stage ?? null;
-  const main =
-    duelStage === 'declared' && (phase === 'intro' || phase === 'reveal' || phase === 'leaderboard' || phase === 'round_end')
+  // «Ставки»: на етапі ставок головна кнопка відкриває запитання.
+  const betsWager = view.bets !== undefined && phase === 'wager';
+  const betsPanel = view.bets !== undefined && (phase === 'wager' || phase === 'question' || phase === 'locked' || phase === 'reveal');
+  const main = betsWager
+    ? { label: 'betsOpen' as const, event: 'host:next' as const }
+    : duelStage === 'declared' && (phase === 'intro' || phase === 'reveal' || phase === 'leaderboard' || phase === 'round_end')
       ? { label: 'duelStart' as const, event: 'host:next' as const }
       : phase === 'duel'
         ? duelStage === 'answer'
@@ -843,6 +848,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </button>
           </div>
         </section>
+      )}
+
+      {view.bets !== undefined && betsPanel && (
+        <HostBetsPanel bets={view.bets} send={send} openButton={false} presented={view.question?.choices} onError={setError} />
       )}
 
       {phase === 'wager' && final !== null && (

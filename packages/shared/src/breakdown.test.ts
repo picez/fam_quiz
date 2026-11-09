@@ -3,13 +3,14 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder']);
+    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets']);
   });
 
   it('classifies answer rows by round type', () => {
     for (const type of ['classic', 'blitz', 'board', 'survival', 'ladder'] as const) expect(answerSource(type)).toBe('answers');
     expect(answerSource('final')).toBe('final');
     expect(answerSource('wipeout')).toBe('wipeout');
+    expect(answerSource('bets')).toBe('bets');
     expect(answerSource(undefined)).toBe('answers');
   });
 

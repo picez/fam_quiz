@@ -92,6 +92,8 @@ describe('uk golden (22a)', () => {
   const ADDED_26A = ['splashBlitz'];
   /** 26c: словесна драбина — назви типу, формат відповіді, рядок наживо, помилки ходу. Задачі 7–9 дописують сюди свої. */
   const ADDED_26C = ['type_wordladder', 'typeShort_wordladder', 'typeHow_wordladder', 'buffWhy_off_wordladder', 'wordLadderAnswerDone', 'wordLadderAnswerPart', 'wordLadderLiveSteps', 'err_word_one_letter', 'err_word_unknown', 'err_word_repeat', 'err_word_none', 'err_word_too_many', 'wordLadderStart', 'wordLadderStepN', 'addWordLadderStep', 'removeWordLadderStep', 'wordLadderTarget', 'wordLadderMaxSteps', 'wordLadderHint', 'wordLadderUnknown', 'problemWordLadderWord', 'problemWordLadderLength', 'problemWordLadderStep', 'problemWordLadderSteps', 'problemWordLadderMaxSteps', 'problemWordLadderPlace', 'wordLadderGoal', 'wordLadderLabel', 'wordLadderAdd', 'wordLadderBack', 'wordLadderDone', 'wordLadderOut', 'wordLadderMax_one', 'wordLadderMax_few', 'wordLadderMax_many', 'problemWordLadderEmpty', 'wordLadderWait', 'wordLadderGap', 'wordLadderOnPhone', 'wordLadderFinishedOf', 'wordLadderTitle', 'wordLadderRowSteps', 'wordLadderRowFinished', 'wordLadderHostPath'];
+  /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
+  const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
 
@@ -105,7 +107,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key))).toEqual([]);
   });
 });
 

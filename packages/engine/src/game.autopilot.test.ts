@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autopilotQuiz, BUFF_KINDS, type Quiz } from '@quiz/shared';
+import { AUTOPILOT_MS, autopilotQuiz, BUFF_KINDS, type Quiz } from '@quiz/shared';
 import {
   anyonePresent,
   authorPause,
@@ -16,7 +16,8 @@ import { buffBlock, takeBuff } from './buffs';
 import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
 import { captainOf, dealTeams, pickTeam, rollTeamRest, setTeamForm, teamMembers } from './teams';
-import { bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { answerAs, commit, drive } from './testing/autopilot';
+import { betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
 
@@ -328,5 +329,38 @@ describe('author bluff removal (11g final review)', () => {
     const s = soloChoice();
     const { autopilot: _pilot, ...hosted } = s;
     expect(authorRemoveBluff(hosted, option(s, 'Мілан').id)).toEqual(NOT_ALLOWED);
+  });
+});
+
+describe('autopilot bets round (27a)', () => {
+  it('the autopilot walks a bets round', () => {
+    const quiz = autopilotQuiz(makeRoundsQuiz([classicRound('r1', [single]), betsRound('r2', [withId(single, 'b1'), withId(single, 'b2')], { check: 'manual' })]));
+    expect(quiz.rounds[1]).toMatchObject({ type: 'bets', check: 'auto' });
+    const lobby = pilotLobby(quiz, 'Ігор', 'Олена');
+    const started = commit(lobby, must(autopilotStart(lobby, T0, rng)), T0);
+    const wagers: number[] = [];
+    const opens: number[] = [];
+    const bets: Record<string, number>[] = [];
+    const { state } = drive(started, {
+      now: T0,
+      rng,
+      // Олена (p3) відповідає, але не ставить: на ставках чекають і на неї, тож запитання відкриває автопілот; далі вона пропускає.
+      people: (s, now) => answerAs(s.phase === 'wager' ? { idle: ['p3'] } : {})(s, now),
+      watch: (prev, next, now) => {
+        if (prev.phase !== 'wager' && next.phase === 'wager') wagers.push(now);
+        if (prev.phase === 'wager' && next.phase === 'question') {
+          opens.push(now);
+          bets.push(next.plays[next.questionIndex].final?.wagers ?? {});
+        }
+      },
+    });
+    expect(state.phase).toBe('finished');
+    expect(opens).toHaveLength(2);
+    opens.forEach((at, i) => expect(at - wagers[i]).toBeGreaterThanOrEqual(AUTOPILOT_MS.wager));
+    // Бот ставить мінімум; мінімум росте на крок.
+    expect(bets).toEqual([
+      { a: 200, p2: 200 },
+      { a: 300, p2: 300 },
+    ]);
   });
 });

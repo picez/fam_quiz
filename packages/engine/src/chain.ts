@@ -1,6 +1,7 @@
 import { rulesOf, type ChainMask, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { betsPlaying, betsRefusal, wagerRound } from './bets';
 import { presentPlayers } from './present';
 import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type ChainProgress, type GameState, type Play, type Result } from './game';
 import { normalizeText } from './normalize';
@@ -60,6 +61,8 @@ function checkTurn(state: GameState, playerId: string, now: number): Checked {
   if (state.paused) return { ok: false, result: fail('paused') };
   if (notStarted(state, now)) return { ok: false, result: fail('not_started') };
   if (!state.players.some((p) => p.id === playerId)) return { ok: false, result: fail('not_found') };
+  const skipped = betsRefusal(state, playerId);
+  if (skipped !== null) return { ok: false, result: fail(skipped) };
   const play = chainPlay(state);
   if (play === null) return { ok: false, result: fail('type_mismatch') };
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return { ok: false, result: fail('already_answered') };
@@ -72,9 +75,9 @@ function withProgress(state: GameState, play: Play, playerId: string, progress: 
   return withPlay(state, { ...play, chain: { ...play.chain, [playerId]: progress } });
 }
 
-/** Чи зіграно запитання в раунді фіналу. */
+/** Чи зіграно запитання в раунді зі ставками (фінал чи «Ставки»). */
 function isFinal(state: GameState, play: Play): boolean {
-  return state.quiz.rounds[play.roundIndex]?.type === 'final';
+  return wagerRound(state.quiz.rounds[play.roundIndex]);
 }
 
 function wagerOf(play: Play, playerId: string): number {
@@ -124,10 +127,11 @@ export function takeHint(state: GameState, playerId: string, now: number): Resul
   return ok(withProgress(state, play, playerId, { ...progress, shown: progress.shown + 1, hints }));
 }
 
-/** Кожен підключений (і хоч один) пройшов або, якщо now не null, вичерпав свій час. */
+/** Кожен підключений (і хоч один; у «Ставках» — з тих, хто грає) пройшов або, якщо now не null, вичерпав свій час. */
 export function chainDone(state: GameState, now: number | null): boolean {
   if (state.phase !== 'question' || chainPlay(state) === null) return false;
-  const connected = presentPlayers(state);
+  const playing = betsPlaying(state);
+  const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   return (
     connected.length > 0 &&
     connected.every((p) => {

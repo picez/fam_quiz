@@ -744,6 +744,61 @@ export interface HostFinal extends FinalInfo {
   splitNext: boolean;
 }
 
+/** «Ставки» (27a): ставка й виграш гравця, що грав запитання (лише reveal). */
+export interface BetsRow {
+  playerId: string;
+  nickname: string;
+  wager: number;
+  grade: Grade;
+  /** Бали за запитання (вже після банку). */
+  points: number;
+  score: number;
+}
+
+/** «Ставки» для всіх ролей: до відкриття — лише початок тексту; чужих сум до reveal немає. */
+export interface BetsInfo {
+  /** Тема — назва раунду (може бути порожньою). */
+  theme: string;
+  /** Номер запитання від 0 і скільки їх у раунді. */
+  index: number;
+  total: number;
+  minimum: number;
+  /** Найбільша ставка раунду; null — усі свої бали. */
+  maximum: number | null;
+  /** Лише на wager: видимий початок тексту ('' — нічого); інакше null. */
+  teaser: string | null;
+  /** wager — сума зроблених ставок; question…reveal — сума ставок тих, хто грає. */
+  bank: number;
+  /** wager — хто вже поставив; question…reveal — хто грає. Без сум. */
+  placed: { playerId: string; nickname: string }[];
+  /** Скільки присутніх можуть ставити (лише wager; інакше 0). */
+  eligible: number;
+  /** Лише reveal: усі, хто грав, у порядку гравців; інакше null. */
+  rows: BetsRow[] | null;
+  /** Лише reveal: ніхто не відповів правильно — ставки повернуто. */
+  refund: boolean;
+}
+
+export interface HostBets extends BetsInfo {
+  /** Повне запитання k — і на wager. */
+  question: Question;
+  /** Ставки всіх гравців наживо; null — ще не поставив; canBet — межа ≥ мінімуму. */
+  wagers: { playerId: string; nickname: string; wager: number | null; limit: number; canBet: boolean }[];
+  manual: boolean;
+  /** Відповіді, що чекають на ручну оцінку (manual, answer не null, гравця немає в graded). */
+  pending: { playerId: string; nickname: string; answer: Answer }[];
+}
+
+/** Власний стан у «Ставках»: low — межа < мінімуму; late — запитання відкрито без ставки; playing — грає. */
+export interface PlayerBets {
+  status: 'choosing' | 'placed' | 'low' | 'late' | 'playing';
+  wager: number | null;
+  minimum: number;
+  limit: number;
+  /** wager, не пауза, status choosing|placed. */
+  canBet: boolean;
+}
+
 /** Останнє коригування від ведучого чи його скасування, для короткого сповіщення. */
 export interface AdjustmentNotice {
   seq: number;
@@ -1185,6 +1240,8 @@ interface BaseView {
   spotlight: Spotlight | null;
   /** Фінал; null поза раундом фіналу й поза етапами intro, wager, question, locked, reveal. */
   final: FinalInfo | null;
+  /** «Ставки» (27a): від intro до leaderboard раунду bets; поза ним ключа немає. */
+  bets?: BetsInfo;
   /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
@@ -1387,6 +1444,8 @@ export interface PlayerView extends BaseView {
     blitz: PlayerBlitz | null;
     /** Власна ставка й її межа; allIn — ставка дорівнює межі й більша за 0; null поза фіналом. */
     final: { wager: number | null; limit: number; allIn: boolean } | null;
+    /** «Ставки» (27a): власна ставка й статус; поза раундом bets (intro…leaderboard) ключа немає. */
+    bets?: PlayerBets;
     /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
     wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
     /** Власний стан у «Вибуванні»; null поза раундом. */
@@ -1594,6 +1653,8 @@ export interface HostView extends BaseView {
   /** Як у BaseView. */
   board: HostBoard | null;
   final: HostFinal | null;
+  /** Як у BaseView, але з повним запитанням, ставками й межами всіх. */
+  bets?: HostBets;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
   /** Як у BaseView, але і у фіналі. */

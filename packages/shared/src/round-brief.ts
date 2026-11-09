@@ -31,9 +31,11 @@ export interface RoundBrief {
   survival: { trial: TrialKind; survivors: number; bonus: number } | null;
   /** «Мільйонер»: як вибирається учасник, підказки, верхній рівень, чи є таймер; null поза ним. */
   ladder: { pick: LadderPick; lifelines: LifelineKind[]; top: number; timer: boolean } | null;
+  /** «Ставки»: початок, крок і найбільша ставка (null — усі свої бали), запитань; null поза ним. */
+  bets: { betStart: number; betStep: number; betMax: number | null; count: number } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival і ladder null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder і bets null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -52,12 +54,16 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     wagerMode: null,
     survival: null,
     ladder: null,
+    bets: null,
   };
 }
 
 export function roundBrief(round: Round): RoundBrief {
   const base = emptyBrief(round.type);
   if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
+  if (round.type === 'bets') {
+    return { ...base, bets: { betStart: round.betStart, betStep: round.betStep, betMax: round.betMax, count: round.questions.length } };
+  }
   if (round.type === 'wipeout') return base;
   if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };
   const rules = rulesOf(round);
