@@ -2858,5 +2858,21 @@
   "ruleSeriesPlus": "Plus streak: each correct answer in a row gives one step more",
   "ruleSeriesMinus": "Minus streak: each wrong answer in a row takes one step more",
   "ruleSeriesStep": "Step, points",
-  "ruleSeriesMinusPenalty": "The minus streak already penalizes mistakes"
+  "ruleSeriesMinusPenalty": "The minus streak already penalizes mistakes",
+  "studioPlace_base_back": "Back of the base",
+  "studioStickerAdd": "+ Add a sticker",
+  "studioStickerTitleAdd": "New sticker",
+  "studioStickerTitleEdit": "Change the sticker",
+  "studioStickerPick": "Sticker",
+  "studioStickerWhere": "Where to stick it",
+  "studioStickerDone": "Done",
+  "studioStickerCancel": "Cancel",
+  "studioStickerChange": "Change",
+  "studioStickerRemove": "Remove",
+  "studioStickerNoRoom": "No free places — remove something to add a sticker.",
+  "studioStickerMax": "There are already {n} stickers — no more allowed.",
+  "studioTakenBy": "Taken: {what}",
+  "studioMovedTo": "“{from}” is taken ({what}), so it is here: “{to}”.",
+  "studioNoPlace": "Does not fit: “{from}” is taken ({what}) and there is no free place.",
+  "studioTaken_sticker": "a sticker"
 }

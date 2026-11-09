@@ -131,7 +131,8 @@ export type StudioAction =
   | { type: 'frame'; frame: TrophyPhotoFrame }
   | { type: 'photoStyle'; style: TrophyPhotoStyle }
   | { type: 'inscription'; place: InscriptionPlace; value: Inscription | null }
-  | { type: 'sticker'; place: StickerPlace; id: string | null }
+  /** from — звідки переїжджає змінювана наліпка: її там прибирають. */
+  | { type: 'sticker'; place: StickerPlace; id: string | null; from?: StickerPlace }
   | { type: 'effect'; kind: TrophyEffect; color?: string }
   | { type: 'appearance'; appearance: TrophyAppearance };
 
@@ -195,7 +196,7 @@ export function studioReducer(draft: StudioDraft, action: StudioAction): StudioD
       return withDecor(draft, { inscriptions });
     }
     case 'sticker': {
-      const others = decor.stickers.filter((s) => s.place !== action.place);
+      const others = decor.stickers.filter((s) => s.place !== action.place && s.place !== action.from);
       const stickers = action.id === null ? others : [...others, { id: action.id, place: action.place }];
       stickers.sort((a, b) => STICKER_PLACES.indexOf(a.place) - STICKER_PLACES.indexOf(b.place));
       return withDecor(draft, { stickers });

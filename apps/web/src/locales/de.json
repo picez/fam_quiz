@@ -2858,5 +2858,21 @@
   "ruleSeriesPlus": "Plus-Serie: Jede richtige Antwort in Folge gibt einen Schritt mehr",
   "ruleSeriesMinus": "Minus-Serie: Jede falsche Antwort in Folge nimmt einen Schritt mehr ab",
   "ruleSeriesStep": "Schritt, Punkte",
-  "ruleSeriesMinusPenalty": "Die Minus-Serie bestraft Fehler bereits"
+  "ruleSeriesMinusPenalty": "Die Minus-Serie bestraft Fehler bereits",
+  "studioPlace_base_back": "Sockel hinten",
+  "studioStickerAdd": "+ Sticker hinzufügen",
+  "studioStickerTitleAdd": "Neuer Sticker",
+  "studioStickerTitleEdit": "Sticker ändern",
+  "studioStickerPick": "Sticker",
+  "studioStickerWhere": "Wohin kleben",
+  "studioStickerDone": "Fertig",
+  "studioStickerCancel": "Abbrechen",
+  "studioStickerChange": "Ändern",
+  "studioStickerRemove": "Entfernen",
+  "studioStickerNoRoom": "Keine freien Plätze — entferne etwas, um einen Sticker hinzuzufügen.",
+  "studioStickerMax": "Es sind schon {n} Sticker — mehr geht nicht.",
+  "studioTakenBy": "Belegt: {what}",
+  "studioMovedTo": "„{from}“ ist belegt ({what}), deshalb hier: „{to}“.",
+  "studioNoPlace": "Passt nicht: „{from}“ ist belegt ({what}), kein freier Platz.",
+  "studioTaken_sticker": "Sticker"
 }

@@ -21929,10 +21929,15 @@ async function trophyEditor25c() {
   // ── 2. «Форма»: кубок, золото, наліпка спереду — перша з серії nya. ──
   await radio(olya, 'кубок').check();
   await radio(olya, 'Золото').check();
-  await studio.locator('.studio-sticker-toggle', { hasText: 'Спереду' }).click();
-  const frontSheet = studio.getByRole('group', { name: 'Спереду', ...exact });
-  await frontSheet.getByRole('button', { name: nya.id, ...exact }).click();
-  await expect.poll(() => frontSheet.getByRole('button', { name: nya.id, ...exact }).getAttribute('aria-pressed'), POLL).toBe('true');
+  // 25d: «+ Додати наліпку» → вікно наліпки → місце «Спереду».
+  await studio.getByRole('button', { name: '+ Додати наліпку', ...exact }).click();
+  const stickerDialog = olya.getByRole('dialog', { name: 'Нова наліпка', ...exact });
+  await stickerDialog.getByRole('button', { name: nya.id, ...exact }).click();
+  await expect.poll(() => stickerDialog.getByRole('button', { name: nya.id, ...exact }).getAttribute('aria-pressed'), POLL).toBe('true');
+  await stickerDialog.getByRole('radio', { name: 'Спереду', ...exact }).check();
+  await stickerDialog.getByRole('button', { name: 'Готово', ...exact }).click();
+  await stickerDialog.waitFor({ state: 'detached' });
+  await studio.locator('.studio-sticker-row', { hasText: 'Спереду' }).waitFor();
   await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:none;stickers:front');
 
   // ── 3. «Фото»: три PNG на кільце, третє переставлено на початок, перше (тепер синє) кадроване в 2×, золота рамка. ──

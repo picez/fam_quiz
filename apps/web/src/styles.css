@@ -14274,7 +14274,7 @@ button.wall-tile:disabled {
   cursor: pointer;
 }
 
-/* Наліпки: кнопка місця з мініатюрою розкриває сітку за серіями. */
+/* Наліпки: список доданих (мініатюра, фактичне місце, «Змінити», «Прибрати») і «+ Додати наліпку». */
 .studio-group-title {
   margin: 0;
   font-size: 1rem;
@@ -14288,17 +14288,50 @@ button.wall-tile:disabled {
   min-width: 0;
 }
 
-.studio-sticker-toggle {
+.studio-sticker-list {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
-  min-height: 2.75rem;
-  width: 100%;
-  justify-content: flex-start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.studio-sticker-toggle[aria-expanded='true'] {
-  border-color: var(--accent);
+.studio-sticker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.studio-sticker-where {
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.studio-sticker-where .meta {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.studio-sticker-row .btn,
+.studio-sticker-add {
+  min-height: 2.75rem;
+}
+
+.studio-sticker-add {
+  align-self: flex-start;
+}
+
+.studio-sticker-why {
+  margin: 0;
 }
 
 .studio-sticker-thumb {
@@ -14316,22 +14349,6 @@ button.wall-tile:disabled {
   width: 2rem;
   height: 2rem;
   object-fit: contain;
-}
-
-.studio-sticker-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-block-start: 0.5rem;
-}
-
-.studio-sticker-none {
-  align-self: flex-start;
-  min-height: 2.75rem;
-}
-
-.studio-sticker-none[aria-pressed='true'] {
-  border-color: var(--accent);
 }
 
 /* Серія поза екраном не малюється, доки до неї не догорнуть. */
@@ -14451,6 +14468,57 @@ button.wall-tile:disabled {
 
 .crop-actions .btn {
   min-height: 2.75rem;
+}
+
+/* Вікно наліпки: сітка за серіями прокручується всередині, телефон 320 px — без бічного прокручування. */
+.sticker-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(100%, 32rem);
+  max-height: calc(100dvh - 1rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.sticker-dialog:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.sticker-dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.sticker-dialog-places label {
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.sticker-dialog-places label.is-taken {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sticker-dialog-taken {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.sticker-dialog .crop-actions {
+  justify-content: flex-end;
 }
 
 @media (min-width: 900px) {

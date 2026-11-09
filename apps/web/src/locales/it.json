@@ -2902,5 +2902,21 @@
   "ruleSeriesPlus": "Serie positiva: ogni risposta giusta di fila dà un passo in più",
   "ruleSeriesMinus": "Serie negativa: ogni risposta sbagliata di fila toglie un passo in più",
   "ruleSeriesStep": "Passo, punti",
-  "ruleSeriesMinusPenalty": "La serie negativa penalizza già gli errori"
+  "ruleSeriesMinusPenalty": "La serie negativa penalizza già gli errori",
+  "studioPlace_base_back": "Retro della base",
+  "studioStickerAdd": "+ Aggiungi sticker",
+  "studioStickerTitleAdd": "Nuovo sticker",
+  "studioStickerTitleEdit": "Cambia lo sticker",
+  "studioStickerPick": "Sticker",
+  "studioStickerWhere": "Dove attaccarlo",
+  "studioStickerDone": "Fatto",
+  "studioStickerCancel": "Annulla",
+  "studioStickerChange": "Cambia",
+  "studioStickerRemove": "Rimuovi",
+  "studioStickerNoRoom": "Nessun posto libero: rimuovi qualcosa per aggiungere uno sticker.",
+  "studioStickerMax": "Ci sono già {n} sticker: non se ne possono aggiungere altri.",
+  "studioTakenBy": "Occupato: {what}",
+  "studioMovedTo": "«{from}» è occupato ({what}), quindi è qui: «{to}».",
+  "studioNoPlace": "Non ci sta: «{from}» è occupato ({what}) e non c’è un posto libero.",
+  "studioTaken_sticker": "uno sticker"
 }

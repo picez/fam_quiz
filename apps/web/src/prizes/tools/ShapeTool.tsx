@@ -5,7 +5,7 @@ import { TROPHY_EMOJI } from '../../trophy/trophy-meta';
 import type { ToolProps } from '../PrizeStudio';
 import { StickerPicker } from './StickerPicker';
 
-/** «Форма»: вид трофея (шість і «Без трофея»), матеріал і наліпки на місця форми; кубок на сцені змінюється одразу. */
+/** «Форма»: вид трофея (шість і «Без трофея»), матеріал і наліпки на вільні місця форми; кубок на сцені змінюється одразу. */
 export function ShapeTool({ draft, dispatch, level, stored }: ToolProps): JSX.Element {
   const kind = draft.trophy?.kind ?? null;
   return (
@@ -46,10 +46,10 @@ export function ShapeTool({ draft, dispatch, level, stored }: ToolProps): JSX.El
           </h2>
           <StickerPicker
             kind={draft.trophy.kind}
-            stickers={draft.decor.stickers}
+            decor={draft.decor}
             level={level}
             kept={stored?.stickers.map((s) => s.id)}
-            onPick={(place, id) => dispatch({ type: 'sticker', place, id })}
+            onPick={(place, id, from) => dispatch({ type: 'sticker', place, id, from })}
           />
         </section>
       )}
