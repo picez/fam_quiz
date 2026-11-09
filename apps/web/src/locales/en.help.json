@@ -543,6 +543,7 @@
   "round.bets.limits.0": "The last question's minimum bet is no more than the maximum; bets up to {maxBet}.",
   "round.bets.limits.1": "The same question types as in the final.",
   "round.bets.limits.2": "No buffs, debuff shop or “Undo”.",
+  "round.bets.limits.3": "The maximum bet is optional: if it is not set, a player can bet all their points. A bet can never exceed the player's points.",
   "round.bets.points.0": "Whoever answers correctly keeps their bet and shares the bank (the bets of those who were wrong or didn't answer) in proportion to the bets.",
   "round.bets.points.1": "If nobody answers correctly, all bets are returned.",
   "round.bets.points.2": "No question price, round rules, speed bonus or buffs here.",

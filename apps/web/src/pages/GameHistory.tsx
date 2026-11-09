@@ -191,12 +191,12 @@ export function survivalBonusLines(adjustments: GameAdjustment[]): string[] {
     .map((adjustment) => t('historySurvivalBonus', { name: adjustment.nickname, points: num(adjustment.points) }));
 }
 
-/** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
 /** Рядок ставки: у фіналі й у раунді «Ставки» різні формулювання. */
 export function wagerLine(bets: boolean, entry: { nickname: string; wager: number; points: number }): string {
   return t(bets ? 'betsHistoryLine' : 'finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
+/** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
 export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, question: GameQuestionResult['question']): string[] {
   const choices = choicesOf(question);
   const text = (id: string) => choices.find((choice) => choice.id === id)?.text ?? id;
