@@ -61,14 +61,14 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
   // Чаша 0.66–0.94 (r 0.22→0.33, ручки на ±X), вінець 0.95–1.0, кругла ніжка 0.2–0.25, постамент half 0.26 (грань 0.184).
   cup: {
     ring: {
-      y: 0.8,
-      height: 0.28,
-      radiusTop: 0.345,
-      radiusBottom: 0.26,
+      y: 0.83,
+      height: 0.22,
+      radiusTop: 0.34,
+      radiusBottom: 0.272,
       segments: 0,
       tori: [
         { y: 0.94, radius: 0.34, tube: 0.012 },
-        { y: 0.66, radius: 0.255, tube: 0.012 },
+        { y: 0.72, radius: 0.272, tube: 0.012 },
       ],
     },
     rim: {
@@ -90,7 +90,7 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     stickers: {
       front: spot([0, 0.75, 0.3], unit(0, -0.2, 1), 0.12),
       back: spot([0, 0.75, -0.3], unit(0, -0.2, -1), 0.12),
-      // Повернуті на 50° від осі ручок (±X) до переду: на чаші між ручкою й front.
+      // Повернуті на 40° від осі ручок (±X) до переду: на чаші між ручкою й front.
       left: spot([-0.21, 0.75, 0.177], unit(-0.766, -0.2, 0.643), 0.12),
       right: spot([0.21, 0.75, 0.177], unit(0.766, -0.2, 0.643), 0.12),
       'base-left': spot([-0.186, 0.1, 0], LEFT, 0.12),
@@ -124,7 +124,7 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     },
     band: { y: 0.14, height: 0.05, radiusTop: 0.362, radiusBottom: 0.362, segments: 120, tori: [] },
     medallion: spot([0, 0.3, 0.345], FRONT, 0.14),
-    gems: { center: [0, 0.3, 0], axis: 'y', radius: 0.345, size: 0.04 },
+    gems: { center: [0, 0.37, 0], axis: 'y', radius: 0.345, size: 0.04 },
     plaque: { position: [0, 0.04, 0.158], tiltX: 0, width: 0.18, height: 0.05 },
     stickers: {
       front: spot([0, 0.3, 0.345], FRONT, 0.12),
@@ -139,13 +139,13 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
   star: {
     medallion: spot([0, 0.62, 0.121], FRONT, 0.2),
     back: spot([0, 0.62, -0.121], BACK, 0.2),
-    gems: { center: [0, 0.62, 0.07], axis: 'z', radius: 0.12, size: 0.04 },
+    gems: { center: [0, 0.62, 0.109], axis: 'z', radius: 0.06, size: 0.04 },
     plaque: { position: [0, 0.09, 0.143], tiltX: 0, width: 0.2, height: 0.09 },
     stickers: {
       front: spot([0, 0.62, 0.121], FRONT, 0.12),
       back: spot([0, 0.62, -0.121], BACK, 0.12),
-      left: spot([-0.12, 0.6, 0.06], unit(-0.5, 0, 0.87), 0.1),
-      right: spot([0.12, 0.6, 0.06], unit(0.5, 0, 0.87), 0.1),
+      left: spot([-0.12, 0.6, 0.072], unit(-0.5, 0, 0.87), 0.1),
+      right: spot([0.12, 0.6, 0.072], unit(0.5, 0, 0.87), 0.1),
       'base-left': spot([-0.143, 0.09, 0], LEFT, 0.1),
       'base-right': spot([0.143, 0.09, 0], RIGHT, 0.1),
     },
