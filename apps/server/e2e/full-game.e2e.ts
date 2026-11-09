@@ -17091,6 +17091,238 @@ it('part 26b: blitz streaks — a plus series grows by the step, a minus series 
   }
 }, 600_000);
 
+it('part 26c: a word ladder — one-letter moves checked by the dictionary, step back, only counts on the stage, the fewest steps win', async () => {
+  try {
+    await wordLadderGame26c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Поле вводу драбини на телефоні (підпис мовою телефона). */
+const ladderInput26c = (page: Page) => page.locator('.wordladder-form input');
+/** Слова стовпчика драбини, як у DOM (без text-transform). */
+const ladderColumn26c = (page: Page) => page.locator('.wordladder-play .wordladder-column li:not(.is-next)').allTextContents();
+
+/** Вводить слово драбини й тисне «Додати» (кнопку submit форми, тож і на іншій мові). Прийняте — поле очищується або форма зникає (фініш). */
+async function ladderMove26c(page: Page, word: string, refusal?: string) {
+  await ladderInput26c(page).fill(word);
+  await page.locator('.wordladder-form button[type="submit"]').click();
+  if (refusal === undefined) {
+    await page.waitForFunction("(() => { const input = document.querySelector('.wordladder-form input'); return input === null || input.value === ''; })()");
+    // Після фінішу форми з рядком причини вже немає.
+    expect(await page.evaluate("document.querySelector('.wordladder-status')?.textContent ?? ''"), `«${word}» refused`).toBe('');
+  } else {
+    await expect.poll(() => page.locator('.wordladder-status').textContent(), POLL).toBe(refusal);
+  }
+}
+
+/** Поле вводу на телефоні не сховане: у межах ширини, а після прокрутки до нього — у видимій частині. */
+async function expectLadderInputShown26c(page: Page, name: string) {
+  const input = ladderInput26c(page);
+  await input.scrollIntoViewIfNeeded();
+  const box = (await input.boundingBox())!;
+  const [width, height] = (await page.evaluate('[innerWidth, innerHeight]')) as [number, number];
+  expect(box.x, `${name}: the input starts off the screen`).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, `${name}: the input runs past the right edge`).toBeLessThanOrEqual(width + 1);
+  expect(box.y + box.height, `${name}: the input stays below the screen`).toBeLessThanOrEqual(height + 1);
+  const buttons = await page.locator('.wordladder-actions .btn').evaluateAll((all) => all.map((b) => b.getBoundingClientRect().right));
+  expect(Math.max(...buttons), `${name}: a button runs past the right edge`).toBeLessThanOrEqual(width + 1);
+}
+
+async function wordLadderGame26c() {
+  // ── Редактор: ПОЛЕ → ПОЛА → ПОРА → ПАРА → ТАРА, максимум 8, ціна 500, 90 с. ──
+  const host = await open('host26c', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host26c@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Драбина слів');
+  await click(host, 'драбина слів');
+  await questionText(host).fill('Від поля до тари');
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a word ladder has no video').toBe(0);
+  await field(host, 'Стартове слово').fill('ПОЛЕ');
+  await field(host, 'Крок 1').fill('поси');
+  await field(host, 'Цільове слово').fill('ТАРА');
+  expect(await field(host, 'Найбільше кроків').inputValue(), 'the default maximum').toBe('8');
+  await field(host, 'Найбільше кроків').fill('8');
+  await field(host, 'Бали').fill('500');
+  await field(host, 'Час, с').fill('90');
+  // «поси» ламає крок: збереження називає проблему, вікторина не зберігається.
+  await click(host, 'Зберегти');
+  await host.getByText('Запитання 1: кожне наступне слово має відрізнятися від попереднього рівно однією літерою.', exact).first().waitFor();
+  await field(host, 'Крок 1').fill('ПОЛА');
+  await click(host, 'Додати слово');
+  await field(host, 'Крок 2').fill('ПОРА');
+  await click(host, 'Додати слово');
+  // Після останньої зміни редактор питає словник; усі слова шляху в словнику — попередження немає.
+  const checked = host.waitForResponse((response) => response.url().endsWith('/api/wordladder/check'));
+  await field(host, 'Крок 3').fill('ПАРА');
+  const check = await checked;
+  expect(check.ok()).toBe(true);
+  expect(await check.json()).toEqual({ unknown: [] });
+  await host.waitForTimeout(200);
+  expect(await host.locator('.wordladder-unknown').count(), 'a dictionary warning for a valid path').toBe(0);
+  await shot(host, 'wordladder26c-editor');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Драбина слів' }).waitFor();
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Драбина слів')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: Record<string, unknown>[] }[] };
+  expect(stored.rounds[0]!.type).toBe('classic');
+  expect(stored.rounds[0]!.questions[0]).toMatchObject({ type: 'wordladder', path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8, points: 500, timeLimit: 90, video: null });
+
+  // ── Гра: сцена 1600 × 900, телефони Олі, Тараса, Іри, Хосе (es) і Віри (ar, 320 × 568). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage26c', 1600, 900);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya26c', 375, 812);
+  const taras = await open('taras26c', 360, 740);
+  const ira = await open('ira26c', 360, 740);
+  const jose = await open('jose26c', 320, 640, { locale: 'es-ES' });
+  const vira = await open('vira26c', 320, 568, { locale: 'ar-EG' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await join22a(vira, ar, code, 'Віра');
+  await stage.getByText('Віра').waitFor();
+  const phones = [olya, taras, ira, jose, vira];
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await ladderInput26c(page).waitFor();
+
+  // Сцена: старт → ціль, «Дійшли 0 з 5», підказка про телефон.
+  await stage.locator('.wordladder-goal').getByText('ПОЛЕ → ТАРА', exact).waitFor();
+  await stage.getByText('Дійшли 0 з 5', exact).waitFor();
+  await stage.getByText('Ведіть драбину на телефоні', exact).waitFor();
+  await taras.getByText('Бали — до 8 кроків', exact).waitFor();
+
+  // ── Тарас: дві відмови, слово й «Крок назад». ──
+  await ladderMove26c(taras, 'ПІЛА', 'Ви замінили більше ніж одну літеру');
+  expect(await ladderColumn26c(taras), 'a refusal keeps the column').toEqual(['ПОЛЕ']);
+  await ladderMove26c(taras, 'ПОСЕ', 'Такого слова не існує');
+  await expectLadderInputShown26c(taras, 'wordladder26c-phone-error');
+  await shot(taras, 'wordladder26c-phone-error');
+  await ladderMove26c(taras, 'пола');
+  expect(await ladderColumn26c(taras)).toEqual(['ПОЛЕ', 'пола']);
+  await shot(taras, 'wordladder26c-phone-move');
+  await click(taras, 'Крок назад');
+  await expect.poll(() => ladderColumn26c(taras), POLL).toEqual(['ПОЛЕ']);
+  expect(await taras.getByRole('button', { name: 'Крок назад', ...exact }).isDisabled(), 'step back with no words').toBe(true);
+  await ladderMove26c(taras, 'ПОЛА');
+  await ladderMove26c(taras, 'ПОРА');
+
+  // Пульт бачить слова Тараса наживо; сцена — лише кроки.
+  // 11c: під час запитання поступ живе у «Відповідях наживо»; шлях ведучого — у рядку правильної відповіді.
+  await host.locator('#live-answers').waitFor();
+  await liveRow(host, 'Тарас').getByText('Кроків: 2 · пола → пора').waitFor();
+  await host.getByText('Правильна відповідь: ПОЛЕ → ПОЛА → ПОРА → ПАРА → ТАРА', exact).waitFor();
+  const stageRow = (name: string) => stage.locator('.wordladder-board li', { has: stage.getByText(name, exact) });
+  const stageTaras = stageRow('Тарас');
+  await expect.poll(() => stageTaras.locator('.tag').textContent(), POLL).toBe('кроків: 2');
+  expect(await stageTaras.locator('.wordladder-words').count(), 'words on the stage before the reveal').toBe(0);
+  await shot(host, 'wordladder26c-host-live');
+
+  // Хосе (es, 320) не грає: його екран — іспанською, поле й кнопки на місці.
+  await jose.getByRole('button', { name: es.wordLadderBack, ...exact }).waitFor();
+  await jose.getByText('ПОЛЕ → ТАРА', exact).waitFor();
+  await expectLadderInputShown26c(jose, 'wordladder26c-phone-es-320');
+  await expectNoSideScroll(jose, 'wordladder26c-phone-es-320');
+
+  // Тарас доходить за 5 кроків: стовпчик згорнуто (6 слів: перші два, «…», два останні).
+  await ladderMove26c(taras, 'КОРА');
+  await ladderMove26c(taras, 'КАРА');
+  await ladderMove26c(taras, 'ТАРА');
+  await taras.getByRole('heading', { name: 'Готово! Кроків: 5', ...exact }).waitFor();
+  expect(await ladderColumn26c(taras), 'the collapsed column').toEqual(['ПОЛЕ', 'пола', '…', 'кара', 'тара']);
+  expect(await taras.locator('.wordladder-gap').getAttribute('aria-label')).toBe('Пропущені слова');
+  await expectNoSideScroll(taras, 'wordladder26c-phone-360');
+  await shot(taras, 'wordladder26c-phone-done');
+
+  // Оля — за 4 кроки; Іра робить один крок і зупиняється.
+  for (const word of ['ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА']) await ladderMove26c(olya, word);
+  await olya.getByRole('heading', { name: 'Готово! Кроків: 4', ...exact }).waitFor();
+  await ladderMove26c(ira, 'ПОЛА');
+
+  // Віра (ar, 320 × 568) робить п'ять кроків без фінішу: стовпчик згорнуто, а поле й кнопки на місці; слова — зліва направо.
+  for (const word of ['ПОЛА', 'ПОРА', 'КОРА', 'КАРА', 'ПАРА']) await ladderMove26c(vira, word);
+  expect(await ladderColumn26c(vira), 'the collapsed column in play').toEqual(['ПОЛЕ', 'пола', '…', 'кара', 'пара']);
+  expect(await htmlDir(vira)).toBe('rtl');
+  expect(await ownDir(vira.locator('.wordladder-column')), 'the column in Arabic').toBe('ltr');
+  expect(await ownDir(vira.locator('.wordladder-goal')), 'start → target in Arabic').toBe('ltr');
+  expect(await ownDir(ladderInput26c(vira)), 'the input in Arabic').toBe('ltr');
+  await expectLadderInputShown26c(vira, 'wordladder26c-phone-ar-320x568');
+  await expectNoSideScroll(vira, 'wordladder26c-phone-ar-320x568');
+  await vira.setViewportSize({ width: 375, height: 667 });
+  await expectLadderInputShown26c(vira, 'wordladder26c-phone-ar-375x667');
+  await expectNoSideScroll(vira, 'wordladder26c-phone-ar-375x667');
+  // Іра (uk) на найменших телефонах: стовпчик із двох слів і поле.
+  for (const [width, height] of [[320, 568], [375, 667]] as const) {
+    await ira.setViewportSize({ width, height });
+    await expectLadderInputShown26c(ira, `wordladder26c-phone-${width}x${height}`);
+    await expectNoSideScroll(ira, `wordladder26c-phone-${width}x${height}`);
+  }
+
+  // До розкриття на сцені немає жодного проміжного слова — ні в тексті, ні в DOM; рядки показують кроки й фініш.
+  await stage.getByText('Дійшли 2 з 5', exact).waitFor();
+  await expect.poll(() => stageRow('Оля').locator('.tag').textContent(), POLL).toBe('фініш');
+  await expect.poll(() => stageRow('Віра').locator('.tag').textContent(), POLL).toBe('кроків: 5');
+  expect(await stageRow('Іра').locator('.tag').textContent()).toBe('кроків: 1');
+  const stageText = (await bodyText(stage)).toLowerCase();
+  const stageHtml = (await stage.content()).toLowerCase();
+  for (const hidden of ['пола', 'пора', 'пара', 'кора', 'кара']) {
+    expect(stageText, `«${hidden}» on the stage before the reveal`).not.toContain(hidden);
+    expect(stageHtml, `«${hidden}» in the stage DOM before the reveal`).not.toContain(hidden);
+  }
+  await shot(stage, 'wordladder26c-stage-question');
+
+  // ── Ведучий закриває запитання; розкриття: шлях ведучого, Оля +500, Тарас +400, Іра без балів. ──
+  await click(host, 'Закрити запитання');
+  await click(host, 'Показати відповідь');
+  const path = stage.locator('.wordladder-path li');
+  await path.first().waitFor();
+  expect(await path.allTextContents()).toEqual(['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА']);
+  // Записи після закриття має й той, хто не дійшов, а «дійшли» — лише двоє.
+  await stage.getByText('Дійшли 2 з 5', exact).waitFor();
+  await expect.poll(() => stageRow('Оля').locator('.score').textContent(), POLL).toBe('+500');
+  expect(await stageRow('Тарас').locator('.score').textContent()).toBe('+400');
+  expect(await stageRow('Оля').locator('.wordladder-words').textContent()).toBe('пола → пора → пара → тара');
+  expect(await stageRow('Тарас').locator('.wordladder-words').textContent()).toBe('пола → пора → кора → кара → тара');
+  expect(await stageRow('Оля').locator('.rank').textContent()).toBe('1');
+  expect(await stageRow('Тарас').locator('.rank').textContent()).toBe('2');
+  // Хто не дійшов — без балів і без слів.
+  for (const name of ['Іра', 'Віра']) {
+    const score = await stageRow(name).locator('.score').textContent().catch(() => null);
+    expect(score === null || !/\+\d/.test(score), `${name} gets points`).toBe(true);
+    expect(await stageRow(name).locator('.wordladder-words').count(), `${name}’s words on the reveal`).toBe(0);
+  }
+  await shot(stage, 'wordladder26c-stage-reveal');
+  await expect.poll(() => taras.locator('.earned').textContent(), POLL).toBe('+400');
+  await expect.poll(() => olya.locator('.earned').textContent(), POLL).toBe('+500');
+  await ira.getByText('Не встигли дійти до цілі', exact).first().waitFor();
+  await shot(taras, 'wordladder26c-phone-reveal');
+  await shot(vira, 'wordladder26c-phone-ar-reveal');
+
+  // ── Історія гри: «Дійшли за кроків: 4». ──
+  await click(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Драбина слів/ }).click();
+  const question = host.locator('.rows.stacked > li', { hasText: 'Від поля до тари' });
+  await question.getByText(/Відповіді \(\d+\)/).click();
+  await question.locator('.responses li', { hasText: 'Оля' }).getByText('Дійшли за кроків: 4').waitFor();
+  await question.locator('.responses li', { hasText: 'Тарас' }).getByText('Дійшли за кроків: 5').waitFor();
+  await shot(host, 'wordladder26c-history');
+
+  expect(problems).toEqual([]);
+}
+
 const sticker13a = STICKERS[0]!;
 const src13a = stickerPath(sticker13a);
 /** Рядок гравця name у таблиці (13a). */
