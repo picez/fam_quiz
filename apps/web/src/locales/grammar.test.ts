@@ -67,7 +67,24 @@ describe('grammar', () => {
     expect(trophyPhrase('ذهبية', 'كأس', 'ar')).toBe('كأس ذهبية');
     expect(trophyPhrase('فضي', 'تاج', 'ar')).toBe('تاج فضي');
     expect(trophyPhrase('de oro', 'copa', 'es')).toBe('Copa de oro');
+    // «con asas», не «de asas»: «Copa de asas de oro» читалося б двома «de» поспіль.
+    expect(trophyPhrase('de oro', 'copa con asas', 'es')).toBe('Copa con asas de oro');
     expect(trophyPhrase('Золотий', 'кубок', 'uk')).toBe('Золотий кубок');
+  });
+
+  it('25e: the gender of every new kind in every language', () => {
+    const kinds = ['lovingcup', 'vase', 'plate', 'goblet', 'starmedal', 'cross', 'octagon', 'ribbon', 'diadem', 'laurel', 'olive', 'figure', 'flame', 'wings', 'fist'] as const;
+    const expected = {
+      uk: 'm f f m f m f f f m m f m f m',
+      pl: 'm f f m m m m m m m m f m f f',
+      de: 'm f m m f f f f f m m f f f f',
+      es: 'f m m m f f f f f f f f f f m',
+      it: 'f m m m f f f f m f f f f f m',
+      ar: 'f f m m f m f f m m m m f m f',
+    } as const;
+    for (const [locale, genders] of Object.entries(expected) as [keyof typeof expected, string][]) {
+      expect(kinds.map((kind) => trophyGender(kind, locale)).join(' '), locale).toBe(genders);
+    }
   });
 
   it('takes an explicit locale over the active one', () => {

@@ -275,8 +275,8 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
         model.traverse((object) => {
           if (!(object instanceof Mesh)) return;
           for (const material of [object.material].flat() as Material[]) {
-            // Пофарбовані (без текстури) — наші; текстури моделі спільні з кешем і лишаються.
-            if ((material as { map?: unknown }).map == null) resources.push(material);
+            // Пофарбовані (без текстури) — наші, крім спільних матеріалів трофея (userData.shared); текстури моделі спільні з кешем і лишаються.
+            if ((material as { map?: unknown }).map == null && material.userData.shared !== true) resources.push(material);
           }
         });
         // Основа — на y = 0, вісь обертання — через центр моделі.

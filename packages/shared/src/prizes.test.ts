@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as shared from './index';
 import { EMPTY_DECOR } from './decor';
-import { SHOWCASE_MAX, TITLE_MS, placedPrizeSchema, placesSchema, prizeContentSchema, publicContent } from './prizes';
+import { PREMIUM_KINDS, PREMIUM_MATERIALS, SHOWCASE_MAX, TITLE_MS, TROPHY_KINDS, TROPHY_MATERIALS, placedPrizeSchema, placesSchema, prizeContentSchema, publicContent, trophyLocked } from './prizes';
 
 const base = { name: 'Головний приз', trophy: null, engraving: null, real: null, title: null, diploma: false };
 const A = '11111111-1111-4111-8111-111111111111';
@@ -31,7 +31,7 @@ describe('prizeContentSchema', () => {
     expect(prizeContentSchema.safeParse({ ...base, real: { ...ok, photoUrl: 'https://x/y.jpg' } }).success).toBe(false);
   });
   it('rejects a bad kind and an empty name', () => {
-    expect(prizeContentSchema.safeParse({ ...base, trophy: { kind: 'vase', material: 'gold' } }).success).toBe(false);
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { kind: 'urn', material: 'gold' } }).success).toBe(false);
     expect(prizeContentSchema.safeParse({ ...base, name: '', diploma: true }).success).toBe(false);
   });
   it('rejects unstorable text', () => {
@@ -118,5 +118,49 @@ describe('trophy decor in prize content', () => {
   it('placedPrizeSchema accepts decorated content', () => {
     const content = { ...base, trophy: { ...trophy, decor } };
     expect(placedPrizeSchema.safeParse({ place: 1, id: A, content }).success).toBe(true);
+  });
+});
+
+describe('new kinds and materials (25e)', () => {
+  it('new kinds and materials parse', () => {
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { kind: 'plate', material: 'neon' } }).success).toBe(true);
+    expect(prizeContentSchema.safeParse({ ...base, trophy: { kind: 'vase', material: 'wood' } }).success).toBe(true);
+  });
+  it('an old placed prize parses to the same value', () => {
+    const decor = { ...EMPTY_DECOR, frame: 'gold' as const, photoStyle: 'sepia' as const, appearance: 'rise' as const };
+    const content = { ...base, trophy: { kind: 'cup', material: 'gold', decor }, diploma: true };
+    const placed = { place: 1, id: A, content };
+    const r = placedPrizeSchema.safeParse(placed);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toEqual(placed);
+  });
+  it('keeps the old values first and unique', () => {
+    expect(TROPHY_KINDS.slice(0, 6)).toEqual(['cup', 'medal', 'crown', 'star', 'statuette', 'grail']);
+    expect(TROPHY_MATERIALS.slice(0, 4)).toEqual(['bronze', 'silver', 'gold', 'diamond']);
+    expect(TROPHY_KINDS).toHaveLength(21);
+    expect(TROPHY_MATERIALS).toHaveLength(15);
+    expect(new Set(TROPHY_KINDS).size).toBe(21);
+    expect(new Set(TROPHY_MATERIALS).size).toBe(15);
+  });
+  it('premium marks are inside the lists', () => {
+    for (const k of PREMIUM_KINDS) expect(TROPHY_KINDS).toContain(k);
+    for (const m of PREMIUM_MATERIALS) expect(TROPHY_MATERIALS).toContain(m);
+    expect(PREMIUM_KINDS).toEqual(['diadem', 'wings']);
+    expect(PREMIUM_MATERIALS).toEqual(['sapphire', 'ruby', 'neon']);
+  });
+});
+
+describe('trophyLocked', () => {
+  it('locks a closed shape or material, like fonts', () => {
+    expect(trophyLocked({ kind: 'plate', material: 'gold' }, 1, null)).toBe(true);
+    expect(trophyLocked({ kind: 'plate', material: 'gold' }, 24, null)).toBe(false);
+    expect(trophyLocked({ kind: 'cup', material: 'neon' }, 1, undefined)).toBe(true);
+    expect(trophyLocked({ kind: 'cup', material: 'neon' }, 25, null)).toBe(false);
+    expect(trophyLocked({ kind: 'cup', material: 'gold' }, 1, null)).toBe(false);
+  });
+  it('keeps what this prize already stores', () => {
+    expect(trophyLocked({ kind: 'plate', material: 'gold' }, 1, { kind: 'plate', material: 'gold' })).toBe(false);
+    expect(trophyLocked({ kind: 'plate', material: 'neon' }, 1, { kind: 'plate', material: 'gold' })).toBe(true);
+    expect(trophyLocked({ kind: 'fist', material: 'gold' }, 1, { kind: 'plate', material: 'gold' })).toBe(true);
   });
 });

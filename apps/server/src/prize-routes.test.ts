@@ -335,3 +335,13 @@ describe('level locks over HTTP (25c)', () => {
     expect((put.json() as PrizeItem).content.trophy).toEqual({ kind: 'cup', material: 'silver', decor });
   });
 });
+
+describe('trophy locks over HTTP (25e)', () => {
+  it('shape without decor still checks the level', async () => {
+    const { cookie } = await signUp(ctx.app, 'Форма без оформлення');
+    const locked = await call('POST', '/api/me/prizes', cookie, content('P', { trophy: { kind: 'plate', material: 'gold' } }));
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json()).toEqual({ error: 'trophy_locked' });
+    expect((await call('POST', '/api/me/prizes', cookie, content('C', { trophy: { kind: 'cup', material: 'gold' } }))).statusCode).toBe(201);
+  });
+});

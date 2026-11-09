@@ -370,6 +370,23 @@ describe('trophy engine: effect and appearance', () => {
     expect(sharedDispose).not.toHaveBeenCalled();
   });
 
+  it('dispose keeps the shared trophy material of the model', async () => {
+    const shared = new MeshStandardMaterial();
+    shared.userData.shared = true;
+    const own = new MeshStandardMaterial();
+    fake.loadModel = vi.fn(async () => {
+      const group = new Group();
+      group.add(new Mesh(new BoxGeometry(), shared), new Mesh(new BoxGeometry(), own));
+      return group;
+    });
+    const sharedDispose = vi.spyOn(shared, 'dispose');
+    const ownDispose = vi.spyOn(own, 'dispose');
+    const { handle } = await mount();
+    handle.dispose();
+    expect(ownDispose).toHaveBeenCalled();
+    expect(sharedDispose).not.toHaveBeenCalled();
+  });
+
   it('decor gets its surface from the same model that goes into the scene', async () => {
     const { trophy } = await mount({ decor: decor('spin') });
     expect(fake.loadModel).toHaveBeenCalledTimes(1);

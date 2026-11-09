@@ -1,4 +1,4 @@
-import type { PrizeContent, TrophyDecor } from '@quiz/shared';
+import type { PrizeContent, TrophyDecor, TrophyKind, TrophyMaterial } from '@quiz/shared';
 import { useEffect, useMemo, useReducer, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 import { t, type TextKey } from '../i18n';
 import { webglAvailable } from '../trophy/loadEngine';
@@ -32,6 +32,8 @@ export interface ToolProps {
   replay: () => void;
   /** Збережене оформлення цього призу: його шрифти й наліпки лишаються чинними, навіть закриті за рівнем (як на сервері). */
   stored?: TrophyDecor | null;
+  /** Збережені форма й матеріал цього призу: лишаються чинними, навіть закриті за рівнем (як на сервері). */
+  storedTrophy?: { kind: TrophyKind; material: TrophyMaterial } | null;
   /** Пачка фото ще вантажиться. Живе в PrizeStudio: після переходу на іншу вкладку й назад «Фото» досі знає про неї. */
   photoBusy: boolean;
   setPhotoBusy: (busy: boolean) => void;
@@ -165,6 +167,7 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
     level,
     replay: () => trophyRef.current?.replayAppearance(),
     stored: initial?.trophy?.decor ?? null,
+    storedTrophy: initial?.trophy ? { kind: initial.trophy.kind, material: initial.trophy.material } : null,
     photoBusy,
     setPhotoBusy,
   };

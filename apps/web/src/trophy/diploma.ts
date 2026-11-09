@@ -1,4 +1,4 @@
-import type { PrizePlace } from '@quiz/shared';
+import type { PrizePlace, TrophyMaterial } from '@quiz/shared';
 import { t } from '../i18n';
 import { MATERIAL_LOOK, TROPHY_EMOJI, type TrophyLook } from './trophy-meta';
 
@@ -15,6 +15,39 @@ const WIDTH = 1200;
 const HEIGHT = 850;
 const DISPLAY = "'Unbounded Variable', system-ui, sans-serif";
 const BODY = "'Onest Variable', system-ui, sans-serif";
+const PAPER = '#FFFBF0';
+/** Рамки, що були до 25e: лишаються в кольорі матеріалу байт у байт, як на вже виданих дипломах. */
+const LEGACY_FRAMES: readonly TrophyMaterial[] = ['bronze', 'silver', 'gold', 'diamond'];
+
+/** Відносна яскравість sRGB-кольору #RRGGBB (WCAG). */
+function luminance(hex: string): number {
+  const channel = (i: number) => {
+    const c = parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+}
+
+/** Контраст двох кольорів за WCAG (1…21). */
+export function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Колір рамки диплома: колір матеріалу; нові світлі (перламутр, мармур, платина…) — темніший відтінок того самого
+ * кольору, доки контраст з кремовим папером не сягне 3:1 (інакше рамка зливається з тлом).
+ */
+export function diplomaFrame(material: TrophyMaterial): string {
+  const color = MATERIAL_LOOK[material].color;
+  if (LEGACY_FRAMES.includes(material)) return color;
+  const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+  let shade = color;
+  for (let k = 1; contrast(shade, PAPER) < 3; k *= 0.92) {
+    shade = `#${rgb.map((c) => Math.round(c * k).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+  }
+  return shade;
+}
 
 /** dd.mm.yyyy за київським часом; ICU без Europe/Kyiv знає лише давню назву Europe/Kiev. */
 function kyivDate(date: Date): string {
@@ -89,11 +122,13 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   canvas.height = HEIGHT;
   const context = canvas.getContext('2d');
   if (context === null) throw new Error('canvas_unavailable');
-  const frame = MATERIAL_LOOK[data.trophy?.material ?? 'gold'].color;
+  const material = data.trophy?.material ?? 'gold';
+  const look = MATERIAL_LOOK[material];
+  const frame = diplomaFrame(material);
   // Кожне поле на своєму місці: порожня назва вікторини не зсуває гравіювання й дату.
   const { title, nickname, place, quizTitle, engraving, date } = diplomaFields(data);
 
-  context.fillStyle = '#FFFBF0';
+  context.fillStyle = PAPER;
   context.fillRect(0, 0, WIDTH, HEIGHT);
   context.strokeStyle = frame;
   context.lineWidth = 18;
@@ -118,7 +153,8 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.font = `700 60px ${BODY}`;
   context.fillText(wrap(context, nickname, width)[0] ?? '', center, 400);
 
-  context.fillStyle = frame === MATERIAL_LOOK.diamond.color ? '#3A7CA5' : '#7A5A12';
+  // Неметалеві (камені, діамант) — синє місце, метали — темне золото.
+  context.fillStyle = look.metallic < 0.5 ? '#3A7CA5' : '#7A5A12';
   context.font = `600 44px ${DISPLAY}`;
   context.fillText(place, center, 480);
 

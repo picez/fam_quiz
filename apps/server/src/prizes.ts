@@ -4,6 +4,7 @@ import {
   SHOWCASE_MAX,
   TITLE_MS,
   decorLocked,
+  trophyLocked,
   publicContent,
   type AwardCard,
   type PlacedPrize,
@@ -69,9 +70,11 @@ export async function createPrize(
   ownerId: string,
   content: PrizeContent,
   level?: number | null,
-): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'too_many_prizes' | 'decor_locked' }> {
+): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'too_many_prizes' | 'decor_locked' | 'trophy_locked' }> {
   const stored = withDecor(content, null);
   const decor = stored.trophy?.decor;
+  // Форма й матеріал — перед оформленням.
+  if (level != null && stored.trophy && trophyLocked(stored.trophy, level, null)) return { ok: false, error: 'trophy_locked' };
   if (level != null && decor && decorLocked(decor, level, null)) return { ok: false, error: 'decor_locked' };
   return db.transaction(async (tx) => {
     // Ліміт тримає склад (free + reserved); вручені до нього не рахуються.
@@ -93,12 +96,14 @@ export async function updatePrize(
   id: string,
   content: PrizeContent,
   level?: number | null,
-): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' | 'decor_locked' }> {
+): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' | 'decor_locked' | 'trophy_locked' }> {
   const [row] = await db.select().from(prize).where(and(eq(prize.id, id), eq(prize.ownerId, ownerId)));
   if (row === undefined || row.status === 'awarded') return { ok: false, error: 'not_found' };
   if (row.status === 'reserved') return { ok: false, error: 'prize_in_game' };
   const merged = withDecor(content, row.content);
   const decor = merged.trophy?.decor;
+  // Збережені форма й матеріал цього призу лишаються чинними.
+  if (level != null && merged.trophy && trophyLocked(merged.trophy, level, row.content.trophy)) return { ok: false, error: 'trophy_locked' };
   // Шрифт і наліпка зі збереженого оформлення цього призу лишаються чинними.
   if (level != null && decor && decorLocked(decor, level, row.content.trophy?.decor)) return { ok: false, error: 'decor_locked' };
   const [updated] = await db

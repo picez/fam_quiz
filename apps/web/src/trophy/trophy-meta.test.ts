@@ -1,7 +1,8 @@
 import type { TrophyDecor } from '@quiz/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocale, activateLocaleForTests, loadLocale } from '../i18n';
-import { modelUrl, podiumColumns, prizeSummary, titleBadge, trophyLabel } from './trophy-meta';
+import { TROPHY_KINDS, TROPHY_MATERIALS } from '@quiz/shared';
+import { MATERIAL_GROUPS, MATERIAL_LOOK, TROPHY_EMOJI, TROPHY_GROUPS, modelUrl, podiumColumns, prizeSummary, titleBadge, trophyLabel } from './trophy-meta';
 
 describe('trophyLabel', () => {
   it('agrees the material with the gender of the kind', () => {
@@ -144,5 +145,62 @@ describe('modelUrl', () => {
   it('is the kind model for everything else', () => {
     expect(modelUrl({ kind: 'cup', material: 'gold' })).toBe('/models/cup.glb');
     expect(modelUrl({ kind: 'cup', material: 'gold', decor })).toBe('/models/cup.glb');
+  });
+});
+
+describe('groups and tables (25e)', () => {
+  it('groups cover every kind and material once', () => {
+    expect(TROPHY_GROUPS.flatMap((g) => g.kinds).sort()).toEqual([...TROPHY_KINDS].sort());
+    expect(MATERIAL_GROUPS.flatMap((g) => g.materials).sort()).toEqual([...TROPHY_MATERIALS].sort());
+  });
+  it('has an emoji and a look for every kind and material, old looks untouched', () => {
+    for (const kind of TROPHY_KINDS) expect(TROPHY_EMOJI[kind], kind).toBeTruthy();
+    expect(MATERIAL_LOOK.gold).toEqual({ color: '#E8B84A', metallic: 1, roughness: 0.2 });
+    expect(MATERIAL_LOOK.neon.emissiveIntensity).toBe(1.4);
+    expect(MATERIAL_LOOK.marble.pattern?.kind).toBe('marble');
+  });
+  it('agrees a new material with a new kind', () => {
+    expect(trophyLabel({ kind: 'plate', material: 'gold' })).toBe('Золота тарілка-трофей');
+    expect(trophyLabel({ kind: 'laurel', material: 'wood' })).toBe('Дерев’яний лавровий вінок');
+    expect(trophyLabel({ kind: 'vase', material: 'rosegold' })).toBe('Рожевозолота ваза');
+  });
+});
+
+describe('new names in every locale (25e)', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('every kind and material makes a label in every locale', async () => {
+    for (const locale of ['uk', 'en', 'pl', 'de', 'es', 'it', 'ar'] as const) {
+      await loadLocale(locale);
+      activateLocale(locale);
+      for (const kind of TROPHY_KINDS) {
+        for (const material of TROPHY_MATERIALS) {
+          const label = trophyLabel({ kind, material });
+          expect(label.trim(), `${locale} ${kind} ${material}`).not.toBe('');
+          expect(label, `${locale} ${kind} ${material}`).not.toMatch(/material_|trophy_/);
+        }
+      }
+    }
+  });
+
+  it('agrees the new kinds in each language', async () => {
+    const use = async (locale: 'en' | 'pl' | 'de' | 'es' | 'it' | 'ar') => {
+      await loadLocale(locale);
+      activateLocale(locale);
+    };
+    await use('en');
+    expect(trophyLabel({ kind: 'fist', material: 'copper' })).toBe('Copper raised fist');
+    await use('de');
+    expect(trophyLabel({ kind: 'octagon', material: 'gold' })).toBe('Goldene achteckige Medaille');
+    expect(trophyLabel({ kind: 'goblet', material: 'gold' })).toBe('Goldener Kelch');
+    await use('es');
+    expect(trophyLabel({ kind: 'vase', material: 'gold' })).toBe('Jarrón de oro');
+    await use('it');
+    expect(trophyLabel({ kind: 'flame', material: 'gold' })).toBe("Fiamma d'oro");
+    await use('pl');
+    expect(trophyLabel({ kind: 'fist', material: 'gold' })).toBe('Złota pięść');
+    await use('ar');
+    expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('تاج برونزي');
+    expect(trophyLabel({ kind: 'flame', material: 'gold' })).toBe('شعلة ذهبية');
   });
 });

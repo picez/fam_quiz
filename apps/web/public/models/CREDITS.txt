@@ -17,7 +17,26 @@ star.glb        Star on a plinth        quiz project (generated) apps/web/script
 statuette.glb   Statuette (figure)      quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
 grail.glb       Grail (plain goblet)    quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
 
-The six models above are dedicated to the public domain under CC0 1.0 Universal:
+Plan 25e added fifteen more, generated the same way by the same script (no third-party
+assets), all CC0 1.0:
+
+lovingcup.glb   Loving cup (two loop ears)      quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+vase.glb        Vase                            quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+plate.glb       Trophy plate on a holder        quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+goblet.glb      Goblet                          quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+starmedal.glb   Star medal                      quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+cross.glb       Cross medal (round ends)        quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+octagon.glb     Octagonal medal                 quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+ribbon.glb      Medal on a V ribbon             quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+diadem.glb      Diadem                          quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+laurel.glb      Laurel wreath                   quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+olive.glb       Olive wreath                    quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+figure.glb      Figure on a pedestal            quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+flame.glb       Flame                           quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+wings.glb       Winged statuette                quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+fist.glb        Raised fist                     quiz project (generated) apps/web/scripts/build-trophies.mjs      CC0 1.0
+
+The six models above and the fifteen 25e models are dedicated to the public domain under CC0 1.0 Universal:
 https://creativecommons.org/publicdomain/zero/1.0/
 
 grail-family.glb — TEMPORARY, removed once the prize is moved to decor. A custom, one-off «family grail» trophy: project-generated gold

@@ -119,6 +119,29 @@ describe('trophy decor', () => {
   });
 });
 
+describe('trophy locks (25e)', () => {
+  const of = (kind: 'cup' | 'plate' | 'wings', material: 'gold' | 'neon') => withTrophy('T', { kind, material });
+
+  it('locked shape is refused on create', async () => {
+    expect(await createPrize(db, 'u1', of('plate', 'gold'), 1)).toEqual({ ok: false, error: 'trophy_locked' });
+    expect((await createPrize(db, 'u1', of('plate', 'gold'), 24)).ok).toBe(true);
+  });
+
+  it('locked material is refused', async () => {
+    expect(await createPrize(db, 'u1', of('cup', 'neon'), 1)).toEqual({ ok: false, error: 'trophy_locked' });
+  });
+
+  it('stored shape stays valid on update', async () => {
+    const [{ id }] = await db.insert(prize).values({ ownerId: 'u1', content: of('plate', 'gold'), status: 'free', createdAt: new Date(), updatedAt: new Date() }).returning();
+    expect((await updatePrize(db, 'u1', id!, of('plate', 'gold'), 1)).ok).toBe(true);
+    expect(await updatePrize(db, 'u1', id!, of('wings', 'gold'), 1)).toEqual({ ok: false, error: 'trophy_locked' });
+  });
+
+  it('old kinds need no level', async () => {
+    expect((await createPrize(db, 'u1', of('cup', 'gold'), 1)).ok).toBe(true);
+  });
+});
+
 describe('reserving places', () => {
   it('reserves prizes for a game and returns them in place order', async () => {
     const [a, b] = [await make('u1', 'A'), await make('u1', 'B')];

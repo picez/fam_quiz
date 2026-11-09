@@ -7,6 +7,7 @@ import type { ToolProps } from '../PrizeStudio';
 import { INSCRIPTION_COLOR } from '../studio-draft';
 import { ColorField } from './ColorField';
 import { inscriptionNote } from './StickerPicker';
+import { TileMarks } from './TileMarks';
 
 type Style = Omit<Inscription, 'place' | 'text'>;
 const NEW_STYLE: Style = { font: null, look: 'engraved', color: INSCRIPTION_COLOR };
@@ -120,7 +121,7 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
                           {t('studioFontSample')}
                         </span>
                         {t(`font_${font}` as TextKey)}
-                        {locked && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
+                        <TileMarks need={need} locked={locked} />
                       </label>
                     );
                   })}
