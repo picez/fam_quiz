@@ -1,4 +1,4 @@
-import { isPickableTrophy, placesSchema, prizeContentSchema, type PrizePlacesInfo } from '@quiz/shared';
+import { placesSchema, prizeContentSchema, type PrizeContent, type PrizePlacesInfo } from '@quiz/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CurrentUser } from './account-routes';
@@ -7,6 +7,7 @@ import type { Db } from './db/client';
 import { createPrize, deletePrize, listPrizes, reservePlaces, updatePrize } from './prizes';
 import type { RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
+import { accountLevel } from './xp-store';
 
 export interface PrizeRouteDeps {
   db: Db;
@@ -25,6 +26,8 @@ const GAME_NOT_FOUND = { error: 'game_not_found' };
 
 export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRouteDeps): Promise<void> {
   const { db, manager, locate, currentUser } = deps;
+  /** Рівень рахуємо лише коли в запиті є непорожнє оформлення. */
+  const levelFor = async (userId: string, content: PrizeContent): Promise<number | null> => (content.trophy?.decor ? accountLevel(db, userId) : null);
 
   app.get('/api/me/prizes', async (request, reply) => {
     const user = await currentUser(request);
@@ -37,8 +40,7 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
     const parsed = prizeContentSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
-    if (parsed.data.trophy !== null && !isPickableTrophy(parsed.data.trophy.kind)) return reply.code(409).send({ error: 'trophy_unavailable' });
-    const result = await createPrize(db, user.id, parsed.data);
+    const result = await createPrize(db, user.id, parsed.data, await levelFor(user.id, parsed.data));
     return result.ok ? reply.code(201).send(result.prize) : reply.code(409).send({ error: result.error });
   });
 
@@ -48,7 +50,7 @@ export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRoute
     const parsed = prizeContentSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send(INVALID);
     if (!UUID.safeParse(request.params.id).success) return reply.code(404).send(NOT_FOUND);
-    const result = await updatePrize(db, user.id, request.params.id, parsed.data);
+    const result = await updatePrize(db, user.id, request.params.id, parsed.data, await levelFor(user.id, parsed.data));
     if (result.ok) return result.prize;
     return reply.code(result.error === 'not_found' ? 404 : 409).send({ error: result.error });
   });

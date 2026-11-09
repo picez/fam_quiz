@@ -104,6 +104,13 @@ describe('trophy decor', () => {
     expect((await rowOf(id))!.content.trophy).toBeNull();
   });
 
+  it('create checks the level only when one is given', async () => {
+    const locked = { ...decor, inscriptions: [{ place: 'rim' as const, text: 'Ася', font: 'brush' as const, look: 'engraved' as const, color: '#3a2a0e' }] };
+    const trophy = { kind: 'cup' as const, material: 'gold' as const, decor: locked };
+    expect(await createPrize(db, 'u1', withTrophy('L', trophy), 1)).toEqual({ ok: false, error: 'decor_locked' });
+    expect((await createPrize(db, 'u1', withTrophy('L', trophy))).ok).toBe(true);
+  });
+
   it('create drops a null decor', async () => {
     const r = await createPrize(db, 'u1', withTrophy('N', { kind: 'cup', material: 'gold', decor: null }));
     if (!r.ok) throw new Error('create failed');

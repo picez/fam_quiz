@@ -2,7 +2,6 @@ import {
   PRIZE_LIMITS,
   TROPHY_KINDS,
   TROPHY_MATERIALS,
-  isPickableTrophy,
   prizeContentSchema,
   type PrizeContent,
   type TrophyKind,
@@ -42,9 +41,9 @@ export function PrizeEditor({ initial, busy, onSave, onCancel }: PrizeEditorProp
   const [titleOn, setTitleOn] = useState(initial?.title != null);
   const [title, setTitle] = useState(initial?.title ?? '');
   const [diploma, setDiploma] = useState(initial?.diploma ?? false);
-  // Недоступний вид (грааль) видно лише призу, що вже ним є, — щоб його можна було перейменувати, не втративши трофея.
+  // Тимчасово (до задачі 8 плану 25c, що прибирає цей редактор): грааль видно лише призу, що вже ним є, — щоб його можна було перейменувати, не втративши трофея.
   const initialKind = initial?.trophy?.kind;
-  const kinds = TROPHY_KINDS.filter((value) => isPickableTrophy(value) || value === initialKind);
+  const kinds = TROPHY_KINDS.filter((value) => value !== 'grail' || value === initialKind);
 
   const content: PrizeContent = {
     name,
