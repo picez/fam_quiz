@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
+import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrophyEngine, TrophyMount } from './engine-types';
 import type { TrophyLook } from './trophy-meta';
 import { loadTrophyEngine, webglAvailable } from './loadEngine';
-import { TrophyView } from './TrophyView';
+import { TrophyView, type TrophyViewHandle } from './TrophyView';
 
 vi.mock('./loadEngine', () => ({ loadTrophyEngine: vi.fn(), webglAvailable: vi.fn() }));
 
@@ -18,16 +19,20 @@ interface Mounted {
   dispose: ReturnType<typeof vi.fn>;
 }
 let mounts: Mounted[] = [];
+let mountedHandles: { dispose: ReturnType<typeof vi.fn>; replayAppearance: ReturnType<typeof vi.fn> }[] = [];
 const fakeEngine: TrophyEngine = {
   mount(host, options, events) {
     const dispose = vi.fn();
     mounts.push({ host, options, events, dispose });
-    return { dispose, replayAppearance: vi.fn() };
+    const handle = { dispose, replayAppearance: vi.fn() };
+    mountedHandles.push(handle);
+    return handle;
   },
 };
 
 beforeEach(() => {
   mounts = [];
+  mountedHandles = [];
   load.mockReset();
   webgl.mockReset();
   webgl.mockReturnValue(true);
@@ -126,6 +131,28 @@ describe('TrophyView', () => {
     expect(mounts).toHaveLength(2);
     unmount();
     expect(mounts[1]!.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('appear defaults to true', async () => {
+    render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} />);
+    await flush();
+    expect(mounts[0]!.options.appear).toBe(true);
+  });
+
+  it('appear false is passed', async () => {
+    render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} appear={false} />);
+    await flush();
+    expect(mounts[0]!.options.appear).toBe(false);
+  });
+
+  it('ref replays the appearance', async () => {
+    const ref = createRef<TrophyViewHandle>();
+    render(<TrophyView trophy={gold} size="card" spin={false} interactive={false} ref={ref} />);
+    // Рушій ще не завантажений: виклик нічого не робить і не кидає.
+    expect(() => ref.current!.replayAppearance()).not.toThrow();
+    await flush();
+    ref.current!.replayAppearance();
+    expect(mountedHandles[0]!.replayAppearance).toHaveBeenCalledTimes(1);
   });
 
   it('a late onReady from a disposed mount does not hide the emoji', async () => {
