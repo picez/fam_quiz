@@ -7385,6 +7385,77 @@ label.powers-price {
   }
 }
 
+/* Бліц-клітинка (26a): спершу перегортання клітинки (ведення --splash-lead-ms), далі стоїть «БЛІЦ!» з рядком правил. */
+.splash-blitz-lead {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: splash-title-out 0.15s linear calc(var(--splash-elapsed) + var(--splash-lead-ms)) both;
+}
+
+.splash.is-blitz .splash-flip {
+  animation-duration: var(--splash-flip-ms);
+}
+
+/* Під штампом «×2!» текст картки гасне, щойно перегортання скінчилося. */
+.splash.is-blitz .splash-flip:has(+ .splash-surprise) .splash-cell-title,
+.splash.is-blitz .splash-flip:has(+ .splash-surprise) .splash-cell-marks {
+  animation: splash-title-out 0.15s linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
+}
+
+/* Напис невидимий, доки йде ведення; без руху просто з'являється й стоїть.
+   steps(1, start), не end: кінцевий поступ анімації буває 0,9999…, і з end напис так і лишався б прозорим. */
+.splash-blitz {
+  max-inline-size: 100%;
+  animation: splash-blitz-show 1ms steps(1, start) calc(var(--splash-elapsed) + var(--splash-lead-ms)) both;
+}
+
+@keyframes splash-blitz-show {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.splash-blitz-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(5rem, 14vw, 12rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--amber);
+  text-shadow: 0 0 0.35em rgb(0 0 0 / 0.5);
+}
+
+.splash-blitz-rule {
+  display: inline-block;
+  max-inline-size: min(100%, 60rem);
+  margin: clamp(1rem, 2.5vw, 2rem) auto 0;
+  padding-block-start: clamp(0.5rem, 1.2vw, 1rem);
+  border-block-start: 0.25rem solid var(--amber);
+  font-size: clamp(1.5rem, 3.2vw, 3rem);
+  font-weight: 600;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+/* Телефон: «¡BLITZ!» і «خاطف!» в один рядок від 320 px. */
+.splash.is-phone .splash-blitz-title {
+  font-size: clamp(2.5rem, 15vw, 4.5rem);
+  overflow-wrap: normal;
+}
+
+.splash.is-phone .splash-blitz-rule {
+  margin-block-start: 0.75rem;
+  padding-block-start: 0.5rem;
+  border-block-start-width: 0.1875rem;
+  font-size: clamp(1.0625rem, 5vw, 1.375rem);
+}
+
 .splash.is-phone .splash-face.is-front .price {
   font-size: 1.5rem;
 }
@@ -7489,6 +7560,23 @@ label.powers-price {
     }
     30%,
     100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .splash-blitz {
+    animation-name: splash-blitz-in;
+    animation-duration: 0.45s;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  @keyframes splash-blitz-in {
+    from {
+      opacity: 0;
+      transform: scale(1.4);
+    }
+    to {
       opacity: 1;
       transform: scale(1);
     }

@@ -185,7 +185,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
   const { question, reveal, stats } = view;
   // Поки йде заставка запитання чи клітинки, запитання під шаром ще не почалося: aria-busy для читачів екрана.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
-  const busy = view.phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell');
+  const busy = view.phase === 'question' && (splashNow?.splash.kind === 'question' || splashNow?.splash.kind === 'cell' || splashNow?.splash.kind === 'blitz');
   // Поступ проявлення рахується лише для запитань із проявленням: решта не перемальовується щоразу.
   const revealP = useRevealProgress(view, view.question?.reveal ? view.question : null, offsetMs);
   if (question === null) return null;

@@ -1,4 +1,4 @@
-import { DEFAULT_RULES, type BoardCell } from '@quiz/shared';
+import { DEFAULT_RULES, SPLASH_MS, type BoardCell } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
@@ -26,10 +26,11 @@ const c11 = q('c11', 100);
 const c12 = q('c12', 200);
 const b = { type: 'single', optionId: 'b' } as const;
 
-function picked(cells: Parameters<typeof boardRound>[1][number]['cells'], options = {}): GameState {
+/** Клітинка c11 вибрана о мить at (типово 0). */
+function picked(cells: Parameters<typeof boardRound>[1][number]['cells'], options = {}, at = 0): GameState {
   const round = boardRound('g1', [{ title: 'A', cells }], options);
   const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
-  return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+  return must(pickCell(must(next(intro, at)), null, 'c11', at, Math.random));
 }
 
 describe('answer mode of a board cell', () => {
@@ -107,9 +108,9 @@ const a = { type: 'single', optionId: 'a' } as const;
 const score = (state: GameState, playerId: string) => state.players.find((p) => p.id === playerId)?.score;
 const scores = (state: GameState) => state.players.map((p) => p.score);
 
-/** Бліц-клітинка c11 за 100 (правильна b, 20 с) і звичайна c12; p1 вибрав c11 у момент 0. */
+/** Бліц-клітинка c11 за 100 (правильна b, 20 с) і звичайна c12; p1 вибрав c11 до заставки «БЛІЦ!» (26a), запитання стартує в момент 0. */
 function blitzCell(cell: Partial<BoardCell> = {}, options = {}): GameState {
-  return picked([{ question: c11, kind: 'blitz', ...cell }, c12], options);
+  return picked([{ question: c11, kind: 'blitz', ...cell }, c12], options, -SPLASH_MS.blitz);
 }
 
 /** Відповідь у миттєвій бліц-клітинці й «Прийняти». */
@@ -366,7 +367,8 @@ describe('streak bonus on a blitz cell of another player', () => {
     state = must(acceptAnswer(must(submitAnswer(state, 'p1', b, 1000)), 'p1', 1000));
     while (state.phase !== 'board') state = must(next(state, 2000));
     expect(chooserOf(state)).toBe('p2');
-    return must(pickCell(state, null, 'c12', 3000, Math.random));
+    // Вибір до заставки «БЛІЦ!» (26a): запитання стартує о 3000, як і без неї.
+    return must(pickCell(state, null, 'c12', 3000 - SPLASH_MS.blitz, Math.random));
   }
 
   it('a wrong answer with penalty all costs exactly the price, no fixed bonus', () => {

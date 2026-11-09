@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { CELL_SURPRISE_MS, SPLASH_MS, type BoardInfo, type GameView, type SplashView } from '@quiz/shared';
+import { CELL_SURPRISE_MS, SPLASH_MS, blitzLeadMs, type BoardInfo, type GameView, type SplashView } from '@quiz/shared';
 import { splashLeft } from '../clock';
 import { markText, roundLabel } from '../format';
 import { t } from '../i18n';
@@ -59,7 +59,7 @@ function CellFlip({ cell }: { cell: NonNullable<BoardInfo['cell']> }) {
   );
 }
 
-function SplashContent({ view, kind }: { view: GameView; kind: SplashView['kind'] }) {
+function SplashContent({ view, kind, lead }: { view: GameView; kind: SplashView['kind']; lead: number }) {
   switch (kind) {
     case 'round':
       return (
@@ -100,6 +100,20 @@ function SplashContent({ view, kind }: { view: GameView; kind: SplashView['kind'
       );
     case 'cell':
       return view.board?.cell ? <CellFlip cell={view.board.cell} /> : null;
+    case 'blitz':
+      return (
+        <>
+          {lead > 0 && view.board?.cell != null && (
+            <div className="splash-blitz-lead">
+              <CellFlip cell={view.board.cell} />
+            </div>
+          )}
+          <div className="splash-blitz">
+            <p className="splash-blitz-title">{t('splashBlitz')}</p>
+            <p className="splash-blitz-rule">{t(view.blitz?.instant === true ? 'cellBlitzRuleInstant' : 'cellBlitzRule')}</p>
+          </div>
+        </>
+      );
     case 'duel':
       return view.duel === null ? null : (
         <div className="splash-card">
@@ -139,16 +153,21 @@ export function Splash({ view, offsetMs, size }: { view: GameView; offsetMs: num
   if (current === null) return null;
   const { splash, elapsed } = current;
   const surprise = splash.kind === 'cell' && view.board?.cell != null && view.board.cell.mark !== 'none';
+  // Бліц-клітинка: перегортання (з штампом, якщо є позначка) — «ведення» заставки, далі стоїть «БЛІЦ!».
+  const blitz = splash.kind === 'blitz';
+  const lead = blitz ? blitzLeadMs(splash) : 0;
+  const blitzMarked = blitz && view.board?.cell != null && view.board.cell.mark !== 'none';
   const style = {
     '--splash-ms': `${splash.until - splash.at}ms`,
     '--splash-elapsed': `${-elapsed}ms`,
-    ...(surprise ? { '--splash-flip-ms': `${CELL_FLIP_MS}ms`, '--splash-surprise-ms': `${CELL_SURPRISE_MS}ms` } : {}),
+    ...(surprise || blitzMarked ? { '--splash-flip-ms': `${CELL_FLIP_MS}ms`, '--splash-surprise-ms': `${CELL_SURPRISE_MS}ms` } : {}),
+    ...(blitz ? { '--splash-lead-ms': `${lead}ms`, '--splash-flip-ms': `${CELL_FLIP_MS}ms` } : {}),
   } as CSSProperties;
   // aria-hidden: той самий зміст уже стоїть у розкладці етапу під шаром.
   return (
     // key: нова заставка або новий годинник — свіжий шар, тож анімація починається з потрібного місця.
     <div key={`${splash.at}:${splash.until}:${offsetMs}`} className={`splash is-${splash.kind} is-${size}${surprise ? ' is-surprise' : ''}`} aria-hidden="true" style={style}>
-      <SplashContent view={view} kind={splash.kind} />
+      <SplashContent view={view} kind={splash.kind} lead={lead} />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, SPLASH_MS, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -22,6 +22,7 @@ import { kyivDay } from '../src/xp-rules';
 import ar from '../../web/src/locales/ar.json';
 import de from '../../web/src/locales/de.json';
 import en from '../../web/src/locales/en.json';
+import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
 
 /**
@@ -2676,6 +2677,223 @@ async function instantBlitzGame() {
   await toBoard();
 
   // 8. Кінець гри.
+  await click(host, 'Завершити гру');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+
+  expect(problems).toEqual([]);
+}
+
+it('part 26a: a blitz cell — the cell flips, «БЛІЦ!» stands 3 s on the stage, the phones and the host, then the question starts; a plain cell has no «БЛІЦ!»; reduced motion keeps the word still', async () => {
+  try {
+    await blitzSplashGame();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/** Напис «БЛІЦ!» шару заставки: текст, розмір шрифту (px) і чи вміщається він в один рядок. */
+const blitzTitle = (page: Page) =>
+  page.locator('.splash.is-blitz .splash-blitz-title').evaluate((el) => {
+    const style = getComputedStyle(el);
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    return { text: el.textContent, fontSize: Math.round(parseFloat(style.fontSize)), lines, fits: el.scrollWidth <= el.clientWidth + 1 };
+  });
+/** Вираз для waitForFunction: прозорість першого елемента за селектором; немає елемента — NaN (умова не справджується). */
+const OPACITY = (selector: string) =>
+  `((el) => (el === null ? NaN : Number(getComputedStyle(el).opacity)))(document.querySelector(${JSON.stringify(selector)}))`;
+
+async function blitzSplashGame() {
+  const host = await open('host26a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host26a@example.com');
+
+  const data = {
+    ...makeRoundsQuiz([
+      boardRound('r1', [
+        {
+          title: 'Міста',
+          cells: [
+            { kind: 'blitz', question: withPoints(withId(single, 'q-c100'), 100) },
+            { kind: 'blitz', mark: 'x2', question: withPoints(withId(single, 'q-c200'), 200) },
+            withPoints(withId(single, 'q-c300'), 300),
+          ],
+        },
+        ...['Річки', 'Гори'].map((title, column) => ({
+          title,
+          cells: [100, 200, 300].map((price) => withPoints(withId(single, `q-${column}-${price}`), price)),
+        })),
+      ]),
+    ]),
+    title: 'Заставка бліцу',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href');
+  const stage = await open('stage26a', 1600, 900);
+  await stage.goto(stageUrl!);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya26a', 375, 812);
+  const taras = await open('taras26a', 360, 740);
+  const ira = await open('ira26a', 360, 740);
+  await ira.emulateMedia({ reducedMotion: 'reduce' });
+  // Найвужчі телефони іншими мовами: «¡BLITZ!» і «خاطف!» теж мають стати в один рядок на 320 px.
+  const jose = await open('jose26a', 320, 640, { locale: 'es-ES' });
+  const amal = await open('amal26a', 320, 640, { locale: 'ar-EG' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await join22a(amal, ar, code, 'Амаль');
+  await stage.getByText('Амаль').waitFor();
+  const phones = [olya, taras, ira, jose, amal];
+  const all = [stage, host, ...phones];
+
+  const score = async (nickname: string) =>
+    Number(
+      (await host.locator('.rows > li:has(button)', { hasText: nickname }).locator('.score').first().textContent())!
+        .replace('−', '-')
+        .replace(/\s/g, ''),
+    );
+  const cell = (page: Page, category: string, price: number) =>
+    page.getByRole('button', { name: `${category}, ${price}`, ...exact });
+  const kyiv = (page: Page) => page.getByRole('button', { name: /Київ/ });
+  const shown = host.getByRole('button', { name: 'Показати відповідь', ...exact });
+  const accept = host.getByRole('button', { name: 'Прийняти', ...exact });
+  const after = host.getByRole('button', { name: 'Далі', ...exact });
+  const toBoard = async () => {
+    await click(host, 'Далі');
+    const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+    const picking = host.getByRole('button', { name: 'Пропустити хід', ...exact });
+    await Promise.race([next.waitFor(), picking.waitFor()]);
+    if (await next.isVisible()) await next.click();
+    await picking.waitFor();
+  };
+  /** Поки шар «БЛІЦ!» на телефоні, варіантів ще немає або їх не натиснути. */
+  const lockedUnder = async (page: Page) => {
+    const options = page.locator('.choice');
+    if ((await options.count()) === 0) return;
+    for (const option of await options.all()) expect(await option.isDisabled(), 'an option is live under «БЛІЦ!»').toBe(true);
+  };
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await afterSplash(...all);
+
+  // 1. Звичайна клітинка: перегортання, але без «БЛІЦ!».
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(olya, 'Річки', 100).click();
+  await afterSplash(stage, olya);
+  expect(await stage.locator('.splash.is-blitz').count(), 'no «БЛІЦ!» on a plain cell').toBe(0);
+  const olyaBefore = await score('Оля');
+  await kyiv(olya).click();
+  await Promise.race([shown.waitFor(), accept.waitFor(), after.waitFor()]);
+  if (await accept.isVisible()) await accept.click();
+  await Promise.race([shown.waitFor(), after.waitFor()]);
+  if (await shown.isVisible()) await shown.click();
+  await after.waitFor();
+  expect(await score('Оля')).toBe(olyaBefore + 100);
+  await toBoard();
+
+  // 2. Бліц-клітинка: спершу перегортання, далі «БЛІЦ!» з рядком правил на сцені, телефонах і пульті; запитання ще не почалося.
+  await taras.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(taras, 'Міста', 100).click();
+  await stage.locator('.splash.is-blitz').waitFor({ state: 'attached' });
+  const layerAt = Date.now();
+  await Promise.all(
+    [stage, olya, taras, ira, host, jose, amal].map((page) => page.locator('.splash.is-blitz .splash-blitz-title').waitFor({ state: 'attached' })),
+  );
+  // «БЛІЦ!» проявляється після перегортання й стоїть видимим скрізь — і без руху теж.
+  await Promise.all(
+    [stage, olya, taras, ira, host, jose, amal].map((page) => page.waitForFunction(`${OPACITY('.splash-blitz')} > 0.99`, undefined, { timeout: 4000 })),
+  );
+  // На пульті шар над консоллю на все вікно.
+  const hostLayer = (await host.locator('.splash.is-blitz').boundingBox())!;
+  expect([hostLayer.x, hostLayer.y, hostLayer.width, hostLayer.height]).toEqual([0, 0, 1280, 900]);
+  for (const page of [stage, olya, taras, host]) {
+    const title = await blitzTitle(page);
+    expect(title.text).toBe('БЛІЦ!');
+    expect(title.lines, '«БЛІЦ!» in one line').toBe(1);
+    expect(title.fits, '«БЛІЦ!» fits its box').toBe(true);
+    expect(await page.locator('.splash.is-blitz .splash-blitz-rule').textContent()).toBe(ukMessages.cellBlitzRuleInstant);
+  }
+  const titles = {
+    stage: await blitzTitle(stage),
+    phone375: await blitzTitle(olya),
+    phone360: await blitzTitle(taras),
+    host: await blitzTitle(host),
+    es320: await blitzTitle(jose),
+    ar320: await blitzTitle(amal),
+  };
+  console.log(`26a «БЛІЦ!» font sizes: ${JSON.stringify(titles)}`);
+  expect(titles.es320.text).toBe('¡BLITZ!');
+  expect(titles.ar320.text).toBe('خاطف!');
+  for (const title of [titles.es320, titles.ar320]) {
+    expect(title.lines, `${title.text} in one line at 320 px`).toBe(1);
+    expect(title.fits, `${title.text} fits at 320 px`).toBe(true);
+  }
+  await lockedUnder(olya);
+  await lockedUnder(taras);
+  // Без руху: напис просто стоїть (лише миттєва поява), анімації появи splash-blitz-in немає; з рухом — є.
+  const animations = (page: Page) =>
+    page.locator('.splash.is-blitz .splash-blitz').evaluate((el) => el.getAnimations().map((a) => (a as CSSAnimation).animationName));
+  expect(await animations(ira)).not.toContain('splash-blitz-in');
+  expect(await animations(olya)).toContain('splash-blitz-in');
+  await Promise.all([
+    shot(stage, 'blitz26a-splash-stage', { splash: true }),
+    shot(taras, 'blitz26a-splash-phone', { splash: true }),
+    shot(host, 'blitz26a-splash-host', { splash: true }),
+    shot(ira, 'blitz26a-splash-phone-reduced', { splash: true }),
+    shot(jose, 'blitz26a-splash-phone-es-320', { splash: true }),
+    shot(amal, 'blitz26a-splash-phone-ar-320', { splash: true }),
+  ]);
+  await afterSplash(stage, olya, taras, host);
+  const layerMs = Date.now() - layerAt;
+  expect(layerMs, `«БЛІЦ!» stood ${layerMs} ms`).toBeGreaterThanOrEqual(SPLASH_MS.cell + SPLASH_MS.blitz - 300);
+  await shot(stage, 'blitz26a-question-stage');
+
+  // 3. Після шару — запитання: варіанти в усіх, далі як у 7b — відповідь, «Прийняти», бали.
+  await expect.poll(() => kyiv(olya).isEnabled()).toBe(true);
+  await expect.poll(() => kyiv(taras).isEnabled()).toBe(true);
+  const olyaBeforeBlitz = await score('Оля');
+  await kyiv(olya).click();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Оля' }).waitFor();
+  await click(host, 'Прийняти');
+  await stage.getByText('Першим правильно відповів: Оля').waitFor();
+  await click(host, 'Показати відповідь');
+  await after.waitFor();
+  expect(await score('Оля')).toBe(olyaBeforeBlitz + 100);
+  await toBoard();
+
+  // 4. Бліц ×2: на сцені спершу штамп «×2!», потім «БЛІЦ!».
+  await ira.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await cell(ira, 'Міста', 200).click();
+  await stage.locator('.splash.is-blitz .splash-surprise', { hasText: '×2!' }).waitFor({ state: 'attached' });
+  await stage.waitForFunction(`${OPACITY('.splash.is-blitz .splash-surprise')} > 0.99 && ${OPACITY('.splash-blitz')} < 0.01`, undefined, { timeout: 4000 });
+  if (process.env.E2E_SHOTS === '1') {
+    mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+    await stage.screenshot({ path: resolve(ARTIFACTS, 'shots', 'blitz26a-x2-stage.png'), fullPage: true });
+  }
+  await stage.waitForFunction(`${OPACITY('.splash-blitz')} > 0.99 && ${OPACITY('.splash-blitz-lead')} < 0.01`, undefined, { timeout: 4000 });
+  expect((await blitzTitle(stage)).text).toBe('БЛІЦ!');
+  await shot(stage, 'blitz26a-x2-title-stage', { splash: true });
+  await afterSplash(...all);
+  await kyiv(taras).click();
+  await host.locator('.blitz-queue li.is-pending', { hasText: 'Тарас' }).waitFor();
+  await click(host, 'Прийняти');
+  await stage.getByText('Першим правильно відповів: Тарас').waitFor();
+  await click(host, 'Показати відповідь');
+  await after.waitFor();
+  await toBoard();
+
   await click(host, 'Завершити гру');
   await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
 

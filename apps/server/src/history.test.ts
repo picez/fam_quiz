@@ -1,6 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { breakdownOf, DEFAULT_RULES, defaultTeams, type Answer, type Question } from '@quiz/shared';
+import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
 import { LADDER_RIGHT, LADDER_WRONG, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
@@ -506,12 +506,18 @@ describe('host history: board', () => {
     step('start');
     step('next');
     expect(ctx.manager.pick(room, ids['Анна'], 'c11')).toEqual({ ok: true });
-    for (const [nickname, optionId] of [['Анна', 'a'], ['Богдан', 'b']] as const) {
-      expect(ctx.manager.answer(room, ids[nickname], { type: 'single', optionId })).toEqual({ ok: true });
-      expect(ctx.manager.host(room, { type: 'accept', playerId: ids[nickname] })).toEqual({ ok: true });
+    // Відповіді — після заставки «БЛІЦ!» (26a).
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + SPLASH_MS.blitz });
+    try {
+      for (const [nickname, optionId] of [['Анна', 'a'], ['Богдан', 'b']] as const) {
+        expect(ctx.manager.answer(room, ids[nickname], { type: 'single', optionId })).toEqual({ ok: true });
+        expect(ctx.manager.host(room, { type: 'accept', playerId: ids[nickname] })).toEqual({ ok: true });
+      }
+      expect(room.state.phase).toBe('locked');
+      step('next');
+    } finally {
+      vi.useRealTimers();
     }
-    expect(room.state.phase).toBe('locked');
-    step('next');
     await ctx.recorder.idle();
 
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {

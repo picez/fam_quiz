@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Answer, type Round, type RoundRules } from '@quiz/shared';
+import { DEFAULT_RULES, SPLASH_MS, type Answer, type Round, type RoundRules } from '@quiz/shared';
 import {
   appealOpen,
   appealPoints,
@@ -256,10 +256,12 @@ describe('board cells', () => {
   });
 
   it('a blitz cell and a voice cell without a phone answer cannot be appealed', () => {
+    // Бліц-клітинка стартує після заставки «БЛІЦ!» (26a).
+    const at = SPLASH_MS.blitz;
     let blitz = picked([{ question: c11, kind: 'blitz' }, c12]);
-    blitz = acceptAll(must(submitAnswer(blitz, 'p1', lviv, 1000)), 1000);
-    blitz = acceptAll(must(submitAnswer(blitz, 'p2', kyiv, 2000)), 2000);
-    while (blitz.phase !== 'reveal') blitz = must(next(blitz, 3000));
+    blitz = acceptAll(must(submitAnswer(blitz, 'p1', lviv, at + 1000)), at + 1000);
+    blitz = acceptAll(must(submitAnswer(blitz, 'p2', kyiv, at + 2000)), at + 2000);
+    while (blitz.phase !== 'reveal') blitz = must(next(blitz, at + 3000));
     expect(appealReasons(blitz, 'p1')).toEqual([]);
     expect(openAppeal(blitz, 'p1', 'grade', T1)).toEqual(err('appeal_unfit'));
     const voice = must(next(must(override(picked([c11, c12], { answerMode: 'voice' }), 'p1', 'wrong', 1000)), 2000));

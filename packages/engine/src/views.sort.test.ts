@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, SPLASH_MS, type Question } from '@quiz/shared';
 import { pickCell } from './board';
 import { guessWord } from './chain';
 import { placeWager } from './final';
@@ -288,8 +288,9 @@ describe('live sorting views (11d)', () => {
 
   it('a solo blitz cell with a sort has no live view', () => {
     const round = boardRound('g1', [{ title: 'Сортування', cells: [{ answerMode: 'phone', kind: 'blitz', question: sortQ }] }]);
-    const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 0));
-    let s = must(pickCell(board, 'p1', 'q9', 1000, rng));
+    // Вибір до заставки «БЛІЦ!» (26a): запитання стартує о 1000.
+    const board = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Анна', 'Богдан'))), 1000 - SPLASH_MS.blitz));
+    let s = must(pickCell(board, 'p1', 'q9', 1000 - SPLASH_MS.blitz, rng));
     expect(s.plays[0].board?.kind).toBe('blitz');
     s = must(sortWord(s, 'p1', head(s, 'p1'), right(head(s, 'p1')), 2000));
     expect(stageView(s).sort?.live).toBeNull();

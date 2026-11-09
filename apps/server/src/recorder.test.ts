@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, isUnscored, type Question, type Quiz } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
 import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
@@ -848,8 +848,9 @@ describe('recorder: board', () => {
     const cells = [{ question: cell('c11', 100), kind: 'blitz' as const, mark: 'x2' as const, penalty: 'all' as const }, cell('c12', 200)];
     // Ручна перевірка: бліц з кнопкою дає кілька спроб одному гравцеві.
     const round = boardRound('g1', [{ title: 'Міста', cells }], { check: 'manual' });
-    const { manager, room, olena, taras, saved } = await boardSetup(round);
+    const { scheduler, manager, room, olena, taras, saved } = await boardSetup(round);
     expect(manager.pick(room, olena, 'c11')).toEqual({ ok: true });
+    scheduler.advance(SPLASH_MS.blitz); // заставка «БЛІЦ!» (26a)
     // Тарас відповідає неправильно, потім правильно; Олена, що вибрала, лише платить.
     for (const answerGiven of [wrong, correct]) {
       expect(manager.buzz(room, taras)).toEqual({ ok: true });

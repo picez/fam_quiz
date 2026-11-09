@@ -1,12 +1,15 @@
-import { SPLASH_MS } from '@quiz/shared';
+import { AWAY_MS, blitzLeadMs, CELL_SURPRISE_MS, SPLASH_MS } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
+import { awayEnd, awayStart } from './away';
 import { buzz } from './blitz';
 import { pickCell } from './board';
 import { buffBlock, castVote, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { answerDuel, declareDuel, pickDuelCategory } from './duel';
 import { createGame, end, endRound, lock, next, pause, recordOf, resume, start, submitAnswer, tick, type GameState } from './game';
+import { suspend } from './restore';
 import { adjustTime, deadlineOf, overtimeOf } from './timing';
+import { playerView, stageView } from './views';
 import { othersQuiz } from './testing/buffs';
 import { toDeclarable } from './testing/duel';
 import { blitzRound, boardRound, classicRound, finalRound, makeRoundsQuiz, single, withId, withVideo } from './testing/fixtures';
@@ -20,6 +23,37 @@ const classicQuiz = (speedBonus = true, buffs?: ['fifty']) =>
   makeRoundsQuiz([classicRound('r1', [single, withId(single, 'q2')], { speedBonus })], buffs ? { buffs } : {});
 /** Класика із заставками: `single` (20 с, 1000 балів), відкрито о T0. */
 const classic = (speedBonus = true) => openAt(lobbyWithSplash(classicQuiz(speedBonus), 'Анна', 'Богдан'), T0);
+/** Поле: a1 звичайна, a2 бліц, a3 бліц з ×2; Анна p1, Богдан p2; поле відкрито о T0 - 5000. */
+const boardAt = (lobby: typeof lobbyWith) =>
+  must(
+    next(
+      must(
+        start(
+          lobby(
+            makeRoundsQuiz([
+              boardRound(
+                'b1',
+                [
+                  {
+                    title: 'Міста',
+                    cells: [
+                      withId(single, 'a1'),
+                      { question: withId(single, 'a2'), kind: 'blitz' },
+                      { question: withId(single, 'a3'), kind: 'blitz', mark: 'x2' },
+                    ],
+                  },
+                ],
+                { check: 'manual' },
+              ),
+            ]),
+            'Анна',
+            'Богдан',
+          ),
+        ),
+      ),
+      T0 - 5000,
+    ),
+  );
 /** Класика із заставками, де перше запитання з відео (без таймера), відкрито о T0. */
 const video = () =>
   openAt(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [withVideo(single), withId(single, 'q2')])]), 'Анна', 'Богдан'), T0);
@@ -56,25 +90,11 @@ describe('the question splash', () => {
     expect(submitAnswer(s, 'p1', right, T0).ok).toBe(true);
   });
 
-  it('a board cell flips for 1 s before its timer; a blitz cell waits too', () => {
+  it('a board cell flips for 1 s before its timer', () => {
     // id клітинки — id її запитання (findCell у shared/quiz.ts).
-    const quiz = makeRoundsQuiz([
-      boardRound('b1', [{ title: 'Міста', cells: [withId(single, 'a1'), { question: withId(single, 'a2'), kind: 'blitz' }] }], {
-        check: 'manual',
-      }),
-    ]);
-    let s = must(next(must(start(lobbyWithSplash(quiz, 'Анна', 'Богдан'))), T0 - 5000)); // intro → поле
-    s = must(pickCell(s, 'p1', 'a1', T0, rng0));
+    const s = must(pickCell(boardAt(lobbyWithSplash), 'p1', 'a1', T0, rng0));
     expect(s.splash).toEqual({ kind: 'cell', at: T0, until: T0 + SPLASH_MS.cell });
     expect([s.startedAt, s.endsAt]).toEqual([T0 + SPLASH_MS.cell, T0 + SPLASH_MS.cell + 20_000]);
-    // a1 закрити й розкрити, повернутися на поле; Богдан вибирає a2 (бліц) о T1.
-    s = must(lock(s));
-    while (s.phase !== 'board') s = must(next(s, T0 + 30_000, rng0));
-    s = must(pickCell(s, 'p2', 'a2', T1, rng0));
-    expect(s.splash).toEqual({ kind: 'cell', at: T1, until: T1 + SPLASH_MS.cell });
-    expect(buzz(s, 'p1', T1 + SPLASH_MS.cell - 1)).toEqual({ ok: false, error: 'not_started' });
-    s = must(buzz(s, 'p1', T1 + SPLASH_MS.cell));
-    expect(s.plays[s.questionIndex].blitz?.queue[0]).toMatchObject({ playerId: 'p1', timeMs: 0 });
   });
 
   it('blitz rounds have no splash', () => {
@@ -176,6 +196,84 @@ describe('the question splash', () => {
     t = must(takeBuff(t, 'p1', 'time', T0 + 5000, rng0));
     expect(deadlineOf(t, t.plays[0], 'p1')).toBe(T0 + SPLASH_MS.question + 50_000);
     expect(deadlineOf(t, t.plays[0], 'p2')).toBe(T0 + SPLASH_MS.question + 20_000);
+  });
+});
+
+describe('the «БЛІЦ!» splash before a board blitz cell (26a)', () => {
+  /** Після перегортання клітинки — кінець заставки й старт запитання. */
+  const START = T1 + SPLASH_MS.cell + SPLASH_MS.blitz;
+  const blitzAt = (lobby: typeof lobbyWith = lobbyWithSplash, cellId = 'a2') => must(pickCell(boardAt(lobby), null, cellId, T1, rng0));
+
+  it('a blitz cell flips, then «БЛІЦ!» stands 3 s; its timer starts after both', () => {
+    let s = blitzAt();
+    expect(SPLASH_MS.blitz).toBe(3000);
+    expect(s.splash).toEqual({ kind: 'blitz', at: T1, until: T1 + SPLASH_MS.cell + 3000 });
+    expect([s.startedAt, s.endsAt]).toEqual([T1 + SPLASH_MS.cell + 3000, T1 + SPLASH_MS.cell + 3000 + 20_000]);
+    expect(buzz(s, 'p1', T1 + SPLASH_MS.cell + 2999)).toEqual({ ok: false, error: 'not_started' });
+    s = must(buzz(s, 'p1', T1 + SPLASH_MS.cell + 3000));
+    expect(s.plays[s.questionIndex].blitz?.queue[0]).toMatchObject({ playerId: 'p1', timeMs: 0 });
+    expect(blitzLeadMs(s.splash!)).toBe(SPLASH_MS.cell);
+  });
+
+  it('a marked blitz cell waits for the «×2!» stamp before «БЛІЦ!»', () => {
+    const s = blitzAt(lobbyWithSplash, 'a3');
+    expect(s.plays[s.questionIndex].board?.multiplier).toBe(2);
+    expect(s.splash!.until - s.splash!.at).toBe(SPLASH_MS.cell + CELL_SURPRISE_MS + 3000);
+    expect(blitzLeadMs(s.splash!)).toBe(SPLASH_MS.cell + CELL_SURPRISE_MS);
+  });
+
+  it('without transitions a blitz cell still gets «БЛІЦ!» 3 s, without the flip', () => {
+    const board = boardAt(lobbyWith);
+    const s = must(pickCell(board, null, 'a2', T0, rng0));
+    expect(s.splash).toEqual({ kind: 'blitz', at: T0, until: T0 + 3000 });
+    expect(s.startedAt).toBe(T0 + 3000);
+    expect(blitzLeadMs(s.splash!)).toBe(0);
+    expect(buzz(s, 'p1', T0 + 2999)).toEqual({ ok: false, error: 'not_started' });
+    // Звичайна клітинка в тій самій грі — як і була.
+    const plain = must(pickCell(board, 'p1', 'a1', T0, rng0));
+    expect(plain.splash).toBeNull();
+    expect(plain.startedAt).toBe(T0);
+  });
+
+  it('a blitz splash paused midway shifts the question start by the pause', () => {
+    const s = blitzAt();
+    const resumed = must(resume(must(pause(s, T1 + 2000)), T1 + 12_000));
+    expect(resumed.splash).toEqual({ kind: 'blitz', at: T1 + 10_000, until: s.splash!.until + 10_000 });
+    expect(resumed.startedAt).toBe(s.startedAt! + 10_000);
+    expect(resumed.endsAt! - resumed.startedAt!).toBe(20_000);
+    expect(blitzLeadMs(resumed.splash!)).toBe(SPLASH_MS.cell);
+  });
+
+  it('a room saved mid-blitz-splash restores with the rest of the splash before the timer', () => {
+    const saved = suspend(blitzAt(), T1 + 1000);
+    const back = must(resume(saved, T1 + 60_000));
+    expect(back.startedAt).toBe(T1 + 60_000 + (SPLASH_MS.cell + 3000 - 1000));
+    expect(back.endsAt! - back.startedAt!).toBe(20_000);
+  });
+
+  it('the host can close a blitz cell during «БЛІЦ!»', () => {
+    const s = blitzAt();
+    const closed = must(lock(s, T1 + 2000));
+    expect(closed.phase).not.toBe('question');
+    expect(tick(closed, s.endsAt!).phase).toBe(closed.phase);
+    expect(tick(closed, s.endsAt! + 1).phase).toBe(closed.phase);
+    expect(stageView(closed).splash).toBeNull();
+    expect(playerView(closed, 'p1')?.splash).toBeNull();
+  });
+
+  it('a player hidden during «БЛІЦ!» is not away before the question starts', () => {
+    const s = blitzAt();
+    const hidden = awayStart(s, 'p1', T1 + 2000);
+    expect(hidden.plays[hidden.questionIndex].away?.p1).toEqual({ ms: 0, count: 0, since: START + AWAY_MS.preGrace });
+    // Повернулася до старту запитання — нічого не пораховано.
+    expect(awayEnd(hidden, 'p1', START - 100).plays[hidden.questionIndex].away?.p1).toEqual({ ms: 0, count: 0, since: null });
+  });
+
+  it('the view shows the blitz splash in the question phase', () => {
+    const s = blitzAt();
+    expect(s.phase).toBe('question');
+    expect(stageView(s).splash).toEqual({ kind: 'blitz', at: T1, until: START });
+    expect(playerView(s, 'p1')?.splash?.kind).toBe('blitz');
   });
 });
 

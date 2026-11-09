@@ -64,10 +64,12 @@ function closeEntry(state: GameState, index: number, personId: string, now: numb
   return { state: withEntry(state, index, personId, closed), added };
 }
 
-/** Кінець заставки перед запитанням (question / cell), що ще йде на мить at; інакше at. Пауза зсуває заставку й since разом. */
+/** Кінець заставки перед запитанням (question / cell / blitz), що ще йде на мить at; інакше at. Пауза зсуває заставку й since разом. */
 function splashEnd(state: GameState, at: number): number {
   const splash = state.splash;
-  return splash !== null && (splash.kind === 'question' || splash.kind === 'cell') && splash.until > at ? splash.until : at;
+  return splash !== null && (splash.kind === 'question' || splash.kind === 'cell' || splash.kind === 'blitz') && splash.until > at
+    ? splash.until
+    : at;
 }
 
 /**

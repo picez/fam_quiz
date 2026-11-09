@@ -1,3 +1,4 @@
+import { SPLASH_MS } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
 import { activeDebuff, cancelDebuff, debuffOn, setDebuff, shownDebuff } from './debuffs';
@@ -79,7 +80,8 @@ describe('host debuffs', () => {
     expect(state.debuffs.p3.firedAt).toBeNull();
     state = must(pickCell(toBoard(must(lock(state))), 'p2', 'c12', T0, rng)); // усна клітинка p2
     expect(state.debuffs.p3.firedAt).toBeNull();
-    state = must(pickCell(toBoard(must(lock(state))), 'p3', 'c13', T0, rng)); // бліц-клітинка
+    // бліц-клітинка; вибір до заставки «БЛІЦ!» (26a), запитання стартує о T0
+    state = must(pickCell(toBoard(must(lock(state))), 'p3', 'c13', T0 - SPLASH_MS.blitz, rng));
     expect(state.debuffs.p3).toEqual({ kind: 'mirror', firedAt: 2, since: T0, by: null });
 
     const own = must(pickCell(must(next(must(setDebuff(intro(), 'p1', 'fog')), T0, rng)), 'p1', 'c11', T0, rng));
