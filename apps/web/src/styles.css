@@ -16906,3 +16906,34 @@ button.wall-tile:disabled {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+/* ---------- «Ставки» (27a): телефон ---------- */
+
+/* Початок запитання до відкриття: довгий текст переноситься, на 320 px горизонтальної прокрутки немає. */
+.bets-teaser {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bets-teaser-text {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+/* Рядок відмови резервує висоту: поява причини не зсуває кнопку. */
+.bets-form .bets-error {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--signal);
+}
+
+.bets-form .wager-row .btn {
+  flex: none;
+}
+
+.bets-skip,
+.bets-result {
+  overflow-wrap: anywhere;
+}

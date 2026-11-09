@@ -4294,3 +4294,39 @@ describe('PlayerScreen: likes (17a)', () => {
     expect(await screen.findByText('Забагато вподобань — зачекай кілька секунд')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen bets (27a)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'bets', partial: false, description: '', brief: emptyBrief('bets'), times: null };
+  const bets = { theme: 'Столиці', index: 0, total: 3, minimum: 200, maximum: null, teaser: 'Яке місто', bank: 0, placed: [], eligible: 2, rows: null, refund: false };
+  const mine = (over: object = {}) => ({ ...me, score: 600, bets: { status: 'choosing' as const, wager: null, minimum: 200, limit: 600, canBet: true, ...over } });
+
+  it('shows the bet form on the wager phase', () => {
+    show(view({ phase: 'wager', round, bets, me: mine() }));
+    expect(screen.getByText('Ваша ставка від 200 до 600')).toBeTruthy();
+    expect(screen.getByText('Яке місто')).toBeTruthy();
+  });
+
+  it('a team member who is not the captain only sees who bets', () => {
+    show(teamPlayerView({ phase: 'wager', round, bets, me: { ...baseMe, score: 600, bets: mine().bets } }, { captain: false, canAct: false, answerer: false, answererId: 'u1' }));
+    expect(screen.queryByLabelText('Ставка')).toBeNull();
+    expect(screen.getByText(t('teamCaptainWager'))).toBeTruthy();
+  });
+
+  it('a late player sees the question without an answer field and the skip line', () => {
+    show(onQuestion({ round, bets: { ...bets, teaser: null }, me: mine({ status: 'late', canBet: false }) }));
+    expect(screen.getByText('Ставки закрито без вашої — це запитання ви пропускаєте')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+  });
+
+  it('a playing player still gets the answer field', () => {
+    show(onQuestion({ round, bets: { ...bets, teaser: null }, me: mine({ status: 'playing', wager: 200, canBet: false }) }));
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('shows the bet result on the reveal', () => {
+    const result = { accepted: true, accuracy: 1, grade: 'correct' as const, streakBonus: 0, points: 500 };
+    const row = { playerId: 'p1', nickname: 'Олена', wager: 200, grade: 'correct' as const, points: 500, score: 1100 };
+    show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, bets: { ...bets, teaser: null, rows: [row] }, me: { ...mine({ status: 'playing', wager: 200, canBet: false }), result } }));
+    expect(screen.getByText('Ставка 200: +500 з банку')).toBeTruthy();
+  });
+});
