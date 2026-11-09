@@ -193,6 +193,21 @@ describe('TextTool', () => {
     expect(toggle('Зворот').checked).toBe(false);
   });
 
+  it('the note shows as soon as the place is turned on, before any text', () => {
+    open('cup', { decor: { ...EMPTY_DECOR, photoPlace: 'ring', photos: photo(2) } });
+    expect(within(place('Зворот')).queryByText(/зайняте/)).toBeNull();
+    fireEvent.click(toggle('Зворот'));
+    expect(current.decor.inscriptions).toEqual([]);
+    expect(within(place('Зворот')).getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».')).toBeTruthy();
+  });
+
+  it('a plaque inscription under a plaque photo has one note', () => {
+    const plaque = { ...back, place: 'plaque' as const };
+    open('cup', { decor: { ...EMPTY_DECOR, photoPlace: 'plaque', photos: photo(1), inscriptions: [plaque] } });
+    expect(within(place('Табличка')).getByText('Табличку зайняло фото.')).toBeTruthy();
+    expect(within(place('Табличка')).queryByText(/Не вміщується|зайняте/)).toBeNull();
+  });
+
   it('no note without a conflict', () => {
     open('cup', { decor: { ...EMPTY_DECOR, inscriptions: [back] } });
     expect(within(place('Зворот')).queryByText(/зайняте/)).toBeNull();

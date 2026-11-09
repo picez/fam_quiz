@@ -37,7 +37,7 @@ export function inscriptionNote(placed: PlacedInscription): string | null {
 }
 
 /** Примітка рядка: переїхала — куди й чому, не вміщується — чому; на своєму місці — нічого. */
-function moveNote(sticker: PlacedSticker): string | null {
+export function stickerNote(sticker: PlacedSticker): string | null {
   if (sticker.at === sticker.place) return null;
   const what = sticker.blockedBy === null ? '' : occupantText(sticker.blockedBy);
   const from = placeText(sticker.place);
@@ -90,7 +90,9 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
         <ul className="studio-sticker-list">
           {placed.map((sticker) => {
             const known = stickerOf(sticker.id);
-            const note = moveNote(sticker);
+            const note = stickerNote(sticker);
+            // Кнопки рядків різняться для читача з екрана: дія — і наліпка з місцем, де вона лежить.
+            const label = (action: TextKey) => `${t(action)}: ${sticker.id}, ${placeText(sticker.at ?? sticker.place)}`;
             return (
               <li key={sticker.place} className="studio-sticker-row" data-place={sticker.place}>
                 <span className="studio-sticker-thumb">
@@ -103,11 +105,17 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
                 <button
                   type="button"
                   className="btn btn-small"
+                  aria-label={label('studioStickerChange')}
                   onClick={(event) => open(event.currentTarget, { place: sticker.place, id: sticker.id, at: sticker.at })}
                 >
                   {t('studioStickerChange')}
                 </button>
-                <button type="button" className="btn btn-small" onClick={() => onPick(sticker.place, null)}>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={label('studioStickerRemove')}
+                  onClick={() => onPick(sticker.place, null)}
+                >
                   {t('studioStickerRemove')}
                 </button>
               </li>

@@ -1,4 +1,4 @@
-import { DECOR_LIMITS, DECOR_SUPPORT, INSCRIPTION_LOOKS, NICK_FONTS, lookLevel, type Inscription, type InscriptionPlace, type NickFont } from '@quiz/shared';
+import { DECOR_LIMITS, DECOR_SUPPORT, INSCRIPTION_LOOKS, INSCRIPTION_PLACES, NICK_FONTS, lookLevel, type Inscription, type InscriptionPlace, type NickFont } from '@quiz/shared';
 import { useEffect, useId, useState, type JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
 import { loadNickFont } from '../../nick-fonts';
@@ -36,8 +36,13 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
     for (const font of openKey.split(' ')) if (font !== '') void loadNickFont(font as NickFont);
   }, [anyOn, openKey]);
 
-  const layout = draft.trophy === null ? null : layoutDecor(draft.trophy.kind, decor);
-  const plaqueTaken =decor.photoPlace === 'plaque' && decor.photos.length > 0;
+  // Увімкнене без тексту місце теж рахується в розкладці: примітка про переїзд видна одразу, ще до набору.
+  const unsaved = places
+    .filter((place) => pending[place] !== undefined && !decor.inscriptions.some((i) => i.place === place))
+    .map((place): Inscription => ({ place, text: ' ', ...pending[place]! }));
+  const inscriptions = [...decor.inscriptions, ...unsaved].sort((a, b) => INSCRIPTION_PLACES.indexOf(a.place) - INSCRIPTION_PLACES.indexOf(b.place));
+  const layout = draft.trophy === null ? null : layoutDecor(draft.trophy.kind, { ...decor, inscriptions });
+  const plaqueTaken = decor.photoPlace === 'plaque' && decor.photos.length > 0;
 
   return (
     <div className="studio-tool">
@@ -71,7 +76,8 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
         };
         const fonts = `${id}-${place}-font`;
         const placed = layout?.inscriptions.find((i) => i.inscription.place === place);
-        const note = on && placed !== undefined ? inscriptionNote(placed) : null;
+        // Табличку з фото пояснює studioPlaqueTaken — друга примітка там зайва.
+        const note = on && !taken && placed !== undefined ? inscriptionNote(placed) : null;
 
         return (
           <fieldset key={place} className="studio-group studio-text">

@@ -7,7 +7,7 @@ import type { ToolProps } from '../PrizeStudio';
 import { layoutDecor } from '../../trophy/decor-places';
 import { photoLimit } from '../studio-draft';
 import { CropDialog } from './CropDialog';
-import { inscriptionNote } from './StickerPicker';
+import { inscriptionNote, stickerNote } from './StickerPicker';
 
 const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).includes(type);
 
@@ -26,13 +26,15 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
   const shown = decor.photos.slice(0, limit);
   const count = shown.length;
   const full = count >= limit;
-  // Написи, що через це місце переїхали чи не вміщуються.
+  // Написи й наліпки, що через це місце фото переїхали чи не вміщуються.
+  const layout = draft.trophy === null ? null : layoutDecor(draft.trophy.kind, decor);
   const notes =
-    draft.trophy === null
+    layout === null
       ? []
-      : layoutDecor(draft.trophy.kind, decor)
-          .inscriptions.map(inscriptionNote)
-          .filter((note): note is string => note !== null);
+      : [
+          ...layout.inscriptions.map(inscriptionNote),
+          ...layout.stickers.filter((sticker) => sticker.blockedBy?.type === 'photos').map(stickerNote),
+        ].filter((note): note is string => note !== null);
   const [error, setError] = useState<string | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const mounted = useRef(true);

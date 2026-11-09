@@ -46,6 +46,9 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
     if (editing !== null && free(editing.at)) return editing.at;
     return choices.find((c) => c.takenBy === null)?.place ?? null;
   });
+  // Місце не чіпали — змінювана наліпка лишається на своєму місці в даних (не на запасному, куди переїхала),
+  // тож повернеться туди, щойно воно звільниться.
+  const [placeTouched, setPlaceTouched] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
   const uid = useId();
   const title = `${uid}-title`;
@@ -150,7 +153,10 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
                       checked={place === p}
                       disabled={takenBy !== null}
                       aria-describedby={takenBy === null ? undefined : note}
-                      onChange={() => setPlace(p)}
+                      onChange={() => {
+                        setPlace(p);
+                        setPlaceTouched(true);
+                      }}
                     />
                     <span className="sticker-dialog-place">{placeText(p)}</span>
                     {takenBy !== null && (
@@ -178,7 +184,8 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
               disabled={!ready}
               aria-describedby={why === null ? undefined : hint}
               onClick={() => {
-                if (id !== null && place !== null) onDone(place, id);
+                if (id === null || place === null) return;
+                onDone(editing !== null && !placeTouched ? editing.place : place, id);
               }}
             >
               {t('studioStickerDone')}

@@ -286,4 +286,19 @@ describe('PhotoTool', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Кільце по чаші' }));
     expect(screen.getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».')).toBeTruthy();
   });
+
+  it('choosing the medallion tells that the front sticker moves', () => {
+    const start = draftFrom(null);
+    start.trophy = { kind: 'cup', material: 'gold' };
+    start.decor = {
+      ...EMPTY_DECOR,
+      photoPlace: 'plaque',
+      photos: [{ url: '/uploads/1.png', crop: { x: 0.5, y: 0.5, scale: 1 } }],
+      stickers: [{ id: 'nyaBeach', place: 'front' }],
+    };
+    render(<Harness start={start} />);
+    expect(screen.queryByText(/тому тут/)).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Медальйон спереду' }));
+    expect(screen.getByText('Місце «Спереду» зайняте (Медальйон спереду), тому тут: «Ліворуч».')).toBeTruthy();
+  });
 });

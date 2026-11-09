@@ -80,7 +80,7 @@ describe('StickerPicker', () => {
     expect((within(grid).getByRole('button', { name: nyaa[0]!.id }) as HTMLButtonElement).disabled).toBe(false);
     expect(within(grid).queryByRole('button', { name: nyaa[1]!.id })).toBeNull();
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Скасувати' }));
-    fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
     expect(within(dialog()).getByRole('heading', { name: 'Змінити наліпку' })).toBeTruthy();
     grid = within(dialog()).getByRole('group', { name: 'Наліпка' });
     const current = within(grid).getByRole('button', { name: nyaa[1]!.id }) as HTMLButtonElement;
@@ -97,13 +97,13 @@ describe('StickerPicker', () => {
     expect(row!.querySelector('img')!.getAttribute('width')).toBe('32');
     expect(row!.textContent).toContain('Ліворуч');
     expect(row!.textContent).toContain('Місце «Спереду» зайняте (Медальйон спереду), тому тут: «Ліворуч».');
-    fireEvent.click(within(row!).getByRole('button', { name: 'Прибрати' }));
+    fireEvent.click(within(row!).getByRole('button', { name: /^Прибрати: / }));
     expect(onPick).toHaveBeenLastCalledWith('front', null);
   });
 
   it('change keeps its own place free', () => {
     const onPick = show('cup', decorOf({ ...medallion, stickers: stickers('front') }));
-    fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
     expect(radio('Ліворуч').disabled).toBe(false);
     expect(radio('Праворуч').disabled).toBe(false);
     expect(radio('Спереду').disabled).toBe(true);
@@ -115,18 +115,39 @@ describe('StickerPicker', () => {
 
   it('a sticker on its own place changes without from', () => {
     const onPick = show('cup', decorOf({ stickers: stickers('back') }));
-    fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
     expect(radio('Ззаду').checked).toBe(true);
     fireEvent.click(within(within(dialog()).getByRole('group', { name: 'Наліпка' })).getByRole('button', { name: open[3]!.id }));
     fireEvent.click(done());
     expect(onPick).toHaveBeenLastCalledWith('back', open[3]!.id, undefined);
   });
 
+  it('a moved sticker with only a new image keeps its own place', () => {
+    const onPick = show('cup', decorOf({ ...medallion, stickers: stickers('front') }));
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
+    // Вибране — де вона лежить, але місце не чіпали: у даних лишається «Спереду», куди вона повернеться.
+    expect(radio('Ліворуч').checked).toBe(true);
+    fireEvent.click(within(within(dialog()).getByRole('group', { name: 'Наліпка' })).getByRole('button', { name: open[3]!.id }));
+    fireEvent.click(done());
+    expect(onPick).toHaveBeenLastCalledWith('front', open[3]!.id, undefined);
+  });
+
+  it('row buttons name the sticker and where it lies', () => {
+    show('cup', decorOf({ ...medallion, stickers: stickers('front', 'back') }));
+    const names = rows().flatMap((row) => within(row).getAllByRole('button').map((button) => button.getAttribute('aria-label')));
+    expect(names).toEqual([
+      `Змінити: ${open[0]!.id}, Ліворуч`,
+      `Прибрати: ${open[0]!.id}, Ліворуч`,
+      `Змінити: ${open[1]!.id}, Ззаду`,
+      `Прибрати: ${open[1]!.id}, Ззаду`,
+    ]);
+  });
+
   it('a dropped sticker says it does not fit', () => {
     const onPick = show('star', decorOf({ ...medallion, inscriptions: [back], stickers: stickers('front', 'back', 'left', 'right', 'base-left') }));
     const dropped = rows().find((li) => li.textContent!.includes('Не вміщується'))!;
     expect(dropped.textContent).toContain('Не вміщується: «Ззаду» зайняте (Зворот), вільного місця немає.');
-    fireEvent.click(within(dropped).getByRole('button', { name: 'Прибрати' }));
+    fireEvent.click(within(dropped).getByRole('button', { name: /^Прибрати: / }));
     expect(onPick).toHaveBeenLastCalledWith('back', null);
   });
 
@@ -206,15 +227,15 @@ describe('StickerPicker', () => {
     fireEvent.click(done());
     expect(addButton().disabled).toBe(true);
     const row = rows().find((li) => li.getAttribute('data-place') === 'base-right')!;
-    expect(document.activeElement).toBe(within(row).getByRole('button', { name: 'Змінити' }));
+    expect(document.activeElement).toBe(within(row).getByRole('button', { name: /^Змінити: / }));
     cleanup();
     // Переїзд на інше місце перемонтовує рядок: фокус — на «Змінити» рядка на новому місці.
     render(<Live kind="cup" initial={decorOf({ stickers: stickers('front') })} />);
-    fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
     fireEvent.click(radio('Праворуч'));
     fireEvent.click(done());
     expect(rows().map((li) => li.getAttribute('data-place'))).toEqual(['right']);
-    expect(document.activeElement).toBe(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    expect(document.activeElement).toBe(within(rows()[0]!).getByRole('button', { name: /^Змінити: / }));
   });
 
   it('Tab stays inside the dialog', () => {
