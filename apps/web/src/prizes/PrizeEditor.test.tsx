@@ -90,6 +90,16 @@ describe('PrizeEditor', () => {
     vi.doUnmock('../trophy/TrophyView');
   });
 
+  it('the preview does not play the appearance', async () => {
+    vi.resetModules();
+    vi.doMock('../trophy/TrophyView', () => ({ TrophyView: vi.fn(() => null) }));
+    const view = await import('../trophy/TrophyView');
+    const { PrizeEditor: Editor } = await import('./PrizeEditor');
+    render(<Editor initial={withDecor} busy={false} onSave={vi.fn()} onCancel={() => {}} />);
+    expect((view.TrophyView as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0].appear).toBe(false);
+    vi.doUnmock('../trophy/TrophyView');
+  });
+
   it('a switched-off real prize is saved as null even with text typed', () => {
     const onSave = open();
     fireEvent.click(screen.getByLabelText('Справжній приз'));

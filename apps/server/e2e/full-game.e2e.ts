@@ -20893,23 +20893,26 @@ const opaqueCenters25a = (selector: string) => `[...document.querySelectorAll(${
   return opaque;
 })`;
 
-async function trophyDecor25a() {
-  const TITLE = 'Вікторина з оформленим кубком 25a';
-  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front,base-left';
-  const MEDAL_DECOR = 'photos:medallion:1;inscriptions:back';
+/** Запити кожної сторінки за іменем: requests.get(name) — усі URL, які вона попросила. */
+function trackRequests25a() {
   const requests = new Map<string, string[]>();
   const track = (name: string, page: Page) => {
     const list: string[] = [];
     requests.set(name, list);
     page.on('request', (request) => list.push(request.url()));
   };
-  const dialogOf = (page: Page) => page.getByRole('dialog', { name: /^Приз за \d місце$/ });
+  return { requests, track };
+}
 
-  // ── 1. Оля: три PNG, намальовані в сторінці (суцільні кольори 400×300; жодних файлів з диска), і три призи через API. ──
-  const olya = await open('olya25a', 1280, 720);
-  track('olya', olya);
-  await register(olya, 'host', 'Оля', 'olya25a@example.com');
-  const photos = (await olya.evaluate(`Promise.all(['#d23c3c', '#2f9e44', '#1c64d8'].map((color) => new Promise((done) => {
+/** Діалог перегляду призу («Приз за N місце»). */
+const prizeDialog25a = (page: Page) => page.getByRole('dialog', { name: /^Приз за \d місце$/ });
+
+/** Приз лише з трофеєм. */
+const prize25a = (name: string, trophy: PrizeContent['trophy']): PrizeContent => ({ name, trophy, engraving: null, real: null, title: null, diploma: false });
+
+/** PNG 400×300 суцільного кольору, намальовані в сторінці (жодних файлів з диска), завантажені через /api/uploads: їхні URL. */
+async function uploadPngs25a(page: Page, colors: string[]): Promise<string[]> {
+  const urls = (await page.evaluate(`Promise.all(${JSON.stringify(colors)}.map((color) => new Promise((done) => {
     const canvas = document.createElement('canvas');
     canvas.width = 400;
     canvas.height = 300;
@@ -20922,10 +20925,104 @@ async function trophyDecor25a() {
       if (!response.ok) throw new Error('upload ' + response.status + ' ' + (await response.text()));
       return (await response.json()).url;
     })))`)) as string[];
-  expect(photos).toHaveLength(3);
-  for (const url of photos) expect(url).toMatch(/^\/uploads\/[a-z0-9]{16,64}\.png$/);
+  expect(urls).toHaveLength(colors.length);
+  for (const url of urls) expect(url).toMatch(/^\/uploads\/[a-z0-9]{16,64}\.png$/);
+  return urls;
+}
+
+/**
+ * Лобі й гра частин 25a/25b: Оля (уже з призами places) запускає вікторину title, сцена (1280×720, з COUNT_WEBGL_25A) і
+ * три телефони; місця 1, 2, 3 = places; у лобі жодного запиту на 3D; Петро 200, Іра 100, Богдан 0; «Завершити гру».
+ * Петро завжди з акаунтом; Іра — лише з registerIra.
+ */
+async function playPrizeGame25a(
+  olya: Page,
+  tag: string,
+  title: string,
+  places: readonly [string, string, string],
+  { requests, track }: ReturnType<typeof trackRequests25a>,
+  { registerIra = false }: { registerIra?: boolean } = {},
+): Promise<{ stage: Page; petro: Page; ira: Page; bohdan: Page }> {
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', prizeQuestions14a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
+    title,
+  };
+  const created = await olya.request.post(`${base}/api/quizzes`, { data });
+  expect(created.ok(), await created.text()).toBe(true);
+  await olya.goto(`${base}/quizzes`);
+  await olya.locator('.quiz-list li', { hasText: title }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await olya.waitForURL(/\/host\/\d{6}$/);
+  const code = olya.url().slice(-6);
+  const stage = await open(`stage${tag}`, 1280, 720);
+  await stage.addInitScript(COUNT_WEBGL_25A);
+  track('stage', stage);
+  await stage.goto((await olya.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
+  const petro = await open(`petro${tag}`, 375, 812);
+  track('petro', petro);
+  await register(petro, 'menu', 'Петро', `petro${tag}@example.com`);
+  const ira = await open(`ira${tag}`, 375, 812);
+  track('ira', ira);
+  if (registerIra) await register(ira, 'menu', 'Іра', `ira${tag}@example.com`);
+  const bohdan = await open(`bohdan${tag}`, 375, 812);
+  track('bohdan', bohdan);
+  await join(petro, code, 'Петро', false);
+  await join(ira, code, 'Іра', false);
+  await join(bohdan, code, 'Богдан', false);
+  await olya.getByText('Богдан', exact).first().waitFor();
+
+  const panel = olya.locator('section.prize-places');
+  await panel.getByRole('heading', { name: 'Призи гри', ...exact }).waitFor();
+  const placeSelect = (index: number) => panel.locator('.prize-place').nth(index).locator('select');
+  await placeSelect(0).locator('option', { hasText: places[0] }).waitFor({ state: 'attached' });
+  for (const [index, name] of places.entries()) await placeSelect(index).selectOption({ label: name });
+  await panel.getByRole('button', { name: 'Покласти призи', ...exact }).click();
+  await panel.getByText('Призи покладено.', exact).waitFor();
+  await stage.locator('.playing-for').getByText('Граємо за', exact).waitFor();
+  await petro.locator('.playing-for').waitFor();
+  for (const [name, list] of requests) expect(list.filter(isTrophyRequest), `${name} loaded 3D in the lobby`).toEqual([]);
+
+  const step = async (name: string) => {
+    const button = olya.getByRole('button', { name, ...exact });
+    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
+    await button.click();
+  };
+  const players = [petro, ira, bohdan];
+  const answerAll = async (picks: [Page, string][]) => {
+    for (const [page, text] of picks) {
+      await page.getByRole('button', { name: new RegExp(text) }).waitFor();
+      await pickOption(page, text);
+    }
+    await olya.getByText('Запитання закрите').waitFor();
+    await step('Показати відповідь');
+  };
+  await step('Почати гру');
+  await afterSplash(olya, stage, ...players);
+  await step('Почати раунд');
+  await afterSplash(olya, stage, ...players);
+  await answerAll([[petro, 'Львів'], [ira, 'Львів'], [bohdan, 'Тернопіль']]);
+  await step('Далі');
+  await step('Наступне запитання');
+  await afterSplash(olya, stage, ...players);
+  await answerAll([[petro, 'Чорне'], [ira, 'Азовське'], [bohdan, 'Азовське']]);
+  await step('Завершити гру');
+  return { stage, petro, ira, bohdan };
+}
+
+async function trophyDecor25a() {
+  const TITLE = 'Вікторина з оформленим кубком 25a';
+  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front,base-left';
+  const MEDAL_DECOR = 'photos:medallion:1;inscriptions:back';
+  const tracking = trackRequests25a();
+  const { requests, track } = tracking;
+  const dialogOf = prizeDialog25a;
+
+  // ── 1. Оля: три PNG, намальовані в сторінці (суцільні кольори 400×300; жодних файлів з диска), і три призи через API. ──
+  const olya = await open('olya25a', 1280, 720);
+  track('olya', olya);
+  await register(olya, 'host', 'Оля', 'olya25a@example.com');
+  const photos = await uploadPngs25a(olya, ['#d23c3c', '#2f9e44', '#1c64d8']);
   const crop = { x: 0.5, y: 0.5, scale: 1 };
-  const prize = (name: string, trophy: PrizeContent['trophy']): PrizeContent => ({ name, trophy, engraving: null, real: null, title: null, diploma: false });
+  const prize = prize25a;
   const cup = prize('Кубок 25a', {
     kind: 'cup',
     material: 'gold',
@@ -20966,71 +21063,8 @@ async function trophyDecor25a() {
     expect(made.status(), await made.text()).toBe(201);
   }
 
-  // ── 2. Ведуча (1280×720): місця 1, 2, 3 = кубок, медаль, зірка; лобі без 3D. ──
-  const data = {
-    ...makeRoundsQuiz([classicRound('r1', prizeQuestions14a() as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false })]),
-    title: TITLE,
-  };
-  const created = await olya.request.post(`${base}/api/quizzes`, { data });
-  expect(created.ok(), await created.text()).toBe(true);
-  await olya.goto(`${base}/quizzes`);
-  await olya.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
-  await olya.waitForURL(/\/host\/\d{6}$/);
-  const code = olya.url().slice(-6);
-  const stage = await open('stage25a', 1280, 720);
-  await stage.addInitScript(COUNT_WEBGL_25A);
-  track('stage', stage);
-  await stage.goto((await olya.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!);
-  const petro = await open('petro25a', 375, 812);
-  track('petro', petro);
-  await register(petro, 'menu', 'Петро', 'petro25a@example.com');
-  const ira = await open('ira25a', 375, 812);
-  track('ira', ira);
-  const bohdan = await open('bohdan25a', 375, 812);
-  track('bohdan', bohdan);
-  await join(petro, code, 'Петро', false);
-  await join(ira, code, 'Іра', false);
-  await join(bohdan, code, 'Богдан', false);
-  await olya.getByText('Богдан', exact).first().waitFor();
-
-  const panel = olya.locator('section.prize-places');
-  await panel.getByRole('heading', { name: 'Призи гри', ...exact }).waitFor();
-  const placeSelect = (index: number) => panel.locator('.prize-place').nth(index).locator('select');
-  await placeSelect(0).locator('option', { hasText: 'Кубок 25a' }).waitFor({ state: 'attached' });
-  await placeSelect(0).selectOption({ label: 'Кубок 25a' });
-  await placeSelect(1).selectOption({ label: 'Медаль 25a' });
-  await placeSelect(2).selectOption({ label: 'Зірка 25a' });
-  await panel.getByRole('button', { name: 'Покласти призи', ...exact }).click();
-  await panel.getByText('Призи покладено.', exact).waitFor();
-  await stage.locator('.playing-for').getByText('Граємо за', exact).waitFor();
-  await petro.locator('.playing-for').waitFor();
-  for (const [name, list] of requests) expect(list.filter(isTrophyRequest), `${name} loaded 3D in the lobby`).toEqual([]);
-
-  // ── 3. Гра: Петро 200, Іра 100, Богдан 0. ──
-  const step = async (name: string) => {
-    const button = olya.getByRole('button', { name, ...exact });
-    await expect.poll(() => button.isDisabled(), { timeout: 10_000 }).toBe(false);
-    await button.click();
-  };
-  const players = [petro, ira, bohdan];
-  const answerAll = async (picks: [Page, string][]) => {
-    for (const [page, text] of picks) {
-      await page.getByRole('button', { name: new RegExp(text) }).waitFor();
-      await pickOption(page, text);
-    }
-    await olya.getByText('Запитання закрите').waitFor();
-    await step('Показати відповідь');
-  };
-  await step('Почати гру');
-  await afterSplash(olya, stage, ...players);
-  await step('Почати раунд');
-  await afterSplash(olya, stage, ...players);
-  await answerAll([[petro, 'Львів'], [ira, 'Львів'], [bohdan, 'Тернопіль']]);
-  await step('Далі');
-  await step('Наступне запитання');
-  await afterSplash(olya, stage, ...players);
-  await answerAll([[petro, 'Чорне'], [ira, 'Азовське'], [bohdan, 'Азовське']]);
-  await step('Завершити гру');
+  // ── 2–3. Лобі (місця 1, 2, 3 = кубок, медаль, зірка; без 3D) і гра: Петро 200, Іра 100, Богдан 0. ──
+  const { stage, petro } = await playPrizeGame25a(olya, '25a', TITLE, ['Кубок 25a', 'Медаль 25a', 'Зірка 25a'], tracking);
 
   // ── 4. Сцена: церемонія з трьома трофеями, один WebGL-контекст, те саме оформлення. ──
   const ceremony = stage.locator('.ceremony');
@@ -21142,6 +21176,242 @@ async function trophyDecor25a() {
   expect(await noGlViewer.locator('canvas.trophy-canvas').count()).toBe(0);
   await noGl.waitForTimeout(500);
   expect(requests.get('nogl')!.filter(isTrophyRequest), 'the page without WebGL loaded 3D').toEqual([]);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 25b: trophy effects and appearances — Оля’s cup with fire that drops from the sky, a medal with a blue glow that flashes in, and a star with snow that rises from a pedestal play their appearance on the stage ceremony and show their effect with one WebGL context; sparks and rays show in the prize form preview; under reduced motion the glow stands still and nothing plays; a prize without decor is unchanged', async () => {
+  try {
+    await trophyEffects25b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+/**
+ * Скільки пікселів з alpha > 30 у смузі x ∈ [0.08w, 0.2w], y ∈ [0.35h, 0.65h] 2D-полотна трофея під selector —
+ * поза силуетом медалі, тобто гало сяйва (прозоре полотно навколо лишається прозорим, а не чорним квадратом).
+ */
+const haloPixels25b = (selector: string) => `(() => {
+  const canvas = document.querySelector(${JSON.stringify(selector)});
+  const w = canvas.width, h = canvas.height;
+  if (w === 0 || h === 0) return 0;
+  const x = Math.floor(w * 0.08), y = Math.floor(h * 0.35);
+  const data = canvas.getContext('2d').getImageData(x, y, Math.max(1, Math.floor(w * 0.2) - x), Math.max(1, Math.floor(h * 0.65) - y)).data;
+  let lit = 0;
+  for (let i = 3; i < data.length; i += 4) if (data[i] > 30) lit++;
+  return lit;
+})()`;
+
+/** «w×h:» і RGBA-байти смуги x ∈ [x0·w, x1·w), y ∈ [y0·h, y1·h) 2D-полотна трофея під selector, рядком: для порівняння кадрів. */
+const bandPixels25b = (selector: string, x0: number, x1: number, y0: number, y1: number) => `(() => {
+  const canvas = document.querySelector(${JSON.stringify(selector)});
+  const w = canvas.width, h = canvas.height;
+  const x = Math.floor(w * ${x0}), y = Math.floor(h * ${y0});
+  return w + 'x' + h + ':' + canvas.getContext('2d').getImageData(x, y, Math.max(1, Math.floor(w * ${x1}) - x), Math.max(1, Math.floor(h * ${y1}) - y)).data.join(',');
+})()`;
+
+async function trophyEffects25b() {
+  const TITLE = 'Вікторина з ефектами кубків 25b';
+  const tracking = trackRequests25a();
+  const { track } = tracking;
+  type Decor = NonNullable<NonNullable<PrizeContent['trophy']>['decor']>;
+  const decor = (effect: Decor['effect'], appearance: Decor['appearance'], extra: Partial<Decor> = {}): Decor => ({
+    photos: [],
+    photoPlace: 'ring',
+    frame: 'none',
+    photoStyle: 'normal',
+    inscriptions: [],
+    stickers: [],
+    effect,
+    appearance,
+    ...extra,
+  });
+
+  // ── 1. Оля: одне PNG, намальоване в сторінці, і п'ять призів з ефектами через API. ──
+  const olya = await open('olya25b', 1280, 720);
+  track('olya', olya);
+  await register(olya, 'host', 'Оля', 'olya25b@example.com');
+  const [photo] = await uploadPngs25a(olya, ['#d23c3c']);
+  const crop = { x: 0.5, y: 0.5, scale: 1 };
+  const prizes = [
+    prize25a('Кубок 25b', { kind: 'cup', material: 'gold', decor: decor({ kind: 'fire' }, 'drop', { photos: [{ url: photo!, crop }], photoPlace: 'medallion' }) }),
+    prize25a('Медаль 25b', { kind: 'medal', material: 'silver', decor: decor({ kind: 'glow', color: '#4fc3f7' }, 'flash') }),
+    prize25a('Зірка 25b', { kind: 'star', material: 'bronze', decor: decor({ kind: 'snow' }, 'rise') }),
+    prize25a('Іскри 25b', { kind: 'cup', material: 'gold', decor: decor({ kind: 'sparks' }, 'spin') }),
+    prize25a('Промені 25b', { kind: 'cup', material: 'gold', decor: decor({ kind: 'rays' }, 'spin') }),
+  ];
+  for (const content of prizes) {
+    const made = await olya.request.post(`${base}/api/me/prizes`, { data: content });
+    expect(made.status(), await made.text()).toBe(201);
+  }
+
+  // ── 2–3. Лобі (місця 1, 2, 3 = кубок, медаль, зірка; без 3D) і гра: Петро перший, Іра друга, Богдан третій. ──
+  const { stage, petro, ira } = await playPrizeGame25a(olya, '25b', TITLE, ['Кубок 25b', 'Медаль 25b', 'Зірка 25b'], tracking, { registerIra: true });
+  // Сцена записує, коли вперше показано кожну колонку й кожен стан появи (performance.now): межі «≤ 5 с від появи колонки»
+  // й порядок pending → playing → done перевіряються за цими мітками, а не за тим, коли тест дійшов до місця.
+  await stage.evaluate(`(() => {
+    window.__shown25b = {};
+    window.__appear25b = {};
+    const scan = () => {
+      const now = performance.now();
+      for (const col of document.querySelectorAll('.ceremony .podium-col.is-shown')) window.__shown25b[col.dataset.place] ??= now;
+      for (const canvas of document.querySelectorAll('.ceremony canvas.trophy-canvas[data-appearance]')) window.__appear25b[canvas.dataset.appearance] ??= now;
+    };
+    scan();
+    new MutationObserver(scan).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-appearance'] });
+  })()`);
+  // Низьке вікно Петра: кубок «Твого призу» з'явиться нижче згину (крок 5 перевіряє, що поява чекає, доки його видно).
+  await petro.setViewportSize({ width: 375, height: 200 });
+
+  // ── 4. Сцена: кожен трофей грає свою появу (3 → 2 → 1), ефекти живі, один WebGL-контекст. ──
+  const ceremony = stage.locator('.ceremony');
+  const column = (place: number) => ceremony.locator(`.podium-col.is-place-${place}.is-shown`);
+  const canvasOf = (place: number) => column(place).locator('canvas.trophy-canvas');
+  const appearance = (place: number) => canvasOf(place).getAttribute('data-appearance');
+  const expected = { 1: ['fire:animated', 'drop'], 2: ['glow:animated', 'flash'], 3: ['snow:animated', 'rise'] } as const;
+  const marks = () => stage.evaluate('({ shown: window.__shown25b, appear: window.__appear25b })') as Promise<{ shown: Record<string, number>; appear: Record<string, number> }>;
+  for (const place of [3, 2, 1] as const) {
+    await column(place).waitFor({ timeout: 20_000 });
+    const [effect, kind] = expected[place];
+    if (place === 1) {
+      // Падіння з 3r: перші ~0.5 с кубок здебільшого над кадром. Знімок через 0.49 с від першого намальованого кадру — кубок
+      // уже в кадрі, але ще в повітрі (на початку знімка lift ≈ 1.2r; удар об підлогу — на 0.65 с).
+      await stage.waitForFunction(
+        `(start => start !== undefined && performance.now() - start >= 490)(window.__appear25b['drop:playing'])`,
+        null,
+        { polling: 'raf', timeout: 10_000 },
+      );
+      await shot(stage, 'p25b-stage-appearing');
+    }
+    await expect.poll(() => appearance(place), { timeout: 10_000 }).toBe(`${kind}:done`);
+    expect(await canvasOf(place).getAttribute('data-effect'), `place ${place} effect`).toBe(effect);
+    // Перший намальований кадр — playing, потім done; done не пізніше 5 с від появи колонки.
+    const { shown, appear } = await marks();
+    expect(shown[place], `place ${place} shown`).toBeDefined();
+    expect(appear[`${kind}:playing`], `place ${place} never played`).toBeDefined();
+    expect(appear[`${kind}:playing`]!, `place ${place} order`).toBeLessThanOrEqual(appear[`${kind}:done`]!);
+    expect(appear[`${kind}:done`]! - shown[place]!, `place ${place} appearance time from the column`).toBeLessThanOrEqual(5000);
+  }
+  expect(await column(1).locator('.podium-name').textContent()).toBe('Петро');
+  expect(await column(2).locator('.podium-name').textContent()).toBe('Іра');
+  expect(await column(3).locator('.podium-name').textContent()).toBe('Богдан');
+  await expect.poll(() => ceremony.locator('.trophy-fallback').count(), POLL).toBe(0);
+  expect(await ceremony.locator('canvas.trophy-canvas').count()).toBe(3);
+  expect(await stage.evaluate('window.__webglCalls'), 'WebGL contexts on the stage').toBeLessThanOrEqual(2);
+  // Ефекти живі там, куди трофей не дістає ні під яким кутом обертання (сам кадр крутиться завжди, тож цілий кадр нічого не доводить):
+  // – сніг: ліва смуга полотна зірки x ∈ [0, 0.12w], y ∈ [0.1h, 0.6h] — це 0.83r–1.09r від осі, а півширина зірки ≈ 0.58r; снігова коробка — ±1.4r;
+  // – сяйво: смуга гало медалі (як у haloPixels25b) пульсує.
+  // Зі статичним ефектом (позиції частинок і прозорість сяйва незмінні) ці смуги між кадрами однакові.
+  // Скільки пікселів смуги змінилися за 300 мс хоч в одному каналі на ≥ 3: перемальований нерухомий кадр дає ±1 (округлення
+  // при копіюванні), тож такий шум не рахується; зміна розміру полотна (подіум перекладається) — теж не рух ефекту (0).
+  const stageBand = (place: number, x0: number, x1: number, y0: number, y1: number) =>
+    stage.evaluate(bandPixels25b(`.ceremony .podium-col.is-place-${place} canvas.trophy-canvas`, x0, x1, y0, y1)) as Promise<string>;
+  const moved = async (place: number, x0: number, x1: number, y0: number, y1: number) => {
+    const [sizeBefore, before] = (await stageBand(place, x0, x1, y0, y1)).split(':') as [string, string];
+    await stage.waitForTimeout(300);
+    const [sizeAfter, after] = (await stageBand(place, x0, x1, y0, y1)).split(':') as [string, string];
+    if (sizeBefore !== sizeAfter) return 0;
+    const a = before.split(',').map(Number);
+    const b = after.split(',').map(Number);
+    let count = 0;
+    for (let i = 0; i < a.length; i += 4) if ([0, 1, 2, 3].some((c) => Math.abs(a[i + c]! - b[i + c]!) >= 3)) count++;
+    return count;
+  };
+  await expect.poll(() => moved(3, 0, 0.12, 0.1, 0.6), { message: 'the snow stands still', timeout: 5000 }).toBeGreaterThan(5);
+  await expect.poll(() => moved(2, 0.08, 0.2, 0.35, 0.65), { message: 'the glow stands still', timeout: 5000 }).toBeGreaterThan(5);
+  // Блакитне гало навколо медалі: світлі пікселі поза її силуетом.
+  const halo = (await stage.evaluate(haloPixels25b('.ceremony .podium-col.is-place-2 canvas.trophy-canvas'))) as number;
+  expect(halo, 'the medal glow halo').toBeGreaterThan(50);
+  await shot(stage, 'p25b-stage-ceremony');
+
+  // ── 5. Телефон Петра: «Твій приз» (card) — вогонь статичний, поява грає; перегляд «Кубок» (view) — вогонь живий. ──
+  const myPrize = petro.locator('section.my-prize');
+  await myPrize.getByRole('heading', { name: 'Твій приз', ...exact }).waitFor({ timeout: 25_000 });
+  const myCanvas = myPrize.locator('canvas.trophy-canvas');
+  await myCanvas.waitFor({ state: 'attached' });
+  expect(await myCanvas.getAttribute('data-effect')).toBe('fire:static');
+  // Кубок нижче згину: поява чекає на перший намальований кадр і не грає невидимою.
+  const below = petro.evaluate(`document.querySelector('section.my-prize canvas.trophy-canvas').getBoundingClientRect().top >= innerHeight`);
+  expect(await below, 'the phone cup is below the fold of the low window').toBe(true);
+  await petro.waitForTimeout(1500);
+  expect(await myCanvas.getAttribute('data-appearance'), 'the appearance played out of view').toBe('drop:pending');
+  await petro.setViewportSize({ width: 375, height: 812 });
+  await myCanvas.scrollIntoViewIfNeeded();
+  await expect.poll(() => myCanvas.getAttribute('data-appearance'), POLL).toBe('drop:done');
+  await expect.poll(() => myPrize.locator('.trophy-fallback').count(), POLL).toBe(0);
+  await shot(petro, 'p25b-phone-myprize');
+  await myPrize.getByRole('button', { name: 'Кубок', ...exact }).click();
+  const viewer = prizeDialog25a(petro);
+  const viewerCanvas = viewer.locator('canvas.trophy-canvas');
+  await viewerCanvas.waitFor();
+  await expect.poll(() => viewer.locator('.trophy-fallback').count(), POLL).toBe(0);
+  expect(await viewerCanvas.getAttribute('data-effect')).toBe('fire:animated');
+  await expect.poll(() => viewerCanvas.getAttribute('data-appearance'), POLL).toBe('drop:done');
+  await shot(petro, 'p25b-viewer');
+  await petro.keyboard.press('Escape');
+  await viewer.waitFor({ state: 'detached' });
+
+  // ── 6. Оля, «Мої призи»: прев'ю старого редактора — іскри й промені статичні, поява не грає; новий приз без decor — без атрибутів. ──
+  await olya.goto(`${base}/profile/prizes`);
+  await olya.getByRole('heading', { name: 'Мої призи', ...exact }).waitFor();
+  const preview = olya.locator('.prize-preview canvas.trophy-canvas');
+  for (const [name, effect, shotName] of [
+    ['Іскри 25b', 'sparks:static', 'p25b-form-sparks'],
+    ['Промені 25b', 'rays:static', 'p25b-form-rays'],
+  ] as const) {
+    await olya.locator('.prize-list li', { hasText: name }).getByRole('button', { name: 'Змінити', ...exact }).click();
+    await preview.waitFor();
+    await expect.poll(() => olya.locator('.prize-preview .trophy-fallback').count(), POLL).toBe(0);
+    expect(await preview.getAttribute('data-effect'), name).toBe(effect);
+    expect(await preview.getAttribute('data-appearance'), name).toBe('spin:skipped');
+    await preview.scrollIntoViewIfNeeded();
+    await shot(olya, shotName);
+    await click(olya, 'Скасувати');
+    await preview.waitFor({ state: 'detached' });
+  }
+  await click(olya, 'Новий приз');
+  await olya.getByRole('checkbox', { name: '3D-трофей', ...exact }).check();
+  await preview.waitFor();
+  await expect.poll(() => olya.locator('.prize-preview .trophy-fallback').count(), POLL).toBe(0);
+  expect(await preview.getAttribute('data-decor')).toBe('');
+  expect(await preview.getAttribute('data-effect'), 'a prize without decor has an effect').toBeNull();
+  expect(await preview.getAttribute('data-appearance'), 'a prize without decor has an appearance').toBeNull();
+  await click(olya, 'Скасувати');
+
+  // ── 7. reduced motion: вогонь вимкнений, сяйво стоїть, жодна поява не грає; кадри однакові. ──
+  const petroId = await myId(petro);
+  const iraId = await myId(ira);
+  const calm = await open('calm25b', 375, 812, { reducedMotion: 'reduce' });
+  for (const [id, effect, shown] of [
+    [petroId, 'fire:off', 'drop:skipped'],
+    [iraId, 'glow:static', 'flash:skipped'],
+  ] as const) {
+    await calm.goto(`${base}/profile/${id}`);
+    await calm.locator('section.shelf button.shelf-cup').click();
+    const calmViewer = prizeDialog25a(calm);
+    const calmCanvas = calmViewer.locator('canvas.trophy-canvas');
+    await calmCanvas.waitFor();
+    await expect.poll(() => calmViewer.locator('.trophy-fallback').count(), POLL).toBe(0);
+    expect(await calmCanvas.getAttribute('data-effect')).toBe(effect);
+    expect(await calmCanvas.getAttribute('data-appearance')).toBe(shown);
+    const frame = () => calm.evaluate(`document.querySelector('.prize-view canvas.trophy-canvas').toDataURL()`) as Promise<string>;
+    // Спершу два кадри поспіль однакові (рушій домалював усе), далі — і з різницею 1 с.
+    await expect
+      .poll(async () => {
+        const first = await frame();
+        await calm.waitForTimeout(100);
+        return (await frame()) === first;
+      }, POLL)
+      .toBe(true);
+    const still = await frame();
+    await calm.waitForTimeout(1000);
+    expect((await frame()) === still, `${effect} moves under reduced motion`).toBe(true);
+    if (effect === 'glow:static') await shot(calm, 'p25b-calm-viewer');
+    await calm.keyboard.press('Escape');
+    await calmViewer.waitFor({ state: 'detached' });
+  }
 
   expect(problems).toEqual([]);
 }

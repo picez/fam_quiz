@@ -101,7 +101,7 @@ export function PrizeEditor({ initial, busy, onSave, onCancel }: PrizeEditorProp
             ))}
           </fieldset>
           <div className="prize-preview">
-            <TrophyView trophy={{ ...initial?.trophy, kind, material }} size="card" spin interactive={false} />
+            <TrophyView trophy={{ ...initial?.trophy, kind, material }} size="card" spin interactive={false} appear={false} />
           </div>
         </div>
       )}

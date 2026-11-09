@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
+  Plane,
   PlaneGeometry,
   Scene,
   Vector3,
@@ -12,10 +13,14 @@ import {
   type Texture,
 } from 'three';
 import { reducedMotion } from '../../motion';
+import { APPEAR_SECONDS, NEUTRAL_POSE, appearancePose, type AppearancePose } from '../appearance-pose';
 import { decorSummary, fitDistance } from '../decor-layout';
+import { effectPlan } from '../effect-plan';
 import type { TrophyEngine, TrophyHandle, TrophyMount } from '../engine-types';
 import { modelUrl } from '../trophy-meta';
+import { buildAppearanceProps, type AppearanceProps } from './appearance-props';
 import { buildDecor } from './decor-meshes';
+import { buildEffect, type BuiltEffect } from './effect-meshes';
 import { framingSphere, loadModel, paintModel } from './models';
 import { getStage, type StageView } from './stage';
 import { domTextures } from './textures';
@@ -34,6 +39,15 @@ const KEY_STEP = Math.PI / 12;
 const DRAG_SPEED = 0.01;
 /** Прозорість тіні під трофеєм (як shadow-intensity 0.6). */
 const SHADOW_OPACITY = 0.6;
+/** Найбільший крок ефекту, с: вкладка з фону не ламає симуляцію одним величезним кроком. */
+const MAX_EFFECT_DELTA = 0.1;
+/** «Підйом» відсікає все нижче підлоги y = 0. */
+const FLOOR_CLIP: readonly Plane[] = [new Plane(new Vector3(0, 1, 0), 0)];
+
+/** Лічильник mount: сід генератора частинок, щоб сусідні трофеї не іскрили однаково. */
+let mountCount = 0;
+
+type AppearanceState = 'pending' | 'playing' | 'done' | 'skipped';
 
 let shadowTexture: Texture | null = null;
 
@@ -112,18 +126,68 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
   let pitch = START_PITCH;
   let dragging: { id: number; x: number; y: number } | null = null;
   let ready = false;
-  const spinning = options.spin && !reducedMotion();
+  const calm = reducedMotion();
+  const spinning = options.spin && !calm;
   const owned: { dispose(): void }[] = [];
+  const seed = ++mountCount;
+
+  // Ефект і поява — лише з decor; без нього все як у 25a (без атрибутів і нових об'єктів).
+  const spec = look.decor ?? null;
+  const plan = spec === null ? null : effectPlan(spec.effect, options.size, calm);
+  let effect: BuiltEffect | null = null;
+  let props: AppearanceProps | null = null;
+  let shadowMaterial: MeshBasicMaterial | null = null;
+  let state: AppearanceState | null = spec === null ? null : options.appear && !calm ? 'pending' : 'skipped';
+  // Годинник появи, с: рахує лише намальовані кадри; fresh — наступний кадр почне з t = 0.
+  let clock = 0;
+  let fresh = true;
+  const setState = (next: AppearanceState) => {
+    state = next;
+    if (spec !== null) canvas.dataset.appearance = `${spec.appearance}:${next}`;
+  };
+  if (spec !== null && plan !== null && state !== null) {
+    canvas.dataset.effect = `${plan.kind}:${plan.mode}`;
+    setState(state);
+  }
+
+  /** Поза цього кадру: годинник іде, поки анімація грає. */
+  const advance = (delta: number): AppearancePose => {
+    if (spec === null) return NEUTRAL_POSE;
+    if (state === 'pending') setState('playing');
+    if (state !== 'playing') return NEUTRAL_POSE;
+    if (fresh) {
+      clock = 0;
+      fresh = false;
+    } else clock += delta;
+    const t = clock / APPEAR_SECONDS[spec.appearance];
+    const pose = appearancePose(spec.appearance, t);
+    if (t >= 1) setState('done');
+    return pose;
+  };
 
   const view: StageView = {
     canvas,
     scene,
     camera,
-    needsFrame: () => spinning && dragging === null,
+    needsFrame: () =>
+      (spinning && dragging === null) || effect?.animated === true || state === 'playing' || state === 'pending',
     onLost: fail,
     beforeRender(width, height, delta) {
       if (spinning && dragging === null) yaw += SPIN_SPEED * delta;
-      trophy.rotation.y = yaw;
+      if (spec === null) trophy.rotation.y = yaw;
+      else {
+        const pose = advance(delta);
+        trophy.position.y = pose.lift * radius;
+        trophy.scale.set(pose.scale, pose.scale * pose.squash, pose.scale);
+        trophy.rotation.y = yaw + pose.turn;
+        trophy.visible = pose.visible;
+        view.clippingPlanes = pose.clip ? FLOOR_CLIP : undefined;
+        if (shadowMaterial !== null) {
+          shadowMaterial.opacity = SHADOW_OPACITY * (pose.visible ? 1 - 0.7 * clamp(pose.lift / 3, 0, 1) : 0);
+        }
+        props?.apply(pose, radius);
+        effect?.update(Math.min(delta, MAX_EFFECT_DELTA));
+      }
       const aspect = width / height;
       const distance = fitDistance(radius, FOV, aspect);
       if (!Number.isFinite(distance)) return;
@@ -212,17 +276,32 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
         radius = Math.max(sphere.radius, 0.01);
         const footprint = Math.max(size.x, size.z) * 1.6;
         const shadowGeometry = new PlaneGeometry(footprint, footprint);
-        const shadowMaterial = new MeshBasicMaterial({
+        const floorMaterial = new MeshBasicMaterial({
           map: shadow(),
           transparent: true,
           opacity: SHADOW_OPACITY,
           depthWrite: false,
         });
-        owned.push(shadowGeometry, shadowMaterial);
-        const floor = new Mesh(shadowGeometry, shadowMaterial);
+        owned.push(shadowGeometry, floorMaterial);
+        const floor = new Mesh(shadowGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = 0.001;
         scene.add(floor);
+        if (spec !== null && plan !== null) {
+          // Після framingSphere: кадрування не бачить ні ефекту, ні реквізиту появи. Ефект — у scene, не крутиться з кубком.
+          shadowMaterial = floorMaterial;
+          const frame = { center: [target.x, target.y, target.z] as const, radius };
+          effect = buildEffect(plan, frame, seed, FOV);
+          if (effect !== null) {
+            owned.push(effect);
+            scene.add(effect.object);
+          }
+          if (!calm) {
+            props = buildAppearanceProps(frame, Math.max(size.x, size.z));
+            owned.push(props);
+            scene.add(props.flash, props.pedestal);
+          }
+        }
         stage.add(view);
       },
       () => {
@@ -246,6 +325,15 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
       canvas.removeEventListener('keydown', onKeyDown);
       canvas.remove();
       for (const resource of new Set(owned)) resource.dispose();
+    },
+    replayAppearance() {
+      if (disposed || spec === null || calm) return;
+      // Ще не намальована поява й так почнеться з нуля.
+      if (state !== 'pending') {
+        fresh = true;
+        setState('playing');
+      }
+      stage?.invalidate(view);
     },
   };
 }
