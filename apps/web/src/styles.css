@@ -13782,19 +13782,194 @@ button.wall-tile:disabled {
 }
 
 /* ---------- Мої призи (14a) ---------- */
-.prize-editor {
+/* ---------- Повноекранний редактор призу (25c, варіант C) ----------
+   Шар поверх меню: шапка 56 px, сцена з кубком (не менше 40 % висоти), шухляда з шістьма інструментами знизу;
+   від 900 px шухляда — колонка 400 px біля кінця рядка на всю висоту. */
+.prize-studio {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* Шухляда бере, скільки треба, але не з-під 40 % сцени: решту панель прокручує сама. */
+  grid-template-rows: 56px minmax(40dvh, 1fr) minmax(0, auto);
+  grid-template-areas: 'head' 'stage' 'drawer';
+  background: var(--stage);
+  color: var(--paper);
+  overflow: hidden;
+}
+
+.studio-head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.studio-head .btn {
+  flex: none;
+  min-height: 2.75rem;
+}
+
+.studio-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1rem;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-stage {
+  grid-area: stage;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  container-type: size;
+}
+
+.studio-stage .trophy {
+  width: min(100cqw, 100cqh);
+}
+
+.studio-stage .trophy-fallback {
+  font-size: min(8rem, 40cqh);
+}
+
+.studio-no-trophy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.studio-no-trophy-icon {
+  font-size: min(8rem, 40cqh);
+  line-height: 1;
+}
+
+.studio-drawer {
+  grid-area: drawer;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-block-start: 1px solid var(--line);
+  background: var(--surface);
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+.studio-note {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-block-end: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.studio-note.error {
+  color: var(--signal);
+}
+
+.studio-issues {
+  padding: 0.5rem 1rem 0;
+}
+
+.studio-issues .error {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.studio-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-block-end: 1px solid var(--line);
+}
+
+.studio-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.25rem 0.125rem;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.studio-tab-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.studio-tab[aria-selected='true'] {
+  border-block-end-color: var(--accent);
+  color: var(--paper);
+}
+
+.studio-tab[aria-disabled='true'] {
+  opacity: 0.55;
+}
+
+.studio-tab:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.studio-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+.studio-panel[hidden] {
+  display: none;
+}
+
+.studio-prize-name {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.studio-tool {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
 }
 
-.prize-editor .field input:not([type='file']):not([type='checkbox']) {
+.studio-tool .field input:not([type='file']):not([type='checkbox']) {
   min-width: 0;
   width: 100%;
 }
 
-.prize-part {
+.studio-part {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -13803,31 +13978,75 @@ button.wall-tile:disabled {
   min-width: 0;
 }
 
-.prize-choice {
+.studio-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  border: 0;
-  padding: 0;
-  margin: 0;
+  flex-direction: column;
+  gap: 0.5rem;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.prize-choice legend {
+.studio-group legend {
   padding: 0;
+  margin-block-end: 0.5rem;
   font-weight: 600;
 }
 
-.prize-choice label {
+.studio-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.studio-choice legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font-weight: 600;
+}
+
+.studio-choice label {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   min-height: 2.75rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
 }
 
-.prize-preview {
-  height: 9rem;
-  max-width: 100%;
+.studio-choice label:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.studio-choice label:has(input:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@media (min-width: 900px) {
+  .prize-studio {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: 56px minmax(0, 1fr);
+    grid-template-areas: 'head drawer' 'stage drawer';
+  }
+
+  .studio-drawer {
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .studio-panel {
+    flex: 1 1 auto;
+    max-height: none;
+  }
 }
 
 .prize-list {

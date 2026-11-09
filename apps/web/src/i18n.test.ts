@@ -80,6 +80,8 @@ describe('uk golden (22a)', () => {
   const ADDED_24D = ['lookPhoto', 'lookNoPhoto', 'lookFont', 'lookNoFont', 'lookPreview', 'lookLocked', 'reward_photo', 'reward_font', 'photo_crimson', 'photo_silver', 'photo_ink', 'photo_gold', 'photo_cloud', 'photo_crows', 'photo_fire', 'photo_neon', 'photo_thorns', 'photo_eclipse', 'photo_storm', 'photo_aura', 'font_hand', 'font_round', 'font_mono', 'font_poster', 'font_brush', 'font_pixel', 'font_elegant', 'font_heavy', 'color_blood', 'color_flame', 'color_ice', 'color_venom', 'color_amethyst', 'color_moonsilver'];
   /** Сімейний грааль (2026-11-08): новий вид трофея. */
   const ADDED_GRAIL = ['trophy_grail'];
+  /** 25c: повноекранний редактор призу. Задача 8 — шапка, вкладки, «Форма» без наліпок, «Приз», помилки оформлення; задачі 9–11 доповнюють. */
+  const ADDED_25C = ['studioNewTitle', 'studioEditTitle', 'studioViewTitle', 'studioNotFound', 'studioToolsLabel', 'studioToolShape', 'studioToolPhotos', 'studioToolTexts', 'studioToolEffects', 'studioToolAppear', 'studioToolPrize', 'studioRotateHint', 'studioNoWebgl', 'studioReadOnly', 'studioLeaveConfirm', 'studioNoTrophy', 'studioNoTrophyHint', 'studioNeedsTrophy', 'studioEngraving', 'prizeViewOpen', 'err_decor_locked', 'err_decor_text_length', 'err_decor_too_many_photos', 'err_decor_plaque_twice'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
 
@@ -93,7 +95,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key))).toEqual([]);
   });
 });
 
