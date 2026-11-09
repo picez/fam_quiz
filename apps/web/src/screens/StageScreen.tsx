@@ -216,6 +216,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
+  // Після закриття запис є й у тих, хто не дійшов: «дійшли» рахуються за рядками драбини (у фіналі сцені рядків немає — тоді за записами).
+  const ladderFinished = view.wordladder?.rows.filter((row) => row.finished).length ?? view.answeredCount;
   const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
@@ -233,7 +235,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : question.type === 'wordladder'
-              ? t('wordLadderFinishedOf', { finished: view.answeredCount, total: view.playerCount })
+              ? t('wordLadderFinishedOf', { finished: ladderFinished, total: view.playerCount })
               : question.type === 'wall'
               ? t('wallFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : question.type === 'poll'

@@ -953,7 +953,9 @@ describe('StageScreen final', () => {
     expect(document.body.textContent).not.toContain('пора');
     unmount();
     const rows = [{ ...info.rows[0], words: ['пора', 'тара'], points: 400 }, { ...info.rows[1], points: 0 }];
-    show(view({ phase: 'reveal', questionIndex: 0, question: ladderQ, wordladder: { ...info, path: ['поле', 'пора', 'тара'], rows } }));
+    // Після закриття запис має й той, хто не дійшов: лічильник рахує лише фінішерів.
+    show(view({ phase: 'reveal', questionIndex: 0, question: ladderQ, playerCount: 2, answeredCount: 2, wordladder: { ...info, path: ['поле', 'пора', 'тара'], rows } }));
+    expect(screen.getByText('Дійшли 1 з 2')).toBeTruthy();
     expect(screen.getByText('Шлях ведучого')).toBeTruthy();
     expect(document.querySelector('.wordladder-path')?.textContent).toContain('пора');
     expect(document.querySelector('.wordladder-words')?.textContent).toBe('пора → тара');
