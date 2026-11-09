@@ -1,9 +1,13 @@
 import { shownDecor } from '@quiz/shared';
 import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial, TrophyPhotoPlace } from '@quiz/shared';
-import type { Circle, Vec3 } from './anchors';
+import type { Circle, Spot, Vec3 } from './anchors';
+import { layoutDecor } from './decor-places';
 
 /** Клітинка атласу кільця: як у запеченому грааль. */
 export const RING_TILE = { width: 150, height: 204, pad: 8, background: '#20160c' } as const;
+
+/** Розміри текстури пояска: ring — по колу (смуга з профілю), face — пластина на передній грані основи кубка. */
+export const BAND_PX = { ring: { width: 1024, height: 64 }, face: { width: 1024, height: 128 } } as const;
 
 /** Пропорції рамки фото на кубку для кожного місця: ними кадрує і малювання, і діалог кадрування редактора. */
 export const PHOTO_BOX: Record<TrophyPhotoPlace, { width: number; height: number }> = {
@@ -45,16 +49,42 @@ export function coverCrop(
   };
 }
 
-/** Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z); 'z' — у площині XY, перший угорі. */
-export function gemSpots(circle: Circle, count: number): { position: Vec3; normal: Vec3 }[] {
+/** Кутова відстань між a і b по колу, [0, π]. */
+const angleGap = (a: number, b: number) => {
+  const d = Math.abs(a - b) % (Math.PI * 2);
+  return Math.min(d, Math.PI * 2 - d);
+};
+
+/**
+ * Поворот кола самоцвітів: 0 — перший спереду; якщо так якийсь самоцвіт заходить у сектор avoid (з власною
+ * півшириною size / 2 / radius), коло повертається на пів кроку (для 4 і 8 на кубку — між ручками).
+ */
+function gemPhase(circle: Circle, count: number): number {
+  const avoid = circle.axis === 'y' ? circle.avoid : undefined;
+  if (avoid === undefined || count === 0) return 0;
+  const reach = avoid.halfWidth + circle.size / 2 / circle.radius;
+  const clear = (phase: number) =>
+    Array.from({ length: count }, (_, i) => phase + (i / count) * Math.PI * 2).every((angle) =>
+      avoid.angles.every((sector) => angleGap(angle, sector) >= reach),
+    );
+  return clear(0) ? 0 : Math.PI / count;
+}
+
+/**
+ * Самоцвіти рівномірно по колу: 'y' — у площині XZ, перший спереду (+Z), або на пів кроку далі, якщо спереду
+ * якийсь із них лягав би в сектор avoid; 'z' — у площині XY, перший угорі. Кожен — пляма з розміром і поверхнею кола.
+ */
+export function gemSpots(circle: Circle, count: number): Spot[] {
   const [cx, cy, cz] = circle.center;
+  const { size, surface } = circle;
+  const phase = gemPhase(circle, count);
   return Array.from({ length: count }, (_, i) => {
-    const angle = (i / count) * Math.PI * 2;
+    const angle = phase + (i / count) * Math.PI * 2;
     const s = Math.sin(angle);
     const c = Math.cos(angle);
     return circle.axis === 'y'
-      ? { position: [cx + circle.radius * s, cy, cz + circle.radius * c] as Vec3, normal: [s, 0, c] as Vec3 }
-      : { position: [cx + circle.radius * s, cy + circle.radius * c, cz] as Vec3, normal: [0, 0, 1] as Vec3 };
+      ? { position: [cx + circle.radius * s, cy, cz + circle.radius * c] as Vec3, normal: [s, 0, c] as Vec3, size, surface }
+      : { position: [cx + circle.radius * s, cy + circle.radius * c, cz] as Vec3, normal: [0, 0, 1] as Vec3, size, surface };
   });
 }
 
@@ -126,12 +156,19 @@ export function fitDistance(radius: number, fovDeg: number, aspect: number): num
   return (radius / Math.sin(Math.min(vertical, horizontal))) * 1.05;
 }
 
-/** Що намальовано, для data-decor: фото (місце й кількість), написи, наліпки; '' без decor. */
+/** Місце в data-decor: як є без переїзду, `front>left` з переїздом, `front>none`, якщо не вміщується. */
+const moved = (own: string, at: string | null) => (at === own ? own : `${own}>${at ?? 'none'}`);
+
+/** Що намальовано, для data-decor: фото (місце й кількість), написи, наліпки — де фактично лежать; '' без decor. */
 export function decorSummary(kind: TrophyKind, decor: TrophyDecor | null | undefined): string {
   if (decor == null) return '';
   const shown = shownDecor(kind, decor);
+  const layout = layoutDecor(kind, decor);
   const parts = [shown.photos.length > 0 ? `photos:${shown.photoPlace}:${shown.photos.length}` : 'photos:none'];
-  if (shown.inscriptions.length > 0) parts.push(`inscriptions:${shown.inscriptions.map((i) => i.place).join(',')}`);
-  if (shown.stickers.length > 0) parts.push(`stickers:${shown.stickers.map((s) => s.place).join(',')}`);
+  if (layout.inscriptions.length > 0) {
+    const places = layout.inscriptions.map((i) => moved(i.inscription.place, i.at === 'own' ? i.inscription.place : i.at));
+    parts.push(`inscriptions:${places.join(',')}`);
+  }
+  if (layout.stickers.length > 0) parts.push(`stickers:${layout.stickers.map((s) => moved(s.place, s.at)).join(',')}`);
   return parts.join(';');
 }

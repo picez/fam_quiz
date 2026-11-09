@@ -166,6 +166,9 @@ function buildSprite(plan: EffectPlan, frame: EffectFrame): BuiltEffect {
   };
 }
 
+/** Порядок частинок серед прозорих: після декалей (DECAL_RENDER_ORDER у decor-meshes). */
+export const PARTICLE_RENDER_ORDER = 1;
+
 function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number, fovDeg: number): BuiltEffect {
   const kind = plan.kind as ParticleKind;
   const rng = mulberry32(seed);
@@ -189,6 +192,8 @@ function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number, fovDeg:
   });
   const points = new Points(geometry, material);
   points.name = `effect-${kind}`;
+  // Після декалей оформлення: частинки не пишуть глибину, тож декаль, намальована пізніше, затерла б ті, що перед нею.
+  points.renderOrder = PARTICLE_RENDER_ORDER;
   // Частинки виходять за початкову сферу, тож відсікання за межами не потрібне.
   points.frustumCulled = false;
   const animated = plan.mode === 'animated';

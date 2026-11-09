@@ -3,22 +3,53 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { DECOR_SUPPORT, TROPHY_KINDS } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { TROPHY_ANCHORS, type Spot } from './anchors';
+import { TROPHY_ANCHORS, profileRadius, type BandAnchor, type Spot } from './anchors';
 import { gemSpots } from './decor-layout';
 
 const dir = ['apps/web/public/models', 'public/models'].find((path) => existsSync(`${path}/cup.glb`) as boolean)!;
 
 interface Bytes {
   readUInt32LE(at: number): number;
+  readFloatLE(at: number): number;
   subarray(from: number, to: number): { toString(encoding: string): string };
 }
-function bounds(kind: string): { min: number[]; max: number[] } {
+interface Glb {
+  file: Bytes;
+  binStart: number;
+  json: { accessors: { min: number[]; max: number[]; count: number }[]; bufferViews: { byteOffset?: number }[] };
+}
+function glb(kind: string): Glb {
   const file = readFileSync(`${dir}/${kind}.glb`) as Bytes;
   const length = file.readUInt32LE(12);
-  const json = JSON.parse(file.subarray(20, 20 + length).toString('utf8')) as {
-    accessors: { min: number[]; max: number[] }[];
-  };
-  return json.accessors[0]!;
+  const json = JSON.parse(file.subarray(20, 20 + length).toString('utf8')) as Glb['json'];
+  // Після JSON-чанка: 8 байт заголовка BIN-чанка.
+  return { file, binStart: 20 + length + 8, json };
+}
+function bounds(kind: string): { min: number[]; max: number[] } {
+  return glb(kind).json.accessors[0]!;
+}
+/** Позиції вершин моделі (accessor 0 → bufferView 0) по три числа. */
+function positions(kind: string): Float32Array {
+  const { file, binStart, json } = glb(kind);
+  const count = json.accessors[0]!.count;
+  const offset = binStart + (json.bufferViews[0]!.byteOffset ?? 0);
+  const out = new Float32Array(count * 3);
+  for (let i = 0; i < out.length; i++) out[i] = file.readFloatLE(offset + i * 4);
+  return out;
+}
+
+/** Точка смуги, що найдалі від осі (для перевірки меж моделі). */
+function bandPoints(kind: (typeof TROPHY_KINDS)[number], band: BandAnchor): (readonly number[])[] {
+  switch (band.shape) {
+    case 'profile': {
+      const profile = TROPHY_ANCHORS[kind].profile!;
+      return [band.y0, band.y1].map((y) => [0, y, profileRadius(profile, y)]);
+    }
+    case 'raised':
+      return [[0, band.y, Math.max(band.radiusTop, band.radiusBottom)]];
+    case 'face':
+      return [band.plate.position];
+  }
 }
 
 describe('trophy anchors', () => {
@@ -43,17 +74,21 @@ describe('trophy anchors', () => {
   it('grail anchors are the baked ones', () => {
     const grail = TROPHY_ANCHORS.grail;
     expect(grail.ring).toEqual({
+      shape: 'raised',
+      surface: 'body',
       y: 1.0,
       height: 0.52,
       radiusTop: 0.49,
       radiusBottom: 0.475,
-      segments: 0,
+      segments: 120,
       tori: [
         { y: 1.27, radius: 0.5, tube: 0.028 },
         { y: 0.73, radius: 0.485, tube: 0.028 },
       ],
     });
     expect(grail.rim).toEqual({
+      shape: 'raised',
+      surface: 'body',
       y: 1.37,
       height: 0.16,
       radiusTop: 0.463,
@@ -64,7 +99,120 @@ describe('trophy anchors', () => {
         { y: 1.285, radius: 0.452, tube: 0.012 },
       ],
     });
-    expect(grail.plaque).toEqual({ position: [0, 0.085, 0.235], tiltX: -0.32, width: 0.46, height: 0.18 });
+    // 25d: табличка лежить на схилі основи над пояском (було y 0.085, z 0.235 — нижній край лягав на поясок, кути за основою).
+    expect(grail.plaque).toEqual({ position: [0, 0.083, 0.1625], tiltX: -1.308, width: 0.256, height: 0.1, surface: 'base' });
+  });
+
+  it('grail plaque rests on the base slope above the band', () => {
+    const { plaque, band, profile } = TROPHY_ANCHORS.grail;
+    if (band!.shape !== 'profile') throw new Error('grail band is a profile band');
+    const half = plaque!.height / 2;
+    const bottomY = plaque!.position[1] - half * Math.cos(plaque!.tiltX);
+    const bottomZ = plaque!.position[2] - half * Math.sin(plaque!.tiltX);
+    expect(bottomY).toBeGreaterThanOrEqual(band!.y1 + 0.01 - 1e-9);
+    // Нижній край лежить на поверхні основи (не далі 0.01 від профілю).
+    expect(Math.abs(bottomZ - profileRadius(profile!, bottomY))).toBeLessThan(0.01);
+  });
+
+  it('grail plaque corners stay over the base and above the band, its centre line never inside the base', () => {
+    const { plaque, band, profile } = TROPHY_ANCHORS.grail;
+    if (band!.shape !== 'profile') throw new Error('grail band is a profile band');
+    const baseRadius = Math.max(...profile!.points.filter(([, y]) => y <= band!.y1 + 1e-9).map(([r]) => r));
+    const { position, tiltX, width, height } = plaque!;
+    // Точка таблички (x уздовж, t від -1 низ до 1 верх) у просторі моделі.
+    const at = (x: number, t: number) => {
+      const local = (t * height) / 2;
+      return { x, y: position[1] + local * Math.cos(tiltX), z: position[2] + local * Math.sin(tiltX) };
+    };
+    for (const sx of [-1, 1])
+      for (const t of [-1, 1]) {
+        const corner = at((sx * width) / 2, t);
+        // У плані кут не звисає за основу, а по висоті — над пояском (і над підлогою).
+        expect(Math.hypot(corner.x, corner.z), `corner ${sx},${t}`).toBeLessThanOrEqual(baseRadius);
+        expect(corner.y, `corner ${sx},${t}`).toBeGreaterThan(band!.y1);
+      }
+    // Середня лінія таблички ніде не заходить усередину основи (з допуском на підйом над поверхнею).
+    for (let t = -1; t <= 1; t += 0.1) {
+      const point = at(0, t);
+      expect(point.z, `centre line at ${t.toFixed(1)}`).toBeGreaterThanOrEqual(profileRadius(profile!, point.y) - 1e-3);
+    }
+  });
+
+  it.each(TROPHY_KINDS.filter((kind) => TROPHY_ANCHORS[kind].profile !== undefined))(
+    '%s profile points are vertices of the model',
+    (kind) => {
+      const profile = TROPHY_ANCHORS[kind].profile!;
+      const vertices = positions(kind);
+      for (let i = 1; i < profile.points.length; i++) {
+        expect(profile.points[i]![1]).toBeGreaterThanOrEqual(profile.points[i - 1]![1]);
+      }
+      for (const [r, y] of profile.points) {
+        let found = false;
+        for (let i = 0; i < vertices.length && !found; i += 3) {
+          // Лате починає з кута 0: x = r, z = 0.
+          found =
+            Math.abs(vertices[i]! - r) < 1e-3 && Math.abs(vertices[i + 1]! - y) < 1e-3 && Math.abs(vertices[i + 2]!) < 1e-3;
+        }
+        expect(found, `${kind} [${r}, ${y}]`).toBe(true);
+      }
+    },
+  );
+
+  it('profile radius interpolates and clamps', () => {
+    const profile = { points: [[0.1, 0], [0.3, 1], [0.2, 2]] as const, segments: 4 };
+    expect(profileRadius(profile, 0.5)).toBeCloseTo(0.2);
+    expect(profileRadius(profile, 1.5)).toBeCloseTo(0.25);
+    expect(profileRadius(profile, 1)).toBe(0.3);
+    expect(profileRadius(profile, -1)).toBe(0.1);
+    expect(profileRadius(profile, 5)).toBe(0.2);
+    // Рівні y (дно грааля [0,0] → [0.26,0]): береться зовнішній край.
+    const flat = { points: [[0, 0], [0.26, 0], [0.27, 0.03]] as const, segments: 4 };
+    expect(profileRadius(flat, 0)).toBe(0.26);
+  });
+
+  it.each(TROPHY_KINDS)('%s every spot names a known surface', (kind) => {
+    const anchors = TROPHY_ANCHORS[kind];
+    const known = new Set(Object.keys(anchors.surfaces));
+    const named: string[] = [...Object.values(anchors.stickers)].map((s) => s.surface);
+    for (const s of [anchors.medallion, anchors.back, anchors.baseBack, anchors.gems, anchors.plaque]) {
+      if (s) named.push(s.surface);
+    }
+    for (const band of [anchors.ring, anchors.rim, anchors.band]) {
+      if (band) named.push(band.shape === 'face' ? band.plate.surface : band.surface);
+    }
+    for (const surface of named) expect(known, `${kind}: ${surface}`).toContain(surface);
+    for (const band of [anchors.ring, anchors.rim, anchors.band]) {
+      if (band?.shape === 'profile') {
+        expect(anchors.profile).toBeDefined();
+        expect(anchors.surfaces[band.surface]).toBe('revolved');
+      }
+    }
+  });
+
+  it('cup band lies on the plinth face', () => {
+    const { band, plaque } = TROPHY_ANCHORS.cup;
+    expect(band!.shape).toBe('face');
+    if (band!.shape !== 'face') return;
+    const { plate } = band!;
+    expect(plate.surface).toBe('plinth-front');
+    expect(plate.position[2]).toBeGreaterThanOrEqual(0.184);
+    expect(plate.position[2]).toBeLessThanOrEqual(0.188);
+    expect(plate.width).toBeLessThanOrEqual(0.368 - 0.02);
+    const bottom = plate.position[1] - plate.height / 2;
+    const top = plate.position[1] + plate.height / 2;
+    expect(bottom).toBeGreaterThanOrEqual(plaque!.position[1] + plaque!.height / 2 + 0.01 - 1e-9);
+    expect(top).toBeLessThanOrEqual(0.2);
+  });
+
+  it('statuette band sits above the plinth', () => {
+    const band = TROPHY_ANCHORS.statuette.band!;
+    expect(band.shape).toBe('profile');
+    if (band.shape !== 'profile') return;
+    expect(band.y0).toBeGreaterThanOrEqual(0.255);
+  });
+
+  it('cup base-back is on the back face', () => {
+    expect(TROPHY_ANCHORS.cup.baseBack).toEqual({ position: [0, 0.1, -0.186], normal: [0, 0, -1], size: 0.16, surface: 'plinth-back' });
   });
 
   it.each(TROPHY_KINDS)('%s normals are unit and spots sit on the model', (kind) => {
@@ -75,11 +223,12 @@ describe('trophy anchors', () => {
     const spots: Spot[] = [...Object.values(anchors.stickers)];
     if (anchors.medallion) spots.push(anchors.medallion);
     if (anchors.back) spots.push(anchors.back);
+    if (anchors.baseBack) spots.push(anchors.baseBack);
     const points: (readonly number[])[] = spots.map((s) => s.position);
     if (anchors.plaque) points.push(anchors.plaque.position);
     if (anchors.gems) points.push(anchors.gems.center);
     for (const band of [anchors.ring, anchors.rim, anchors.band]) {
-      if (band) points.push([0, band.y, Math.max(band.radiusTop, band.radiusBottom)]);
+      if (band) points.push(...bandPoints(kind, band));
     }
     for (const spot of spots) {
       expect(Math.abs(Math.hypot(...spot.normal) - 1)).toBeLessThan(1e-6);
@@ -102,26 +251,10 @@ describe('trophy anchors', () => {
   });
 
   it('cup ring hugs the bowl', () => {
-    // Зовнішній профіль чаші з build-trophies.mjs, cup(): [0.22,0.66], [0.3,0.8], [0.33,0.95].
-    const profile = [
-      [0.66, 0.22],
-      [0.8, 0.3],
-      [0.95, 0.33],
-    ] as const;
-    const body = (y: number): number => {
-      const [a, b] = y <= profile[1][0] ? [profile[0], profile[1]] : [profile[1], profile[2]];
-      return a[1] + ((b[1] - a[1]) * (y - a[0])) / (b[0] - a[0]);
-    };
-    const ring = TROPHY_ANCHORS.cup.ring!;
-    for (let i = 0; i < 9; i++) {
-      const y = ring.y - ring.height / 2 + (ring.height * i) / 8;
-      const r = ring.radiusBottom + ((ring.radiusTop - ring.radiusBottom) * (y - (ring.y - ring.height / 2))) / ring.height;
-      expect(r).toBeGreaterThanOrEqual(body(y) - 0.005);
-      expect(r).toBeLessThanOrEqual(body(y) + 0.02);
-    }
-    const ys = ring.tori.map((torus) => torus.y).sort((a, b) => a - b);
-    expect(Math.abs(ys[0]! - (ring.y - ring.height / 2))).toBeLessThanOrEqual(0.001);
-    expect(Math.abs(ys[1]! - (ring.y + ring.height / 2))).toBeLessThanOrEqual(0.001);
+    const { ring, profile } = TROPHY_ANCHORS.cup;
+    expect(ring).toMatchObject({ shape: 'profile', surface: 'bowl', y0: 0.72, y1: 0.94 });
+    // Зовнішній профіль чаші з build-trophies.mjs, cup(): …, [0.3, 0.8], ….
+    expect(profileRadius(profile!, 0.8)).toBe(0.3);
   });
 
   it('crown gems clear the baked stones', () => {
@@ -172,5 +305,32 @@ describe('trophy anchors', () => {
     for (let n = 1; n <= 8; n++) for (const g of gemSpots(gems!, n)) onFace(g.position);
     onFace(stickers.left!.position);
     onFace(stickers.right!.position);
+  });
+
+  it('crown side stickers stay on the hoop and grail base stickers above the floor', () => {
+    // Обруч корони — y 0.18–0.42 (вище — зубці); основа грааля — від y = 0.
+    for (const place of ['left', 'right'] as const) {
+      const { position, size } = TROPHY_ANCHORS.crown.stickers[place]!;
+      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0.18);
+      expect(position[1] + size / 2).toBeLessThanOrEqual(0.42);
+    }
+    for (const place of ['base-left', 'base-right'] as const) {
+      const { position, size } = TROPHY_ANCHORS.grail.stickers[place]!;
+      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('cup gems never sit under the handles', () => {
+    const { gems } = TROPHY_ANCHORS.cup;
+    // Ручки на ±X: ±4.9° за cup.glb; самоцвіт — size / 2 / radius в обидва боки.
+    const reach = (4.9 * Math.PI) / 180 + gems!.size / 2 / gems!.radius;
+    for (let n = 1; n <= 8; n++) {
+      for (const g of gemSpots(gems!, n)) {
+        const angle = Math.atan2(g.position[0], g.position[2]);
+        expect(Math.abs(Math.abs(angle) - Math.PI / 2), `${n} gems`).toBeGreaterThanOrEqual(reach);
+      }
+    }
+    // Один самоцвіт — спереду, як і раніше.
+    expect(gemSpots(gems!, 1)[0]!.position[0]).toBeCloseTo(0, 9);
   });
 });

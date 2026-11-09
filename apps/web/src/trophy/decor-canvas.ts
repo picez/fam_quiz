@@ -9,6 +9,7 @@ import {
   plaqueLines,
   RING_TILE,
   ringAtlasSize,
+  BAND_PX,
   rimRepeats,
   rimUnit,
   tileRect,
@@ -193,11 +194,14 @@ export function drawPhotoDisc(
   decor: TrophyDecor,
   px: number,
   material: TrophyMaterial = 'gold',
+  bezel = false,
 ): void {
   ctx.clearRect(0, 0, px, px);
   const half = px / 2;
   const framed = decor.frame !== 'none';
-  const inner = framed ? half - px * 0.07 : half;
+  // Медальйон без рамки: тонкий металевий обідок у самій текстурі (на вигнутій чаші тор стирчав).
+  const rim = framed || bezel;
+  const inner = framed ? half - px * 0.07 : bezel ? half - px * 0.035 : half;
   ctx.save();
   ctx.beginPath();
   ctx.arc(half, half, inner, 0, Math.PI * 2);
@@ -218,7 +222,7 @@ export function drawPhotoDisc(
   }
   ctx.restore();
   // ободок після тонування, щоб метал лишився кольоровим
-  if (framed) {
+  if (rim) {
     ctx.fillStyle = gradientDown(ctx, px, metalStops(material, 'plate'));
     ctx.beginPath();
     ctx.arc(half, half, half, 0, Math.PI * 2);
@@ -259,17 +263,22 @@ export function drawRim(ctx: Ctx, inscription: Inscription, material: TrophyMate
   ctx.restore();
 }
 
-/** Поясок 1024×64: один рядок по центру ширини. */
-export function drawBand(ctx: Ctx, inscription: Inscription, material: TrophyMaterial): void {
-  const W = 1024;
-  const H = 64;
+/** Поясок (1024×64 по колу чи 1024×128 на грані): один рядок по центру, кегль до 0.69 висоти. */
+export function drawBand(
+  ctx: Ctx,
+  inscription: Inscription,
+  material: TrophyMaterial,
+  size: { width: number; height: number } = BAND_PX.ring,
+): void {
+  const W = size.width;
+  const H = size.height;
   ctx.fillStyle = gradientDown(ctx, H, metalStops(material, 'band'));
   ctx.fillRect(0, 0, W, H);
   const lines = [inscription.text.replace(/\n/g, ' ')];
   const px = fitFontPx(lines, (line, p) => {
     ctx.font = inscriptionFont(inscription.font, p);
     return ctx.measureText(line).width;
-  }, { width: W - 48, height: H - 8 }, 44);
+  }, { width: W - 48, height: H - 8 }, Math.floor(H * 0.69));
   ctx.font = inscriptionFont(inscription.font, px);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

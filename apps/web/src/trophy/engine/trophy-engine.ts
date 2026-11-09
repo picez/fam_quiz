@@ -22,7 +22,7 @@ import { modelUrl, type TrophyLook } from '../trophy-meta';
 import { buildAppearanceProps, type AppearanceProps } from './appearance-props';
 import { buildDecor } from './decor-meshes';
 import { buildEffect, type BuiltEffect } from './effect-meshes';
-import { framingSphere, loadModel, paintModel } from './models';
+import { framingSphere, loadModel, paintModel, surfaceOf } from './models';
 import { getStage, type StageView } from './stage';
 import { domTextures } from './textures';
 
@@ -76,13 +76,14 @@ type BuiltDecor = Awaited<ReturnType<typeof buildDecor>>;
 
 /**
  * Що звільнити з оформлення: геометрії й матеріали — наші (dispose), полотна — спільні за ключем, тож кожне взяте
- * посилання з built.textures віддається через release (останнє звільняє GPU). Текстури наліпок спільні (кеш) і лишаються.
+ * посилання з built.textures віддається через release (останнє звільняє GPU). Текстури наліпок і геометрії
+ * з userData.shared (декалі й смуги з модульного кешу) спільні й лишаються.
  */
 function decorResources(built: BuiltDecor): { dispose(): void }[] {
   const resources: { dispose(): void }[] = [];
   built.group.traverse((object) => {
     if (!(object instanceof Mesh)) return;
-    resources.push(object.geometry);
+    if (object.geometry.userData.shared !== true) resources.push(object.geometry);
     for (const material of [object.material].flat() as Material[]) resources.push(material);
   });
   // Кожне посилання — окремий об'єкт: Set у dispose не зливає два посилання на ту саму текстуру.
@@ -246,12 +247,23 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
    */
   const build = (next: TrophyLook, label: string, gen: number): Promise<Build | null> => {
     const nextSpec = next.decor ?? null;
+    const url = modelUrl(next);
+    // Одна копія моделі: вона йде в сцену, а її геометрія — поверхнею для декалей оформлення.
+    const loaded = loadModel(url);
     // Оформлення будується разом із моделлю; його збій не ховає кубок — той показується без оформлення.
+    // Без decor (зокрема сімейний грааль) поверхня не потрібна.
     const decor =
       nextSpec === null
         ? Promise.resolve(null)
-        : buildDecor(next.kind, next.material, nextSpec, options.size, domTextures).catch(() => null);
-    return Promise.all([loadModel(modelUrl(next)), decor]).then(
+        : buildDecor(
+            next.kind,
+            next.material,
+            nextSpec,
+            options.size,
+            domTextures,
+            loaded.then((model) => surfaceOf(model, url)),
+          ).catch(() => null);
+    return Promise.all([loaded, decor]).then(
       ([model, built]) => {
         if (stale(gen)) {
           // Модель ще не пофарбована, свого в ній нема; оформлення ще ніде не записане — звільняємо тут.

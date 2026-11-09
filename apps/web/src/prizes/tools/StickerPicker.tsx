@@ -1,104 +1,159 @@
-import {
-  DECOR_SUPPORT,
-  STICKERS,
-  STICKER_SERIES,
-  seriesLevel,
-  stickerOf,
-  stickerOpen,
-  stickerPath,
-  type StickerPlace,
-  type TrophyDecor,
-  type TrophyKind,
-} from '@quiz/shared';
-import { useId, useState, type JSX } from 'react';
+import { DECOR_LIMITS, stickerOf, stickerPath, type StickerPlace, type TrophyDecor, type TrophyKind } from '@quiz/shared';
+import { useEffect, useId, useRef, useState, type JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
+import { layoutDecor, stickerPlaceChoices, type Occupant, type PlacedInscription, type PlacedSticker } from '../../trophy/decor-places';
+import { StickerDialog, type StickerEditing } from './StickerDialog';
 
 export interface StickerPickerProps {
   kind: TrophyKind;
-  stickers: TrophyDecor['stickers'];
+  decor: TrophyDecor;
   level: number;
-  onPick: (place: StickerPlace, id: string | null) => void;
+  /** from — власне місце змінюваної наліпки, якщо вона переїжджає на place. */
+  onPick: (place: StickerPlace, id: string | null, from?: StickerPlace) => void;
   /** Наліпки зі збереженого оформлення цього призу: лишаються чинними й закриті (як на сервері). */
   kept?: readonly string[];
 }
 
-const lockText = (need: number): string => t('lookLocked', { level: t('levelFromLevel', { n: need }) });
+export const placeText = (place: StickerPlace | 'base-back'): string => t(`studioPlace_${place.replace('-', '_')}` as TextKey);
 
-const placeText = (place: StickerPlace): string => t(`studioPlace_${place.replace('-', '_')}` as TextKey);
+/** Хто займає місце — словами для «Зайнято: …» і приміток про переїзд. */
+export function occupantText(occupant: Occupant): string {
+  switch (occupant.type) {
+    case 'photos':
+      return t(`studioPhotoPlace_${occupant.place}` as TextKey);
+    case 'inscription':
+      return t(`studioText_${occupant.place}` as TextKey);
+    case 'sticker':
+      return t('studioTaken_sticker');
+  }
+}
+
+/** Примітка напису: переїхав на задню грань постаменту чи не вміщується; на своєму місці (чи без ділянки) — нічого. */
+export function inscriptionNote(placed: PlacedInscription): string | null {
+  if (placed.at === 'own' || placed.blockedBy === null) return null;
+  const from = t(`studioText_${placed.inscription.place}` as TextKey);
+  const what = occupantText(placed.blockedBy);
+  return placed.at === null ? t('studioNoPlace', { from, what }) : t('studioMovedTo', { from, what, to: placeText(placed.at) });
+}
+
+/** Примітка рядка: переїхала — куди й чому, не вміщується — чому; на своєму місці — нічого. */
+export function stickerNote(sticker: PlacedSticker): string | null {
+  if (sticker.at === sticker.place) return null;
+  const what = sticker.blockedBy === null ? '' : occupantText(sticker.blockedBy);
+  const from = placeText(sticker.place);
+  return sticker.at === null ? t('studioNoPlace', { from, what }) : t('studioMovedTo', { from, what, to: placeText(sticker.at) });
+}
 
 /**
- * Наліпки на кожне місце форми: кнопка місця з поточною мініатюрою розкриває сітку
- * («Без наліпки» і всі наліпки за серіями). Закриті за рівнем — disabled з рівнем, з якого відкриються.
+ * Наліпки трофея: список доданих (де фактично лежить, примітка переїзду, «Змінити», «Прибрати») і «+ Додати наліпку»,
+ * що відкриває вікно з сіткою наліпок і вибором вільного місця.
  */
-export function StickerPicker({ kind, stickers, level, onPick, kept = [] }: StickerPickerProps): JSX.Element {
-  const [open, setOpen] = useState<StickerPlace | null>(null);
-  const id = useId();
+export function StickerPicker({ kind, decor, level, onPick, kept = [] }: StickerPickerProps): JSX.Element {
+  const [dialog, setDialog] = useState<{ editing: StickerEditing | null } | null>(null);
+  const add = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  /** Куди лягла наліпка після «Готово»: її рядок — запасна ціль фокуса, коли кнопки-відкривача вже немає. */
+  const landed = useRef<StickerPlace | null>(null);
+  const why = useId();
+  const placed = layoutDecor(kind, decor).stickers;
+  const full = decor.stickers.length >= DECOR_LIMITS.stickers;
+  const noRoom = !full && stickerPlaceChoices(kind, decor, null).every((c) => c.takenBy !== null);
+  const reason = full ? t('studioStickerMax', { n: DECOR_LIMITS.stickers }) : noRoom ? t('studioStickerNoRoom') : null;
+
+  // Після закриття вікна фокус — на кнопку, що його відкрила. Її рядок міг перемонтуватись (ключ — місце),
+  // а «+ Додати наліпку» — вимкнутись (шоста наліпка, останнє вільне місце): тоді рядок щойно доданої чи
+  // зміненої наліпки, «+ Додати наліпку», перший рядок, а як нічого — сам блок наліпок.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (dialog !== null) {
+      wasOpen.current = true;
+      return;
+    }
+    if (!wasOpen.current) return;
+    wasOpen.current = false;
+    const usable = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && el.isConnected && !el.hasAttribute('disabled');
+    const row = landed.current === null ? null : root.current?.querySelector<HTMLElement>(`[data-place="${landed.current}"] button`);
+    landed.current = null;
+    const candidates = [opener.current, row, add.current, root.current?.querySelector<HTMLElement>('.studio-sticker-row button')];
+    (candidates.find(usable) ?? root.current)?.focus();
+  }, [dialog]);
+
+  const open = (element: HTMLElement, editing: StickerEditing | null) => {
+    opener.current = element;
+    setDialog({ editing });
+  };
+
   return (
-    <div className="studio-stickers">
-      {DECOR_SUPPORT[kind].sticker.map((place) => {
-        const currentId = stickers.find((s) => s.place === place)?.id ?? null;
-        const current = currentId === null ? undefined : stickerOf(currentId);
-        const expanded = open === place;
-        const grid = `${id}-${place}`;
-        return (
-          <div key={place} className="studio-sticker-place">
-            <button
-              type="button"
-              className="btn btn-small studio-sticker-toggle"
-              aria-expanded={expanded}
-              aria-controls={expanded ? grid : undefined}
-              onClick={() => setOpen(expanded ? null : place)}
-            >
-              <span className="studio-sticker-thumb">{current !== undefined && <img src={stickerPath(current)} alt={current.id} width={32} height={32} />}</span>
-              {placeText(place)}
-            </button>
-            {expanded && (
-              <div role="group" id={grid} aria-label={placeText(place)} className="studio-sticker-sheet">
+    <div ref={root} className="studio-stickers" tabIndex={-1}>
+      {placed.length > 0 && (
+        <ul className="studio-sticker-list">
+          {placed.map((sticker) => {
+            const known = stickerOf(sticker.id);
+            const note = stickerNote(sticker);
+            // Кнопки рядків різняться для читача з екрана: дія — і наліпка з місцем, де вона лежить.
+            const label = (action: TextKey) => `${t(action)}: ${sticker.id}, ${placeText(sticker.at ?? sticker.place)}`;
+            return (
+              <li key={sticker.place} className="studio-sticker-row" data-place={sticker.place}>
+                <span className="studio-sticker-thumb">
+                  {known !== undefined && <img src={stickerPath(known)} alt={known.id} width={32} height={32} />}
+                </span>
+                <span className="studio-sticker-where">
+                  <span>{placeText(sticker.at ?? sticker.place)}</span>
+                  {note !== null && <span className="meta">{note}</span>}
+                </span>
                 <button
                   type="button"
-                  className="btn btn-small studio-sticker-none"
-                  aria-pressed={currentId === null}
-                  onClick={() => onPick(place, null)}
+                  className="btn btn-small"
+                  aria-label={label('studioStickerChange')}
+                  onClick={(event) => open(event.currentTarget, { place: sticker.place, id: sticker.id, at: sticker.at })}
                 >
-                  {t('studioStickerNone')}
+                  {t('studioStickerChange')}
                 </button>
-                {STICKER_SERIES.map((series) => {
-                  const need = seriesLevel(series);
-                  return (
-                    <ul key={series} className="studio-sticker-grid">
-                      {STICKERS.filter((s) => s.series === series).map((sticker) => {
-                        const locked = !stickerOpen(sticker.id, level) && !kept.includes(sticker.id) && sticker.id !== currentId;
-                        return (
-                          <li key={sticker.id}>
-                            <button
-                              type="button"
-                              className={locked ? 'studio-sticker-cell is-locked' : 'studio-sticker-cell'}
-                              aria-pressed={sticker.id === currentId}
-                              disabled={locked}
-                              aria-label={locked ? `${sticker.id} ${lockText(need)}` : undefined}
-                              onClick={() => onPick(place, sticker.id)}
-                            >
-                              {locked ? (
-                                // Закрита клітинка без gif: сотні закритих наліпок не вантажаться на телефон.
-                                <>
-                                  <span className="studio-sticker-lock" aria-hidden="true">{`🔒 ${need}`}</span>
-                                  <span className="sr-only">{lockText(need)}</span>
-                                </>
-                              ) : (
-                                <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={label('studioStickerRemove')}
+                  onClick={() => onPick(sticker.place, null)}
+                >
+                  {t('studioStickerRemove')}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <button
+        ref={add}
+        type="button"
+        className="btn btn-small studio-sticker-add"
+        disabled={reason !== null}
+        aria-describedby={reason === null ? undefined : why}
+        onClick={(event) => open(event.currentTarget, null)}
+      >
+        {t('studioStickerAdd')}
+      </button>
+      {reason !== null && (
+        <p id={why} className="meta studio-sticker-why">
+          {reason}
+        </p>
+      )}
+      {dialog !== null && (
+        <StickerDialog
+          kind={kind}
+          decor={decor}
+          level={level}
+          kept={kept}
+          editing={dialog.editing}
+          onClose={() => setDialog(null)}
+          onDone={(place, id) => {
+            const from = dialog.editing?.place;
+            landed.current = place;
+            onPick(place, id, from !== undefined && from !== place ? from : undefined);
+            setDialog(null);
+          }}
+        />
+      )}
     </div>
   );
 }

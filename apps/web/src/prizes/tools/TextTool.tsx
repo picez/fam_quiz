@@ -1,10 +1,12 @@
-import { DECOR_LIMITS, DECOR_SUPPORT, INSCRIPTION_LOOKS, NICK_FONTS, lookLevel, type Inscription, type InscriptionPlace, type NickFont } from '@quiz/shared';
+import { DECOR_LIMITS, DECOR_SUPPORT, INSCRIPTION_LOOKS, INSCRIPTION_PLACES, NICK_FONTS, lookLevel, type Inscription, type InscriptionPlace, type NickFont } from '@quiz/shared';
 import { useEffect, useId, useState, type JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
 import { loadNickFont } from '../../nick-fonts';
+import { layoutDecor } from '../../trophy/decor-places';
 import type { ToolProps } from '../PrizeStudio';
 import { INSCRIPTION_COLOR } from '../studio-draft';
 import { ColorField } from './ColorField';
+import { inscriptionNote } from './StickerPicker';
 
 type Style = Omit<Inscription, 'place' | 'text'>;
 const NEW_STYLE: Style = { font: null, look: 'engraved', color: INSCRIPTION_COLOR };
@@ -34,6 +36,12 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
     for (const font of openKey.split(' ')) if (font !== '') void loadNickFont(font as NickFont);
   }, [anyOn, openKey]);
 
+  // Увімкнене без тексту місце теж рахується в розкладці: примітка про переїзд видна одразу, ще до набору.
+  const unsaved = places
+    .filter((place) => pending[place] !== undefined && !decor.inscriptions.some((i) => i.place === place))
+    .map((place): Inscription => ({ place, text: ' ', ...pending[place]! }));
+  const inscriptions = [...decor.inscriptions, ...unsaved].sort((a, b) => INSCRIPTION_PLACES.indexOf(a.place) - INSCRIPTION_PLACES.indexOf(b.place));
+  const layout = draft.trophy === null ? null : layoutDecor(draft.trophy.kind, { ...decor, inscriptions });
   const plaqueTaken = decor.photoPlace === 'plaque' && decor.photos.length > 0;
 
   return (
@@ -67,6 +75,9 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
           }
         };
         const fonts = `${id}-${place}-font`;
+        const placed = layout?.inscriptions.find((i) => i.inscription.place === place);
+        // Табличку з фото пояснює studioPlaqueTaken — друга примітка там зайва.
+        const note = on && !taken && placed !== undefined ? inscriptionNote(placed) : null;
 
         return (
           <fieldset key={place} className="studio-group studio-text">
@@ -77,6 +88,7 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
               </label>
             </legend>
             {taken && <p className="meta">{t('studioPlaqueTaken')}</p>}
+            {note !== null && <p className="meta">{note}</p>}
             {on && (
               <div className="studio-part">
                 <div className="field">
