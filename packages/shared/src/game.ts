@@ -42,6 +42,8 @@ export type BuffBlock =
   | 'off_wall'
   /** Опитування й хмара: без балів — без бафів (10d). */
   | 'off_vote'
+  /** «Словесна драбина»: бафів немає (26c). */
+  | 'off_wordladder'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -147,6 +149,16 @@ export type ErrorCode =
   | 'cell_closed'
   | 'time_limit'
   | 'wrong_word'
+  /** «Словесна драбина» (26c): змінено не рівно одну літеру (або інша довжина). */
+  | 'word_one_letter'
+  /** «Словесна драбина»: такого слова немає ні в словнику, ні в шляху ведучого (або воно не українське). */
+  | 'word_unknown'
+  /** «Словесна драбина»: те саме слово, що й попереднє. */
+  | 'word_repeat'
+  /** «Словесна драбина»: кроку назад немає — слів ще немає. */
+  | 'word_none'
+  /** «Словесна драбина»: прийнято вже LIMITS.maxWordLadderWords слів. */
+  | 'word_too_many'
   | 'no_hint'
   | 'hint_late'
   | 'dice_pending'

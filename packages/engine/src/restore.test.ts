@@ -64,6 +64,7 @@ import {
   type AutopilotState,
   type WallProgress,
   type WipeoutPlay,
+  type WordLadderProgress,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -100,11 +101,13 @@ import {
   withAudio,
   withId,
   withReveal,
+  wordladder,
 } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
+import { ladderWord } from './wordladder';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
 import { decideLadder, pickContestant, useLifeline } from './ladder';
@@ -298,7 +301,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -337,6 +340,7 @@ const STATE_SHAPE: Record<string, string> = {
   BluffPick: keysOf<BluffPick>()(['optionId', 'timeMs'], true),
   BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
+  WordLadderProgress: keysOf<WordLadderProgress>()(['words'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1141,7 +1145,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1174,6 +1178,7 @@ const KEYS: Record<number, Record<string, string>> = {
     BluffPick: 'optionId,timeMs',
     BluffOption: 'authors,id,kind,removed,text',
     ChainProgress: 'hints,shown,solved',
+    WordLadderProgress: 'words',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1407,6 +1412,8 @@ function representative(): GameState[] {
   // 12e: Оля виходила з гри (закритий інтервал), Петро поза грою зараз; штраф увімкнено — Play.away, AwayEntry, QuizSettings.awayPenalty.
   const awayQuiz = makeRoundsQuiz([classicRound('r1', [single])], { awayPenalty: true });
   const wandered = awayStart(awayEnd(awayStart(openAt(lobbyWith(awayQuiz, 'Оля', 'Петро'), T0), 'p1', T0 + 1000), 'p1', T0 + 4000), 'p2', T0 + 5000);
+  // 26c: «Словесна драбина» — Оля прийняла одне слово: Play.wordladder, WordLadderProgress.
+  const laddering = must(ladderWord(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [wordladder])]), 'Оля', 'Петро'), T0), 'p1', 'пола', T0 + 1000, () => false));
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1441,6 +1448,7 @@ function representative(): GameState[] {
     piloted,
     undone,
     selfOpened,
+    laddering,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1597,6 +1605,21 @@ describe('the saved state', () => {
     expect(back.adjustments[1]).toMatchObject({ source: 'undo', undoes: { seq: 1 }, batch: 2, points: -300 });
     expect(back.adjustments).toEqual(undone.adjustments);
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
+  });
+
+  it('a word ladder snapshot keeps every word without a new version', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [wordladder])]), 'Оля', 'Петро'), T0);
+    const saved: GameState = { ...open, plays: open.plays.map((p) => ({ ...p, wordladder: { p1: { words: ['пола'] } } })) };
+    const back = roundTrip(suspend(roundTrip(saved), T0 + 1000));
+    expect(back.plays[0].wordladder).toEqual({ p1: { words: ['пола'] } });
+    // гра йде далі з тими самими словами
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const moved = must(ladderWord(resumed, 'p1', 'пора', T0 + 2000 + HOUR, () => false));
+    expect(moved.plays[0].wordladder?.p1.words).toEqual(['пола', 'пора']);
+    // старий знімок без поля відновлюється й без нього
+    const plain = roundTrip(suspend(roundTrip(open), T0 + 1000));
+    expect('wordladder' in plain.plays[0]).toBe(false);
   });
 
   it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
@@ -1852,6 +1875,7 @@ describe('the saved state', () => {
       add('BluffPick', s.plays.flatMap((p) => Object.values(p.bluff?.picks ?? {})));
       add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
+      add('WordLadderProgress', s.plays.flatMap((p) => Object.values(p.wordladder ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

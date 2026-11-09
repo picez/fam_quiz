@@ -82,7 +82,15 @@ export interface BluffAnswer {
   fooled: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer;
+/** Підсумок драбини гравця; складає рушій, з телефона не приходить. words — ключі після стартового. */
+export interface WordLadderAnswer {
+  type: 'wordladder';
+  words: string[];
+  steps: number;
+  finished: boolean;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

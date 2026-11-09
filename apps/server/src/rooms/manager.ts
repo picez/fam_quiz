@@ -104,6 +104,9 @@ import {
   teamOf,
   chainOf,
   wallOf,
+  wordLadderOf,
+  ladderWord,
+  ladderBack,
   recordOf,
   tick,
   trialOpen,
@@ -135,6 +138,7 @@ import { levelsView, perkGrants } from './levels';
 import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
+import { lazyNouns, type NounDictionary } from '../wordladder/nouns';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
@@ -474,6 +478,8 @@ export interface RoomManagerOptions {
   pacing?: boolean;
   /** Журнал кроку автопілота, який рушій відхилив (11g); типово console.warn. */
   warn?: (message: string) => void;
+  /** Словник драбини; типово lazyNouns() — файл читається при першому слові. */
+  nouns?: NounDictionary;
 }
 
 /** Кроки ведучого з мінімальним часом (11b) і вікно, яке їх стереже. Решта дій не затримується ніколи. */
@@ -506,7 +512,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка й стіни, вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни й драбини, вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -519,6 +525,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.survival?.trial?.answers[id] ?? null,
     play?.question.type === 'chain' ? chainOf(state, id) : null,
     play?.question.type === 'wall' ? wallOf(state, id) : null,
+    play?.question.type === 'wordladder' ? wordLadderOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -530,6 +537,7 @@ export class RoomManager {
   private readonly transitions: boolean;
   private readonly pacing: boolean;
   private readonly warn: (message: string) => void;
+  private readonly nouns: NounDictionary;
   private readonly live = new Map<string, Room>();
   /** Коди кімнат із бази, яких немає в пам'яті. */
   private reserved = new Set<string>();
@@ -542,6 +550,7 @@ export class RoomManager {
     this.transitions = options.transitions ?? false;
     this.pacing = options.pacing ?? false;
     this.warn = options.warn ?? ((message) => console.warn(message));
+    this.nouns = options.nouns ?? lazyNouns();
   }
 
   now(): number {
@@ -1486,6 +1495,22 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, guessWord(room.state, who.id, word, this.now()));
+  }
+
+  /** Слово драбини (26c): рушій перевіряє його словником кімнати. */
+  wordLadderWord(room: Room, playerId: string, word: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, ladderWord(room.state, who.id, word, this.now(), (key) => this.nouns.isNoun(key)));
+  }
+
+  /** «Крок назад» драбини (26c). */
+  wordLadderBack(room: Room, playerId: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    return this.apply(room, ladderBack(room.state, who.id, this.now()));
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {

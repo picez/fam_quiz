@@ -1531,6 +1531,36 @@ describe('PlayerScreen final', () => {
     show(view({ phase: 'locked', questionIndex: 0, question: chainQuestion, me: { ...me, chain: { ...done, solved: 0, masks: [['Р', null, null, null]], timeMs: null } } }));
     expect(screen.getByRole('heading', { name: 'Не встигли пройти ланцюжок' })).toBeTruthy();
   });
+
+  const ladderQuestion = { ...publicQuestion, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
+
+  it('26c: a word ladder question shows the own ladder under the shared timer', () => {
+    const wordladder = { words: ['пола'], steps: 1, finished: false, canAdd: true, canBack: true };
+    show(onQuestion({ question: ladderQuestion, endsAt: Date.now() + 20_000, me: { ...me, wordladder } }));
+    expect(screen.getAllByRole('timer')).toHaveLength(1);
+    expect(screen.getByText('поле → тара')).toBeTruthy();
+    expect(screen.getByText('пола')).toBeTruthy();
+    expect(screen.getByLabelText('Наступне слово')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Крок назад' })).toBeTruthy();
+  });
+
+  it('26c: after a word ladder closes the phone shows the own column and the outcome', () => {
+    const done = { words: ['пола', 'пора', 'пара', 'тара'], steps: 4, finished: true, canAdd: false, canBack: false };
+    show(view({ phase: 'locked', questionIndex: 0, question: ladderQuestion, me: { ...me, wordladder: done } }));
+    expect(screen.getByRole('heading', { name: 'Готово! Кроків: 4' })).toBeTruthy();
+    expect(screen.getByText('пора')).toBeTruthy();
+    expect(screen.queryByLabelText('Наступне слово')).toBeNull();
+    expect(screen.getByText('Чекаємо на результати')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'locked', questionIndex: 0, question: ladderQuestion, me: { ...me, wordladder: { words: ['пола'], steps: 1, finished: false, canAdd: false, canBack: false } } }));
+    expect(screen.getByRole('heading', { name: 'Не встигли дійти до цілі' })).toBeTruthy();
+  });
+
+  it('26c: the reveal of a word ladder says the own steps', () => {
+    const done = { words: ['пола', 'пора', 'пара', 'тара'], steps: 4, finished: true, canAdd: false, canBack: false };
+    show(view({ phase: 'reveal', questionIndex: 0, question: ladderQuestion, me: { ...me, wordladder: done } }));
+    expect(screen.getByText('Готово! Кроків: 4')).toBeTruthy();
+  });
 });
 
 describe('PlayerScreen round facts', () => {

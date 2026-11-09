@@ -1412,6 +1412,30 @@ describe('HostScreen final', () => {
   });
 });
 
+describe('HostScreen word ladder', () => {
+  it("the host sees the path and every player's words live", () => {
+    const ladderQ: Question = { id: 'q4', type: 'wordladder', text: 'Драбина', imageUrl: null, video: null, timeLimit: 90, points: 1000, path: ['поле', 'пора', 'тара'], maxSteps: 8 };
+    const info = {
+      start: 'поле',
+      target: 'тара',
+      maxSteps: 8,
+      path: ['поле', 'пора', 'тара'],
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', steps: 1, finished: false, words: ['пара'], points: null },
+        { playerId: 'p2', nickname: 'Тарас', steps: 0, finished: false, words: [], points: null },
+      ],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'wordladder', choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } }, correct: ladderQ, endsAt: Date.now() + 20_000, wordladder: info }));
+    expect(screen.getByRole('heading', { name: 'Словесна драбина' })).toBeTruthy();
+    expect(screen.getByText('Шлях ведучого')).toBeTruthy();
+    expect(document.querySelector('.wordladder-path')?.textContent).toContain('пора');
+    expect(document.querySelector('.wordladder-words')?.textContent).toBe('пара');
+    expect(screen.getByText('кроків: 1')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

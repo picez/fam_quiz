@@ -11,6 +11,7 @@ import { VideoField } from './VideoField';
 import { BluffEditor } from './BluffEditor';
 import { SurveyEditor } from './SurveyEditor';
 import { WallEditor } from './WallEditor';
+import { WordLadderEditor } from './WordLadderEditor';
 import { changeType, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
@@ -83,6 +84,9 @@ export function NumberField(props: { label: string; value: number; decimal?: boo
   );
 }
 
+/** Поле для українського слова: без автовеликої літери, автозаміни й перевірки правопису. */
+export const UK_WORD_INPUT = { lang: 'uk', autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const;
+
 /**
  * Рядки з текстом у вигляді, близькому до того, що побачать гравці: варіанти, елементи
  * впорядкування, допустимі написання. Enter переходить до наступного рядка або додає новий.
@@ -101,6 +105,8 @@ export function Rows(props: {
   makeRow?: () => Row;
   /** Кількість рядків незмінна: кнопок додати й прибрати немає. */
   fixed?: boolean;
+  /** Українські слова (драбина): без автовеликої літери, автозаміни й перевірки правопису. */
+  ukWords?: boolean;
   onChange: (rows: Row[]) => void;
 }) {
   const { rows, min, max, onChange } = props;
@@ -144,6 +150,7 @@ export function Rows(props: {
             placeholder={t(props.label, { index: index + 1 })}
             value={row.text}
             maxLength={props.maxLength}
+            {...(props.ukWords === true ? UK_WORD_INPUT : {})}
             enterKeyHint={index < rows.length - 1 || rows.length < max ? 'next' : 'done'}
             onKeyDown={(event) => onKeyDown(event, index)}
             onChange={(event) => onChange(rows.map((r) => (r.id === row.id ? { ...r, text: event.target.value } : r)))}
@@ -508,6 +515,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
         </>
       );
     }
+    case 'wordladder':
+      return <WordLadderEditor question={question} onChange={onChange} />;
     case 'order':
       return (
         <>
@@ -843,7 +852,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -877,7 +886,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff';
+              const noVideo = rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />

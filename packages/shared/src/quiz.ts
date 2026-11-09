@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
+import { ladderPathIssue } from './wordladder';
 
 export const LIMITS = {
   questionText: 300,
@@ -150,6 +151,14 @@ export const LIMITS = {
   bluffOptions: 5,
   defaultBluffTime: 60,
   defaultChoiceTime: 30,
+  /** «Словесна драбина» (26c): літер у слові, найбільший maxSteps (шлях ведучого — до maxSteps + 1 слів), типовий maxSteps, стеля прийнятих слів гравця, символів у слові до нормалізації, типовий час (с). */
+  minWordLadderLetters: 3,
+  maxWordLadderLetters: 7,
+  maxWordLadderSteps: 20,
+  defaultWordLadderSteps: 8,
+  maxWordLadderWords: 40,
+  wordLadderWord: 30,
+  defaultWordLadderTime: 90,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -253,7 +262,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'bluff'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
@@ -319,6 +328,17 @@ export const questionSchema = z
         .max(LIMITS.maxChainWords),
       /** Скільки секунд додає гравцеві підказка. */
       hintSeconds: z.number().int().min(LIMITS.minHintSeconds).max(LIMITS.maxHintSeconds),
+    }),
+    z.object({
+      ...base,
+      type: z.literal('wordladder'),
+      /** Шлях ведучого: path[0] — стартове слово, path.at(-1) — цільове. */
+      path: z
+        .array(z.string().trim().normalize('NFC').min(1).max(LIMITS.wordLadderWord).refine(isStorable, UNSTORABLE))
+        .min(2)
+        .max(LIMITS.maxWordLadderSteps + 1),
+      /** Після стількох кроків балів немає. */
+      maxSteps: z.number().int().min(1).max(LIMITS.maxWordLadderSteps),
     }),
     z.object({
       ...base,
@@ -461,6 +481,12 @@ export const questionSchema = z
                   : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
+    if (q.type === 'wordladder') {
+      const issue = ladderPathIssue(q.path, q.maxSteps);
+      if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
+      // Без таймера драбина не закінчиться.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'wordladder_video' });
+    }
     if (q.type === 'sort') {
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'sort_video' });
       const categoryIds = q.categories.map((c) => c.id);
@@ -1080,6 +1106,10 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'bluff')
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'bluff');
       if (bluffPlace) ctx.addIssue({ code: 'custom', message: 'bluff_place' });
+      // Словесна драбина (26c): лише класика й фінал; жодної клітинки поля.
+      if (round.type !== 'classic' && round.type !== 'final' && roundQuestions(round).some((q) => q.type === 'wordladder')) {
+        ctx.addIssue({ code: 'custom', message: 'wordladder_place' });
+      }
       // «Ва-банк»: лише прості типи з однозначною відповіддю.
       if (round.type === 'wipeout') {
         const allowed: readonly string[] = WIPEOUT_TYPES;

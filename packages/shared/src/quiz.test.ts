@@ -70,6 +70,8 @@ import {
   surveyShare,
   surveyHitsOf,
   answerKey,
+  wordLadderCheckSchema,
+  wordLadderWordSchema,
   type Answer,
   type BoardRound,
   type Question,
@@ -820,6 +822,67 @@ describe('chain question', () => {
     expect(valid(guessSchema, { word: 'Риба' })).toBe(true);
     expect(valid(guessSchema, { word: 'а'.repeat(31) })).toBe(false);
     expect(valid(guessSchema, { word: 5 })).toBe(false);
+  });
+});
+
+describe('word ladder question (26c)', () => {
+  const OWNER = ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'];
+  const ladderQ = (path: string[], patch: object = {}) => ({ id: 'l', type: 'wordladder', text: 'Від ПОЛЕ до ТАРА', imageUrl: null, video: null,
+    timeLimit: 90, points: 1000, path, maxSteps: 8, ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (schema: { safeParse: (v: unknown) => { success: boolean; error?: { issues: { message: string }[] } } }, value: unknown) => {
+    const parsed = schema.safeParse(value);
+    return parsed.success ? [] : (parsed.error?.issues.map((i) => i.message) ?? []);
+  };
+
+  it('accepts a word ladder with a valid host path', () => {
+    expect(QUESTION_TYPES.indexOf('wordladder')).toBe(QUESTION_TYPES.indexOf('chain') + 1);
+    expect(issues(questionSchema, ladderQ(OWNER))).toEqual([]);
+    expect((questionSchema.parse(ladderQ([' ПОЛЕ ', 'ПОЛА'])) as { path: string[] }).path).toEqual(['ПОЛЕ', 'ПОЛА']);
+    expect(valid(questionSchema, ladderQ(['ПОЛЕ']))).toBe(false);
+    expect(valid(questionSchema, ladderQ(OWNER, { maxSteps: 0 }))).toBe(false);
+    expect(valid(questionSchema, ladderQ(OWNER, { maxSteps: LIMITS.maxWordLadderSteps + 1 }))).toBe(false);
+  });
+
+  it('refuses a broken path, too many steps and a video', () => {
+    expect(issues(questionSchema, ladderQ(['ПОЛЕ', 'ПИЛА']))).toContain('wordladder_step');
+    expect(issues(questionSchema, ladderQ(OWNER, { maxSteps: 3 }))).toContain('wordladder_steps');
+    expect(issues(questionSchema, ladderQ(OWNER, { video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('wordladder_video');
+    expect(issues(questionSchema, ladderQ(['ПО', 'ПА']))).toContain('wordladder_word');
+    expect(issues(questionSchema, ladderQ(['ПОЛЕ', 'ПОЛЕМ']))).toContain('wordladder_length');
+  });
+
+  it('a word ladder plays only in classic and final rounds', () => {
+    const q = (id: string) => ladderQ(OWNER, { id });
+    const cat = (id: string) => ({ id, title: id, cells: [1, 2, 3].map((n) => ({ mark: 'none', question: n === 1 ? q(`${id}${n}`) : { ...single, id: `${id}${n}` } })) });
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, categories: [cat('a'), cat('b'), cat('c')], answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES };
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [q('lb')] };
+    const wipeoutRound = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [q('lw'), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [q('lf')] };
+    expect(issues(quizSchema, quizOf([round('r', [q('lc')])]))).toEqual([]);
+    expect(issues(quizSchema, quizOf([round('r', [single]), final]))).toEqual([]);
+    for (const bad of [blitzRound, wipeoutRound, board]) {
+      expect(issues(quizSchema, quizOf([round('r', [single]), bad]))).toContain('wordladder_place');
+    }
+  });
+
+  it('old quizzes still parse', () => {
+    const old = quizOf([round('r', [single, orderSpare])]);
+    const parsed = quizSchema.safeParse(old);
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('wordladder');
+  });
+
+  it('answerSchema never accepts a ladder summary; the word event is limited', () => {
+    expect(valid(answerSchema, { type: 'wordladder', words: ['пола'], steps: 1, finished: false })).toBe(false);
+    expect(valid(wordLadderWordSchema, { word: 'пола' })).toBe(true);
+    expect(valid(wordLadderWordSchema, { word: 'а'.repeat(31) })).toBe(false);
+    expect(valid(wordLadderWordSchema, { word: 5 })).toBe(false);
+    expect(valid(wordLadderCheckSchema, { words: OWNER })).toBe(true);
+    expect(valid(wordLadderCheckSchema, { words: [] })).toBe(false);
+    expect(valid(wordLadderCheckSchema, { words: Array.from({ length: 22 }, () => 'поле') })).toBe(false);
   });
 });
 

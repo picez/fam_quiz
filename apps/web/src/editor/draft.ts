@@ -42,6 +42,8 @@ import {
   cloudKey,
   roundQuestions,
   REVEAL_TYPES,
+  ladderPathIssue,
+  type LadderPathIssue,
   type QuestionType,
 } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
@@ -54,6 +56,7 @@ export { QUESTION_TYPES, type QuestionType };
  * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
+ * Словесна драбина — лише класика й фінал.
  * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
  * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
  * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
@@ -62,9 +65,9 @@ export { QUESTION_TYPES, type QuestionType };
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
-  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'bluff' && !unscored(type));
+  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
   if (roundType === 'final') {
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
@@ -166,6 +169,9 @@ function build(common: Common, type: QuestionType): Question {
         words: Array.from({ length: LIMITS.minChainWords }, () => ''),
         hintSeconds: LIMITS.defaultHintSeconds,
       };
+    case 'wordladder':
+      // Старт, одне проміжне слово й ціль; без відео — без таймера драбина не закінчиться.
+      return { ...common, video: null, type, timeLimit: LIMITS.defaultWordLadderTime, path: ['', '', ''], maxSteps: LIMITS.defaultWordLadderSteps };
     case 'sort': {
       const categories = blanks(LIMITS.minSortCategories);
       return {
@@ -297,6 +303,8 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
       return { ...question, id, words: [...question.words] };
+    case 'wordladder':
+      return { ...question, id, path: [...question.path] };
     case 'sort': {
       const copies = new Map(question.categories.map((category) => [category.id, newId()]));
       return {
@@ -608,6 +616,12 @@ const cleanBody = (question: Question): Question => {
       while (end > LIMITS.minChainWords && words[end - 1] === '') end -= 1;
       return { ...question, text, words: words.slice(0, end) };
     }
+    case 'wordladder': {
+      // Порожні проміжні слова відкидаються; стартове й цільове лишаються, навіть порожні, щоб про них сказала перевірка.
+      const path = question.path.map((word) => word.normalize('NFC').trim());
+      if (path.length < 2) return { ...question, text, path };
+      return { ...question, text, path: [path[0], ...path.slice(1, -1).filter((word) => word !== ''), path[path.length - 1]] };
+    }
     case 'sort': {
       const words = question.words.map((word) => ({ ...word, text: word.text.trim() }));
       let end = words.length;
@@ -735,19 +749,21 @@ interface Place {
   sort: boolean;
   /** Ланцюжок слів: усюди, крім бліцу й поля (правило chain_round схеми). */
   chain: boolean;
+  /** Словесна драбина: лише класика й фінал (правило wordladder_place схеми). */
+  wordladder: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz' };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -799,6 +815,13 @@ export function boardReadiness(round: BoardRound): BoardReadiness {
 
 /** Чи вистачає часу останній підказці: (n − 1) × інтервал + хвіст ≤ час. */
 const lastClueAt = (question: Extract<Question, { type: 'clues' }>) => (question.clues.length - 1) * question.interval;
+/** Вада шляху драбини → текст проблеми. */
+const LADDER_PROBLEMS: Record<LadderPathIssue, TextKey> = {
+  wordladder_word: 'problemWordLadderWord',
+  wordladder_length: 'problemWordLadderLength',
+  wordladder_step: 'problemWordLadderStep',
+  wordladder_steps: 'problemWordLadderSteps',
+};
 const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
@@ -856,6 +879,14 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
         return 'problemHintSeconds';
       }
       break;
+    case 'wordladder': {
+      const { path, maxSteps } = question;
+      if (path.length < 2 || path[0] === '' || path[path.length - 1] === '') return 'problemWordLadderEmpty';
+      if (!Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > LIMITS.maxWordLadderSteps) return 'problemWordLadderMaxSteps';
+      const issue = ladderPathIssue(path, maxSteps);
+      if (issue !== null) return LADDER_PROBLEMS[issue];
+      break;
+    }
     case 'sort': {
       if (question.categories.some((category) => category.text === '') || question.words.some((word) => word.text === '')) {
         return 'problemSortText';
@@ -957,6 +988,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'clues' && !place.clues) return 'problemCluesPlace';
   if (question.type === 'sort' && !place.sort) return 'problemSortPlace';
   if (question.type === 'chain' && !place.chain) return 'problemChainPlace';
+  if (question.type === 'wordladder' && !place.wordladder) return 'problemWordLadderPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
@@ -1079,6 +1111,11 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
     surveyMin: LIMITS.minSurveyRows,
     surveyMax: LIMITS.maxSurveyAnswers,
+    letterMin: LIMITS.minWordLadderLetters,
+    letterMax: LIMITS.maxWordLadderLetters,
+    // Найменше кроків — 1 (та сама межа, що в перевірці maxSteps вище).
+    stepsMin: 1,
+    stepsMax: LIMITS.maxWordLadderSteps,
     ...(question?.type === 'clues'
       ? { count: question.clues.length, at: lastClueAt(question), need: question.cluePace === 'self' ? LIMITS.selfCluesMinTime : lastClueAt(question) + LIMITS.clueTailSeconds }
       : {}),

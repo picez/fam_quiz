@@ -29,6 +29,8 @@ function filled(question: Question): Question {
       return { ...question, text, clues: ['Раз', 'Два', 'Три'], accepted: ['Відповідь'] };
     case 'chain':
       return { ...question, text, words: ['Форель', 'Риба', 'Океан'] };
+    case 'wordladder':
+      return { ...question, text, path: ['поле', 'пола', 'пора'] };
     case 'poll':
       return { ...question, text, options: question.options.map((o, i) => ({ ...o, text: `Варіант ${i + 1}` })) };
     case 'wall':
@@ -370,7 +372,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -1088,6 +1090,71 @@ describe('chain questions', () => {
   it('duplicating a chain copies its words', () => {
     const copy = duplicateQuestion(chain({ words: ['A1', 'B2', 'C3'] }));
     expect(copy.type === 'chain' && copy.words).toEqual(['A1', 'B2', 'C3']);
+  });
+});
+
+describe('word ladder questions (26c)', () => {
+  type Ladder = Extract<Question, { type: 'wordladder' }>;
+  const ladder = (patch: Partial<Ladder> = {}) => ({ ...newQuestion('wordladder'), text: 'Від ПОЛЕ до ТАРА', path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], ...patch }) as Question;
+  const problems = (patch: Partial<Ladder> = {}) => problemsOf(quizWith(ladder(patch)));
+
+  it('a new word ladder has a start, one step, a target, the default maximum and time and no video', () => {
+    expect(newQuestion('wordladder')).toMatchObject({
+      type: 'wordladder',
+      video: null,
+      timeLimit: LIMITS.defaultWordLadderTime,
+      path: ['', '', ''],
+      maxSteps: LIMITS.defaultWordLadderSteps,
+    });
+  });
+
+  it('only classic and final rounds offer the word ladder', () => {
+    for (const round of ['classic', 'final'] as const) expect(questionTypesFor(round)).toContain('wordladder');
+    for (const round of ['blitz', 'board', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round)).not.toContain('wordladder');
+  });
+
+  it('cleaned trims and composes every word and drops empty steps but keeps the start and the target', () => {
+    const pathOf = (path: string[]) => {
+      const q = (cleaned(quizWith(ladder({ path }))).rounds[0] as ClassicRound).questions[0];
+      return q.type === 'wordladder' ? q.path : null;
+    };
+    expect(pathOf(['поле', '', ' пора ', 'тара'])).toEqual(['поле', 'пора', 'тара']);
+    expect(pathOf(['', '', ''])).toEqual(['', '']);
+    expect(pathOf(['пол' + 'е', 'гай'.normalize('NFD'), 'тара'])).toEqual(['поле', 'гай', 'тара']);
+  });
+
+  it('names each path problem', () => {
+    expect(problems()).toEqual([]);
+    expect(problems({ path: ['', 'ПОЛА', 'ТАРА'] })).toEqual([t('problemWordLadderEmpty', { index: 1 })]);
+    expect(problems({ path: ['ПОЛЕ', 'ПОЛА', ''] })).toEqual([t('problemWordLadderEmpty', { index: 1 })]);
+    expect(problems({ path: ['ПО', 'ПА'] })).toEqual([t('problemWordLadderWord', { index: 1, letterMin: LIMITS.minWordLadderLetters, letterMax: LIMITS.maxWordLadderLetters })]);
+    // Межі в тексті — з LIMITS, а не вписані в переклад.
+    expect(problems({ path: ['ПО', 'ПА'] })[0]).toContain(`від ${LIMITS.minWordLadderLetters} до ${LIMITS.maxWordLadderLetters}`);
+    expect(problems({ path: ['POLE', 'POLA'] })).toEqual([t('problemWordLadderWord', { index: 1, letterMin: LIMITS.minWordLadderLetters, letterMax: LIMITS.maxWordLadderLetters })]);
+    expect(problems({ path: ['ПОЛЕ', 'ПОЛЕЮ'] })).toEqual([t('problemWordLadderLength', { index: 1 })]);
+    expect(problems({ path: ['ПОЛЕ', 'ПОРА', 'ТАРА'] })).toEqual([t('problemWordLadderStep', { index: 1 })]);
+    expect(problems({ maxSteps: 3 })).toEqual([t('problemWordLadderSteps', { index: 1 })]);
+    expect(problems({ maxSteps: Number.NaN })).toEqual([t('problemWordLadderMaxSteps', { index: 1, stepsMin: 1, stepsMax: LIMITS.maxWordLadderSteps })]);
+    expect(problems({ maxSteps: LIMITS.maxWordLadderSteps + 1 })).toEqual([t('problemWordLadderMaxSteps', { index: 1, stepsMin: 1, stepsMax: LIMITS.maxWordLadderSteps })]);
+  });
+
+  it('a word ladder in a blitz round is out of place', () => {
+    const quiz: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newBlitzRound(), questions: [ladder()] }] };
+    expect(problemsOf(quiz)).toEqual([t('problemWordLadderPlace', { index: 1 })]);
+    const final: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [filled(newQuestion('single'))] }, { ...newFinalRound(), questions: [ladder()] }] };
+    expect(problemsOf(final)).toEqual([]);
+  });
+
+  it('switching a question with a video to a word ladder drops the video', () => {
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } };
+    expect(changeType(withVideo, 'wordladder')).toMatchObject({ type: 'wordladder', video: null });
+  });
+
+  it('duplicating a word ladder copies its path', () => {
+    const source = ladder();
+    const copy = duplicateQuestion(source);
+    expect(copy.type === 'wordladder' && copy.path).toEqual(['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА']);
+    expect(copy.type === 'wordladder' && source.type === 'wordladder' && copy.path !== source.path).toBe(true);
   });
 });
 

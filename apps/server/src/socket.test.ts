@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -13,6 +13,7 @@ import { FakeScheduler } from './testing/fake-scheduler';
 import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './testing/survival-game';
 import { LADDER_RIGHT } from './testing/ladder-game';
 import { WIPEOUT_RIGHT } from './testing/wipeout-game';
+import { nounsOf } from './wordladder/nouns';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -578,6 +579,36 @@ describe('host presence', () => {
     const scene = await until(stage, (view) => view.chain?.rows.some((row) => row.timeMs !== null) === true);
     expect(scene.chain?.rows[0].timeMs).not.toBeNull();
   });
+  it('player:wordladder and player:wordladder-back are player-only and validated', async () => {
+    // Свій крихітний словник замість справжнього файла.
+    await ctx.app.close();
+    ctx = await buildApp({ db, auth: TEST_AUTH, nouns: nounsOf(['пила']) });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const created = (await startGame(ctx.app, makeQuiz([wordladder]))).game;
+    const { host, stage, olena } = await lobby(created);
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:wordladder', { word: 'пола' })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:wordladder-back')).toEqual({ ok: false, error: 'forbidden' });
+    }
+    for (const payload of [{ word: 5 }, { word: 'а'.repeat(31) }, undefined]) {
+      expect(await send(olena, 'player:wordladder', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+
+    expect(await send(olena, 'player:wordladder', { word: 'Пола' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wordladder', { word: 'пила' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wordladder', { word: 'тара' })).toEqual({ ok: false, error: 'word_one_letter' });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.wordladder?.words.length === 2);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.me.wordladder?.words).toEqual(['пола', 'пила']);
+    expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: true });
+    expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: true });
+    expect(await send(olena, 'player:wordladder-back')).toEqual({ ok: false, error: 'word_none' });
+  });
+
   it('player:sort is player-only and validated', async () => {
     const created = (await startGame(ctx.app, makeQuiz([sortQ, single]))).game;
     const { host, stage, olena } = await lobby(created);

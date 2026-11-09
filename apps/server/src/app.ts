@@ -28,6 +28,8 @@ import { attachLikes } from './likes';
 import { attachTitles } from './titles';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
+import { registerWordLadderRoutes } from './wordladder-routes';
+import { lazyNouns, type NounDictionary } from './wordladder/nouns';
 
 export interface AppOptions {
   db: Db;
@@ -59,13 +61,16 @@ export interface AppOptions {
   persist?: { instanceId: string; saveDelayMs?: number };
   /** Адреси адмінів (config.adminEmails); типово порожній набір — адмінки немає. */
   adminEmails?: ReadonlySet<string>;
+  /** Словник «Словесної драбини» (26c); типово lazyNouns() — закомічений файл читається при першому слові чи перевірці. */
+  nouns?: NounDictionary;
 }
 
 const DEFAULT_MAX_ROOMS = 500;
 const BODY_LIMIT = 512 * 1024;
 
 export async function buildApp(options: AppOptions) {
-  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false, pacing: options.pacing ?? false });
+  const nouns = options.nouns ?? lazyNouns();
+  const manager = new RoomManager(options.scheduler ?? realScheduler, options.rng, { transitions: options.transitions ?? false, pacing: options.pacing ?? false, nouns });
   const recorder = attachRecorder(manager, options.db);
   const titles = attachTitles(manager, options.db);
   const levels = attachLevels(manager, options.db);
@@ -119,6 +124,7 @@ export async function buildApp(options: AppOptions) {
   const gate = new LobbyGate(options.db, invites, () => manager.now());
   await registerLobbyRoutes(app, { db: options.db, manager, gate, invites, locate, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
+  await registerWordLadderRoutes(app, { nouns, currentUser });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => console.error(message, error) });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
   const calendarNotify: CalendarNotify | undefined =

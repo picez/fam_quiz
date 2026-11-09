@@ -39,6 +39,8 @@ export function questionLines(question: Question): string[] {
         return question.pairs.map((pair) => `${pair.left.text} — ${pair.right.text}`);
       case 'chain':
         return question.words;
+      case 'wordladder':
+        return question.path;
       case 'sort':
         return [...question.categories.map((c) => c.text), ...question.words.map((w) => w.text)];
       case 'clues':

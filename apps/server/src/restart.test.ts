@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { makeQuiz, single, text } from '@quiz/engine/testing';
+import { makeQuiz, single, text, wordladder } from '@quiz/engine/testing';
 import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -169,6 +169,34 @@ describe('a server restart', () => {
     await second.ctx.recorder.idle();
     const [saved] = await db.select().from(game).where(eq(game.id, started.gameId));
     expect(saved.status).toBe('running');
+  });
+
+  it("a restored room keeps every player's ladder words", async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeQuiz([wordladder]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    // Слова шляху ведучого: словник не потрібен.
+    for (const word of ['пола', 'пора']) expect(await send(olena, 'player:wordladder', { word })).toEqual({ ok: true });
+    expect(await send(taras, 'player:wordladder', { word: 'пола' })).toEqual({ ok: true });
+    const before = first.ctx.manager.get(started.code)?.state.plays[0]?.wordladder;
+    expect(before).toEqual({ [olenaJoin.playerId]: { words: ['пола', 'пора'] }, [tarasJoin.playerId]: { words: ['пола'] } });
+
+    await first.ctx.shutdown();
+    olena.last = null;
+    const second = await boot(db, 'b', first.port);
+    const mine = await until(olena, (view) => view.role === 'player' && view.phase === 'question' && view.me.wordladder !== undefined);
+    expect(mine.role === 'player' && mine.me.wordladder?.words).toEqual(['пола', 'пора']);
+    expect(second.ctx.manager.get(started.code)?.state.plays[0]?.wordladder).toEqual(before);
   });
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

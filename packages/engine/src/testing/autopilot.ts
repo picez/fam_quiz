@@ -16,6 +16,7 @@ import { notStarted } from '../splash';
 import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestionOf } from '../survival';
 import { pickTeam, rollTeamDie } from '../teams';
 import { guessWall } from '../wall';
+import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
 
 // Наскрізні ігри без ведучого (11g, задача 5): драйвер, що імітує сервер, і «люди» з телефонами.
@@ -173,6 +174,12 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
     case 'chain': {
       let s = state;
       for (let i = chainOf(s, playerId).solved + 1; i < question.words.length; i++) s = act(s, guessWord(s, playerId, question.words[i], now), what);
+      return s;
+    }
+    case 'wordladder': {
+      // Бот проходить шлях ведучого, а шлях приймається й без словника.
+      let s = state;
+      for (const word of question.path.slice(1 + wordLadderOf(s, playerId).words.length)) s = act(s, ladderWord(s, playerId, word, now, () => false), what);
       return s;
     }
     case 'sort': {

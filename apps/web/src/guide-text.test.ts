@@ -23,7 +23,7 @@ describe('guide texts', () => {
   });
 
   it('every question type has a line', () => {
-    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort'] as const) expect(typeHow(type).length).toBeGreaterThan(10);
+    for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort'] as const) expect(typeHow(type).length).toBeGreaterThan(10);
   });
 
   it('how each round works: an instant blitz differs, the final adds the wager mode', () => {

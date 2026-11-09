@@ -32,6 +32,7 @@ import { Standings } from './Standings';
 import { Nick } from './Nick';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
+import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -333,6 +334,7 @@ function Result({ view }: { view: PlayerView }) {
       {view.me.chain !== null && (
         <p>{view.me.chain.timeMs !== null ? t('chainDone', { time: secondsText(view.me.chain.timeMs) }) : t('chainOutOfTime')}</p>
       )}
+      {view.me.wordladder !== undefined && <p>{view.me.wordladder.finished ? t('wordLadderDone', { steps: view.me.wordladder.steps }) : t('wordLadderOut')}</p>}
       {view.me.sort !== null && <SortOutcome view={view} />}
       <WallOutcome view={view} />
       <SurveyOutcome view={view} />
@@ -1029,6 +1031,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : isWall ? (
               // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
               question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
+            ) : question.type === 'wordladder' && me.wordladder !== undefined ? (
+              <WordLadderPlay key={view.questionIndex} ladder={me.wordladder} question={question} paused={locked} send={send} />
             ) : chainMine && me.chain !== null ? (
               <ChainPlay chain={me.chain} question={question} paused={locked} offsetMs={offsetMs} send={send} onDraft={onDraft} noClock={debuff?.kind === 'noclock'} />
             ) : instant && me.blitz !== null ? (
@@ -1171,6 +1175,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <h2>{t('voteSent')}</h2>
               <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
               <p className="lead">{t('waitReveal')}</p>
+            </section>
+          ) : me.wordladder !== undefined && question !== null ? (
+            <section className="sent">
+              <WordLadderOutcome ladder={me.wordladder} question={question} />
+              {/* Бали залежать від найкращого в кімнаті: як у ланцюжку, чекаємо на результати, а не на одну правильну відповідь. */}
+              <p className="lead">{t('chainWaitResults')}</p>
             </section>
           ) : me.chain !== null && question !== null && question.chain !== null ? (
             <section className="sent">

@@ -3,6 +3,7 @@ import { DEFAULT_RULES, type FinalRound, type Question, type RoundRules } from '
 import { adjustScore } from './adjust';
 import { guessWord } from './chain';
 import { sortOf, sortWord } from './sort';
+import { ladderWord } from './wordladder';
 import { placeWager } from './final';
 import {
   end,
@@ -23,7 +24,7 @@ import {
 import { pendingOf } from './hold';
 import { finalPoints } from './score';
 import { adjustTime, limitMsOf } from './timing';
-import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, sortQ, withId, withPoints, withVideo } from './testing/fixtures';
+import { chain, classicRound, finalRound, makeRoundsQuiz, order, single, sortQ, withId, withPoints, withVideo, wordladder } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { playerView } from './views';
 
@@ -431,6 +432,23 @@ describe('the final round', () => {
     expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', points: -400, answer: { type: 'chain', solved: 1 } });
     expect(finalRecord(s, 'p3')).toMatchObject({ answer: null, points: 0 });
     expect(override(s, 'p2', 'correct')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a word ladder in the final wins the wager within the maximum', () => {
+    const nouns = new Set(['кора', 'кара']);
+    const walk = (start: GameState, words: string[]) => words.reduce((s, word) => must(ladderWord(s, 'p2', word, 12_000, (k) => nouns.has(k))), start);
+    // ставка Богдана 400: дійшов за 4 кроки — +400
+    let s = walk(toQuestion({}, wordladder), ['пола', 'пора', 'пара', 'тара']);
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'correct', points: 400, answer: { type: 'wordladder', steps: 4, finished: true } });
+    s = must(lock(s));
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'correct', points: 400 });
+    // дійшов за 9 кроків при максимумі 8 — −400
+    s = must(lock(walk(toQuestion({}, wordladder), ['пола', 'поле', 'пола', 'поле', 'пола', 'пора', 'кора', 'кара', 'тара'])));
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', points: -400, answer: { steps: 9, finished: true } });
+    // поступ без фінішу при закритті — −400
+    s = tick(walk(toQuestion({}, wordladder), ['пола', 'пора']), 100_000);
+    expect(s.phase).toBe('locked');
+    expect(finalRecord(s, 'p2')).toMatchObject({ grade: 'wrong', accepted: false, points: -400, answer: { steps: 2, finished: false } });
   });
 
   it('a sort final is right only when every word is sorted in time', () => {

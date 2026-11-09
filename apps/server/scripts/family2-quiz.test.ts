@@ -42,7 +42,7 @@ describe('the «Родинний марафон ІІ» quiz', () => {
 
   it('has every round type and every scored type except «100 до 1», hosted solo with all buffs, debuffs, duels and spares', () => {
     expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES));
-    const scored = QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud' && type !== 'survey');
+    const scored = QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud' && type !== 'survey' && type !== 'wordladder'); // 26c: демо без драбини
     expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(scored));
     expect(quiz.settings.teams).toBeUndefined();
     expect(quiz.settings.buffs).toEqual([...BUFF_KINDS]);

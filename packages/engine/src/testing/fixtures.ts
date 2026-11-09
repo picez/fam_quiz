@@ -115,6 +115,18 @@ export const chain = {
   hintSeconds: 5,
 } satisfies Question;
 
+/** «Словесна драбина» поле → тара за 4 кроки, максимум 8, 500 балів, 90 с; до типового списку makeQuiz не входить. */
+export const wordladder = {
+  ...base,
+  id: 'q10',
+  type: 'wordladder',
+  text: 'Від поля до тари',
+  timeLimit: 90,
+  points: 500,
+  path: ['поле', 'пола', 'пора', 'пара', 'тара'],
+  maxSteps: 8,
+} satisfies Question;
+
 /** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
 export const sortQ = {
   ...base,

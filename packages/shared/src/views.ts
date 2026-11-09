@@ -104,6 +104,8 @@ export interface PublicQuestion {
   orderLabels: { top: string; bottom: string } | null;
   /** null для інших типів. */
   chain: PublicChain | null;
+  /** Лише на запитанні-драбині (26c); ключа немає в інших типів. Проміжних слів шляху тут немає. */
+  wordladder?: PublicWordLadder;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -218,6 +220,46 @@ export interface ChainInfo {
   total: number;
   /** Пройшли за часом, далі за solved спаданням, далі в порядку гравців. */
   rows: ChainRow[];
+}
+
+/** Видиме всім: що задано на драбині (без проміжних слів шляху). */
+export interface PublicWordLadder {
+  start: string;
+  target: string;
+  /** Літер у слові. */
+  letters: number;
+  maxSteps: number;
+}
+
+export interface WordLadderRow {
+  playerId: string;
+  nickname: string;
+  steps: number;
+  finished: boolean;
+  /** Слова гравця після стартового: ведучому завжди; сцені й гравцям лише на reveal і лише фінішерів; інакше null. */
+  words: string[] | null;
+  /** Бали лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface WordLadderInfo {
+  start: string;
+  target: string;
+  maxSteps: number;
+  /** Шлях ведучого: ведучому завжди, іншим лише на reveal; інакше null. */
+  path: string[] | null;
+  /** Фінішери за кроками за зростанням, далі решта за кроками спаданням, далі в порядку гравців. */
+  rows: WordLadderRow[];
+}
+
+export interface PlayerWordLadder {
+  words: string[];
+  steps: number;
+  finished: boolean;
+  /** Фаза question, не пауза, не фінішував. */
+  canAdd: boolean;
+  /** canAdd і є слова. */
+  canBack: boolean;
 }
 
 export interface PlayerChain {
@@ -1151,6 +1193,8 @@ interface BaseView {
   ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
   chain: ChainInfo | null;
+  /** Словесна драбина (26c): лише на запитанні-драбині (question, locked, reveal), для сцени й гравців не у фіналі; інакше ключа немає. */
+  wordladder?: WordLadderInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
@@ -1380,6 +1424,8 @@ export interface PlayerView extends BaseView {
     } | null;
     /** null поза запитанням-ланцюжком. */
     chain: PlayerChain | null;
+    /** Власна драбина гравця (26c): лише на запитанні-драбині; інакше ключа немає. */
+    wordladder?: PlayerWordLadder;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -1468,6 +1514,7 @@ export type LiveVerdict = 'correct' | 'partial' | 'wrong';
 /** Поступ у рядку «Відповідей наживо» для типів, де відповідь — не один вибір (11c). */
 export type LiveProgress =
   | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
+  | { kind: 'wordladder'; steps: number; words: string[]; finished: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1547,6 +1594,8 @@ export interface HostView extends BaseView {
   /** Як у BaseView. */
   board: HostBoard | null;
   final: HostFinal | null;
+  /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
+  wordladder?: WordLadderInfo;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */

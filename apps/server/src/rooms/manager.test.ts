@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { hostView, sortOf } from '@quiz/engine';
 import { defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
+import { nounsOf } from '../wordladder/nouns';
 import { TRIAL_RIGHT, playSurvivalQuestion } from '../testing/survival-game';
 import {
   FINISHED_TTL_MS,
@@ -430,6 +431,38 @@ describe('word chain', () => {
     const { manager, room } = setup();
     expect(manager.guess(room, 'nobody', 'Риба')).toMatchObject({ ok: false });
     expect(manager.hint(room, 'nobody')).toMatchObject({ ok: false });
+  });
+});
+
+describe('word ladder', () => {
+  it('word ladder moves reach the engine with the room dictionary and change the answer stamp', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5, { nouns: nounsOf(['пила']) });
+    const room = manager.create(makeQuiz([wordladder]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const words = () => {
+      const view = manager.view(room, olena.identity);
+      return view?.role === 'player' ? view.me.wordladder?.words : undefined;
+    };
+    expect(words()).toEqual([]);
+
+    expect(manager.wordLadderWord(room, olena.playerId, 'ПОЛА')).toEqual({ ok: true });
+    // «пила» є лише в словнику кімнати, «кила» — ніде.
+    expect(manager.wordLadderWord(room, olena.playerId, 'пила')).toEqual({ ok: true });
+    expect(words()).toEqual(['пола', 'пила']);
+    const changes = events.length;
+    expect(manager.wordLadderWord(room, olena.playerId, 'кила')).toEqual({ ok: false, error: 'word_unknown' });
+    expect(events.length).toBe(changes);
+
+    expect(manager.wordLadderBack(room, olena.playerId)).toEqual({ ok: true });
+    expect(words()).toEqual(['пола']);
+    expect(events.at(-1)).toEqual({ type: 'changed' });
+    expect(manager.wordLadderWord(room, 'nobody', 'пора')).toMatchObject({ ok: false });
+    expect(manager.wordLadderBack(room, 'nobody')).toMatchObject({ ok: false });
   });
 });
 

@@ -33,6 +33,8 @@ function started(row: LiveRow): boolean {
   switch (progress.kind) {
     case 'chain':
       return progress.solved > 0 || progress.hints > 0;
+    case 'wordladder':
+      return progress.steps > 0 || progress.finished;
     case 'sort':
       return progress.sorted > 0 || progress.misses > 0;
     case 'wall':
@@ -72,6 +74,11 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
     switch (progress.kind) {
       case 'chain':
         parts.push(progress.word === null ? t('liveChainDone', { hints: progress.hints }) : t('liveChain', { solved: progress.solved, total: progress.total, word: progress.word, hints: progress.hints }));
+        break;
+      case 'wordladder':
+        // Фініш уже названо відповіддю («Дійшли за кроків: N»), тож тут лише слова; без фінішу — ще й кроки.
+        if (!progress.finished) parts.push(t('wordLadderLiveSteps', { steps: progress.steps }));
+        if (progress.words.length > 0) parts.push(progress.words.join(' → '));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));

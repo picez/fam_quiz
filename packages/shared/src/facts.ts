@@ -39,7 +39,7 @@ export interface FactQuestion {
   /** Номер у раунді з 1. */
   number: number;
   text: string;
-  /** Межа часу відповіді, мс (factLimitMs); null — час не справжній (відео, драбина без таймера, усна клітинка). */
+  /** Межа часу відповіді, мс (factLimitMs); null — час не справжній (відео, драбина без таймера, усна клітинка) або не рахується (словесна драбина). */
   limitMs: number | null;
   /** З балами (не опитування й не хмара). */
   scored: boolean;
@@ -181,6 +181,8 @@ export interface RoundShare {
 export function factLimitMs(question: Question, round: Round | undefined, voice: boolean): number | null {
   if (voice || question.video != null) return null;
   if (round?.type === 'ladder' && round.timer === false) return null;
+  // Словесна драбина рахує кроки, а не швидкість: її час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
+  if (question.type === 'wordladder') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;
   return answerWindowMs(question);
 }

@@ -208,6 +208,15 @@ it('an untitled final round is called «Фінал»', () => {
   expect(roundLabel('Космос', 3, 'final')).toBe('Космос');
 });
 
+describe('word ladder texts', () => {
+  const ladderQ: Question = { ...base, type: 'wordladder', path: ['поле', 'пола', 'пора', 'пара', 'тара'], maxSteps: 8 };
+  it('writes the answer by whether the ladder was finished, and the right path in capitals', () => {
+    expect(answerText({ type: 'wordladder', words: ['пола', 'пора', 'пара', 'тара'], steps: 4, finished: true }, ladderQ)).toBe('Дійшли за кроків: 4');
+    expect(answerText({ type: 'wordladder', words: ['пола', 'пора'], steps: 2, finished: false }, ladderQ)).toBe('Не дійшли, кроків: 2');
+    expect(correctText(ladderQ)).toBe('ПОЛЕ → ПОЛА → ПОРА → ПАРА → ТАРА');
+  });
+});
+
 describe('chain texts', () => {
   const chainQ: Question = { ...base, type: 'chain', words: ['Форель', 'Риба', 'Океан', 'Корабель'], hintSeconds: 5 };
   it('writes the chain and chain answers in words', () => {
