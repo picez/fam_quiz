@@ -170,9 +170,9 @@ describe('buildDecor', () => {
     expect(rimTori).toEqual([1.285, 1.455]);
 
     const [plaque] = named(group, 'decor-plaque');
-    expect((plaque!.geometry as PlaneGeometry).parameters).toMatchObject({ width: 0.46, height: 0.18 });
-    expect(plaque!.position.toArray()).toEqual([0, 0.13, 0.225]);
-    expect(plaque!.rotation.x).toBeCloseTo(-0.32);
+    expect((plaque!.geometry as PlaneGeometry).parameters).toMatchObject({ width: 0.256, height: 0.1 });
+    expect(plaque!.position.toArray()).toEqual([0, 0.083, 0.1625]);
+    expect(plaque!.rotation.x).toBeCloseTo(-1.308);
     expect(plaque!.material).toMatchObject({ transparent: true, polygonOffset: true });
 
     expect(canvases).toEqual(expect.arrayContaining([[1950, 204], [2048, 96], [1024, 400]]));
@@ -235,6 +235,19 @@ describe('buildDecor', () => {
       expect(band!.position.z).toBeLessThanOrEqual(0.188);
       expect(canvases).toEqual([[1024 * TEXTURE_SCALE[size], 128 * TEXTURE_SCALE[size]]]);
     }
+  });
+
+  it('a round band shows the middle of its text at the front, the ring atlas keeps u = 0 at the front', async () => {
+    const photo = { url: url(1), crop: { x: 0.5, y: 0.5, scale: 1 } };
+    for (const kind of ['crown', 'statuette', 'grail'] as const) {
+      const decor: TrophyDecor = { ...bare, inscriptions: [{ ...back, place: 'band' }] };
+      const { group } = await buildDecor(kind, 'gold', decor, 'view', stub().textures, surfaceOf(kind));
+      const [band] = named(group, 'decor-band');
+      expect(band!.rotation.y, kind).toBeCloseTo(Math.PI);
+    }
+    const ringDecor: TrophyDecor = { ...bare, photoPlace: 'ring', photos: [photo] };
+    const { group } = await buildDecor('crown', 'gold', ringDecor, 'view', stub().textures, surfaceOf('crown'));
+    expect(named(group, 'decor-ring')[0]!.rotation.y).toBe(0);
   });
 
   it('star ignores ring and rim', async () => {

@@ -99,8 +99,8 @@ describe('trophy anchors', () => {
         { y: 1.285, radius: 0.452, tube: 0.012 },
       ],
     });
-    // 25d: табличка піднята над пояском основи (було y 0.085, z 0.235 — нижній край лягав на поясок).
-    expect(grail.plaque).toEqual({ position: [0, 0.13, 0.225], tiltX: -0.32, width: 0.46, height: 0.18, surface: 'base' });
+    // 25d: табличка лежить на схилі основи над пояском (було y 0.085, z 0.235 — нижній край лягав на поясок, кути за основою).
+    expect(grail.plaque).toEqual({ position: [0, 0.083, 0.1625], tiltX: -1.308, width: 0.256, height: 0.1, surface: 'base' });
   });
 
   it('grail plaque rests on the base slope above the band', () => {
@@ -109,9 +109,33 @@ describe('trophy anchors', () => {
     const half = plaque!.height / 2;
     const bottomY = plaque!.position[1] - half * Math.cos(plaque!.tiltX);
     const bottomZ = plaque!.position[2] - half * Math.sin(plaque!.tiltX);
-    expect(plaque!.position[1] - half).toBeGreaterThanOrEqual(band!.y1 + 0.01 - 1e-9);
+    expect(bottomY).toBeGreaterThanOrEqual(band!.y1 + 0.01 - 1e-9);
     // Нижній край лежить на поверхні основи (не далі 0.01 від профілю).
     expect(Math.abs(bottomZ - profileRadius(profile!, bottomY))).toBeLessThan(0.01);
+  });
+
+  it('grail plaque corners stay over the base and above the band, its centre line never inside the base', () => {
+    const { plaque, band, profile } = TROPHY_ANCHORS.grail;
+    if (band!.shape !== 'profile') throw new Error('grail band is a profile band');
+    const baseRadius = Math.max(...profile!.points.filter(([, y]) => y <= band!.y1 + 1e-9).map(([r]) => r));
+    const { position, tiltX, width, height } = plaque!;
+    // Точка таблички (x уздовж, t від -1 низ до 1 верх) у просторі моделі.
+    const at = (x: number, t: number) => {
+      const local = (t * height) / 2;
+      return { x, y: position[1] + local * Math.cos(tiltX), z: position[2] + local * Math.sin(tiltX) };
+    };
+    for (const sx of [-1, 1])
+      for (const t of [-1, 1]) {
+        const corner = at((sx * width) / 2, t);
+        // У плані кут не звисає за основу, а по висоті — над пояском (і над підлогою).
+        expect(Math.hypot(corner.x, corner.z), `corner ${sx},${t}`).toBeLessThanOrEqual(baseRadius);
+        expect(corner.y, `corner ${sx},${t}`).toBeGreaterThan(band!.y1);
+      }
+    // Середня лінія таблички ніде не заходить усередину основи (з допуском на підйом над поверхнею).
+    for (let t = -1; t <= 1; t += 0.1) {
+      const point = at(0, t);
+      expect(point.z, `centre line at ${t.toFixed(1)}`).toBeGreaterThanOrEqual(profileRadius(profile!, point.y) - 1e-3);
+    }
   });
 
   it.each(TROPHY_KINDS.filter((kind) => TROPHY_ANCHORS[kind].profile !== undefined))(

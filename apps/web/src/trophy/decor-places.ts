@@ -73,9 +73,9 @@ export function spotFootprint(kind: TrophyKind, spot: Spot): Footprint {
   return rectFootprint(kind, spot.surface, spot.position, spot.normal, spot.size, spot.size);
 }
 
-/** Таблички й поясок на грані дивляться до +Z (нахил лише навколо X). */
+/** Таблички й поясок на грані дивляться до +Z (нахил лише навколо X): по висоті займають проєкцію нахиленої пластини. */
 const plateFootprint = (kind: TrophyKind, plate: Plate): Footprint =>
-  rectFootprint(kind, plate.surface, plate.position, [0, 0, 1], plate.width, plate.height);
+  rectFootprint(kind, plate.surface, plate.position, [0, 0, 1], plate.width, plate.height * Math.abs(Math.cos(plate.tiltX)));
 
 function bandFootprint(kind: TrophyKind, band: BandAnchor): Footprint {
   switch (band.shape) {

@@ -102,7 +102,8 @@ function mesh(name: string, geometry: BufferGeometry, material: MeshStandardMate
 
 /**
  * Смуга оформлення: profile — смуга з профілю форми (спільна геометрія), raised — піднятий конус запеченого вигляду,
- * face — пластина на грані. Обідки-тори — на краях смуги.
+ * face — пластина на грані. Обідки-тори — на краях смуги. centerFront — середина текстури (u = 0.5) спереду, а не ззаду:
+ * для напису одним шматком по центру полотна (поясок); атлас кільця й повтори вінця лишаються з u = 0 спереду.
  */
 function band(
   group: Group,
@@ -112,6 +113,7 @@ function band(
   map: Texture,
   look: MetalLook,
   metal: MeshStandardMaterial,
+  centerFront = false,
 ): void {
   if (anchor.shape === 'face') {
     plate(group, anchor.plate, map, look, name);
@@ -128,6 +130,7 @@ function band(
       material,
     );
     strip.position.y = anchor.y;
+    if (centerFront) strip.rotation.y = Math.PI;
     group.add(strip);
     tori = anchor.tori;
   } else {
@@ -135,7 +138,10 @@ function band(
     segments = profile.segments * 3;
     // Від даних не залежить: ключ — форма й слот.
     const geometry = sharedGeometry(JSON.stringify(['band', kind, name]), () => profileBand(profile, anchor.y0, anchor.y1))!;
-    group.add(mesh(name, geometry, material));
+    const strip = mesh(name, geometry, material);
+    // Поворот на півоберту: вершини смуги лишаються на вершинах моделі (сегменти кратні 4).
+    if (centerFront) strip.rotation.y = Math.PI;
+    group.add(strip);
     tori = anchor.tori.map((edge) => {
       const y = edge === 'bottom' ? anchor.y0 : anchor.y1;
       return { y, radius: bandEdgeRadius(profile, y, anchor.tube), tube: anchor.tube };
@@ -261,7 +267,7 @@ async function addInscription(group: Group, painter: Painter, placed: PlacedInsc
       if (anchors.band === undefined) return;
       const size = anchors.band.shape === 'face' ? BAND_PX.face : BAND_PX.ring;
       const map = await text(size.width, size.height, (ctx) => drawBand(ctx, inscription, material, size));
-      band(group, 'decor-band', kind, anchors.band, map, BAKED_RIM, metal);
+      band(group, 'decor-band', kind, anchors.band, map, BAKED_RIM, metal, true);
       return;
     }
     case 'plaque': {
