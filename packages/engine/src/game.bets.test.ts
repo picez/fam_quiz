@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, BetsRound, Question, QuizSettings } from '@quiz/shared';
 import { adjustScore } from './adjust';
+import { awayStart, awayTracked } from './away';
+import { hostLive } from './live';
 import { betLimit, betsMinimumNow, betsPlaying } from './bets';
 import { guessWord, takeHint } from './chain';
 import { placeWager } from './final';
@@ -87,6 +89,7 @@ describe('the bets round (27a)', () => {
 
   it('refuses bets outside the range and from players below the minimum', () => {
     const wager = toWager();
+    const before = structuredClone(wager);
     for (const [id, amount, error] of [
       ['p1', 700, 'bet_range'],
       ['p1', 199, 'bet_range'],
@@ -95,6 +98,9 @@ describe('the bets round (27a)', () => {
     ] as const) {
       expect(placeWager(wager, id, amount, T, rng)).toEqual({ ok: false, error });
     }
+    // Відмова стану не чіпає: ані ставок, ані етапу.
+    expect(wager).toEqual(before);
+    expect(wager.final?.wagers).toEqual({});
     const placed = bet(wager, { p1: 400 });
     expect(placed.final?.wagers).toEqual({ p1: 400 });
     const changed = bet(placed, { p1: 450 });
@@ -115,6 +121,18 @@ describe('the bets round (27a)', () => {
     expect(s.phase).toBe('question');
     expect(current(s).final?.wagers).toEqual({ p1: 400 });
     expect(betsPlaying(s)).toEqual(['p1']);
+  });
+
+  it('only those who play are expected live and watched for leaving', () => {
+    const s = must(next(bet(toWager(), { p1: 400, p3: 300 }), T, rng));
+    const live = hostLive(s);
+    expect(live?.rows.map((r) => r.id)).toEqual(['p1', 'p3']);
+    expect(live?.total).toBe(2);
+    expect(['p1', 'p2', 'p3', 'p4'].map((id) => awayTracked(s, id))).toEqual([true, false, true, false]);
+    // Хто пропускає, той може відкласти телефон: запису виходу немає, на сцені його немає.
+    const left = awayStart(awayStart(s, 'p2', T + 1000), 'p4', T + 1000);
+    expect(left).toBe(s);
+    expect(Object.keys(current(awayStart(left, 'p1', T + 1000)).away ?? {})).toEqual(['p1']);
   });
 
   it('splits the bank of the losers among the winners by stake', () => {
@@ -256,7 +274,10 @@ describe('the bets round (27a)', () => {
   });
 
   it('a bet after the question opened is refused', () => {
-    expect(placeWager(opened(), 'p1', 400, T + 1000, rng)).toEqual({ ok: false, error: 'wrong_phase' });
+    const s = opened();
+    const before = structuredClone(s);
+    expect(placeWager(s, 'p1', 400, T + 1000, rng)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(s).toEqual(before);
   });
 
   it('manual check and the host grade recompute the bank', () => {

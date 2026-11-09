@@ -15,7 +15,7 @@ import {
 // views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу). away.ts імпортує hostLive: цикл лише між функціями.
 import { answererOf } from './answerer';
 import { awayPeople } from './away';
-import { wagerRound } from './bets';
+import { betsPlaying, wagerRound } from './bets';
 import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
@@ -379,6 +379,13 @@ export function hostLive(state: GameState): HostLive | null {
     who = voterList(state).map(({ id, nickname }) => ({ id, nickname, connected: memberOf(state, id)?.connected ?? false, team: false }));
   } else if (round?.type === 'wipeout') {
     who = answerersOf(state, wipeoutIn(state));
+  } else if (round?.type === 'bets') {
+    // «Ставки»: відповідають лише ті, хто грає запитання; хто пропускає — не під наглядом і не в лічильнику.
+    const playing = betsPlaying(state) ?? [];
+    who = answerersOf(
+      state,
+      state.players.filter((p) => playing.includes(p.id)).map((p) => p.id),
+    );
   } else if (round?.type === 'survival') {
     const alive = survivalAlive(state);
     who = answerersOf(state, alive);
