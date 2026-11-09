@@ -66,7 +66,7 @@ describe('three stays lazy', () => {
 });
 
 describe('pure decor modules do not import three', () => {
-  it.each(['anchors.ts', 'decor-layout.ts', 'decor-canvas.ts', 'engine-types.ts', 'loadEngine.ts'])('%s', (name) => {
+  it.each(['anchors.ts', 'decor-layout.ts', 'decor-canvas.ts', 'engine-types.ts', 'loadEngine.ts', 'effect-plan.ts'])('%s', (name) => {
     expect(read(`${src}/trophy/${name}`)).not.toMatch(THREE);
   });
 });
