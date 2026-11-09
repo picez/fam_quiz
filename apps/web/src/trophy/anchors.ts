@@ -283,7 +283,8 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     medallion: spot([0, 0.95, 0.41], FRONT, 0.3, 'body'),
     back: spot([0, 0.95, -0.41], BACK, 0.3, 'body'),
     gems: { center: [0, 0.95, 0], axis: 'y', radius: 0.405, size: 0.06, surface: 'body' },
-    plaque: { position: [0, 0.085, 0.235], tiltX: -0.32, width: 0.46, height: 0.18, surface: 'base' },
+    // Нижній край таблички (y ≈ 0.045, z ≈ 0.253) спирається на схил основи над пояском (y 0–0.03), з проміжком 0.01.
+    plaque: { position: [0, 0.13, 0.225], tiltX: -0.32, width: 0.46, height: 0.18, surface: 'base' },
     stickers: {
       front: spot([0, 0.85, 0.395], FRONT, 0.12, 'body'),
       back: spot([0, 0.85, -0.395], BACK, 0.12, 'body'),

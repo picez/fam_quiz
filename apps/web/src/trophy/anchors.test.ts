@@ -99,7 +99,19 @@ describe('trophy anchors', () => {
         { y: 1.285, radius: 0.452, tube: 0.012 },
       ],
     });
-    expect(grail.plaque).toEqual({ position: [0, 0.085, 0.235], tiltX: -0.32, width: 0.46, height: 0.18, surface: 'base' });
+    // 25d: табличка піднята над пояском основи (було y 0.085, z 0.235 — нижній край лягав на поясок).
+    expect(grail.plaque).toEqual({ position: [0, 0.13, 0.225], tiltX: -0.32, width: 0.46, height: 0.18, surface: 'base' });
+  });
+
+  it('grail plaque rests on the base slope above the band', () => {
+    const { plaque, band, profile } = TROPHY_ANCHORS.grail;
+    if (band!.shape !== 'profile') throw new Error('grail band is a profile band');
+    const half = plaque!.height / 2;
+    const bottomY = plaque!.position[1] - half * Math.cos(plaque!.tiltX);
+    const bottomZ = plaque!.position[2] - half * Math.sin(plaque!.tiltX);
+    expect(plaque!.position[1] - half).toBeGreaterThanOrEqual(band!.y1 + 0.01 - 1e-9);
+    // Нижній край лежить на поверхні основи (не далі 0.01 від профілю).
+    expect(Math.abs(bottomZ - profileRadius(profile!, bottomY))).toBeLessThan(0.01);
   });
 
   it.each(TROPHY_KINDS.filter((kind) => TROPHY_ANCHORS[kind].profile !== undefined))(

@@ -143,8 +143,7 @@ describe('layoutDecor', () => {
       return [...found].sort();
     };
     expect(conflicts('cup')).toEqual(['gems×back', 'ring×back']);
-    // Табличка грааля спирається нижнім краєм (y ≈ 0) на поясок основи (y 0–0.03): вони справді накладаються.
-    expect(conflicts('grail')).toEqual(['band×plaque', 'gems×back', 'plaque×band', 'ring×back']);
+    expect(conflicts('grail')).toEqual(['gems×back', 'ring×back']);
     for (const kind of ['medal', 'crown', 'star', 'statuette'] as const) expect(conflicts(kind)).toEqual([]);
   });
 

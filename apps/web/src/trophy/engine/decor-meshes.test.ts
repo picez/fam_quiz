@@ -110,7 +110,7 @@ describe('buildDecor', () => {
 
     const [plaque] = named(group, 'decor-plaque');
     expect((plaque!.geometry as PlaneGeometry).parameters).toMatchObject({ width: 0.46, height: 0.18 });
-    expect(plaque!.position.toArray()).toEqual([0, 0.085, 0.235]);
+    expect(plaque!.position.toArray()).toEqual([0, 0.13, 0.225]);
     expect(plaque!.rotation.x).toBeCloseTo(-0.32);
     expect((plaque!.material as MeshStandardMaterial).transparent).toBe(true);
 
