@@ -2665,6 +2665,7 @@ const uk = {
   studioTextCount: '{n}/{max}',
   studioFont: 'Шрифт',
   studioFontClassic: 'Класичний',
+  studioFontSample: 'Аа',
   studioLook: 'Вигляд',
   studioLook_engraved: 'Гравійований',
   studioLook_embossed: 'Рельєфний',

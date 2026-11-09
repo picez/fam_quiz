@@ -98,6 +98,18 @@ describe('TextTool', () => {
     expect(look().decor.inscriptions.map((i) => i.text)).toEqual(['Чемпіон']);
     fireEvent.click(radio(within(place('По колу на вінці')).getByRole('group', { name: 'Вигляд' }), 'Рельєфний'));
     expect(look().decor.inscriptions[0]!.look).toBe('embossed');
+    // Тяг по «Своєму кольору» шле зміну за зміною: кубок бере колір, коли тяг стихне.
+    const colour = within(place('По колу на вінці')).getByRole('group', { name: 'Колір' });
+    fireEvent.change(within(colour).getByLabelText('Свій колір'), { target: { value: '#123456' } });
+    fireEvent.change(within(colour).getByLabelText('Свій колір'), { target: { value: '#123457' } });
+    expect(look().decor.inscriptions[0]!.color).toBe('#3a2a0e');
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(look().decor.inscriptions[0]!.color).toBe('#123457');
+    // Дотик по зразку — одразу.
+    fireEvent.click(radio(colour, 'Блакитний'));
+    expect(look().decor.inscriptions[0]!.color).toBe('#4fc3f7');
   });
 
   it('fonts lock by level', () => {

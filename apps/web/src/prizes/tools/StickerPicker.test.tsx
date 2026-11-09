@@ -54,10 +54,13 @@ describe('StickerPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /Спереду/ }));
     const grid = screen.getByRole('group', { name: /Спереду/ });
     const nyaa = first('nyaa');
-    const cell = within(grid).getByAltText(nyaa.id).closest('button')!;
+    const cell = within(grid).getByRole('button', { name: `${nyaa.id} 🔒 з рівня 3` }) as HTMLButtonElement;
     expect(cell.disabled).toBe(true);
     expect(cell.querySelector('[aria-hidden="true"]')!.textContent).toBe('🔒 3');
-    expect(cell.querySelector('.sr-only')!.textContent).toBe('🔒 з рівня 3');
+    expect(cell.querySelector('.sr-only:last-child')!.textContent).toBe('🔒 з рівня 3');
+    // Закриті наліпки не вантажать свої gif.
+    expect(cell.querySelector('img')).toBeNull();
+    expect(within(grid).queryByAltText(nyaa.id)).toBeNull();
     expect((within(grid).getByRole('button', { name: first('nya').id }) as HTMLButtonElement).disabled).toBe(false);
   });
 

@@ -14202,7 +14202,10 @@ button.wall-tile:disabled {
   border-color: var(--accent);
 }
 
+/* Серія поза екраном не малюється, доки до неї не догорнуть. */
 .studio-sticker-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 7rem;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
   gap: 0.4rem;
@@ -14245,8 +14248,9 @@ button.wall-tile:disabled {
   cursor: not-allowed;
 }
 
-.studio-sticker-cell.is-locked img {
-  opacity: 0.35;
+.studio-sticker-cell.is-locked .studio-sticker-lock {
+  position: static;
+  font-size: 0.875rem;
 }
 
 .studio-sticker-lock {

@@ -22,6 +22,8 @@ export interface StickerPickerProps {
   kept?: readonly string[];
 }
 
+const lockText = (need: number): string => t('lookLocked', { level: t('levelFromLevel', { n: need }) });
+
 const placeText = (place: StickerPlace): string => t(`studioPlace_${place.replace('-', '_')}` as TextKey);
 
 /**
@@ -73,14 +75,17 @@ export function StickerPicker({ kind, stickers, level, onPick, kept = [] }: Stic
                               className={locked ? 'studio-sticker-cell is-locked' : 'studio-sticker-cell'}
                               aria-pressed={sticker.id === currentId}
                               disabled={locked}
+                              aria-label={locked ? `${sticker.id} ${lockText(need)}` : undefined}
                               onClick={() => onPick(place, sticker.id)}
                             >
-                              <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
-                              {locked && (
+                              {locked ? (
+                                // Закрита клітинка без gif: сотні закритих наліпок не вантажаться на телефон.
                                 <>
                                   <span className="studio-sticker-lock" aria-hidden="true">{`🔒 ${need}`}</span>
-                                  <span className="sr-only">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>
+                                  <span className="sr-only">{lockText(need)}</span>
                                 </>
+                              ) : (
+                                <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
                               )}
                             </button>
                           </li>

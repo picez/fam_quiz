@@ -52,10 +52,10 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
           remember(current);
           dispatch({ type: 'inscription', place, value: value === '' ? null : { place, text: value, ...current } }, true);
         };
-        const setStyle = (patch: Partial<Style>) => {
+        const setStyle = (patch: Partial<Style>, typing = false) => {
           const next = { ...(style ?? NEW_STYLE), ...patch };
           remember(next);
-          if (saved !== undefined) dispatch({ type: 'inscription', place, value: { ...saved, ...patch } });
+          if (saved !== undefined) dispatch({ type: 'inscription', place, value: { ...saved, ...patch } }, typing);
         };
         const toggle = (value: boolean) => {
           if (value) remember(NEW_STYLE);
@@ -92,7 +92,7 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
                   <label>
                     <input type="radio" name={fonts} checked={style.font === null} onChange={() => setStyle({ font: null })} />
                     <span className="studio-font-tile studio-font-classic" aria-hidden="true">
-                      Aa
+                      {t('studioFontSample')}
                     </span>
                     {t('studioFontClassic')}
                   </label>
@@ -103,7 +103,7 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
                       <label key={font} className={locked ? 'is-locked' : undefined}>
                         <input type="radio" name={fonts} checked={style.font === font} disabled={locked} onChange={() => setStyle({ font })} />
                         <span className={`studio-font-tile nick-font-${font}`} aria-hidden="true">
-                          Aa
+                          {t('studioFontSample')}
                         </span>
                         {t(`font_${font}` as TextKey)}
                         {locked && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
@@ -122,7 +122,7 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
                   ))}
                 </fieldset>
 
-                <ColorField label={t('studioColor')} value={style.color} onChange={(color) => setStyle({ color })} />
+                <ColorField label={t('studioColor')} value={style.color} onChange={(color, typing) => setStyle({ color }, typing)} />
               </div>
             )}
           </fieldset>
