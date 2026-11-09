@@ -4,6 +4,8 @@ import { t, type TextKey } from '../i18n';
 import { webglAvailable } from '../trophy/loadEngine';
 import { TrophyView, type TrophyViewHandle } from '../trophy/TrophyView';
 import { contentOf, draftFrom, studioIssues, studioLook, studioReducer, type StudioAction, type StudioDraft, type StudioIssue } from './studio-draft';
+import { AppearTool } from './tools/AppearTool';
+import { EffectTool } from './tools/EffectTool';
 import { PhotoTool } from './tools/PhotoTool';
 import { PrizeTool } from './tools/PrizeTool';
 import { ShapeTool } from './tools/ShapeTool';
@@ -45,13 +47,12 @@ const TOOL_LABEL: Record<StudioTool, TextKey> = {
 const TOOL_ICON: Record<StudioTool, string> = { shape: '🏆', photos: '📷', texts: '✒️', effects: '✨', appear: '🎬', prize: '🎁' };
 /** Інструменти, що оформлюють сам трофей: без трофея їм нічого робити. */
 const NEEDS_TROPHY: readonly StudioTool[] = ['photos', 'texts', 'effects', 'appear'];
-/** Ефекти й поява (задача 11) — поки що порожні панелі. */
-const PANELS: Record<StudioTool, ((props: ToolProps) => JSX.Element) | null> = {
+const PANELS: Record<StudioTool, (props: ToolProps) => JSX.Element> = {
   shape: ShapeTool,
   photos: PhotoTool,
   texts: TextTool,
-  effects: null,
-  appear: null,
+  effects: EffectTool,
+  appear: AppearTool,
   prize: PrizeTool,
 };
 
@@ -223,7 +224,7 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
               ))}
             </div>
             <div role="tabpanel" id="studio-panel" className="studio-panel" aria-labelledby={`studio-tab-${tool}`} hidden={!open}>
-              {blocked ? <p className="meta">{t('studioNeedsTrophy')}</p> : Panel !== null && <Panel {...toolProps} />}
+              {blocked ? <p className="meta">{t('studioNeedsTrophy')}</p> : <Panel {...toolProps} />}
             </div>
           </>
         )}
