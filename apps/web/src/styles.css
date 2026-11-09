@@ -7404,10 +7404,11 @@ label.powers-price {
   animation: splash-title-out 0.15s linear calc(var(--splash-elapsed) + var(--splash-flip-ms)) both;
 }
 
-/* Напис невидимий, доки йде ведення; без руху просто з'являється й стоїть. */
+/* Напис невидимий, доки йде ведення; без руху просто з'являється й стоїть.
+   steps(1, start), не end: кінцевий поступ анімації буває 0,9999…, і з end напис так і лишався б прозорим. */
 .splash-blitz {
   max-inline-size: 100%;
-  animation: splash-blitz-show 1ms steps(1, end) calc(var(--splash-elapsed) + var(--splash-lead-ms)) both;
+  animation: splash-blitz-show 1ms steps(1, start) calc(var(--splash-elapsed) + var(--splash-lead-ms)) both;
 }
 
 @keyframes splash-blitz-show {
