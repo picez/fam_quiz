@@ -30,8 +30,12 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
   const handleRef = useRef<TrophyHandle | null>(null);
   const label = trophyLabel(trophy);
   const look = MATERIAL_LOOK[trophy.material];
-  // Поверхні передають новий об'єкт trophy на кожне оновлення: перемонтовуємо лише за зміною вигляду.
+  // Поверхні передають новий об'єкт trophy на кожне оновлення: порівнюємо вигляд за вмістом.
   const lookKey = JSON.stringify(trophy);
+  // Вигляд для наступного mount і вигляд, який має живий handle: зміна лише вигляду йде в update без перемонтування.
+  const lookRef = useRef(lookKey);
+  lookRef.current = lookKey;
+  const shownKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!webglAvailable()) return;
@@ -48,9 +52,10 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
     const box = holder.current;
     if (engine === null || box === null) return;
     let live = true;
+    const key = lookRef.current;
     const handle = engine.mount(
       box,
-      { look: JSON.parse(lookKey) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear },
+      { look: JSON.parse(key) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear },
       {
         onReady: () => {
           if (live) setLoaded(true);
@@ -61,13 +66,23 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
       },
     );
     handleRef.current = handle;
+    shownKey.current = key;
     return () => {
       live = false;
       handleRef.current = null;
+      shownKey.current = null;
       handle.dispose();
       setLoaded(false);
     };
-  }, [engine, lookKey, size, spin, interactive, label, appear]);
+  }, [engine, size, spin, interactive, label, appear]);
+
+  // Після ефекту mount: щойно змонтований handle уже має цей вигляд, тож update іде лише за справжньою зміною.
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (handle === null || shownKey.current === lookKey) return;
+    shownKey.current = lookKey;
+    handle.update(JSON.parse(lookKey) as TrophyLook);
+  }, [lookKey]);
 
   useImperativeHandle(ref, () => ({ replayAppearance: () => handleRef.current?.replayAppearance() }), []);
 

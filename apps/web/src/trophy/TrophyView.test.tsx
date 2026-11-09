@@ -19,12 +19,16 @@ interface Mounted {
   dispose: ReturnType<typeof vi.fn>;
 }
 let mounts: Mounted[] = [];
-let mountedHandles: { dispose: ReturnType<typeof vi.fn>; replayAppearance: ReturnType<typeof vi.fn> }[] = [];
+let mountedHandles: {
+  dispose: ReturnType<typeof vi.fn>;
+  replayAppearance: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
+}[] = [];
 const fakeEngine: TrophyEngine = {
   mount(host, options, events) {
     const dispose = vi.fn();
     mounts.push({ host, options, events, dispose });
-    const handle = { dispose, replayAppearance: vi.fn() };
+    const handle = { dispose, replayAppearance: vi.fn(), update: vi.fn() };
     mountedHandles.push(handle);
     return handle;
   },
@@ -162,5 +166,47 @@ describe('TrophyView', () => {
     await flush();
     await act(async () => mounts[0]!.events.onReady());
     expect(document.querySelector('.trophy-fallback')).not.toBeNull();
+  });
+
+  it('a new look updates instead of remounting', async () => {
+    const { rerender } = render(<TrophyView trophy={gold} size="view" spin={false} interactive />);
+    await flush();
+    await act(async () => mounts[0]!.events.onReady());
+    const next: TrophyLook = {
+      ...gold,
+      decor: {
+        photos: [],
+        photoPlace: 'ring',
+        frame: 'none',
+        photoStyle: 'normal',
+        inscriptions: [],
+        effect: { kind: 'glow', color: '#ffd36b' },
+        appearance: 'drop',
+        stickers: [],
+      },
+    };
+    rerender(<TrophyView trophy={next} size="view" spin={false} interactive />);
+    await flush();
+    expect(mounts).toHaveLength(1);
+    expect(mounts[0]!.dispose).not.toHaveBeenCalled();
+    expect(mountedHandles[0]!.update).toHaveBeenCalledTimes(1);
+    expect(mountedHandles[0]!.update).toHaveBeenCalledWith(next);
+    expect(document.querySelector('.trophy-fallback')).toBeNull();
+    // Той самий вигляд новим об'єктом — без повторного update.
+    rerender(<TrophyView trophy={{ ...next }} size="view" spin={false} interactive />);
+    await flush();
+    expect(mountedHandles[0]!.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new size remounts', async () => {
+    const { rerender } = render(<TrophyView trophy={gold} size="view" spin={false} interactive />);
+    await flush();
+    rerender(<TrophyView trophy={gold} size="card" spin={false} interactive />);
+    await flush();
+    expect(mounts[0]!.dispose).toHaveBeenCalledTimes(1);
+    expect(mounts).toHaveLength(2);
+    expect(mounts[1]!.options.size).toBe('card');
+    expect(mountedHandles[0]!.update).not.toHaveBeenCalled();
+    expect(mountedHandles[1]!.update).not.toHaveBeenCalled();
   });
 });

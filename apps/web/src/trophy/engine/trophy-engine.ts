@@ -12,12 +12,13 @@ import {
   type Material,
   type Texture,
 } from 'three';
+import type { TrophyDecor } from '@quiz/shared';
 import { reducedMotion } from '../../motion';
 import { APPEAR_SECONDS, NEUTRAL_POSE, appearancePose, type AppearancePose } from '../appearance-pose';
 import { decorSummary, fitDistance } from '../decor-layout';
-import { effectPlan } from '../effect-plan';
+import { effectPlan, type EffectPlan } from '../effect-plan';
 import type { TrophyEngine, TrophyHandle, TrophyMount } from '../engine-types';
-import { modelUrl } from '../trophy-meta';
+import { modelUrl, type TrophyLook } from '../trophy-meta';
 import { buildAppearanceProps, type AppearanceProps } from './appearance-props';
 import { buildDecor } from './decor-meshes';
 import { buildEffect, type BuiltEffect } from './effect-meshes';
@@ -97,6 +98,27 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Одна збірка вигляду: модель з оформленням, тінь, ефект і реквізит появи — усе, що update міняє за один кадр. */
+interface Build {
+  look: TrophyLook;
+  spec: TrophyDecor | null;
+  plan: EffectPlan | null;
+  model: Group;
+  floor: Mesh;
+  floorMaterial: MeshBasicMaterial;
+  effect: BuiltEffect | null;
+  props: AppearanceProps | null;
+  backdrop: Texture | null;
+  center: Vector3;
+  radius: number;
+  /** Усе, що збірка звільняє: свої матеріали й геометрії і по одному release на кожне взяте полотно. */
+  resources: { dispose(): void }[];
+}
+
+function release(built: Build): void {
+  for (const resource of new Set(built.resources)) resource.dispose();
+}
+
 function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): void; onError(): void }): TrophyHandle {
   const { look } = options;
   const canvas = document.createElement('canvas');
@@ -118,6 +140,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(FOV, 1, 0.01, 100);
+  // Трофей лишається тим самим між збірками: на ньому поворот і поза, update міняє лише модель усередині.
   const trophy = new Group();
   scene.add(trophy);
   const target = new Vector3();
@@ -128,12 +151,18 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
   let ready = false;
   const calm = reducedMotion();
   const spinning = options.spin && !calm;
-  const owned: { dispose(): void }[] = [];
   const seed = ++mountCount;
 
+  // Покоління збірок: update піднімає generation, у сцену йде лише збірка останнього; shown — покоління в сцені.
+  let generation = 0;
+  let shown = -1;
+  let current: Build | null = null;
+  // replayAppearance, поки нова збірка ще не в сцені: поява нового вигляду почнеться з t = 0 після заміни.
+  let replayQueued = false;
+
   // Ефект і поява — лише з decor; без нього все як у 25a (без атрибутів і нових об'єктів).
-  const spec = look.decor ?? null;
-  const plan = spec === null ? null : effectPlan(spec.effect, options.size, calm);
+  // spec — оформлення вигляду в сцені (до першої заміни — з mount).
+  let spec = look.decor ?? null;
   let effect: BuiltEffect | null = null;
   let props: AppearanceProps | null = null;
   let shadowMaterial: MeshBasicMaterial | null = null;
@@ -145,7 +174,8 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     state = next;
     if (spec !== null) canvas.dataset.appearance = `${spec.appearance}:${next}`;
   };
-  if (spec !== null && plan !== null && state !== null) {
+  if (spec !== null && state !== null) {
+    const plan = effectPlan(spec.effect, options.size, calm);
     canvas.dataset.effect = `${plan.kind}:${plan.mode}`;
     setState(state);
   }
@@ -205,6 +235,156 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     },
   };
 
+  /** Збірку цього покоління вже не покажуть: dispose, збій чи новіший update. */
+  const stale = (gen: number) => disposed || failed || gen !== generation;
+
+  /**
+   * Зібрати вигляд поза сценою: модель, оформлення, тінь, ефект, реквізит появи й кадрування. Застаріла збірка
+   * звільняє своє оформлення тут (рівно раз) і дає null. Збій моделі останньої збірки — onError, як при mount;
+   * збій лише decor — кубок без оформлення.
+   */
+  const build = (next: TrophyLook, gen: number): Promise<Build | null> => {
+    const nextSpec = next.decor ?? null;
+    // Оформлення будується разом із моделлю; його збій не ховає кубок — той показується без оформлення.
+    const decor =
+      nextSpec === null
+        ? Promise.resolve(null)
+        : buildDecor(next.kind, next.material, nextSpec, options.size, domTextures).catch(() => null);
+    return Promise.all([loadModel(modelUrl(next)), decor]).then(
+      ([model, built]) => {
+        if (stale(gen)) {
+          // Модель ще не пофарбована, свого в ній нема; оформлення ще ніде не записане — звільняємо тут.
+          if (built !== null) disposeDecor(built);
+          return null;
+        }
+        const resources: { dispose(): void }[] = [];
+        paintModel(model, next.material);
+        model.traverse((object) => {
+          if (!(object instanceof Mesh)) return;
+          for (const material of [object.material].flat() as Material[]) {
+            // Пофарбовані (без текстури) — наші; текстури моделі спільні з кешем і лишаються.
+            if ((material as { map?: unknown }).map == null) resources.push(material);
+          }
+        });
+        // Основа — на y = 0, вісь обертання — через центр моделі.
+        const box = new Box3().setFromObject(model);
+        const center = box.getCenter(new Vector3());
+        model.position.set(-center.x, -box.min.y, -center.z);
+        if (built !== null) {
+          // У просторі моделі: точки кріплення виміряно за її профілем.
+          model.add(built.group);
+          resources.push(...decorResources(built));
+        }
+        const size = box.getSize(new Vector3());
+        // Модель ще поза трофеєм: її світові координати ті самі, що в трофеї без пози.
+        const sphere = framingSphere(model);
+        const frameRadius = Math.max(sphere.radius, 0.01);
+        const footprint = Math.max(size.x, size.z) * 1.6;
+        const shadowGeometry = new PlaneGeometry(footprint, footprint);
+        const floorMaterial = new MeshBasicMaterial({
+          map: shadow(),
+          transparent: true,
+          opacity: SHADOW_OPACITY,
+          depthWrite: false,
+        });
+        resources.push(shadowGeometry, floorMaterial);
+        const floor = new Mesh(shadowGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0.001;
+        const plan = nextSpec === null ? null : effectPlan(nextSpec.effect, options.size, calm);
+        let nextEffect: BuiltEffect | null = null;
+        let nextProps: AppearanceProps | null = null;
+        if (plan !== null) {
+          // Після framingSphere: кадрування не бачить ні ефекту, ні реквізиту появи. Ефект — у scene, не крутиться з кубком.
+          const frame = { center: [sphere.center.x, sphere.center.y, sphere.center.z] as const, radius: frameRadius };
+          nextEffect = buildEffect(plan, frame, seed, FOV);
+          if (nextEffect !== null) resources.push(nextEffect);
+          if (!calm) {
+            nextProps = buildAppearanceProps(frame, Math.max(size.x, size.z));
+            resources.push(nextProps);
+          }
+        }
+        return {
+          look: next,
+          spec: nextSpec,
+          plan,
+          model,
+          floor,
+          floorMaterial,
+          effect: nextEffect,
+          props: nextProps,
+          backdrop: built?.backdrop ?? null,
+          center: sphere.center,
+          radius: frameRadius,
+          resources,
+        };
+      },
+      () => {
+        if (gen === generation) fail();
+        void decor.then((built) => {
+          if (built !== null) disposeDecor(built);
+        });
+        return null;
+      },
+    );
+  };
+
+  /** Поставити готову збірку замість старої за один кадр; стара звільняється одразу. */
+  const swap = (next: Build, gen: number) => {
+    if (stale(gen)) {
+      release(next);
+      return;
+    }
+    const old = current;
+    if (old !== null) {
+      trophy.remove(old.model);
+      scene.remove(old.floor);
+      if (old.effect !== null) scene.remove(old.effect.object);
+      if (old.props !== null) scene.remove(old.props.flash, old.props.pedestal);
+      release(old);
+    }
+    current = next;
+    shown = gen;
+    trophy.add(next.model);
+    scene.add(next.floor);
+    if (next.effect !== null) scene.add(next.effect.object);
+    if (next.props !== null) scene.add(next.props.flash, next.props.pedestal);
+    scene.background = next.backdrop;
+    target.copy(next.center);
+    radius = next.radius;
+    effect = next.effect;
+    props = next.props;
+    shadowMaterial = next.spec === null ? null : next.floorMaterial;
+    canvas.dataset.decor = decorSummary(next.look.kind, next.look.decor);
+
+    const replay = replayQueued && !calm;
+    replayQueued = false;
+    spec = next.spec;
+    if (next.spec === null || next.plan === null) {
+      // Без decor — як у 25a: без атрибутів, поза нейтральна.
+      state = null;
+      delete canvas.dataset.effect;
+      delete canvas.dataset.appearance;
+      trophy.position.y = 0;
+      trophy.scale.set(1, 1, 1);
+      trophy.visible = true;
+      view.clippingPlanes = undefined;
+    } else {
+      canvas.dataset.effect = `${next.plan.kind}:${next.plan.mode}`;
+      // Поява не перезапускається: decor щойно з'явився — 'skipped', інакше стан як був.
+      if (replay) fresh = true;
+      setState(replay ? 'playing' : (state ?? 'skipped'));
+    }
+    if (old === null) stage?.add(view);
+    else stage?.invalidate(view);
+  };
+
+  const start = (next: TrophyLook, gen: number) => {
+    void build(next, gen).then((built) => {
+      if (built !== null) swap(built, gen);
+    });
+  };
+
   const onPointerDown = (event: PointerEvent) => {
     dragging = { id: event.pointerId, x: event.clientX, y: event.clientY };
     canvas.setPointerCapture?.(event.pointerId);
@@ -240,77 +420,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     queueMicrotask(fail);
   } else {
     scene.environment = stage.environment;
-    // Оформлення будується разом із моделлю; його збій не ховає кубок — той показується без оформлення.
-    const decor =
-      look.decor == null
-        ? Promise.resolve(null)
-        : buildDecor(look.kind, look.material, look.decor, options.size, domTextures).catch(() => null);
-    Promise.all([loadModel(modelUrl(look)), decor]).then(
-      ([model, built]) => {
-        if (disposed || failed) {
-          if (built !== null) disposeDecor(built);
-          return;
-        }
-        paintModel(model, look.material);
-        model.traverse((object) => {
-          if (!(object instanceof Mesh)) return;
-          for (const material of [object.material].flat() as Material[]) {
-            // Пофарбовані (без текстури) — наші; текстури моделі спільні з кешем і лишаються.
-            if ((material as { map?: unknown }).map == null) owned.push(material);
-          }
-        });
-        // Основа — на y = 0, вісь обертання — через центр моделі.
-        const box = new Box3().setFromObject(model);
-        const center = box.getCenter(new Vector3());
-        model.position.set(-center.x, -box.min.y, -center.z);
-        trophy.add(model);
-        if (built !== null) {
-          // У просторі моделі: точки кріплення виміряно за її профілем.
-          model.add(built.group);
-          owned.push(...decorResources(built));
-          if (built.backdrop !== null) scene.background = built.backdrop;
-        }
-        const size = box.getSize(new Vector3());
-        const sphere = framingSphere(trophy);
-        target.copy(sphere.center);
-        radius = Math.max(sphere.radius, 0.01);
-        const footprint = Math.max(size.x, size.z) * 1.6;
-        const shadowGeometry = new PlaneGeometry(footprint, footprint);
-        const floorMaterial = new MeshBasicMaterial({
-          map: shadow(),
-          transparent: true,
-          opacity: SHADOW_OPACITY,
-          depthWrite: false,
-        });
-        owned.push(shadowGeometry, floorMaterial);
-        const floor = new Mesh(shadowGeometry, floorMaterial);
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = 0.001;
-        scene.add(floor);
-        if (spec !== null && plan !== null) {
-          // Після framingSphere: кадрування не бачить ні ефекту, ні реквізиту появи. Ефект — у scene, не крутиться з кубком.
-          shadowMaterial = floorMaterial;
-          const frame = { center: [target.x, target.y, target.z] as const, radius };
-          effect = buildEffect(plan, frame, seed, FOV);
-          if (effect !== null) {
-            owned.push(effect);
-            scene.add(effect.object);
-          }
-          if (!calm) {
-            props = buildAppearanceProps(frame, Math.max(size.x, size.z));
-            owned.push(props);
-            scene.add(props.flash, props.pedestal);
-          }
-        }
-        stage.add(view);
-      },
-      () => {
-        fail();
-        void decor.then((built) => {
-          if (built !== null) disposeDecor(built);
-        });
-      },
-    );
+    start(look, generation);
   }
 
   return {
@@ -324,16 +434,29 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
       canvas.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('keydown', onKeyDown);
       canvas.remove();
-      for (const resource of new Set(owned)) resource.dispose();
+      // Збірки, що ще в дорозі, звільнять себе самі (stale).
+      if (current !== null) release(current);
+      current = null;
     },
     replayAppearance() {
-      if (disposed || spec === null || calm) return;
+      if (disposed || calm) return;
+      if (shown !== generation) {
+        // Нова збірка ще не в сцені: грати її появу після заміни.
+        replayQueued = true;
+        return;
+      }
+      if (spec === null) return;
       // Ще не намальована поява й так почнеться з нуля.
       if (state !== 'pending') {
         fresh = true;
         setState('playing');
       }
       stage?.invalidate(view);
+    },
+    update(next) {
+      if (disposed || failed || stage === null) return;
+      generation += 1;
+      start(next, generation);
     },
   };
 }
