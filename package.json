@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/shared && tsc -p packages/engine && tsc -p apps/server && tsc -p apps/web",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/engine && tsc -p apps/server && tsc -p apps/server/e2e && tsc -p apps/web",
     "build": "pnpm --filter @quiz/web build",
     "dev": "pnpm --parallel --filter @quiz/server --filter @quiz/web dev",
     "start": "pnpm --filter @quiz/server start",
