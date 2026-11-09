@@ -16883,3 +16883,26 @@ button.wall-tile:disabled {
   gap: 0 0.75rem;
   min-width: 0;
 }
+
+/* Раунд «Ставки» (27a): вибір видимого початку запитання; слова переносяться, без горизонтальної прокрутки. */
+.bets-cut {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bets-cut-label {
+  font-weight: 700;
+}
+
+.bets-cut-words .chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.bets-cut-preview,
+.bets-cut-hidden,
+.bets-minimums {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

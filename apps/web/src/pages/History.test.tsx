@@ -66,8 +66,8 @@ const detail: GameDetail = {
     { participantId: 'p2', nickname: 'Тарас', score: 0, rank: 2, correct: 0, rounds: [], breakdown: { parts: [], plus: 0, minus: 0 } },
   ],
   questions: [
-    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
-    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
+    { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null, bets: false },
+    { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null, bets: false },
   ],  adjustments: [], facts: { awards: [], table: [] },
   teams: false,
 };
@@ -340,6 +340,7 @@ describe('GameHistory: answers', () => {
           { nickname: 'Тарас', answer: null, accepted: false, buff: null, spare: null, awayMs: null , appeal: null },
         ],
         final: null,
+        bets: false,
       },
       {
         index: 1,
@@ -352,6 +353,7 @@ describe('GameHistory: answers', () => {
         question: singleQ,
         responses: [{ nickname: 'Віра', answer: { type: 'single', optionId: 'a' }, accepted: false, buff: null, spare: null, awayMs: null , appeal: null }],
         final: null,
+        bets: false,
       },
     ],
   };
@@ -513,8 +515,8 @@ describe('GameHistory: rounds', () => {
           { title: 'Бліц', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null, bets: false },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null, bets: false },
         ],
       },
     });
@@ -534,8 +536,8 @@ describe('GameHistory: rounds', () => {
           { title: '', type: 'classic' },
         ],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null },
-          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: null, question: singleQ, responses: [], final: null, bets: false },
+          { index: 1, roundIndex: 1, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 1, cell: null, question: textQ, responses: [], final: null, bets: false },
         ],
       },
     });
@@ -560,8 +562,8 @@ describe('GameHistory: rounds', () => {
         ...detail,
         rounds: [{ title: 'Поле', type: 'board' }],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100, kind: 'normal', scores: [] }, question: singleQ, responses: [], final: null },
-          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null, kind: 'normal', scores: [] }, question: textQ, responses: [], final: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 1, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: 100, kind: 'normal', scores: [] }, question: singleQ, responses: [], final: null, bets: false },
+          { index: 1, roundIndex: 0, text: 'Перлина біля моря?', type: 'text', answered: 1, accepted: 0, cell: { category: 'Ріки', price: 200, multiplier: 1, chooser: null, points: null, kind: 'normal', scores: [] }, question: textQ, responses: [], final: null, bets: false },
         ],
       },
     });
@@ -585,7 +587,7 @@ describe('GameHistory: rounds', () => {
         ...detail,
         rounds: [{ title: 'Поле', type: 'board' }],
         questions: [
-          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: -200, kind: 'blitz', scores }, question: singleQ, responses: [], final: null },
+          { index: 0, roundIndex: 0, text: 'Столиця України?', type: 'single', answered: 2, accepted: 1, cell: { category: 'Міста', price: 100, multiplier: 2, chooser: 'Анна', points: -200, kind: 'blitz', scores }, question: singleQ, responses: [], final: null, bets: false },
         ],
       },
     });

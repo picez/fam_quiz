@@ -8,9 +8,12 @@ import {
   quizSchema,
   boardRoundIssues,
   duelShortfall,
+  betMinimum,
+  betsRoundIssue,
   roundRulesSchema,
   blitzRulesSchema,
   type AnswerMode,
+  type BetsRound,
   type BlitzRound,
   type BoardCategory,
   type BoardCell,
@@ -53,7 +56,7 @@ export { QUESTION_TYPES, type QuestionType };
 
 /**
  * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
- * поле — без ланцюжка, опитування й хмари; фінал — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
+ * поле — без ланцюжка, опитування й хмари; фінал і ставки — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
  * сортування — скрізь; класика — усі.
  * Блеф — лише класика (поле, бліц і фінал його не мають).
  * Словесна драбина — лише класика й фінал.
@@ -68,7 +71,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
     return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
-  if (roundType === 'final') {
+  if (roundType === 'final' || roundType === 'bets') {
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
@@ -92,7 +95,7 @@ export function cloudSources(quiz: Pick<Quiz, 'rounds'>, roundIndex: number, que
   return all.flatMap(({ id, text, before }, index) => (before ? [{ n: index + 1, id, text }] : []));
 }
 
-type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal'>;
+type Common = Pick<Question, 'id' | 'text' | 'imageUrl' | 'video' | 'timeLimit' | 'points' | 'hint' | 'audio' | 'reveal' | 'betsCut'>;
 
 const blank = () => ({ id: newId(), text: '' });
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -203,7 +206,7 @@ export function newSpare(type: QuestionType = 'single'): Question {
 /** Змінює тип, зберігаючи текст, підказку, час і бали; між single і multi зберігаються й варіанти. */
 export function changeType(question: Question, type: QuestionType): Question {
   if (question.type === type) return question;
-  const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal } = question;
+  const { id, text, imageUrl, video, timeLimit, points, hint, audio, reveal, betsCut } = question;
   const keepsReveal = reveal !== undefined && (REVEAL_TYPES as readonly string[]).includes(type);
   const unscored = (value: QuestionType) => value === 'poll' || value === 'wordcloud';
   // Опитування й хмара без балів; з них в інший тип повертається типова ціна.
@@ -217,6 +220,7 @@ export function changeType(question: Question, type: QuestionType): Question {
     ...(hint === undefined ? {} : { hint }),
     ...(audio === undefined ? {} : { audio }),
     ...(keepsReveal ? { reveal } : {}),
+    ...(betsCut === undefined ? {} : { betsCut }),
   };
 
   if (question.type === 'single' && type === 'multi') {
@@ -453,6 +457,11 @@ export function resizeLadder(round: LadderRound, count: number, removed?: number
 /** Новий раунд «Фінал»: одне запитання, автоматична перевірка, класичні ставки; правил балів у ньому немає. */
 export function newFinalRound(): FinalRound {
   return { id: newId(), type: 'final', title: '', shuffleOptions: false, check: 'auto', wagerMode: 'classic', questions: [newQuestion('single')] };
+}
+
+/** Новий раунд «Ставки»: одне запитання без обрізу, стартова ставка й крок з типових, найбільшої немає; автоматична перевірка. */
+export function newBetsRound(): BetsRound {
+  return { id: newId(), type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: LIMITS.defaultBetStart, betStep: LIMITS.defaultBetStep, betMax: null, questions: [newQuestion('single')] };
 }
 
 /** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
@@ -698,6 +707,12 @@ export function cleaned(quiz: Quiz): Quiz {
       return { ...category, title: category.title.trim(), questions: questions.slice(0, end) };
     }),
   });
+  // Обріз ставок живе лише в раунді «Ставки»: перенесене чи старе запитання його не несе.
+  const noCut = (question: Question): Question => {
+    if (question.betsCut === undefined) return question;
+    const { betsCut: _cut, ...rest } = question;
+    return rest as Question;
+  };
   const { spares, ...whole } = quiz;
   return {
     ...whole,
@@ -705,26 +720,27 @@ export function cleaned(quiz: Quiz): Quiz {
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
-      if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
+      if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(noCut(cleanedQuestion(question)))) };
+      if (round.type === 'bets') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
       if (round.type === 'survival') {
         // Для «удачі» порожні питання на виживання — просто незаповнений шаблон: вони не потрібні.
         const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
-        return { ...round, title, questions: round.questions.map(cleanedQuestion), trials: trials.map(cleanedQuestion) };
+        return { ...round, title, questions: round.questions.map((question) => noCut(cleanedQuestion(question))), trials: trials.map((trial) => noCut(cleanedQuestion(trial))) };
       }
-      if (round.type !== 'board') return { ...round, title, questions: round.questions.map(cleanedQuestion) };
+      if (round.type !== 'board') return { ...round, title, questions: round.questions.map((question) => noCut(cleanedQuestion(question))) };
       return {
         ...round,
         title,
         categories: round.categories.map(({ spares: categorySpares, ...category }) => ({
           ...category,
           title: category.title.trim(),
-          cells: category.cells.map((cell) => ({ ...cell, question: cleanedQuestion(cell.question) })),
-          ...(categorySpares === undefined || categorySpares.length === 0 ? {} : { spares: categorySpares.map(cleanedQuestion) }),
+          cells: category.cells.map((cell) => ({ ...cell, question: noCut(cleanedQuestion(cell.question)) })),
+          ...(categorySpares === undefined || categorySpares.length === 0 ? {} : { spares: categorySpares.map((spare) => noCut(cleanedQuestion(spare))) }),
         })),
       };
     }),
     ...(quiz.duels === undefined ? {} : { duels: cleanDuels(quiz.duels) }),
-    ...(spares === undefined || spares.length === 0 ? {} : { spares: spares.map(cleanedQuestion) }),
+    ...(spares === undefined || spares.length === 0 ? {} : { spares: spares.map((spare) => noCut(cleanedQuestion(spare))) }),
   };
 }
 
@@ -749,7 +765,7 @@ interface Place {
   sort: boolean;
   /** Ланцюжок слів: усюди, крім бліцу й поля (правило chain_round схеми). */
   chain: boolean;
-  /** Словесна драбина: лише класика й фінал (правило wordladder_place схеми). */
+  /** Словесна драбина: лише класика, фінал і ставки (правило wordladder_place схеми). */
   wordladder: boolean;
 }
 
@@ -758,7 +774,7 @@ const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
@@ -1025,7 +1041,7 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
       }
       continue;
     }
-    const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null);
+    const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || (current.type === 'bets' && q.betsCut === undefined));
     if (question !== -1) return { round, question, cell: null };
   }
   return null;
@@ -1195,6 +1211,14 @@ export function problemsOf(quiz: Quiz): string[] {
         problems.push(where(t(issue === 'too_many_questions' ? 'problemBoardTooMany' : 'problemGeneric', { index: 1 })));
       }
       return;
+    }
+    if (round.type === 'bets') {
+      const whole = (value: number, min: number) => Number.isInteger(value) && value >= min && value <= LIMITS.maxBet;
+      if (!whole(round.betStart, 1) || !whole(round.betStep, 0) || (round.betMax !== null && !whole(round.betMax, 1))) problems.push(where(t('problemRules')));
+      else if (betsRoundIssue(round, round.questions.length) !== null) {
+        problems.push(where(t('problemBetsMax', { min: betMinimum(round, round.questions.length - 1), max: round.betMax ?? 0 })));
+      }
+      if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemBetsCut')));
     }
     if (round.type === 'wipeout') {
       if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
