@@ -4310,6 +4310,19 @@ describe('PlayerScreen bets (27a)', () => {
     show(teamPlayerView({ phase: 'wager', round, bets, me: { ...baseMe, score: 600, bets: mine().bets } }, { captain: false, canAct: false, answerer: false, answererId: 'u1' }));
     expect(screen.queryByLabelText('Ставка')).toBeNull();
     expect(screen.getByText(t('teamCaptainWager'))).toBeTruthy();
+    expect(screen.getByText('Запитання 1 з 3')).toBeTruthy();
+    expect(screen.getByText('Яке місто')).toBeTruthy();
+  });
+
+  it('a host point change during the wager keeps the typed value', () => {
+    const props = (limit: number) => view({ phase: 'wager', round, bets, me: mine({ limit }) });
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const { rerender } = render(<PlayerScreen view={props(600)} hostOnline offsetMs={0} send={send} />);
+    fireEvent.change(screen.getByLabelText('Ставка'), { target: { value: '350' } });
+    rerender(<PlayerScreen view={props(500)} hostOnline offsetMs={0} send={send} />);
+    const field = screen.getByLabelText('Ставка') as HTMLInputElement;
+    expect(field.value).toBe('350');
+    expect(field.getAttribute('max')).toBe('500');
   });
 
   it('a late player sees the question without an answer field and the skip line', () => {

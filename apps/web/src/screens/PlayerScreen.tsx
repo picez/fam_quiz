@@ -14,7 +14,7 @@ import { secondsLeft } from '../clock';
 import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
-import { BetForm, BetResult } from './BetsView';
+import { BetForm, BetResult, BetsHeader } from './BetsView';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
@@ -923,9 +923,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'wager' && me.bets !== undefined && view.bets !== undefined && (
         <>
           {acting ? (
-            <BetForm key={`${view.bets.index}-${me.bets.limit}`} bets={view.bets} mine={me.bets} send={send} />
+            <BetForm key={view.bets.index} bets={view.bets} mine={me.bets} send={send} />
           ) : (
-            <p className="lead">{t('teamCaptainWager')}</p>
+            <>
+              <BetsHeader bets={view.bets} />
+              <p className="lead">{t('teamCaptainWager')}</p>
+            </>
           )}
         </>
       )}

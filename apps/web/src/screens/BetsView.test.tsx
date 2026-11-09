@@ -60,6 +60,24 @@ describe('BetForm', () => {
     expect(screen.queryByText(/Ваша ставка: /)).toBeNull();
   });
 
+  it('editing the field clears the previous reason', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: false, error: 'bet_range' }));
+    render(<BetForm bets={info()} mine={mineOf()} send={send} />);
+    fireEvent.change(screen.getByLabelText(t('finalWagerLabel')), { target: { value: '9000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    await screen.findByText('Ставка має бути від мінімальної до найбільшої.');
+    fireEvent.change(screen.getByLabelText(t('finalWagerLabel')), { target: { value: '300' } });
+    expect(screen.queryByText('Ставка має бути від мінімальної до найбільшої.')).toBeNull();
+  });
+
+  it('a re-placed bet shows the new amount, not the old one', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    render(<BetForm bets={info()} mine={mineOf({ status: 'placed', wager: 200 })} send={send} />);
+    fireEvent.change(screen.getByLabelText(t('finalWagerLabel')), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    await waitFor(() => expect(screen.getByText('Ваша ставка: 500')).toBeTruthy());
+  });
+
   it('a double tap places one bet', async () => {
     let finish: (value: { ok: true }) => void = () => undefined;
     const send = vi.fn<Send>(() => new Promise((resolve) => (finish = resolve)));

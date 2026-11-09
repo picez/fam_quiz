@@ -4,13 +4,9 @@ import { num } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
 
-/** Ставка гравця у «Ставках» (27a): тема, «Запитання k з n», початок тексту й поле від мінімуму до межі; low — лише пояснення. */
-export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets; send: Send }) {
-  const [value, setValue] = useState(mine.wager === null ? '' : String(mine.wager));
-  const [placed, setPlaced] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const busy = useRef(false);
-  const header = (
+/** Тема, «Запитання k з n» і початок тексту: спільна шапка ставки (і для того, хто лише дивиться). */
+export function BetsHeader({ bets }: { bets: BetsInfo }) {
+  return (
     <>
       {bets.theme !== '' && <p className="meta wager-theme">{bets.theme}</p>}
       <p className="meta">{t('betsQuestionOf', { index: bets.index + 1, total: bets.total })}</p>
@@ -22,6 +18,15 @@ export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets
       )}
     </>
   );
+}
+
+/** Ставка гравця у «Ставках» (27a): тема, «Запитання k з n», початок тексту й поле від мінімуму до межі; low — лише пояснення. */
+export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets; send: Send }) {
+  const [value, setValue] = useState(mine.wager === null ? '' : String(mine.wager));
+  const [placed, setPlaced] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+  const header = <BetsHeader bets={bets} />;
   if (mine.status === 'low') {
     return (
       <section className="wager-form bets-form">
@@ -44,7 +49,7 @@ export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets
         busy.current = false;
       });
   };
-  const mineWager = mine.wager ?? placed;
+  const mineWager = placed ?? mine.wager;
   return (
     <section className="wager-form bets-form">
       {header}
@@ -62,7 +67,10 @@ export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets
               step={1}
               value={value}
               disabled={!mine.canBet}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => {
+                setValue(event.target.value);
+                setError(null);
+              }}
             />
           </label>
           <button type="button" className="btn" disabled={!mine.canBet} onClick={() => setValue(String(mine.minimum))}>
