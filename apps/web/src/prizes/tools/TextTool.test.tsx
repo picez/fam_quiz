@@ -137,6 +137,7 @@ describe('TextTool', () => {
     const mono = radio(fonts('Поясок'), /Моноширинний/);
     expect(mono.disabled).toBe(true);
     expect(mono.closest('label')!.textContent).toContain('🔒 з рівня 3');
+    expect(mono.closest('label')!.querySelector('.sr-only')?.textContent).toBe(',');
     cleanup();
     open('cup', { level: 3 });
     fireEvent.click(toggle('Поясок'));
@@ -176,5 +177,40 @@ describe('TextTool', () => {
     expect(toggle('Табличка').disabled).toBe(true);
     expect(screen.getByText('Табличку зайняло фото.')).toBeTruthy();
     expect(toggle('Поясок').disabled).toBe(false);
+  });
+  const photo = (n: number) => Array.from({ length: n }, (_, i) => ({ url: `/uploads/${i + 1}.png`, crop: { x: 0.5, y: 0.5, scale: 1 } }));
+  const back = { place: 'back' as const, text: 'Для Асі', font: null, look: 'engraved' as const, color: '#2b2b2b' };
+
+  it('back inscription under the ring says where it went', () => {
+    open('cup', { decor: { ...EMPTY_DECOR, photoPlace: 'ring', photos: photo(2), inscriptions: [back] } });
+    expect(within(place('Зворот')).getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».')).toBeTruthy();
+  });
+
+  it('grail back under the ring does not fit', () => {
+    open('grail', { decor: { ...EMPTY_DECOR, photoPlace: 'ring', photos: photo(2), inscriptions: [back] } });
+    expect(within(place('Зворот')).getByText('Не вміщується: «Зворот» зайняте (Кільце по чаші), вільного місця немає.')).toBeTruthy();
+    expect(toggle('Зворот').disabled).toBe(false);
+    fireEvent.click(toggle('Зворот'));
+    expect(toggle('Зворот').checked).toBe(false);
+  });
+
+  it('the note shows as soon as the place is turned on, before any text', () => {
+    open('cup', { decor: { ...EMPTY_DECOR, photoPlace: 'ring', photos: photo(2) } });
+    expect(within(place('Зворот')).queryByText(/зайняте/)).toBeNull();
+    fireEvent.click(toggle('Зворот'));
+    expect(current.decor.inscriptions).toEqual([]);
+    expect(within(place('Зворот')).getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».')).toBeTruthy();
+  });
+
+  it('a plaque inscription under a plaque photo has one note', () => {
+    const plaque = { ...back, place: 'plaque' as const };
+    open('cup', { decor: { ...EMPTY_DECOR, photoPlace: 'plaque', photos: photo(1), inscriptions: [plaque] } });
+    expect(within(place('Табличка')).getByText('Табличку зайняло фото.')).toBeTruthy();
+    expect(within(place('Табличка')).queryByText(/Не вміщується|зайняте/)).toBeNull();
+  });
+
+  it('no note without a conflict', () => {
+    open('cup', { decor: { ...EMPTY_DECOR, inscriptions: [back] } });
+    expect(within(place('Зворот')).queryByText(/зайняте/)).toBeNull();
   });
 });

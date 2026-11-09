@@ -1,6 +1,7 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Texture } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { framingSphere, loadModel, paintModel } from './models';
+import { trophyMaterial } from './materials';
+import { framingSphere, loadModel, paintModel, surfaceOf } from './models';
 
 const loads = vi.hoisted(() => ({ count: 0, flaky: 0 }));
 vi.mock('three/addons/loaders/GLTFLoader.js', async () => {
@@ -38,6 +39,25 @@ describe('models', () => {
     expect(textured.material).toBe(texturedMaterial);
   });
 
+  it('paintModel puts the shared material of the kind on plain meshes and leaves textured ones', () => {
+    const plain = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    const other = new Mesh(new BoxGeometry(), [new MeshStandardMaterial(), new MeshStandardMaterial()]);
+    const texturedMaterial = new MeshStandardMaterial({ map: new Texture() });
+    const textured = new Mesh(new BoxGeometry(), texturedMaterial);
+    const group = new Group();
+    group.add(plain, other, textured);
+    paintModel(group, 'neon');
+    const shared = trophyMaterial('neon');
+    expect(plain.material).toBe(shared);
+    expect(other.material).toEqual([shared, shared]);
+    expect(shared.userData.shared).toBe(true);
+    expect(textured.material).toBe(texturedMaterial);
+    // Друга модель з тим самим матеріалом — той самий об'єкт, без нового шейдера.
+    const again = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    paintModel(new Group().add(again), 'neon');
+    expect(again.material).toBe(shared);
+  });
+
   it('loadModel clones', async () => {
     const first = await loadModel('/models/cup.glb');
     const second = await loadModel('/models/cup.glb');
@@ -68,5 +88,22 @@ describe('models', () => {
 
   it('framingSphere of an empty group is a point', () => {
     expect(framingSphere(new Group()).radius).toBe(0);
+  });
+
+  it('surfaceOf takes the geometry of the first mesh with the key', () => {
+    const geometry = new BoxGeometry();
+    const group = new Group();
+    const inner = new Group();
+    inner.add(new Mesh(geometry, new MeshStandardMaterial()));
+    group.add(inner, new Mesh(new SphereGeometry(), new MeshStandardMaterial()));
+    const surface = surfaceOf(group, '/models/cup.glb');
+    expect(surface.key).toBe('/models/cup.glb');
+    expect(surface.geometry).toBe(geometry);
+  });
+
+  it('surfaceOf refuses the family grail (several meshes with node transforms)', () => {
+    const group = new Group();
+    group.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial()));
+    expect(() => surfaceOf(group, '/models/grail-family.glb')).toThrow();
   });
 });

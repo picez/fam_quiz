@@ -71,17 +71,36 @@ describe('coverCrop', () => {
 
 describe('gemSpots', () => {
   it('spreads evenly starting at the front', () => {
-    const spots = gemSpots({ center: [0, 0.23, 0], axis: 'y', radius: 0.11, size: 0.05 }, 4);
+    const spots = gemSpots({ center: [0, 0.23, 0], axis: 'y', radius: 0.11, size: 0.05, surface: 'body' }, 4);
     expect(spots).toHaveLength(4);
     expect(spots[0]!.position[0]).toBeCloseTo(0, 9);
     expect(spots[0]!.position[1]).toBeCloseTo(0.23, 9);
     expect(spots[0]!.position[2]).toBeCloseTo(0.11, 9);
     expect(spots[0]!.normal.map((v) => Math.round(v))).toEqual([0, 0, 1]);
+    for (const spot of spots) expect(spot).toMatchObject({ size: 0.05, surface: 'body' });
     const angles = spots.map((s) => Math.atan2(s.position[0], s.position[2]));
     expect(Math.abs(angles[1]! - angles[0]!)).toBeCloseTo(Math.PI / 2, 9);
   });
+  it('turns half a step when a gem would land in an avoided sector', () => {
+    const circle = {
+      center: [0, 0, 0] as const,
+      axis: 'y' as const,
+      radius: 1,
+      size: 0.02,
+      surface: 'body',
+      avoid: { angles: [Math.PI / 2], halfWidth: 0.1 },
+    };
+    const angles = (n: number) => gemSpots(circle, n).map((s) => Math.atan2(s.position[0], s.position[2]));
+    // 4 самоцвіти: один лягав би на π/2 — коло повертається на π/4.
+    expect(angles(4)[0]).toBeCloseTo(Math.PI / 4, 9);
+    // 3 самоцвіти: 0, 2π/3, −2π/3 — далеко від π/2, без повороту.
+    expect(angles(3)[0]).toBeCloseTo(0, 9);
+    // Нормаль іде за поворотом.
+    const [first] = gemSpots(circle, 4);
+    expect(first!.normal[0]).toBeCloseTo(Math.SQRT1_2, 9);
+  });
   it('starts at the top for a z circle', () => {
-    const spots = gemSpots({ center: [0, 0.4, 0.05], axis: 'z', radius: 0.3, size: 0.04 }, 3);
+    const spots = gemSpots({ center: [0, 0.4, 0.05], axis: 'z', radius: 0.3, size: 0.04, surface: 'front' }, 3);
     expect(spots[0]!.position[0]).toBeCloseTo(0, 9);
     expect(spots[0]!.position[1]).toBeCloseTo(0.7, 9);
     expect(spots[0]!.position[2]).toBeCloseTo(0.05, 9);
@@ -157,19 +176,48 @@ describe('decorSummary', () => {
     photos: [photo, photo, photo],
     inscriptions: [inscription('rim'), inscription('plaque')],
     stickers: [
-      { id: 'a', place: 'front' },
-      { id: 'b', place: 'back' },
+      { id: 'a', place: 'base-right' },
+      { id: 'b', place: 'base-left' },
     ],
   };
   it('describes what is drawn', () => {
-    expect(decorSummary('cup', full)).toBe('photos:ring:3;inscriptions:rim,plaque;stickers:front,back');
+    expect(decorSummary('cup', full)).toBe('photos:ring:3;inscriptions:rim,plaque;stickers:base-right,base-left');
   });
   it('drops places the kind lacks', () => {
-    expect(decorSummary('star', full)).toBe('photos:none;inscriptions:plaque;stickers:front,back');
+    expect(decorSummary('star', full)).toBe('photos:none;inscriptions:plaque;stickers:base-right,base-left');
+    expect(decorSummary('medal', full)).toBe('photos:none');
   });
   it('omits empty parts', () => {
     const medal: TrophyDecor = { ...base, photos: [photo], photoPlace: 'medallion', inscriptions: [inscription('back')] };
     expect(decorSummary('medal', medal)).toBe('photos:medallion:1;inscriptions:back');
+  });
+  it('marks moved and dropped places', () => {
+    const medallion: TrophyDecor = {
+      ...base,
+      photos: [photo],
+      photoPlace: 'medallion',
+      stickers: [{ id: 'a', place: 'front' }],
+    };
+    expect(decorSummary('cup', medallion)).toBe('photos:medallion:1;stickers:front>left');
+    const star: TrophyDecor = {
+      ...medallion,
+      inscriptions: [inscription('back')],
+      stickers: [
+        { id: 'a', place: 'front' },
+        { id: 'b', place: 'left' },
+        { id: 'c', place: 'base-left' },
+        { id: 'd', place: 'base-right' },
+      ],
+    };
+    expect(decorSummary('star', star)).toBe('photos:medallion:1;inscriptions:back;stickers:front>none,left>none,base-left,base-right');
+    const ring: TrophyDecor = { ...base, photos: [photo, photo, photo], inscriptions: [inscription('rim'), inscription('back')] };
+    expect(decorSummary('cup', ring)).toBe('photos:ring:3;inscriptions:rim,back>base-back');
+    // Кільце фото обходить усю чашу: наліпка на чаші переїжджає на основу.
+    expect(decorSummary('cup', { ...ring, inscriptions: [], stickers: [{ id: 'a', place: 'front' }] })).toBe(
+      'photos:ring:3;stickers:front>base-left',
+    );
+    const grail: TrophyDecor = { ...ring, inscriptions: [inscription('back')] };
+    expect(decorSummary('grail', grail)).toBe('photos:ring:3;inscriptions:back>none');
   });
   it('is empty without decor', () => {
     expect(decorSummary('cup', null)).toBe('');

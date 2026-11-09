@@ -96,6 +96,39 @@ export const DECOR_SUPPORT: Record<
     inscription: ['rim', 'band', 'plaque', 'back'],
     sticker: STICKER_PLACES,
   },
+  // 25e: нові форми.
+  lovingcup: {
+    photo: ['ring', 'medallion', 'gems', 'plaque', 'backdrop'],
+    inscription: ['rim', 'band', 'plaque', 'back'],
+    sticker: STICKER_PLACES,
+  },
+  vase: { photo: ['ring', 'medallion', 'gems', 'backdrop'], inscription: ['band'], sticker: ['front', 'back', 'left', 'right'] },
+  plate: { photo: ['medallion', 'gems', 'backdrop'], inscription: ['band', 'plaque', 'back'], sticker: ['front', 'base-left', 'base-right'] },
+  goblet: { photo: ['ring', 'medallion', 'gems', 'backdrop'], inscription: ['rim', 'band'], sticker: ['front', 'back', 'left', 'right'] },
+  starmedal: { photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['left', 'right'] },
+  cross: { photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['front', 'left', 'right'] },
+  octagon: { photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['front', 'left', 'right'] },
+  ribbon: { photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['front', 'left', 'right'] },
+  diadem: {
+    photo: ['medallion', 'gems', 'plaque', 'backdrop'],
+    inscription: ['band', 'plaque'],
+    sticker: ['back', 'left', 'right', 'base-left', 'base-right'],
+  },
+  // Вінки без front: на вузлі (куля r 0.024) вміщується лише цятка, грань постаменту зайнята пояском і табличкою.
+  laurel: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['base-left', 'base-right'] },
+  olive: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['base-left', 'base-right'] },
+  figure: {
+    photo: ['ring', 'medallion', 'gems', 'plaque', 'backdrop'],
+    inscription: ['band', 'plaque'],
+    sticker: STICKER_PLACES,
+  },
+  flame: { photo: ['medallion', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'back', 'base-left', 'base-right'] },
+  wings: {
+    photo: ['medallion', 'gems', 'plaque', 'backdrop'],
+    inscription: ['band', 'plaque'],
+    sticker: ['left', 'right', 'base-left', 'base-right'],
+  },
+  fist: { photo: ['ring', 'medallion', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'back', 'base-left', 'base-right'] },
 };
 
 const HEX = /^#[0-9a-fA-F]{6}$/;

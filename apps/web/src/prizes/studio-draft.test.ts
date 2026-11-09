@@ -137,6 +137,15 @@ describe('studio draft', () => {
     expect(draft.decor.stickers.map((s) => s.place)).toEqual(['right']);
   });
 
+  it('sticker with from moves it', () => {
+    let draft = run(draftFrom(null), { type: 'sticker', place: 'front', id: 'x' });
+    draft = run(draft, { type: 'sticker', place: 'right', id: 'x', from: 'front' });
+    expect(draft.decor.stickers).toEqual([{ id: 'x', place: 'right' }]);
+    // from, що дорівнює place, — звичайна заміна на місці.
+    draft = run(draft, { type: 'sticker', place: 'right', id: 'y', from: 'right' });
+    expect(draft.decor.stickers).toEqual([{ id: 'y', place: 'right' }]);
+  });
+
   it('glow colour', () => {
     expect(run(draftFrom(null), { type: 'effect', kind: 'glow' }).decor.effect).toEqual({ kind: 'glow', color: '#ffd36b' });
     expect(run(draftFrom(null), { type: 'effect', kind: 'glow', color: '#112233' }).decor.effect).toEqual({ kind: 'glow', color: '#112233' });

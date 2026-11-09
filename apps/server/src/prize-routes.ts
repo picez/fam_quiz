@@ -1,4 +1,4 @@
-import { placesSchema, prizeContentSchema, type PrizeContent, type PrizePlacesInfo } from '@quiz/shared';
+import { placesSchema, prizeContentSchema, trophyUnlockLevel, type PrizeContent, type PrizePlacesInfo } from '@quiz/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { CurrentUser } from './account-routes';
@@ -26,8 +26,12 @@ const GAME_NOT_FOUND = { error: 'game_not_found' };
 
 export async function registerPrizeRoutes(app: FastifyInstance, deps: PrizeRouteDeps): Promise<void> {
   const { db, manager, locate, currentUser } = deps;
-  /** Рівень рахуємо лише коли в запиті є непорожнє оформлення. */
-  const levelFor = async (userId: string, content: PrizeContent): Promise<number | null> => (content.trophy?.decor ? accountLevel(db, userId) : null);
+  /** Рівень рахуємо лише коли є оформлення або форма чи матеріал, відкриті не з першого рівня. */
+  const levelFor = async (userId: string, content: PrizeContent): Promise<number | null> => {
+    const trophy = content.trophy;
+    const gated = trophy != null && (trophy.decor || trophyUnlockLevel('shape', trophy.kind) > 1 || trophyUnlockLevel('material', trophy.material) > 1);
+    return gated ? accountLevel(db, userId) : null;
+  };
 
   app.get('/api/me/prizes', async (request, reply) => {
     const user = await currentUser(request);

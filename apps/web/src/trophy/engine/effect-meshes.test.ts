@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NEUTRAL_POSE } from '../appearance-pose';
 import type { EffectFrame, EffectPlan } from '../effect-plan';
 import { buildAppearanceProps } from './appearance-props';
-import { buildEffect, flashTexture, glowTexture } from './effect-meshes';
+import { DECAL_RENDER_ORDER } from './decor-meshes';
+import { PARTICLE_RENDER_ORDER, buildEffect, flashTexture, glowTexture } from './effect-meshes';
 
 const FRAME: EffectFrame = { center: [0, 1, 0], radius: 2 };
 /** Кут поля зору камери рушія, градуси. */
@@ -41,6 +42,15 @@ describe('effect meshes', () => {
     expect(material.depthWrite).toBe(false);
     const snow = buildEffect(plan('snow', 'animated', 32), FRAME, 1, FOV)!;
     expect(((snow.object as Points).material as { blending: number }).blending).toBe(NormalBlending);
+  });
+
+  it('particles are drawn after the decor decals', () => {
+    // Частинки не пишуть глибину: декаль, намальована після них, затерла б сніг чи вогонь перед медальйоном.
+    for (const kind of ['fire', 'snow'] as const) {
+      const points = buildEffect(plan(kind, 'animated', 8), FRAME, 1, FOV)!.object as Points;
+      expect(points.renderOrder).toBe(PARTICLE_RENDER_ORDER);
+      expect(points.renderOrder).toBeGreaterThan(DECAL_RENDER_ORDER);
+    }
   });
 
   it('a particle is its size in r on screen, not shrunk by the field of view', () => {

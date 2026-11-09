@@ -116,17 +116,20 @@ export function agoText(ms: number, locale: Locale = currentLocale()): string {
  * Рід назви трофея — щоб узгодити прикметник матеріалу: «Золотий кубок», «Срібна медаль».
  * Рід залежить від мови: у pl «medal» чоловічого роду («Srebrny medal»). Мови без свого рядка — як uk.
  */
-const TROPHY_GENDER: Record<TrophyKind, 'm' | 'f'> = { cup: 'm', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm' };
+const TROPHY_GENDER: Record<TrophyKind, 'm' | 'f'> = {
+  cup: 'm', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm',
+  lovingcup: 'm', vase: 'f', plate: 'f', goblet: 'm', starmedal: 'f', cross: 'm', octagon: 'f', ribbon: 'f', diadem: 'f', laurel: 'm', olive: 'm', figure: 'f', flame: 'm', wings: 'f', fist: 'm',
+};
 const TROPHY_GENDER_BY_LOCALE: Partial<Record<Locale, Partial<Record<TrophyKind, 'm' | 'f'>>>> = {
-  pl: { medal: 'm' },
+  pl: { medal: 'm', lovingcup: 'm', vase: 'f', plate: 'f', goblet: 'm', starmedal: 'm', cross: 'm', octagon: 'm', ribbon: 'm', diadem: 'm', laurel: 'm', olive: 'm', figure: 'f', flame: 'm', wings: 'f', fist: 'f' },
   /** de: der Pokal, der Stern, der Gral — «Goldener»; die Medaille, Krone, Statuette — «Goldene» (uk-рід зірки жіночий). */
-  de: { cup: 'm', medal: 'f', crown: 'f', star: 'm', statuette: 'f', grail: 'm' },
+  de: { cup: 'm', medal: 'f', crown: 'f', star: 'm', statuette: 'f', grail: 'm', lovingcup: 'm', vase: 'f', plate: 'm', goblet: 'm', starmedal: 'f', cross: 'f', octagon: 'f', ribbon: 'f', diadem: 'f', laurel: 'm', olive: 'm', figure: 'f', flame: 'f', wings: 'f', fist: 'f' },
   /** es: la copa, la medalla, la corona, la estrella, la estatuilla — жіночого роду; el grial — чоловічого. */
-  es: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm' },
+  es: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm', lovingcup: 'f', vase: 'm', plate: 'm', goblet: 'm', starmedal: 'f', cross: 'f', octagon: 'f', ribbon: 'f', diadem: 'f', laurel: 'f', olive: 'f', figure: 'f', flame: 'f', wings: 'f', fist: 'm' },
   /** it: la coppa, la medaglia, la corona, la stella, la statuetta — жіночого роду; il Graal — чоловічого. */
-  it: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm' },
+  it: { cup: 'f', medal: 'f', crown: 'f', star: 'f', statuette: 'f', grail: 'm', lovingcup: 'f', vase: 'm', plate: 'm', goblet: 'm', starmedal: 'f', cross: 'f', octagon: 'f', ribbon: 'f', diadem: 'm', laurel: 'f', olive: 'f', figure: 'f', flame: 'f', wings: 'f', fist: 'm' },
   /** ar: كأس، ميدالية، نجمة، كأس مقدسة — жіночого роду («كأس ذهبية»); تاج، تمثال — чоловічого («تاج فضي»). */
-  ar: { cup: 'f', medal: 'f', crown: 'm', star: 'f', statuette: 'm', grail: 'f' },
+  ar: { cup: 'f', medal: 'f', crown: 'm', star: 'f', statuette: 'm', grail: 'f', lovingcup: 'f', vase: 'f', plate: 'm', goblet: 'm', starmedal: 'f', cross: 'm', octagon: 'f', ribbon: 'f', diadem: 'm', laurel: 'm', olive: 'm', figure: 'm', flame: 'f', wings: 'm', fist: 'f' },
 };
 export function trophyGender(kind: TrophyKind, locale: Locale = currentLocale()): 'm' | 'f' {
   return TROPHY_GENDER_BY_LOCALE[locale]?.[kind] ?? TROPHY_GENDER[kind];

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AchievementId } from './achievements';
+import type { TrophyKind, TrophyMaterial } from './prizes';
 import { STICKER_SERIES, stickerOf, type StickerSeries } from './stickers';
 
 /** Нарахування досвіду за гру (15a). */
@@ -78,7 +79,9 @@ export type LevelReward =
   | { kind: 'photo'; id: PhotoFrame }
   | { kind: 'font'; id: NickFont }
   | { kind: 'perk'; perk: LevelPerk }
-  | { kind: 'perk_boost'; perk: 'time' };
+  | { kind: 'perk_boost'; perk: 'time' }
+  | { kind: 'shape'; id: TrophyKind }
+  | { kind: 'material'; id: TrophyMaterial };
 
 const REWARD_ROWS: LevelReward[] = [
   { kind: 'stickers', series: 'nya' },
@@ -158,6 +161,32 @@ const EXTRA_REWARDS: { level: number; reward: LevelReward }[] = [
   { level: 28, reward: { kind: 'badge', id: '🐉' } },
   { level: 29, reward: { kind: 'photo', id: 'storm' } },
   { level: 30, reward: { kind: 'photo', id: 'aura' } },
+  { level: 2, reward: { kind: 'shape', id: 'goblet' } },
+  { level: 3, reward: { kind: 'material', id: 'copper' } },
+  { level: 4, reward: { kind: 'shape', id: 'vase' } },
+  { level: 5, reward: { kind: 'shape', id: 'laurel' } },
+  { level: 6, reward: { kind: 'shape', id: 'starmedal' } },
+  { level: 7, reward: { kind: 'material', id: 'rosegold' } },
+  { level: 8, reward: { kind: 'shape', id: 'figure' } },
+  { level: 9, reward: { kind: 'material', id: 'wood' } },
+  { level: 10, reward: { kind: 'shape', id: 'octagon' } },
+  { level: 11, reward: { kind: 'material', id: 'marble' } },
+  { level: 12, reward: { kind: 'shape', id: 'lovingcup' } },
+  { level: 13, reward: { kind: 'material', id: 'jade' } },
+  { level: 14, reward: { kind: 'shape', id: 'ribbon' } },
+  { level: 15, reward: { kind: 'material', id: 'platinum' } },
+  { level: 16, reward: { kind: 'shape', id: 'flame' } },
+  { level: 17, reward: { kind: 'material', id: 'obsidian' } },
+  { level: 18, reward: { kind: 'shape', id: 'olive' } },
+  { level: 19, reward: { kind: 'material', id: 'pearl' } },
+  { level: 20, reward: { kind: 'shape', id: 'cross' } },
+  { level: 21, reward: { kind: 'material', id: 'sapphire' } },
+  { level: 22, reward: { kind: 'shape', id: 'diadem' } },
+  { level: 23, reward: { kind: 'material', id: 'ruby' } },
+  { level: 24, reward: { kind: 'shape', id: 'plate' } },
+  { level: 25, reward: { kind: 'material', id: 'neon' } },
+  { level: 26, reward: { kind: 'shape', id: 'wings' } },
+  { level: 28, reward: { kind: 'shape', id: 'fist' } },
 ];
 
 /** Нагороди рівнів 1..30 (на рівні їх може бути кілька), стабільно за рівнем. */
@@ -189,6 +218,11 @@ export function nextRewards(level: number): { level: number; reward: LevelReward
 /** Рівень, з якого відкрито серію (для «з рівня N»). */
 export function seriesLevel(series: StickerSeries): number {
   return LEVEL_REWARDS.find((r) => r.reward.kind === 'stickers' && r.reward.series === series)?.level ?? 1;
+}
+
+/** Рівень, з якого відкрито форму чи матеріал трофея; наявні й невідомі — 1. */
+export function trophyUnlockLevel(what: 'shape' | 'material', id: string): number {
+  return LEVEL_REWARDS.find((r) => r.reward.kind === what && r.reward.id === id)?.level ?? 1;
 }
 
 /** null — гість: лише 'nya'. */
