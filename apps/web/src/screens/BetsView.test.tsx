@@ -79,6 +79,20 @@ describe('BetForm', () => {
     await waitFor(() => expect(screen.getByText('Ваша ставка: 500')).toBeTruthy());
   });
 
+  it('a bet the server cut down shows the server amount', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    const { rerender } = render(<BetForm bets={info()} mine={mineOf()} send={send} />);
+    fireEvent.change(screen.getByLabelText(t('finalWagerLabel')), { target: { value: '500' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Поставити' }));
+    await waitFor(() => expect(screen.getByText('Ваша ставка: 500')).toBeTruthy());
+    rerender(<BetForm bets={info()} mine={mineOf({ status: 'placed', wager: 500 })} send={send} />);
+    expect(screen.getByText('Ваша ставка: 500')).toBeTruthy();
+    // Ведучий зняв бали: межа 300, ставку зрізано.
+    rerender(<BetForm bets={info()} mine={mineOf({ status: 'placed', wager: 300, limit: 300 })} send={send} />);
+    expect(screen.getByText('Ваша ставка: 300')).toBeTruthy();
+    expect(screen.queryByText('Ваша ставка: 500')).toBeNull();
+  });
+
   it('a double tap places one bet', async () => {
     let finish: (value: { ok: true }) => void = () => undefined;
     const send = vi.fn<Send>(() => new Promise((resolve) => (finish = resolve)));

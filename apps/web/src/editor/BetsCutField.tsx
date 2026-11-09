@@ -1,5 +1,8 @@
-import { betsTeaser, betsWords } from '@quiz/shared';
+import { betsTeaser, betsWords, LIMITS } from '@quiz/shared';
 import { t } from '../i18n';
+
+/** «Увесь текст»: найбільший зріз зі схеми — більший за будь-яку кількість слів, тож видно весь текст і після правок. */
+export const BETS_CUT_ALL = LIMITS.questionText;
 
 interface Props {
   text: string;
@@ -31,7 +34,7 @@ export function BetsCutField({ text, cut, onChange }: Props) {
             </button>
           );
         })}
-        <button type="button" role="radio" aria-checked={all} className={chip(all)} onClick={() => onChange(count)}>
+        <button type="button" role="radio" aria-checked={all} className={chip(all)} onClick={() => onChange(BETS_CUT_ALL)}>
           {t('betsCutAll')}
         </button>
       </div>

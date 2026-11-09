@@ -2584,6 +2584,7 @@
   "summaryBetsAll": "Można postawić wszystkie swoje punkty",
   "summaryBetsMax": "Największy zakład: {max}",
   "summaryBetsMinimum": "Minimalny zakład: {start}, potem za każdym razem +{step}",
+  "summaryBetsMinimumFlat": "Minimalny zakład: {start}, taki sam przez całą rundę",
   "summaryBlitz": "Punkty dostaje tylko ten, kto pierwszy odpowie dobrze.",
   "summaryBlitzHow": "Naciśnij „Odpowiedz”, żeby stanąć w kolejce, i odpowiadaj {window}.",
   "summaryBlitzInstant": "Odpowiadaj od razu, bez przycisku: jedna próba, odpowiedzi są sprawdzane w kolejności nadejścia.",

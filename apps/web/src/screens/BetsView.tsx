@@ -24,6 +24,12 @@ export function BetsHeader({ bets }: { bets: BetsInfo }) {
 export function BetForm({ bets, mine, send }: { bets: BetsInfo; mine: PlayerBets; send: Send }) {
   const [value, setValue] = useState(mine.wager === null ? '' : String(mine.wager));
   const [placed, setPlaced] = useState<number | null>(null);
+  // Сервер міг змінити ставку (ведучий зняв бали — ставку зрізано до межі): нова ставка з вигляду скасовує свою пам'ять.
+  const [seen, setSeen] = useState(mine.wager);
+  if (seen !== mine.wager) {
+    setSeen(mine.wager);
+    setPlaced(null);
+  }
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
   const header = <BetsHeader bets={bets} />;

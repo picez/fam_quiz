@@ -2698,6 +2698,7 @@
   "summaryBetsAll": "يمكنك المراهنة بكل نقاطك",
   "summaryBetsMax": "الرهان الأقصى: {max}",
   "summaryBetsMinimum": "الرهان الأدنى: {start}، ثم +{step} في كل مرة",
+  "summaryBetsMinimumFlat": "الرهان الأدنى: {start}، ولا يتغير طوال الجولة",
   "summaryBlitz": "يحصل على النقاط فقط أول من يجيب إجابة صحيحة.",
   "summaryBlitzHow": "اضغط «أجب» لتدخل الطابور، وأجب {window}.",
   "summaryBlitzInstant": "أجيبوا مباشرة، بلا زر: محاولة واحدة، والإجابات تُفحص بترتيب وصولها.",

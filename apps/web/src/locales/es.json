@@ -2584,6 +2584,7 @@
   "summaryBetsAll": "Puedes apostar todos tus puntos",
   "summaryBetsMax": "Apuesta máxima: {max}",
   "summaryBetsMinimum": "Apuesta mínima: {start}, y luego +{step} cada vez",
+  "summaryBetsMinimumFlat": "Apuesta mínima: {start}, la misma en toda la ronda",
   "summaryBlitz": "Solo recibe puntos quien acierte primero.",
   "summaryBlitzHow": "Pulsa «Responder» para ponerte en la cola y responde {window}.",
   "summaryBlitzInstant": "Responded enseguida, sin botón: un intento; las respuestas se comprueban por orden de llegada.",

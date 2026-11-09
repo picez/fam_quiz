@@ -2253,6 +2253,7 @@ const uk = {
   summaryLadderContestant: 'Учасник проходить драбину до {top}: помилка — лише неспалима сума, «Забрати» — сума пройденого рівня.',
   summaryLadderHall: 'Решта відповідає за себе: правильно — 10 % суми рівня.',
   summaryBetsMinimum: 'Мінімальна ставка: {start}, далі щоразу +{step}',
+  summaryBetsMinimumFlat: 'Мінімальна ставка: {start}, однакова весь раунд',
   summaryBetsMax: 'Найбільша ставка: {max}',
   summaryBetsAll: 'Можна ставити всі свої бали',
   summaryLadderPick_host: 'Учасника вибирає ведучий.',

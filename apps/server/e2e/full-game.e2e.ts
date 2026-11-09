@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -23034,7 +23034,7 @@ async function betsGame27a() {
   const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: Record<string, unknown>[] };
   const storedBets = stored.rounds[1] as { type: string; title: string; betStart: number; betStep: number; betMax: number | null; questions: { betsCut: number }[] };
   expect(storedBets).toMatchObject({ type: 'bets', title: 'Тихий банк', betStart: 200, betStep: 100, betMax: 600 });
-  expect(storedBets.questions.map((question) => question.betsCut)).toEqual([2, 0, 4]);
+  expect(storedBets.questions.map((question) => question.betsCut)).toEqual([2, 0, LIMITS.questionText]);
 
   // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
   await click(host, 'Грати');

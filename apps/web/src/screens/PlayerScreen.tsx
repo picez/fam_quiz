@@ -1024,8 +1024,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {answersForTeam && <Perks perks={me.perks} ward={ward} holdSpace onUse={(kind) => void perkGuard.run('player:perk', { kind })} />}
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
-            {/* У фіналі гравець грає на ставку: ціни за слово немає. */}
-            {isSort && view.round?.type !== 'final' && <p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {/* У фіналі й «Ставках» гравець грає на ставку: ціни за слово немає. */}
+            {isSort && view.round?.type !== 'final' && view.round?.type !== 'bets' &&<p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {me.ladder?.role === 'contestant' && answersForTeam && (
               <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
             )}

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LIMITS } from '@quiz/shared';
 import { t } from '../i18n';
-import { BetsCutField } from './BetsCutField';
+import { BETS_CUT_ALL, BetsCutField } from './BetsCutField';
 
 afterEach(cleanup);
 
@@ -34,11 +35,32 @@ describe('BetsCutField', () => {
     expect(screen.getByRole('radio', { name: t('betsCutNone') }).getAttribute('aria-checked')).toBe('true');
   });
 
-  it('"whole text" gives the number of words', () => {
+  it('"whole text" gives the schema maximum, which survives a longer text', () => {
     const onChange = vi.fn();
     render(<BetsCutField text={TEXT} cut={undefined} onChange={onChange} />);
     fireEvent.click(screen.getByRole('radio', { name: t('betsCutAll') }));
-    expect(onChange).toHaveBeenCalledWith(5);
+    expect(onChange).toHaveBeenCalledWith(BETS_CUT_ALL);
+    expect(BETS_CUT_ALL).toBe(LIMITS.questionText);
+    cleanup();
+    const longer = `${TEXT} Підказка: на півдні.`;
+    render(<BetsCutField text={longer} cut={BETS_CUT_ALL} onChange={onChange} />);
+    expect(screen.getByRole('radio', { name: t('betsCutAll') }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(t('betsCutPreview', { text: longer }))).toBeTruthy();
+  });
+
+  it('on an empty text "whole text" and "nothing" stay apart', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<BetsCutField text="" cut={undefined} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('radio', { name: t('betsCutAll') }));
+    expect(onChange).toHaveBeenLastCalledWith(BETS_CUT_ALL);
+    fireEvent.click(screen.getByRole('radio', { name: t('betsCutNone') }));
+    expect(onChange).toHaveBeenLastCalledWith(0);
+    rerender(<BetsCutField text="" cut={BETS_CUT_ALL} onChange={onChange} />);
+    expect(screen.getByRole('radio', { name: t('betsCutAll') }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: t('betsCutNone') }).getAttribute('aria-checked')).toBe('false');
+    rerender(<BetsCutField text="" cut={0} onChange={onChange} />);
+    expect(screen.getByRole('radio', { name: t('betsCutAll') }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('radio', { name: t('betsCutNone') }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('a cut beyond the words marks the whole text', () => {

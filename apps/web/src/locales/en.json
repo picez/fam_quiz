@@ -2546,6 +2546,7 @@
   "summaryBetsAll": "You can bet all your points",
   "summaryBetsMax": "Maximum bet: {max}",
   "summaryBetsMinimum": "Minimum bet: {start}, then +{step} each time",
+  "summaryBetsMinimumFlat": "Minimum bet: {start}, the same for the whole round",
   "summaryBlitz": "Only the first to answer correctly gets points.",
   "summaryBlitzHow": "Press “Answer” to join the queue, and answer {window}.",
   "summaryBlitzInstant": "Answer straight away, no button: one try, answers are checked in the order they arrive.",

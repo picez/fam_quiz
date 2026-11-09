@@ -2546,6 +2546,7 @@
   "summaryBetsAll": "Du kannst alle deine Punkte setzen",
   "summaryBetsMax": "Höchsteinsatz: {max}",
   "summaryBetsMinimum": "Mindesteinsatz: {start}, danach jedes Mal +{step}",
+  "summaryBetsMinimumFlat": "Mindesteinsatz: {start}, er bleibt die ganze Runde gleich",
   "summaryBlitz": "Punkte bekommt nur, wer zuerst richtig antwortet.",
   "summaryBlitzHow": "Drück „Antworten“, um dich anzustellen, und antworte {window}.",
   "summaryBlitzInstant": "Antworte sofort, ohne Taste: ein Versuch, die Antworten werden in der Reihenfolge des Eingangs geprüft.",

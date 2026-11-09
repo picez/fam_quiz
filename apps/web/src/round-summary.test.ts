@@ -9,6 +9,7 @@ describe('roundSummary', () => {
     const bets = { betStart: 200, betStep: 100, betMax: 600, count: 5 };
     expect(roundSummary({ ...emptyBrief('bets'), bets })).toEqual(['Мінімальна ставка: 200, далі щоразу +100', 'Найбільша ставка: 600']);
     expect(roundSummary({ ...emptyBrief('bets'), bets: { ...bets, betMax: null } })[1]).toBe('Можна ставити всі свої бали');
+    expect(roundSummary({ ...emptyBrief('bets'), bets: { ...bets, betStep: 0 } })[0]).toBe('Мінімальна ставка: 200, однакова весь раунд');
   });
 
   it('a default classic round: everyone answers, faster is more', () => {

@@ -24,7 +24,8 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
   }
   if (brief.type === 'bets' && brief.bets !== null) {
     const { betStart, betStep, betMax } = brief.bets;
-    lines.push(t('summaryBetsMinimum', { start: betStart, step: betStep }), betMax === null ? t('summaryBetsAll') : t('summaryBetsMax', { max: betMax }));
+    const minimum = betStep === 0 ? t('summaryBetsMinimumFlat', { start: betStart }) : t('summaryBetsMinimum', { start: betStart, step: betStep });
+    lines.push(minimum, betMax === null ? t('summaryBetsAll') : t('summaryBetsMax', { max: betMax }));
     return lines;
   }
   if (brief.type === 'wipeout') {

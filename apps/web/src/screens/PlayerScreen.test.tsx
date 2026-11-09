@@ -1651,7 +1651,7 @@ describe('PlayerScreen: sort', () => {
     expect(send).toHaveBeenCalledWith('player:sort', { wordId: 'w1', categoryId: 'c2' });
   });
 
-  it('the per-word price uses the right plural and is gone in a final', () => {
+  it('the per-word price uses the right plural and is gone in a final and in bets', () => {
     show(onQuestion({ question: { ...sortQ, points: 2 }, sort: info(), me: { ...me, sort: mine } }));
     expect(screen.getByText('2 бали за слово')).toBeTruthy();
     cleanup();
@@ -1663,6 +1663,11 @@ describe('PlayerScreen: sort', () => {
     expect(document.querySelector('.sort-play')).not.toBeNull();
     expect(document.querySelector('.sort-points')).toBeNull();
     expect(screen.queryByText(/за слово/)).toBeNull();
+    cleanup();
+    const betsRound: RoundInfo = { ...finalRound, title: 'Ставки', type: 'bets', brief: emptyBrief('bets') };
+    show(onQuestion({ round: betsRound, question: sortQ, sort: null, me: { ...me, sort: mine } }));
+    expect(document.querySelector('.sort-play')).not.toBeNull();
+    expect(document.querySelector('.sort-points')).toBeNull();
   });
 
   it('a board sort: the chooser plays, the others watch', () => {
