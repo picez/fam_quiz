@@ -4494,6 +4494,96 @@ button.shelf-cup {
   font-size: 1.25rem;
 }
 
+/* ---------- Словесна драбина (26c) ---------- */
+
+/* Слова українські й в арабському інтерфейсі: стовпчик і «старт → ціль» завжди зліва направо (dir="ltr" у розмітці). */
+.wordladder-goal {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  text-align: center;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.wordladder-play {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.wordladder-column {
+  display: grid;
+  justify-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 7 літер великими на 320 px уміщаються з запасом; довше слово не розпирає екран, а переноситься. */
+.wordladder-word {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+
+.wordladder-word.is-start {
+  color: var(--amber);
+}
+
+.wordladder-gap {
+  color: var(--dim);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.wordladder-word.is-next {
+  display: flex;
+  gap: 0.375rem;
+}
+
+/* 7 клітинок по 1.2em з проміжками — ≈240 px: уміщаються й на 320 px. */
+.wordladder-cell {
+  inline-size: 1.2em;
+  block-size: 1.2em;
+  border-block-end: 2px solid var(--amber);
+}
+
+.wordladder-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Велике поле: шрифт не менший за 16 px, тож iOS не збільшує сторінку при фокусі. */
+.wordladder-form input {
+  min-block-size: 48px;
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Рядок причини завжди займає місце: поява «Такого слова не існує» не зсуває кнопок. */
+.wordladder-status {
+  margin: 0;
+  min-block-size: 1.5em;
+  color: var(--signal);
+}
+
+.wordladder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.wordladder-actions .btn {
+  flex: 1 1 8rem;
+  min-block-size: 44px;
+}
+
 .menu-badge {
   display: inline-flex;
   align-items: center;

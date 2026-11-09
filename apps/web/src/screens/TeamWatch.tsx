@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import type { Send } from '../live/types';
 import { ChainWords } from './ChainView';
+import { WordLadderColumn, WordLadderGoal } from './WordLadderView';
 import { PinBoard } from './PinBoard';
 import { SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -170,6 +171,12 @@ export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView
       )}
       {question.type === 'wall' && question.wall !== null && <WallGrid wall={question.wall} found={me.wall?.found ?? []} />}
       {question.type === 'chain' && question.chain !== null && me.chain !== null && <ChainWords first={question.chain.first} masks={me.chain.masks} />}
+      {question.type === 'wordladder' && question.wordladder !== undefined && me.wordladder !== undefined && (
+        <>
+          <WordLadderGoal start={question.wordladder.start} target={question.wordladder.target} />
+          <WordLadderColumn start={question.wordladder.start} target={question.wordladder.target} words={me.wordladder.words} letters={question.wordladder.letters} />
+        </>
+      )}
       {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} autopilot={view.autopilot} />}
       {question.type === 'bluff' && <p className="meta">{other ? t('teamAnswererDecides', { name: answererName }) : t('teamCaptainDecides')}</p>}
       {question.type === 'boolean' ? (
