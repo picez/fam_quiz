@@ -63,6 +63,7 @@ import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
 import { chainDone, scoreChain } from './chain';
+import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
 import { submitVote } from './votes';
@@ -179,6 +180,8 @@ export interface Play {
   final?: FinalPlay;
   /** Лише в запитанні-ланцюжку; гравця тут немає, поки він не торкався ланцюжка. */
   chain?: Record<string, ChainProgress>;
+  /** Лише в запитанні-драбині; гравця тут немає, поки він не прийняв жодного слова. */
+  wordladder?: Record<string, WordLadderProgress>;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -459,6 +462,11 @@ export interface ChainProgress {
   /** Скільки літер поточного слова відкрито; від 1 (перша літера). */
   shown: number;
   hints: number;
+}
+
+/** Поступ драбини гравця (команди): прийняті слова після стартового, ключами ladderKey. */
+export interface WordLadderProgress {
+  words: string[];
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -866,6 +874,10 @@ function removeFromGame(state: GameState, playerId: string): Result {
     if (play.chain !== undefined) {
       const { [playerId]: _progress, ...chain } = play.chain;
       kept.chain = chain;
+    }
+    if (play.wordladder !== undefined) {
+      const { [playerId]: _progress, ...wordladder } = play.wordladder;
+      kept.wordladder = wordladder;
     }
     if (play.sort !== undefined) {
       const { [playerId]: _progress, ...sort } = play.sort;
@@ -1491,7 +1503,10 @@ export function lockNow(state: GameState): GameState {
   // Блеф отримує записи лише тут: бали залежать від виборів усіх.
   // Голосування залу «Мільйонера» закривається з відповідями залу на цю мить.
   // Хто взяв «Ризик» і змовчав, отримує мінус повної ціни (12h).
-  const closed = spendDebuffs(withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(closeAudience(settleRetries(state))))))))));
+  // Бали за драбину залежать від найкращого фінішера, тож теж рахуються лише тут (26c).
+  const closed = spendDebuffs(
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))),
+  );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
 
@@ -1597,6 +1612,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (isUnscored(play.question)) return submitVote(state, playerId, answer, now);
   // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
   if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
+  // Драбину проходять лише ladderWord і ladderBack (26c).
+  if (answer.type === 'wordladder' || play.question.type === 'wordladder') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
@@ -2202,7 +2219,8 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const active = state.plays[state.questionIndex];
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
-  if (type === 'chain' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера.
+  if (type === 'chain' || type === 'wordladder' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
@@ -2282,7 +2300,7 @@ function endNow(state: GameState, now?: number): Result {
     now ?? 0,
   );
   const stopped: GameState = {
-    ...withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreChain(markWipeoutEnd(decided))))))),
+    ...withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,

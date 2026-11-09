@@ -56,6 +56,11 @@ export function finalPoints(wager: number, correct: boolean): number {
   return correct ? wager : 0 - wager;
 }
 
+/** Частка ціни драбини: 0 понад max, інакше (max − steps + 1) / (max − best + 1). */
+export function wordLadderShare(steps: number, best: number, max: number): number {
+  return steps > max ? 0 : (max - steps + 1) / (max - best + 1);
+}
+
 /** Частка ціни за ланцюжок: 1 найшвидшому, лінійно до 0.5 на межі часу. */
 export function chainFactor(timeMs: number, fastestMs: number, limitMs: number): number {
   if (limitMs <= fastestMs) return 1;

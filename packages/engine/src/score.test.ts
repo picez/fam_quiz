@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerPoints, blitzSeriesPoints, chainFactor, scorePoints, speedFactor, streakBonus } from './score';
+import { answerPoints, blitzSeriesPoints, chainFactor, scorePoints, speedFactor, streakBonus, wordLadderShare } from './score';
 
 describe('speedFactor', () => {
   it('is 1 when the speed bonus is off', () => {
@@ -73,6 +73,15 @@ describe('streakBonus', () => {
 
   it('is a fixed amount', () => {
     expect(streakBonus(1500, { kind: 'fixed', value: 100 })).toBe(100);
+  });
+});
+
+describe('wordLadderShare', () => {
+  it('the best gets the full price, each extra step costs a share, over the maximum nothing', () => {
+    expect(wordLadderShare(5, 4, 8)).toBe(0.8);
+    expect(wordLadderShare(4, 4, 8)).toBe(1);
+    expect(wordLadderShare(9, 4, 8)).toBe(0);
+    expect(wordLadderShare(8, 4, 8)).toBe(0.2);
   });
 });
 

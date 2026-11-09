@@ -42,6 +42,8 @@ export type BuffBlock =
   | 'off_wall'
   /** Опитування й хмара: без балів — без бафів (10d). */
   | 'off_vote'
+  /** «Словесна драбина»: бафів немає (26c). */
+  | 'off_wordladder'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */

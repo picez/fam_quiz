@@ -21,6 +21,7 @@ import {
   sortQ,
   text,
   withId,
+  wordladder,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
@@ -149,6 +150,12 @@ describe('buffs', () => {
     s = must(override(s, 'p3', 'wrong'));
     expect(s.plays[0].answers.p3).toMatchObject({ points: 0, buff: 'shield' });
     expect([points(s, 'p1'), points(s, 'p3')]).toEqual([2000, 0]);
+  });
+
+  it('a word ladder has no buffs', () => {
+    const s = startRound(lobbyWith(makeQuiz([wordladder], { buffs }), 'Оля'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_wordladder');
   });
 
   it('buffs work only where the player answers from the phone', () => {
