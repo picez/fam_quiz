@@ -1,7 +1,8 @@
 import type { TrophyMaterial } from '@quiz/shared';
-import { Box3, Mesh, MeshStandardMaterial, Sphere, Vector3, type Group, type Material, type Object3D } from 'three';
+import { Box3, Mesh, MeshStandardMaterial, Sphere, Vector3, type BufferGeometry, type Group, type Material, type Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MATERIAL_LOOK } from '../trophy-meta';
+import type { Surface } from './surface-geometry';
 
 const models = new Map<string, Promise<Group>>();
 let loader: GLTFLoader | null = null;
@@ -18,6 +19,14 @@ export function loadModel(url: string): Promise<Group> {
     });
   }
   return model.then((scene) => scene.clone(true));
+}
+
+/** Поверхня для оформлення: геометрія першого меша моделі (у .glb один меш без перетворення вузла; спільна з кешем loadModel). */
+export function surfaceOf(model: Group, key: string): Surface {
+  // Обхід у глибину, як traverse: перший меш.
+  const mesh = model.getObjectByProperty('isMesh', true) as Mesh | undefined;
+  if (mesh === undefined) throw new Error(`no mesh in ${key}`);
+  return { key, geometry: mesh.geometry as BufferGeometry };
 }
 
 function hasMap(material: Material): boolean {

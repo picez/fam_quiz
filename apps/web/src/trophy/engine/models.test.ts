@@ -1,6 +1,6 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Texture } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { framingSphere, loadModel, paintModel } from './models';
+import { framingSphere, loadModel, paintModel, surfaceOf } from './models';
 
 const loads = vi.hoisted(() => ({ count: 0, flaky: 0 }));
 vi.mock('three/addons/loaders/GLTFLoader.js', async () => {
@@ -68,5 +68,16 @@ describe('models', () => {
 
   it('framingSphere of an empty group is a point', () => {
     expect(framingSphere(new Group()).radius).toBe(0);
+  });
+
+  it('surfaceOf takes the geometry of the first mesh with the key', () => {
+    const geometry = new BoxGeometry();
+    const group = new Group();
+    const inner = new Group();
+    inner.add(new Mesh(geometry, new MeshStandardMaterial()));
+    group.add(inner, new Mesh(new SphereGeometry(), new MeshStandardMaterial()));
+    const surface = surfaceOf(group, '/models/cup.glb');
+    expect(surface.key).toBe('/models/cup.glb');
+    expect(surface.geometry).toBe(geometry);
   });
 });
