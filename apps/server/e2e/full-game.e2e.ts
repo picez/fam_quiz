@@ -21204,6 +21204,14 @@ const haloPixels25b = (selector: string) => `(() => {
   return lit;
 })()`;
 
+/** «w×h:» і RGBA-байти смуги x ∈ [x0·w, x1·w), y ∈ [y0·h, y1·h) 2D-полотна трофея під selector, рядком: для порівняння кадрів. */
+const bandPixels25b = (selector: string, x0: number, x1: number, y0: number, y1: number) => `(() => {
+  const canvas = document.querySelector(${JSON.stringify(selector)});
+  const w = canvas.width, h = canvas.height;
+  const x = Math.floor(w * ${x0}), y = Math.floor(h * ${y0});
+  return w + 'x' + h + ':' + canvas.getContext('2d').getImageData(x, y, Math.max(1, Math.floor(w * ${x1}) - x), Math.max(1, Math.floor(h * ${y1}) - y)).data.join(',');
+})()`;
+
 async function trophyEffects25b() {
   const TITLE = 'Вікторина з ефектами кубків 25b';
   const tracking = trackRequests25a();
@@ -21241,6 +21249,19 @@ async function trophyEffects25b() {
 
   // ── 2–3. Лобі (місця 1, 2, 3 = кубок, медаль, зірка; без 3D) і гра: Петро перший, Іра друга, Богдан третій. ──
   const { stage, petro, ira } = await playPrizeGame25a(olya, '25b', TITLE, ['Кубок 25b', 'Медаль 25b', 'Зірка 25b'], tracking, { registerIra: true });
+  // Сцена записує, коли вперше показано кожну колонку й кожен стан появи (performance.now): межі «≤ 5 с від появи колонки»
+  // й порядок pending → playing → done перевіряються за цими мітками, а не за тим, коли тест дійшов до місця.
+  await stage.evaluate(`(() => {
+    window.__shown25b = {};
+    window.__appear25b = {};
+    const scan = () => {
+      const now = performance.now();
+      for (const col of document.querySelectorAll('.ceremony .podium-col.is-shown')) window.__shown25b[col.dataset.place] ??= now;
+      for (const canvas of document.querySelectorAll('.ceremony canvas.trophy-canvas[data-appearance]')) window.__appear25b[canvas.dataset.appearance] ??= now;
+    };
+    scan();
+    new MutationObserver(scan).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'data-appearance'] });
+  })()`);
   // Низьке вікно Петра: кубок «Твого призу» з'явиться нижче згину (крок 5 перевіряє, що поява чекає, доки його видно).
   await petro.setViewportSize({ width: 375, height: 200 });
 
@@ -21250,21 +21271,28 @@ async function trophyEffects25b() {
   const canvasOf = (place: number) => column(place).locator('canvas.trophy-canvas');
   const appearance = (place: number) => canvasOf(place).getAttribute('data-appearance');
   const expected = { 1: ['fire:animated', 'drop'], 2: ['glow:animated', 'flash'], 3: ['snow:animated', 'rise'] } as const;
+  const marks = () => stage.evaluate('({ shown: window.__shown25b, appear: window.__appear25b })') as Promise<{ shown: Record<string, number>; appear: Record<string, number> }>;
   for (const place of [3, 2, 1] as const) {
     await column(place).waitFor({ timeout: 20_000 });
-    const shownAt = Date.now();
     const [effect, kind] = expected[place];
-    await canvasOf(place).waitFor({ state: 'attached' });
-    // Поки модель вантажиться, кадрів ще немає (pending); перший намальований кадр — уже playing (або коротка поява вже done).
-    await expect.poll(() => appearance(place), POLL).not.toBe(`${kind}:pending`);
-    expect([`${kind}:playing`, `${kind}:done`], `place ${place} appearance`).toContain(await appearance(place));
-    // Перші ~0.4 с кубок ще над кадром (падіння з 3r); знімок — коли він уже в кадрі, але ще в повітрі.
     if (place === 1) {
-      await stage.waitForTimeout(400);
+      // Падіння з 3r: перші ~0.5 с кубок здебільшого над кадром. Знімок через 0.49 с від першого намальованого кадру — кубок
+      // уже в кадрі, але ще в повітрі (на початку знімка lift ≈ 1.2r; удар об підлогу — на 0.65 с).
+      await stage.waitForFunction(
+        `(start => start !== undefined && performance.now() - start >= 490)(window.__appear25b['drop:playing'])`,
+        null,
+        { polling: 'raf', timeout: 10_000 },
+      );
       await shot(stage, 'p25b-stage-appearing');
     }
-    await expect.poll(() => appearance(place), { timeout: Math.max(1, 5000 - (Date.now() - shownAt)) }).toBe(`${kind}:done`);
+    await expect.poll(() => appearance(place), { timeout: 10_000 }).toBe(`${kind}:done`);
     expect(await canvasOf(place).getAttribute('data-effect'), `place ${place} effect`).toBe(effect);
+    // Перший намальований кадр — playing, потім done; done не пізніше 5 с від появи колонки.
+    const { shown, appear } = await marks();
+    expect(shown[place], `place ${place} shown`).toBeDefined();
+    expect(appear[`${kind}:playing`], `place ${place} never played`).toBeDefined();
+    expect(appear[`${kind}:playing`]!, `place ${place} order`).toBeLessThanOrEqual(appear[`${kind}:done`]!);
+    expect(appear[`${kind}:done`]! - shown[place]!, `place ${place} appearance time from the column`).toBeLessThanOrEqual(5000);
   }
   expect(await column(1).locator('.podium-name').textContent()).toBe('Петро');
   expect(await column(2).locator('.podium-name').textContent()).toBe('Іра');
@@ -21272,12 +21300,27 @@ async function trophyEffects25b() {
   await expect.poll(() => ceremony.locator('.trophy-fallback').count(), POLL).toBe(0);
   expect(await ceremony.locator('canvas.trophy-canvas').count()).toBe(3);
   expect(await stage.evaluate('window.__webglCalls'), 'WebGL contexts on the stage').toBeLessThanOrEqual(2);
-  // Вогонь рухається: два кадри місця 1 з різницею 300 мс різні.
-  const stageFrame = (place: number) =>
-    stage.evaluate(`document.querySelector('.ceremony .podium-col.is-place-${place} canvas.trophy-canvas').toDataURL()`) as Promise<string>;
-  const fireBefore = await stageFrame(1);
-  await stage.waitForTimeout(300);
-  expect((await stageFrame(1)) !== fireBefore, 'the fire stands still').toBe(true);
+  // Ефекти живі там, куди трофей не дістає ні під яким кутом обертання (сам кадр крутиться завжди, тож цілий кадр нічого не доводить):
+  // – сніг: ліва смуга полотна зірки x ∈ [0, 0.12w], y ∈ [0.1h, 0.6h] — це 0.83r–1.09r від осі, а півширина зірки ≈ 0.58r; снігова коробка — ±1.4r;
+  // – сяйво: смуга гало медалі (як у haloPixels25b) пульсує.
+  // Зі статичним ефектом (позиції частинок і прозорість сяйва незмінні) ці смуги між кадрами однакові.
+  // Скільки пікселів смуги змінилися за 300 мс хоч в одному каналі на ≥ 3: перемальований нерухомий кадр дає ±1 (округлення
+  // при копіюванні), тож такий шум не рахується; зміна розміру полотна (подіум перекладається) — теж не рух ефекту (0).
+  const stageBand = (place: number, x0: number, x1: number, y0: number, y1: number) =>
+    stage.evaluate(bandPixels25b(`.ceremony .podium-col.is-place-${place} canvas.trophy-canvas`, x0, x1, y0, y1)) as Promise<string>;
+  const moved = async (place: number, x0: number, x1: number, y0: number, y1: number) => {
+    const [sizeBefore, before] = (await stageBand(place, x0, x1, y0, y1)).split(':') as [string, string];
+    await stage.waitForTimeout(300);
+    const [sizeAfter, after] = (await stageBand(place, x0, x1, y0, y1)).split(':') as [string, string];
+    if (sizeBefore !== sizeAfter) return 0;
+    const a = before.split(',').map(Number);
+    const b = after.split(',').map(Number);
+    let count = 0;
+    for (let i = 0; i < a.length; i += 4) if ([0, 1, 2, 3].some((c) => Math.abs(a[i + c]! - b[i + c]!) >= 3)) count++;
+    return count;
+  };
+  await expect.poll(() => moved(3, 0, 0.12, 0.1, 0.6), { message: 'the snow stands still', timeout: 5000 }).toBeGreaterThan(5);
+  await expect.poll(() => moved(2, 0.08, 0.2, 0.35, 0.65), { message: 'the glow stands still', timeout: 5000 }).toBeGreaterThan(5);
   // Блакитне гало навколо медалі: світлі пікселі поза її силуетом.
   const halo = (await stage.evaluate(haloPixels25b('.ceremony .podium-col.is-place-2 canvas.trophy-canvas'))) as number;
   expect(halo, 'the medal glow halo').toBeGreaterThan(50);
