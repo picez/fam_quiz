@@ -161,5 +161,46 @@ describe('groups and tables (25e)', () => {
   });
   it('agrees a new material with a new kind', () => {
     expect(trophyLabel({ kind: 'plate', material: 'gold' })).toBe('Золота тарілка-трофей');
+    expect(trophyLabel({ kind: 'laurel', material: 'wood' })).toBe('Дерев’яний лавровий вінок');
+    expect(trophyLabel({ kind: 'vase', material: 'rosegold' })).toBe('Рожевозолота ваза');
+  });
+});
+
+describe('new names in every locale (25e)', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('every kind and material makes a label in every locale', async () => {
+    for (const locale of ['uk', 'en', 'pl', 'de', 'es', 'it', 'ar'] as const) {
+      await loadLocale(locale);
+      activateLocale(locale);
+      for (const kind of TROPHY_KINDS) {
+        for (const material of TROPHY_MATERIALS) {
+          const label = trophyLabel({ kind, material });
+          expect(label.trim(), `${locale} ${kind} ${material}`).not.toBe('');
+          expect(label, `${locale} ${kind} ${material}`).not.toMatch(/material_|trophy_/);
+        }
+      }
+    }
+  });
+
+  it('agrees the new kinds in each language', async () => {
+    const use = async (locale: 'en' | 'pl' | 'de' | 'es' | 'it' | 'ar') => {
+      await loadLocale(locale);
+      activateLocale(locale);
+    };
+    await use('en');
+    expect(trophyLabel({ kind: 'fist', material: 'copper' })).toBe('Copper raised fist');
+    await use('de');
+    expect(trophyLabel({ kind: 'octagon', material: 'gold' })).toBe('Goldene achteckige Medaille');
+    expect(trophyLabel({ kind: 'goblet', material: 'gold' })).toBe('Goldener Kelch');
+    await use('es');
+    expect(trophyLabel({ kind: 'vase', material: 'gold' })).toBe('Jarrón de oro');
+    await use('it');
+    expect(trophyLabel({ kind: 'flame', material: 'gold' })).toBe("Fiamma d'oro");
+    await use('pl');
+    expect(trophyLabel({ kind: 'fist', material: 'gold' })).toBe('Złota pięść');
+    await use('ar');
+    expect(trophyLabel({ kind: 'crown', material: 'bronze' })).toBe('تاج برونزي');
+    expect(trophyLabel({ kind: 'flame', material: 'gold' })).toBe('شعلة ذهبية');
   });
 });
