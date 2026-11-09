@@ -91,7 +91,7 @@ describe('uk golden (22a)', () => {
   /** 26a: заставка «БЛІЦ!» перед бліц-клітинкою поля. */
   const ADDED_26A = ['splashBlitz'];
   /** 26c: словесна драбина — назви типу, формат відповіді, рядок наживо, помилки ходу. Задачі 7–9 дописують сюди свої. */
-  const ADDED_26C = ['type_wordladder', 'typeShort_wordladder', 'typeHow_wordladder', 'buffWhy_off_wordladder', 'wordLadderAnswerDone', 'wordLadderAnswerPart', 'wordLadderLiveSteps', 'err_word_one_letter', 'err_word_unknown', 'err_word_repeat', 'err_word_none', 'err_word_too_many'];
+  const ADDED_26C = ['type_wordladder', 'typeShort_wordladder', 'typeHow_wordladder', 'buffWhy_off_wordladder', 'wordLadderAnswerDone', 'wordLadderAnswerPart', 'wordLadderLiveSteps', 'err_word_one_letter', 'err_word_unknown', 'err_word_repeat', 'err_word_none', 'err_word_too_many', 'wordLadderStart', 'wordLadderStepN', 'addWordLadderStep', 'removeWordLadderStep', 'wordLadderTarget', 'wordLadderMaxSteps', 'wordLadderHint', 'wordLadderUnknown', 'problemWordLadderWord', 'problemWordLadderLength', 'problemWordLadderStep', 'problemWordLadderSteps', 'problemWordLadderMaxSteps', 'problemWordLadderPlace'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
   const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
 

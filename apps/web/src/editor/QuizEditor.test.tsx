@@ -1387,6 +1387,70 @@ describe('QuizEditor: chain questions', () => {
   });
 });
 
+describe('QuizEditor: word ladder questions (26c)', () => {
+  it('edits a word ladder and warns about words missing from the dictionary', async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) =>
+      url === '/api/wordladder/check' ? new Response(JSON.stringify({ unknown: ['поси'] }), { status: 200 }) : new Response('{}', { status: 404 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const checks = () => fetchMock.mock.calls.filter(([url]) => url === '/api/wordladder/check');
+    const { onSave } = open();
+    fill('Назва вікторини', 'Слова');
+    click('драбина слів');
+    fill('Текст запитання', 'Від ПОЛЕ до ТАРА');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    fill('Стартове слово', 'ПОЛЕ');
+    fill('Крок 1', 'поси');
+    fill('Цільове слово', 'ТАРА');
+    fill('Найбільше кроків', '8');
+
+    // Зламаний крок: словник не питають, а збереження називає проблему.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(checks()).toHaveLength(0);
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemWordLadderStep', { index: 1 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+
+    fill('Крок 1', 'ПОЛА');
+    click('Додати слово');
+    fill('Крок 2', 'ПОРА');
+    click('Додати слово');
+    fill('Крок 3', 'ПАРА');
+    expect(screen.queryByRole('status')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe(t('wordLadderUnknown', { words: 'поси' })), { timeout: 3000 });
+    // Один запит після паузи, а не по запиту на кожне натискання.
+    expect(checks()).toHaveLength(1);
+    expect(JSON.parse(String(checks()[0][1]?.body))).toEqual({ words: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'] });
+
+    // Попередження не заважає зберегти.
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'wordladder', path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8, video: null });
+  });
+
+  it('a failed dictionary check shows no warning', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('offline');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    open();
+    click('драбина слів');
+    fill('Стартове слово', 'ПОЛЕ');
+    fill('Крок 1', 'ПОЛА');
+    fill('Цільове слово', 'ПОРА');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('a blitz round shows no word ladder chip', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'драбина слів' })).toBeNull();
+  });
+});
+
 describe('QuizEditor: sort questions', () => {
   it('the author builds a sort question', async () => {
     const { onSave } = open();

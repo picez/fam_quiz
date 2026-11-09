@@ -122,6 +122,12 @@ export async function fetchQuizLikes(id: string): Promise<QuizLikes | null> {
   const result = await fetchData<QuizLikes>(`${quizUrl(id)}/likes`);
   return result.ok ? result.data : null;
 }
+/** Слова, яких немає в словнику драбини; null — сервер не відповів (попередження тоді не показується). */
+export async function checkLadderWords(words: string[]): Promise<string[] | null> {
+  const result = await request<{ unknown?: unknown }>('/api/wordladder/check', { body: { words } });
+  if (!result.ok || !Array.isArray(result.unknown)) return null;
+  return result.unknown.filter((word): word is string => typeof word === 'string');
+}
 export const createQuiz = (quiz: Quiz) => request<{ id: string }>('/api/quizzes', { body: quiz });
 export const updateQuiz = (id: string, quiz: Quiz) => request<{ id: string }>(quizUrl(id), { method: 'PUT', body: quiz });
 export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method: 'DELETE' });

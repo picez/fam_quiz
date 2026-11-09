@@ -1854,6 +1854,25 @@ a.banner {
   min-width: 0;
 }
 
+/* Редактор словесної драбини (26c): старт, кроки, ціль і максимум стовпчиком. */
+.wordladder-edit {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* Попередження словника: не помилка, збереженню не заважає. */
+.wordladder-unknown {
+  margin: 0;
+  padding-block: 0.5rem;
+  padding-inline: 0.875rem;
+  border-inline-start: 4px solid var(--amber);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+
 .answer-row {
   display: flex;
   align-items: center;
