@@ -266,7 +266,7 @@ function responsesOf(
 
 /** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
 function finalResult(
-  round: FinalRound,
+  round: Pick<FinalRound, 'wagerMode'>,
   given: { participantId: string; attempt: number; payload: Answer | null; accepted: boolean; points: number; wager: number | null; awayMs: number | null }[],
   standings: { participantId: string; nickname: string }[],
 ): GameQuestionResult['final'] {
@@ -644,7 +644,8 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
-        final: round?.type === 'final' ? finalResult(round, given, standings) : null,
+        // «Ставки» ведуть ставки тими ж записами, що й фінал, лише завжди «класичними» (ставка — плюс чи мінус).
+        final: round?.type === 'final' ? finalResult(round, given, standings) : round?.type === 'bets' ? finalResult({ wagerMode: 'classic' }, given, standings) : null,
         bets: round?.type === 'bets',
       },
     ];
