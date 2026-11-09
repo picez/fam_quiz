@@ -199,10 +199,10 @@ function pickCategory(state: GameState, now: number, rng: Rng): Result {
   return pickDuelCategory(state, null, category.id, now, rng);
 }
 
-/** Розкриття фіналу: запитання фіналу поточного раунду. */
+/** Розкриття фіналу: запитання фіналу поточного раунду. «Ставки» (27a) розкривають усіх одразу — як класика. */
 function finalReveal(state: GameState): boolean {
   const play = state.plays[state.questionIndex];
-  return state.final !== null && play?.final !== undefined && play.roundIndex === state.roundIndex;
+  return state.final !== null && play?.final !== undefined && play.roundIndex === state.roundIndex && currentRound(state)?.type === 'final';
 }
 
 /** Скільки триває поточний крок розкриття. */

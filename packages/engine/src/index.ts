@@ -23,6 +23,7 @@ export * from './board-turns';
 export * from './board-dice';
 export * from './board-cells';
 export * from './final';
+export * from './bets';
 export * from './chain';
 export * from './wordladder';
 export * from './sort';

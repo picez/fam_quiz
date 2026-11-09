@@ -5,7 +5,10 @@ import { buffBlock, buffsUsed, fiftyCount, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { acceptAnswer, lock, next, override, pause, removePlayer, start, submitAnswer, type GameState } from './game';
 import { FIRST_BUFFS, T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing/buffs';
+import { placeWager } from './final';
+import { shopBlock } from './debuffs';
 import {
+  betsRound,
   blitzRound,
   bool,
   boardRound,
@@ -156,6 +159,21 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([wordladder], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_wordladder');
+  });
+
+  it('a bets round has no buffs and no debuff shop (27a)', () => {
+    const quiz = makeRoundsQuiz([betsRound('s1', [single4])], { buffs });
+    const intro = must(start(lobbyWith(quiz, 'Оля')));
+    expect(shopBlock(intro, 'p1')).toBe('phase');
+    const wager = must(next(intro, T0, rng0));
+    expect(wager.phase).toBe('wager');
+    expect(shopBlock(wager, 'p1')).toBe('phase');
+    const open = must(next(wager, T0, rng0));
+    expect(open.phase).toBe('question');
+    expect(takeBuff(open, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(open, 'p1', 'double')).toBe('off_bets');
+    expect(shopBlock(open, 'p1')).toBe('phase');
+    expect(placeWager(open, 'p1', 200, T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('buffs work only where the player answers from the phone', () => {

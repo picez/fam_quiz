@@ -1,6 +1,7 @@
 import { rulesOf, type ErrorCode, type Question, type SortWordMark } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
+import { betsRefusal, wagerRound } from './bets';
 import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
 import { finalPoints } from './score';
 import { limitMsOf, timeOver } from './timing';
@@ -39,9 +40,9 @@ function withProgress(state: GameState, play: Play, playerId: string, progress: 
   return withPlay(state, { ...play, sort: { ...play.sort, [playerId]: progress } });
 }
 
-/** Чи зіграно запитання в раунді фіналу. */
+/** Чи зіграно запитання в раунді зі ставками (фінал чи «Ставки»). */
 function isFinal(state: GameState, play: Play): boolean {
-  return state.quiz.rounds[play.roundIndex]?.type === 'final';
+  return wagerRound(state.quiz.rounds[play.roundIndex]);
 }
 
 /** Чи зіграно запитання в бліц-раунді: перемагає перший, хто відсортував усе. */
@@ -63,6 +64,8 @@ export function sortWord(state: GameState, playerId: string, wordId: string, cat
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
+  const skipped = betsRefusal(state, playerId);
+  if (skipped !== null) return fail(skipped);
   const play = sortPlay(state);
   if (play === null) return fail('type_mismatch');
   if (!sortsHere(state, play, playerId)) return fail('not_your_turn');

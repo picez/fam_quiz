@@ -15,6 +15,7 @@ import {
 // views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу). away.ts імпортує hostLive: цикл лише між функціями.
 import { answererOf } from './answerer';
 import { awayPeople } from './away';
+import { wagerRound } from './bets';
 import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
@@ -47,7 +48,7 @@ export function spareOf(state: GameState, id: string | undefined): Question | nu
 /** Номер підказки «Хто я?», на якій дано відповідь; null — не «Хто я?», бліц і фінал. (Переїхало з views.ts.) */
 export function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
   const play = state.plays[state.questionIndex];
-  if (play === undefined || play.blitz !== undefined || currentRound(state)?.type === 'final') return null;
+  if (play === undefined || play.blitz !== undefined || wagerRound(currentRound(state))) return null;
   return cluesAnswered(play, questionFor(state, play, playerId), timeMs, playerId);
 }
 
@@ -188,8 +189,8 @@ function progressRow(state: GameState, play: Play, base: LiveRow, record: Answer
   const bluff = play.bluff;
   if (play.question.type !== 'bluff' || bluff === undefined) {
     if (record !== undefined) return { ...base, answered: true, timeMs: record.timeMs };
-    // Фінал сортування: відповів, хто зробив хоч один хід, — як answeredCount у views.ts.
-    const finalSort = play.question.type === 'sort' && state.quiz.rounds[play.roundIndex]?.type === 'final';
+    // Фінал (і «Ставки») сортування: відповів, хто зробив хоч один хід, — як answeredCount у views.ts.
+    const finalSort = play.question.type === 'sort' && wagerRound(state.quiz.rounds[play.roundIndex]);
     return finalSort && Object.hasOwn(play.sort ?? {}, base.id) ? { ...base, answered: true } : base;
   }
   if (state.phase === 'question' && bluff.stage === 'lies') return { ...base, answered: Object.hasOwn(bluff.lies, base.id) };
@@ -208,7 +209,7 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
   const board = play.board !== undefined && play.board.chooserId === id ? play.board : undefined;
   const voice = record === undefined && board !== undefined && board.answerMode === 'voice';
   const round = state.quiz.rounds[play.roundIndex];
-  const manualFinal = round?.type === 'final' && round.check === 'manual';
+  const manualFinal = wagerRound(round) && round.check === 'manual';
   const base: LiveRow = {
     ...emptyRow(who, actingNickname(state, who)),
     buff: buff?.kind ?? null,
