@@ -157,19 +157,48 @@ describe('decorSummary', () => {
     photos: [photo, photo, photo],
     inscriptions: [inscription('rim'), inscription('plaque')],
     stickers: [
-      { id: 'a', place: 'front' },
-      { id: 'b', place: 'back' },
+      { id: 'a', place: 'base-right' },
+      { id: 'b', place: 'base-left' },
     ],
   };
   it('describes what is drawn', () => {
-    expect(decorSummary('cup', full)).toBe('photos:ring:3;inscriptions:rim,plaque;stickers:front,back');
+    expect(decorSummary('cup', full)).toBe('photos:ring:3;inscriptions:rim,plaque;stickers:base-right,base-left');
   });
   it('drops places the kind lacks', () => {
-    expect(decorSummary('star', full)).toBe('photos:none;inscriptions:plaque;stickers:front,back');
+    expect(decorSummary('star', full)).toBe('photos:none;inscriptions:plaque;stickers:base-right,base-left');
+    expect(decorSummary('medal', full)).toBe('photos:none');
   });
   it('omits empty parts', () => {
     const medal: TrophyDecor = { ...base, photos: [photo], photoPlace: 'medallion', inscriptions: [inscription('back')] };
     expect(decorSummary('medal', medal)).toBe('photos:medallion:1;inscriptions:back');
+  });
+  it('marks moved and dropped places', () => {
+    const medallion: TrophyDecor = {
+      ...base,
+      photos: [photo],
+      photoPlace: 'medallion',
+      stickers: [{ id: 'a', place: 'front' }],
+    };
+    expect(decorSummary('cup', medallion)).toBe('photos:medallion:1;stickers:front>left');
+    const star: TrophyDecor = {
+      ...medallion,
+      inscriptions: [inscription('back')],
+      stickers: [
+        { id: 'a', place: 'front' },
+        { id: 'b', place: 'left' },
+        { id: 'c', place: 'base-left' },
+        { id: 'd', place: 'base-right' },
+      ],
+    };
+    expect(decorSummary('star', star)).toBe('photos:medallion:1;inscriptions:back;stickers:front>none,left>none,base-left,base-right');
+    const ring: TrophyDecor = { ...base, photos: [photo, photo, photo], inscriptions: [inscription('rim'), inscription('back')] };
+    expect(decorSummary('cup', ring)).toBe('photos:ring:3;inscriptions:rim,back>base-back');
+    // Кільце фото обходить усю чашу: наліпка на чаші переїжджає на основу.
+    expect(decorSummary('cup', { ...ring, inscriptions: [], stickers: [{ id: 'a', place: 'front' }] })).toBe(
+      'photos:ring:3;stickers:front>base-left',
+    );
+    const grail: TrophyDecor = { ...ring, inscriptions: [inscription('back')] };
+    expect(decorSummary('grail', grail)).toBe('photos:ring:3;inscriptions:back>none');
   });
   it('is empty without decor', () => {
     expect(decorSummary('cup', null)).toBe('');

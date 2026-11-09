@@ -1,6 +1,7 @@
 import { shownDecor } from '@quiz/shared';
 import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial, TrophyPhotoPlace } from '@quiz/shared';
 import type { Circle, Vec3 } from './anchors';
+import { layoutDecor } from './decor-places';
 
 /** Клітинка атласу кільця: як у запеченому грааль. */
 export const RING_TILE = { width: 150, height: 204, pad: 8, background: '#20160c' } as const;
@@ -126,12 +127,19 @@ export function fitDistance(radius: number, fovDeg: number, aspect: number): num
   return (radius / Math.sin(Math.min(vertical, horizontal))) * 1.05;
 }
 
-/** Що намальовано, для data-decor: фото (місце й кількість), написи, наліпки; '' без decor. */
+/** Місце в data-decor: як є без переїзду, `front>left` з переїздом, `front>none`, якщо не вміщується. */
+const moved = (own: string, at: string | null) => (at === own ? own : `${own}>${at ?? 'none'}`);
+
+/** Що намальовано, для data-decor: фото (місце й кількість), написи, наліпки — де фактично лежать; '' без decor. */
 export function decorSummary(kind: TrophyKind, decor: TrophyDecor | null | undefined): string {
   if (decor == null) return '';
   const shown = shownDecor(kind, decor);
+  const layout = layoutDecor(kind, decor);
   const parts = [shown.photos.length > 0 ? `photos:${shown.photoPlace}:${shown.photos.length}` : 'photos:none'];
-  if (shown.inscriptions.length > 0) parts.push(`inscriptions:${shown.inscriptions.map((i) => i.place).join(',')}`);
-  if (shown.stickers.length > 0) parts.push(`stickers:${shown.stickers.map((s) => s.place).join(',')}`);
+  if (layout.inscriptions.length > 0) {
+    const places = layout.inscriptions.map((i) => moved(i.inscription.place, i.at === 'own' ? i.inscription.place : i.at));
+    parts.push(`inscriptions:${places.join(',')}`);
+  }
+  if (layout.stickers.length > 0) parts.push(`stickers:${layout.stickers.map((s) => moved(s.place, s.at)).join(',')}`);
   return parts.join(';');
 }
