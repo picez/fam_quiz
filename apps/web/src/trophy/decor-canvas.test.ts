@@ -13,7 +13,7 @@ import {
   loadInscriptionFont,
   toneImageData,
 } from './decor-canvas';
-import { coverCrop, metalStops, rimUnit } from './decor-layout';
+import { PHOTO_BOX, coverCrop, metalStops, rimUnit } from './decor-layout';
 
 interface Call {
   name: string;
@@ -216,6 +216,19 @@ describe('decor canvas', () => {
     const c = coverCrop(img, { width: 134, height: 188 }, d.photos[0]!.crop);
     const first = calls.find((x) => x.name === 'drawImage')!;
     expect(first.args).toEqual([img, c.sx, c.sy, c.sw, c.sh, 8, 8, 134, 188]);
+  });
+
+  it('the crop preview box is what the trophy draws', () => {
+    const crop = { x: 0.3, y: 0.6, scale: 1.7 };
+    const d = decor({ photos: [{ url: '/uploads/aaaaaaaaaaaaaaaa.jpg', crop }] });
+    const card = fakeCtx();
+    drawPhotoCard(card.ctx, img, d.photos[0]!, d, PHOTO_BOX.plaque, 'gold');
+    const c = coverCrop(img, PHOTO_BOX.plaque, crop);
+    expect(card.calls.find((x) => x.name === 'drawImage')!.args.slice(0, 5)).toEqual([img, c.sx, c.sy, c.sw, c.sh]);
+    const disc = fakeCtx();
+    drawPhotoDisc(disc.ctx, img, d.photos[0]!, d, 512, 'gold');
+    const e = coverCrop(img, PHOTO_BOX.medallion, crop);
+    expect(disc.calls.find((x) => x.name === 'drawImage')!.args.slice(0, 5)).toEqual([img, e.sx, e.sy, e.sw, e.sh]);
   });
 
   it('toneImageData', () => {

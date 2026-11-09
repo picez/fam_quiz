@@ -1,9 +1,18 @@
 import { shownDecor } from '@quiz/shared';
-import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial } from '@quiz/shared';
+import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial, TrophyPhotoPlace } from '@quiz/shared';
 import type { Circle, Vec3 } from './anchors';
 
 /** Клітинка атласу кільця: як у запеченому грааль. */
 export const RING_TILE = { width: 150, height: 204, pad: 8, background: '#20160c' } as const;
+
+/** Пропорції рамки фото на кубку для кожного місця: ними кадрує і малювання, і діалог кадрування редактора. */
+export const PHOTO_BOX: Record<TrophyPhotoPlace, { width: number; height: number }> = {
+  ring: { width: RING_TILE.width, height: RING_TILE.height },
+  medallion: { width: 1, height: 1 },
+  gems: { width: 1, height: 1 },
+  plaque: { width: 1024, height: 400 },
+  backdrop: { width: 1024, height: 1024 },
+};
 
 export function ringAtlasSize(count: number): { width: number; height: number } {
   return { width: RING_TILE.width * count, height: RING_TILE.height };

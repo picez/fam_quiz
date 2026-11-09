@@ -23,7 +23,7 @@ import {
   drawRim,
   loadInscriptionFont,
 } from '../decor-canvas';
-import { gemSpots, ringAtlasSize } from '../decor-layout';
+import { PHOTO_BOX, gemSpots, ringAtlasSize } from '../decor-layout';
 import type { TrophySize } from '../engine-types';
 import { MATERIAL_LOOK } from '../trophy-meta';
 import type { DecorTextures } from './textures';
@@ -33,8 +33,8 @@ const LIFT = 0.004;
 /** Розмір текстури кружечка: медальйон і зворот / самоцвіт. */
 const DISC_PX = 512;
 const GEM_PX = 256;
-const PLAQUE = { width: 1024, height: 400 } as const;
-const BACKDROP = { width: 1024, height: 1024 } as const;
+const PLAQUE = PHOTO_BOX.plaque;
+const BACKDROP = PHOTO_BOX.backdrop;
 const BIG_SIZES: readonly TrophySize[] = ['stage', 'view'];
 
 type MetalLook = { metalness: number; roughness: number };
