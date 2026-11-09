@@ -11,6 +11,8 @@ type Crop = DecorPhoto['crop'];
 const VIEW_WIDTH = 280;
 /** Крок стрілок — частка ширини полотна. */
 const ARROW_STEP = 0.02;
+/** Підказка про стрілки в назві полотна: значки, однакові для всіх мов. */
+const ARROW_KEYS = '← ↑ → ↓';
 /** Радіус заокругленої рамки на кубку (decor-canvas), у пікселях прямокутника фото. */
 const ROUNDED_RADIUS = 18;
 const TONE: Record<TrophyPhotoStyle, string> = { normal: 'none', bw: 'grayscale(1)', sepia: 'sepia(1)' };
@@ -115,25 +117,32 @@ export function CropDialog({ url, crop: initial, place, frame, photoStyle, onDon
     pan(d[0], d[1], width);
   };
 
-  const keys = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
+  // Escape і Tab слухаємо на документі: дотик по заголовку чи полю діалогу не повинен вимкнути ні те, ні те.
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    const keys = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        close.current();
+        return;
+      }
+      if (event.key !== 'Tab' || dialog.current === null) return;
+      const focusable = Array.from(dialog.current.querySelectorAll<HTMLElement>('canvas, input, button')).filter((el) => !el.hasAttribute('disabled'));
+      if (focusable.length === 0) return;
+      const index = focusable.indexOf(document.activeElement as HTMLElement);
+      const next = event.shiftKey ? (index <= 0 ? focusable.length - 1 : index - 1) : index === focusable.length - 1 ? 0 : index + 1;
       event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab' || dialog.current === null) return;
-    const focusable = Array.from(dialog.current.querySelectorAll<HTMLElement>('canvas, input, button')).filter((el) => !el.hasAttribute('disabled'));
-    if (focusable.length === 0) return;
-    const index = focusable.indexOf(document.activeElement as HTMLElement);
-    const next = event.shiftKey ? (index <= 0 ? focusable.length - 1 : index - 1) : index === focusable.length - 1 ? 0 : index + 1;
-    event.preventDefault();
-    focusable[next]!.focus();
-  };
+      focusable[next]!.focus();
+    };
+    document.addEventListener('keydown', keys);
+    return () => document.removeEventListener('keydown', keys);
+  }, []);
 
   return createPortal(
     <div className="crop-backdrop">
-      <div ref={dialog} className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title" onKeyDown={keys}>
+      <div ref={dialog} className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="crop-title" tabIndex={-1}>
         <h2 id="crop-title" className="crop-title">
           {t('studioCropTitle')}
         </h2>
@@ -142,7 +151,8 @@ export function CropDialog({ url, crop: initial, place, frame, photoStyle, onDon
           className="crop-canvas"
           style={{ width: VIEW_WIDTH, aspectRatio: `${box.width} / ${box.height}` }}
           tabIndex={0}
-          aria-label={t('studioCropHint')}
+          role="img"
+          aria-label={`${t('studioCropHint')} (${ARROW_KEYS})`}
           data-ready={image !== null}
           onPointerDown={down}
           onPointerMove={moveDrag}

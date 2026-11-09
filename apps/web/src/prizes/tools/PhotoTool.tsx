@@ -12,7 +12,8 @@ const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).in
 /**
  * «Фото»: місце (лише ті, що має форма), кілька файлів за раз у межах місця, порядок, кадрування кожного фото,
  * рамка і стиль. Видно й рахується лише те, що влазить у місце (як і зберігається). Файли вантажаться по одному: неприйнятий пропускається, помилка сервера (зокрема too_many)
- * зупиняє пачку, а вже завантажені лишаються на кубку.
+ * зупиняє пачку, а вже завантажені лишаються на кубку. Чернетка живе в PrizeStudio, тож пачка доходить до кінця й тоді,
+ * коли інструмент закрили посеред завантаження (перейшли на іншу вкладку).
  */
 export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
   const { decor } = draft;
@@ -45,23 +46,22 @@ export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
     for (const file of files) {
       if (room <= 0) break;
       if (!isAllowed(file.type)) {
-        setError(errorText('bad_image'));
+        if (mounted.current) setError(errorText('bad_image'));
         continue;
       }
       if (file.size > IMAGE_LIMITS.maxBytes) {
-        setError(errorText('too_large'));
+        if (mounted.current) setError(errorText('too_large'));
         continue;
       }
       const result = await uploadImage(file);
-      if (!mounted.current) return;
       if (!result.ok) {
-        setError(errorText(result.error));
+        if (mounted.current) setError(errorText(result.error));
         break;
       }
       dispatch({ type: 'addPhotos', urls: [result.url] });
       room -= 1;
     }
-    setBusy(false);
+    if (mounted.current) setBusy(false);
   };
 
   const label = (action: TextKey, index: number) => `${t(action)}: ${t('studioPhotoN', { n: index + 1 })}`;

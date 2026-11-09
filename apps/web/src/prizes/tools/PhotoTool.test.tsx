@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { EMPTY_DECOR, type TrophyKind } from '@quiz/shared';
-import { useReducer } from 'react';
+import { useReducer, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadImage } from '../../api';
 import { draftFrom, studioReducer, type StudioDraft } from '../studio-draft';
@@ -53,6 +53,22 @@ function open(kind: TrophyKind = 'cup', urls: string[] = []) {
   render(<Harness start={start} />);
 }
 
+/** Інструмент, який можна закрити (як перехід на іншу вкладку), а чернетка лишається в батьківському. */
+function Closable({ start }: { start: StudioDraft }) {
+  const [draft, dispatch] = useReducer(studioReducer, start);
+  const [shown, setShown] = useState(true);
+  current = draft;
+  return (
+    <>
+      <button type="button" onClick={() => setShown(false)}>
+        close-tool
+      </button>
+      {shown && <PhotoTool draft={draft} dispatch={(action) => dispatch(action)} level={1} replay={() => {}} />}
+    </>
+  );
+}
+
+const cropFrame = () => screen.getByRole('img', { name: 'Тягни фото, щоб зсунути кадр (← ↑ → ↓)' });
 const png = (name: string) => new File(['x'], name, { type: 'image/png' });
 const fileInput = () => screen.getByLabelText('Додати фото') as HTMLInputElement;
 const pick = (files: File[]) => fireEvent.change(fileInput(), { target: { files } });
@@ -94,6 +110,23 @@ describe('PhotoTool', () => {
     expect(current.decor.photos.map((p) => p.url)).toEqual(['/uploads/1.png']);
     expect(fileInput().disabled).toBe(false);
     expect(screen.getByText('1 з 16')).toBeTruthy();
+  });
+
+  it('closing the tool mid-batch still lands the uploads in the draft', async () => {
+    const pending: ((url: string) => void)[] = [];
+    vi.mocked(uploadImage).mockImplementation(
+      () => new Promise((resolve) => pending.push((url) => resolve({ ok: true, url }))),
+    );
+    const start = draftFrom(null);
+    render(<Closable start={start} />);
+    pick([png('a.png'), png('b.png')]);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'close-tool' }));
+    expect(screen.queryByLabelText('Додати фото')).toBeNull();
+    pending[0]!('/uploads/1.png');
+    await waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]!('/uploads/2.png');
+    await waitFor(() => expect(current.decor.photos.map((p) => p.url)).toEqual(['/uploads/1.png', '/uploads/2.png']));
   });
 
   it('wrong file is skipped', async () => {
@@ -141,7 +174,7 @@ describe('PhotoTool', () => {
 
     // стрілка ліворуч: кадр їде праворуч по фото
     fireEvent.click(cropButton);
-    const frame = screen.getByLabelText('Тягни фото, щоб зсунути кадр');
+    const frame = cropFrame();
     await waitFor(() => expect(frame.getAttribute('data-ready')).toBe('true'));
     fireEvent.keyDown(frame, { key: 'ArrowLeft' });
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
@@ -161,7 +194,7 @@ describe('PhotoTool', () => {
     const done = screen.getByRole('button', { name: 'Готово' });
     done.focus();
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab' });
-    expect(document.activeElement).toBe(screen.getByLabelText('Тягни фото, щоб зсунути кадр'));
+    expect(document.activeElement).toBe(cropFrame());
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(done);
   });
@@ -178,6 +211,24 @@ describe('PhotoTool', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Кільце по чаші' }));
     expect(screen.getAllByRole('img')).toHaveLength(5);
     expect(screen.getByText('5 з 16')).toBeTruthy();
+  });
+
+  it('escape and tab work with focus outside the controls', () => {
+    open('cup', ['/uploads/a.png']);
+    fireEvent.click(screen.getByRole('button', { name: 'Кадрувати: Фото 1' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('tabindex')).toBe('-1');
+    // дотик по заголовку: фокус на самому діалозі або, у старих браузерах, на body
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(document.activeElement).toBe(cropFrame());
+    (document.activeElement as HTMLElement).blur();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Готово' }));
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('frame and style', () => {
