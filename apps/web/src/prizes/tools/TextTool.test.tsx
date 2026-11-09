@@ -75,6 +75,22 @@ describe('TextTool', () => {
     expect(within(place('По колу на вінці')).queryByLabelText('Текст')).toBeNull();
   });
 
+  it('typing goes on after the first change, also after the text is cleared', () => {
+    open('cup');
+    fireEvent.click(toggle('Табличка'));
+    const field = () => within(place('Табличка')).getByLabelText('Текст') as HTMLTextAreaElement;
+    fireEvent.change(field(), { target: { value: 'О' } });
+    fireEvent.change(field(), { target: { value: 'Оля' } });
+    fireEvent.change(field(), { target: { value: 'Оля\nПетрові' } });
+    expect(current.decor.inscriptions).toEqual([{ place: 'plaque', text: 'Оля\nПетрові', font: null, look: 'engraved', color: '#3a2a0e' }]);
+    expect(field().value).toBe('Оля\nПетрові');
+    fireEvent.click(radio(fonts('Табличка'), 'Рукописний'));
+    fireEvent.change(field(), { target: { value: '' } });
+    fireEvent.change(field(), { target: { value: 'Н' } });
+    fireEvent.change(field(), { target: { value: 'Нове' } });
+    expect(current.decor.inscriptions).toEqual([{ place: 'plaque', text: 'Нове', font: 'hand', look: 'engraved', color: '#3a2a0e' }]);
+  });
+
   it('the plaque takes two lines', () => {
     open('cup');
     fireEvent.click(toggle('Табличка'));

@@ -8,6 +8,7 @@ import { ColorField } from './ColorField';
 
 type Style = Omit<Inscription, 'place' | 'text'>;
 const NEW_STYLE: Style = { font: null, look: 'engraved', color: INSCRIPTION_COLOR };
+const styleOf = ({ font, look, color }: Style): Style => ({ font, look, color });
 
 /**
  * «Написи»: кожне місце форми вмикається перемикачем, далі текст з лічильником, шрифт (класичний і 8 шрифтів
@@ -39,7 +40,8 @@ export function TextTool({ draft, dispatch, level, stored }: ToolProps): JSX.Ele
     <div className="studio-tool">
       {places.map((place) => {
         const saved = decor.inscriptions.find((i) => i.place === place);
-        const style: Style | undefined = saved ?? pending[place];
+        // Лише стиль: збережений напис несе ще й place і text, а старий text не повинен перекрити набраний.
+        const style: Style | undefined = saved !== undefined ? styleOf(saved) : pending[place];
         const on = style !== undefined;
         const text = saved?.text ?? '';
         const max = DECOR_LIMITS[place];
