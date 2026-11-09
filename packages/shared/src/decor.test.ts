@@ -179,7 +179,7 @@ describe('shownDecor', () => {
       sticker: ['back', 'left', 'right', 'base-left', 'base-right'],
     });
     for (const kind of ['laurel', 'olive'] as const) {
-      expect(DECOR_SUPPORT[kind]).toEqual({ photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'base-left', 'base-right'] });
+      expect(DECOR_SUPPORT[kind]).toEqual({ photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['base-left', 'base-right'] });
     }
     expect(DECOR_SUPPORT.figure).toEqual({ photo: TROPHY_PHOTO_PLACES, inscription: ['band', 'plaque'], sticker: STICKER_PLACES });
     expect(DECOR_SUPPORT.flame).toEqual({ photo: ['medallion', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'back', 'base-left', 'base-right'] });

@@ -4,7 +4,7 @@ import { STICKER_PLACES } from '@quiz/shared';
 import { NEW_KINDS_25E, TROPHY_ANCHORS, profileRadius, type BandAnchor, type Plate, type Spot } from '../anchors';
 import { gemSpots } from '../decor-layout';
 import { glbGeometry } from './glb-fixture';
-import { DECAL_DEPTH, profileBand, projectDecal } from './surface-geometry';
+import { profileBand, projectDecal } from './surface-geometry';
 
 /** Осі проєктора, як у projectDecal: up — Y у площині нормалі (для майже вертикальної — Z), right = up × normal. */
 function frame(spot: Spot): { normal: Vector3; up: Vector3; right: Vector3 } {
@@ -32,15 +32,6 @@ function projectedArea(decal: BufferGeometry, spot: Spot): number {
 /** Табличка (і поясок на грані) — пластина, повернута навколо X на tiltX від лиця +Z. */
 const plateNormal = (plate: Plate): readonly [number, number, number] => [0, -Math.sin(plate.tiltX), Math.cos(plate.tiltX)];
 
-/**
- * Плями, менші за глибину проєктора (±DECAL_DEPTH), за якими модель продовжується: там декаль лягає й на те, що ззаду,
- * але воно сховане за самою плямою. Вузол вінка (куля r 0.024): за ним гілка-тор (z 0…0.012) і стрижень.
- */
-const HIDDEN_BEHIND: Record<string, number> = {
-  'laurel sticker front': DECAL_DEPTH,
-  'olive sticker front': DECAL_DEPTH,
-};
-
 const meshes = new Map<string, BufferGeometry>();
 const meshOf = (kind: string) => meshes.get(kind) ?? meshes.set(kind, glbGeometry(kind)).get(kind)!;
 
@@ -67,13 +58,12 @@ describe('25e decor places lie on the real model', () => {
       const center = new Vector3(...spot.position);
       const position = decal!.getAttribute('position');
       const limit = spot.size / 2 + 0.01;
-      const depthLimit = HIDDEN_BEHIND[`${kind} ${name}`] ?? limit;
       for (let i = 0; i < position.count; i++) {
         const offset = new Vector3().fromBufferAttribute(position, i).sub(center);
         for (const [axis, value, most] of [
           ['right', offset.dot(right), limit],
           ['up', offset.dot(up), limit],
-          ['normal', offset.dot(normal), depthLimit],
+          ['normal', offset.dot(normal), limit],
         ] as const) {
           expect(Math.abs(value), `${kind} ${name} ${axis}`).toBeLessThanOrEqual(most);
         }

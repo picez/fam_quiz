@@ -114,8 +114,9 @@ export const DECOR_SUPPORT: Record<
     inscription: ['band', 'plaque'],
     sticker: ['back', 'left', 'right', 'base-left', 'base-right'],
   },
-  laurel: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'base-left', 'base-right'] },
-  olive: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'base-left', 'base-right'] },
+  // Вінки без front: на вузлі (куля r 0.024) вміщується лише цятка, грань постаменту зайнята пояском і табличкою.
+  laurel: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['base-left', 'base-right'] },
+  olive: { photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['base-left', 'base-right'] },
   figure: {
     photo: ['ring', 'medallion', 'gems', 'plaque', 'backdrop'],
     inscription: ['band', 'plaque'],

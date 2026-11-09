@@ -530,23 +530,21 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     },
   },
   // Постамент plinth(0.22, 0.2) (грань 0.156); вінок R 0.32 з центром (0, 0.62); вузол — куля r 0.024 у (0, 0.3, 0.016).
-  // Грань постаменту зайнята пояском і табличкою, тож front — на вузлі; більша за 0.032 наліпка з кулі r 0.024 звисає.
+  // Наліпки front немає: грань постаменту зайнята пояском і табличкою, а на вузлі вміщується лише цятка.
   laurel: {
-    surfaces: { knot: 'flat', ...PLINTH },
+    surfaces: { ...PLINTH },
     band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
     plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      front: spot([0, 0.3, 0.041], FRONT, 0.032, 'knot'),
       'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
   },
   olive: {
-    surfaces: { knot: 'flat', ...PLINTH },
+    surfaces: { ...PLINTH },
     band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
     plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      front: spot([0, 0.3, 0.041], FRONT, 0.032, 'knot'),
       'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
