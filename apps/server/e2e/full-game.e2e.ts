@@ -21489,7 +21489,8 @@ async function trophyEditor25c() {
   expect(await tab(olya, 'Форма').getAttribute('aria-selected')).toBe('true');
   await studioCanvas.waitFor();
   await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
-  expect(await stageShare(olya), 'the stage at 390×844').toBeGreaterThanOrEqual(0.399);
+  // Шапка й шухляда разом — не більше половини екрана телефона.
+  expect(await stageShare(olya), 'the stage at 390×844').toBeGreaterThanOrEqual(0.5);
   await expectNoSideScroll(olya, 'p25c-studio-shape');
   for (const [width, height] of [[360, 640], [320, 568]] as const) {
     await olya.setViewportSize({ width, height });

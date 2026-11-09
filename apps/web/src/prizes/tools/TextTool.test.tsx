@@ -29,7 +29,7 @@ let current: StudioDraft;
 function Harness({ start, level, stored }: { start: StudioDraft; level: number; stored: TrophyDecor | null }) {
   const [draft, dispatch] = useReducer(studioReducer, start);
   current = draft;
-  return <TextTool draft={draft} dispatch={(action) => dispatch(action)} level={level} replay={() => {}} stored={stored} />;
+  return <TextTool draft={draft} dispatch={(action) => dispatch(action)} level={level} replay={() => {}} stored={stored} photoBusy={false} setPhotoBusy={() => {}} />;
 }
 
 function open(kind: TrophyKind = 'cup', { level = 1, decor = EMPTY_DECOR }: { level?: number; decor?: TrophyDecor } = {}) {

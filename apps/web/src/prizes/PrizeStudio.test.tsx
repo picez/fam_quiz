@@ -138,10 +138,28 @@ describe('PrizeStudio', () => {
     expect(onSave.mock.calls[0]![0]).toMatchObject({ name: 'Головний приз', engraving: 'Чемпіон', title: 'Ерудит', real: { text: 'Піца', photoUrl: null }, diploma: true });
   });
 
-  it('save is blocked with a reason', () => {
+  it('a new prize opens without an error; a save attempt shows why and saves nothing', () => {
+    const { onSave } = open();
+    expect(screen.queryByText('Дай призу назву.')).toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    expect(saveButton().getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(saveButton());
+    expect(onSave).not.toHaveBeenCalled();
+    const reason = screen.getByText('Дай призу назву.');
+    expect(saveButton().getAttribute('aria-describedby')).toBe(reason.parentElement!.id);
+  });
+
+  it('leaving the name field empty shows why save is blocked', () => {
     open();
-    expect(saveButton().disabled).toBe(true);
+    fireEvent.click(tab('Приз'));
+    const name = screen.getByLabelText('Назва');
+    fireEvent.focus(name);
+    expect(screen.queryByText('Дай призу назву.')).toBeNull();
+    fireEvent.blur(name);
     expect(screen.getByText('Дай призу назву.')).toBeTruthy();
+    fireEvent.change(name, { target: { value: 'Кубок' } });
+    expect(screen.queryByText('Дай призу назву.')).toBeNull();
+    expect(saveButton().getAttribute('aria-disabled')).toBeNull();
   });
 
   it('saving an old prize sends no decor', () => {

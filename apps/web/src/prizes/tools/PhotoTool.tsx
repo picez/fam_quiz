@@ -15,7 +15,7 @@ const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).in
  * зупиняє пачку, а вже завантажені лишаються на кубку. Чернетка живе в PrizeStudio, тож пачка доходить до кінця й тоді,
  * коли інструмент закрили посеред завантаження (перейшли на іншу вкладку).
  */
-export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
+export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setBusy }: ToolProps): JSX.Element {
   const { decor } = draft;
   const places = draft.trophy === null ? [] : DECOR_SUPPORT[draft.trophy.kind].photo;
   const placeShown = places.includes(decor.photoPlace);
@@ -24,7 +24,6 @@ export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
   const shown = decor.photos.slice(0, limit);
   const count = shown.length;
   const full = count >= limit;
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const mounted = useRef(true);
@@ -61,7 +60,8 @@ export function PhotoTool({ draft, dispatch }: ToolProps): JSX.Element {
       dispatch({ type: 'addPhotos', urls: [result.url] });
       room -= 1;
     }
-    if (mounted.current) setBusy(false);
+    // Стан «вантажиться» живе в PrizeStudio: знімаємо його й тоді, коли інструмент уже закрили.
+    setBusy(false);
   };
 
   const label = (action: TextKey, index: number) => `${t(action)}: ${t('studioPhotoN', { n: index + 1 })}`;

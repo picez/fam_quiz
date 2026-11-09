@@ -112,11 +112,16 @@ export function withinPlaceLimit(decor: TrophyDecor): TrophyDecor {
   return decor.photos.length <= limit ? decor : { ...decor, photos: decor.photos.slice(0, limit) };
 }
 
+/** id поля назви в «Приз»: коли його покидають, редактор показує, чому приз ще не зберегти. */
+export const STUDIO_NAME_FIELD = 'studio-name';
+
 export type StudioAction =
   | { type: 'name' | 'engraving' | 'title'; value: string }
   | { type: 'trophy'; kind: TrophyKind | null }
   | { type: 'material'; material: TrophyMaterial }
   | { type: 'real'; value: StudioDraft['real'] }
+  /** Лише фото справжнього призу: завантаження може прийти, коли інструмент «Приз» уже закрито (текст тоді не чіпаємо). */
+  | { type: 'realPhoto'; photoUrl: string | null }
   | { type: 'diploma'; value: boolean }
   | { type: 'photoPlace'; place: TrophyPhotoPlace }
   | { type: 'addPhotos'; urls: string[] }
@@ -150,6 +155,8 @@ export function studioReducer(draft: StudioDraft, action: StudioAction): StudioD
       return { ...draft, title: action.value };
     case 'real':
       return { ...draft, real: action.value };
+    case 'realPhoto':
+      return draft.real === null ? draft : { ...draft, real: { ...draft.real, photoUrl: action.photoUrl } };
     case 'diploma':
       return { ...draft, diploma: action.value };
     case 'trophy':

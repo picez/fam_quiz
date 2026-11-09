@@ -42,8 +42,9 @@ function stubImage(width: number, height: number) {
 let current: StudioDraft;
 function Harness({ start }: { start: StudioDraft }) {
   const [draft, dispatch] = useReducer(studioReducer, start);
+  const [busy, setBusy] = useState(false);
   current = draft;
-  return <PhotoTool draft={draft} dispatch={(action) => dispatch(action)} level={1} replay={() => {}} />;
+  return <PhotoTool draft={draft} dispatch={(action) => dispatch(action)} level={1} replay={() => {}} photoBusy={busy} setPhotoBusy={setBusy} />;
 }
 
 function open(kind: TrophyKind = 'cup', urls: string[] = []) {
@@ -53,17 +54,21 @@ function open(kind: TrophyKind = 'cup', urls: string[] = []) {
   render(<Harness start={start} />);
 }
 
-/** Інструмент, який можна закрити (як перехід на іншу вкладку), а чернетка лишається в батьківському. */
+/** Інструмент, який можна закрити й відкрити знову (як перехід на іншу вкладку), а чернетка й «вантажиться» — у батьківському. */
 function Closable({ start }: { start: StudioDraft }) {
   const [draft, dispatch] = useReducer(studioReducer, start);
   const [shown, setShown] = useState(true);
+  const [busy, setBusy] = useState(false);
   current = draft;
   return (
     <>
       <button type="button" onClick={() => setShown(false)}>
         close-tool
       </button>
-      {shown && <PhotoTool draft={draft} dispatch={(action) => dispatch(action)} level={1} replay={() => {}} />}
+      <button type="button" onClick={() => setShown(true)}>
+        open-tool
+      </button>
+      {shown && <PhotoTool draft={draft} dispatch={(action) => dispatch(action)} level={1} replay={() => {}} photoBusy={busy} setPhotoBusy={setBusy} />}
     </>
   );
 }
@@ -127,6 +132,27 @@ describe('PhotoTool', () => {
     await waitFor(() => expect(pending).toHaveLength(2));
     pending[1]!('/uploads/2.png');
     await waitFor(() => expect(current.decor.photos.map((p) => p.url)).toEqual(['/uploads/1.png', '/uploads/2.png']));
+  });
+
+  it('back on the tool mid-batch it still shows the upload and keeps the place', async () => {
+    const pending: ((url: string) => void)[] = [];
+    vi.mocked(uploadImage).mockImplementation(
+      () => new Promise((resolve) => pending.push((url) => resolve({ ok: true, url }))),
+    );
+    render(<Closable start={draftFrom(null)} />);
+    pick([png('a.png'), png('b.png')]);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'close-tool' }));
+    fireEvent.click(screen.getByRole('button', { name: 'open-tool' }));
+    expect(screen.getByText('Завантаження…')).toBeTruthy();
+    expect(fileInput().disabled).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Медальйон спереду' }) as HTMLInputElement).disabled).toBe(true);
+    pending[0]!('/uploads/1.png');
+    await waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]!('/uploads/2.png');
+    await waitFor(() => expect(fileInput().disabled).toBe(false));
+    expect(current.decor.photos.map((p) => p.url)).toEqual(['/uploads/1.png', '/uploads/2.png']);
+    expect((screen.getByRole('radio', { name: 'Медальйон спереду' }) as HTMLInputElement).disabled).toBe(false);
   });
 
   it('wrong file is skipped', async () => {

@@ -3,7 +3,17 @@ import { useEffect, useMemo, useReducer, useRef, useState, type JSX, type Keyboa
 import { t, type TextKey } from '../i18n';
 import { webglAvailable } from '../trophy/loadEngine';
 import { TrophyView, type TrophyViewHandle } from '../trophy/TrophyView';
-import { contentOf, draftFrom, studioIssues, studioLook, studioReducer, type StudioAction, type StudioDraft, type StudioIssue } from './studio-draft';
+import {
+  STUDIO_NAME_FIELD,
+  contentOf,
+  draftFrom,
+  studioIssues,
+  studioLook,
+  studioReducer,
+  type StudioAction,
+  type StudioDraft,
+  type StudioIssue,
+} from './studio-draft';
 import { AppearTool } from './tools/AppearTool';
 import { EffectTool } from './tools/EffectTool';
 import { PhotoTool } from './tools/PhotoTool';
@@ -22,6 +32,9 @@ export interface ToolProps {
   replay: () => void;
   /** Збережене оформлення цього призу: його шрифти й наліпки лишаються чинними, навіть закриті за рівнем (як на сервері). */
   stored?: TrophyDecor | null;
+  /** Пачка фото ще вантажиться. Живе в PrizeStudio: після переходу на іншу вкладку й назад «Фото» досі знає про неї. */
+  photoBusy: boolean;
+  setPhotoBusy: (busy: boolean) => void;
 }
 
 export interface PrizeStudioProps {
@@ -66,6 +79,7 @@ const ISSUE_TEXT: Record<StudioIssue, TextKey> = {
 };
 
 const ROTATE_HINT = 'studio-rotate-hint';
+const ISSUES = 'studio-issues';
 
 interface Edit {
   draft: StudioDraft;
@@ -90,6 +104,9 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
   const trophyRef = useRef<TrophyViewHandle>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [webgl] = useState(webglAvailable);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  // Чому не можна зберегти — лише після спроби зберегти чи коли поле назви покинули: новий приз не вітається помилкою.
+  const [showIssues, setShowIssues] = useState(false);
 
   const draftLook = useMemo(() => studioLook(draft), [draft]);
   const look = useSettled(draftLook, typing ? 300 : 0);
@@ -137,7 +154,20 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
     tabRefs.current[target]?.focus();
   };
 
-  const toolProps: ToolProps = { draft, dispatch, level, replay: () => trophyRef.current?.replayAppearance(), stored: initial?.trophy?.decor ?? null };
+  const save = () => {
+    if (issues.length > 0) setShowIssues(true);
+    else onSave(content);
+  };
+
+  const toolProps: ToolProps = {
+    draft,
+    dispatch,
+    level,
+    replay: () => trophyRef.current?.replayAppearance(),
+    stored: initial?.trophy?.decor ?? null,
+    photoBusy,
+    setPhotoBusy,
+  };
   const blocked = draft.trophy === null && NEEDS_TROPHY.includes(tool);
   const Panel = PANELS[tool];
   const title = readOnly ? 'studioViewTitle' : initial === null ? 'studioNewTitle' : 'studioEditTitle';
@@ -150,7 +180,14 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
         </button>
         <h1 className="studio-title">{t(title)}</h1>
         {!readOnly && (
-          <button type="button" className="btn btn-small btn-primary" disabled={busy || issues.length > 0} onClick={() => onSave(content)}>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy}
+            aria-disabled={issues.length > 0 ? true : undefined}
+            aria-describedby={showIssues && issues.length > 0 ? ISSUES : undefined}
+            onClick={save}
+          >
             {t('save')}
           </button>
         )}
@@ -174,15 +211,21 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
         )}
       </div>
 
-      <section className="studio-drawer" aria-label={t('studioToolsLabel')}>
+      <section
+        className="studio-drawer"
+        aria-label={t('studioToolsLabel')}
+        onBlur={(event) => {
+          if (event.target.id === STUDIO_NAME_FIELD) setShowIssues(true);
+        }}
+      >
         {!webgl && <p className="studio-note">{t('studioNoWebgl')}</p>}
         {error !== null && (
           <p className="error studio-note" role="alert">
             {error}
           </p>
         )}
-        {!readOnly && issues.length > 0 && (
-          <div className="studio-issues">
+        {!readOnly && showIssues && issues.length > 0 && (
+          <div className="studio-issues" id={ISSUES}>
             {issues.map((issue) => (
               <p key={issue} className="error">
                 {t(ISSUE_TEXT[issue])}

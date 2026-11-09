@@ -13817,16 +13817,41 @@ button.wall-tile:disabled {
   min-height: 2.75rem;
 }
 
+/* Ще не зберегти: кнопка приглушена, але дотик по ній показує чому. */
+.studio-head .btn-primary[aria-disabled='true'] {
+  opacity: 0.55;
+}
+
+/* Заголовок не обрізаємо: на вузькому телефоні він переноситься на другий рядок (дві лінії влазять у 56 px). */
 .studio-title {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
   font-family: var(--display);
   font-size: 1rem;
+  line-height: 1.15;
   text-align: center;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Вузький телефон: компактні кнопки шапки, щоб заголовку лишилось місце (ціль дотику — ті самі 44 px заввишки). */
+@media (max-width: 420px) {
+  .studio-head {
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+  }
+
+  .studio-head .btn {
+    padding-inline: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .studio-title {
+    font-size: 0.875rem;
+  }
 }
 
 .studio-stage {
@@ -13941,7 +13966,8 @@ button.wall-tile:disabled {
 .studio-panel {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 45dvh;
+  /* Шапка 56 px, вкладки ~57 px і панель до 36dvh: на телефоні 390×844 разом не більше половини екрана. */
+  max-height: 36dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 1rem;

@@ -3,6 +3,7 @@ import { useRef, type JSX } from 'react';
 import { ImageField } from '../../editor/ImageField';
 import { t } from '../../i18n';
 import type { ToolProps } from '../PrizeStudio';
+import { STUDIO_NAME_FIELD } from '../studio-draft';
 
 /**
  * «Приз»: назва, підпис під кубком і на дипломі, справжній приз, титул, диплом. Порожній підпис чи титул — немає
@@ -16,6 +17,7 @@ export function PrizeTool({ draft, dispatch }: ToolProps): JSX.Element {
       <label className="field">
         {t('prizeName')}
         <input
+          id={STUDIO_NAME_FIELD}
           value={draft.name}
           maxLength={PRIZE_LIMITS.name}
           aria-describedby="studio-name-hint"
@@ -49,7 +51,8 @@ export function PrizeTool({ draft, dispatch }: ToolProps): JSX.Element {
               onChange={(event) => dispatch({ type: 'real', value: { text: event.target.value, photoUrl: draft.real?.photoUrl ?? null } }, true)}
             />
           </label>
-          <ImageField url={draft.real.photoUrl} onChange={(photoUrl) => dispatch({ type: 'real', value: { text: draft.real?.text ?? '', photoUrl } })} />
+          {/* Фото може завантажитись, коли вкладку вже змінили: воно все одно лягає в чернетку (dispatch живе в PrizeStudio). */}
+          <ImageField url={draft.real.photoUrl} keepLate onChange={(photoUrl) => dispatch({ type: 'realPhoto', photoUrl })} />
         </div>
       )}
 
