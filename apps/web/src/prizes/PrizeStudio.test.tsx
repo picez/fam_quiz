@@ -162,6 +162,18 @@ describe('PrizeStudio', () => {
     expect(saveButton().getAttribute('aria-disabled')).toBeNull();
   });
 
+  it('passes the stored shape and material of the prize to the shape tool', () => {
+    open({ initial: { ...medal, trophy: { kind: 'plate', material: 'neon' } }, level: 1 });
+    fireEvent.click(tab('Форма'));
+    fireEvent.click(screen.getByRole('radio', { name: 'кубок' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Золото' }));
+    expect(look()).toMatchObject({ kind: 'cup', material: 'gold' });
+    const plate = screen.getByRole('radio', { name: /^тарілка-трофей/ }) as HTMLInputElement;
+    const neon = screen.getByRole('radio', { name: /^Неон/ }) as HTMLInputElement;
+    expect([plate.disabled, neon.disabled]).toEqual([false, false]);
+    expect((screen.getByRole('radio', { name: /^ваза/ }) as HTMLInputElement).disabled).toBe(true);
+  });
+
   it('saving an old prize sends no decor', () => {
     const { onSave } = open({ initial: medal });
     expect(tab('Приз').getAttribute('aria-selected')).toBe('true');

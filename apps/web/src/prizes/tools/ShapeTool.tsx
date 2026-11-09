@@ -1,42 +1,81 @@
-import { TROPHY_KINDS, TROPHY_MATERIALS } from '@quiz/shared';
+import { PREMIUM_KINDS, PREMIUM_MATERIALS, trophyUnlockLevel } from '@quiz/shared';
 import type { JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
-import { TROPHY_EMOJI } from '../../trophy/trophy-meta';
+import { MATERIAL_GROUPS, MATERIAL_LOOK, TROPHY_EMOJI, TROPHY_GROUPS } from '../../trophy/trophy-meta';
 import type { ToolProps } from '../PrizeStudio';
 import { StickerPicker } from './StickerPicker';
 
-/** «Форма»: вид трофея (шість і «Без трофея»), матеріал і наліпки на вільні місця форми; кубок на сцені змінюється одразу. */
-export function ShapeTool({ draft, dispatch, level, stored }: ToolProps): JSX.Element {
+/** Позначки плитки: «🔒 з рівня N» для закритого й «преміум». */
+function Marks({ need, locked, premium }: { need: number; locked: boolean; premium: boolean }): JSX.Element {
+  return (
+    <>
+      {locked && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
+      {premium && <span className="studio-premium">{t('studioPremium')}</span>}
+    </>
+  );
+}
+
+/**
+ * «Форма»: вид трофея групами («Кубки», «Медалі», «Корони й вінки», «Статуетки») і «Без трофея», матеріал групами,
+ * наліпки на вільні місця форми; кубок на сцені змінюється одразу. Нові форми й матеріали закриті до свого рівня,
+ * як шрифти: збережене в цьому призі й поточне в чернетці лишаються чинними (як на сервері).
+ */
+export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: ToolProps): JSX.Element {
   const kind = draft.trophy?.kind ?? null;
+  const material = draft.trophy?.material ?? null;
   return (
     <div className="studio-tool">
-      <fieldset className="studio-choice">
+      <fieldset className="studio-choice studio-grouped">
         <legend>{t('prizeKind')}</legend>
-        {TROPHY_KINDS.map((value) => (
-          <label key={value}>
-            <input type="radio" name="studio-kind" checked={kind === value} onChange={() => dispatch({ type: 'trophy', kind: value })} />
-            <span aria-hidden="true">{TROPHY_EMOJI[value]}</span> {t(`trophy_${value}` as TextKey)}
-          </label>
+        {TROPHY_GROUPS.map((group) => (
+          <fieldset key={group.id} className="studio-choice studio-tiles">
+            <legend>{t(`studioKindGroup_${group.id}` as TextKey)}</legend>
+            {group.kinds.map((value) => {
+              const need = trophyUnlockLevel('shape', value);
+              const locked = need > level && storedTrophy?.kind !== value && kind !== value;
+              return (
+                <label key={value} className={locked ? 'is-locked' : undefined}>
+                  <input type="radio" name="studio-kind" checked={kind === value} disabled={locked} onChange={() => dispatch({ type: 'trophy', kind: value })} />
+                  <span aria-hidden="true">{TROPHY_EMOJI[value]}</span> {t(`trophy_${value}` as TextKey)}
+                  <Marks need={need} locked={locked} premium={PREMIUM_KINDS.includes(value)} />
+                </label>
+              );
+            })}
+          </fieldset>
         ))}
-        <label>
+        <label className="studio-no-trophy">
           <input type="radio" name="studio-kind" checked={kind === null} onChange={() => dispatch({ type: 'trophy', kind: null })} />
           <span aria-hidden="true">🎁</span> {t('studioNoTrophy')}
         </label>
+        {TROPHY_GROUPS.some((group) => group.kinds.some((value) => PREMIUM_KINDS.includes(value))) && <p className="meta">{t('studioPremiumHint')}</p>}
       </fieldset>
       {draft.trophy !== null && (
-        <fieldset className="studio-choice">
+        <fieldset className="studio-choice studio-grouped">
           <legend>{t('prizeMaterial')}</legend>
-          {TROPHY_MATERIALS.map((value) => (
-            <label key={value}>
-              <input
-                type="radio"
-                name="studio-material"
-                checked={draft.trophy?.material === value}
-                onChange={() => dispatch({ type: 'material', material: value })}
-              />
-              {t(`material_${value}` as TextKey)}
-            </label>
+          {MATERIAL_GROUPS.map((group) => (
+            <fieldset key={group.id} className="studio-choice studio-tiles">
+              <legend>{t(`studioMaterialGroup_${group.id}` as TextKey)}</legend>
+              {group.materials.map((value) => {
+                const need = trophyUnlockLevel('material', value);
+                const locked = need > level && storedTrophy?.material !== value && material !== value;
+                return (
+                  <label key={value} className={locked ? 'is-locked' : undefined}>
+                    <input
+                      type="radio"
+                      name="studio-material"
+                      checked={material === value}
+                      disabled={locked}
+                      onChange={() => dispatch({ type: 'material', material: value })}
+                    />
+                    <span className="studio-swatch-dot" style={{ backgroundColor: MATERIAL_LOOK[value].color }} aria-hidden="true" />
+                    {t(`material_${value}` as TextKey)}
+                    <Marks need={need} locked={locked} premium={PREMIUM_MATERIALS.includes(value)} />
+                  </label>
+                );
+              })}
+            </fieldset>
           ))}
+          {MATERIAL_GROUPS.some((group) => group.materials.some((value) => PREMIUM_MATERIALS.includes(value))) && <p className="meta">{t('studioPremiumHint')}</p>}
         </fieldset>
       )}
       {draft.trophy !== null && (
