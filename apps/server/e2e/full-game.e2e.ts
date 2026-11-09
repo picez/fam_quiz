@@ -22212,7 +22212,7 @@ async function trophyEditor25c() {
   expect(problems).toEqual([]);
 }
 
-it('part 25d: trophy decor on the surface — Оля makes a cup with three photos on the ring, a back inscription that moves to the base back, a base band on the plinth face and stickers on the left and the base right, and a second cup with a medallion where the front sticker added first moves to the left; the studio says where things went and the sticker dialog shows only free places; the same decor shows in the prize viewer; screenshots from the front, the side and the back', async () => {
+it('part 25d: trophy decor on the surface — Оля makes a cup with three photos on the ring, a back inscription that moves to the base back, a base band on the plinth face and stickers on the left and the base right, and a second cup with a medallion where the front sticker added first moves to the left; the studio says where things went and the sticker dialog shows only free places; both saved cups reopen with the same decor; a decorated grail, crown and star show their medallion, band, plaque and stickers on free places; screenshots from the front, the side and the back', async () => {
   try {
     await trophyDecals25d();
   } catch (error) {
@@ -22246,20 +22246,19 @@ async function trophyDecals25d() {
     await dialog.waitFor({ state: 'detached' });
   };
 
-  /** Полотно студії спереду, збоку (90°) і ззаду (180°): ArrowRight на полотні — 15°. */
-  const threeSides = async (prefix: string) => {
+  /** Полотно студії спереду, збоку (90°) і, якщо треба, ззаду (180°): ArrowRight на полотні — 15°. Лише з E2E_SHOTS=1. */
+  const threeSides = async (prefix: string, sides: readonly ('side' | 'back')[] = ['side', 'back']) => {
+    if (process.env.E2E_SHOTS !== '1') return;
     // Декалі, фото й шрифти вантажаться після моделі: кадр — коли все намальовано.
     await olya.waitForTimeout(2500);
-    if (process.env.E2E_SHOTS === '1') {
-      mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
-      const save = (name: string) => studioCanvas.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
-      await save(`${prefix}-front`);
-      await studioCanvas.focus();
-      for (const side of ['side', 'back']) {
-        for (let step = 0; step < 6; step++) await studioCanvas.press('ArrowRight');
-        await olya.waitForTimeout(400);
-        await save(`${prefix}-${side}`);
-      }
+    mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+    const save = (name: string) => studioCanvas.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
+    await save(`${prefix}-front`);
+    await studioCanvas.focus();
+    for (const side of sides) {
+      for (let step = 0; step < 6; step++) await studioCanvas.press('ArrowRight');
+      await olya.waitForTimeout(400);
+      await save(`${prefix}-${side}`);
     }
   };
 
@@ -22323,6 +22322,8 @@ async function trophyDecals25d() {
   await studio.locator('.studio-photo-add input[type="file"]').setInputFiles(await drawnPngs25c(olya, ['#d4a017']));
   await studio.getByText('1 з 1', exact).waitFor();
   await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(MEDALLION_DECOR);
+  // Вкладка «Фото» теж каже, що медальйон посунув наліпку.
+  await studio.getByText('Місце «Спереду» зайняте (Медальйон спереду), тому тут: «Ліворуч».', exact).waitFor();
   await tab('Форма').click();
   await stickerRow('Ліворуч').getByText('Місце «Спереду» зайняте (Медальйон спереду), тому тут: «Ліворуч».', exact).waitFor();
 
@@ -22374,6 +22375,54 @@ async function trophyDecals25d() {
     await studioCanvas.waitFor();
     await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
     await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(decor);
+    await click(olya, 'Скасувати');
+    await olya.waitForURL(/\/profile\/prizes$/);
+  }
+
+  // ── 8. Грааль, корона й зірка з медальйоном, поясками, табличками й наліпками на вільних місцях: знімки спереду й збоку. ──
+  for (const { kind, prefix, texts, places, decor } of [
+    {
+      kind: 'грааль',
+      prefix: 'p25d-grail',
+      texts: [['Поясок', 'Родина'], ['Табличка', 'Ася 2026']],
+      places: ['Ліворуч', 'Ззаду'],
+      decor: 'photos:medallion:1;inscriptions:band,plaque;stickers:back,left',
+    },
+    {
+      kind: 'корона',
+      prefix: 'p25d-crown',
+      texts: [['Поясок', 'Королева'], ['Табличка', 'Оля']],
+      places: ['Ліворуч', 'Основа ліворуч'],
+      decor: 'photos:medallion:1;inscriptions:band,plaque;stickers:left,base-left',
+    },
+    {
+      kind: 'зірка',
+      prefix: 'p25d-star',
+      texts: [['Табличка', 'Зірка вечора'], ['Зворот', 'Від Олі']],
+      places: ['Основа ліворуч', 'Основа праворуч'],
+      decor: 'photos:medallion:1;inscriptions:plaque,back;stickers:base-left,base-right',
+    },
+  ] as const) {
+    await click(olya, 'Новий приз');
+    await olya.waitForURL(/\/profile\/prizes\/new$/);
+    await studioCanvas.waitFor();
+    await radio(kind).check();
+    await tab('Фото').click();
+    await radio('Медальйон спереду').check();
+    await studio.locator('.studio-photo-add input[type="file"]').setInputFiles(await drawnPngs25c(olya, ['#7b2cbf']));
+    await studio.getByText('1 з 1', exact).waitFor();
+    await tab('Написи').click();
+    for (const [place, text] of texts) {
+      const part = textPlace(place);
+      await part.getByRole('checkbox', { name: place, ...exact }).check();
+      await part.getByLabel('Текст', exact).fill(text);
+    }
+    await tab('Форма').click();
+    await addSticker(firstNya.id, places[0]);
+    await addSticker(secondNya.id, places[1]);
+    await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(decor);
+    await threeSides(prefix, ['side']);
+    // Не зберігаємо: «Скасувати» питає, і відповідь — так.
     await click(olya, 'Скасувати');
     await olya.waitForURL(/\/profile\/prizes$/);
   }
