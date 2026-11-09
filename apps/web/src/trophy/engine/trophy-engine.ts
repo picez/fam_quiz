@@ -73,19 +73,19 @@ function shadow(): Texture {
 
 type BuiltDecor = Awaited<ReturnType<typeof buildDecor>>;
 
-/** Геометрії, матеріали й текстури оформлення — наші; текстури наліпок спільні (кеш) і лишаються. */
+/**
+ * Що звільнити з оформлення: геометрії й матеріали — наші (dispose), полотна — спільні за ключем, тож кожне взяте
+ * посилання з built.textures віддається через release (останнє звільняє GPU). Текстури наліпок спільні (кеш) і лишаються.
+ */
 function decorResources(built: BuiltDecor): { dispose(): void }[] {
   const resources: { dispose(): void }[] = [];
-  if (built.backdrop !== null) resources.push(built.backdrop);
   built.group.traverse((object) => {
     if (!(object instanceof Mesh)) return;
     resources.push(object.geometry);
-    for (const material of [object.material].flat() as Material[]) {
-      resources.push(material);
-      const map = (material as { map?: Texture | null }).map;
-      if (map != null && !object.name.startsWith('decor-sticker-')) resources.push(map);
-    }
+    for (const material of [object.material].flat() as Material[]) resources.push(material);
   });
+  // Кожне посилання — окремий об'єкт: Set у dispose не зливає два посилання на ту саму текстуру.
+  for (const texture of built.textures) resources.push({ dispose: () => domTextures.release(texture) });
   return resources;
 }
 

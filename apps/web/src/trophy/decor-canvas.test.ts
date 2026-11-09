@@ -249,6 +249,19 @@ describe('decor canvas', () => {
     expect(calls.some((c) => c.name === 'putImageData')).toBe(true);
   });
 
+  it('a scaled-down canvas tones the tile in canvas pixels', () => {
+    const { ctx: inner, calls } = fakeCtx();
+    const ctx = new Proxy(inner, {
+      get: (target, prop) =>
+        prop === 'getTransform' ? () => ({ a: 0.5, d: 0.5, e: 0, f: 0 }) : Reflect.get(target, prop),
+    });
+    drawPhotoRing(ctx, [img, img], decor({ photoStyle: 'sepia' }), 'gold');
+    const puts = calls.filter((c) => c.name === 'putImageData');
+    // Клітинка 1: x 158, y 8, 134×188 у повних координатах → половина в пікселях полотна.
+    expect(puts[1]!.args.slice(1)).toEqual([79, 4]);
+    expect((puts[1]!.args[0] as { data: Uint8ClampedArray }).data.length).toBe(67 * 94 * 4);
+  });
+
   it('round frame clips a circle', () => {
     const { ctx, calls } = fakeCtx();
     drawPhotoDisc(ctx, img, decor().photos[0]!, decor({ frame: 'round' }), 256);

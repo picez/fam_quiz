@@ -67,6 +67,21 @@ export function toneImageData(data: Uint8ClampedArray, style: TrophyPhotoStyle):
   }
 }
 
+/**
+ * Тонує пікселі під прямокутником (x, y, w, h) у координатах малювання. getImageData/putImageData не зважають на
+ * перетворення контексту, а полотно на картці зменшене через ctx.scale, тож прямокутник переводиться в пікселі полотна.
+ */
+function toneRect(ctx: Ctx, x: number, y: number, w: number, h: number, style: TrophyPhotoStyle): void {
+  const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : undefined;
+  const a = m?.a ?? 1;
+  const d = m?.d ?? 1;
+  const px = Math.round(x * a + (m?.e ?? 0));
+  const py = Math.round(y * d + (m?.f ?? 0));
+  const data = ctx.getImageData(px, py, Math.round(w * a), Math.round(h * d));
+  toneImageData(data.data, style);
+  ctx.putImageData(data, px, py);
+}
+
 function gradientDown(ctx: Ctx, height: number, stops: readonly [string, string, string]): CanvasGradient {
   const g = ctx.createLinearGradient(0, 0, 0, height);
   g.addColorStop(0, stops[0]);
@@ -129,9 +144,7 @@ function drawPhotoIn(ctx: Ctx, image: Img | null, photo: DecorPhoto, decor: Trop
     ctx.drawImage(image, c.sx, c.sy, c.sw, c.sh, x, y, w, h);
     if (decor.photoStyle !== 'normal') {
       try {
-        const px = ctx.getImageData(x, y, w, h);
-        toneImageData(px.data, decor.photoStyle);
-        ctx.putImageData(px, x, y);
+        toneRect(ctx, x, y, w, h, decor.photoStyle);
       } catch {
         // полотно «заплямоване» чужим зображенням: лишаємо кольорове
       }
@@ -194,9 +207,7 @@ export function drawPhotoDisc(
     ctx.drawImage(image, c.sx, c.sy, c.sw, c.sh, half - inner, half - inner, side, side);
     if (decor.photoStyle !== 'normal') {
       try {
-        const data = ctx.getImageData(0, 0, px, px);
-        toneImageData(data.data, decor.photoStyle);
-        ctx.putImageData(data, 0, 0);
+        toneRect(ctx, 0, 0, px, px, decor.photoStyle);
       } catch {
         // див. drawPhotoIn
       }

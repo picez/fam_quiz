@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrophyAppearance, TrophyDecor, TrophyEffect } from '@quiz/shared';
 import type { TrophyHandle, TrophyMount, TrophySize } from '../engine-types';
 import type { StageView } from './stage';
+import { domTextures } from './textures';
 import { engine } from './trophy-engine';
 
 const fake = vi.hoisted(() => ({
@@ -15,6 +16,8 @@ const fake = vi.hoisted(() => ({
     environment: unknown;
     lost: boolean;
   },
+  /** Ключі полотен, які бере stub buildDecor через справжній textures.canvas. */
+  canvasKeys: [] as string[],
 }));
 
 vi.mock('./models', async () => {
@@ -32,7 +35,13 @@ vi.mock('./models', async () => {
 vi.mock('./stage', () => ({ getStage: () => fake.stage }));
 vi.mock('./decor-meshes', async () => {
   const three = await import('three');
-  return { buildDecor: async () => ({ group: new three.Group(), backdrop: null }) };
+  return {
+    buildDecor: async (_kind: unknown, _material: unknown, _decor: unknown, _size: unknown, textures: typeof domTextures) => ({
+      group: new three.Group(),
+      backdrop: null,
+      textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})),
+    }),
+  };
 });
 
 /** Радіус кадрування зі stub framingSphere. */
@@ -57,6 +66,7 @@ let handles: TrophyHandle[] = [];
 beforeEach(() => {
   reduce = false;
   handles = [];
+  fake.canvasKeys = [];
   fake.stage = {
     view: null,
     add(view) {
@@ -286,6 +296,24 @@ describe('trophy engine: effect and appearance', () => {
     played.handle.dispose();
     expect(() => played.handle.replayAppearance()).not.toThrow();
     expect(fake.stage!.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('dispose releases shared textures', async () => {
+    fake.canvasKeys = ['shared-a', 'shared-b'];
+    const release = vi.spyOn(domTextures, 'release');
+    const first = await mount({ decor: decor('spin') });
+    fake.stage!.view = null;
+    const second = await mount({ decor: decor('spin') });
+    const shared = [domTextures.canvas('shared-a', 4, 4, () => {}), domTextures.canvas('shared-b', 4, 4, () => {})];
+    for (const texture of shared) domTextures.release(texture);
+    release.mockClear();
+    const disposes = shared.map((texture) => vi.spyOn(texture, 'dispose'));
+    first.handle.dispose();
+    expect(release.mock.calls.map(([texture]) => texture)).toEqual(shared);
+    for (const spy of disposes) expect(spy).not.toHaveBeenCalled();
+    second.handle.dispose();
+    expect(release).toHaveBeenCalledTimes(4);
+    for (const spy of disposes) expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('dispose frees effect resources', async () => {
