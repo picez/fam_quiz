@@ -140,6 +140,17 @@ function toFinalQuestion(): GameState {
   return walk(s, 'p1', ['пола'], 7000);
 }
 
+describe('word ladder in the final', () => {
+  it('the answered count is who made a move, so it never tells how many reached the target', () => {
+    let s = toFinalQuestion();
+    // Олена зробила крок без фінішу — уже «відповіла», хоч запису ще немає.
+    expect(stageView(s).answeredCount).toBe(1);
+    s = walk(s, 'p2', ['пола', 'пора', 'пара', 'тара'], 7500);
+    expect(stageView(s).answeredCount).toBe(2);
+    expect(hostView(s).answeredCount).toBe(2);
+  });
+});
+
 describe('word ladder verdicts before lock', () => {
   it('a finisher over the maximum is not marked correct before the question locks', () => {
     const over = walk(startRound(lobbyWith(makeQuiz([wordladder]), 'Олена', 'Тарас'), 0), 'p1', ['пола', 'поле', 'пола', 'поле', 'пола', 'пора', 'кора', 'кара', 'тара']);

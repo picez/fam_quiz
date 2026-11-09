@@ -2018,8 +2018,8 @@ function hintRequests(state: GameState): HintRequest[] {
 }
 
 /**
- * Скільки відповіли. У фіналі сортування — скільки зробили хоч один хід: лічильник записів
- * видав би, скільки вже відсортували все (тобто відповіли правильно). Перша спроба під бафом
+ * Скільки відповіли. У фіналі сортування й словесної драбини — скільки зробили хоч один хід: лічильник записів
+ * видав би, скільки вже відсортували все чи дійшли до цілі (тобто відповіли правильно). Перша спроба під бафом
  * «Ще спроба» теж рахується, інакше лічильник видав би, що вона неправильна.
  */
 function answeredCount(state: GameState): number {
@@ -2035,9 +2035,11 @@ function answeredCount(state: GameState): number {
   const answers = currentAnswers(state);
   const recorded = Object.keys(answers).filter((id) => play === undefined || !isSilentRisk(play, answers[id]));
   const answered = [...new Set([...recorded, ...held])];
-  const open = currentSort(state);
-  if (open === null || !inFinalRound(state)) return answered.length;
-  const moved = new Set([...Object.keys(open.play.sort ?? {}), ...answered]);
+  const sort = currentSort(state);
+  const ladder = currentLadder(state);
+  if ((sort === null && ladder === null) || !inFinalRound(state)) return answered.length;
+  const progress = sort !== null ? sort.play.sort : ladder?.play.wordladder;
+  const moved = new Set([...Object.keys(progress ?? {}), ...answered]);
   return state.players.filter((p) => moved.has(p.id)).length;
 }
 

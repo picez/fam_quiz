@@ -963,6 +963,13 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('a word ladder in the final shows the plain answered count, not how many reached the target', () => {
+    const ladderQ = { ...question, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
+    show(view({ phase: 'question', questionIndex: 0, question: ladderQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1 }));
+    expect(screen.queryByText(/Дійшли/)).toBeNull();
+    expect(screen.getByText('Відповіли 1 з 2')).toBeTruthy();
+  });
+
   describe('sort', () => {
     const categories = [
       { id: 'c1', text: 'Овочі' },
