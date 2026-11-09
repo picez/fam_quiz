@@ -21442,7 +21442,8 @@ async function playPrizeGame25a(
 
 async function trophyDecor25a() {
   const TITLE = 'Вікторина з оформленим кубком 25a';
-  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front,base-left';
+  // 25d: кільце фото займає чашу — наліпка «Спереду» лягає на найближче вільне місце, «Основа праворуч».
+  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front>base-right,base-left';
   const MEDAL_DECOR = 'photos:medallion:1;inscriptions:back';
   const tracking = trackRequests25a();
   const { requests, track } = tracking;
@@ -21889,7 +21890,8 @@ async function samePersonPage25c(page: Page, name: string, width: number, height
 
 async function trophyEditor25c() {
   const TITLE = 'Вікторина з кубком із редактора 25c';
-  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front';
+  // 25d: кільце фото займає чашу — наліпка «Спереду» переїжджає на «Основа ліворуч».
+  const CUP_DECOR = 'photos:ring:3;inscriptions:rim,plaque;stickers:front>base-left';
   const tracking = trackRequests25a();
   const { requests, track } = tracking;
   const nya = STICKERS.find((sticker) => sticker.series === 'nya')!;
@@ -21962,7 +21964,7 @@ async function trophyEditor25c() {
   await cropDialog.getByRole('button', { name: 'Готово', ...exact }).click();
   await cropDialog.waitFor({ state: 'detached' });
   await radio(olya, 'Золота').check();
-  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:ring:3;stickers:front');
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:ring:3;stickers:front>base-left');
   await shot(olya, 'p25c-studio-photos');
 
   // ── 4. «Написи»: рим рукописним рельєфом, табличка у два рядки; «Грубий» закритий з рівнем. ──
@@ -22207,5 +22209,174 @@ async function trophyEditor25c() {
   // ── 17. Запечені сімейні фото грааля ніде не вантажились; без помилок. ──
   for (const [name, list] of [...requests, ['olya studio', studioRequests] as const])
     expect(list.filter((url) => url.includes('grail-family.glb')), `${name} loaded the family grail`).toEqual([]);
+  expect(problems).toEqual([]);
+}
+
+it('part 25d: trophy decor on the surface — Оля makes a cup with three photos on the ring, a back inscription that moves to the base back, a base band on the plinth face and stickers on the left and the base right, and a second cup with a medallion where the front sticker added first moves to the left; the studio says where things went and the sticker dialog shows only free places; the same decor shows in the prize viewer; screenshots from the front, the side and the back', async () => {
+  try {
+    await trophyDecals25d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+});
+
+async function trophyDecals25d() {
+  // Кільце фото займає всю чашу: наліпка «Ліворуч» з першого кубка переїжджає на «Основа ліворуч».
+  const RING_DECOR = 'photos:ring:3;inscriptions:band,plaque,back>base-back;stickers:left>base-left,base-right';
+  const MEDALLION_DECOR = 'photos:medallion:1;stickers:front>left';
+  const nya = STICKERS.filter((sticker) => sticker.series === 'nya');
+  const [firstNya, secondNya] = [nya[0]!, nya[1]!];
+
+  const olya = await open('olya25d', 1280, 800, { reducedMotion: 'reduce' });
+  await register(olya, 'menu', 'Оля', 'olya25d@example.com');
+  const studio = olya.locator('.prize-studio');
+  const studioCanvas = studio.locator('canvas.trophy-canvas');
+  const tab = (name: string) => studio.getByRole('tab', { name, ...exact });
+  const radio = (name: string) => studio.getByRole('radio', { name, ...exact });
+  const stickerRow = (where: string) => studio.locator('.studio-sticker-row', { has: olya.getByText(where, exact) });
+
+  /** «+ Додати наліпку» → наліпка → вільне місце → «Готово». */
+  const addSticker = async (id: string, place: string) => {
+    await studio.getByRole('button', { name: '+ Додати наліпку', ...exact }).click();
+    const dialog = olya.getByRole('dialog', { name: 'Нова наліпка', ...exact });
+    await dialog.getByRole('button', { name: id, ...exact }).click();
+    await dialog.getByRole('radio', { name: place, ...exact }).check();
+    await dialog.getByRole('button', { name: 'Готово', ...exact }).click();
+    await dialog.waitFor({ state: 'detached' });
+  };
+
+  /** Полотно студії спереду, збоку (90°) і ззаду (180°): ArrowRight на полотні — 15°. */
+  const threeSides = async (prefix: string) => {
+    // Декалі, фото й шрифти вантажаться після моделі: кадр — коли все намальовано.
+    await olya.waitForTimeout(2500);
+    if (process.env.E2E_SHOTS === '1') {
+      mkdirSync(resolve(ARTIFACTS, 'shots'), { recursive: true });
+      const save = (name: string) => studioCanvas.screenshot({ path: resolve(ARTIFACTS, 'shots', `${name}.png`) });
+      await save(`${prefix}-front`);
+      await studioCanvas.focus();
+      for (const side of ['side', 'back']) {
+        for (let step = 0; step < 6; step++) await studioCanvas.press('ArrowRight');
+        await olya.waitForTimeout(400);
+        await save(`${prefix}-${side}`);
+      }
+    }
+  };
+
+  // ── 1. Перший кубок: золото, наліпки «Ліворуч» і «Основа праворуч» через вікно наліпок. ──
+  await openProfileTile(olya, 'Призи');
+  await olya.waitForURL(/\/profile\/prizes$/);
+  await click(olya, 'Новий приз');
+  await olya.waitForURL(/\/profile\/prizes\/new$/);
+  await studioCanvas.waitFor();
+  await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
+  await radio('кубок').check();
+  await radio('Золото').check();
+  await addSticker(firstNya.id, 'Ліворуч');
+  await addSticker(secondNya.id, 'Основа праворуч');
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:none;stickers:left,base-right');
+
+  // ── 2. Три намальовані PNG на кільце: наліпка з чаші переїжджає, і список це каже. ──
+  await tab('Фото').click();
+  await radio('Кільце по чаші').check();
+  await studio.locator('.studio-photo-add input[type="file"]').setInputFiles(await drawnPngs25c(olya, ['#d23c3c', '#2f9e44', '#1c64d8']));
+  await studio.getByText('3 з 16', exact).waitFor();
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:ring:3;stickers:left>base-left,base-right');
+
+  // ── 3. Написи «Поясок», «Табличка», «Зворот»: зворот переїжджає на задню грань основи. ──
+  await tab('Написи').click();
+  const textPlace = (name: string) => studio.locator('fieldset.studio-text').filter({ has: olya.getByRole('checkbox', { name, ...exact }) });
+  for (const [place, text] of [
+    ['Зворот', 'Від усієї родини'],
+    ['Поясок', 'Чемпіонка'],
+    ['Табличка', 'Оля 2026'],
+  ] as const) {
+    const part = textPlace(place);
+    await part.getByRole('checkbox', { name: place, ...exact }).check();
+    await part.getByLabel('Текст', exact).fill(text);
+  }
+  await textPlace('Зворот').getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».', exact).waitFor();
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(RING_DECOR);
+  await threeSides('p25d-ring');
+
+  // ── 4. Наліпки: рядок переїхалої каже, куди й чому. ──
+  await tab('Форма').click();
+  await stickerRow('Основа ліворуч').getByText('Місце «Ліворуч» зайняте (Кільце по чаші), тому тут: «Основа ліворуч».', exact).waitFor();
+  await stickerRow('Основа праворуч').waitFor();
+  await shot(olya, 'p25d-ring-studio');
+
+  await tab('Приз').click();
+  await field(olya, 'Назва').fill('Кубок з кільцем 25d');
+  await click(olya, 'Зберегти');
+  await olya.waitForURL(/\/profile\/prizes$/);
+  await olya.locator('.prize-list li', { hasText: 'Кубок з кільцем 25d' }).waitFor();
+
+  // ── 5. Другий кубок: спершу наліпка «Спереду», потім медальйон — наліпка переїжджає ліворуч. ──
+  await click(olya, 'Новий приз');
+  await olya.waitForURL(/\/profile\/prizes\/new$/);
+  await studioCanvas.waitFor();
+  await radio('кубок').check();
+  await addSticker(firstNya.id, 'Спереду');
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe('photos:none;stickers:front');
+  await tab('Фото').click();
+  await radio('Медальйон спереду').check();
+  await studio.locator('.studio-photo-add input[type="file"]').setInputFiles(await drawnPngs25c(olya, ['#d4a017']));
+  await studio.getByText('1 з 1', exact).waitFor();
+  await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(MEDALLION_DECOR);
+  await tab('Форма').click();
+  await stickerRow('Ліворуч').getByText('Місце «Спереду» зайняте (Медальйон спереду), тому тут: «Ліворуч».', exact).waitFor();
+
+  // ── 6. Вікно нової наліпки: «Спереду» і «Ліворуч» зайняті й вимкнені з поясненням, решта вільні. ──
+  await studio.getByRole('button', { name: '+ Додати наліпку', ...exact }).click();
+  const dialog = olya.getByRole('dialog', { name: 'Нова наліпка', ...exact });
+  await dialog.waitFor();
+  const place = (name: string) => dialog.locator('.sticker-dialog-places label', { has: olya.locator('.sticker-dialog-place', { hasText: new RegExp(`^${name}$`) }) });
+  for (const [name, by] of [
+    ['Спереду', 'Медальйон спереду'],
+    ['Ліворуч', 'наліпка'],
+  ] as const) {
+    expect(await place(name).locator('input').isDisabled(), `${name} is taken`).toBe(true);
+    expect(await place(name).locator('.sticker-dialog-taken').textContent()).toBe(`Зайнято: ${by}`);
+  }
+  for (const name of ['Ззаду', 'Праворуч', 'Основа ліворуч', 'Основа праворуч']) {
+    expect(await place(name).locator('input').isDisabled(), `${name} is free`).toBe(false);
+    expect(await place(name).locator('.sticker-dialog-taken').count()).toBe(0);
+  }
+  await shot(olya, 'p25d-medallion-dialog');
+  await dialog.getByRole('button', { name: 'Скасувати', ...exact }).click();
+  await dialog.waitFor({ state: 'detached' });
+  expect(await studioCanvas.getAttribute('data-decor')).toBe(MEDALLION_DECOR);
+  await threeSides('p25d-medallion');
+
+  await tab('Приз').click();
+  await field(olya, 'Назва').fill('Кубок з медальйоном 25d');
+  await click(olya, 'Зберегти');
+  await olya.waitForURL(/\/profile\/prizes$/);
+  await olya.locator('.prize-list li', { hasText: 'Кубок з медальйоном 25d' }).waitFor();
+
+  // ── 7. Збережене відкривається з тим самим оформленням (вільний приз на складі відкривають «Змінити»). ──
+  type Item = { id: string; content: PrizeContent };
+  const store = (await (await olya.request.get(`${base}/api/me/prizes`)).json()) as Item[];
+  const ring = store.find((item) => item.content.name === 'Кубок з кільцем 25d')!.content.trophy!.decor!;
+  expect(ring.stickers).toEqual([
+    { id: firstNya.id, place: 'left' },
+    { id: secondNya.id, place: 'base-right' },
+  ]);
+  expect(ring.inscriptions.map((i) => i.place)).toEqual(['band', 'plaque', 'back']);
+  const medallion = store.find((item) => item.content.name === 'Кубок з медальйоном 25d')!.content.trophy!.decor!;
+  expect(medallion.stickers).toEqual([{ id: firstNya.id, place: 'front' }]);
+  for (const [name, decor] of [
+    ['Кубок з кільцем 25d', RING_DECOR],
+    ['Кубок з медальйоном 25d', MEDALLION_DECOR],
+  ] as const) {
+    await olya.locator('.prize-list li', { hasText: name }).getByRole('button', { name: 'Змінити', ...exact }).click();
+    await olya.waitForURL(/\/profile\/prizes\/[^/]+$/);
+    await studioCanvas.waitFor();
+    await expect.poll(() => studio.locator('.trophy-fallback').count(), POLL).toBe(0);
+    await expect.poll(() => studioCanvas.getAttribute('data-decor'), POLL).toBe(decor);
+    await click(olya, 'Скасувати');
+    await olya.waitForURL(/\/profile\/prizes$/);
+  }
+
   expect(problems).toEqual([]);
 }
