@@ -1,4 +1,4 @@
-import type { PrizeContent } from '@quiz/shared';
+import type { PrizeContent, TrophyDecor } from '@quiz/shared';
 import { useEffect, useMemo, useReducer, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 import { t, type TextKey } from '../i18n';
 import { webglAvailable } from '../trophy/loadEngine';
@@ -7,6 +7,7 @@ import { contentOf, draftFrom, studioIssues, studioLook, studioReducer, type Stu
 import { PhotoTool } from './tools/PhotoTool';
 import { PrizeTool } from './tools/PrizeTool';
 import { ShapeTool } from './tools/ShapeTool';
+import { TextTool } from './tools/TextTool';
 import { useSettled } from './useSettled';
 
 export type StudioTool = 'shape' | 'photos' | 'texts' | 'effects' | 'appear' | 'prize';
@@ -17,6 +18,8 @@ export interface ToolProps {
   dispatch: (action: StudioAction, typing?: boolean) => void;
   level: number;
   replay: () => void;
+  /** Збережене оформлення цього призу: його шрифти й наліпки лишаються чинними, навіть закриті за рівнем (як на сервері). */
+  stored?: TrophyDecor | null;
 }
 
 export interface PrizeStudioProps {
@@ -42,11 +45,11 @@ const TOOL_LABEL: Record<StudioTool, TextKey> = {
 const TOOL_ICON: Record<StudioTool, string> = { shape: '🏆', photos: '📷', texts: '✒️', effects: '✨', appear: '🎬', prize: '🎁' };
 /** Інструменти, що оформлюють сам трофей: без трофея їм нічого робити. */
 const NEEDS_TROPHY: readonly StudioTool[] = ['photos', 'texts', 'effects', 'appear'];
-/** Інструменти задач 10–11; поки що порожні панелі. */
+/** Ефекти й поява (задача 11) — поки що порожні панелі. */
 const PANELS: Record<StudioTool, ((props: ToolProps) => JSX.Element) | null> = {
   shape: ShapeTool,
   photos: PhotoTool,
-  texts: null,
+  texts: TextTool,
   effects: null,
   appear: null,
   prize: PrizeTool,
@@ -133,7 +136,7 @@ export function PrizeStudio({ initial, readOnly, level, busy, error, onSave, onC
     tabRefs.current[target]?.focus();
   };
 
-  const toolProps: ToolProps = { draft, dispatch, level, replay: () => trophyRef.current?.replayAppearance() };
+  const toolProps: ToolProps = { draft, dispatch, level, replay: () => trophyRef.current?.replayAppearance(), stored: initial?.trophy?.decor ?? null };
   const blocked = draft.trophy === null && NEEDS_TROPHY.includes(tool);
   const Panel = PANELS[tool];
   const title = readOnly ? 'studioViewTitle' : initial === null ? 'studioNewTitle' : 'studioEditTitle';

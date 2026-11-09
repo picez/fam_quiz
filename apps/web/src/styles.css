@@ -14083,6 +14083,181 @@ button.wall-tile:disabled {
   min-width: 0;
 }
 
+/* «Написи»: місце з перемикачем, далі текст, шрифт, вигляд і колір. */
+.studio-text legend {
+  margin-block-end: 0.25rem;
+}
+
+.studio-text-toggle {
+  min-height: 2.75rem;
+}
+
+.studio-text textarea {
+  min-width: 0;
+  width: 100%;
+  resize: vertical;
+}
+
+.studio-text-count {
+  align-self: flex-end;
+}
+
+.studio-font-tile {
+  display: inline-block;
+  min-width: 1.75rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.studio-font-classic {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.studio-choice label.is-locked {
+  cursor: not-allowed;
+  color: var(--dim);
+}
+
+/* Колір: зразки-кружечки (ціль 44 px) і «Свій колір». */
+.studio-swatch {
+  justify-content: center;
+  min-width: 2.75rem;
+  padding-inline: 0.4rem;
+}
+
+.studio-swatch-dot {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.studio-swatch-custom input[type='color'] {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* Наліпки: кнопка місця з мініатюрою розкриває сітку за серіями. */
+.studio-group-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.studio-stickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.studio-sticker-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.studio-sticker-toggle[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.studio-sticker-thumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-small);
+}
+
+.studio-sticker-thumb img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.studio-sticker-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+
+.studio-sticker-none {
+  align-self: flex-start;
+  min-height: 2.75rem;
+}
+
+.studio-sticker-none[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.studio-sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.studio-sticker-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 2.75rem;
+  min-height: 3.25rem;
+  padding: 0.25rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.studio-sticker-cell img {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+}
+
+.studio-sticker-cell[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.studio-sticker-cell:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.studio-sticker-cell.is-locked {
+  cursor: not-allowed;
+}
+
+.studio-sticker-cell.is-locked img {
+  opacity: 0.35;
+}
+
+.studio-sticker-lock {
+  position: absolute;
+  inset-block-end: 0.1rem;
+  inset-inline-end: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--paper);
+}
+
 /* Діалог кадрування: поверх редактора (60), полотно в пропорціях рамки фото на кубку. */
 .crop-backdrop {
   position: fixed;

@@ -3,9 +3,10 @@ import type { JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
 import { TROPHY_EMOJI } from '../../trophy/trophy-meta';
 import type { ToolProps } from '../PrizeStudio';
+import { StickerPicker } from './StickerPicker';
 
-/** «Форма»: вид трофея (шість і «Без трофея») і матеріал; кубок на сцені змінюється одразу. */
-export function ShapeTool({ draft, dispatch }: ToolProps): JSX.Element {
+/** «Форма»: вид трофея (шість і «Без трофея»), матеріал і наліпки на місця форми; кубок на сцені змінюється одразу. */
+export function ShapeTool({ draft, dispatch, level, stored }: ToolProps): JSX.Element {
   const kind = draft.trophy?.kind ?? null;
   return (
     <div className="studio-tool">
@@ -37,6 +38,20 @@ export function ShapeTool({ draft, dispatch }: ToolProps): JSX.Element {
             </label>
           ))}
         </fieldset>
+      )}
+      {draft.trophy !== null && (
+        <section className="studio-group" aria-labelledby="studio-stickers-title">
+          <h2 id="studio-stickers-title" className="studio-group-title">
+            {t('studioStickers')}
+          </h2>
+          <StickerPicker
+            kind={draft.trophy.kind}
+            stickers={draft.decor.stickers}
+            level={level}
+            kept={stored?.stickers.map((s) => s.id)}
+            onPick={(place, id) => dispatch({ type: 'sticker', place, id })}
+          />
+        </section>
       )}
     </div>
   );
