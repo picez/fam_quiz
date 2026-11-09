@@ -137,6 +137,7 @@ describe('TextTool', () => {
     const mono = radio(fonts('Поясок'), /Моноширинний/);
     expect(mono.disabled).toBe(true);
     expect(mono.closest('label')!.textContent).toContain('🔒 з рівня 3');
+    expect(mono.closest('label')!.querySelector('.sr-only')?.textContent).toBe(',');
     cleanup();
     open('cup', { level: 3 });
     fireEvent.click(toggle('Поясок'));

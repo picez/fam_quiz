@@ -14264,7 +14264,7 @@ button.wall-tile:disabled {
 
 .studio-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(7.5rem, 100%), 1fr));
   gap: 0.4rem;
 }
 

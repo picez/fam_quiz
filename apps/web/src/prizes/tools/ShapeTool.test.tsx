@@ -17,7 +17,7 @@ function open({ level = 1, storedTrophy = null }: { level?: number; storedTrophy
 /** Радіо за назвою, без позначок «🔒 з рівня N» і «преміум» після неї. */
 const option = (name: string, scope: HTMLElement = document.body) =>
   within(scope).getByRole('radio', {
-    name: (accessible) => accessible.startsWith(name) && /^(|🔒.*|преміум)$/u.test(accessible.slice(name.length).trim()),
+    name: (accessible) => accessible.startsWith(name) && /^(|, (🔒.*|преміум))$/u.test(accessible.slice(name.length)),
   }) as HTMLInputElement;
 const labelOf = (name: string) => option(name).closest('label')!;
 
@@ -66,8 +66,22 @@ describe('ShapeTool', () => {
     expect(labelOf('кубок').querySelector('.studio-premium')).toBeNull();
     expect(labelOf('Золото').querySelector('.studio-premium')).toBeNull();
     const hint = 'Преміум — особливі форми й матеріали. Поки вони відкриваються рівнем.';
-    const hints = screen.getAllByText(hint);
-    expect(hints.map((p) => p.closest('fieldset')?.querySelector('legend')?.textContent)).toEqual(['Вид', 'Матеріал']);
+    expect(screen.getAllByText(hint)).toHaveLength(1);
+  });
+
+  it('a tile can be locked and premium at once', () => {
+    open({ level: 1 });
+    expect(option('діадема').disabled).toBe(true);
+    expect(labelOf('діадема').querySelector('.look-lock')?.textContent).toBe('🔒 з рівня 22');
+    expect(labelOf('діадема').querySelector('.studio-premium')?.textContent).toBe('преміум');
+  });
+
+  it('marks are read after a comma, not run together with the name', () => {
+    open({ level: 1 });
+    expect(screen.getByRole('radio', { name: 'тарілка-трофей, 🔒 з рівня 24' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'діадема, 🔒 з рівня 22, преміум' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'кубок' })).toBeTruthy();
+    expect(labelOf('тарілка-трофей').querySelector('.sr-only')?.textContent).toBe(',');
   });
 
   it('stored shape stays pickable', () => {

@@ -4,16 +4,7 @@ import { t, type TextKey } from '../../i18n';
 import { MATERIAL_GROUPS, MATERIAL_LOOK, TROPHY_EMOJI, TROPHY_GROUPS } from '../../trophy/trophy-meta';
 import type { ToolProps } from '../PrizeStudio';
 import { StickerPicker } from './StickerPicker';
-
-/** Позначки плитки: «🔒 з рівня N» для закритого й «преміум». */
-function Marks({ need, locked, premium }: { need: number; locked: boolean; premium: boolean }): JSX.Element {
-  return (
-    <>
-      {locked && <span className="look-lock">{t('lookLocked', { level: t('levelFromLevel', { n: need }) })}</span>}
-      {premium && <span className="studio-premium">{t('studioPremium')}</span>}
-    </>
-  );
-}
+import { TileMarks } from './TileMarks';
 
 /**
  * «Форма»: вид трофея групами («Кубки», «Медалі», «Корони й вінки», «Статуетки») і «Без трофея», матеріал групами,
@@ -23,6 +14,10 @@ function Marks({ need, locked, premium }: { need: number; locked: boolean; premi
 export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: ToolProps): JSX.Element {
   const kind = draft.trophy?.kind ?? null;
   const material = draft.trophy?.material ?? null;
+  // Підказка про «преміум» — один раз під виборами, і лише коли серед показаних плиток є преміум.
+  const premiumShown =
+    TROPHY_GROUPS.some((group) => group.kinds.some((value) => PREMIUM_KINDS.includes(value))) ||
+    (draft.trophy !== null && MATERIAL_GROUPS.some((group) => group.materials.some((value) => PREMIUM_MATERIALS.includes(value))));
   return (
     <div className="studio-tool">
       <fieldset className="studio-choice studio-grouped">
@@ -37,7 +32,7 @@ export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: Tool
                 <label key={value} className={locked ? 'is-locked' : undefined}>
                   <input type="radio" name="studio-kind" checked={kind === value} disabled={locked} onChange={() => dispatch({ type: 'trophy', kind: value })} />
                   <span aria-hidden="true">{TROPHY_EMOJI[value]}</span> {t(`trophy_${value}` as TextKey)}
-                  <Marks need={need} locked={locked} premium={PREMIUM_KINDS.includes(value)} />
+                  <TileMarks need={need} locked={locked} premium={PREMIUM_KINDS.includes(value)} />
                 </label>
               );
             })}
@@ -47,7 +42,6 @@ export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: Tool
           <input type="radio" name="studio-kind" checked={kind === null} onChange={() => dispatch({ type: 'trophy', kind: null })} />
           <span aria-hidden="true">🎁</span> {t('studioNoTrophy')}
         </label>
-        {TROPHY_GROUPS.some((group) => group.kinds.some((value) => PREMIUM_KINDS.includes(value))) && <p className="meta">{t('studioPremiumHint')}</p>}
       </fieldset>
       {draft.trophy !== null && (
         <fieldset className="studio-choice studio-grouped">
@@ -69,15 +63,15 @@ export function ShapeTool({ draft, dispatch, level, stored, storedTrophy }: Tool
                     />
                     <span className="studio-swatch-dot" style={{ backgroundColor: MATERIAL_LOOK[value].color }} aria-hidden="true" />
                     {t(`material_${value}` as TextKey)}
-                    <Marks need={need} locked={locked} premium={PREMIUM_MATERIALS.includes(value)} />
+                    <TileMarks need={need} locked={locked} premium={PREMIUM_MATERIALS.includes(value)} />
                   </label>
                 );
               })}
             </fieldset>
           ))}
-          {MATERIAL_GROUPS.some((group) => group.materials.some((value) => PREMIUM_MATERIALS.includes(value))) && <p className="meta">{t('studioPremiumHint')}</p>}
         </fieldset>
       )}
+      {premiumShown && <p className="meta">{t('studioPremiumHint')}</p>}
       {draft.trophy !== null && (
         <section className="studio-group" aria-labelledby="studio-stickers-title">
           <h2 id="studio-stickers-title" className="studio-group-title">
