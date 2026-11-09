@@ -235,6 +235,15 @@ describe('HostBetsPanel', () => {
     expect(screen.queryByRole('button', { name: 'Відкрити запитання' })).toBeNull();
   });
 
+  it('shows a rejected grading through onError', async () => {
+    const send = vi.fn<Send>(async () => ({ ok: false, error: 'wrong_phase' }));
+    const onError = vi.fn();
+    const pending = [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Канберра' } }];
+    render(<HostBetsPanel bets={host({ teaser: null, manual: true, pending })} send={send} onError={onError} />);
+    fireEvent.click(screen.getByRole('button', { name: t('finalGradeWrong') }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.stringMatching(/\S/)));
+  });
+
   it('grades pending manual answers', () => {
     const send = vi.fn<Send>(async () => ({ ok: true }));
     const pending = [{ playerId: 'p1', nickname: 'Олена', answer: { type: 'text' as const, value: 'Канберра' } }];

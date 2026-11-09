@@ -171,11 +171,12 @@ export function BetsResults({ bets, players }: { bets: BetsInfo; players: { id: 
 }
 
 /** Пульт: повне запитання з позначеним початком, який бачать гравці; ставки всіх із сумами й межами; «Відкрити запитання»; оцінка для ручної перевірки. */
-export function HostBetsPanel({ bets, send, openButton = true }: { bets: HostBets; send: Send; openButton?: boolean }) {
+export function HostBetsPanel({ bets, send, openButton = true, presented, onError }: { bets: HostBets; send: Send; openButton?: boolean; presented?: { id: string }[]; onError?: (text: string | null) => void }) {
   const wager = bets.teaser !== null;
   const text = bets.question.text;
   const seen = bets.teaser !== null && bets.teaser !== '' && text.startsWith(bets.teaser) ? bets.teaser : '';
-  const grade = (playerId: string, value: Grade) => void send('host:override', { playerId, grade: value });
+  const grade = (playerId: string, value: Grade) =>
+    void send('host:override', { playerId, grade: value }).then((result) => onError?.(result.ok ? null : errorText(result.error)));
   return (
     <>
       <section className="panel bets-host">
@@ -212,7 +213,7 @@ export function HostBetsPanel({ bets, send, openButton = true }: { bets: HostBet
             {bets.pending.map((entry) => (
               <li key={entry.playerId}>
                 <span className="name" dir="auto">{entry.nickname}</span>
-                <span className="given">{answerText(entry.answer, bets.question)}</span>
+                <span className="given">{answerText(entry.answer, bets.question, presented)}</span>
                 <span className="row-actions">
                   <button type="button" className="btn btn-small" onClick={() => grade(entry.playerId, 'correct')}>
                     {t('finalGradeCorrect')}
