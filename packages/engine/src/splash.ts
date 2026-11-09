@@ -12,18 +12,29 @@ export interface Splash {
   until: number;
 }
 
-/** Ставить заставку kind з миті now тривалістю ms (типово SPLASH_MS[kind]); без state.transitions — splash: null. */
+/**
+ * Ставить заставку kind з миті now тривалістю ms (типово SPLASH_MS[kind]); без state.transitions — splash: null.
+ * Виняток — 'blitz' (26a): «БЛІЦ!» перед бліц-клітинкою показується й без переходів.
+ */
 export function withSplash(state: GameState, kind: SplashKind, now: number, ms: number = SPLASH_MS[kind]): GameState {
-  return state.transitions ? { ...state, splash: { kind, at: now, until: now + ms } } : { ...state, splash: null };
+  return state.transitions || kind === 'blitz' ? { ...state, splash: { kind, at: now, until: now + ms } } : { ...state, splash: null };
 }
 
-/** Тривалість заставки перед запитанням: клітинка з множником — SPLASH_MS.cell + CELL_SURPRISE_MS. */
-export function questionSplashMs(kind: SplashKind, board?: BoardPlay): number {
+/**
+ * Тривалість заставки перед запитанням: клітинка з множником — SPLASH_MS.cell + CELL_SURPRISE_MS.
+ * Бліц-клітинка (26a) — перегортання клітинки (за transitions; без них 0), потім SPLASH_MS.blitz.
+ */
+export function questionSplashMs(kind: SplashKind, board?: BoardPlay, transitions = true): number {
+  if (kind === 'blitz') return (transitions ? questionSplashMs('cell', board) : 0) + SPLASH_MS.blitz;
   return kind === 'cell' && board !== undefined && board.multiplier > 1 ? SPLASH_MS.cell + CELL_SURPRISE_MS : SPLASH_MS[kind];
 }
 
-/** Заставка перед запитанням: поле (board задано) — cell; класика, фінал, «Ва-банк», «Вибування» й «Мільйонер» — question; бліц — null. */
+/**
+ * Заставка перед запитанням: бліц-клітинка поля — blitz; інша клітинка (board задано) — cell;
+ * класика, фінал, «Ва-банк», «Вибування» й «Мільйонер» — question; бліц-раунд — null.
+ */
 export function questionSplashKind(state: GameState, board?: BoardPlay): SplashKind | null {
+  if (board?.kind === 'blitz') return 'blitz';
   if (board !== undefined) return 'cell';
   const type = state.quiz.rounds[state.roundIndex]?.type;
   return type === 'classic' || type === 'final' || type === 'wipeout' || type === 'survival' || type === 'ladder' ? 'question' : null;
@@ -42,12 +53,16 @@ export function shiftSplash(state: GameState, pausedAt: number, shift: number): 
 }
 
 /**
- * Скільки заставки перед запитанням (question, cell, duel) чи випробуванням (trial) лишалося на мить паузи pausedAt; інакше 0.
+ * Скільки заставки перед запитанням (question, cell, blitz, duel) чи випробуванням (trial) лишалося на мить паузи pausedAt; інакше 0.
  * Таймер стартує на її кінці, тож resume додає цей залишок перед залишком таймера.
  */
 export function splashLead(state: GameState, pausedAt: number): number {
   const splash = state.splash;
-  if (splash === null || (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'duel' && splash.kind !== 'trial')) return 0;
+  if (
+    splash === null ||
+    (splash.kind !== 'question' && splash.kind !== 'cell' && splash.kind !== 'blitz' && splash.kind !== 'duel' && splash.kind !== 'trial')
+  )
+    return 0;
   return Math.max(0, splash.until - pausedAt);
 }
 

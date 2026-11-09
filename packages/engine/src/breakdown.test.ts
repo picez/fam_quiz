@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakdownOf, DEFAULT_RULES, roundTotals, type Answer, type BoardCell } from '@quiz/shared';
+import { breakdownOf, DEFAULT_RULES, roundTotals, SPLASH_MS, type Answer, type BoardCell } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { buzz } from './blitz';
 import { pickCell } from './board';
@@ -153,7 +153,8 @@ describe('score lines (11f)', () => {
     const cell: BoardCell = { question: c11, kind: 'blitz', penalty: 'all', mark: 'x2' } as BoardCell;
     const round = boardRound('g1', [{ title: 'A', cells: [cell, c12] }]);
     const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра')));
-    let s = must(pickCell(must(next(intro, 0)), null, 'c11', 0, rng));
+    // Вибір до заставки «БЛІЦ!» (26a): запитання стартує в момент 0.
+    let s = must(pickCell(must(next(intro, -SPLASH_MS.blitz)), null, 'c11', -SPLASH_MS.blitz, rng));
     s = must(acceptAnswer(must(submitAnswer(s, 'p1', lviv, 1000)), 'p1', 1000));
     s = must(acceptAnswer(must(submitAnswer(s, 'p2', kyiv, 2000)), 'p2', 2000));
     s = must(next(s, 3000));

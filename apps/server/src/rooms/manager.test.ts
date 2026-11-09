@@ -905,6 +905,7 @@ describe('board rounds', () => {
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(manager.pick(room, anna.playerId, 'c11')).toEqual({ ok: true });
+    scheduler.advance(SPLASH_MS.blitz); // заставка «БЛІЦ!» (26a)
     expect(manager.answer(room, bohdan.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'accept', playerId: bohdan.playerId })).toEqual({ ok: true });
     expect(room.state.phase).toBe('locked');

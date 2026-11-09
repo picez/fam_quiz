@@ -1,4 +1,4 @@
-import type { Answer, Question } from '@quiz/shared';
+import { SPLASH_MS, type Answer, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { awayEnd, awayStart } from './away';
 import { buzz } from './blitz';
@@ -514,7 +514,8 @@ describe('live answers: blitz', () => {
   it('a voice blitz cell: the head awaits the host without an answer', () => {
     const round = boardRound('g1', [{ title: 'A', cells: [{ question: withId(single, 'c11'), kind: 'blitz', answerMode: 'voice' }] }]);
     const intro = must(start(lobbyWith(makeRoundsQuiz([round]), 'Оля', 'Петро', 'Іра')));
-    let s = must(pickCell(must(next(intro, 0)), null, 'c11', 0, rng));
+    // Вибір до заставки «БЛІЦ!» (26a): запитання стартує в момент 0.
+    let s = must(pickCell(must(next(intro, -SPLASH_MS.blitz)), null, 'c11', -SPLASH_MS.blitz, rng));
     expect(live(s)).toMatchObject({ kind: 'blitz', answered: 0, total: 3 });
     s = must(buzz(s, 'p3', 1000));
     expect(row(s, 'p3')).toMatchObject({ answered: true, answer: null, verdict: null, awaiting: true });

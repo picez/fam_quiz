@@ -1153,10 +1153,11 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     // «Мільйонер»: сходинка = кількість уже зіграних запитань раунду; рівень і таймер — знімки раунду.
     ...(round.type === 'ladder' ? { ladder: ladderPlayFor(state, round.levels, round.timer) } : {}),
   };
-  // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліці заставки немає.
+  // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліц-раунді заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
+  // Бліц-клітинка (26a): перегортання, потім «БЛІЦ!» 3 с — і без переходів, тоді лише «БЛІЦ!».
   const kind = questionSplashKind(state, board);
-  const marked = kind === null ? { ...state, splash: null } : withSplash(state, kind, now, questionSplashMs(kind, board));
+  const marked = kind === null ? { ...state, splash: null } : withSplash(state, kind, now, questionSplashMs(kind, board, state.transitions));
   const at = marked.splash?.until ?? now;
   // Клітинку без таймера ведучий міг вибрати за відсутнього гравця: відлік іде з відкриття.
   // Дебафи, що чекають, спрацьовують для тих, хто відповідає на це запитання з телефона, — від старту запитання.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, roundBrief, type Answer, type Phase, type Question } from '@quiz/shared';
+import { DEFAULT_RULES, roundBrief, SPLASH_MS, type Answer, type Phase, type Question } from '@quiz/shared';
 import { buzz } from './blitz';
 import { nameAnswer, pickCell } from './board';
 import { rollDie, startDice } from './board-dice';
@@ -837,7 +837,8 @@ describe('blitz cell views', () => {
     boardRound('g1', [{ title: 'Міста', cells: [{ kind: 'blitz', question: withId(single, 'c11'), ...cell }, withId(text, 'c12')] }], options);
   const picked = (cell = {}, options = {}) => {
     const intro = must(start(lobbyWith(makeRoundsQuiz([field(cell, options)]), 'Анна', 'Богдан', 'Віра')));
-    return must(pickCell(must(next(intro, 0)), null, 'c11', 0, Math.random));
+    // Вибір до заставки «БЛІЦ!» (26a): запитання стартує в момент 0.
+    return must(pickCell(must(next(intro, -SPLASH_MS.blitz)), null, 'c11', -SPLASH_MS.blitz, Math.random));
   };
 
   it('a button blitz cell shows the queue, own buzz state and the pending answer to everyone, never the correct answer', () => {

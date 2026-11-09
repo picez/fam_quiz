@@ -66,14 +66,21 @@ export type BuffBlock =
   | 'unfit_host';
 
 /** Заставки переходів (частина 8c). */
-export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial';
+export type SplashKind = 'round' | 'final' | 'question' | 'cell' | 'duel' | 'podium' | 'trial' | 'blitz';
 
 /** Тривалість кожної заставки, мс; кінець заставки запитання — старт його таймера. Рушій і веб читають одне число. 8c; 11b — довші приблизно в півтора раза (крім п'єдесталу й випробування). */
 export const SPLASH_MS: Record<SplashKind, number> = { round: 3500, final: 4000, question: 1800, cell: 1500, duel: 2500,
   podium: 2500,
   /** Драматична заставка випробування «Вибування» (10h). */
   trial: 2200,
+  /** 26a: бліц-клітинка поля після перегортання. */
+  blitz: 3000,
 };
+
+/** 26a: скільки мс від початку заставки 'blitz' триває перегортання клітинки (0 без переходів); далі — «БЛІЦ!» SPLASH_MS.blitz. */
+export function blitzLeadMs(splash: { at: number; until: number }): number {
+  return Math.max(0, splash.until - splash.at - SPLASH_MS.blitz);
+}
 
 /**
  * Мінімальний час перед кроком ведучого, мс (11b): крок (розкриття, таблиця, кінець раунду, «Як грати», пропуск ходу, після дуелі), рядок «100 до 1» / варіант блефу, заставка раунду (після її кінця), дострокове закриття (після старту).
