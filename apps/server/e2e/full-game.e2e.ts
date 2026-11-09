@@ -17127,8 +17127,10 @@ async function expectLadderInputShown26c(page: Page, name: string) {
   expect(box.x, `${name}: the input starts off the screen`).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width, `${name}: the input runs past the right edge`).toBeLessThanOrEqual(width + 1);
   expect(box.y + box.height, `${name}: the input stays below the screen`).toBeLessThanOrEqual(height + 1);
-  const buttons = await page.locator('.wordladder-actions .btn').evaluateAll((all) => all.map((b) => b.getBoundingClientRect().right));
-  expect(Math.max(...buttons), `${name}: a button runs past the right edge`).toBeLessThanOrEqual(width + 1);
+  const buttons = await page.locator('.wordladder-actions .btn').evaluateAll((all) => all.map((b) => ({ right: b.getBoundingClientRect().right, height: b.getBoundingClientRect().height })));
+  expect(Math.max(...buttons.map((b) => b.right)), `${name}: a button runs past the right edge`).toBeLessThanOrEqual(width + 1);
+  // «Крок назад» не переноситься на другий рядок: обидві кнопки однієї висоти в один рядок.
+  expect(Math.max(...buttons.map((b) => b.height)), `${name}: a button label wraps`).toBeLessThan(60);
 }
 
 async function wordLadderGame26c() {
@@ -17161,7 +17163,7 @@ async function wordLadderGame26c() {
   expect(check.ok()).toBe(true);
   expect(await check.json()).toEqual({ unknown: [] });
   await host.waitForTimeout(200);
-  expect(await host.locator('.wordladder-unknown').count(), 'a dictionary warning for a valid path').toBe(0);
+  expect(await host.locator('.wordladder-unknown').textContent(), 'a dictionary warning for a valid path').toBe('');
   await shot(host, 'wordladder26c-editor');
   await click(host, 'Зберегти');
   await host.getByRole('heading', { name: 'Драбина слів' }).waitFor();
@@ -17201,7 +17203,7 @@ async function wordLadderGame26c() {
   await stage.locator('.wordladder-goal').getByText('ПОЛЕ → ТАРА', exact).waitFor();
   await stage.getByText('Дійшли 0 з 5', exact).waitFor();
   await stage.getByText('Ведіть драбину на телефоні', exact).waitFor();
-  await taras.getByText('Бали — до 8 кроків', exact).waitFor();
+  await taras.getByText('Бали — за щонайбільше 8 кроків', exact).waitFor();
 
   // ── Тарас: дві відмови, слово й «Крок назад». ──
   await ladderMove26c(taras, 'ПІЛА', 'Ви замінили більше ніж одну літеру');
@@ -17306,6 +17308,9 @@ async function wordLadderGame26c() {
   await expect.poll(() => taras.locator('.earned').textContent(), POLL).toBe('+400');
   await expect.poll(() => olya.locator('.earned').textContent(), POLL).toBe('+500');
   await ira.getByText('Не встигли дійти до цілі', exact).first().waitFor();
+  // Швидкість на драбині не рахується: ні «найшвидшої» на телефоні, ні «найшвидше» на сцені.
+  expect(await bodyText(taras)).not.toContain('найшвидша');
+  expect(await bodyText(stage)).not.toContain('найшвидше');
   await shot(taras, 'wordladder26c-phone-reveal');
   await shot(vira, 'wordladder26c-phone-ar-reveal');
 
@@ -17318,6 +17323,7 @@ async function wordLadderGame26c() {
   await question.getByText(/Відповіді \(\d+\)/).click();
   await question.locator('.responses li', { hasText: 'Оля' }).getByText('Дійшли за кроків: 4').waitFor();
   await question.locator('.responses li', { hasText: 'Тарас' }).getByText('Дійшли за кроків: 5').waitFor();
+  expect(await bodyText(host), 'a speed award for the word ladder').not.toContain('Блискавка');
   await shot(host, 'wordladder26c-history');
 
   expect(problems).toEqual([]);
