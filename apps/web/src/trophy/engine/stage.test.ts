@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { PerspectiveCamera, Scene, type WebGLRenderer } from 'three';
+import { PerspectiveCamera, Plane, Scene, Vector3, type WebGLRenderer } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { Stage, type StageView } from './stage';
 
@@ -8,6 +8,7 @@ interface FakeRenderer {
   setSize: ReturnType<typeof vi.fn>;
   setPixelRatio: ReturnType<typeof vi.fn>;
   domElement: HTMLCanvasElement;
+  clippingPlanes: Plane[];
 }
 
 const fakes: FakeRenderer[] = [];
@@ -24,7 +25,7 @@ vi.mock('three', async (importOriginal) => {
 });
 
 function makeFake(): FakeRenderer {
-  return { render: vi.fn(), setSize: vi.fn(), setPixelRatio: vi.fn(), domElement: document.createElement('canvas') };
+  return { render: vi.fn(), setSize: vi.fn(), setPixelRatio: vi.fn(), domElement: document.createElement('canvas'), clippingPlanes: [] };
 }
 
 let frames: FrameRequestCallback[] = [];
@@ -71,7 +72,7 @@ afterEach(() => {
 
 function makeView(needsFrame = false): StageView & { onLost: Mock<() => void> } {
   const canvas = document.createElement('canvas');
-  Object.defineProperty(canvas, 'clientWidth', { value: 120 });
+  Object.defineProperty(canvas, 'clientWidth', { value: 120, configurable: true });
   Object.defineProperty(canvas, 'clientHeight', { value: 160 });
   return { canvas, scene: new Scene(), camera: new PerspectiveCamera(30, 1, 0.01, 100), needsFrame: () => needsFrame, onLost: vi.fn<() => void>() };
 }
@@ -151,6 +152,49 @@ describe('Stage', () => {
     stage.add(view);
     show([view]);
     runFrame();
+    expect(frames).toHaveLength(1);
+  });
+
+  it('clipping planes are per view', () => {
+    const { stage, fake } = stageWithFake();
+    const a = makeView();
+    const b = makeView();
+    a.clippingPlanes = [new Plane(new Vector3(0, 1, 0), 0)];
+    stage.add(a);
+    stage.add(b);
+    show([a, b]);
+    const seen = new Map<unknown, number>();
+    fake.render.mockImplementation((scene: unknown) => {
+      seen.set(scene, fake.clippingPlanes.length);
+    });
+    runFrame();
+    expect(seen.get(a.scene)).toBe(1);
+    expect(seen.get(b.scene)).toBe(0);
+  });
+
+  it('a zero-size moving view does not keep the loop', () => {
+    let resize: ResizeObserverCallback | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      vi.fn(function (callback: ResizeObserverCallback) {
+        resize = callback;
+        return { observe: vi.fn(), unobserve: vi.fn(), disconnect: vi.fn() };
+      }),
+    );
+    const { stage, fake } = stageWithFake();
+    const view = makeView(true);
+    let width = 0;
+    Object.defineProperty(view.canvas, 'clientWidth', { get: () => width });
+    stage.add(view);
+    show([view]);
+    runFrame();
+    expect(fake.render).not.toHaveBeenCalled();
+    expect(frames).toHaveLength(0);
+    width = 120;
+    resize!([{ target: view.canvas } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+    expect(frames).toHaveLength(1);
+    runFrame(32);
+    expect(fake.render).toHaveBeenCalledTimes(1);
     expect(frames).toHaveLength(1);
   });
 

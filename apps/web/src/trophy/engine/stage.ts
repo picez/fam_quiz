@@ -4,6 +4,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
   type PerspectiveCamera,
+  type Plane,
   type Scene,
   type Texture,
 } from 'three';
@@ -22,7 +23,12 @@ export interface StageView {
   beforeRender?(width: number, height: number, delta: number): void;
   /** Кадр скопійовано в полотно. */
   afterDraw?(): void;
+  /** Площини відсікання цього вигляду; немає — без відсікання. */
+  clippingPlanes?: readonly Plane[];
 }
+
+/** Спільний порожній масив: вигляд без відсікання не лишає чужих площин у рендерері. */
+const NO_PLANES: Plane[] = [];
 
 /** Найбільший devicePixelRatio, з яким малюємо. */
 const MAX_PIXEL_RATIO = 2;
@@ -141,7 +147,8 @@ export class Stage {
     let again = false;
     for (const view of this.visible) {
       const moving = view.needsFrame();
-      if (moving) again = true;
+      // Вигляд без розміру нічого не намалює: ResizeObserver зробить invalidate, коли розмір з'явиться.
+      if (moving && view.canvas.clientWidth > 0 && view.canvas.clientHeight > 0) again = true;
       if (!moving && !this.dirty.has(view)) continue;
       if (this.draw(view, delta)) this.dirty.delete(view);
     }
@@ -167,6 +174,7 @@ export class Stage {
       this.renderer.setSize(width, height, false);
       this.size = { width, height };
     }
+    this.renderer.clippingPlanes = view.clippingPlanes ? [...view.clippingPlanes] : NO_PLANES;
     this.renderer.render(view.scene, view.camera);
     const bufferWidth = Math.floor(width * this.pixelRatio);
     const bufferHeight = Math.floor(height * this.pixelRatio);
