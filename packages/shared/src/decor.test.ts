@@ -148,6 +148,44 @@ describe('shownDecor', () => {
     expect(DECOR_SUPPORT.medal.photo).not.toContain('plaque');
     expect(DECOR_LIMITS.ring).toBe(16);
   });
+
+  it('shape change hides unsupported decor', () => {
+    // Кубок з наліпкою base-left і написом на пояску → медаль-зірка (25e): обох місць у неї немає.
+    const cup = {
+      ...base,
+      inscriptions: [ins('band', 'b'), ins('back', 'z')],
+      stickers: [
+        { id: STICKERS[0]!.id, place: 'base-left' },
+        { id: STICKERS[0]!.id, place: 'left' },
+      ],
+    } as unknown as TrophyDecor;
+    const shown = shownDecor('starmedal', cup);
+    expect(shown.inscriptions.map((i) => i.place)).toEqual(['back']);
+    expect(shown.stickers.map((s) => s.place)).toEqual(['left']);
+  });
+
+  it('25e shapes have their decor places', () => {
+    expect(DECOR_SUPPORT.lovingcup).toEqual({ photo: TROPHY_PHOTO_PLACES, inscription: INSCRIPTION_PLACES, sticker: STICKER_PLACES });
+    expect(DECOR_SUPPORT.vase).toEqual({ photo: ['ring', 'medallion', 'gems', 'backdrop'], inscription: ['band'], sticker: ['front', 'back', 'left', 'right'] });
+    expect(DECOR_SUPPORT.plate).toEqual({ photo: ['medallion', 'gems', 'backdrop'], inscription: ['band', 'plaque', 'back'], sticker: ['front', 'base-left', 'base-right'] });
+    expect(DECOR_SUPPORT.goblet).toEqual({ photo: ['ring', 'medallion', 'gems', 'backdrop'], inscription: ['rim', 'band'], sticker: ['front', 'back', 'left', 'right'] });
+    expect(DECOR_SUPPORT.starmedal).toEqual({ photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['left', 'right'] });
+    for (const kind of ['cross', 'octagon', 'ribbon'] as const) {
+      expect(DECOR_SUPPORT[kind]).toEqual({ photo: ['medallion', 'gems', 'backdrop'], inscription: ['back'], sticker: ['front', 'left', 'right'] });
+    }
+    expect(DECOR_SUPPORT.diadem).toEqual({
+      photo: ['medallion', 'gems', 'plaque', 'backdrop'],
+      inscription: ['band', 'plaque'],
+      sticker: ['back', 'left', 'right', 'base-left', 'base-right'],
+    });
+    for (const kind of ['laurel', 'olive'] as const) {
+      expect(DECOR_SUPPORT[kind]).toEqual({ photo: ['plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'base-left', 'base-right'] });
+    }
+    expect(DECOR_SUPPORT.figure).toEqual({ photo: TROPHY_PHOTO_PLACES, inscription: ['band', 'plaque'], sticker: STICKER_PLACES });
+    expect(DECOR_SUPPORT.flame).toEqual({ photo: ['medallion', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'back', 'base-left', 'base-right'] });
+    expect(DECOR_SUPPORT.wings).toEqual({ photo: ['medallion', 'gems', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['left', 'right', 'base-left', 'base-right'] });
+    expect(DECOR_SUPPORT.fist).toEqual({ photo: ['ring', 'medallion', 'plaque', 'backdrop'], inscription: ['band', 'plaque'], sticker: ['front', 'back', 'base-left', 'base-right'] });
+  });
 });
 
 describe('25c level locks', () => {

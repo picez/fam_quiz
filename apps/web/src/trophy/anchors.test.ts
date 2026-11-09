@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { DECOR_SUPPORT, TROPHY_KINDS } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { TROPHY_ANCHORS, profileRadius, type BandAnchor, type Spot } from './anchors';
+import { NEW_KINDS_25E, TROPHY_ANCHORS, profileRadius, type BandAnchor, type Spot } from './anchors';
 import { gemSpots } from './decor-layout';
 
 const dir = ['apps/web/public/models', 'public/models'].find((path) => existsSync(`${path}/cup.glb`) as boolean)!;
@@ -213,6 +213,39 @@ describe('trophy anchors', () => {
 
   it('cup base-back is on the back face', () => {
     expect(TROPHY_ANCHORS.cup.baseBack).toEqual({ position: [0, 0.1, -0.186], normal: [0, 0, -1], size: 0.16, surface: 'plinth-back' });
+  });
+
+  it('lovingcup base-back is on the back face', () => {
+    const spot = TROPHY_ANCHORS.lovingcup.baseBack!;
+    expect(spot.normal).toEqual([0, 0, -1]);
+    expect(spot.surface).toBe('plinth-back');
+    // build-trophies.mjs, lovingcup(): plinth(0.26, 0.2) — задня грань на 0.26·cos45 від осі, пляма на 0.002 зовні.
+    expect(Math.abs(spot.position[2] + (0.26 * Math.SQRT1_2 + 0.002))).toBeLessThanOrEqual(0.002);
+    expect(spot.position[1] - spot.size / 2).toBeGreaterThanOrEqual(0);
+    expect(spot.position[1] + spot.size / 2).toBeLessThanOrEqual(0.2);
+  });
+
+  it('only the loving cup of the 25e shapes has a spare back place', () => {
+    expect(NEW_KINDS_25E.filter((kind) => TROPHY_ANCHORS[kind].baseBack !== undefined)).toEqual(['lovingcup']);
+    expect([...NEW_KINDS_25E].sort()).toEqual(TROPHY_KINDS.slice(6).sort());
+  });
+
+  it('lovingcup side stickers and gems sit clear of the ears', () => {
+    // build-trophies.mjs, lovingcup(): вуха — тор r 0.03 у площині XY (z = 0) на ±X, біля стінки чаші r ≈ 0.33–0.37.
+    const ear = Math.asin(0.03 / 0.33);
+    const { stickers, gems } = TROPHY_ANCHORS.lovingcup;
+    for (const spot of [stickers.left!, stickers.right!]) {
+      const [x, , z] = spot.position;
+      const half = spot.size / 2 / Math.hypot(x, z);
+      expect(Math.abs(Math.abs(Math.atan2(x, z)) - Math.PI / 2)).toBeGreaterThan(ear + half);
+    }
+    const reach = ear + gems!.size / 2 / gems!.radius;
+    for (let n = 1; n <= 8; n++) {
+      for (const g of gemSpots(gems!, n)) {
+        const angle = Math.atan2(g.position[0], g.position[2]);
+        expect(Math.abs(Math.abs(angle) - Math.PI / 2), `${n} gems`).toBeGreaterThanOrEqual(reach);
+      }
+    }
   });
 
   it.each(TROPHY_KINDS)('%s normals are unit and spots sit on the model', (kind) => {

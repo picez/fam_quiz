@@ -310,20 +310,348 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       'base-right': spot([0.268, 0.025, 0], RIGHT, 0.05, 'base'),
     },
   },
-  // Нові форми 25e: місця й поверхні з'являються в задачі 4.
-  lovingcup: { surfaces: {}, stickers: {} },
-  vase: { surfaces: {}, stickers: {} },
-  plate: { surfaces: {}, stickers: {} },
-  goblet: { surfaces: {}, stickers: {} },
-  starmedal: { surfaces: {}, stickers: {} },
-  cross: { surfaces: {}, stickers: {} },
-  octagon: { surfaces: {}, stickers: {} },
-  ribbon: { surfaces: {}, stickers: {} },
-  diadem: { surfaces: {}, stickers: {} },
-  laurel: { surfaces: {}, stickers: {} },
-  olive: { surfaces: {}, stickers: {} },
-  figure: { surfaces: {}, stickers: {} },
-  flame: { surfaces: {}, stickers: {} },
-  wings: { surfaces: {}, stickers: {} },
-  fist: { surfaces: {}, stickers: {} },
+  // ── 25e: числа з коментарів до функцій моделей у build-trophies.mjs ──
+  // Постамент plinth(0.26, 0.2) (грань 0.184), ніжка 0.23–0.47, чаша 0.47–0.98 (r 0.12 → 0.37), вінець 0.98–1.005 (r 0.39);
+  // вуха — тор r 0.03 у площині XY на ±X біля стінки чаші, y 0.62–0.98.
+  lovingcup: {
+    profile: {
+      points: [
+        [0.2, 0.23],
+        [0.2, 0.26],
+        [0.16, 0.27],
+        [0.16, 0.3],
+        [0.1, 0.31],
+        [0.06, 0.36],
+        [0.045, 0.42],
+        [0.07, 0.45],
+        [0.05, 0.47],
+        [0.12, 0.48],
+        [0.22, 0.53],
+        [0.3, 0.6],
+        [0.345, 0.7],
+        [0.365, 0.82],
+        [0.37, 0.94],
+        [0.37, 0.98],
+        [0.39, 0.99],
+        [0.39, 1.005],
+      ],
+      segments: 36,
+    },
+    surfaces: { bowl: 'revolved', foot: 'revolved', ...PLINTH },
+    ring: { shape: 'profile', surface: 'bowl', y0: 0.7, y1: 0.925, tori: ['bottom', 'top'], tube: 0.012 },
+    // Рим — на прямій стінці під вінцем (вище 0.98 вінець різко розходиться).
+    rim: { shape: 'profile', surface: 'bowl', y0: 0.95, y1: 0.977, tori: ['bottom', 'top'], tube: 0.008 },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.186], tiltX: 0, width: 0.32, height: 0.04, surface: 'plinth-front' } },
+    medallion: spot([0, 0.8, 0.364], unit(0, -0.12, 1), 0.2, 'bowl'),
+    back: spot([0, 0.83, -0.367], unit(0, -0.1, -1), 0.18, 'bowl'),
+    baseBack: spot([0, 0.1, -0.186], BACK, 0.16, 'plinth-back'),
+    // Вуха на ±X займають ±4.6–5.2° (r 0.03 на стінці r 0.33–0.37) — з запасом 7°.
+    gems: {
+      center: [0, 0.8, 0],
+      axis: 'y',
+      radius: 0.364,
+      size: 0.07,
+      surface: 'bowl',
+      avoid: { angles: [Math.PI / 2, -Math.PI / 2], halfWidth: (7 * Math.PI) / 180 },
+    },
+    plaque: { position: [0, 0.09, 0.186], tiltX: 0, width: 0.24, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      // front і back — нижче звороту (0.74–0.92): напис звороту й задня наліпка не накладаються.
+      front: spot([0, 0.66, 0.329], unit(0, -0.4, 1), 0.1, 'bowl'),
+      back: spot([0, 0.66, -0.329], unit(0, -0.4, -1), 0.1, 'bowl'),
+      // Повернуті на 40° від осі вух (±X) до переду, як у кубка.
+      left: spot([-0.272, 0.75, 0.228], unit(-0.766, -0.15, 0.643), 0.12, 'bowl'),
+      right: spot([0.272, 0.75, 0.228], unit(0.766, -0.15, 0.643), 0.12, 'bowl'),
+      'base-left': spot([-0.186, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.186, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Без постаменту: ніжка r 0.16 (y 0–0.04), черево r 0.27 на y 0.5, горло r 0.1 на y 0.9, розтруб r 0.16 на y 1.0.
+  vase: {
+    profile: {
+      points: [
+        [0.16, 0],
+        [0.16, 0.04],
+        [0.12, 0.06],
+        [0.17, 0.15],
+        [0.23, 0.3],
+        [0.265, 0.42],
+        [0.27, 0.5],
+        [0.26, 0.6],
+        [0.22, 0.72],
+        [0.15, 0.82],
+        [0.1, 0.9],
+        [0.115, 0.96],
+        [0.16, 1.0],
+      ],
+      segments: 48,
+    },
+    surfaces: { belly: 'revolved', foot: 'revolved' },
+    ring: { shape: 'profile', surface: 'belly', y0: 0.38, y1: 0.62, tori: ['bottom', 'top'], tube: 0.01 },
+    // Поясок — на прямій стінці ніжки, з відступом від підлоги й від зламу на 0.04.
+    band: { shape: 'profile', surface: 'foot', y0: 0.005, y1: 0.035, tori: [], tube: 0 },
+    medallion: spot([0, 0.5, 0.272], FRONT, 0.2, 'belly'),
+    gems: { center: [0, 0.5, 0], axis: 'y', radius: 0.272, size: 0.07, surface: 'belly' },
+    stickers: {
+      front: spot([0, 0.44, 0.27], unit(0, -0.06, 1), 0.12, 'belly'),
+      back: spot([0, 0.44, -0.27], unit(0, -0.06, -1), 0.12, 'belly'),
+      left: spot([-0.27, 0.44, 0], unit(-1, -0.06, 0), 0.12, 'belly'),
+      right: spot([0.27, 0.44, 0], unit(1, -0.06, 0), 0.12, 'belly'),
+    },
+  },
+  // Диск r 0.4 лицем до +Z з центром (0, 0.68): гладке заглиблення z 0.012 до r 0.3, зворот z −0.03 до r 0.36;
+  // ззаду підпора до (0, 0.6, −0.025). Постамент plinth(0.24, 0.2) (грань 0.17).
+  plate: {
+    surfaces: { 'dish-front': 'flat', 'dish-back': 'flat', ...PLINTH },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.172], tiltX: 0, width: 0.3, height: 0.04, surface: 'plinth-front' } },
+    medallion: spot([0, 0.68, 0.013], FRONT, 0.36, 'dish-front'),
+    // Зворот — вище підпори (її верх y ≈ 0.605).
+    back: spot([0, 0.75, -0.031], BACK, 0.28, 'dish-back'),
+    // Не менші за 0.09: коробка проєктора (±0.05) за нижнім самоцвітом сягає підпори за диском.
+    gems: { center: [0, 0.68, 0.013], axis: 'z', radius: 0.18, size: 0.09, surface: 'dish-front' },
+    plaque: { position: [0, 0.09, 0.172], tiltX: 0, width: 0.22, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      front: spot([0, 0.52, 0.013], FRONT, 0.12, 'dish-front'),
+      'base-left': spot([-0.172, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.172, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Диск ніжки r 0.2 (y 0–0.03), ніжка r 0.03 з кулею на 0.3, чаша 0.46–0.93 (r до 0.27), вінець 0.93–0.965 (r 0.29).
+  goblet: {
+    profile: {
+      points: [
+        [0.2, 0],
+        [0.2, 0.03],
+        [0.17, 0.045],
+        [0.06, 0.075],
+        [0.035, 0.1],
+        [0.03, 0.2],
+        [0.03, 0.4],
+        [0.05, 0.46],
+        [0.12, 0.5],
+        [0.19, 0.56],
+        [0.24, 0.64],
+        [0.265, 0.74],
+        [0.27, 0.85],
+        [0.27, 0.93],
+        [0.29, 0.945],
+        [0.29, 0.965],
+      ],
+      segments: 40,
+    },
+    surfaces: { bowl: 'revolved', foot: 'revolved' },
+    ring: { shape: 'profile', surface: 'bowl', y0: 0.64, y1: 0.845, tori: ['bottom', 'top'], tube: 0.01 },
+    // Рим — на прямій стінці чаші r 0.27 під вінцем.
+    rim: { shape: 'profile', surface: 'bowl', y0: 0.865, y1: 0.92, tori: ['bottom', 'top'], tube: 0.008 },
+    band: { shape: 'profile', surface: 'foot', y0: 0.003, y1: 0.027, tori: [], tube: 0 },
+    medallion: spot([0, 0.74, 0.267], unit(0, -0.15, 1), 0.18, 'bowl'),
+    gems: { center: [0, 0.74, 0], axis: 'y', radius: 0.267, size: 0.06, surface: 'bowl' },
+    stickers: {
+      front: spot([0, 0.72, 0.262], unit(0, -0.2, 1), 0.1, 'bowl'),
+      back: spot([0, 0.72, -0.262], unit(0, -0.2, -1), 0.1, 'bowl'),
+      left: spot([-0.262, 0.72, 0], unit(-1, -0.2, 0), 0.1, 'bowl'),
+      right: spot([0.262, 0.72, 0], unit(1, -0.2, 0), 0.1, 'bowl'),
+    },
+  },
+  // starShape(0.36, 0.15, 0.06, 0.02) з центром (0, 0.2912): лице z 0.06 у центрі → 0.02 на краях; бічні промені на 162° і 18°.
+  starmedal: {
+    surfaces: { face: 'flat', back: 'flat' },
+    medallion: spot([0, 0.2912, 0.061], FRONT, 0.2, 'face'),
+    back: spot([0, 0.2912, -0.061], BACK, 0.2, 'back'),
+    gems: { center: [0, 0.2912, 0.05], axis: 'z', radius: 0.075, size: 0.045, surface: 'face' },
+    stickers: {
+      // На бічних променях за 0.19 від центру (лице там z ≈ 0.039).
+      left: spot([-0.18, 0.35, 0.04], FRONT, 0.07, 'face'),
+      right: spot([0.18, 0.35, 0.04], FRONT, 0.07, 'face'),
+    },
+  },
+  // Хрест з центром (0, 0.35): рамена 0.16 завширшки, лице z 0.025; центральний диск r 0.13, лице z 0.045, зворот z −0.035.
+  cross: {
+    surfaces: { face: 'flat', back: 'flat' },
+    medallion: spot([0, 0.35, 0.046], FRONT, 0.18, 'face'),
+    back: spot([0, 0.35, -0.036], BACK, 0.18, 'back'),
+    gems: { center: [0, 0.35, 0.045], axis: 'z', radius: 0.08, size: 0.045, surface: 'face' },
+    stickers: {
+      front: spot([0, 0.13, 0.026], FRONT, 0.12, 'face'),
+      left: spot([-0.22, 0.35, 0.026], FRONT, 0.12, 'face'),
+      right: spot([0.22, 0.35, 0.026], FRONT, 0.12, 'face'),
+    },
+  },
+  // Восьмикутник r 0.34 з центром (0, 0.3141), лице z 0.035, бічні грані x ±0.314 (z ±0.035 з фасками);
+  // піднятий r 0.25: пласке лице z ±0.055, апофема 0.216.
+  octagon: {
+    surfaces: { face: 'flat', back: 'flat', 'edge-left': 'flat', 'edge-right': 'flat' },
+    medallion: spot([0, 0.3141, 0.056], FRONT, 0.3, 'face'),
+    back: spot([0, 0.3141, -0.056], BACK, 0.3, 'back'),
+    gems: { center: [0, 0.3141, 0.056], axis: 'z', radius: 0.15, size: 0.06, surface: 'face' },
+    stickers: {
+      front: spot([0, 0.194, 0.056], FRONT, 0.1, 'face'),
+      left: spot([-0.315, 0.3141, 0], LEFT, 0.06, 'edge-left'),
+      right: spot([0.315, 0.3141, 0], RIGHT, 0.06, 'edge-right'),
+    },
+  },
+  // Диск r 0.3 з центром (0, 0.3): лице z 0.045 → 0.04 до r 0.2, жолоб r 0.2–0.27, ребро r 0.3 (z −0.035…0.04 з фасками),
+  // зворот z −0.035 до r 0.27; стрічки — вище 0.585.
+  ribbon: {
+    surfaces: { face: 'flat', back: 'flat', 'edge-left': 'flat', 'edge-right': 'flat' },
+    medallion: spot([0, 0.3, 0.046], FRONT, 0.28, 'face'),
+    back: spot([0, 0.3, -0.036], BACK, 0.38, 'back'),
+    gems: { center: [0, 0.3, 0.036], axis: 'z', radius: 0.235, size: 0.045, surface: 'face' },
+    stickers: {
+      front: spot([0, 0.17, 0.043], FRONT, 0.1, 'face'),
+      left: spot([-0.301, 0.3, 0.002], LEFT, 0.06, 'edge-left'),
+      right: spot([0.301, 0.3, 0.002], RIGHT, 0.06, 'edge-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); обруч r 0.3–0.31 на y 0.24–0.32; гребінь спереду (±74°) від 0.32 до 0.82;
+  // камінь — куля r 0.06 у (0, 0.42, 0.315).
+  diadem: {
+    profile: {
+      points: [
+        [0.3, 0.24],
+        [0.31, 0.28],
+        [0.3, 0.32],
+      ],
+      segments: 48,
+    },
+    surfaces: { hoop: 'revolved', crest: 'flat', ...PLINTH },
+    // Поясок — на грані постаменту, як у кубка: обруч (0.08 заввишки) лишається самоцвітам.
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    // Медальйон — камея на центральному камені гребеня.
+    medallion: spot([0, 0.42, 0.376], FRONT, 0.08, 'crest'),
+    gems: { center: [0, 0.28, 0], axis: 'y', radius: 0.312, size: 0.05, surface: 'hoop' },
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      back: spot([0, 0.28, -0.312], BACK, 0.07, 'hoop'),
+      left: spot([-0.312, 0.28, 0], LEFT, 0.07, 'hoop'),
+      right: spot([0.312, 0.28, 0], RIGHT, 0.07, 'hoop'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); вінок R 0.32 з центром (0, 0.62); вузол — куля r 0.024 у (0, 0.3, 0.016).
+  // Грань постаменту зайнята пояском і табличкою, тож front — на вузлі; більша за 0.032 наліпка з кулі r 0.024 звисає.
+  laurel: {
+    surfaces: { knot: 'flat', ...PLINTH },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      front: spot([0, 0.3, 0.041], FRONT, 0.032, 'knot'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  olive: {
+    surfaces: { knot: 'flat', ...PLINTH },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      front: spot([0, 0.3, 0.041], FRONT, 0.032, 'knot'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); барабан r 0.15 на y 0.23–0.36; тулуб r 0.075 → 0.1 на y 0.62–0.74.
+  figure: {
+    profile: {
+      points: [
+        [0.15, 0.23],
+        [0.15, 0.36],
+        [0.135, 0.375],
+      ],
+      segments: 40,
+    },
+    surfaces: { drum: 'revolved', torso: 'revolved', ...PLINTH },
+    ring: { shape: 'profile', surface: 'drum', y0: 0.245, y1: 0.345, tori: ['bottom', 'top'], tube: 0.008 },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    // Медальйон — на грудях фігурки, між руками.
+    medallion: spot([0, 0.69, 0.089], unit(0, -0.18, 1), 0.09, 'torso'),
+    gems: { center: [0, 0.295, 0], axis: 'y', radius: 0.151, size: 0.05, surface: 'drum' },
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      front: spot([0, 0.295, 0.151], FRONT, 0.1, 'drum'),
+      back: spot([0, 0.295, -0.151], BACK, 0.1, 'drum'),
+      left: spot([-0.151, 0.295, 0], LEFT, 0.1, 'drum'),
+      right: spot([0.151, 0.295, 0], RIGHT, 0.1, 'drum'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); передній язик полум'я нахилений до +Z (лице z 0.165–0.185 на y 0.45–0.65),
+  // задній — до −Z (лице z ≈ −0.165 на y 0.45–0.6).
+  flame: {
+    surfaces: { flame: 'revolved', ...PLINTH },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    medallion: spot([0, 0.49, 0.176], FRONT, 0.09, 'flame'),
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      front: spot([0, 0.49, 0.176], FRONT, 0.08, 'flame'),
+      back: spot([-0.01, 0.5, -0.166], BACK, 0.08, 'flame'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); куля r 0.1 на y 0.45; крила-віяла від (±0.05, 0.5), лице пір'їн z −0.034…−0.058.
+  wings: {
+    surfaces: { orb: 'revolved', 'wing-left': 'flat', 'wing-right': 'flat', ...PLINTH },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    medallion: spot([0, 0.45, 0.101], FRONT, 0.12, 'orb'),
+    gems: { center: [0, 0.45, 0], axis: 'y', radius: 0.101, size: 0.04, surface: 'orb' },
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      // На віялі за 0.22 від кореня під кутом 0.6 від вертикалі: там пір'їни ще накривають одна одну.
+      left: spot([-0.174, 0.68, -0.045], FRONT, 0.1, 'wing-left'),
+      right: spot([0.174, 0.68, -0.045], FRONT, 0.1, 'wing-right'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
+  // Постамент plinth(0.22, 0.2) (грань 0.156); передпліччя r 0.09–0.105 на y 0.23–0.5, манжета 0.5–0.545;
+  // долоня — box 0.3 × 0.2 × 0.16 з центром (0, 0.72, 0) (тил z −0.08), загнуті пальці спереду (z до 0.18 на y 0.72–0.82).
+  fist: {
+    profile: {
+      points: [
+        [0.09, 0.23],
+        [0.095, 0.32],
+        [0.105, 0.42],
+        [0.1, 0.5],
+        [0.115, 0.5],
+        [0.115, 0.545],
+        [0.1, 0.545],
+        [0.1, 0.64],
+      ],
+      segments: 32,
+    },
+    surfaces: { forearm: 'revolved', fingers: 'flat', hand: 'flat', ...PLINTH },
+    ring: { shape: 'profile', surface: 'forearm', y0: 0.25, y1: 0.48, tori: ['bottom', 'top'], tube: 0.008 },
+    band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
+    medallion: spot([0, 0.37, 0.102], unit(0, -0.1, 1), 0.1, 'forearm'),
+    plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
+    stickers: {
+      // Над великим пальцем (його верх y ≈ 0.726), нормаль трохи вгору — за вигином пальців.
+      front: spot([0, 0.775, 0.16], unit(0, 0.2, 1), 0.09, 'fingers'),
+      back: spot([0, 0.68, -0.081], BACK, 0.1, 'hand'),
+      'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
+    },
+  },
 };
+
+/** Форми 25e (для тестів і e2e). */
+export const NEW_KINDS_25E: readonly TrophyKind[] = [
+  'lovingcup',
+  'vase',
+  'plate',
+  'goblet',
+  'starmedal',
+  'cross',
+  'octagon',
+  'ribbon',
+  'diadem',
+  'laurel',
+  'olive',
+  'figure',
+  'flame',
+  'wings',
+  'fist',
+];

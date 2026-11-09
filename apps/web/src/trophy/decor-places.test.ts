@@ -1,7 +1,7 @@
 import { DECOR_SUPPORT } from '@quiz/shared';
 import type { Inscription, InscriptionPlace, StickerPlace, TrophyDecor, TrophyKind, TrophyPhotoPlace } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { TROPHY_ANCHORS } from './anchors';
+import { NEW_KINDS_25E, TROPHY_ANCHORS } from './anchors';
 import { layoutDecor, overlaps, spotFootprint, stickerPlaceChoices } from './decor-places';
 
 const base: TrophyDecor = {
@@ -148,6 +148,53 @@ describe('layoutDecor', () => {
     expect(conflicts('cup')).toEqual(['gems×back', 'ring×back']);
     expect(conflicts('grail')).toEqual(['gems×back', 'ring×back']);
     for (const kind of ['medal', 'crown', 'star', 'statuette'] as const) expect(conflicts(kind)).toEqual([]);
+    expect(conflicts('lovingcup')).toEqual(['gems×back', 'ring×back']);
+    for (const kind of NEW_KINDS_25E.filter((k) => k !== 'lovingcup')) expect(conflicts(kind), kind).toEqual([]);
+  });
+
+  it('25e shapes: inscriptions, stickers, plaque and bands never collide with each other', () => {
+    // Фото × наліпка дозволено (наліпка переїжджає); решта власних місць нових форм не накладається.
+    for (const kind of NEW_KINDS_25E) {
+      const support = DECOR_SUPPORT[kind];
+      const found: string[] = [];
+      for (const ins of support.inscription) {
+        for (const place of support.sticker) {
+          const layout = layoutDecor(kind, decor({ inscriptions: [inscription(ins)], stickers: stickers(place) }));
+          if (layout.inscriptions[0]!.at !== 'own' || layout.stickers[0]!.at !== place) found.push(`${ins}×${place}`);
+        }
+      }
+      for (const a of support.sticker) {
+        for (const b of support.sticker) {
+          if (a >= b) continue;
+          const layout = layoutDecor(kind, decor({ stickers: stickers(a, b) }));
+          if (layout.stickers.some((s) => s.at !== s.place)) found.push(`${a}×${b}`);
+        }
+      }
+      // Фото на табличці не заходить на поясок.
+      if (support.photo.includes('plaque') && support.inscription.includes('band')) {
+        const layout = layoutDecor(kind, decor({ photos: photos(1), photoPlace: 'plaque', inscriptions: [inscription('band')] }));
+        if (layout.inscriptions[0]!.at !== 'own') found.push('plaque×band');
+      }
+      expect(found, kind).toEqual([]);
+    }
+  });
+
+  it('lovingcup back inscription under the ring moves to the base back', () => {
+    const ring = layoutDecor('lovingcup', decor({ photos: photos(3), photoPlace: 'ring', inscriptions: [inscription('back')] }));
+    expect(ring.inscriptions).toEqual([
+      { inscription: inscription('back'), at: 'base-back', blockedBy: { type: 'photos', place: 'ring' } },
+    ]);
+    const bare = layoutDecor('lovingcup', decor({ inscriptions: [inscription('back')] }));
+    expect(bare.inscriptions[0]).toMatchObject({ at: 'own', blockedBy: null });
+  });
+
+  it('a cup decor on the star medal shows only what the star medal has', () => {
+    // Зміна форми: base-left і поясок у медалі-зірки немає — їх не видно, розкладка не падає.
+    const d = decor({ ...medallion, inscriptions: [inscription('band'), inscription('back')], stickers: stickers('base-left', 'left') });
+    const layout = layoutDecor('starmedal', d);
+    expect(layout.photos).toBe('medallion');
+    expect(layout.inscriptions.map((i) => [i.inscription.place, i.at])).toEqual([['back', 'own']]);
+    expect(layout.stickers.map((s) => [s.place, s.at])).toEqual([['left', 'left']]);
   });
 
   it('layout is the same for the same decor', () => {
