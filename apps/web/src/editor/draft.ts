@@ -1024,6 +1024,12 @@ export interface ProblemPlace {
   cell: { category: number; index: number } | null;
 }
 
+const wholeBet = (value: number, min: number) => Number.isInteger(value) && value >= min && value <= LIMITS.maxBet;
+/** Стартова ставка, крок чи найбільша ставка поза межами. */
+const betsNumbersBroken = (round: BetsRound) => !wholeBet(round.betStart, 1) || !wholeBet(round.betStep, 0) || (round.betMax !== null && !wholeBet(round.betMax, 1));
+/** Налаштування ставок не дають зберегти: числа чи мінімум останнього запитання над найбільшою ставкою. */
+const betsSettingsBroken = (round: BetsRound) => betsNumbersBroken(round) || betsRoundIssue(round, round.questions.length) !== null;
+
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */
 export function firstProblem(quiz: Quiz): ProblemPlace | null {
   const rounds = cleaned(quiz).rounds;
@@ -1041,6 +1047,8 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
       }
       continue;
     }
+    // Налаштування ставок (числа, найбільша ставка) зламані: вказуємо на раунд, а не на запитання.
+    if (current.type === 'bets' && betsSettingsBroken(current)) return { round, question: 0, cell: null };
     const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || (current.type === 'bets' && q.betsCut === undefined));
     if (question !== -1) return { round, question, cell: null };
   }
@@ -1213,8 +1221,7 @@ export function problemsOf(quiz: Quiz): string[] {
       return;
     }
     if (round.type === 'bets') {
-      const whole = (value: number, min: number) => Number.isInteger(value) && value >= min && value <= LIMITS.maxBet;
-      if (!whole(round.betStart, 1) || !whole(round.betStep, 0) || (round.betMax !== null && !whole(round.betMax, 1))) problems.push(where(t('problemRules')));
+      if (betsNumbersBroken(round)) problems.push(where(t('problemRules')));
       else if (betsRoundIssue(round, round.questions.length) !== null) {
         problems.push(where(t('problemBetsMax', { min: betMinimum(round, round.questions.length - 1), max: round.betMax ?? 0 })));
       }

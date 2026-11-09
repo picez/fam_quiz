@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
-import { newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
+import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
 
 afterEach(() => {
@@ -2911,5 +2911,19 @@ describe('QuizEditor: bets round (27a)', () => {
     open();
     addRound('Ставки');
     expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+  });
+});
+
+describe('QuizEditor: bets settings problems open the settings (27a)', () => {
+  it('a blocked save on the maximum bet opens the round settings', () => {
+    const base = newBetsRound();
+    const q = { ...newQuestion('boolean'), text: 'Так?', betsCut: 1 } as Question;
+    const initial: Quiz = { ...newQuiz(), title: 'Т', rounds: [{ ...base, betMax: 100, questions: [q, { ...q, id: 'q2' }] }] };
+    const { onSave } = open(initial);
+    const settings = () => document.querySelector('details.round-settings') as HTMLDetailsElement;
+    expect(settings().open).toBe(false);
+    click('Зберегти');
+    expect(onSave).not.toHaveBeenCalled();
+    expect(settings().open).toBe(true);
   });
 });
