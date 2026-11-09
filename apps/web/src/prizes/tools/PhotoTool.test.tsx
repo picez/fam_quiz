@@ -271,4 +271,19 @@ describe('PhotoTool', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Фон за кубком' }));
     expect(screen.getByText('Фон видно на сцені й у повному перегляді.')).toBeTruthy();
   });
+
+  it('choosing the ring tells that the back text moves', () => {
+    const start = draftFrom(null);
+    start.trophy = { kind: 'cup', material: 'gold' };
+    start.decor = {
+      ...EMPTY_DECOR,
+      photoPlace: 'plaque',
+      photos: [{ url: '/uploads/1.png', crop: { x: 0.5, y: 0.5, scale: 1 } }],
+      inscriptions: [{ place: 'back', text: 'Для Асі', font: null, look: 'engraved', color: '#2b2b2b' }],
+    };
+    render(<Harness start={start} />);
+    expect(screen.queryByText(/тому тут/)).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Кільце по чаші' }));
+    expect(screen.getByText('Місце «Зворот» зайняте (Кільце по чаші), тому тут: «Зворот основи».')).toBeTruthy();
+  });
 });

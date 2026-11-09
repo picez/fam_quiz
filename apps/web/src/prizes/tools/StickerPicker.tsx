@@ -1,7 +1,7 @@
 import { DECOR_LIMITS, stickerOf, stickerPath, type StickerPlace, type TrophyDecor, type TrophyKind } from '@quiz/shared';
 import { useEffect, useId, useRef, useState, type JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
-import { layoutDecor, stickerPlaceChoices, type Occupant, type PlacedSticker } from '../../trophy/decor-places';
+import { layoutDecor, stickerPlaceChoices, type Occupant, type PlacedInscription, type PlacedSticker } from '../../trophy/decor-places';
 import { StickerDialog, type StickerEditing } from './StickerDialog';
 
 export interface StickerPickerProps {
@@ -26,6 +26,14 @@ export function occupantText(occupant: Occupant): string {
     case 'sticker':
       return t('studioTaken_sticker');
   }
+}
+
+/** Примітка напису: переїхав на задню грань постаменту чи не вміщується; на своєму місці (чи без ділянки) — нічого. */
+export function inscriptionNote(placed: PlacedInscription): string | null {
+  if (placed.at === 'own' || placed.blockedBy === null) return null;
+  const from = t(`studioText_${placed.inscription.place}` as TextKey);
+  const what = occupantText(placed.blockedBy);
+  return placed.at === null ? t('studioNoPlace', { from, what }) : t('studioMovedTo', { from, what, to: placeText(placed.at) });
 }
 
 /** Примітка рядка: переїхала — куди й чому, не вміщується — чому; на своєму місці — нічого. */

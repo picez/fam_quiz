@@ -4,8 +4,10 @@ import { uploadImage } from '../../api';
 import { ACCEPT } from '../../editor/ImageField';
 import { errorText, t, type TextKey } from '../../i18n';
 import type { ToolProps } from '../PrizeStudio';
+import { layoutDecor } from '../../trophy/decor-places';
 import { photoLimit } from '../studio-draft';
 import { CropDialog } from './CropDialog';
+import { inscriptionNote } from './StickerPicker';
 
 const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).includes(type);
 
@@ -24,6 +26,13 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
   const shown = decor.photos.slice(0, limit);
   const count = shown.length;
   const full = count >= limit;
+  // Написи, що через це місце переїхали чи не вміщуються.
+  const notes =
+    draft.trophy === null
+      ? []
+      : layoutDecor(draft.trophy.kind, decor)
+          .inscriptions.map(inscriptionNote)
+          .filter((note): note is string => note !== null);
   const [error, setError] = useState<string | null>(null);
   const [cropping, setCropping] = useState<number | null>(null);
   const mounted = useRef(true);
@@ -84,6 +93,11 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
           </label>
         ))}
       </fieldset>
+      {notes.map((note, index) => (
+        <p key={index} className="meta">
+          {note}
+        </p>
+      ))}
 
       {placeShown && (
         <>
