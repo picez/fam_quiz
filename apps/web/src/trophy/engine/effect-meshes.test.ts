@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NEUTRAL_POSE } from '../appearance-pose';
 import type { EffectFrame, EffectPlan } from '../effect-plan';
 import { buildAppearanceProps } from './appearance-props';
-import { buildEffect } from './effect-meshes';
+import { buildEffect, flashTexture, glowTexture } from './effect-meshes';
 
 const FRAME: EffectFrame = { center: [0, 1, 0], radius: 2 };
 /** Кут поля зору камери рушія, градуси. */
@@ -96,10 +96,11 @@ describe('effect meshes', () => {
     expect(((staticRays.object as Sprite).material as SpriteMaterial).rotation).toBe(0);
   });
 
-  it('glow and rays are clear before the edge of the frame, so the canvas does not cut them into a square', async () => {
+  it('glow, rays and the appearance flash at its peak are clear before the edge of the frame, so the canvas does not cut them into a square', async () => {
     // Край кадру — 1.05 / cos 15° ≈ 1.087r від центру (fitDistance при 30°); у частках радіуса спрайта це 1.087 / (scale / 2).
     const edge = 1.05 / Math.cos(Math.PI / 12);
-    for (const [name, scale] of [['glowTexture', 2.6], ['raysTexture', 3.2]] as const) {
+    // Спалах на піку — 3r·(0.5 + 1) = 4.5r.
+    for (const [name, scale] of [['glowTexture', 2.6], ['raysTexture', 3.2], ['flashTexture', 4.5]] as const) {
       vi.resetModules();
       const fresh = await import('./effect-meshes');
       gradient.addColorStop.mockClear();
@@ -153,6 +154,9 @@ describe('effect meshes', () => {
 
   it('appearance props follow the pose', () => {
     const props = buildAppearanceProps(FRAME, 1.5);
+    // Спалах має власну текстуру, не сяйва: та тане лише для 2.6r.
+    expect((props.flash.material as SpriteMaterial).map).toBe(flashTexture());
+    expect((props.flash.material as SpriteMaterial).map).not.toBe(glowTexture());
     expect(props.flash.name).toBe('appear-flash');
     expect(props.pedestal.name).toBe('appear-pedestal');
     props.apply(NEUTRAL_POSE, 1);

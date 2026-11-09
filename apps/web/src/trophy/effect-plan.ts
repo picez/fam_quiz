@@ -111,7 +111,8 @@ function spawn(p: Particles, i: number, frame: EffectFrame, rng: () => number): 
   if (p.kind === 'sparks') {
     p.lives[i] = range(rng, LIFE.sparks);
     p.positions[o] = cx + dx * 0.6 * r;
-    p.positions[o + 1] = (0.75 + 0.25 * rng()) * (cy + r);
+    // Нижче вінця, у середині кадру (а не під його верхнім краєм): іскри піднімаються й гаснуть, поки їх видно.
+    p.positions[o + 1] = (0.35 + 0.3 * rng()) * (cy + r);
     p.positions[o + 2] = cz + dz * 0.6 * r;
     p.velocities[o] = dx * 0.3 * r;
     p.velocities[o + 1] = range(rng, [0.5, 0.9]) * r;

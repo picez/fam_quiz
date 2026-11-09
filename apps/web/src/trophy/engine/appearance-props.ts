@@ -1,7 +1,7 @@
 import { AdditiveBlending, CircleGeometry, Color, Mesh, MeshBasicMaterial, Sprite, SpriteMaterial } from 'three';
 import type { AppearancePose } from '../appearance-pose';
 import type { EffectFrame } from '../effect-plan';
-import { glowTexture } from './effect-meshes';
+import { FLASH_MAX_SCALE, flashTexture } from './effect-meshes';
 
 export interface AppearanceProps {
   flash: Sprite;
@@ -14,7 +14,7 @@ export interface AppearanceProps {
 /** Спалах (спрайт у центрі кадру) і світлий диск-постамент; footprint = max(size.x, size.z). */
 export function buildAppearanceProps(frame: EffectFrame, footprint: number): AppearanceProps {
   const flashMaterial = new SpriteMaterial({
-    map: glowTexture(),
+    map: flashTexture(),
     color: new Color('#ffffff'),
     transparent: true,
     opacity: 0,
@@ -48,7 +48,7 @@ export function buildAppearanceProps(frame: EffectFrame, footprint: number): App
     apply(pose, radius) {
       flashMaterial.opacity = pose.flash;
       flash.visible = pose.flash > 0;
-      flash.scale.setScalar(3 * radius * (0.5 + pose.flash));
+      flash.scale.setScalar(Math.min(3 * (0.5 + pose.flash), FLASH_MAX_SCALE) * radius);
       pedestalMaterial.opacity = pose.pedestal;
       pedestal.visible = pose.pedestal > 0;
     },

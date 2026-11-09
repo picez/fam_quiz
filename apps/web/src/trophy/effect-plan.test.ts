@@ -65,6 +65,20 @@ describe('particles', () => {
     }
   });
 
+  it('sparks are born at the middle of the frame, so they rise and fade inside it', () => {
+    // Смуга народження [0.35, 0.65]·(c.y + r): кадр сягає ≈1.09r над центром, тож іскри живуть здебільшого в ньому.
+    const top = frame.center[1] + frame.radius;
+    const p = createParticles('sparks', 16, frame, mulberry32(9));
+    for (let i = 0; i < 16; i++) p.ages[i] = p.lives[i]! - 0.0001;
+    stepParticles(p, frame, 0.0002, mulberry32(10));
+    for (let i = 0; i < 16; i++) {
+      expect(p.ages[i]).toBeLessThan(0.01);
+      const y = p.positions[3 * i + 1]!;
+      expect(y).toBeGreaterThanOrEqual(0.35 * top - 0.01);
+      expect(y).toBeLessThanOrEqual(0.65 * top + 0.01);
+    }
+  });
+
   it('snow wraps to the top', () => {
     const p = createParticles('snow', 4, frame, mulberry32(1));
     p.positions[1] = 0.001;

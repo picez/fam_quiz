@@ -35,7 +35,12 @@ const GLOW_HZ = 0.8;
 /** Світовий розмір частинки, у r. */
 const POINT_SIZE: Record<ParticleKind, number> = { sparks: 0.06, fire: 0.14, snow: 0.07 };
 
-const textures: { dot: Texture | null; glow: Texture | null; rays: Texture | null } = { dot: null, glow: null, rays: null };
+const textures: { dot: Texture | null; glow: Texture | null; rays: Texture | null; flash: Texture | null } = {
+  dot: null,
+  glow: null,
+  rays: null,
+  flash: null,
+};
 
 function paintTexture(size: number, draw: (context: CanvasRenderingContext2D, size: number) => void): Texture {
   const canvas = document.createElement('canvas');
@@ -85,6 +90,25 @@ export function glowTexture(): Texture {
     ]),
   );
   return textures.glow;
+}
+
+/** Найбільший масштаб спалаху появи, у r: 3r·(0.5 + 1) на піку. */
+export const FLASH_MAX_SCALE = 4.5;
+
+/**
+ * Білий спалах появи: на піку спрайт — 4.5r, тож власна текстура (не сяйва) тане до нуля всередині кадру, інакше край
+ * полотна зрізає спалах у квадрат. Одна текстура на сторінку.
+ */
+export function flashTexture(): Texture {
+  const end = (0.95 * FRAME_HALF) / (FLASH_MAX_SCALE / 2);
+  textures.flash ??= paintTexture(256, (context, size) =>
+    radial(context, size, [
+      [0, 'rgba(255,255,255,1)'],
+      [0.4 * end, 'rgba(255,255,255,0.55)'],
+      [end, 'rgba(255,255,255,0)'],
+    ]),
+  );
+  return textures.flash;
 }
 
 /** 12 клинів-променів, що тануть до краю кадру: одна текстура на сторінку. */
