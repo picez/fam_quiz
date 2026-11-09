@@ -132,7 +132,8 @@ import {
   voteTally,
   type BuffPlay,
 } from './buffs';
-import { attemptsUsed, blitzRulesOf, isInstant } from './blitz';
+import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
+import { blitzSeriesPoints } from './score';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -493,10 +494,49 @@ function blitzInfo(state: GameState, forHost: boolean): BlitzInfo | null {
   };
 }
 
+/** Правила серії бліц-раунду; null — раунд не бліц або без streakPlus і streakMinus. */
+function seriesRules(state: GameState, roundIndex: number) {
+  const round = state.quiz.rounds[roundIndex];
+  if (round?.type !== 'blitz') return null;
+  const plus = round.rules.streakPlus ?? null;
+  const minus = round.rules.streakMinus ?? null;
+  return plus === null && minus === null ? null : { round, plus, minus };
+}
+
+/**
+ * Серія біля імені: +плюсова або −мінусова зі знаком; undefined — показувати нічого.
+ * live — з оціненими спробами поточного запитання (пульт); без live сцена бачить їх лише з розкриття
+ * (у бліці з кнопкою до розкриття вона не знає оцінок).
+ */
+function shownSeries(state: GameState, playerId: string, live: boolean): number | undefined {
+  const rules = seriesRules(state, state.roundIndex);
+  if (rules === null) return undefined;
+  const play = state.plays[state.questionIndex];
+  const hidden = !live && (state.phase === 'question' || state.phase === 'locked');
+  const current = hidden || play?.roundIndex !== state.roundIndex ? [] : (play.blitz?.attempts ?? []);
+  const { plus, minus } = blitzSeries(state, state.roundIndex, playerId, state.questionIndex, current);
+  if (rules.plus !== null && plus > 0) return plus;
+  if (rules.minus !== null && minus > 0) return -minus;
+  return undefined;
+}
+
+function seriesKey(state: GameState, playerId: string, live: boolean): { series?: number } {
+  const series = shownSeries(state, playerId, live);
+  return series === undefined ? {} : { series };
+}
+
 function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
   const open = currentBlitz(state);
   if (open === null) return null;
   const { play, blitz, rules } = open;
+  const seriesOf = seriesRules(state, play.roundIndex);
+  let series: PlayerBlitz['series'] = null;
+  if (seriesOf !== null) {
+    const { plus, minus } = blitzSeries(state, play.roundIndex, playerId, state.questionIndex, blitz.attempts);
+    const next = (correct: boolean) =>
+      blitzSeriesPoints({ price: play.question.points, multiplier: seriesOf.round.rules.multiplier, penalty: seriesOf.round.rules.penalty, plus: seriesOf.plus, minus: seriesOf.minus, series: { plus, minus }, correct });
+    series = { plus, minus, nextCorrect: seriesOf.plus === null ? null : next(true), nextWrong: seriesOf.minus === null ? null : next(false) };
+  }
   const instant = isInstant(rules);
   const index = blitz.queue.findIndex((entry) => entry.playerId === playerId);
   const used = attemptsUsed(play, playerId);
@@ -514,6 +554,7 @@ function playerBlitz(state: GameState, playerId: string): PlayerBlitz | null {
     // Пауза не знімає права: поле лишається на місці вимкненим (набране не губиться), а сервер відмовить сам.
     canAnswer: instant && state.phase === 'question' && ((index < 0 && used === 0) || (index === 0 && blitz.queue[0].answer === null)),
     grade: own.length === 0 ? null : own[own.length - 1].grade,
+    series,
   };
 }
 
@@ -2029,7 +2070,7 @@ export function stageView(state: GameState): StageView {
   return {
     ...base(state, false),
     role: 'stage',
-    players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p) })),
+    players: state.players.map((p) => ({ id: p.id, nickname: p.nickname, connected: p.connected, streak: shownStreak(state, p), ...seriesKey(state, p.id, false) })),
     reveal: revealed,
     // У фіналі лічильники видали б результат ще не розкритих гравців.
     stats: revealed !== null && currentRound(state)?.type !== 'final' ? revealStats(state, revealed) : null,
@@ -2404,6 +2445,7 @@ export function hostView(state: GameState): HostView {
       nickname: p.nickname,
       connected: p.connected,
       streak: shownStreak(state, p),
+      ...seriesKey(state, p.id, true),
       score: p.score,
       debuff: hostDebuff(state, p.id),
     })),

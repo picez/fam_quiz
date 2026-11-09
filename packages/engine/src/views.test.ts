@@ -412,6 +412,7 @@ describe('blitz views', () => {
       deadline: 16500,
       canAnswer: false,
       grade: null,
+      series: null,
     });
     expect(playerView(state, 'p3')?.me.blitz?.canBuzz).toBe(true);
     state = must(judge(must(submitAnswer(state, 'p2', wrong, 2000)), 'p2', false, 2000));
@@ -423,6 +424,7 @@ describe('blitz views', () => {
       deadline: null,
       canAnswer: false,
       grade: 'wrong',
+      series: null,
     });
   });
 
@@ -528,6 +530,73 @@ describe('blitz views', () => {
     expect(stageView(state).blitz).toBeNull();
     expect(playerView(state, 'p1')?.me.blitz).toBeNull();
     expect(hostView(state).blitz).toBeNull();
+  });
+});
+
+describe('blitz series views (26b)', () => {
+  const series = { streakPlus: { step: 250 }, streakMinus: { step: 250 } };
+  const priced = (...ids: string[]) => ids.map((id) => ({ ...single, id, points: 500 }));
+  const game = (rules: Record<string, unknown> = series, ids = ['q1', 'q2', 'q3', 'q4']) =>
+    startRound(lobbyWith(makeRoundsQuiz([blitzRound('b1', priced(...ids), { check: 'manual', attempts: 1, rules: { ...DEFAULT_RULES, partial: null, ...rules } })]), 'Анна', 'Богдан', 'Віра'), 0);
+  const graded = (state: GameState, playerId: string, ok: boolean) => must(judge(must(submitAnswer(must(buzz(state, playerId, 1000)), playerId, ok ? correct : wrong, 1000)), playerId, ok, 1000));
+  const onward = (state: GameState) => {
+    let current = must(next(state.phase === 'question' ? must(lock(state)) : state, 0));
+    while (current.phase !== 'question') current = must(next(current, 0));
+    return current;
+  };
+  it('the phone shows its own blitz series and the next step', () => {
+    let state = graded(game(), 'p1', true);
+    state = onward(state);
+    state = onward(graded(state, 'p1', true));
+    expect(playerView(state, 'p1')?.me.blitz?.series).toEqual({ plus: 2, minus: 0, nextCorrect: 1000, nextWrong: -500 });
+    let other = onward(graded(game(), 'p2', false));
+    other = onward(graded(other, 'p2', false));
+    expect(playerView(other, 'p2')?.me.blitz?.series).toEqual({ plus: 0, minus: 2, nextCorrect: 500, nextWrong: -1000 });
+  });
+
+  it('without series rules the phone gets series null', () => {
+    expect(playerView(game({}), 'p1')?.me.blitz?.series).toBeNull();
+    const cells = [{ question: { ...single, id: 'c11', points: 100 }, kind: 'blitz' as const, penalty: 'all' as const, answerMode: 'voice' as const }];
+    const round = boardRound('g1', [{ title: 'A', cells }], { answerMode: 'phone' });
+    const state = must(next(must(start(lobbyWith(makeRoundsQuiz([round]), 'Анна', 'Богдан', 'Віра'))), 0));
+    const open = must(pickCell(state, null, 'c11', 0, Math.random));
+    expect(playerView(open, 'p2')?.me.blitz?.series).toBeNull();
+  });
+
+  it('nextWrong is null without streakMinus', () => {
+    const state = graded(game({ streakPlus: { step: 250 } }), 'p1', true);
+    expect(playerView(state, 'p1')?.me.blitz?.series).toEqual({ plus: 1, minus: 0, nextCorrect: 750, nextWrong: null });
+  });
+
+  it('stage and host mark the series next to the player; the stage waits for the reveal', () => {
+    // Кожне запитання: p2 помилково, потім p1 правильно (запитання закривається).
+    const both = (state: GameState) => graded(graded(state, 'p2', false), 'p1', true);
+    let state = onward(both(game()));
+    state = onward(both(state));
+    state = both(state);
+    expect(['question', 'locked']).toContain(state.phase);
+    const marks = (players: { id: string; series?: number }[]) => players.map((p) => p.series);
+    expect(marks(hostView(state).players)).toEqual([3, -3, undefined]);
+    expect(marks(stageView(state).players)).toEqual([2, -2, undefined]);
+    let revealed = state;
+    while (revealed.phase !== 'reveal') revealed = must(next(revealed, 0));
+    expect(marks(stageView(revealed).players)).toEqual([3, -3, undefined]);
+  });
+
+  it('no series key outside a blitz round with series', () => {
+    const quiz = makeRoundsQuiz([blitzRound('b1', priced('q1'), { check: 'manual', rules: { ...DEFAULT_RULES, partial: null, ...series } }), classicRound('c1', [single])]);
+    let state = startRound(lobbyWith(quiz, 'Анна', 'Богдан'), 0);
+    state = graded(state, 'p1', true);
+    expect(hostView(state).players[0]).toHaveProperty('series', 1);
+    const current = onward(state);
+    expect(current.roundIndex).toBe(1);
+    expect(hostView(current).players[0]).not.toHaveProperty('series');
+    expect(stageView(current).players[0]).not.toHaveProperty('series');
+  });
+
+  it('a plain blitz has no series key', () => {
+    const state = graded(game({}), 'p1', true);
+    expect(hostView(state).players[0]).not.toHaveProperty('series');
   });
 });
 

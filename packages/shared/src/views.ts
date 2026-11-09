@@ -414,6 +414,8 @@ export interface LobbyPlayer {
   connected: boolean;
   /** Поточна серія правильних відповідей у раунді. */
   streak: number;
+  /** Серія бліц-раунду 26b зі знаком (+плюсова, −мінусова); ключа немає, коли показувати нічого. */
+  series?: number;
 }
 
 /** Поточний раунд для всіх ролей. */
@@ -474,6 +476,8 @@ export interface PlayerBlitz {
   canAnswer: boolean;
   /** Вердикт власної останньої спроби на цьому запитанні; null — ще немає. */
   grade: 'correct' | 'wrong' | null;
+  /** Серія 26b: правильних / неправильних поспіль і бали наступної спроби; null — у раунді немає streakPlus і streakMinus. */
+  series: { plus: number; minus: number; nextCorrect: number | null; nextWrong: number | null } | null;
 }
 
 /** Як BlitzInfo, але переможець видно одразу, а rows — з вибором кожного. */
