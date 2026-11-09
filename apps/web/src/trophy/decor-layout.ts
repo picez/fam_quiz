@@ -6,6 +6,9 @@ import { layoutDecor } from './decor-places';
 /** Клітинка атласу кільця: як у запеченому грааль. */
 export const RING_TILE = { width: 150, height: 204, pad: 8, background: '#20160c' } as const;
 
+/** Розміри текстури пояска: ring — по колу (смуга з профілю), face — пластина на передній грані основи кубка. */
+export const BAND_PX = { ring: { width: 1024, height: 64 }, face: { width: 1024, height: 128 } } as const;
+
 /** Пропорції рамки фото на кубку для кожного місця: ними кадрує і малювання, і діалог кадрування редактора. */
 export const PHOTO_BOX: Record<TrophyPhotoPlace, { width: number; height: number }> = {
   ring: { width: RING_TILE.width, height: RING_TILE.height },

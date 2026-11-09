@@ -23,7 +23,7 @@ import {
   drawRim,
   loadInscriptionFont,
 } from '../decor-canvas';
-import { PHOTO_BOX, gemSpots, ringAtlasSize } from '../decor-layout';
+import { BAND_PX, PHOTO_BOX, gemSpots, ringAtlasSize } from '../decor-layout';
 import type { TrophySize } from '../engine-types';
 import { MATERIAL_LOOK } from '../trophy-meta';
 import type { DecorTextures } from './textures';
@@ -247,7 +247,8 @@ async function addInscription(group: Group, painter: Painter, inscription: Inscr
     }
     case 'band': {
       if (anchors.band === undefined) return;
-      const map = text(1024, 64, (ctx) => drawBand(ctx, inscription, material));
+      const size = anchors.band.shape === 'face' ? BAND_PX.face : BAND_PX.ring;
+      const map = text(size.width, size.height, (ctx) => drawBand(ctx, inscription, material, size));
       band(group, 'decor-band', kind, anchors.band, map, BAKED_RIM, metal);
       return;
     }

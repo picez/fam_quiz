@@ -13,7 +13,7 @@ import {
   loadInscriptionFont,
   toneImageData,
 } from './decor-canvas';
-import { PHOTO_BOX, coverCrop, metalStops, rimUnit } from './decor-layout';
+import { BAND_PX, PHOTO_BOX, coverCrop, metalStops, rimUnit } from './decor-layout';
 
 interface Call {
   name: string;
@@ -287,6 +287,37 @@ describe('decor canvas', () => {
     const rim = calls.findIndex((c) => c.name === 'fill' && c.args[0] === 'evenodd');
     expect(put).toBeGreaterThan(-1);
     expect(rim).toBeGreaterThan(put);
+  });
+
+  it('band fills the face size', () => {
+    const { ctx, calls } = fakeCtx();
+    drawBand(ctx, insc({ place: 'band', text: 'Hi', look: 'colored' }), 'gold', BAND_PX.face);
+    expect(calls.find((c) => c.name === 'fillRect')!.args).toEqual([0, 0, 1024, 128]);
+    const text = calls.find((c) => c.name === 'fillText')!;
+    const px = Number(/(\d+(?:\.\d+)?)px/.exec(text.font)![1]);
+    expect(px).toBeLessThanOrEqual(88);
+    expect(px).toBeGreaterThan(44);
+    expect(text.args[2]).toBe(64);
+    const ring = fakeCtx();
+    drawBand(ring.ctx, insc({ place: 'band', text: 'Hi', look: 'colored' }), 'gold');
+    expect(ring.calls.find((c) => c.name === 'fillRect')!.args).toEqual([0, 0, 1024, 64]);
+  });
+
+  it('medallion bezel is painted when there is no frame', () => {
+    const arcRadii = (calls: Call[]) => calls.filter((c) => c.name === 'arc').map((c) => c.args[2]);
+    const none = fakeCtx();
+    drawPhotoDisc(none.ctx, img, decor().photos[0]!, decor({ frame: 'none' }), 512, 'gold', true);
+    expect(arcRadii(none.calls)).toContain(256);
+    expect(arcRadii(none.calls)).toContain(256 - 512 * 0.035);
+    expect(none.calls.some((c) => c.name === 'fill' && c.args[0] === 'evenodd')).toBe(true);
+    const framed = fakeCtx();
+    drawPhotoDisc(framed.ctx, img, decor().photos[0]!, decor({ frame: 'gold' }), 512, 'gold', true);
+    expect(arcRadii(framed.calls)).toContain(256 - 512 * 0.07);
+    expect(arcRadii(framed.calls)).not.toContain(256 - 512 * 0.035);
+    const off = fakeCtx();
+    drawPhotoDisc(off.ctx, img, decor().photos[0]!, decor({ frame: 'none' }), 512, 'gold');
+    expect(arcRadii(off.calls)).not.toContain(256 - 512 * 0.035);
+    expect(off.calls.some((c) => c.name === 'fill' && c.args[0] === 'evenodd')).toBe(false);
   });
 
   it('a framed card tones before the frame stroke', () => {
