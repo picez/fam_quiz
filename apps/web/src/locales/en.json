@@ -958,6 +958,7 @@
   "err_debuff_busy": "A debuff has already been cast on this player.",
   "err_deciding": "Players are still deciding — wait a few seconds.",
   "err_decor_locked": "This font or sticker is still locked: it opens up at a higher level.",
+  "err_trophy_locked": "This trophy shape or material is still locked: it opens up at a higher level.",
   "err_decor_plaque_twice": "The plaque takes either a photo or text, not both.",
   "err_decor_text_length": "The text is too long for its place.",
   "err_decor_too_many_photos": "Too many photos for this place.",

@@ -966,6 +966,7 @@
   "err_debuff_busy": "Este jugador ya tiene un debuff lanzado.",
   "err_deciding": "Los jugadores aún están decidiendo: espera unos segundos.",
   "err_decor_locked": "Esta fuente o este sticker aún están bloqueados: se desbloquean con un nivel más alto.",
+  "err_trophy_locked": "Esta forma o material de trofeo aún está bloqueado: se desbloquea con un nivel más alto.",
   "err_decor_plaque_twice": "En la placa va una foto o un texto, no ambos.",
   "err_decor_text_length": "El texto es demasiado largo para su sitio.",
   "err_decor_too_many_photos": "Demasiadas fotos para este sitio.",

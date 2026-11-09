@@ -966,6 +966,7 @@
   "err_debuff_busy": "Na tego gracza już rzucono debuff.",
   "err_deciding": "Gracze jeszcze decydują — poczekaj kilka sekund.",
   "err_decor_locked": "Ta czcionka lub naklejka jest jeszcze zablokowana: odblokuje się na wyższym poziomie.",
+  "err_trophy_locked": "Ta forma lub ten materiał trofeum są jeszcze zablokowane: odblokują się na wyższym poziomie.",
   "err_decor_plaque_twice": "Na tabliczce może być albo zdjęcie, albo napis.",
   "err_decor_text_length": "Napis jest za długi na swoje miejsce.",
   "err_decor_too_many_photos": "Za dużo zdjęć na to miejsce.",

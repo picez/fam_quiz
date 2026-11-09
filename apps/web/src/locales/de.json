@@ -958,6 +958,7 @@
   "err_debuff_busy": "Auf diesen Spieler ist schon ein Debuff verhängt.",
   "err_deciding": "Die Spieler entscheiden noch – warte ein paar Sekunden.",
   "err_decor_locked": "Diese Schrift oder dieser Sticker ist noch gesperrt und wird erst auf einem höheren Level freigeschaltet.",
+  "err_trophy_locked": "Diese Pokalform oder dieses Material ist noch gesperrt und wird erst auf einem höheren Level freigeschaltet.",
   "err_decor_plaque_twice": "Auf dem Schild ist entweder ein Foto oder eine Inschrift.",
   "err_decor_text_length": "Die Inschrift ist für ihren Platz zu lang.",
   "err_decor_too_many_photos": "Zu viele Fotos für diesen Platz.",
