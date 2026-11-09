@@ -887,7 +887,10 @@ describe('history: bets (27a)', () => {
     const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
       questions: { bets: boolean; final: unknown; answered: number }[];
     };
-    expect(detail.questions.map((q) => [q.bets, q.final])).toEqual([[false, null], [true, null]]);
+    // «Ставки» ведуть ставки тими ж записами, що й фінал, лише завжди «класичними».
+    expect(detail.questions.map((q) => q.bets)).toEqual([false, true]);
+    expect(detail.questions[0].final).toBeNull();
+    expect(detail.questions[1].final).toMatchObject({ mode: 'classic' });
     expect(detail.questions[1].answered).toBe(1);
   });
 });
