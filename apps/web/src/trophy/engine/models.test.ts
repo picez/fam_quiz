@@ -1,5 +1,6 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, SphereGeometry, Texture } from 'three';
 import { describe, expect, it, vi } from 'vitest';
+import { trophyMaterial } from './materials';
 import { framingSphere, loadModel, paintModel, surfaceOf } from './models';
 
 const loads = vi.hoisted(() => ({ count: 0, flaky: 0 }));
@@ -36,6 +37,25 @@ describe('models', () => {
     expect(painted.metalness).toBe(1);
     expect(painted.roughness).toBe(0.35);
     expect(textured.material).toBe(texturedMaterial);
+  });
+
+  it('paintModel puts the shared material of the kind on plain meshes and leaves textured ones', () => {
+    const plain = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    const other = new Mesh(new BoxGeometry(), [new MeshStandardMaterial(), new MeshStandardMaterial()]);
+    const texturedMaterial = new MeshStandardMaterial({ map: new Texture() });
+    const textured = new Mesh(new BoxGeometry(), texturedMaterial);
+    const group = new Group();
+    group.add(plain, other, textured);
+    paintModel(group, 'neon');
+    const shared = trophyMaterial('neon');
+    expect(plain.material).toBe(shared);
+    expect(other.material).toEqual([shared, shared]);
+    expect(shared.userData.shared).toBe(true);
+    expect(textured.material).toBe(texturedMaterial);
+    // Друга модель з тим самим матеріалом — той самий об'єкт, без нового шейдера.
+    const again = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+    paintModel(new Group().add(again), 'neon');
+    expect(again.material).toBe(shared);
   });
 
   it('loadModel clones', async () => {

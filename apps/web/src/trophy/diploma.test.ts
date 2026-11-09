@@ -36,6 +36,7 @@ describe('renderDiploma', () => {
   /** Підроблений 2D-контекст: кожен fillText із тим fillStyle, що стояв у ту мить. */
   function fakeCanvas() {
     const texts: { text: string; y: number; fill: string }[] = [];
+    const strokes: string[] = [];
     const context = {
       fillStyle: '#000000',
       strokeStyle: '#000000',
@@ -44,7 +45,9 @@ describe('renderDiploma', () => {
       textAlign: 'start',
       textBaseline: 'alphabetic',
       fillRect: vi.fn(),
-      strokeRect: vi.fn(),
+      strokeRect() {
+        strokes.push(this.strokeStyle);
+      },
       measureText: (text: string) => ({ width: text.length * 10 }),
       fillText(text: string, _x: number, y: number) {
         texts.push({ text, y, fill: this.fillStyle });
@@ -53,7 +56,7 @@ describe('renderDiploma', () => {
     // as never: @types/three тягне @webgpu/types, і остання перевантажена сигнатура getContext — 'webgpu'.
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never);
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(new Blob(['png'], { type: 'image/png' })));
-    return texts;
+    return Object.assign(texts, { strokes });
   }
 
   it('draws every field in its own place and the emoji in a visible colour', async () => {
@@ -78,6 +81,20 @@ describe('renderDiploma', () => {
     expect(at('«Чемпіон 2026»')).toBeDefined();
     expect(at('01.01.2027')!.y).toBe(740);
     expect(texts.some((entry) => entry.text.trim() === '')).toBe(false);
+  });
+
+  it('the frame takes the material colour and the place stays readable on stone frames', async () => {
+    const placeFill = async (material: 'gold' | 'bronze' | 'silver' | 'diamond' | 'obsidian' | 'pearl' | 'copper') => {
+      const texts = fakeCanvas();
+      await renderDiploma({ ...data, trophy: { kind: 'cup', material } });
+      return { frame: texts.strokes[0], place: texts.find((entry) => entry.text === '1 місце')!.fill };
+    };
+    expect(await placeFill('obsidian')).toEqual({ frame: '#1E1A24', place: '#3A7CA5' });
+    expect((await placeFill('pearl')).place).toBe('#3A7CA5');
+    expect((await placeFill('copper')).place).toBe('#7A5A12');
+    // Старі — як були.
+    expect((await placeFill('diamond')).place).toBe('#3A7CA5');
+    for (const material of ['gold', 'bronze', 'silver'] as const) expect((await placeFill(material)).place).toBe('#7A5A12');
   });
 });
 

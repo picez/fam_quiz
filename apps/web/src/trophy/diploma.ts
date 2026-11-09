@@ -89,7 +89,8 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   canvas.height = HEIGHT;
   const context = canvas.getContext('2d');
   if (context === null) throw new Error('canvas_unavailable');
-  const frame = MATERIAL_LOOK[data.trophy?.material ?? 'gold'].color;
+  const look = MATERIAL_LOOK[data.trophy?.material ?? 'gold'];
+  const frame = look.color;
   // Кожне поле на своєму місці: порожня назва вікторини не зсуває гравіювання й дату.
   const { title, nickname, place, quizTitle, engraving, date } = diplomaFields(data);
 
@@ -118,7 +119,8 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.font = `700 60px ${BODY}`;
   context.fillText(wrap(context, nickname, width)[0] ?? '', center, 400);
 
-  context.fillStyle = frame === MATERIAL_LOOK.diamond.color ? '#3A7CA5' : '#7A5A12';
+  // Неметалеві (камені, діамант) — синє місце, метали — темне золото.
+  context.fillStyle = look.metallic < 0.5 ? '#3A7CA5' : '#7A5A12';
   context.font = `600 44px ${DISPLAY}`;
   context.fillText(place, center, 480);
 
