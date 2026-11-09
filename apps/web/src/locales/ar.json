@@ -3030,5 +3030,9 @@
   "yourAnswer": "إجابتك",
   "yourPick": "دورك: اختر خانة",
   "yourPlace": "مركزك: {rank} من {total}",
-  "yourResult": "{score} {points}، الإجابات الصحيحة: {correct} من {total}"
+  "yourResult": "{score} {points}، الإجابات الصحيحة: {correct} من {total}",
+  "ruleSeriesPlus": "تتابع إيجابي: كل إجابة صحيحة متتالية تمنح خطوة إضافية",
+  "ruleSeriesMinus": "تتابع سلبي: كل إجابة خاطئة متتالية تخصم خطوة إضافية",
+  "ruleSeriesStep": "الخطوة، بالنقاط",
+  "ruleSeriesMinusPenalty": "التتابع السلبي يعاقب على الأخطاء أصلًا"
 }

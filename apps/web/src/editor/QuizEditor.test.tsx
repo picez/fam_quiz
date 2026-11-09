@@ -2721,3 +2721,53 @@ describe('QuizEditor likes (17a)', () => {
     expect(container.querySelector('.like-count')).toBeNull();
   });
 });
+
+describe('QuizEditor: blitz series', () => {
+  const group = (label: string) => within(screen.getByRole('group', { name: label }));
+  const openBlitz = () => {
+    const view = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Бліц');
+    fireEvent.click(screen.getAllByText('Налаштування раунду')[0]);
+    return view;
+  };
+
+  it('a blitz round gets plus and minus series with a step', async () => {
+    const { onSave } = openBlitz();
+    const plus = () => screen.getByLabelText(t('ruleSeriesPlus'), { selector: 'input[type=checkbox]' }) as HTMLInputElement;
+    const minus = () => screen.getByLabelText(t('ruleSeriesMinus'), { selector: 'input[type=checkbox]' }) as HTMLInputElement;
+    const penalty = () => screen.getByLabelText(t('ruleMinus')) as HTMLInputElement;
+    expect(screen.getByLabelText(t('ruleStreak'))).toBeTruthy();
+    fireEvent.click(plus());
+    expect(screen.queryByLabelText(t('ruleStreak'))).toBeNull();
+    expect((group(t('ruleSeriesPlus')).getByLabelText(t('ruleSeriesStep')) as HTMLInputElement).value).toBe('250');
+    fireEvent.change(group(t('ruleSeriesPlus')).getByLabelText(t('ruleSeriesStep')), { target: { value: '400' } });
+    expect(penalty().disabled).toBe(false);
+    fireEvent.click(minus());
+    expect(penalty().checked).toBe(true);
+    expect(penalty().disabled).toBe(true);
+    expect(screen.getByText(t('ruleSeriesMinusPenalty'))).toBeTruthy();
+    expect((group(t('ruleSeriesMinus')).getByLabelText(t('ruleSeriesStep')) as HTMLInputElement).value).toBe('250');
+    fireEvent.click(minus());
+    expect(penalty().checked).toBe(true);
+    expect(penalty().disabled).toBe(false);
+    fireEvent.click(minus());
+    fill('Текст запитання', 'Друге?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const blitz = saved(onSave).rounds[1];
+    expect(rulesOf(blitz)).toMatchObject({ streak: null, penalty: 'minus', streakPlus: { step: 400 }, streakMinus: { step: 250 } });
+    fireEvent.click(plus());
+    expect(screen.getByLabelText(t('ruleStreak'))).toBeTruthy();
+  });
+
+  it('series switches exist only in a blitz round', () => {
+    open();
+    addRound('Класичний');
+    expect(screen.queryByLabelText(t('ruleSeriesPlus'))).toBeNull();
+    expect(screen.queryByLabelText(t('ruleSeriesMinus'))).toBeNull();
+  });
+});

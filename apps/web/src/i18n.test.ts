@@ -67,7 +67,7 @@ describe('uk golden (22a)', () => {
   /** Нові uk-ключі 22a — лише ці. */
   const ADDED = ['defaultNickname', 'languageLabel', 'languageSaveFailed', 'iconTypeText', 'iconBuffLetter'];
   /** 26b: серії бліц-раунду (рядок на телефоні, позначка, пам'ятка раунду). */
-  const ADDED_26B = ['summarySeriesPlus', 'summarySeriesMinus', 'blitzSeriesPlus', 'blitzSeriesMinus', 'seriesMark'];
+  const ADDED_26B = ['summarySeriesPlus', 'summarySeriesMinus', 'blitzSeriesPlus', 'blitzSeriesMinus', 'seriesMark', 'ruleSeriesPlus', 'ruleSeriesMinus', 'ruleSeriesStep', 'ruleSeriesMinusPenalty'];
   /** Після 22a: сторінка «Друзі», «Ще N» у профілі, підказка рівня, браузер без push. */
   const ADDED_LATER = ['openFriends', /* «Ще N» у профілі прибрано в 23a: 'profileQuizzesMore' */ 'levelRulesHint', 'levelRewardsTitle', 'pushUnsupported'];
   /** Нові uk-ключі 23a: підсторінки профілю (задача 6). */

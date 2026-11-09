@@ -2854,5 +2854,9 @@
   "yourAnswer": "Your answer",
   "yourPick": "Your turn: pick a cell",
   "yourPlace": "Your place: {rank} of {total}",
-  "yourResult": "{score} {points}, correct answers: {correct} of {total}"
+  "yourResult": "{score} {points}, correct answers: {correct} of {total}",
+  "ruleSeriesPlus": "Plus streak: each correct answer in a row gives one step more",
+  "ruleSeriesMinus": "Minus streak: each wrong answer in a row takes one step more",
+  "ruleSeriesStep": "Step, points",
+  "ruleSeriesMinusPenalty": "The minus streak already penalizes mistakes"
 }

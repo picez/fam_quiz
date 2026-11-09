@@ -117,6 +117,7 @@ describe('host help', () => {
     for (const kind of ['flip', 'torch', 'bubbles'] as const) has(`debuff.${kind}`, ['Зменшити рух']);
     has('setting.debuffShop', ['шість перших']);
     has('setting.streak', ['Запобіжник']);
+    has('setting.blitzSeries', ['множник']);
     expect(text('debuff.shake')).toContain('того, хто відповідає');
     const fresh: HelpId[] = ['buff.risk', 'buff.letter', 'buff.scope', 'buff.guard', 'buff.peek', 'debuff.flip', 'debuff.torch', 'debuff.sticky', 'debuff.noclock', 'debuff.bubbles'];
     for (const id of fresh) {

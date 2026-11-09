@@ -2898,5 +2898,9 @@
   "yourAnswer": "La tua risposta",
   "yourPick": "Tocca a te: scegli una casella",
   "yourPlace": "Il tuo posto: {rank} su {total}",
-  "yourResult": "{score} {points}, risposte giuste: {correct} su {total}"
+  "yourResult": "{score} {points}, risposte giuste: {correct} su {total}",
+  "ruleSeriesPlus": "Serie positiva: ogni risposta giusta di fila dà un passo in più",
+  "ruleSeriesMinus": "Serie negativa: ogni risposta sbagliata di fila toglie un passo in più",
+  "ruleSeriesStep": "Passo, punti",
+  "ruleSeriesMinusPenalty": "La serie negativa penalizza già gli errori"
 }

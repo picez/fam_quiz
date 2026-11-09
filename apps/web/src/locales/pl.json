@@ -2898,5 +2898,9 @@
   "yourAnswer": "Twoja odpowiedź",
   "yourPick": "Twój ruch: wybierz pole",
   "yourPlace": "Twoje miejsce: {rank} z {total}",
-  "yourResult": "{score} {points}, dobrych odpowiedzi: {correct} z {total}"
+  "yourResult": "{score} {points}, dobrych odpowiedzi: {correct} z {total}",
+  "ruleSeriesPlus": "Seria plusowa: każda poprawna odpowiedź z rzędu daje o jeden krok więcej",
+  "ruleSeriesMinus": "Seria minusowa: każda błędna odpowiedź z rzędu zabiera o jeden krok więcej",
+  "ruleSeriesStep": "Krok, punkty",
+  "ruleSeriesMinusPenalty": "Seria minusowa już karze za błędy"
 }

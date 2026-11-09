@@ -9,6 +9,7 @@ import {
   boardRoundIssues,
   duelShortfall,
   roundRulesSchema,
+  blitzRulesSchema,
   type AnswerMode,
   type BlitzRound,
   type BoardCategory,
@@ -1137,7 +1138,7 @@ export function problemsOf(quiz: Quiz): string[] {
   draft.rounds.forEach((round, roundIndex) => {
     // З кількома раундами кожне повідомлення каже, у якому раунді шукати.
     const where = (text: string) => (several ? `${t('problemRound', { round: roundIndex + 1 })} ${text}` : text);
-    if (round.type !== 'final' && !roundRulesSchema.safeParse(rulesOf(round)).success) problems.push(where(t('problemRules')));
+    if (round.type !== 'final' && !(round.type === 'blitz' ? blitzRulesSchema : roundRulesSchema).safeParse(rulesOf(round)).success) problems.push(where(t('problemRules')));
     if (round.type === 'board') {
       round.categories.forEach((category, categoryIndex) => {
         if (category.title === '') problems.push(where(t('problemCategoryNoTitle', { category: categoryIndex + 1 })));

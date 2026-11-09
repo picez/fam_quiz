@@ -2898,5 +2898,9 @@
   "yourAnswer": "Tu respuesta",
   "yourPick": "Tu turno: elige una casilla",
   "yourPlace": "Tu puesto: {rank} de {total}",
-  "yourResult": "{score} {points}, respuestas correctas: {correct} de {total}"
+  "yourResult": "{score} {points}, respuestas correctas: {correct} de {total}",
+  "ruleSeriesPlus": "Racha de más: cada respuesta correcta seguida da un paso más",
+  "ruleSeriesMinus": "Racha de menos: cada respuesta incorrecta seguida quita un paso más",
+  "ruleSeriesStep": "Paso, puntos",
+  "ruleSeriesMinusPenalty": "La racha de menos ya penaliza los errores"
 }

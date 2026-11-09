@@ -2854,5 +2854,9 @@
   "yourAnswer": "Deine Antwort",
   "yourPick": "Du bist dran: wähle ein Feld",
   "yourPlace": "Dein Platz: {rank} von {total}",
-  "yourResult": "{score} {points}, richtige Antworten: {correct} von {total}"
+  "yourResult": "{score} {points}, richtige Antworten: {correct} von {total}",
+  "ruleSeriesPlus": "Plus-Serie: Jede richtige Antwort in Folge gibt einen Schritt mehr",
+  "ruleSeriesMinus": "Minus-Serie: Jede falsche Antwort in Folge nimmt einen Schritt mehr ab",
+  "ruleSeriesStep": "Schritt, Punkte",
+  "ruleSeriesMinusPenalty": "Die Minus-Serie bestraft Fehler bereits"
 }
