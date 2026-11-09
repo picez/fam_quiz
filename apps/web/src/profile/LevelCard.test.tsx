@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { levelProgress, nextRewards, rewardsUpTo, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
 import { NICK_FONT_LOADERS, resetNickFontCache } from '../nick-fonts';
-import { LevelBar, LevelCard, unlockedByLevel } from './LevelCard';
+import { LevelBar, LevelCard, rewardText, unlockedByLevel } from './LevelCard';
 
 vi.mock('../api', () => ({ saveLooks: vi.fn() }));
 
@@ -250,5 +250,11 @@ describe('LevelCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Цей вигляд ще закритий: він відкриється з вищим рівнем.');
     expect(onSaved).not.toHaveBeenCalled();
+  });
+});
+
+describe('rewardText for trophies (25e)', () => {
+  it('names a new shape and a new material', () => {
+    expect(rewardText({ kind: 'shape', id: 'plate' })).toBe('Форма трофея: тарілка-трофей');
   });
 });

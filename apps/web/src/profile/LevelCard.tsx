@@ -22,6 +22,10 @@ export function rewardText(reward: LevelReward): string {
       return t('reward_photo', { name: t(`photo_${reward.id}` as TextKey) });
     case 'font':
       return t('reward_font', { name: t(`font_${reward.id}` as TextKey) });
+    case 'shape':
+      return t('reward_shape', { name: t(`trophy_${reward.id}` as TextKey) });
+    case 'material':
+      return t('reward_material', { name: t(`material_${reward.id}` as TextKey) });
     case 'perk':
       return t('reward_perk', { name: t(`perk_${reward.perk}` as TextKey) });
     case 'perk_boost':

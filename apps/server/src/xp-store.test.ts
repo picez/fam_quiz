@@ -464,9 +464,9 @@ describe('levels and looks', () => {
     await db.insert(xpEntry).values({ userId: me, source: 'game', amount: 600, counted: true, day: '2026-10-19', at, createdAt: at });
     const own = await ownLevel(db, me);
     expect(own.progress).toEqual({ level: 3, xp: 600, levelAt: 520, nextAt: 800 });
-    expect(own.unlocked.map((u) => u.level)).toEqual([1, 2, 3, 3]);
-    expect(own.unlocked[2]).toEqual({ level: 3, reward: { kind: 'stickers', series: 'nyaa' }, at: at.toISOString() });
-    expect(own.next.map((n) => n.level)).toEqual([4, 4, 5, 6, 6]);
+    expect(own.unlocked.map((u) => u.level)).toEqual([1, 2, 2, 3, 3, 3]);
+    expect(own.unlocked[3]).toEqual({ level: 3, reward: { kind: 'stickers', series: 'nyaa' }, at: at.toISOString() });
+    expect(own.next.map((n) => n.level)).toEqual([4, 4, 4, 5, 5, 6, 6, 6]);
     expect(own.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null });
   });
 
@@ -524,7 +524,7 @@ describe('levels and looks', () => {
   it('ownLevel.next at level 15', async () => {
     const [me] = await accounts(1);
     await giveXp(me, xpForLevel(15));
-    expect((await ownLevel(db, me)).next.map((n) => n.level)).toEqual([16, 16, 17, 17, 18, 18]);
+    expect((await ownLevel(db, me)).next.map((n) => n.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18]);
   });
 
   it('roomLevels: an account without rows is level 1 with nothing worn; worn looks above the level are hidden', async () => {

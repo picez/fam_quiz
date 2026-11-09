@@ -142,6 +142,18 @@ const METAL: Record<TrophyMaterial, { band: readonly [string, string, string]; p
   silver: { band: ['#e4e8ee', '#c2c8d2', '#8f96a3'], plate: ['#eef1f5', '#cdd3dc', '#9aa1ae'] },
   bronze: { band: ['#d19a62', '#b0703a', '#7e4a22'], plate: ['#dba873', '#b97a44', '#85522a'] },
   diamond: { band: ['#eaf8ff', '#cfefff', '#8cc4e0'], plate: ['#f2fbff', '#d6f1ff', '#96cbe6'] },
+  // 25e: [темніше на 35 %, колір матеріалу, світліше на 35 %], однакові для стрічки й платівки.
+  rosegold: { band: ['#926b5b', '#e0a48c', '#ebc4b4'], plate: ['#926b5b', '#e0a48c', '#ebc4b4'] },
+  platinum: { band: ['#959493', '#e5e4e2', '#eeedec'], plate: ['#959493', '#e5e4e2', '#eeedec'] },
+  copper: { band: ['#7f4527', '#c46a3c', '#d99e80'], plate: ['#7f4527', '#c46a3c', '#d99e80'] },
+  obsidian: { band: ['#141117', '#1e1a24', '#6d6a71'], plate: ['#141117', '#1e1a24', '#6d6a71'] },
+  jade: { band: ['#286748', '#3e9e6e', '#82c0a1'], plate: ['#286748', '#3e9e6e', '#82c0a1'] },
+  pearl: { band: ['#9d9992', '#f2ebe0', '#f7f2eb'], plate: ['#9d9992', '#f2ebe0', '#f7f2eb'] },
+  ruby: { band: ['#720c1e', '#b0122e', '#cc6577'], plate: ['#720c1e', '#b0122e', '#cc6577'] },
+  sapphire: { band: ['#143378', '#1f4fb8', '#6d8dd1'], plate: ['#143378', '#1f4fb8', '#6d8dd1'] },
+  neon: { band: ['#a61e40', '#ff2e63', '#ff779a'], plate: ['#a61e40', '#ff2e63', '#ff779a'] },
+  marble: { band: ['#9a9894', '#edeae4', '#f3f1ed'], plate: ['#9a9894', '#edeae4', '#f3f1ed'] },
+  wood: { band: ['#5a3b21', '#8a5a33', '#b3947a'], plate: ['#5a3b21', '#8a5a33', '#b3947a'] },
 };
 
 /** Три зупинки градієнта стрічки або платівки в кольорі металу. */

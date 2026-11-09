@@ -3,8 +3,9 @@ import { ACHIEVEMENTS } from './achievements';
 import {
   COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LOOK_IDS, NICK_COLORS, NICK_FONTS, PHOTO_FRAMES, PROFILE_BADGES,
   achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards, perkSchema, perksFor,
-  stickerOpen, stickerSeriesOpen, xpForLevel,
+  stickerOpen, stickerSeriesOpen, trophyUnlockLevel, xpForLevel,
 } from './levels';
+import { TROPHY_KINDS, TROPHY_MATERIALS } from './prizes';
 import { STICKERS, STICKER_SERIES } from './stickers';
 
 describe('level curve', () => {
@@ -43,6 +44,22 @@ describe('rewards', () => {
     const got = LEVEL_REWARDS.filter((r) => OLD.some(([l, o]) => l === r.level && JSON.stringify(o) === JSON.stringify(r.reward))).map((r) => [r.level, r.reward]);
     expect(got).toEqual(OLD);
   });
+  it('every new shape and material has one level', () => {
+    const SHAPES: Record<string, number> = { goblet: 2, vase: 4, laurel: 5, starmedal: 6, figure: 8, octagon: 10, lovingcup: 12, ribbon: 14, flame: 16, olive: 18, cross: 20, diadem: 22, plate: 24, wings: 26, fist: 28 };
+    const MATERIALS: Record<string, number> = { copper: 3, rosegold: 7, wood: 9, marble: 11, jade: 13, platinum: 15, obsidian: 17, pearl: 19, sapphire: 21, ruby: 23, neon: 25 };
+    for (const [id, level] of Object.entries(SHAPES)) {
+      expect(LEVEL_REWARDS.filter((r) => r.reward.kind === 'shape' && r.reward.id === id).map((r) => r.level), id).toEqual([level]);
+      expect(trophyUnlockLevel('shape', id)).toBe(level);
+    }
+    for (const [id, level] of Object.entries(MATERIALS)) {
+      expect(LEVEL_REWARDS.filter((r) => r.reward.kind === 'material' && r.reward.id === id).map((r) => r.level), id).toEqual([level]);
+      expect(trophyUnlockLevel('material', id)).toBe(level);
+    }
+    expect(trophyUnlockLevel('shape', 'cup')).toBe(1);
+    expect(trophyUnlockLevel('material', 'gold')).toBe(1);
+    for (const kind of TROPHY_KINDS.slice(6)) expect(SHAPES[kind], kind).toBeDefined();
+    for (const material of TROPHY_MATERIALS.slice(4)) expect(MATERIALS[material], material).toBeDefined();
+  });
   it('every look id is free or rewarded exactly once', () => {
     for (const slot of Object.keys(LOOK_IDS) as (keyof typeof LOOK_IDS)[]) {
       for (const id of LOOK_IDS[slot]) {
@@ -78,7 +95,7 @@ describe('rewards', () => {
     expect(lookLevel('font', 'comic')).toBe(Infinity);
   });
   it('nextRewards', () => {
-    expect(nextRewards(15).map((r) => r.level)).toEqual([16, 16, 17, 17, 18, 18]);
+    expect(nextRewards(15).map((r) => r.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18]);
     expect(nextRewards(30)).toEqual([]);
   });
   it('perksFor', () => {

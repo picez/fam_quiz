@@ -96,6 +96,22 @@ export const DECOR_SUPPORT: Record<
     inscription: ['rim', 'band', 'plaque', 'back'],
     sticker: STICKER_PLACES,
   },
+  // Нові форми 25e: місця оформлення з'являються в задачі 4 (поки лише фон).
+  lovingcup: { photo: ['backdrop'], inscription: [], sticker: [] },
+  vase: { photo: ['backdrop'], inscription: [], sticker: [] },
+  plate: { photo: ['backdrop'], inscription: [], sticker: [] },
+  goblet: { photo: ['backdrop'], inscription: [], sticker: [] },
+  starmedal: { photo: ['backdrop'], inscription: [], sticker: [] },
+  cross: { photo: ['backdrop'], inscription: [], sticker: [] },
+  octagon: { photo: ['backdrop'], inscription: [], sticker: [] },
+  ribbon: { photo: ['backdrop'], inscription: [], sticker: [] },
+  diadem: { photo: ['backdrop'], inscription: [], sticker: [] },
+  laurel: { photo: ['backdrop'], inscription: [], sticker: [] },
+  olive: { photo: ['backdrop'], inscription: [], sticker: [] },
+  figure: { photo: ['backdrop'], inscription: [], sticker: [] },
+  flame: { photo: ['backdrop'], inscription: [], sticker: [] },
+  wings: { photo: ['backdrop'], inscription: [], sticker: [] },
+  fist: { photo: ['backdrop'], inscription: [], sticker: [] },
 };
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
