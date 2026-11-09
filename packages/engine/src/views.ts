@@ -1,5 +1,11 @@
 import {
   allowedBuffs,
+  betMinimum,
+  betsTeaser,
+  type BetsInfo,
+  type BetsRow,
+  type HostBets,
+  type PlayerBets,
   ladderKey,
   allowedDebuffs,
   debuffPrice,
@@ -111,6 +117,8 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
+import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, wagerLimitOf, wagerRound } from './bets';
+import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
 import { resumeLobby } from './carry';
@@ -856,6 +864,99 @@ function ownWager(final: FinalState, playerId: string): { wager: number | null; 
 function playerFinal(state: GameState, playerId: string): { wager: number | null; limit: number; allIn: boolean } | null {
   const open = finalRoundOf(state);
   return open === null ? null : ownWager(open.final, playerId);
+}
+
+const BETS_PHASES: Phase[] = ['intro', 'wager', 'question', 'locked', 'reveal', 'leaderboard'];
+
+/**
+ * «Ставки» (27a) від intro до leaderboard: раунд, запитання k і його мінімум, а також ставки, що зараз діють:
+ * на wager — зроблені, на question…reveal — тих, хто грає (play.final.wagers), на intro і leaderboard — жодних.
+ */
+function betsRoundOf(state: GameState) {
+  const round = currentRound(state);
+  if (round?.type !== 'bets' || state.final === null || !BETS_PHASES.includes(state.phase)) return null;
+  const index = betsIndex(state);
+  const question = round.questions[index];
+  if (question === undefined) return null;
+  const playing = betsPlaying(state);
+  const play = state.plays[state.questionIndex];
+  const wagers = state.phase === 'wager' ? state.final.wagers : playing !== null && play?.final !== undefined ? play.final.wagers : {};
+  return { round, index, question, minimum: betMinimum(round, index), wagers, playing };
+}
+
+/** Межа ставки гравця: від wager до reveal — знята на вході в ставки; на intro і leaderboard — за рахунком зараз. */
+function betsLimitNow(state: GameState, playerId: string): number {
+  return state.phase === 'wager' || BETS_OPEN_PHASES.includes(state.phase) ? wagerLimitOf(state, playerId) : betLimit(state, playerId);
+}
+
+function betsInfo(state: GameState): BetsInfo | null {
+  const open = betsRoundOf(state);
+  if (open === null) return null;
+  const { round, index, question, minimum, wagers, playing } = open;
+  const wager = state.phase === 'wager';
+  const reveal = state.phase === 'reveal' && playing !== null;
+  const rows = reveal
+    ? state.players.flatMap((player): BetsRow[] => {
+        const record = recordOf(state, state.questionIndex, player.id);
+        if (!playing.includes(player.id) || record === undefined) return [];
+        const points = finalVisiblePoints(state, player.id);
+        return [{ playerId: player.id, nickname: player.nickname, wager: wagers[player.id], grade: record.grade, points, score: player.score - record.points + points }];
+      })
+    : null;
+  return {
+    theme: round.title,
+    index,
+    total: round.questions.length,
+    minimum,
+    maximum: round.betMax,
+    // До відкриття — лише початок тексту: без варіантів, медіа й полів типу.
+    teaser: wager ? betsTeaser(question.text, question.betsCut ?? 0) : null,
+    bank: Object.values(wagers).reduce((sum, amount) => sum + amount, 0),
+    placed: state.players.filter((p) => Object.hasOwn(wagers, p.id)).map((p) => ({ playerId: p.id, nickname: p.nickname })),
+    eligible: wager ? presentPlayers(state).filter((p) => wagerLimitOf(state, p.id) >= minimum).length : 0,
+    rows,
+    refund: reveal && finalOutcome(state)?.refund === true,
+  };
+}
+
+function hostBets(state: GameState): HostBets | null {
+  const info = betsInfo(state);
+  const open = betsRoundOf(state);
+  if (info === null || open === null) return null;
+  const { round, question, minimum, wagers, playing } = open;
+  const manual = round.check === 'manual';
+  const play = state.plays[state.questionIndex];
+  const graded = play?.final?.graded ?? [];
+  // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder';
+  return {
+    ...info,
+    question,
+    wagers: state.players.map((p) => {
+      const limit = betsLimitNow(state, p.id);
+      return { playerId: p.id, nickname: p.nickname, wager: Object.hasOwn(wagers, p.id) ? wagers[p.id] : null, limit, canBet: limit >= minimum };
+    }),
+    manual,
+    pending:
+      manual && gradable && playing !== null
+        ? state.players.flatMap((p) => {
+            const answer = recordOf(state, state.questionIndex, p.id)?.answer ?? null;
+            return playing.includes(p.id) && answer !== null && !graded.includes(p.id) ? [{ playerId: p.id, nickname: p.nickname, answer }] : [];
+          })
+        : [],
+  };
+}
+
+function playerBets(state: GameState, playerId: string): PlayerBets | null {
+  const open = betsRoundOf(state);
+  if (open === null) return null;
+  const { minimum, wagers, playing } = open;
+  const limit = betsLimitNow(state, playerId);
+  const wager = Object.hasOwn(wagers, playerId) ? wagers[playerId] : null;
+  const status: PlayerBets['status'] =
+    playing?.includes(playerId) === true ? 'playing' : limit < minimum ? 'low' : playing !== null ? 'late' : wager !== null ? 'placed' : 'choosing';
+  const canBet = state.phase === 'wager' && !state.paused && (status === 'choosing' || status === 'placed');
+  return { status, wager, minimum, limit, canBet };
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
@@ -1779,6 +1880,7 @@ function base(state: GameState, forHost: boolean) {
     board: boardInfo(state, forHost),
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
+    ...optional('bets', betsInfo(state) ?? undefined),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
@@ -2018,7 +2120,7 @@ function hintRequests(state: GameState): HintRequest[] {
 }
 
 /**
- * Скільки відповіли. У фіналі сортування й словесної драбини — скільки зробили хоч один хід: лічильник записів
+ * Скільки відповіли. У фіналі й «Ставках» на сортуванні й словесній драбині — скільки зробили хоч один хід: лічильник записів
  * видав би, скільки вже відсортували все чи дійшли до цілі (тобто відповіли правильно). Перша спроба під бафом
  * «Ще спроба» теж рахується, інакше лічильник видав би, що вона неправильна.
  */
@@ -2037,7 +2139,7 @@ function answeredCount(state: GameState): number {
   const answered = [...new Set([...recorded, ...held])];
   const sort = currentSort(state);
   const ladder = currentLadder(state);
-  if ((sort === null && ladder === null) || !inFinalRound(state)) return answered.length;
+  if ((sort === null && ladder === null) || !wagerRound(currentRound(state))) return answered.length;
   const progress = sort !== null ? sort.play.sort : ladder?.play.wordladder;
   const moved = new Set([...Object.keys(progress ?? {}), ...answered]);
   return state.players.filter((p) => moved.has(p.id)).length;
@@ -2369,11 +2471,12 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
               accuracy: record.accuracy,
               grade: record.grade,
               streakBonus: record.streakBonus,
-              points: currentRound(state)?.type === 'final' ? visible : record.points,
+              points: wagerRound(currentRound(state)) ? visible : record.points,
             }
           : null,
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
+      ...optional('bets', playerBets(state, playerId) ?? undefined),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
@@ -2503,8 +2606,10 @@ export function hostView(state: GameState): HostView {
     ];
   });
   const wards = wardsView(state);
+  // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
+  const { bets: _publicBets, ...shared } = base(state, true);
   return {
-    ...base(state, true),
+    ...shared,
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
     ...(wards === undefined ? {} : { wards }),
     role: 'host',
@@ -2522,6 +2627,7 @@ export function hostView(state: GameState): HostView {
     blitz: hostBlitz(state),
     board: hostBoard(state),
     final: hostFinal(state),
+    ...optional('bets', hostBets(state) ?? undefined),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),
