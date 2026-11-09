@@ -84,6 +84,9 @@ export function NumberField(props: { label: string; value: number; decimal?: boo
   );
 }
 
+/** Поле для українського слова: без автовеликої літери, автозаміни й перевірки правопису. */
+export const UK_WORD_INPUT = { lang: 'uk', autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } as const;
+
 /**
  * Рядки з текстом у вигляді, близькому до того, що побачать гравці: варіанти, елементи
  * впорядкування, допустимі написання. Enter переходить до наступного рядка або додає новий.
@@ -102,6 +105,8 @@ export function Rows(props: {
   makeRow?: () => Row;
   /** Кількість рядків незмінна: кнопок додати й прибрати немає. */
   fixed?: boolean;
+  /** Українські слова (драбина): без автовеликої літери, автозаміни й перевірки правопису. */
+  ukWords?: boolean;
   onChange: (rows: Row[]) => void;
 }) {
   const { rows, min, max, onChange } = props;
@@ -145,6 +150,7 @@ export function Rows(props: {
             placeholder={t(props.label, { index: index + 1 })}
             value={row.text}
             maxLength={props.maxLength}
+            {...(props.ukWords === true ? UK_WORD_INPUT : {})}
             enterKeyHint={index < rows.length - 1 || rows.length < max ? 'next' : 'done'}
             onKeyDown={(event) => onKeyDown(event, index)}
             onChange={(event) => onChange(rows.map((r) => (r.id === row.id ? { ...r, text: event.target.value } : r)))}

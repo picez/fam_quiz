@@ -531,7 +531,7 @@
   "question.wordladder.limits.1": "Tylko w rundzie klasycznej i w finale.",
   "question.wordladder.limits.2": "Bez wideo i bez buffów.",
   "question.wordladder.points.0": "Liczy się najlepszy wynik w pokoju: kto doszedł w najmniejszej liczbie kroków, dostaje pełną wartość. Każdy dodatkowy krok zabiera równą część: przy wartości 500, najlepszym wyniku 4 kroków i maksimum 8 wychodzi 500, 400, 300, 200, 100 za 4, 5, 6, 7 i 8 kroków.",
-  "question.wordladder.points.1": "Kto doszedł dopiero po maksymalnej liczbie kroków albo wcale — 0. Jeśli nikt nie doszedł, wszyscy dostają zero. Szybkość, częściowa ocena i buffy nie działają, mnożnik rundy działa.",
+  "question.wordladder.points.1": "Kto zrobił więcej kroków niż maksimum albo wcale nie doszedł — 0. Jeśli nikt nie doszedł, wszyscy dostają zero. Szybkość, częściowa ocena i buffy nie działają, mnożnik rundy działa.",
   "question.wordladder.points.2": "W finale drabina dostaje ocenę „dobrze”, jeśli gracz doszedł w nie więcej niż maksymalnej liczbie kroków: plus stawka, a u pozostałych minus stawka.",
   "question.wordladder.tip.0": "Sprawdź ścieżkę na głos: każde słowo musi być rzeczownikiem, a sąsiednie słowa różnią się jedną literą.",
   "question.wordladder.title": "Drabina słów",

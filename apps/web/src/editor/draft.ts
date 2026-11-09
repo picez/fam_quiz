@@ -881,7 +881,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       break;
     case 'wordladder': {
       const { path, maxSteps } = question;
-      if (path.length < 2 || path[0] === '' || path[path.length - 1] === '') return 'problemEmptyWord';
+      if (path.length < 2 || path[0] === '' || path[path.length - 1] === '') return 'problemWordLadderEmpty';
       if (!Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > LIMITS.maxWordLadderSteps) return 'problemWordLadderMaxSteps';
       const issue = ladderPathIssue(path, maxSteps);
       if (issue !== null) return LADDER_PROBLEMS[issue];
@@ -1111,6 +1111,11 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
     surveyMin: LIMITS.minSurveyRows,
     surveyMax: LIMITS.maxSurveyAnswers,
+    letterMin: LIMITS.minWordLadderLetters,
+    letterMax: LIMITS.maxWordLadderLetters,
+    // Найменше кроків — 1 (та сама межа, що в перевірці maxSteps вище).
+    stepsMin: 1,
+    stepsMax: LIMITS.maxWordLadderSteps,
     ...(question?.type === 'clues'
       ? { count: question.clues.length, at: lastClueAt(question), need: question.cluePace === 'self' ? LIMITS.selfCluesMinTime : lastClueAt(question) + LIMITS.clueTailSeconds }
       : {}),

@@ -531,7 +531,7 @@
   "question.wordladder.limits.1": "Solo en una ronda clásica y en la final.",
   "question.wordladder.limits.2": "Sin vídeo y sin buffs.",
   "question.wordladder.points.0": "Cuenta el mejor resultado de la sala: quien llega en menos pasos recibe el valor completo. Cada paso de más quita una parte igual: con un valor de 500, un mejor resultado de 4 pasos y un máximo de 8 salen 500, 400, 300, 200, 100 por 4, 5, 6, 7 y 8 pasos.",
-  "question.wordladder.points.1": "Quien llega solo tras el máximo de pasos, o no llega — 0. Si nadie llega, todos reciben cero. La velocidad, la puntuación parcial y los buffs no cuentan; el multiplicador de la ronda sí.",
+  "question.wordladder.points.1": "Quien da más pasos que el máximo, o no llega — 0. Si nadie llega, todos reciben cero. La velocidad, la puntuación parcial y los buffs no cuentan; el multiplicador de la ronda sí.",
   "question.wordladder.points.2": "En la final la escalera se valora como «correcto» si el jugador llegó en no más del máximo de pasos: más la apuesta, y para todos los demás menos la apuesta.",
   "question.wordladder.tip.0": "Comprueba el camino en voz alta: cada palabra debe ser un sustantivo y las palabras vecinas se diferencian en una letra.",
   "question.wordladder.title": "Escalera de palabras",

@@ -531,7 +531,7 @@
   "question.wordladder.limits.1": "Only in a classic round and in the final.",
   "question.wordladder.limits.2": "No video and no buffs.",
   "question.wordladder.points.0": "The best result in the room counts: whoever got there in the fewest steps gets the full value. Each extra step takes off an equal share: with a value of 500, a best result of 4 steps and a maximum of 8 you get 500, 400, 300, 200, 100 for 4, 5, 6, 7 and 8 steps.",
-  "question.wordladder.points.1": "Whoever got there only after the maximum number of steps, or not at all — 0. If nobody got there, everyone gets zero. Speed, partial credit and buffs do not apply; the round multiplier does.",
+  "question.wordladder.points.1": "Whoever took more steps than the maximum, or never got there — 0. If nobody got there, everyone gets zero. Speed, partial credit and buffs do not apply; the round multiplier does.",
   "question.wordladder.points.2": "In the final the ladder is “correct” if the player got there in no more than the maximum number of steps: plus the stake, and for everyone else minus the stake.",
   "question.wordladder.tip.0": "Check the path out loud: every word must be a noun, and neighbouring words must differ by one letter.",
   "question.wordladder.title": "Word ladder",

@@ -531,7 +531,7 @@
   "question.wordladder.limits.1": "Solo in un round classico e nella finale.",
   "question.wordladder.limits.2": "Senza video e senza buff.",
   "question.wordladder.points.0": "Conta il miglior risultato della stanza: chi arriva con meno passi prende il valore pieno. Ogni passo in più toglie una parte uguale: con un valore di 500, un miglior risultato di 4 passi e un massimo di 8 si ottengono 500, 400, 300, 200, 100 per 4, 5, 6, 7 e 8 passi.",
-  "question.wordladder.points.1": "Chi arriva solo dopo il massimo dei passi, o non arriva — 0. Se nessuno arriva, tutti ottengono zero. Velocità, valutazione parziale e buff non valgono; il moltiplicatore del round sì.",
+  "question.wordladder.points.1": "Chi fa più passi del massimo, o non arriva — 0. Se nessuno arriva, tutti ottengono zero. Velocità, valutazione parziale e buff non valgono; il moltiplicatore del round sì.",
   "question.wordladder.points.2": "Nella finale la scala è valutata «giusto» se il giocatore è arrivato in non più del massimo di passi: più la puntata, e per tutti gli altri meno la puntata.",
   "question.wordladder.tip.0": "Controlla il percorso a voce alta: ogni parola deve essere un sostantivo e le parole vicine differiscono per una lettera.",
   "question.wordladder.title": "Scala di parole",

@@ -531,7 +531,7 @@
   "question.wordladder.limits.1": "Nur in einer klassischen Runde und im Finale.",
   "question.wordladder.limits.2": "Ohne Video und ohne Buffs.",
   "question.wordladder.points.0": "Es zählt das beste Ergebnis im Raum: Wer mit den wenigsten Schritten ankommt, bekommt den vollen Wert. Jeder zusätzliche Schritt kostet einen gleichen Anteil: Bei einem Wert von 500, einem besten Ergebnis von 4 Schritten und einem Maximum von 8 gibt es 500, 400, 300, 200, 100 für 4, 5, 6, 7 und 8 Schritte.",
-  "question.wordladder.points.1": "Wer erst nach der Höchstzahl an Schritten oder gar nicht ankommt – 0. Wenn niemand ankommt, bekommen alle null. Tempo, Teilwertung und Buffs wirken nicht, der Rundenmultiplikator schon.",
+  "question.wordladder.points.1": "Wer mehr Schritte als die Höchstzahl braucht oder gar nicht ankommt – 0. Wenn niemand ankommt, bekommen alle null. Tempo, Teilwertung und Buffs wirken nicht, der Rundenmultiplikator schon.",
   "question.wordladder.points.2": "Im Finale ist die Leiter „richtig“, wenn man in höchstens der Höchstzahl an Schritten ankommt: plus Einsatz, bei allen anderen minus Einsatz.",
   "question.wordladder.tip.0": "Prüf den Weg laut: Jedes Wort muss ein Substantiv sein, und benachbarte Wörter unterscheiden sich in einem Buchstaben.",
   "question.wordladder.title": "Wortleiter",

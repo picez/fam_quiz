@@ -1401,6 +1401,12 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
     fill('Стартове слово', 'ПОЛЕ');
     fill('Крок 1', 'поси');
+    // Слова — українські: без автовеликої, автозаміни й перевірки правопису; номер кроку не читається вголос.
+    for (const label of ['Стартове слово', 'Крок 1', 'Цільове слово']) {
+      const input = screen.getByLabelText(label);
+      expect([input.getAttribute('lang'), input.getAttribute('autocapitalize'), input.getAttribute('autocorrect'), input.getAttribute('spellcheck')]).toEqual(['uk', 'none', 'off', 'false']);
+    }
+    expect(screen.getByLabelText('Крок 1').parentElement?.querySelector('.letter')?.getAttribute('aria-hidden')).toBe('true');
     fill('Цільове слово', 'ТАРА');
     fill('Найбільше кроків', '8');
 
@@ -1416,7 +1422,8 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     fill('Крок 2', 'ПОРА');
     click('Додати слово');
     fill('Крок 3', 'ПАРА');
-    expect(screen.queryByRole('status')).toBeNull();
+    // Жива область завжди в DOM, але порожня.
+    expect(screen.getByRole('status').textContent).toBe('');
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe(t('wordLadderUnknown', { words: 'поси' })), { timeout: 3000 });
     // Один запит після паузи, а не по запиту на кожне натискання.
     expect(checks()).toHaveLength(1);
@@ -1441,7 +1448,8 @@ describe('QuizEditor: word ladder questions (26c)', () => {
     fill('Цільове слово', 'ПОРА');
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 3000 });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(screen.queryByRole('status')).toBeNull();
+    // Жива область завжди в DOM, але порожня.
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 
   it('a blitz round shows no word ladder chip', () => {

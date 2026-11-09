@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { checkLadderWords } from '../api';
 import { t } from '../i18n';
 import { cleanedQuestion } from './draft';
-import { NumberField, Rows } from './QuestionEditor';
+import { NumberField, Rows, UK_WORD_INPUT } from './QuestionEditor';
 
 type WordLadder = Extract<Question, { type: 'wordladder' }>;
 
@@ -51,31 +51,35 @@ export function WordLadderEditor({ question, onChange }: { question: WordLadder;
     <div className="wordladder-edit">
       <label className="field">
         <span>{t('wordLadderStart')}</span>
-        <input value={start} maxLength={LIMITS.wordLadderWord} onChange={(event) => setPath([event.target.value, ...path.slice(1)])} />
+        <input value={start} maxLength={LIMITS.wordLadderWord} {...UK_WORD_INPUT} onChange={(event) => setPath([event.target.value, ...path.slice(1)])} />
       </label>
       <Rows
         rows={rows}
         min={0}
         max={LIMITS.maxWordLadderSteps - 1}
         maxLength={LIMITS.wordLadderWord}
+        ukWords
         label="wordLadderStepN"
         removeLabel="removeWordLadderStep"
         addLabel="addWordLadderStep"
-        lead={(_row, index) => <span className="letter">{index + 1}</span>}
+        lead={(_row, index) => (
+          <span className="letter" aria-hidden="true">
+            {index + 1}
+          </span>
+        )}
         makeRow={() => ({ id: String(rows.length), text: '' })}
         onChange={(next) => setPath([start, ...next.map((row) => row.text), target])}
       />
       <label className="field">
         <span>{t('wordLadderTarget')}</span>
-        <input value={target} maxLength={LIMITS.wordLadderWord} onChange={(event) => setPath([start, ...middle, event.target.value])} />
+        <input value={target} maxLength={LIMITS.wordLadderWord} {...UK_WORD_INPUT} onChange={(event) => setPath([start, ...middle, event.target.value])} />
       </label>
       <NumberField label={t('wordLadderMaxSteps')} value={question.maxSteps} onChange={(maxSteps) => onChange({ ...question, maxSteps })} />
       <p className="meta">{t('wordLadderHint')}</p>
-      {unknown.length > 0 && (
-        <p className="wordladder-unknown" role="status">
-          {t('wordLadderUnknown', { words: unknown.join(', ') })}
-        </p>
-      )}
+      {/* Завжди в DOM: поява попередження озвучується. */}
+      <p className={unknown.length > 0 ? 'wordladder-unknown' : 'wordladder-unknown is-empty'} role="status">
+        {unknown.length > 0 ? t('wordLadderUnknown', { words: unknown.join(', ') }) : ''}
+      </p>
     </div>
   );
 }

@@ -1125,15 +1125,17 @@ describe('word ladder questions (26c)', () => {
 
   it('names each path problem', () => {
     expect(problems()).toEqual([]);
-    expect(problems({ path: ['', 'ПОЛА', 'ТАРА'] })).toEqual([t('problemEmptyWord', { index: 1 })]);
-    expect(problems({ path: ['ПОЛЕ', 'ПОЛА', ''] })).toEqual([t('problemEmptyWord', { index: 1 })]);
-    expect(problems({ path: ['ПО', 'ПА'] })).toEqual([t('problemWordLadderWord', { index: 1 })]);
-    expect(problems({ path: ['POLE', 'POLA'] })).toEqual([t('problemWordLadderWord', { index: 1 })]);
+    expect(problems({ path: ['', 'ПОЛА', 'ТАРА'] })).toEqual([t('problemWordLadderEmpty', { index: 1 })]);
+    expect(problems({ path: ['ПОЛЕ', 'ПОЛА', ''] })).toEqual([t('problemWordLadderEmpty', { index: 1 })]);
+    expect(problems({ path: ['ПО', 'ПА'] })).toEqual([t('problemWordLadderWord', { index: 1, letterMin: LIMITS.minWordLadderLetters, letterMax: LIMITS.maxWordLadderLetters })]);
+    // Межі в тексті — з LIMITS, а не вписані в переклад.
+    expect(problems({ path: ['ПО', 'ПА'] })[0]).toContain(`від ${LIMITS.minWordLadderLetters} до ${LIMITS.maxWordLadderLetters}`);
+    expect(problems({ path: ['POLE', 'POLA'] })).toEqual([t('problemWordLadderWord', { index: 1, letterMin: LIMITS.minWordLadderLetters, letterMax: LIMITS.maxWordLadderLetters })]);
     expect(problems({ path: ['ПОЛЕ', 'ПОЛЕЮ'] })).toEqual([t('problemWordLadderLength', { index: 1 })]);
     expect(problems({ path: ['ПОЛЕ', 'ПОРА', 'ТАРА'] })).toEqual([t('problemWordLadderStep', { index: 1 })]);
     expect(problems({ maxSteps: 3 })).toEqual([t('problemWordLadderSteps', { index: 1 })]);
-    expect(problems({ maxSteps: Number.NaN })).toEqual([t('problemWordLadderMaxSteps', { index: 1 })]);
-    expect(problems({ maxSteps: LIMITS.maxWordLadderSteps + 1 })).toEqual([t('problemWordLadderMaxSteps', { index: 1 })]);
+    expect(problems({ maxSteps: Number.NaN })).toEqual([t('problemWordLadderMaxSteps', { index: 1, stepsMin: 1, stepsMax: LIMITS.maxWordLadderSteps })]);
+    expect(problems({ maxSteps: LIMITS.maxWordLadderSteps + 1 })).toEqual([t('problemWordLadderMaxSteps', { index: 1, stepsMin: 1, stepsMax: LIMITS.maxWordLadderSteps })]);
   });
 
   it('a word ladder in a blitz round is out of place', () => {
