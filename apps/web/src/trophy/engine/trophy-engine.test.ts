@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { Object3D, Points, Texture, type Material, type Mesh, type Scene } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Object3D, Points, Texture, type Material, type Scene } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrophyAppearance, TrophyDecor, TrophyEffect } from '@quiz/shared';
+import { decorSummary } from '../decor-layout';
 import type { TrophyHandle, TrophyMount, TrophySize } from '../engine-types';
+import type { TrophyLook } from '../trophy-meta';
 import type { StageView } from './stage';
+import { domTextures } from './textures';
 import { engine } from './trophy-engine';
 
 const fake = vi.hoisted(() => ({
@@ -15,16 +18,16 @@ const fake = vi.hoisted(() => ({
     environment: unknown;
     lost: boolean;
   },
+  /** Ключі полотен, які бере stub buildDecor через справжній textures.canvas. */
+  canvasKeys: [] as string[],
+  /** Stub loadModel: тест може підмінити одну збірку відкладеною (mockImplementationOnce). */
+  loadModel: null as unknown as ReturnType<typeof vi.fn<(url: string) => Promise<import('three').Group>>>,
 }));
 
 vi.mock('./models', async () => {
   const three = await import('three');
   return {
-    loadModel: async () => {
-      const group = new three.Group();
-      group.add(new three.Mesh(new three.BoxGeometry(0.5, 1, 0.5), new three.MeshStandardMaterial()));
-      return group;
-    },
+    loadModel: (url: string) => fake.loadModel(url),
     paintModel: () => {},
     framingSphere: () => new three.Sphere(new three.Vector3(0, 0.5, 0), 0.6),
   };
@@ -32,7 +35,13 @@ vi.mock('./models', async () => {
 vi.mock('./stage', () => ({ getStage: () => fake.stage }));
 vi.mock('./decor-meshes', async () => {
   const three = await import('three');
-  return { buildDecor: async () => ({ group: new three.Group(), backdrop: null }) };
+  return {
+    buildDecor: async (_kind: unknown, _material: unknown, _decor: unknown, _size: unknown, textures: typeof domTextures) => ({
+      group: new three.Group(),
+      backdrop: null,
+      textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})),
+    }),
+  };
 });
 
 /** Радіус кадрування зі stub framingSphere. */
@@ -51,12 +60,34 @@ function decor(appearance: TrophyAppearance, effect: TrophyEffect = 'none'): Tro
   };
 }
 
+/** Модель зі stub loadModel: один меш зі своїм (без текстури) матеріалом. */
+function model(): Group {
+  const group = new Group();
+  group.add(new Mesh(new BoxGeometry(0.5, 1, 0.5), new MeshStandardMaterial()));
+  return group;
+}
+
+/** Збірка, що чекає, доки тест її не відпустить. */
+function deferred(): { promise: Promise<Group>; model: Group; resolve(): void } {
+  const built = model();
+  let resolve: () => void = () => {};
+  const promise = new Promise<Group>((done) => {
+    resolve = () => done(built);
+  });
+  return { promise, model: built, resolve };
+}
+
+/** Чи пішли всі ланцюжки промісів, що вже розв'язані. */
+const settle = () => new Promise<void>((done) => setTimeout(done, 0));
+
 let reduce = false;
 let handles: TrophyHandle[] = [];
 
 beforeEach(() => {
   reduce = false;
   handles = [];
+  fake.canvasKeys = [];
+  fake.loadModel = vi.fn(async () => model());
   fake.stage = {
     view: null,
     add(view) {
@@ -96,7 +127,8 @@ async function mount(over: Partial<TrophyMount> & { decor?: TrophyDecor; size?: 
     ...rest,
   };
   const onReady = vi.fn();
-  const handle = engine.mount(host, options, { onReady, onError: vi.fn() });
+  const onError = vi.fn();
+  const handle = engine.mount(host, options, { onReady, onError });
   handles.push(handle);
   await vi.waitFor(() => expect(fake.stage!.view).not.toBeNull());
   const view = fake.stage!.view!;
@@ -110,7 +142,7 @@ async function mount(over: Partial<TrophyMount> & { decor?: TrophyDecor; size?: 
   const run = (total: number, step = 0.1) => {
     for (let spent = 0; spent < total - 1e-9; spent += step) frame(Math.min(step, total - spent));
   };
-  return { handle, view, canvas, trophy, frame, run, scene: view.scene as Scene, onReady };
+  return { handle, view, canvas, trophy, frame, run, scene: view.scene as Scene, onReady, onError };
 }
 
 const named = (root: Object3D, prefix: string): Object3D[] => {
@@ -288,6 +320,24 @@ describe('trophy engine: effect and appearance', () => {
     expect(fake.stage!.invalidate).not.toHaveBeenCalled();
   });
 
+  it('dispose releases shared textures', async () => {
+    fake.canvasKeys = ['shared-a', 'shared-b'];
+    const release = vi.spyOn(domTextures, 'release');
+    const first = await mount({ decor: decor('spin') });
+    fake.stage!.view = null;
+    const second = await mount({ decor: decor('spin') });
+    const shared = [domTextures.canvas('shared-a', 4, 4, () => {}), domTextures.canvas('shared-b', 4, 4, () => {})];
+    for (const texture of shared) domTextures.release(texture);
+    release.mockClear();
+    const disposes = shared.map((texture) => vi.spyOn(texture, 'dispose'));
+    first.handle.dispose();
+    expect(release.mock.calls.map(([texture]) => texture)).toEqual(shared);
+    for (const spy of disposes) expect(spy).not.toHaveBeenCalled();
+    second.handle.dispose();
+    expect(release).toHaveBeenCalledTimes(4);
+    for (const spy of disposes) expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('dispose frees effect resources', async () => {
     const { handle, scene } = await mount({ decor: decor('rise', 'snow') });
     const spies = ['effect-snow', 'appear-pedestal'].flatMap((name) => {
@@ -296,5 +346,135 @@ describe('trophy engine: effect and appearance', () => {
     });
     handle.dispose();
     for (const spy of spies) expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('trophy engine: update in place', () => {
+  const pointer = (type: string, clientX: number) => Object.assign(new Event(type), { pointerId: 1, clientX, clientY: 0 });
+  const withDecor = (spec: TrophyDecor): TrophyLook => ({ kind: 'cup', material: 'gold', decor: spec });
+
+  it('update keeps the frame and the pose', async () => {
+    const { handle, canvas, trophy, frame, onReady, onError, scene } = await mount({
+      decor: decor('spin'),
+      appear: false,
+      interactive: true,
+    });
+    frame(0);
+    expect(onReady).toHaveBeenCalledTimes(1);
+    canvas.dispatchEvent(pointer('pointerdown', 0));
+    canvas.dispatchEvent(pointer('pointermove', 100));
+    canvas.dispatchEvent(pointer('pointerup', 100));
+    frame(0);
+    const turned = trophy.rotation.y;
+    expect(turned).toBeCloseTo(1);
+    const [old] = trophy.children;
+    const oldMaterial = (old!.children[0] as Mesh).material as Material;
+    const freed = vi.spyOn(oldMaterial, 'dispose');
+    const oldShadow = scene.children.find((child) => child instanceof Mesh && child.name === '') as Mesh;
+
+    const next = deferred();
+    fake.loadModel.mockImplementationOnce(() => next.promise);
+    const spec: TrophyDecor = {
+      ...decor('spin'),
+      inscriptions: [{ place: 'rim', text: 'Ася', font: null, look: 'engraved', color: '#3a2a0e' }],
+    };
+    handle.update(withDecor(spec), 'new label');
+    await settle();
+    // Доки нова збірка не готова, у сцені стара — без значка й без другого onReady.
+    expect(trophy.children).toEqual([old]);
+    frame(0);
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(freed).not.toHaveBeenCalled();
+    expect(canvas.dataset.decor).toBe(decorSummary('cup', decor('spin')));
+    expect(canvas.getAttribute('aria-label')).toBe('cup');
+
+    next.resolve();
+    await vi.waitFor(() => expect(trophy.children).toEqual([next.model]));
+    expect(scene.children[0]).toBe(trophy);
+    expect(scene.children).not.toContain(oldShadow);
+    expect(freed).toHaveBeenCalled();
+    expect(trophy.rotation.y).toBe(turned);
+    frame(0);
+    expect(trophy.rotation.y).toBeCloseTo(turned);
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(canvas.dataset.decor).toBe(decorSummary('cup', spec));
+    expect(canvas.dataset.decor).not.toBe(decorSummary('cup', decor('spin')));
+    expect(canvas.getAttribute('aria-label')).toBe('new label');
+  });
+
+  it('the latest update wins', async () => {
+    const { handle, trophy } = await mount({ decor: decor('spin'), appear: false });
+    const release = vi.spyOn(domTextures, 'release');
+    fake.canvasKeys = ['late-a'];
+    const a = deferred();
+    const b = deferred();
+    fake.loadModel.mockImplementationOnce(() => a.promise).mockImplementationOnce(() => b.promise);
+    const aFreed = vi.spyOn((a.model.children[0] as Mesh).material as Material, 'dispose');
+    handle.update(withDecor(decor('drop')), 'cup');
+    handle.update(withDecor(decor('rise')), 'cup');
+    b.resolve();
+    await vi.waitFor(() => expect(trophy.children).toEqual([b.model]));
+    expect(release).not.toHaveBeenCalled();
+    a.resolve();
+    await settle();
+    expect(trophy.children).toEqual([b.model]);
+    expect(a.model.parent).toBeNull();
+    // Застаріла збірка звільнила своє полотно рівно раз, а свою модель у сцену не поклала.
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(aFreed).not.toHaveBeenCalled();
+    handle.dispose();
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it('update does not replay the appearance', async () => {
+    const played = await mount({ decor: decor('drop') });
+    played.frame(0);
+    played.run(1.3);
+    expect(played.canvas.dataset.appearance).toBe('drop:done');
+    played.handle.update(withDecor(decor('drop', 'sparks')), 'cup');
+    await vi.waitFor(() => expect(played.canvas.dataset.effect).toBe('sparks:animated'));
+    expect(played.canvas.dataset.appearance).toBe('drop:done');
+    expect(named(played.scene, 'effect-sparks')).toHaveLength(1);
+    played.frame(0);
+    expect(played.trophy.position.y).toBe(0);
+
+    fake.stage!.view = null;
+    const bare = await mount();
+    expect(bare.canvas.dataset.appearance).toBeUndefined();
+    bare.handle.update(withDecor(decor('rise')), 'cup');
+    await vi.waitFor(() => expect(bare.canvas.dataset.appearance).toBe('rise:skipped'));
+    expect(bare.canvas.dataset.effect).toBe('none:off');
+    expect(bare.view.needsFrame()).toBe(false);
+
+    // І назад без decor: атрибути зникають, поза нейтральна.
+    bare.handle.update({ kind: 'cup', material: 'gold' }, 'cup');
+    await vi.waitFor(() => expect(bare.canvas.dataset.appearance).toBeUndefined());
+    expect(bare.canvas.dataset.effect).toBeUndefined();
+  });
+
+  it('replay after update plays the new appearance', async () => {
+    const { handle, canvas, trophy, frame } = await mount({ decor: decor('spin'), appear: false });
+    expect(canvas.dataset.appearance).toBe('spin:skipped');
+    const next = deferred();
+    fake.loadModel.mockImplementationOnce(() => next.promise);
+    handle.update(withDecor(decor('drop')), 'cup');
+    handle.replayAppearance();
+    await settle();
+    expect(canvas.dataset.appearance).toBe('spin:skipped');
+    next.resolve();
+    await vi.waitFor(() => expect(canvas.dataset.appearance).toBe('drop:playing'));
+    frame(0.05);
+    expect(trophy.position.y).toBeCloseTo(3 * R);
+  });
+
+  it('update after dispose is a no-op', async () => {
+    const { handle } = await mount({ decor: decor('spin') });
+    handle.dispose();
+    fake.loadModel.mockClear();
+    expect(() => handle.update(withDecor(decor('drop')), 'cup')).not.toThrow();
+    await settle();
+    expect(fake.loadModel).not.toHaveBeenCalled();
   });
 });

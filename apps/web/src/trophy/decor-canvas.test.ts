@@ -13,7 +13,7 @@ import {
   loadInscriptionFont,
   toneImageData,
 } from './decor-canvas';
-import { coverCrop, metalStops, rimUnit } from './decor-layout';
+import { PHOTO_BOX, coverCrop, metalStops, rimUnit } from './decor-layout';
 
 interface Call {
   name: string;
@@ -159,7 +159,10 @@ describe('decor canvas', () => {
 
   it('a failed font resolves', async () => {
     vi.spyOn(NICK_FONT_LOADERS, 'pixel').mockRejectedValue(new Error('chunk'));
-    await expect(loadInscriptionFont('pixel')).resolves.toBeUndefined();
+    // Шрифт не підвантажився: FontFaceSet не знаходить жодної грані.
+    vi.stubGlobal('document', { fonts: { load: vi.fn(() => Promise.resolve([])) } });
+    await expect(loadInscriptionFont('pixel')).resolves.toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it('a hanging font times out', async () => {
@@ -168,13 +171,14 @@ describe('decor canvas', () => {
     const fonts = { load: vi.fn(() => new Promise<never>(() => {})) };
     vi.stubGlobal('document', { fonts });
     let done = false;
-    const p = loadInscriptionFont('elegant').then(() => {
+    const p = loadInscriptionFont('elegant').then((loaded) => {
       done = true;
+      return loaded;
     });
     await vi.advanceTimersByTimeAsync(2999);
     expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
-    await p;
+    expect(await p).toBe(false);
     expect(done).toBe(true);
     expect(fonts.load).toHaveBeenCalled();
     vi.unstubAllGlobals();
@@ -182,9 +186,9 @@ describe('decor canvas', () => {
 
   it('loads the faces for the inscription letters', async () => {
     vi.spyOn(NICK_FONT_LOADERS, 'hand').mockResolvedValue(undefined);
-    const fonts = { load: vi.fn(() => Promise.resolve([])) };
+    const fonts = { load: vi.fn(() => Promise.resolve([{}])) };
     vi.stubGlobal('document', { fonts });
-    await loadInscriptionFont('hand', 'Чемпіон');
+    await expect(loadInscriptionFont('hand', 'Чемпіон')).resolves.toBe(true);
     // Без тексту FontFaceSet.load бере лише пробіл (латинський підмножина), і кирилиця малюється запасним шрифтом.
     expect(fonts.load).toHaveBeenCalledWith(inscriptionFont('hand', 40), 'ЧЕМПІОН Чемпіон');
     vi.unstubAllGlobals();
@@ -195,7 +199,7 @@ describe('decor canvas', () => {
     const loaders = (Object.keys(NICK_FONT_LOADERS) as (keyof typeof NICK_FONT_LOADERS)[]).map((k) =>
       vi.spyOn(NICK_FONT_LOADERS, k).mockResolvedValue(undefined),
     );
-    await loadInscriptionFont(null);
+    await expect(loadInscriptionFont(null)).resolves.toBe(true);
     expect(spies).toBe(8);
     for (const l of loaders) expect(l).not.toHaveBeenCalled();
   });
@@ -218,6 +222,19 @@ describe('decor canvas', () => {
     expect(first.args).toEqual([img, c.sx, c.sy, c.sw, c.sh, 8, 8, 134, 188]);
   });
 
+  it('the crop preview box is what the trophy draws', () => {
+    const crop = { x: 0.3, y: 0.6, scale: 1.7 };
+    const d = decor({ photos: [{ url: '/uploads/aaaaaaaaaaaaaaaa.jpg', crop }] });
+    const card = fakeCtx();
+    drawPhotoCard(card.ctx, img, d.photos[0]!, d, PHOTO_BOX.plaque, 'gold');
+    const c = coverCrop(img, PHOTO_BOX.plaque, crop);
+    expect(card.calls.find((x) => x.name === 'drawImage')!.args.slice(0, 5)).toEqual([img, c.sx, c.sy, c.sw, c.sh]);
+    const disc = fakeCtx();
+    drawPhotoDisc(disc.ctx, img, d.photos[0]!, d, 512, 'gold');
+    const e = coverCrop(img, PHOTO_BOX.medallion, crop);
+    expect(disc.calls.find((x) => x.name === 'drawImage')!.args.slice(0, 5)).toEqual([img, e.sx, e.sy, e.sw, e.sh]);
+  });
+
   it('toneImageData', () => {
     const bw = new Uint8ClampedArray([255, 0, 0, 255]);
     toneImageData(bw, 'bw');
@@ -234,6 +251,19 @@ describe('decor canvas', () => {
     const { ctx, calls } = fakeCtx();
     drawPhotoRing(ctx, [img], decor({ photoStyle: 'bw' }), 'gold');
     expect(calls.some((c) => c.name === 'putImageData')).toBe(true);
+  });
+
+  it('a scaled-down canvas tones the tile in canvas pixels', () => {
+    const { ctx: inner, calls } = fakeCtx();
+    const ctx = new Proxy(inner, {
+      get: (target, prop) =>
+        prop === 'getTransform' ? () => ({ a: 0.5, d: 0.5, e: 0, f: 0 }) : Reflect.get(target, prop),
+    });
+    drawPhotoRing(ctx, [img, img], decor({ photoStyle: 'sepia' }), 'gold');
+    const puts = calls.filter((c) => c.name === 'putImageData');
+    // Клітинка 1: x 158, y 8, 134×188 у повних координатах → половина в пікселях полотна.
+    expect(puts[1]!.args.slice(1)).toEqual([79, 4]);
+    expect((puts[1]!.args[0] as { data: Uint8ClampedArray }).data.length).toBe(67 * 94 * 4);
   });
 
   it('round frame clips a circle', () => {

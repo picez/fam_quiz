@@ -1,8 +1,9 @@
 import {
+  EMPTY_DECOR,
   PRIZE_LIMITS,
   SHOWCASE_MAX,
   TITLE_MS,
-  isPickableTrophy,
+  decorLocked,
   publicContent,
   type AwardCard,
   type PlacedPrize,
@@ -50,22 +51,28 @@ export async function listAllPrizes(
   return rows.map((row) => ({ id: row.id, content: row.content, createdAt: row.createdAt!.toISOString(), ownerId: row.ownerId, status: row.status, reservedGame: row.reservedGame }));
 }
 
-/** Оформлення trophy.decor (25a): відсутнє в запиті — лишаємо збережене (старий клієнт його не знає), null — прибираємо; у базу null не потрапляє. */
+/**
+ * Оформлення trophy.decor (25a): відсутнє в запиті — лишаємо збережене (старий клієнт його не знає), null — прибираємо; у базу null не потрапляє.
+ * Грааль (25c) ніколи не лишається без оформлення: інакше малювалася б запечена модель із сімейними фото.
+ */
 function withDecor(next: PrizeContent, stored: PrizeContent | null): PrizeContent {
   const trophy = next.trophy;
   if (trophy === null) return next;
   const { decor, ...rest } = trophy;
-  if (decor === null) return { ...next, trophy: rest };
-  if (decor !== undefined) return next;
-  const kept = stored?.trophy?.decor;
-  return kept === undefined || kept === null ? next : { ...next, trophy: { ...rest, decor: kept } };
+  const merged = decor === undefined ? stored?.trophy?.decor : decor;
+  if (merged !== undefined && merged !== null) return decor === undefined ? { ...next, trophy: { ...rest, decor: merged } } : next;
+  return trophy.kind === 'grail' ? { ...next, trophy: { ...rest, decor: EMPTY_DECOR } } : { ...next, trophy: rest };
 }
 
 export async function createPrize(
   db: Db,
   ownerId: string,
   content: PrizeContent,
-): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'too_many_prizes' }> {
+  level?: number | null,
+): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'too_many_prizes' | 'decor_locked' }> {
+  const stored = withDecor(content, null);
+  const decor = stored.trophy?.decor;
+  if (level != null && decor && decorLocked(decor, level, null)) return { ok: false, error: 'decor_locked' };
   return db.transaction(async (tx) => {
     // Ліміт тримає склад (free + reserved); вручені до нього не рахуються.
     const [{ n } = { n: 0 }] = await tx
@@ -74,7 +81,7 @@ export async function createPrize(
       .where(and(eq(prize.ownerId, ownerId), ne(prize.status, 'awarded')));
     if (n >= PRIZE_LIMITS.perOwner) return { ok: false as const, error: 'too_many_prizes' as const };
     const now = new Date();
-    const [row] = await tx.insert(prize).values({ ownerId, content: withDecor(content, null), status: 'free', createdAt: now, updatedAt: now }).returning();
+    const [row] = await tx.insert(prize).values({ ownerId, content: stored, status: 'free', createdAt: now, updatedAt: now }).returning();
     return { ok: true as const, prize: itemOf(row!) };
   });
 }
@@ -85,16 +92,18 @@ export async function updatePrize(
   ownerId: string,
   id: string,
   content: PrizeContent,
-): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' | 'trophy_unavailable' }> {
+  level?: number | null,
+): Promise<{ ok: true; prize: PrizeItem } | { ok: false; error: 'not_found' | 'prize_in_game' | 'decor_locked' }> {
   const [row] = await db.select().from(prize).where(and(eq(prize.id, id), eq(prize.ownerId, ownerId)));
   if (row === undefined || row.status === 'awarded') return { ok: false, error: 'not_found' };
   if (row.status === 'reserved') return { ok: false, error: 'prize_in_game' };
-  // Незмінний вид лишається навіть недоступним (Ясин грааль); перейти на недоступний вид не можна.
-  const kind = content.trophy?.kind;
-  if (kind !== undefined && !isPickableTrophy(kind) && row.content.trophy?.kind !== kind) return { ok: false, error: 'trophy_unavailable' };
+  const merged = withDecor(content, row.content);
+  const decor = merged.trophy?.decor;
+  // Шрифт і наліпка зі збереженого оформлення цього призу лишаються чинними.
+  if (level != null && decor && decorLocked(decor, level, row.content.trophy?.decor)) return { ok: false, error: 'decor_locked' };
   const [updated] = await db
     .update(prize)
-    .set({ content: withDecor(content, row.content), updatedAt: new Date() })
+    .set({ content: merged, updatedAt: new Date() })
     .where(and(eq(prize.id, id), eq(prize.status, 'free')))
     .returning();
   // Приз встигли покласти в гру між читанням і записом.

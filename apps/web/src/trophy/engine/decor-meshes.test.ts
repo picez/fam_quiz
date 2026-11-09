@@ -1,24 +1,38 @@
 import { CylinderGeometry, Mesh, MeshStandardMaterial, PlaneGeometry, Texture, TorusGeometry, type Group, type Object3D } from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TrophyDecor } from '@quiz/shared';
 import { TROPHY_ANCHORS } from '../anchors';
-import { gemSpots } from '../decor-layout';
-import { buildDecor } from './decor-meshes';
+import { gemSpots, ringAtlasSize } from '../decor-layout';
+import { TEXTURE_SCALE, buildDecor } from './decor-meshes';
 import type { DecorTextures, Img } from './textures';
+
+/** null — справжній loadInscriptionFont; true/false — підмінений результат (шрифт завантажився чи ні). */
+const font = vi.hoisted(() => ({ loaded: null as boolean | null }));
+vi.mock('../decor-canvas', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../decor-canvas')>();
+  return {
+    ...actual,
+    loadInscriptionFont: (...args: Parameters<typeof actual.loadInscriptionFont>) =>
+      font.loaded === null ? actual.loadInscriptionFont(...args) : Promise.resolve(font.loaded),
+  };
+});
 
 const url = (i: number) => `/uploads/${'a'.repeat(15)}${i.toString(16)}.jpg`;
 
 function stub(options: { failing?: string[]; stickers?: string[] } = {}) {
   const canvases: [number, number][] = [];
+  const keys: string[] = [];
   const textures: DecorTextures = {
     image: async (u) => (options.failing?.includes(u) ? null : ({ width: 800, height: 600 } as unknown as Img)),
-    canvas: (width, height) => {
+    canvas: (key, width, height) => {
+      keys.push(key);
       canvases.push([width, height]);
       return new Texture();
     },
+    release: () => {},
     sticker: async (id) => (options.stickers === undefined || options.stickers.includes(id) ? new Texture() : null),
   };
-  return { textures, canvases };
+  return { textures, canvases, keys };
 }
 
 const yasya: TrophyDecor = {
@@ -174,5 +188,121 @@ describe('buildDecor', () => {
       stub().textures,
     );
     expect(names(fancy.group)).toEqual(names(plain.group));
+  });
+});
+
+/** Справжній кеш domTextures з полотнами-заглушками (Node без DOM): ctx лише рахує, що малювали. */
+async function realTextures() {
+  vi.resetModules();
+  const ctx = new Proxy({} as Record<string, unknown>, {
+    get: (target, key: string) =>
+      key === 'measureText'
+        ? () => ({ width: 10 })
+        : key === 'createLinearGradient' || key === 'createRadialGradient'
+          ? () => ({ addColorStop: () => {} })
+          : key === 'getImageData'
+            ? () => ({ data: new Uint8ClampedArray(4) })
+            : (target[key] ??= () => {}),
+    set: (target, key: string, value) => ((target[key] = value), true),
+  });
+  vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => ctx }) });
+  vi.stubGlobal(
+    'Image',
+    class {
+      width = 800;
+      height = 600;
+      decoding = '';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_url: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    },
+  );
+  const { domTextures } = await import('./textures');
+  const { buildDecor: build } = await import('./decor-meshes');
+  return { textures: domTextures, build };
+}
+
+const mapOf = (group: Group, name: string) => (named(group, name)[0]!.material as MeshStandardMaterial).map;
+
+describe('buildDecor: shared textures and resolution', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('card textures are half size', async () => {
+    expect(TEXTURE_SCALE).toEqual({ stage: 1, view: 1, phone: 0.5, card: 0.5 });
+    const decor: TrophyDecor = { ...yasya, photos: yasya.photos.slice(0, 3), inscriptions: [] };
+    const atlas = ringAtlasSize(3);
+    const card = stub();
+    const built = await buildDecor('cup', 'gold', decor, 'card', card.textures);
+    expect(card.canvases).toEqual([[atlas.width * 0.5, atlas.height * 0.5]]);
+    expect(built.textures).toHaveLength(1);
+    const view = stub();
+    await buildDecor('cup', 'gold', decor, 'view', view.textures);
+    expect(view.canvases).toEqual([[atlas.width, atlas.height]]);
+  });
+
+  it('card drawing is scaled to the smaller canvas', async () => {
+    const decor: TrophyDecor = { ...yasya, photos: yasya.photos.slice(0, 3), inscriptions: [] };
+    const scaled: number[][] = [];
+    const { textures } = stub();
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (target, key: string) =>
+        key === 'scale' ? (x: number, y: number) => scaled.push([x, y]) : (target[key] ??= () => {}),
+      set: (target, key: string, value) => ((target[key] = value), true),
+    });
+    textures.canvas = (_key, _width, _height, draw) => {
+      draw(ctx as unknown as CanvasRenderingContext2D);
+      return new Texture();
+    };
+    await buildDecor('cup', 'gold', decor, 'card', textures);
+    expect(scaled[0]).toEqual([0.5, 0.5]);
+  });
+
+  it('same decor shares textures', async () => {
+    const { textures, build } = await realTextures();
+    const first = await build('grail', 'gold', yasya, 'view', textures);
+    const second = await build('grail', 'gold', yasya, 'view', textures);
+    expect(first.textures.length).toBeGreaterThan(0);
+    expect(second.textures).toEqual(first.textures);
+    second.textures.forEach((texture, i) => expect(texture).toBe(first.textures[i]));
+    // Інший розмір — інше полотно.
+    const card = await build('grail', 'gold', yasya, 'card', textures);
+    for (const texture of card.textures) expect(first.textures).not.toContain(texture);
+  });
+
+  it('a changed inscription redraws only itself', async () => {
+    const { textures, build } = await realTextures();
+    const decor: TrophyDecor = { ...yasya, inscriptions: [yasya.inscriptions[0]!] };
+    const before = await build('grail', 'gold', decor, 'view', textures);
+    const changed: TrophyDecor = { ...decor, inscriptions: [{ ...decor.inscriptions[0]!, text: 'Інший напис' }] };
+    const after = await build('grail', 'gold', changed, 'view', textures);
+    expect(mapOf(after.group, 'decor-ring')).toBe(mapOf(before.group, 'decor-ring'));
+    expect(mapOf(after.group, 'decor-rim')).not.toBe(mapOf(before.group, 'decor-rim'));
+  });
+});
+
+describe('buildDecor: inscription font', () => {
+  afterEach(() => {
+    font.loaded = null;
+  });
+
+  it('a fallback-font inscription does not share the key of the loaded font', async () => {
+    const decor: TrophyDecor = {
+      ...yasya,
+      photos: [],
+      inscriptions: [{ ...yasya.inscriptions[0]!, font: 'hand' }],
+    };
+    font.loaded = false;
+    const timedOut = stub();
+    await buildDecor('grail', 'gold', decor, 'view', timedOut.textures);
+    font.loaded = true;
+    const loaded = stub();
+    await buildDecor('grail', 'gold', decor, 'view', loaded.textures);
+    expect(timedOut.keys).toHaveLength(1);
+    expect(loaded.keys).toHaveLength(1);
+    expect(loaded.keys[0]).not.toBe(timedOut.keys[0]);
   });
 });

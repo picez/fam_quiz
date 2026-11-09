@@ -145,11 +145,29 @@ export class Stage {
     const delta = this.lastTime === null ? 0 : Math.min(Math.max((time - this.lastTime) / 1000, 0), MAX_DELTA);
     this.lastTime = time;
     let again = false;
+    const due: StageView[] = [];
+    // Буфер рендерера — за найбільшим видимим виглядом з розміром: за кадр він перевиділяється щонайбільше раз.
+    let needWidth = 0;
+    let needHeight = 0;
     for (const view of this.visible) {
       const moving = view.needsFrame();
+      const width = view.canvas.clientWidth;
+      const height = view.canvas.clientHeight;
+      const sized = width > 0 && height > 0;
+      if (sized) {
+        needWidth = Math.max(needWidth, width);
+        needHeight = Math.max(needHeight, height);
+      }
       // Вигляд без розміру нічого не намалює: ResizeObserver зробить invalidate, коли розмір з'явиться.
-      if (moving && view.canvas.clientWidth > 0 && view.canvas.clientHeight > 0) again = true;
-      if (!moving && !this.dirty.has(view)) continue;
+      if (moving && sized) again = true;
+      if (moving || this.dirty.has(view)) due.push(view);
+    }
+    if (due.length > 0 && needWidth > 0 && (this.size.width !== needWidth || this.size.height !== needHeight)) {
+      // setPixelRatio уже множить на dpr: буфер — width·dpr × height·dpr.
+      this.renderer.setSize(needWidth, needHeight, false);
+      this.size = { width: needWidth, height: needHeight };
+    }
+    for (const view of due) {
       if (this.draw(view, delta)) this.dirty.delete(view);
     }
     // Невидимі (і ще без розміру) лишаються «брудними», доки не з'являться на екрані чи не отримають розмір.
@@ -169,19 +187,20 @@ export class Stage {
     }
     if (context === null) return false;
     view.beforeRender?.(width, height, delta);
-    // setPixelRatio уже множить на dpr: буфер рендерера — width·dpr × height·dpr. Той самий розмір не перевиділяє буфер.
-    if (this.size.width !== width || this.size.height !== height) {
-      this.renderer.setSize(width, height, false);
-      this.size = { width, height };
-    }
+    // Вигляд малюється в кут буфера (CSS-пікселі; рендерер сам множить на dpr). Ножиці — щоб очищення не зачепило решту.
+    this.renderer.setViewport(0, 0, width, height);
+    this.renderer.setScissor(0, 0, width, height);
+    this.renderer.setScissorTest(true);
     this.renderer.clippingPlanes = view.clippingPlanes ? [...view.clippingPlanes] : NO_PLANES;
     this.renderer.render(view.scene, view.camera);
-    const bufferWidth = Math.floor(width * this.pixelRatio);
-    const bufferHeight = Math.floor(height * this.pixelRatio);
-    if (view.canvas.width !== bufferWidth) view.canvas.width = bufferWidth;
-    if (view.canvas.height !== bufferHeight) view.canvas.height = bufferHeight;
-    context.clearRect(0, 0, bufferWidth, bufferHeight);
-    context.drawImage(this.renderer.domElement, 0, 0);
+    const viewWidth = Math.floor(width * this.pixelRatio);
+    const viewHeight = Math.floor(height * this.pixelRatio);
+    const bufferHeight = Math.floor(this.size.height * this.pixelRatio);
+    if (view.canvas.width !== viewWidth) view.canvas.width = viewWidth;
+    if (view.canvas.height !== viewHeight) view.canvas.height = viewHeight;
+    context.clearRect(0, 0, viewWidth, viewHeight);
+    // WebGL рахує від низу: кут (0, 0) вікна — це нижній лівий кут буфера.
+    context.drawImage(this.renderer.domElement, 0, bufferHeight - viewHeight, viewWidth, viewHeight, 0, 0, viewWidth, viewHeight);
     view.afterDraw?.();
     return true;
   }

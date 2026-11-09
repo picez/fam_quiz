@@ -23,7 +23,7 @@ import {
   drawRim,
   loadInscriptionFont,
 } from '../decor-canvas';
-import { gemSpots, ringAtlasSize } from '../decor-layout';
+import { PHOTO_BOX, gemSpots, ringAtlasSize } from '../decor-layout';
 import type { TrophySize } from '../engine-types';
 import { MATERIAL_LOOK } from '../trophy-meta';
 import type { DecorTextures } from './textures';
@@ -33,9 +33,51 @@ const LIFT = 0.004;
 /** Розмір текстури кружечка: медальйон і зворот / самоцвіт. */
 const DISC_PX = 512;
 const GEM_PX = 256;
-const PLAQUE = { width: 1024, height: 400 } as const;
-const BACKDROP = { width: 1024, height: 1024 } as const;
+const PLAQUE = PHOTO_BOX.plaque;
+const BACKDROP = PHOTO_BOX.backdrop;
 const BIG_SIZES: readonly TrophySize[] = ['stage', 'view'];
+
+/** Роздільність полотен оформлення за розміром вигляду: на картці й телефоні вдвічі менше (GPU-пам'ять вітрини). */
+export const TEXTURE_SCALE: Record<TrophySize, number> = { stage: 1, view: 1, phone: 0.5, card: 0.5 };
+
+/** Полотна одного buildDecor: спільні за ключем, кожне взяте записується в taken (звільнити — release). */
+interface Painter {
+  kind: TrophyKind;
+  material: TrophyMaterial;
+  decor: TrophyDecor;
+  size: TrophySize;
+  textures: DecorTextures;
+  taken: Texture[];
+}
+
+/**
+ * Спільне полотно width×height (у пікселях повного розміру) зменшене на TEXTURE_SCALE[size]; draw малює у повних
+ * координатах. data — усе, від чого залежить малюнок частини (фото з crop чи напис), loaded — чи завантажилась кожна картинка.
+ */
+function paint(
+  painter: Painter,
+  part: string,
+  data: unknown,
+  loaded: boolean[],
+  width: number,
+  height: number,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+): Texture {
+  const { kind, material, decor, size, textures } = painter;
+  const scale = TEXTURE_SCALE[size];
+  const w = Math.round(width * scale);
+  const h = Math.round(height * scale);
+  const key = JSON.stringify([part, kind, material, decor.frame, decor.photoStyle, data, loaded, w, h]);
+  const texture = textures.canvas(key, w, h, (ctx) => {
+    ctx.scale(scale, scale);
+    draw(ctx);
+  });
+  painter.taken.push(texture);
+  return texture;
+}
+
+const photoData = (photo: DecorPhoto) => ({ url: photo.url, crop: photo.crop });
+const loadedFlags = (images: readonly (unknown | null)[]) => images.map((image) => image != null);
 
 type MetalLook = { metalness: number; roughness: number };
 const BAKED_RING: MetalLook = { metalness: 0, roughness: 0.6 };
@@ -88,15 +130,8 @@ function disc(name: string, spot: Spot, map: Texture, look: MetalLook, lift: num
   return result;
 }
 
-async function addPhotos(
-  group: Group,
-  kind: TrophyKind,
-  material: TrophyMaterial,
-  decor: TrophyDecor,
-  size: TrophySize,
-  textures: DecorTextures,
-  metal: MeshStandardMaterial,
-): Promise<Texture | null> {
+async function addPhotos(group: Group, painter: Painter, metal: MeshStandardMaterial): Promise<Texture | null> {
+  const { kind, material, decor, size, textures } = painter;
   const anchors = TROPHY_ANCHORS[kind];
   const photos = decor.photos;
   if (photos.length === 0) return null;
@@ -106,7 +141,9 @@ async function addPhotos(
       if (anchors.ring === undefined) return null;
       const images = await load(photos);
       const atlas = ringAtlasSize(photos.length);
-      const map = textures.canvas(atlas.width, atlas.height, (ctx) => drawPhotoRing(ctx, images, decor, material));
+      const map = paint(painter, 'photo-ring', photos.map(photoData), loadedFlags(images), atlas.width, atlas.height, (ctx) =>
+        drawPhotoRing(ctx, images, decor, material),
+      );
       const segments = anchors.ring.segments || photos.length * 8;
       band(group, 'decor-ring', anchors.ring, segments, new MeshStandardMaterial({ map, ...BAKED_RING }), metal);
       return null;
@@ -115,7 +152,7 @@ async function addPhotos(
       const spot = anchors.medallion;
       if (spot === undefined) return null;
       const [image] = await load(photos.slice(0, 1));
-      const map = textures.canvas(DISC_PX, DISC_PX, (ctx) =>
+      const map = paint(painter, 'photo-medallion', photoData(photos[0]!), loadedFlags([image]), DISC_PX, DISC_PX, (ctx) =>
         drawPhotoDisc(ctx, image ?? null, photos[0]!, decor, DISC_PX, material),
       );
       group.add(disc('decor-medallion', spot, map, BAKED_RING, LIFT));
@@ -129,7 +166,7 @@ async function addPhotos(
       if (circle === undefined) return null;
       const images = await load(photos);
       gemSpots(circle, photos.length).forEach((spot, i) => {
-        const map = textures.canvas(GEM_PX, GEM_PX, (ctx) =>
+        const map = paint(painter, 'photo-gem', photoData(photos[i]!), loadedFlags([images[i]]), GEM_PX, GEM_PX, (ctx) =>
           drawPhotoDisc(ctx, images[i] ?? null, photos[i]!, decor, GEM_PX, material),
         );
         group.add(disc('decor-gem', { ...spot, size: circle.size }, map, BAKED_RING, 0));
@@ -139,7 +176,7 @@ async function addPhotos(
     case 'plaque': {
       if (anchors.plaque === undefined) return null;
       const [image] = await load(photos.slice(0, 1));
-      const map = textures.canvas(PLAQUE.width, PLAQUE.height, (ctx) =>
+      const map = paint(painter, 'photo-plaque', photoData(photos[0]!), loadedFlags([image]), PLAQUE.width, PLAQUE.height, (ctx) =>
         drawPhotoCard(ctx, image ?? null, photos[0]!, decor, PLAQUE, material),
       );
       plate(group, anchors.plaque, map, BAKED_RING);
@@ -148,45 +185,42 @@ async function addPhotos(
     case 'backdrop': {
       if (!BIG_SIZES.includes(size)) return null;
       const [image] = await load(photos.slice(0, 1));
-      return textures.canvas(BACKDROP.width, BACKDROP.height, (ctx) =>
+      return paint(painter, 'photo-backdrop', photoData(photos[0]!), loadedFlags([image]), BACKDROP.width, BACKDROP.height, (ctx) =>
         drawPhotoCard(ctx, image ?? null, photos[0]!, decor, BACKDROP, material),
       );
     }
   }
 }
 
-async function addInscription(
-  group: Group,
-  kind: TrophyKind,
-  material: TrophyMaterial,
-  inscription: Inscription,
-  textures: DecorTextures,
-  metal: MeshStandardMaterial,
-): Promise<void> {
+async function addInscription(group: Group, painter: Painter, inscription: Inscription, metal: MeshStandardMaterial): Promise<void> {
+  const { kind, material } = painter;
   const anchors = TROPHY_ANCHORS[kind];
-  await loadInscriptionFont(inscription.font, inscription.text);
+  // Запасний шрифт (збій чи таймаут) — інший малюнок: окремий ключ, щоб пізніша збірка після шрифту малювала знову.
+  const fontLoaded = await loadInscriptionFont(inscription.font, inscription.text);
+  const text = (width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void) =>
+    paint(painter, `text-${inscription.place}`, inscription, [fontLoaded], width, height, draw);
   switch (inscription.place) {
     case 'rim': {
       if (anchors.rim === undefined) return;
-      const map = textures.canvas(2048, 96, (ctx) => drawRim(ctx, inscription, material));
+      const map = text(2048, 96, (ctx) => drawRim(ctx, inscription, material));
       band(group, 'decor-rim', anchors.rim, anchors.rim.segments, new MeshStandardMaterial({ map, ...BAKED_RIM }), metal);
       return;
     }
     case 'band': {
       if (anchors.band === undefined) return;
-      const map = textures.canvas(1024, 64, (ctx) => drawBand(ctx, inscription, material));
+      const map = text(1024, 64, (ctx) => drawBand(ctx, inscription, material));
       band(group, 'decor-band', anchors.band, anchors.band.segments, new MeshStandardMaterial({ map, ...BAKED_RIM }), metal);
       return;
     }
     case 'plaque': {
       if (anchors.plaque === undefined) return;
-      const map = textures.canvas(PLAQUE.width, PLAQUE.height, (ctx) => drawPlaque(ctx, inscription, material));
+      const map = text(PLAQUE.width, PLAQUE.height, (ctx) => drawPlaque(ctx, inscription, material));
       plate(group, anchors.plaque, map, BAKED_PLATE);
       return;
     }
     case 'back': {
       if (anchors.back === undefined) return;
-      const map = textures.canvas(DISC_PX, DISC_PX, (ctx) => drawBack(ctx, inscription, material));
+      const map = text(DISC_PX, DISC_PX, (ctx) => drawBack(ctx, inscription, material));
       group.add(disc('decor-back', anchors.back, map, BAKED_PLATE, LIFT));
       return;
     }
@@ -225,6 +259,8 @@ async function addSticker(
  * Меші оформлення в просторі моделі (основа на y = 0, лице до +Z) за точками кріплення форми.
  * Місця, яких форма не має, мовчки пропускаються; effect і appearance тут не малюються (25b).
  * backdrop — фото для scene.background, лише в розмірах stage і view.
+ * textures — усі полотна, взяті через textures.canvas (backdrop серед них): кожне звільняти через textures.release.
+ * Текстури наліпок спільні й сюди не входять.
  */
 export async function buildDecor(
   kind: TrophyKind,
@@ -232,7 +268,7 @@ export async function buildDecor(
   decor: TrophyDecor,
   size: TrophySize,
   textures: DecorTextures,
-): Promise<{ group: Group; backdrop: Texture | null }> {
+): Promise<{ group: Group; backdrop: Texture | null; textures: Texture[] }> {
   const shown = shownDecor(kind, decor);
   const group = new Group();
   group.name = 'decor';
@@ -241,13 +277,18 @@ export async function buildDecor(
   // Кожна частина — своя підгрупа: порядок у сцені не залежить від того, що довантажилось першим.
   const parts = [shown.photos, ...shown.inscriptions, ...shown.stickers].map(() => new Group());
   group.add(...parts);
-  const photos = addPhotos(parts[0]!, kind, material, shown, size, textures, metal);
-  await Promise.all([
+  const painter: Painter = { kind, material, decor: shown, size, textures, taken: [] };
+  const photos = addPhotos(parts[0]!, painter, metal);
+  const results = await Promise.allSettled([
     photos,
-    ...shown.inscriptions.map((inscription, i) => addInscription(parts[1 + i]!, kind, material, inscription, textures, metal)),
-    ...shown.stickers.map((sticker, i) =>
-      addSticker(parts[1 + shown.inscriptions.length + i]!, kind, sticker, textures),
-    ),
+    ...shown.inscriptions.map((inscription, i) => addInscription(parts[1 + i]!, painter, inscription, metal)),
+    ...shown.stickers.map((sticker, i) => addSticker(parts[1 + shown.inscriptions.length + i]!, kind, sticker, textures)),
   ]);
-  return { group, backdrop: await photos };
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed !== undefined) {
+    // Збій однієї частини не тримає полотен решти: усі вже дочекались, тож нових не візьмуть.
+    for (const texture of painter.taken) textures.release(texture);
+    throw failed.reason;
+  }
+  return { group, backdrop: await photos, textures: painter.taken };
 }

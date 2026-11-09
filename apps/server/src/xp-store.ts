@@ -368,6 +368,12 @@ export async function publicLevel(db: Db, userId: string): Promise<PublicLevel> 
   return { level, looks: looksShown(looks, level) };
 }
 
+/** Рівень акаунта (після наздоганяння XP): для перевірки закритого оформлення призів. */
+export async function accountLevel(db: Db, userId: string): Promise<number> {
+  await synced(db, userId);
+  return levelOf((await xpTotals(db, [userId])).get(userId) ?? 0);
+}
+
 /** Вбрання з відкритого рівнем; закрите → look_locked. */
 export async function saveLooks(db: Db, userId: string, looks: LooksInput): Promise<{ ok: true; looks: NickLooks } | { ok: false; error: 'look_locked' }> {
   // Спершу наздогнати: без ретро користувач бачив би рівень 1 і хибне look_locked.

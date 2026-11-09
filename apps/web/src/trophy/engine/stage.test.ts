@@ -7,6 +7,9 @@ interface FakeRenderer {
   render: ReturnType<typeof vi.fn>;
   setSize: ReturnType<typeof vi.fn>;
   setPixelRatio: ReturnType<typeof vi.fn>;
+  setViewport: ReturnType<typeof vi.fn>;
+  setScissor: ReturnType<typeof vi.fn>;
+  setScissorTest: ReturnType<typeof vi.fn>;
   domElement: HTMLCanvasElement;
   clippingPlanes: Plane[];
 }
@@ -25,7 +28,16 @@ vi.mock('three', async (importOriginal) => {
 });
 
 function makeFake(): FakeRenderer {
-  return { render: vi.fn(), setSize: vi.fn(), setPixelRatio: vi.fn(), domElement: document.createElement('canvas'), clippingPlanes: [] };
+  return {
+    render: vi.fn(),
+    setSize: vi.fn(),
+    setPixelRatio: vi.fn(),
+    setViewport: vi.fn(),
+    setScissor: vi.fn(),
+    setScissorTest: vi.fn(),
+    domElement: document.createElement('canvas'),
+    clippingPlanes: [],
+  };
 }
 
 let frames: FrameRequestCallback[] = [];
@@ -70,10 +82,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function makeView(needsFrame = false): StageView & { onLost: Mock<() => void> } {
+function makeView(needsFrame = false, width = 120, height = 160): StageView & { onLost: Mock<() => void> } {
   const canvas = document.createElement('canvas');
-  Object.defineProperty(canvas, 'clientWidth', { value: 120, configurable: true });
-  Object.defineProperty(canvas, 'clientHeight', { value: 160 });
+  Object.defineProperty(canvas, 'clientWidth', { value: width, configurable: true });
+  Object.defineProperty(canvas, 'clientHeight', { value: height });
   return { canvas, scene: new Scene(), camera: new PerspectiveCamera(30, 1, 0.01, 100), needsFrame: () => needsFrame, onLost: vi.fn<() => void>() };
 }
 
@@ -112,8 +124,67 @@ describe('Stage', () => {
     for (const view of views) {
       const context = contexts.get(view.canvas)!;
       expect(context.clearRect).toHaveBeenCalled();
-      expect(context.drawImage).toHaveBeenCalledWith(fake.domElement, 0, 0);
+      expect(context.drawImage).toHaveBeenCalledWith(fake.domElement, 0, 0, 120, 160, 0, 0, 120, 160);
     }
+  });
+
+  it('mixed sizes allocate once', () => {
+    const { stage, fake } = stageWithFake();
+    const big = makeView(true, 800, 600);
+    const small = makeView(true, 200, 150);
+    stage.add(big);
+    stage.add(small);
+    show([big, small]);
+    runFrame();
+    expect(fake.render).toHaveBeenCalledTimes(2);
+    expect(fake.setSize).toHaveBeenCalledTimes(1);
+    expect(fake.setSize).toHaveBeenCalledWith(800, 600, false);
+    runFrame(32);
+    expect(fake.render).toHaveBeenCalledTimes(4);
+    expect(fake.setSize).toHaveBeenCalledTimes(1);
+  });
+
+  it('each view renders into its own corner', () => {
+    vi.stubGlobal('devicePixelRatio', 2);
+    const { stage, fake } = stageWithFake();
+    const big = makeView(false, 800, 600);
+    const small = makeView(false, 200, 150);
+    stage.add(big);
+    stage.add(small);
+    show([big, small]);
+    const calls: unknown[][] = [];
+    fake.render.mockImplementation((scene: unknown) => {
+      if (scene === small.scene) {
+        calls.push(fake.setViewport.mock.lastCall!, fake.setScissor.mock.lastCall!, fake.setScissorTest.mock.lastCall!);
+      }
+    });
+    runFrame();
+    expect(calls).toEqual([
+      [0, 0, 200, 150],
+      [0, 0, 200, 150],
+      [true],
+    ]);
+    // Буфер 1600×1200 (600·2 заввишки): кут вигляду — його нижні 300 рядків.
+    expect(contexts.get(small.canvas)!.drawImage).toHaveBeenCalledWith(fake.domElement, 0, 1200 - 300, 400, 300, 0, 0, 400, 300);
+    expect(contexts.get(big.canvas)!.drawImage).toHaveBeenCalledWith(fake.domElement, 0, 0, 1600, 1200, 0, 0, 1600, 1200);
+    expect(small.canvas.width).toBe(400);
+    expect(small.canvas.height).toBe(300);
+  });
+
+  it('the buffer follows the largest visible view', () => {
+    const { stage, fake } = stageWithFake();
+    const big = makeView(true, 800, 600);
+    const small = makeView(true, 200, 150);
+    stage.add(big);
+    stage.add(small);
+    show([big, small]);
+    runFrame();
+    expect(fake.setSize).toHaveBeenLastCalledWith(800, 600, false);
+    show([big], false);
+    runFrame(32);
+    expect(fake.setSize).toHaveBeenCalledTimes(2);
+    expect(fake.setSize).toHaveBeenLastCalledWith(200, 150, false);
+    expect(contexts.get(small.canvas)!.drawImage).toHaveBeenLastCalledWith(fake.domElement, 0, 0, 200, 150, 0, 0, 200, 150);
   });
 
   it('offscreen views are not drawn', () => {

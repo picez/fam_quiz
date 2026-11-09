@@ -16,6 +16,7 @@ import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
 import { Play } from './pages/Play';
 import { Prizes } from './pages/Prizes';
+import { PrizeStudioPage } from './pages/PrizeStudioPage';
 import { Profile } from './pages/Profile';
 import { PublicProfile } from './pages/PublicProfile';
 import { ProfileLikes } from './pages/profile/ProfileLikes';
@@ -45,6 +46,9 @@ export function AppRoutes() {
         {/* Підсторінки плиток профілю: статичні сегменти react-router ставить вище за /profile/:id. */}
         <Route path="/profile/quizzes" element={<ProfileQuizzes />} />
         <Route path="/profile/prizes" element={<Prizes />} />
+        {/* Повноекранний редактор призу: шар поверх меню (position: fixed). */}
+        <Route path="/profile/prizes/new" element={<PrizeStudioPage />} />
+        <Route path="/profile/prizes/:id" element={<PrizeStudioPage />} />
         <Route path="/profile/achievements" element={<Achievements />} />
         <Route path="/profile/friends" element={<Friends />} />
         <Route path="/profile/stats" element={<ProfileStats />} />

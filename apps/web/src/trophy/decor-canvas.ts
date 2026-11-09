@@ -5,6 +5,7 @@ import {
   fitFontPx,
   LINE_HEIGHT,
   metalStops,
+  PHOTO_FRAME_INSET,
   plaqueLines,
   RING_TILE,
   ringAtlasSize,
@@ -27,24 +28,26 @@ export function inscriptionFont(font: NickFont | null, px: number): string {
 }
 
 /**
- * Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. text — літери напису:
+ * Шрифт напису готовий (або запасний): збій чи завислий шрифт не затримує малювання довше 3 с. Результат — чи шрифт
+ * справді завантажився (класичний, null, є завжди): false означає, що малюватиметься запасним. text — літери напису:
  * шрифти поділені на підмножини (unicode-range), і без тексту FontFaceSet.load вантажить лише латинську, тож кирилиця
  * на полотні малювалася б запасним шрифтом. Рим пишеться великими, тому вантажимо й їх.
  */
-export function loadInscriptionFont(font: NickFont | null, text = ' '): Promise<void> {
-  if (font === null) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, FONT_TIMEOUT_MS);
-    const finish = () => {
+export function loadInscriptionFont(font: NickFont | null, text = ' '): Promise<boolean> {
+  if (font === null) return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), FONT_TIMEOUT_MS);
+    const finish = (loaded: boolean) => {
       clearTimeout(timer);
-      resolve();
+      resolve(loaded);
     };
     loadNickFont(font)
       .then(() => {
         const fonts = typeof document === 'undefined' ? undefined : document.fonts;
-        return fonts ? fonts.load(inscriptionFont(font, 40), `${text.toUpperCase()} ${text}`) : undefined;
+        // Без FontFaceSet перевірити нічим — вважаємо готовим. Порожній список граней — шрифт не знайшовся (запасний).
+        return fonts ? fonts.load(inscriptionFont(font, 40), `${text.toUpperCase()} ${text}`).then((faces) => faces.length > 0) : true;
       })
-      .then(finish, finish);
+      .then(finish, () => finish(false));
   });
 }
 
@@ -65,6 +68,21 @@ export function toneImageData(data: Uint8ClampedArray, style: TrophyPhotoStyle):
       data[i + 2] = Math.min(255, Math.round(0.272 * r + 0.534 * g + 0.131 * b));
     }
   }
+}
+
+/**
+ * Тонує пікселі під прямокутником (x, y, w, h) у координатах малювання. getImageData/putImageData не зважають на
+ * перетворення контексту, а полотно на картці зменшене через ctx.scale, тож прямокутник переводиться в пікселі полотна.
+ */
+function toneRect(ctx: Ctx, x: number, y: number, w: number, h: number, style: TrophyPhotoStyle): void {
+  const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : undefined;
+  const a = m?.a ?? 1;
+  const d = m?.d ?? 1;
+  const px = Math.round(x * a + (m?.e ?? 0));
+  const py = Math.round(y * d + (m?.f ?? 0));
+  const data = ctx.getImageData(px, py, Math.round(w * a), Math.round(h * d));
+  toneImageData(data.data, style);
+  ctx.putImageData(data, px, py);
 }
 
 function gradientDown(ctx: Ctx, height: number, stops: readonly [string, string, string]): CanvasGradient {
@@ -105,7 +123,7 @@ function drawLooked(ctx: Ctx, text: string, x: number, y: number, look: Inscript
 /** Фото в прямокутнику: «заповнити» з crop, форма й обводка за рамкою, стиль фото; null лишає прямокутник як є. */
 function drawPhotoIn(ctx: Ctx, image: Img | null, photo: DecorPhoto, decor: TrophyDecor, rect: Rect, material: TrophyMaterial): void {
   const framed = decor.frame !== 'none';
-  const inset = framed ? 3 : 0;
+  const inset = framed ? PHOTO_FRAME_INSET : 0;
   const x = rect.x + inset;
   const y = rect.y + inset;
   const w = rect.width - 2 * inset;
@@ -129,9 +147,7 @@ function drawPhotoIn(ctx: Ctx, image: Img | null, photo: DecorPhoto, decor: Trop
     ctx.drawImage(image, c.sx, c.sy, c.sw, c.sh, x, y, w, h);
     if (decor.photoStyle !== 'normal') {
       try {
-        const px = ctx.getImageData(x, y, w, h);
-        toneImageData(px.data, decor.photoStyle);
-        ctx.putImageData(px, x, y);
+        toneRect(ctx, x, y, w, h, decor.photoStyle);
       } catch {
         // полотно «заплямоване» чужим зображенням: лишаємо кольорове
       }
@@ -194,9 +210,7 @@ export function drawPhotoDisc(
     ctx.drawImage(image, c.sx, c.sy, c.sw, c.sh, half - inner, half - inner, side, side);
     if (decor.photoStyle !== 'normal') {
       try {
-        const data = ctx.getImageData(0, 0, px, px);
-        toneImageData(data.data, decor.photoStyle);
-        ctx.putImageData(data, 0, 0);
+        toneRect(ctx, 0, 0, px, px, decor.photoStyle);
       } catch {
         // див. drawPhotoIn
       }

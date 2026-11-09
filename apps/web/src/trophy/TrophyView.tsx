@@ -30,8 +30,18 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
   const handleRef = useRef<TrophyHandle | null>(null);
   const label = trophyLabel(trophy);
   const look = MATERIAL_LOOK[trophy.material];
-  // Поверхні передають новий об'єкт trophy на кожне оновлення: перемонтовуємо лише за зміною вигляду.
+  // Поверхні передають новий об'єкт trophy на кожне оновлення: порівнюємо вигляд за вмістом.
   const lookKey = JSON.stringify(trophy);
+  // Вигляд для наступного mount і вигляд, який має живий handle: зміна вигляду (з ним і label) іде в update без
+  // перемонтування; перемонтовують лише size, spin, interactive, appear.
+  const lookRef = useRef(lookKey);
+  lookRef.current = lookKey;
+  const labelRef = useRef(label);
+  labelRef.current = label;
+  const shownKey = useRef<string | null>(null);
+  // Після onError handle уже не оновлюється: наступна зміна вигляду перемонтовує (новий збір після, скажімо, збою мережі).
+  const failed = useRef(false);
+  const [remount, setRemount] = useState(0);
 
   useEffect(() => {
     if (!webglAvailable()) return;
@@ -48,26 +58,45 @@ export function TrophyView({ trophy, size, spin, interactive, appear = true, ref
     const box = holder.current;
     if (engine === null || box === null) return;
     let live = true;
+    const key = lookRef.current;
+    const label = labelRef.current;
     const handle = engine.mount(
       box,
-      { look: JSON.parse(lookKey) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear },
+      { look: JSON.parse(key) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear },
       {
         onReady: () => {
           if (live) setLoaded(true);
         },
         onError: () => {
-          if (live) setLoaded(false);
+          if (!live) return;
+          failed.current = true;
+          setLoaded(false);
         },
       },
     );
     handleRef.current = handle;
+    shownKey.current = key;
+    failed.current = false;
     return () => {
       live = false;
       handleRef.current = null;
+      shownKey.current = null;
       handle.dispose();
       setLoaded(false);
     };
-  }, [engine, lookKey, size, spin, interactive, label, appear]);
+  }, [engine, size, spin, interactive, appear, remount]);
+
+  // Після ефекту mount: щойно змонтований handle уже має цей вигляд, тож update іде лише за справжньою зміною.
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (handle === null || shownKey.current === lookKey) return;
+    if (failed.current) {
+      setRemount((count) => count + 1);
+      return;
+    }
+    shownKey.current = lookKey;
+    handle.update(JSON.parse(lookKey) as TrophyLook, labelRef.current);
+  }, [lookKey]);
 
   useImperativeHandle(ref, () => ({ replayAppearance: () => handleRef.current?.replayAppearance() }), []);
 

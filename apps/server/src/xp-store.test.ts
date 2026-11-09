@@ -7,7 +7,7 @@ import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
-import { creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, syncXp, unlockTimes, xpTotals } from './xp-store';
+import { accountLevel, creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, syncXp, unlockTimes, xpTotals } from './xp-store';
 
 const HOST = 'xp-host';
 const AUTHOR = 'xp-author';
@@ -486,6 +486,13 @@ describe('levels and looks', () => {
     const at = new Date('2026-10-22T10:00:00Z');
     await db.insert(xpEntry).values({ userId, source: 'game', amount, counted: true, day: '2026-10-22', at, createdAt: at });
   }
+
+  it('accountLevel equals the public level', async () => {
+    const [me] = await accounts(1);
+    await giveXp(me, xpForLevel(5) + 1);
+    expect(await accountLevel(db, me)).toBe(5);
+    expect((await publicLevel(db, me)).level).toBe(5);
+  });
 
   it('saveLooks keeps stored photo and font when an old client omits them', async () => {
     const [me] = await accounts(1);

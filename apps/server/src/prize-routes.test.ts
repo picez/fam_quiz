@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
+import { EMPTY_DECOR, STICKERS, xpForLevel } from '@quiz/shared';
 import type { PrizeContent, PrizeItem, PrizePlacesInfo, TrophyDecor } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { game, user } from './db/schema';
+import { game, user, xpEntry } from './db/schema';
 import { createPrize } from './prizes';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -79,25 +80,33 @@ describe('the store of prizes (14a)', () => {
     expect(empty.json()).toEqual({ error: 'invalid_payload' });
   });
 
-  it('keeps the family grail one of a kind: no new grail, no switch to it, but its own prize stays editable', async () => {
-    const { cookie, email } = await signUp(ctx.app, 'Грааль');
+  it('the grail can be made and chosen', async () => {
+    const { cookie } = await signUp(ctx.app, 'Грааль');
     const grail = content('Грааль', { trophy: { kind: 'grail', material: 'gold' } });
     const made = await call('POST', '/api/me/prizes', cookie, grail);
-    expect(made.statusCode).toBe(409);
-    expect(made.json()).toEqual({ error: 'trophy_unavailable' });
+    expect(made.statusCode).toBe(201);
+    expect((made.json() as PrizeItem).content.trophy?.decor).toEqual(EMPTY_DECOR);
 
     const cup = await newPrize(cookie, 'Кубок');
     const switched = await call('PUT', `/api/me/prizes/${cup.id}`, cookie, grail);
-    expect(switched.statusCode).toBe(409);
-    expect(switched.json()).toEqual({ error: 'trophy_unavailable' });
+    expect(switched.statusCode).toBe(200);
+  });
 
-    // Наявний грааль (як Ясин, покладений сідом) лишається граалем після редагування.
-    const [owner] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-    const seeded = await createPrize(db, owner!.id, grail);
-    if (!seeded.ok) throw new Error('seed failed');
-    const renamed = await call('PUT', `/api/me/prizes/${seeded.prize.id}`, cookie, { ...grail, name: 'Наш Ґрааль' });
-    expect(renamed.statusCode).toBe(200);
-    expect((renamed.json() as PrizeItem).content.trophy).toEqual({ kind: 'grail', material: 'gold' });
+  it('a new grail always has decor', async () => {
+    const { cookie } = await signUp(ctx.app, 'Грааль завжди');
+    const grail = content('Грааль', { trophy: { kind: 'grail', material: 'gold', decor: null } });
+    const made = await call('POST', '/api/me/prizes', cookie, grail);
+    expect(made.statusCode).toBe(201);
+    expect((made.json() as PrizeItem).content.trophy?.decor).toEqual(EMPTY_DECOR);
+    const id = (made.json() as PrizeItem).id;
+    const put = await call('PUT', `/api/me/prizes/${id}`, cookie, grail);
+    expect(put.statusCode).toBe(200);
+    expect((put.json() as PrizeItem).content.trophy?.decor).toEqual(EMPTY_DECOR);
+    // Без ключа decor лишається збережений напис.
+    const text = { ...EMPTY_DECOR, inscriptions: [{ place: 'rim' as const, text: 'Ася', font: null, look: 'engraved' as const, color: '#3a2a0e' }] };
+    await call('PUT', `/api/me/prizes/${id}`, cookie, content('Грааль', { trophy: { kind: 'grail', material: 'gold', decor: text } }));
+    const kept = await call('PUT', `/api/me/prizes/${id}`, cookie, content('Грааль 2', { trophy: { kind: 'grail', material: 'gold' } }));
+    expect((kept.json() as PrizeItem).content.trophy?.decor).toEqual(text);
   });
 });
 
@@ -129,13 +138,6 @@ describe('trophy decor over HTTP (25a)', () => {
     const response = await call('POST', '/api/me/prizes', cookie, content('Кубок', { trophy: { kind: 'cup', material: 'gold', decor: many } }));
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: 'invalid_payload' });
-  });
-
-  it('still refuses a new grail, even with decor', async () => {
-    const { cookie } = await signUp(ctx.app, 'Грааль з оформленням');
-    const response = await call('POST', '/api/me/prizes', cookie, content('Грааль', { trophy: { kind: 'grail', material: 'gold', decor } }));
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toEqual({ error: 'trophy_unavailable' });
   });
 
   it('keeps the decor of a seeded grail when an old client renames it', async () => {
@@ -282,5 +284,54 @@ describe('prizes of a lobby (14a)', () => {
     } finally {
       await slow.app.close();
     }
+  });
+});
+
+describe('level locks over HTTP (25c)', () => {
+  const withFont = (font: string | null, place = 'rim'): TrophyDecor =>
+    ({ ...EMPTY_DECOR, inscriptions: [{ place, text: 'Ася', font, look: 'engraved', color: '#3a2a0e' }] }) as TrophyDecor;
+  const prizeWith = (name: string, decor: TrophyDecor) => content(name, { trophy: { kind: 'cup', material: 'gold', decor } });
+  const stickerOf = (series: string) => STICKERS.find((s) => s.series === series)!.id;
+  const ownerId = async (email: string) => (await db.select({ id: user.id }).from(user).where(eq(user.email, email)))[0]!.id;
+
+  it('a locked font or sticker is refused', async () => {
+    const { cookie } = await signUp(ctx.app, 'Закрите');
+    const mono = await call('POST', '/api/me/prizes', cookie, prizeWith('A', withFont('mono')));
+    expect(mono.statusCode).toBe(409);
+    expect(mono.json()).toEqual({ error: 'decor_locked' });
+    expect((await call('POST', '/api/me/prizes', cookie, prizeWith('B', withFont('hand')))).statusCode).toBe(201);
+    const sticker = { ...EMPTY_DECOR, stickers: [{ id: stickerOf('nyaa'), place: 'front' as const }] };
+    expect((await call('POST', '/api/me/prizes', cookie, prizeWith('C', sticker))).statusCode).toBe(409);
+  });
+
+  it('level unlocks', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Рівень');
+    const userId = await ownerId(email);
+    const at = new Date('2026-10-22T10:00:00Z');
+    await db.insert(xpEntry).values({ userId, source: 'game', amount: xpForLevel(3), counted: true, day: '2026-10-22', at, createdAt: at });
+    expect((await call('POST', '/api/me/prizes', cookie, prizeWith('A', withFont('mono')))).statusCode).toBe(201);
+  });
+
+  it('a stored font stays valid', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Збережений');
+    const userId = await ownerId(email);
+    const seeded = await createPrize(db, userId, prizeWith('Старий', withFont('heavy')));
+    if (!seeded.ok) throw new Error('seed failed');
+    const url = `/api/me/prizes/${seeded.prize.id}`;
+    expect((await call('PUT', url, cookie, prizeWith('Нова назва', withFont('heavy')))).statusCode).toBe(200);
+    expect((await call('PUT', url, cookie, prizeWith('Інше місце', withFont('heavy', 'band')))).statusCode).toBe(200);
+    const added = { ...withFont('heavy', 'band'), inscriptions: [...withFont('heavy', 'band').inscriptions, { place: 'rim' as const, text: 'Ще', font: 'pixel' as const, look: 'engraved' as const, color: '#3a2a0e' }] };
+    expect((await call('PUT', url, cookie, prizeWith('Піксель', added))).statusCode).toBe(409);
+  });
+
+  it('an old client keeps decor', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Старий клієнт');
+    const userId = await ownerId(email);
+    const decor = withFont('heavy');
+    const seeded = await createPrize(db, userId, prizeWith('Старий', decor));
+    if (!seeded.ok) throw new Error('seed failed');
+    const put = await call('PUT', `/api/me/prizes/${seeded.prize.id}`, cookie, content('Нова', { trophy: { kind: 'cup', material: 'silver' } }));
+    expect(put.statusCode).toBe(200);
+    expect((put.json() as PrizeItem).content.trophy).toEqual({ kind: 'cup', material: 'silver', decor });
   });
 });

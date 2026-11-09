@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NICK_FONTS } from './levels';
+import { NICK_FONTS, lookLevel, stickerOpen } from './levels';
 import type { NickFont } from './levels';
 import type { TrophyKind } from './prizes';
 import { IMAGE_URL } from './quiz';
@@ -182,4 +182,40 @@ export function shownDecor(kind: TrophyKind, decor: TrophyDecor): TrophyDecor {
     inscriptions: decor.inscriptions.filter((i) => support.inscription.includes(i.place)),
     stickers: decor.stickers.filter((s) => support.sticker.includes(s.place)),
   };
+}
+
+export const EMPTY_DECOR: TrophyDecor = {
+  photos: [],
+  photoPlace: 'ring',
+  frame: 'none',
+  photoStyle: 'normal',
+  inscriptions: [],
+  effect: { kind: 'none' },
+  appearance: 'spin',
+  stickers: [],
+};
+
+/** Глибока рівність з EMPTY_DECOR (колір ефекту теж має бути відсутній). */
+export function isEmptyDecor(decor: TrophyDecor): boolean {
+  return (
+    decor.photos.length === 0 &&
+    decor.photoPlace === EMPTY_DECOR.photoPlace &&
+    decor.frame === EMPTY_DECOR.frame &&
+    decor.photoStyle === EMPTY_DECOR.photoStyle &&
+    decor.inscriptions.length === 0 &&
+    decor.effect.kind === 'none' &&
+    decor.effect.color === undefined &&
+    decor.appearance === EMPTY_DECOR.appearance &&
+    decor.stickers.length === 0
+  );
+}
+
+/** true — є шрифт чи наліпка, закриті для level, і їх немає в stored. */
+export function decorLocked(decor: TrophyDecor, level: number, stored: TrophyDecor | null | undefined): boolean {
+  const fonts = new Set(stored?.inscriptions.map((i) => i.font));
+  const stickers = new Set(stored?.stickers.map((s) => s.id));
+  return (
+    decor.inscriptions.some((i) => i.font !== null && !fonts.has(i.font) && lookLevel('font', i.font) > level) ||
+    decor.stickers.some((s) => !stickers.has(s.id) && !stickerOpen(s.id, level))
+  );
 }

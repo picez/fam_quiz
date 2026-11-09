@@ -8,13 +8,18 @@ interface Props {
   url: string | null;
   /** Викликається з адресою завантаженого зображення або з null, коли його прибрали. */
   onChange: (url: string | null) => void;
+  /**
+   * Завантаження, що закінчилось після того, як поле зникло, все одно віддати в onChange (onChange має бути стабільним і
+   * писати в стан, що живе довше за поле). Без нього — нікуди: ведучий уже на іншому запитанні.
+   */
+  keepLate?: boolean;
 }
 
 export const ACCEPT = IMAGE_LIMITS.types.join(',');
 const isAllowed = (type: string) => (IMAGE_LIMITS.types as readonly string[]).includes(type);
 
 /** Вибір файла, перевірка й завантаження; onChange отримує адресу завантаженого зображення. */
-export function useImageUpload(onChange: (url: string | null) => void) {
+export function useImageUpload(onChange: (url: string | null) => void, { keepLate = false }: { keepLate?: boolean } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Завантаження триває довше за один кадр: відповідь має потрапити в актуальний обробник
@@ -39,7 +44,11 @@ export function useImageUpload(onChange: (url: string | null) => void) {
     setError(null);
     setBusy(true);
     const result = await uploadImage(file);
-    if (!mounted.current) return;
+    if (!mounted.current) {
+      // Поле зникло: локальний стан уже нічий, але адресу можна віддати далі, якщо її чекають.
+      if (keepLate && result.ok) latest.current(result.url);
+      return;
+    }
     setBusy(false);
     if (result.ok) latest.current(result.url);
     else setError(errorText(result.error));
@@ -49,8 +58,8 @@ export function useImageUpload(onChange: (url: string | null) => void) {
 }
 
 /** Зображення до запитання: вибрати файл, побачити його, замінити або прибрати. */
-export function ImageField({ url, onChange }: Props) {
-  const { busy, error, pick, clearError } = useImageUpload(onChange);
+export function ImageField({ url, onChange, keepLate = false }: Props) {
+  const { busy, error, pick, clearError } = useImageUpload(onChange, { keepLate });
 
   return (
     <div className="image-field">

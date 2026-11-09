@@ -69,4 +69,10 @@ describe('pure decor modules do not import three', () => {
   it.each(['anchors.ts', 'decor-layout.ts', 'decor-canvas.ts', 'engine-types.ts', 'loadEngine.ts', 'effect-plan.ts', 'appearance-pose.ts'])('%s', (name) => {
     expect(read(`${src}/trophy/${name}`)).not.toMatch(THREE);
   });
+
+  it.each(['studio-draft.ts', 'crop.ts'])('prizes/%s', (name) => {
+    const code = read(`${src}/prizes/${name}`);
+    expect(code).not.toMatch(THREE);
+    expect(staticImports(code).some((path) => /(^|\/)engine\//.test(path))).toBe(false);
+  });
 });

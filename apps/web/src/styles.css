@@ -13782,19 +13782,220 @@ button.wall-tile:disabled {
 }
 
 /* ---------- Мої призи (14a) ---------- */
-.prize-editor {
+/* ---------- Повноекранний редактор призу (25c, варіант C) ----------
+   Шар поверх меню: шапка 56 px, сцена з кубком (не менше 40 % висоти), шухляда з шістьма інструментами знизу;
+   від 900 px шухляда — колонка 400 px біля кінця рядка на всю висоту. */
+.prize-studio {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* Шухляда бере, скільки треба, але не з-під 40 % сцени: решту панель прокручує сама. */
+  grid-template-rows: 56px minmax(40dvh, 1fr) minmax(0, auto);
+  grid-template-areas: 'head' 'stage' 'drawer';
+  background: var(--stage);
+  color: var(--paper);
+  overflow: hidden;
+}
+
+.studio-head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.studio-head .btn {
+  flex: none;
+  min-height: 2.75rem;
+}
+
+/* Ще не зберегти: кнопка приглушена, але дотик по ній показує чому. */
+.studio-head .btn-primary[aria-disabled='true'] {
+  opacity: 0.55;
+}
+
+/* Заголовок не обрізаємо: на вузькому телефоні він переноситься на другий рядок (дві лінії влазять у 56 px). */
+.studio-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1rem;
+  line-height: 1.15;
+  text-align: center;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Вузький телефон: компактні кнопки шапки, щоб заголовку лишилось місце (ціль дотику — ті самі 44 px заввишки). */
+@media (max-width: 420px) {
+  .studio-head {
+    gap: 0.375rem;
+    padding-inline: 0.5rem;
+  }
+
+  .studio-head .btn {
+    padding-inline: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .studio-title {
+    font-size: 0.875rem;
+  }
+}
+
+.studio-stage {
+  grid-area: stage;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  container-type: size;
+}
+
+.studio-stage .trophy {
+  width: min(100cqw, 100cqh);
+}
+
+.studio-stage .trophy-fallback {
+  font-size: min(8rem, 40cqh);
+}
+
+.studio-no-trophy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.studio-no-trophy-icon {
+  font-size: min(8rem, 40cqh);
+  line-height: 1;
+}
+
+.studio-drawer {
+  grid-area: drawer;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-block-start: 1px solid var(--line);
+  background: var(--surface);
+  padding-block-end: env(safe-area-inset-bottom);
+}
+
+.studio-note {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-block-end: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
+.studio-note.error {
+  color: var(--signal);
+}
+
+.studio-issues {
+  padding: 0.5rem 1rem 0;
+}
+
+.studio-issues .error {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.studio-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-block-end: 1px solid var(--line);
+}
+
+.studio-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.25rem 0.125rem;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.studio-tab-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.studio-tab[aria-selected='true'] {
+  border-block-end-color: var(--accent);
+  color: var(--paper);
+}
+
+.studio-tab[aria-disabled='true'] {
+  opacity: 0.55;
+}
+
+.studio-tab:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+
+.studio-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  /* Шапка 56 px, вкладки ~57 px і панель до 36dvh: на телефоні 390×844 разом не більше половини екрана. */
+  max-height: 36dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+.studio-panel[hidden] {
+  display: none;
+}
+
+.studio-prize-name {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.studio-tool {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
 }
 
-.prize-editor .field input:not([type='file']):not([type='checkbox']) {
+.studio-tool .field input:not([type='file']):not([type='checkbox']) {
   min-width: 0;
   width: 100%;
 }
 
-.prize-part {
+.studio-part {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -13803,31 +14004,365 @@ button.wall-tile:disabled {
   min-width: 0;
 }
 
-.prize-choice {
+.studio-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-  border: 0;
-  padding: 0;
-  margin: 0;
+  flex-direction: column;
+  gap: 0.5rem;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-.prize-choice legend {
+.studio-group legend {
   padding: 0;
+  margin-block-end: 0.5rem;
   font-weight: 600;
 }
 
-.prize-choice label {
+.studio-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.studio-choice legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font-weight: 600;
+}
+
+.studio-choice label {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   min-height: 2.75rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
 }
 
-.prize-preview {
-  height: 9rem;
+.studio-choice label:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.studio-choice label:has(input:focus-visible) {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* «Фото»: мініатюра й чотири кнопки на кожне фото (кожна ≥ 44 px). */
+.studio-photo-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.studio-photo-add .btn,
+.studio-photo-actions .btn {
+  min-height: 2.75rem;
+}
+
+.studio-photo-add .file-pick:focus-within {
+  outline: 2px solid var(--accent-text);
+}
+
+.studio-photos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.studio-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.studio-photo-thumb {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: cover;
+  border-radius: var(--radius-small);
+}
+
+.studio-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+/* «Написи»: місце з перемикачем, далі текст, шрифт, вигляд і колір. */
+.studio-text legend {
+  margin-block-end: 0.25rem;
+}
+
+.studio-text-toggle {
+  min-height: 2.75rem;
+}
+
+.studio-text textarea {
+  min-width: 0;
+  width: 100%;
+  resize: vertical;
+}
+
+.studio-text-count {
+  align-self: flex-end;
+}
+
+.studio-font-tile {
+  display: inline-block;
+  min-width: 1.75rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.studio-font-classic {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.studio-choice label.is-locked {
+  cursor: not-allowed;
+  color: var(--dim);
+}
+
+/* Колір: зразки-кружечки (ціль 44 px) і «Свій колір». */
+.studio-swatch {
+  justify-content: center;
+  min-width: 2.75rem;
+  padding-inline: 0.4rem;
+}
+
+.studio-swatch-dot {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.studio-swatch-custom input[type='color'] {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* Наліпки: кнопка місця з мініатюрою розкриває сітку за серіями. */
+.studio-group-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.studio-stickers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.studio-sticker-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.studio-sticker-toggle[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.studio-sticker-thumb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-small);
+}
+
+.studio-sticker-thumb img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+}
+
+.studio-sticker-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+
+.studio-sticker-none {
+  align-self: flex-start;
+  min-height: 2.75rem;
+}
+
+.studio-sticker-none[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+/* Серія поза екраном не малюється, доки до неї не догорнуть. */
+.studio-sticker-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.studio-sticker-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 2.75rem;
+  min-height: 3.25rem;
+  padding: 0.25rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.studio-sticker-cell img {
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+}
+
+.studio-sticker-cell[aria-pressed='true'] {
+  border-color: var(--accent);
+}
+
+.studio-sticker-cell:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.studio-sticker-cell.is-locked {
+  cursor: not-allowed;
+}
+
+.studio-sticker-cell.is-locked .studio-sticker-lock {
+  position: static;
+  font-size: 0.875rem;
+}
+
+.studio-sticker-lock {
+  position: absolute;
+  inset-block-end: 0.1rem;
+  inset-inline-end: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--paper);
+}
+
+/* Діалог кадрування: поверх редактора (60), полотно в пропорціях рамки фото на кубку. */
+.crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  background: rgb(0 0 0 / 0.75);
+}
+
+.crop-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
   max-width: 100%;
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stage);
+  color: var(--paper);
+}
+
+.crop-title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.crop-dialog .meta {
+  margin: 0;
+}
+
+.crop-canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-small);
+  touch-action: none;
+  cursor: grab;
+}
+
+.crop-canvas:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.crop-dialog .field {
+  align-self: stretch;
+}
+
+.crop-actions .btn {
+  min-height: 2.75rem;
+}
+
+@media (min-width: 900px) {
+  .prize-studio {
+    grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: 56px minmax(0, 1fr);
+    grid-template-areas: 'head drawer' 'stage drawer';
+  }
+
+  .studio-drawer {
+    border-block-start: 0;
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .studio-panel {
+    flex: 1 1 auto;
+    max-height: none;
+  }
 }
 
 .prize-list {

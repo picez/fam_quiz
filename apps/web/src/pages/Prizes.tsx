@@ -1,9 +1,8 @@
-import type { PrizeContent, PrizeItem, Showcase as ShowcaseData } from '@quiz/shared';
+import type { PrizeItem, Showcase as ShowcaseData } from '@quiz/shared';
 import { useState, type JSX } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { createPrize, deletePrize, myPrizes, updatePrize } from '../api';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { deletePrize, myPrizes } from '../api';
 import { errorText, t } from '../i18n';
-import { PrizeEditor } from '../prizes/PrizeEditor';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { PinButton } from '../profile/PinButton';
 import { Showcase } from '../profile/Showcase';
@@ -72,25 +71,11 @@ function Pending({ state, title }: { state: PrivateData<unknown>; title: string 
   );
 }
 
-/** Що робить з редактором сторінка: нічого, новий приз чи зміна наявного. */
-type Editing = { mode: 'none' } | { mode: 'new' } | { mode: 'edit'; item: PrizeItem };
-
+/** Склад призів; новий приз і зміна наявного — у повноекранному редакторі (/profile/prizes/new, /profile/prizes/:id). */
 function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
+  const navigate = useNavigate();
   const [items, setItems] = useState(initial);
-  const [editing, setEditing] = useState<Editing>({ mode: 'none' });
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const save = async (content: PrizeContent) => {
-    setBusy(true);
-    setError(null);
-    const result = editing.mode === 'edit' ? await updatePrize(editing.item.id, content) : await createPrize(content);
-    setBusy(false);
-    if (!result.ok) return setError(errorText(result.error));
-    const { ok: _ok, ...saved } = result;
-    setItems((list) => (editing.mode === 'edit' ? list.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...list]));
-    setEditing({ mode: 'none' });
-  };
 
   const remove = async (item: PrizeItem) => {
     if (!window.confirm(t('prizeDeleteConfirm', { name: item.content.name }))) return;
@@ -98,30 +83,16 @@ function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
     const result = await deletePrize(item.id);
     if (!result.ok) return setError(errorText(result.error));
     setItems((list) => list.filter((entry) => entry.id !== item.id));
-    setEditing((current) => (current.mode === 'edit' && current.item.id === item.id ? { mode: 'none' } : current));
   };
 
   return (
     <section className="profile-section prize-store">
       <h2>{t('prizesTitle')}</h2>
-      {editing.mode === 'none' ? (
-        <div className="toolbar">
-          <button type="button" className="btn btn-primary" onClick={() => setEditing({ mode: 'new' })}>
-            {t('prizeNew')}
-          </button>
-        </div>
-      ) : (
-        <PrizeEditor
-          key={editing.mode === 'edit' ? editing.item.id : 'new'}
-          initial={editing.mode === 'edit' ? editing.item.content : null}
-          busy={busy}
-          onSave={(content) => void save(content)}
-          onCancel={() => {
-            setError(null);
-            setEditing({ mode: 'none' });
-          }}
-        />
-      )}
+      <div className="toolbar">
+        <button type="button" className="btn btn-primary" onClick={() => navigate('/profile/prizes/new')}>
+          {t('prizeNew')}
+        </button>
+      </div>
       {error !== null && (
         <p className="error" role="alert">
           {error}
@@ -141,16 +112,9 @@ function Store({ initial }: { initial: PrizeItem[] }): JSX.Element {
                 )}
               </div>
               <div className="toolbar">
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  disabled={item.status === 'reserved'}
-                  onClick={() => {
-                    setError(null);
-                    setEditing({ mode: 'edit', item });
-                  }}
-                >
-                  {t('prizeEdit')}
+                {/* Зарезервований приз лише переглядають: змінити його можна, коли він знову вільний. */}
+                <button type="button" className="btn btn-small" onClick={() => navigate(`/profile/prizes/${item.id}`)}>
+                  {t(item.status === 'reserved' ? 'prizeViewOpen' : 'prizeEdit')}
                 </button>
                 <button type="button" className="btn btn-small btn-danger" onClick={() => void remove(item)}>
                   {t('prizeDelete')}

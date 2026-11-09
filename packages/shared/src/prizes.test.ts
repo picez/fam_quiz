@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import * as shared from './index';
+import { EMPTY_DECOR } from './decor';
 import { SHOWCASE_MAX, TITLE_MS, placedPrizeSchema, placesSchema, prizeContentSchema, publicContent } from './prizes';
 
 const base = { name: 'Головний приз', trophy: null, engraving: null, real: null, title: null, diploma: false };
@@ -106,6 +108,12 @@ describe('trophy decor in prize content', () => {
     expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, decor: null } }).success).toBe(true);
     expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, decor: {} } }).success).toBe(false);
     expect(prizeContentSchema.safeParse({ ...base, trophy: { ...trophy, extra: 1 } }).success).toBe(false);
+  });
+  it('grail is a regular kind', () => {
+    const r = prizeContentSchema.safeParse({ ...base, trophy: { kind: 'grail', material: 'gold', decor: EMPTY_DECOR } });
+    expect(r.success).toBe(true);
+    expect('PICKABLE_TROPHY_KINDS' in shared).toBe(false);
+    expect('isPickableTrophy' in shared).toBe(false);
   });
   it('placedPrizeSchema accepts decorated content', () => {
     const content = { ...base, trophy: { ...trophy, decor } };

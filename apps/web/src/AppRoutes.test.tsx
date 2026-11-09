@@ -10,7 +10,10 @@ vi.mock('./api', () => ({
   me: vi.fn(),
   getMyInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getFeedBadge: vi.fn().mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 }),
+  myPrizes: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getMyProfile: vi.fn().mockResolvedValue({ ok: true, data: { level: { progress: { level: 1 } } } }),
 }));
+vi.mock('./trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
 vi.mock('./pages/Calendar', () => ({ Calendar: () => <FeedTabs badge={{ events: 0, requests: 0, decisions: 0 }} /> }));
 vi.mock('./pages/EditQuiz', () => ({ EditQuiz: () => <p>EditQuiz</p> }));
 vi.mock('./pages/Feed', () => ({ Feed: () => <p>Feed</p> }));
@@ -86,6 +89,12 @@ describe('AppRoutes', () => {
     open(path);
     expect(await screen.findByText(page)).toBeTruthy();
     expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it('/profile/prizes/new opens the prize studio', async () => {
+    vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
+    open('/profile/prizes/new');
+    expect(await screen.findByRole('heading', { name: 'Новий приз' })).toBeTruthy();
   });
 
   it('the reference /help opens without an account', async () => {

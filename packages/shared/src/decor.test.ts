@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DECOR_LIMITS, DECOR_SUPPORT, INSCRIPTION_PLACES, STICKER_PLACES, TROPHY_PHOTO_PLACES, shownDecor, trophyDecorSchema } from './decor';
+import { DECOR_LIMITS, DECOR_SUPPORT, EMPTY_DECOR, INSCRIPTION_PLACES, STICKER_PLACES, TROPHY_PHOTO_PLACES, decorLocked, isEmptyDecor, shownDecor, trophyDecorSchema } from './decor';
 import type { TrophyDecor } from './decor';
 import { TROPHY_KINDS } from './prizes';
 import { STICKERS } from './stickers';
+import { seriesLevel } from './levels';
 
 const url = (i: number) => `/uploads/${i.toString(16).padStart(32, '0')}.jpg`;
 const photo = (i: number) => ({ url: url(i), crop: { x: 0.5, y: 0.5, scale: 1 } });
@@ -146,5 +147,35 @@ describe('shownDecor', () => {
     expect(DECOR_SUPPORT.medal.photo).not.toContain('ring');
     expect(DECOR_SUPPORT.medal.photo).not.toContain('plaque');
     expect(DECOR_LIMITS.ring).toBe(16);
+  });
+});
+
+describe('25c level locks', () => {
+  const withIns = (font: string | null, place = 'rim') => ({ ...base, inscriptions: [ins(place, 'Ася', { font })] }) as unknown as TrophyDecor;
+  const stickerOfSeries = (series: string) => STICKERS.find((s) => s.series === series)!.id;
+  const withSticker = (id: string, place = 'front') => ({ ...base, stickers: [{ id, place }] }) as unknown as TrophyDecor;
+
+  it('empty decor is valid and empty', () => {
+    expect(trophyDecorSchema.parse(EMPTY_DECOR)).toEqual(EMPTY_DECOR);
+    expect(isEmptyDecor(EMPTY_DECOR)).toBe(true);
+    expect(isEmptyDecor({ ...EMPTY_DECOR, effect: { kind: 'none', color: '#ffffff' } })).toBe(false);
+    expect(isEmptyDecor({ ...EMPTY_DECOR, appearance: 'drop' })).toBe(false);
+  });
+  it('level locks fonts and stickers', () => {
+    expect(decorLocked(withIns('mono'), 2, null)).toBe(true);
+    expect(decorLocked(withIns('mono'), 3, null)).toBe(false);
+    expect(decorLocked(withIns('hand'), 1, null)).toBe(false);
+    expect(decorLocked(withIns(null), 1, null)).toBe(false);
+    const other = stickerOfSeries('other');
+    expect(decorLocked(withSticker(other), seriesLevel('other') - 1, null)).toBe(true);
+    expect(decorLocked(withSticker(other), seriesLevel('other'), null)).toBe(false);
+    expect(decorLocked(withSticker(stickerOfSeries('nya')), 1, null)).toBe(false);
+  });
+  it('stored decor stays valid', () => {
+    const other = stickerOfSeries('other');
+    const d = { ...base, inscriptions: [ins('rim', 'Ася', { font: 'heavy' })], stickers: [{ id: other, place: 'back' }] } as unknown as TrophyDecor;
+    const stored = { ...base, inscriptions: [ins('band', 'Ася', { font: 'heavy' })], stickers: [{ id: other, place: 'front' }] } as unknown as TrophyDecor;
+    expect(decorLocked(d, 1, stored)).toBe(false);
+    expect(decorLocked(d, 1, null)).toBe(true);
   });
 });
