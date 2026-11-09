@@ -42,7 +42,7 @@ export function TrophyView({ trophy, size, spin, interactive }: TrophyViewProps)
     let live = true;
     const handle = engine.mount(
       box,
-      { look: JSON.parse(lookKey) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label },
+      { look: JSON.parse(lookKey) as TrophyLook, size, spin: spin && !reducedMotion(), interactive, label, appear: true },
       {
         onReady: () => {
           if (live) setLoaded(true);

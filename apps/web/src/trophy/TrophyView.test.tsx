@@ -22,7 +22,7 @@ const fakeEngine: TrophyEngine = {
   mount(host, options, events) {
     const dispose = vi.fn();
     mounts.push({ host, options, events, dispose });
-    return { dispose };
+    return { dispose, replayAppearance: vi.fn() };
   },
 };
 
@@ -83,7 +83,7 @@ describe('TrophyView', () => {
     expect(mounts).toHaveLength(1);
     const [mounted] = mounts;
     expect(mounted!.host).toBe(container.querySelector('.trophy'));
-    expect(mounted!.options).toEqual({ look: trophy, size: 'stage', spin: true, interactive: true, label: 'Срібна медаль' });
+    expect(mounted!.options).toEqual({ look: trophy, size: 'stage', spin: true, interactive: true, label: 'Срібна медаль', appear: true });
   });
 
   it('keeps the emoji until ready and brings it back on error', async () => {

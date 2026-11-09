@@ -10,10 +10,14 @@ export interface TrophyMount {
   interactive: boolean;
   /** aria-label полотна (trophyLabel). */
   label: string;
+  /** Грати анімацію появи при показі (лише з decor і без reduced motion). */
+  appear: boolean;
 }
 
 export interface TrophyHandle {
   dispose(): void;
+  /** Програти появу знову; без decor, під reduced motion чи після dispose — нічого. */
+  replayAppearance(): void;
 }
 
 /** Рушій трофеїв (three.js); цей файл його типи описує без three — тож імпортувати його можна звідусіль. */
