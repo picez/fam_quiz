@@ -51,6 +51,10 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
   const title = `${uid}-title`;
   const pick = `${uid}-pick`;
   const ready = id !== null && free(place);
+  const hint = `${uid}-hint`;
+  const anyFree = choices.some((c) => c.takenBy === null);
+  // Чому «Готово» вимкнене: спершу наліпка, потім вільне місце (а його може й не бути).
+  const why = ready ? null : id === null ? t('studioStickerNeedPick') : anyFree ? t('studioStickerNeedPlace') : t('studioStickerNoRoom');
 
   useLayoutEffect(() => {
     dialog.current?.focus();
@@ -72,7 +76,9 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
       const radios = Array.from(dialog.current.querySelectorAll<HTMLInputElement>('input[type="radio"]:not(:disabled)'));
       const radio = radios.find((r) => r.checked) ?? radios[0];
       const focusable = Array.from(dialog.current.querySelectorAll<HTMLElement>('button, input')).filter(
-        (el) => !el.hasAttribute('disabled') && (!(el instanceof HTMLInputElement) || el.type !== 'radio' || el === radio),
+        (el) =>
+          !el.hasAttribute('disabled') &&
+          (!(el instanceof HTMLInputElement) || el.type !== 'radio' || el === radio || el === document.activeElement),
       );
       if (focusable.length === 0) return;
       const index = focusable.indexOf(document.activeElement as HTMLElement);
@@ -94,77 +100,90 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
           <h3 id={pick} className="studio-group-title">
             {t('studioStickerPick')}
           </h3>
-          {STICKER_SERIES.map((series) => {
-            const need = seriesLevel(series);
-            return (
-              <ul key={series} className="studio-sticker-grid">
-                {STICKERS.filter((s) => s.series === series).map((sticker) => {
-                  const locked = !stickerOpen(sticker.id, level) && !kept.includes(sticker.id) && sticker.id !== editing?.id;
-                  return (
-                    <li key={sticker.id}>
-                      <button
-                        type="button"
-                        className={locked ? 'studio-sticker-cell is-locked' : 'studio-sticker-cell'}
-                        aria-pressed={sticker.id === id}
-                        disabled={locked}
-                        aria-label={locked ? `${sticker.id} ${lockText(need)}` : undefined}
-                        onClick={() => setId(sticker.id)}
-                      >
-                        {locked ? (
-                          // Закрита клітинка без gif: сотні закритих наліпок не вантажаться на телефон.
-                          <>
-                            <span className="studio-sticker-lock" aria-hidden="true">{`🔒 ${need}`}</span>
-                            <span className="sr-only">{lockText(need)}</span>
-                          </>
-                        ) : (
-                          <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            );
-          })}
+          {/* Сітка прокручується сама: місце й «Готово» завжди видно знизу вікна. */}
+          <div className="sticker-dialog-grids">
+            {STICKER_SERIES.map((series) => {
+              const need = seriesLevel(series);
+              return (
+                <ul key={series} className="studio-sticker-grid">
+                  {STICKERS.filter((s) => s.series === series).map((sticker) => {
+                    const locked = !stickerOpen(sticker.id, level) && !kept.includes(sticker.id) && sticker.id !== editing?.id;
+                    return (
+                      <li key={sticker.id}>
+                        <button
+                          type="button"
+                          className={locked ? 'studio-sticker-cell is-locked' : 'studio-sticker-cell'}
+                          aria-pressed={sticker.id === id}
+                          disabled={locked}
+                          aria-label={locked ? `${sticker.id} ${lockText(need)}` : undefined}
+                          onClick={() => setId(sticker.id)}
+                        >
+                          {locked ? (
+                            // Закрита клітинка без gif: сотні закритих наліпок не вантажаться на телефон.
+                            <>
+                              <span className="studio-sticker-lock" aria-hidden="true">{`🔒 ${need}`}</span>
+                              <span className="sr-only">{lockText(need)}</span>
+                            </>
+                          ) : (
+                            <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+            })}
+          </div>
         </section>
-        <fieldset className="studio-choice sticker-dialog-places">
-          <legend>{t('studioStickerWhere')}</legend>
-          {choices.map(({ place: p, takenBy }) => {
-            const note = `${uid}-${p}`;
-            return (
-              <label key={p} className={takenBy === null ? undefined : 'is-taken'}>
-                <input
-                  type="radio"
-                  name={`${uid}-place`}
-                  checked={place === p}
-                  disabled={takenBy !== null}
-                  aria-describedby={takenBy === null ? undefined : note}
-                  onChange={() => setPlace(p)}
-                />
-                {placeText(p)}
-                {takenBy !== null && (
-                  <span id={note} className="meta sticker-dialog-taken">
-                    {t('studioTakenBy', { what: occupantText(takenBy) })}
-                  </span>
-                )}
-              </label>
-            );
-          })}
-        </fieldset>
-        <div className="toolbar crop-actions">
-          <button type="button" className="btn btn-small" onClick={onClose}>
-            {t('studioStickerCancel')}
-          </button>
-          <button
-            type="button"
-            className="btn btn-small btn-primary"
-            disabled={!ready}
-            onClick={() => {
-              if (id !== null && place !== null) onDone(place, id);
-            }}
-          >
-            {t('studioStickerDone')}
-          </button>
+        <div className="sticker-dialog-footer">
+          <fieldset className="studio-choice sticker-dialog-places">
+            <legend>{t('studioStickerWhere')}</legend>
+            <div className="sticker-dialog-place-list">
+              {choices.map(({ place: p, takenBy }) => {
+                const note = `${uid}-${p}`;
+                return (
+                  <label key={p} className={takenBy === null ? undefined : 'is-taken'}>
+                    <input
+                      type="radio"
+                      name={`${uid}-place`}
+                      checked={place === p}
+                      disabled={takenBy !== null}
+                      aria-describedby={takenBy === null ? undefined : note}
+                      onChange={() => setPlace(p)}
+                    />
+                    <span className="sticker-dialog-place">{placeText(p)}</span>
+                    {takenBy !== null && (
+                      <span id={note} className="sticker-dialog-taken">
+                        {t('studioTakenBy', { what: occupantText(takenBy) })}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          {why !== null && (
+            <p id={hint} className="sticker-dialog-hint">
+              {why}
+            </p>
+          )}
+          <div className="toolbar crop-actions">
+            <button type="button" className="btn btn-small" onClick={onClose}>
+              {t('studioStickerCancel')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-small btn-primary"
+              disabled={!ready}
+              aria-describedby={why === null ? undefined : hint}
+              onClick={() => {
+                if (id !== null && place !== null) onDone(place, id);
+              }}
+            >
+              {t('studioStickerDone')}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

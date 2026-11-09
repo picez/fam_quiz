@@ -3050,5 +3050,7 @@
   "studioTakenBy": "مشغول: {what}",
   "studioMovedTo": "المكان «{from}» مشغول ({what})، لذا هو هنا: «{to}».",
   "studioNoPlace": "لا يتسع: «{from}» مشغول ({what}) ولا يوجد مكان فارغ.",
-  "studioTaken_sticker": "ملصق"
+  "studioTaken_sticker": "ملصق",
+  "studioStickerNeedPick": "اختر ملصقًا.",
+  "studioStickerNeedPlace": "اختر مكانًا فارغًا."
 }

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { EMPTY_DECOR, STICKERS, type Inscription, type StickerPlace, type TrophyDecor, type TrophyKind } from '@quiz/shared';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StickerPicker } from './StickerPicker';
 
@@ -165,6 +166,55 @@ describe('StickerPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(addButton());
     expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it('Done says why it is disabled', () => {
+    show('cup', decorOf({}));
+    fireEvent.click(addButton());
+    const hint = () => document.getElementById(done().getAttribute('aria-describedby')!)!.textContent;
+    expect(done().disabled).toBe(true);
+    expect(hint()).toBe('Оберіть наліпку.');
+    fireEvent.click(within(dialog()).getByRole('button', { name: first('nya').id }));
+    expect(done().disabled).toBe(false);
+    expect(done().hasAttribute('aria-describedby')).toBe(false);
+    expect(screen.queryByText('Оберіть наліпку.')).toBeNull();
+  });
+
+  it('focus lands on the sticker row when the opener is gone or disabled', () => {
+    /** Обгортка з тим самим прибиранням place і from, що й у чернетці. */
+    function Live({ kind, initial }: { kind: TrophyKind; initial: TrophyDecor }) {
+      const [decor, setDecor] = useState(initial);
+      return (
+        <StickerPicker
+          kind={kind}
+          decor={decor}
+          level={1}
+          onPick={(place, id, from) =>
+            setDecor((d) => ({
+              ...d,
+              stickers: [...d.stickers.filter((s) => s.place !== place && s.place !== from), ...(id === null ? [] : [{ id, place }])],
+            }))
+          }
+        />
+      );
+    }
+    // Шоста наліпка вимикає «+ Додати наліпку»: фокус — на «Змінити» нового рядка.
+    render(<Live kind="cup" initial={decorOf({ stickers: stickers('front', 'back', 'left', 'right', 'base-left') })} />);
+    fireEvent.click(addButton());
+    fireEvent.click(within(dialog()).getByRole('button', { name: open[5]!.id }));
+    expect(radio('Основа праворуч').checked).toBe(true);
+    fireEvent.click(done());
+    expect(addButton().disabled).toBe(true);
+    const row = rows().find((li) => li.getAttribute('data-place') === 'base-right')!;
+    expect(document.activeElement).toBe(within(row).getByRole('button', { name: 'Змінити' }));
+    cleanup();
+    // Переїзд на інше місце перемонтовує рядок: фокус — на «Змінити» рядка на новому місці.
+    render(<Live kind="cup" initial={decorOf({ stickers: stickers('front') })} />);
+    fireEvent.click(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
+    fireEvent.click(radio('Праворуч'));
+    fireEvent.click(done());
+    expect(rows().map((li) => li.getAttribute('data-place'))).toEqual(['right']);
+    expect(document.activeElement).toBe(within(rows()[0]!).getByRole('button', { name: 'Змінити' }));
   });
 
   it('Tab stays inside the dialog', () => {

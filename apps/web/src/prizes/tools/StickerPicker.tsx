@@ -44,13 +44,18 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
   const [dialog, setDialog] = useState<{ editing: StickerEditing | null } | null>(null);
   const add = useRef<HTMLButtonElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  /** Куди лягла наліпка після «Готово»: її рядок — запасна ціль фокуса, коли кнопки-відкривача вже немає. */
+  const landed = useRef<StickerPlace | null>(null);
   const why = useId();
   const placed = layoutDecor(kind, decor).stickers;
   const full = decor.stickers.length >= DECOR_LIMITS.stickers;
   const noRoom = !full && stickerPlaceChoices(kind, decor, null).every((c) => c.takenBy !== null);
   const reason = full ? t('studioStickerMax', { n: DECOR_LIMITS.stickers }) : noRoom ? t('studioStickerNoRoom') : null;
 
-  // Після закриття вікна фокус — на кнопку, що його відкрила; її рядок міг зникнути — тоді на «+ Додати наліпку».
+  // Після закриття вікна фокус — на кнопку, що його відкрила. Її рядок міг перемонтуватись (ключ — місце),
+  // а «+ Додати наліпку» — вимкнутись (шоста наліпка, останнє вільне місце): тоді рядок щойно доданої чи
+  // зміненої наліпки, «+ Додати наліпку», перший рядок, а як нічого — сам блок наліпок.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (dialog !== null) {
@@ -59,8 +64,11 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
     }
     if (!wasOpen.current) return;
     wasOpen.current = false;
-    const target = opener.current?.isConnected && !opener.current.hasAttribute('disabled') ? opener.current : add.current;
-    target?.focus();
+    const usable = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && el.isConnected && !el.hasAttribute('disabled');
+    const row = landed.current === null ? null : root.current?.querySelector<HTMLElement>(`[data-place="${landed.current}"] button`);
+    landed.current = null;
+    const candidates = [opener.current, row, add.current, root.current?.querySelector<HTMLElement>('.studio-sticker-row button')];
+    (candidates.find(usable) ?? root.current)?.focus();
   }, [dialog]);
 
   const open = (element: HTMLElement, editing: StickerEditing | null) => {
@@ -69,14 +77,14 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
   };
 
   return (
-    <div className="studio-stickers">
+    <div ref={root} className="studio-stickers" tabIndex={-1}>
       {placed.length > 0 && (
         <ul className="studio-sticker-list">
           {placed.map((sticker) => {
             const known = stickerOf(sticker.id);
             const note = moveNote(sticker);
             return (
-              <li key={sticker.place} className="studio-sticker-row">
+              <li key={sticker.place} className="studio-sticker-row" data-place={sticker.place}>
                 <span className="studio-sticker-thumb">
                   {known !== undefined && <img src={stickerPath(known)} alt={known.id} width={32} height={32} />}
                 </span>
@@ -124,6 +132,7 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
           onClose={() => setDialog(null)}
           onDone={(place, id) => {
             const from = dialog.editing?.place;
+            landed.current = place;
             onPick(place, id, from !== undefined && from !== place ? from : undefined);
             setDialog(null);
           }}

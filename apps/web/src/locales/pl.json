@@ -2918,5 +2918,7 @@
   "studioTakenBy": "Zajęte: {what}",
   "studioMovedTo": "Miejsce „{from}” jest zajęte ({what}), więc jest tutaj: „{to}”.",
   "studioNoPlace": "Nie mieści się: „{from}” jest zajęte ({what}), wolnego miejsca brak.",
-  "studioTaken_sticker": "naklejka"
+  "studioTaken_sticker": "naklejka",
+  "studioStickerNeedPick": "Wybierz naklejkę.",
+  "studioStickerNeedPlace": "Wybierz wolne miejsce."
 }

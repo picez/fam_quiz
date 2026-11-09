@@ -2677,6 +2677,8 @@ const uk = {
   studioStickerCancel: 'Скасувати',
   studioStickerChange: 'Змінити',
   studioStickerRemove: 'Прибрати',
+  studioStickerNeedPick: 'Оберіть наліпку.',
+  studioStickerNeedPlace: 'Оберіть вільне місце.',
   studioStickerNoRoom: 'Вільних місць немає — приберіть щось, щоб додати наліпку.',
   studioStickerMax: 'Наліпок уже {n} — більше не можна.',
   studioTakenBy: 'Зайнято: {what}',

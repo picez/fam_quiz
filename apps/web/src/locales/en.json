@@ -2874,5 +2874,7 @@
   "studioTakenBy": "Taken: {what}",
   "studioMovedTo": "“{from}” is taken ({what}), so it is here: “{to}”.",
   "studioNoPlace": "Does not fit: “{from}” is taken ({what}) and there is no free place.",
-  "studioTaken_sticker": "a sticker"
+  "studioTaken_sticker": "a sticker",
+  "studioStickerNeedPick": "Choose a sticker.",
+  "studioStickerNeedPlace": "Choose a free place."
 }

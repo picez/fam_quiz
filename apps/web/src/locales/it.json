@@ -2918,5 +2918,7 @@
   "studioTakenBy": "Occupato: {what}",
   "studioMovedTo": "«{from}» è occupato ({what}), quindi è qui: «{to}».",
   "studioNoPlace": "Non ci sta: «{from}» è occupato ({what}) e non c’è un posto libero.",
-  "studioTaken_sticker": "uno sticker"
+  "studioTaken_sticker": "uno sticker",
+  "studioStickerNeedPick": "Scegli uno sticker.",
+  "studioStickerNeedPlace": "Scegli un posto libero."
 }

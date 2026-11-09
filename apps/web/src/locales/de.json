@@ -2874,5 +2874,7 @@
   "studioTakenBy": "Belegt: {what}",
   "studioMovedTo": "„{from}“ ist belegt ({what}), deshalb hier: „{to}“.",
   "studioNoPlace": "Passt nicht: „{from}“ ist belegt ({what}), kein freier Platz.",
-  "studioTaken_sticker": "Sticker"
+  "studioTaken_sticker": "Sticker",
+  "studioStickerNeedPick": "Wähle einen Sticker.",
+  "studioStickerNeedPlace": "Wähle einen freien Platz."
 }

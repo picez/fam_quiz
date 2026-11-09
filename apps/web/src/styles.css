@@ -14470,7 +14470,8 @@ button.wall-tile:disabled {
   min-height: 2.75rem;
 }
 
-/* Вікно наліпки: сітка за серіями прокручується всередині, телефон 320 px — без бічного прокручування. */
+/* Вікно наліпки: прокручується лише сітка наліпок, вибір місця й «Готово / Скасувати» завжди видно знизу
+   (телефон 375×667 і 320×568, без бічного прокручування). */
 .sticker-dialog {
   box-sizing: border-box;
   display: flex;
@@ -14478,9 +14479,7 @@ button.wall-tile:disabled {
   gap: 0.75rem;
   width: min(100%, 32rem);
   max-height: calc(100dvh - 1rem);
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   padding: 1rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -14493,28 +14492,96 @@ button.wall-tile:disabled {
   outline-offset: 2px;
 }
 
+.sticker-dialog > .crop-title {
+  flex: none;
+}
+
 .sticker-dialog-section {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 0.5rem;
   min-width: 0;
+  min-height: 8rem;
+}
+
+.sticker-dialog-grids {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 0.25rem;
+}
+
+.sticker-dialog-footer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--line);
+}
+
+/* Місця прокручуються самі, якщо на низькому телефоні не влазять; «Готово» під ними завжди видно. */
+.sticker-dialog-places {
+  display: block;
+  max-height: 38dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sticker-dialog-place-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.sticker-dialog-place {
+  font-size: 0.9375rem;
+}
+
+.sticker-dialog-places legend {
+  margin-block-end: 0.375rem;
 }
 
 .sticker-dialog-places label {
-  flex-wrap: wrap;
-  max-width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  column-gap: 0.4rem;
+  min-width: 0;
   box-sizing: border-box;
+  padding-inline: 0.5rem;
+  overflow-wrap: break-word;
 }
 
+/* Зайняте місце: тьмяні лише радіо й назва, причина «Зайнято: …» — повним кольором (контраст AA). */
 .sticker-dialog-places label.is-taken {
-  opacity: 0.6;
+  border-style: dashed;
   cursor: not-allowed;
 }
 
+.sticker-dialog-places label.is-taken input,
+.sticker-dialog-places label.is-taken .sticker-dialog-place {
+  opacity: 0.55;
+}
+
 .sticker-dialog-taken {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: var(--paper);
+}
+
+.sticker-dialog-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--paper);
 }
 
 .sticker-dialog .crop-actions {
