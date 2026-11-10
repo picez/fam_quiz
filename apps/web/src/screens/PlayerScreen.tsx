@@ -851,12 +851,13 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const truthOwn = truthQ && me.truth?.own === true;
   // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
-  // Пізній гравець (продовжена гра) пише факт і між запитаннями, поки раунд не роздано; форма лишається до кінця цих етапів.
+  // Факти збираються в лобі (повна форма). Після старту — лише між запитаннями, поки раунд не роздано, і лише без факту
+  // (чи зі схованим ведучим): компактна кнопка розгортає форму; розгорнута лишається до кінця цих етапів. Факт є — нічого.
   const between = phase === 'intro' || phase === 'leaderboard' || phase === 'round_end' || phase === 'guide';
-  const truthLateNeed = between && me.truth !== undefined && me.truth.canWrite && (me.truth.fact === '' || me.truth.hidden);
-  const [truthLate, setTruthLate] = useState(false);
-  if (truthLateNeed && !truthLate) setTruthLate(true);
-  const truthLateForm = between && me.truth !== undefined && me.truth.canWrite && truthLate;
+  const truthCanLate = between && me.truth?.canWrite === true;
+  const truthLateNeed = truthCanLate && (me.truth?.fact === '' || me.truth?.hidden === true);
+  const [truthOpen, setTruthOpen] = useState(false);
+  if (truthOpen && !truthCanLate) setTruthOpen(false);
 
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
@@ -933,7 +934,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'lobby' && view.author === null && view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="phone" />}
       {/* «Правда про гравця» (28b): лише число фактів — чиї вони, телефон не каже. */}
       {phase === 'lobby' && view.truth !== undefined && <p className="meta truth-lobby-count">{t('truthFactsCount', { count: view.truth.count })}</p>}
-      {(phase === 'lobby' || truthLateForm) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} onError={setError} />}
+      {(phase === 'lobby' || (truthOpen && truthCanLate)) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} onError={setError} />}
+      {!truthOpen && truthLateNeed && (
+        <button type="button" className="btn btn-small truth-late" onClick={() => setTruthOpen(true)}>
+          {t('truthFactWrite')}
+        </button>
+      )}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 

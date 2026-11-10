@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authProviders, googleSignIn, signIn, signUp } from '../api';
+import { forgetAccount } from '../useAccount';
 import { errorText, t } from '../i18n';
 import { LanguageSwitcher } from '../locales/LanguageSwitcher';
 import { MotifHero } from '../motifs/Motifs';
@@ -58,8 +59,10 @@ export function Login() {
     setBusy(true);
     const result = registering ? await signUp(name.trim(), email.trim(), password) : await signIn(email.trim(), password);
     setBusy(false);
-    if (result.ok) navigate(next, { replace: true });
-    else setError(errorText(result.error));
+    if (result.ok) {
+      forgetAccount();
+      navigate(next, { replace: true });
+    } else setError(errorText(result.error));
   };
 
   return (

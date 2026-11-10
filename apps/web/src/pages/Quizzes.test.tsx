@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { roundQuestions } from '@quiz/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import { checkCode, createGame, createQuiz, deleteQuiz, getAutopilotCheck, getMyProfile, listQuizzes, me } from '../api';
 import { t } from '../i18n';
 import { loadHost, loadLastGame, saveAuthor, saveHost, saveLastGame } from '../storage';
@@ -24,6 +25,8 @@ const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@exa
 const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   vi.clearAllMocks();
   localStorage.clear();
   vi.mocked(me).mockResolvedValue(account);

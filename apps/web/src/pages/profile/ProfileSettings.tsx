@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { signOut } from '../../api';
+import { forgetAccount } from '../../useAccount';
 import { t } from '../../i18n';
 import { LanguageSwitcher } from '../../locales/LanguageSwitcher';
 import { nickText } from '../../nick';
@@ -25,6 +26,7 @@ export function ProfileSettings(): JSX.Element {
     // Спершу прибираємо підписку цього пристрою, поки сесія жива; збій чи зависання (понад 3 с) виходу не блокує.
     await Promise.race([disablePush().catch(() => undefined), new Promise<void>((done) => setTimeout(done, 3_000))]);
     await signOut();
+    forgetAccount();
     navigate('/');
   };
 

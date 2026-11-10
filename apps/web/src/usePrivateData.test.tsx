@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from './useAccount';
 import { me, type ApiData } from './api';
 import { usePrivateData } from './usePrivateData';
 
@@ -8,7 +9,11 @@ vi.mock('./api', () => ({ me: vi.fn() }));
 
 const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
+});
 afterEach(cleanup);
 
 function Probe({ load }: { load: () => Promise<ApiData<string[]>> }) {

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import { createGame, createQuiz, listQuizzes, me } from '../api';
 import { demoQuiz } from '../demo-quiz';
 import { loadHost, loadLastGame } from '../storage';
@@ -19,6 +20,8 @@ const account = { ok: true as const, id: 'u1', name: 'Олена', email: 'o@exa
 const summary = { id: 'q1', title: 'Географія', description: 'Про Україну', questionCount: 6, updatedAt: '2026-10-12T10:00:00.000Z' };
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   vi.clearAllMocks();
   localStorage.clear();
   vi.mocked(me).mockResolvedValue(account);

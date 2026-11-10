@@ -4781,6 +4781,7 @@ describe('PlayerScreen player truth (28b)', () => {
     const send = vi.fn(() => new Promise((resolve) => (answer = resolve))) as unknown as Send;
     const open = view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } });
     const { rerender } = render(<PlayerScreen view={open} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: t('truthFactWrite') }));
     fireEvent.change(screen.getByLabelText(t('truthFactLabel')), { target: { value: 'Я бачила північне сяйво' } });
     fireEvent.click(screen.getByRole('button', { name: t('truthFactSave') }));
     // роздача: форма зникає раніше, ніж приходить відмова
@@ -4791,12 +4792,36 @@ describe('PlayerScreen player truth (28b)', () => {
     expect(await screen.findByText(errorText('truth_closed'))).toBeTruthy();
   });
 
-  it('a late player writes a fact between questions until the deal', () => {
-    show(view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } }));
-    expect(screen.getByLabelText(t('truthFactLabel'))).toBeTruthy();
-    cleanup();
-    show(view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true, fact: 'Вже є' }) } }));
+  it('after the start a player without a fact sees only a compact button that opens the form', () => {
+    const open = info({ open: true, count: 2, index: null });
+    const board = (over: object) => view({ phase: 'leaderboard', round, truth: open, me: { ...me, truth: mine({ canWrite: true, ...over }) } });
+    const { rerender } = render(<PlayerScreen view={board({})} hostOnline offsetMs={0} send={vi.fn() as unknown as Send} />);
     expect(screen.queryByLabelText(t('truthFactLabel'))).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('truthFactWrite') }));
+    expect(screen.getByLabelText(t('truthFactLabel'))).toBeTruthy();
+    // Збережено: розгорнута форма лишається до кінця етапу й показує текст.
+    rerender(<PlayerScreen view={board({ fact: 'Я бачила північне сяйво' })} hostOnline offsetMs={0} send={vi.fn() as unknown as Send} />);
+    expect(screen.getByText(t('truthFactSaved', { text: 'Я бачила північне сяйво' }))).toBeTruthy();
+    // Наступне запитання згортає її; на наступній таблиці з фактом — ні форми, ні кнопки.
+    rerender(<PlayerScreen view={onQuestion({ truth: open, me: { ...me, truth: mine({ canWrite: true, fact: 'Я бачила північне сяйво' }) } })} hostOnline offsetMs={0} send={vi.fn() as unknown as Send} />);
+    rerender(<PlayerScreen view={board({ fact: 'Я бачила північне сяйво' })} hostOnline offsetMs={0} send={vi.fn() as unknown as Send} />);
+    expect(screen.queryByLabelText(t('truthFactLabel'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('truthFactWrite') })).toBeNull();
+  });
+
+  it('the button is gone with a fact, after the deal and during a question; a hidden fact brings it back', () => {
+    const open = info({ open: true, count: 2, index: null });
+    show(view({ phase: 'intro', round, truth: open, me: { ...me, truth: mine({ canWrite: true, fact: 'Вже є' }) } }));
+    expect(screen.queryByRole('button', { name: t('truthFactWrite') })).toBeNull();
+    cleanup();
+    show(view({ phase: 'leaderboard', round, truth: info({ count: 2, index: null }), me: { ...me, truth: mine({ canWrite: false }) } }));
+    expect(screen.queryByRole('button', { name: t('truthFactWrite') })).toBeNull();
+    cleanup();
+    show(onQuestion({ truth: open, me: { ...me, truth: mine({ canWrite: true }) } }));
+    expect(screen.queryByRole('button', { name: t('truthFactWrite') })).toBeNull();
+    cleanup();
+    show(view({ phase: 'round_end', round, truth: open, me: { ...me, truth: mine({ canWrite: true, fact: 'Вже є', hidden: true }) } }));
+    expect(screen.getByRole('button', { name: t('truthFactWrite') })).toBeTruthy();
   });
 
   it('a guesser picks a name from the list', async () => {

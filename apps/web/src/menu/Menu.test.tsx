@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import { getFeedBadge, getMyInvites, me } from '../api';
 import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
@@ -15,6 +16,8 @@ const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', adm
 const OUT = { ok: false, error: 'unauthorized' } as const;
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   vi.mocked(me).mockReset();
   vi.mocked(getMyInvites).mockReset();
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
@@ -178,6 +181,8 @@ describe('Menu', () => {
       cleanup();
 
       vi.mocked(getMyInvites).mockClear();
+      // Вихід (ProfileSettings) забуває відому людину.
+      forgetAccount();
       vi.mocked(me).mockResolvedValue(OUT);
       show('/quizzes');
       await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));

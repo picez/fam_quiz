@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import type { FriendCard } from '@quiz/shared';
 import { findProfile, follow, getMyFriends, me, searchProfiles } from '../api';
 import { Friends } from './Friends';
@@ -20,6 +21,8 @@ const friends: FriendCard[] = [
 ];
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
   vi.mocked(getMyFriends).mockResolvedValue({ ok: true, data: friends });

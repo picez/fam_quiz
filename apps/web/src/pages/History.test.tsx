@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
 import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
@@ -79,6 +80,8 @@ function LoginStub() {
 }
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   vi.clearAllMocks();
   vi.mocked(me).mockResolvedValue({ ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false });
 });

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { forgetAccount } from '../useAccount';
 import { checkCode, getFeedBadge, getMyInvites, listLobbies, me } from '../api';
 import { savePlayer } from '../storage';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
@@ -9,6 +10,8 @@ import { ACCOUNT_WAIT_MS, Home } from './Home';
 vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn() }));
 
 beforeEach(() => {
+  // Відома людина (stale-while-revalidate) не переходить з тесту в тест.
+  forgetAccount();
   localStorage.clear();
   vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });

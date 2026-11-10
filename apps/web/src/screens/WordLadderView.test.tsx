@@ -77,7 +77,7 @@ describe('WordLadderView', () => {
     expect(field().value).toBe('пила');
     send.mockImplementation(async () => ({ ok: false, error: 'word_unknown' }));
     typeAndAdd('поже');
-    await waitFor(() => expect(status.textContent).toBe('Такого слова не існує'));
+    await waitFor(() => expect(status.textContent).toBe('Немає такого іменника в словнику'));
     expect(field().value).toBe('поже');
   });
 
