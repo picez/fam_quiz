@@ -674,8 +674,12 @@ export const questionSchema = z
       if (q.pairs.some((p) => answerKey(p.a.text) === answerKey(p.b.text))) ctx.addIssue({ code: 'custom', message: 'moreless_same' });
     }
     if (q.type === 'drawing') {
-      // Без таймера малюнок не скінчиться; картинка, звук і «перевертання» видали б слово.
+      // Без таймера малюнок не скінчиться; звук і «перевертання» видали б слово.
       if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'drawing_video' });
+      // Підказка недосяжна: баф підказки на малюнку вимкнено (off_drawing).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'drawing_hint' });
+      // Слово чи написання довше за поле вгадування вгадати неможливо: телефон обріже текст, сервер відкине.
+      if (q.accepted.some((s) => s.length > LIMITS.drawGuess)) ctx.addIssue({ code: 'custom', message: 'drawing_long' });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });

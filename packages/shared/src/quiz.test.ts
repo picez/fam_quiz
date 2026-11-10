@@ -2586,6 +2586,15 @@ describe('drawing question (28c)', () => {
     expect(qIssues(drawingQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('drawing_video');
     expect(qIssues(drawingQ({ imageUrl: '/media/a.png', reveal: 'blur' }))).toContain('drawing_video');
     expect(qIssues(drawingQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('drawing_video');
+    // підказка недосяжна (баф вимкнено), тож і не зберігається
+    expect(qIssues(drawingQ({ hint: 'Жовта квітка' }))).toContain('drawing_hint');
+  });
+
+  it('refuses a word or a spelling longer than the guess field', () => {
+    expect(LIMITS.drawGuess).toBe(60);
+    expect(qIssues(drawingQ({ accepted: ['я'.repeat(60)] }))).toEqual([]);
+    expect(qIssues(drawingQ({ accepted: ['я'.repeat(61)] }))).toContain('drawing_long');
+    expect(qIssues(drawingQ({ accepted: ['соняшник', 'я'.repeat(61)] }))).toContain('drawing_long');
   });
 
   it('drawing plays in classic rounds only', () => {
@@ -2602,6 +2611,17 @@ describe('drawing question (28c)', () => {
       expect(issues(quizOf([round('r', [single]), bad]))).toContain('drawing_place');
     }
     expect(issues(quizOf([round('r', [single]), wipeout])).length).toBeGreaterThan(0);
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [drawingQ({ id: 'dsv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    expect(issues(quizOf([round('r', [single]), survival]))).toContain('drawing_place');
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [drawingQ({ id: 'dl' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    expect(issues(quizOf([round('r', [single]), ladder]))).toContain('drawing_place');
+    // «Правда про гравця» запитань не має: чуже поле questions відкидається, малюнок туди не потрапить
+    const truth = quizSchema.safeParse(quizOf([round('r', [single]), { id: 'tr', type: 'truth', title: '', points: 300, timeLimit: 30, questions: [drawingQ({ id: 'dt' })] }]));
+    expect(truth.success).toBe(true);
+    expect(JSON.stringify(truth.data?.rounds[1])).not.toContain('drawing');
     for (const kind of ['normal', 'blitz']) {
       expect(issues(withCell(drawingQ(), { kind }))).toContain('drawing_place');
     }
