@@ -3025,3 +3025,14 @@ describe('puzzles in the editor (28d)', () => {
     expect('hint' in revived).toBe(false);
   });
 });
+
+describe('puzzle default texts (28d)', () => {
+  it('switching sudoku and crossword swaps the default text, but keeps the author’s own', () => {
+    const sudoku = newQuestion('sudoku');
+    expect(sudoku.text).toBe(t('sudokuDefaultText'));
+    const crossword = changeType(sudoku, 'crossword');
+    expect(crossword.text).toBe(t('crosswordDefaultText'));
+    expect(changeType(crossword, 'sudoku').text).toBe(t('sudokuDefaultText'));
+    expect(changeType({ ...sudoku, text: 'Судоку від Марти' }, 'crossword').text).toBe('Судоку від Марти');
+  });
+});

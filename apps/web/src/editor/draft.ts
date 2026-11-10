@@ -304,16 +304,17 @@ function build(common: Common, type: QuestionType): Question {
     }
     case 'sudoku': {
       // Головоломка: без відео (без таймера не скінчиться), звуку, «перевертання» й підказки (бафів немає). Сітка — середня, згенерована.
+      // Типовий текст іншої головоломки (зміна типу) — як порожній: інакше кросворд лишився б «Розв’яжіть судоку».
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       const seed = randomSudokuSeed();
-      return { ...rest, text: rest.text === '' ? t('sudokuDefaultText') : rest.text, video: null, type, timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, level: 'medium', seed, ...generateSudoku(seed, 'medium') };
+      return { ...rest, text: rest.text === '' || rest.text === t('crosswordDefaultText') ? t('sudokuDefaultText') : rest.text, video: null, type, timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, level: 'medium', seed, ...generateSudoku(seed, 'medium') };
     }
     case 'crossword': {
       // Як судоку; чотири порожні слова, розкладки ще немає.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return {
         ...rest,
-        text: rest.text === '' ? t('crosswordDefaultText') : rest.text,
+        text: rest.text === '' || rest.text === t('sudokuDefaultText') ? t('crosswordDefaultText') : rest.text,
         video: null,
         type,
         timeLimit: LIMITS.defaultCrosswordTime,
