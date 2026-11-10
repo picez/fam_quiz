@@ -203,6 +203,21 @@ export const LIMITS = {
   moreLessValue: 40,
   defaultMoreLessTime: 60,
   defaultMoreLessPoints: 100,
+  /** «Головоломки» (28d): запитань у раунді, типові час (с) і бали, слів у кросворді, літер у слові (без апострофа), символів у полі слова й підказці, літер у ключі, найбільша сторона сітки, клітинок в одній події. */
+  maxPuzzles: 10,
+  defaultSudokuTime: 180,
+  defaultCrosswordTime: 240,
+  defaultPuzzlePoints: 300,
+  minCrosswordWords: 4,
+  maxCrosswordWords: 8,
+  minCrosswordWord: 2,
+  maxCrosswordWord: 12,
+  crosswordAnswer: 30,
+  crosswordClue: 120,
+  minCrosswordKey: 3,
+  maxCrosswordKey: 12,
+  maxCrosswordSide: 12,
+  puzzleBatch: 12,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
