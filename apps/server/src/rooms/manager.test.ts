@@ -779,6 +779,30 @@ describe('drawing (28c)', () => {
     expect(other.manager.drawSnapshot(other.room)).toBeNull();
   });
 
+  it('after an earlier round the drawing events carry the round-local number the views show', () => {
+    // Регресія: події несли індекс plays, а телефон і сцена порівнюють його з view.questionIndex (номер у раунді) —
+    // після першого раунду малюнок не показувався й sync просився без кінця.
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([classicRound('c', [single, bool]), classicRound('d', [drawing])]));
+    manager.connect(room, HOST);
+    enter(manager, room, 'Оля');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    for (let i = 0; i < 30 && !(room.state.phase === 'question' && room.state.plays[room.state.questionIndex].question.id === drawing.id); i++) {
+      expect(manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
+    }
+    expect(room.state.questionIndex).toBe(2);
+    const shown = manager.view(room, HOST)!.questionIndex;
+    expect(shown).toBe(0);
+    const drawer = room.state.plays[2].drawing!.drawerId!;
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.draw(room, drawer, { op: 'begin', c: 1, w: 0, p: [10, 10] })).toEqual({ ok: true });
+    expect(events.find((e) => e.type === 'drawing')).toMatchObject({ event: { kind: 'ops', questionIndex: shown } });
+    expect(manager.drawSnapshot(room)).toMatchObject({ kind: 'sync', questionIndex: shown, rev: 1 });
+  });
+
   it('a kicked drawer stops drawing', () => {
     const { manager, room, olya, taras } = drawingRoom();
     expect(manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });

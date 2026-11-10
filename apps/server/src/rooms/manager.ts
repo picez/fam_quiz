@@ -142,6 +142,7 @@ import {
   grantPerks,
   revokePerks,
   usePerk,
+  roundQuestionNumber,
   type GameState,
   type PacedAction,
   type Result,
@@ -1422,7 +1423,8 @@ export class RoomManager {
     const { state } = room;
     const at = draftStage(state);
     const live = hostLive(state);
-    const batch: HostDrafts = { questionIndex: state.questionIndex, trial: at?.trial ?? false, drafts: [] };
+    // questionIndex — номер у раунді, як view.questionIndex пульта (з ним його порівнює клієнт), а не індекс plays.
+    const batch: HostDrafts = { questionIndex: roundQuestionNumber(state), trial: at?.trial ?? false, drafts: [] };
     if (live === null || at === null) return batch;
     const seen = new Set<string>();
     for (const row of [...live.rows, ...(live.aside?.rows ?? [])]) {
@@ -1714,7 +1716,8 @@ export class RoomManager {
   drawSnapshot(room: Room): DrawingEvent | null {
     const drawing = drawingOf(room.state);
     if (drawing === null) return null;
-    return { kind: 'sync', questionIndex: room.state.questionIndex, rev: drawing.rev, strokes: drawing.strokes };
+    // questionIndex — номер у раунді, як view.questionIndex (з ним телефон і сцена порівнюють малюнок), а не індекс plays.
+    return { kind: 'sync', questionIndex: roundQuestionNumber(room.state), rev: drawing.rev, strokes: drawing.strokes };
   }
 
   /** Новий малюнок без commit (28c): ні awayStep, ні stamp, ні planAutopilot, ні reschedule — змінилися лише штрихи й rev. */
@@ -1722,7 +1725,7 @@ export class RoomManager {
     room.state = state;
     const drawing = drawingOf(state);
     if (drawing === null) return;
-    this.emit(room, { type: 'drawing', event: { kind: 'ops', questionIndex: state.questionIndex, rev: drawing.rev, op } });
+    this.emit(room, { type: 'drawing', event: { kind: 'ops', questionIndex: roundQuestionNumber(state), rev: drawing.rev, op } });
   }
 
   /** Понад MORELESS_PICKS_PER_SECOND виборів на секунду від людини (28a) — ні. Вікно своє, як у wordAllowed, але окреме. */

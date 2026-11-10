@@ -22,7 +22,7 @@ export type DrawOp =
   | { op: 'undo' }
   | { op: 'clear' };
 
-/** Подія drawing: операція чи повний знімок поточного запитання. */
+/** Подія drawing: операція чи повний знімок поточного запитання; questionIndex — номер у раунді, як view.questionIndex. */
 export type DrawingEvent =
   | { kind: 'ops'; questionIndex: number; rev: number; op: DrawOp }
   | { kind: 'sync'; questionIndex: number; rev: number; strokes: Stroke[] };

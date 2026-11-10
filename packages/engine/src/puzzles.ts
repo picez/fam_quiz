@@ -1,7 +1,7 @@
 import { crosswordCells, crosswordLetter, isPuzzle, LIMITS, questionPrice, rulesOf, type Grade, type PuzzleAnswer, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { autoLock, fail, ok, recordOf, type AnswerRecord, type GameState, type Play, type PuzzleBoard, type PuzzlePlay, type Result } from './game';
+import { autoLock, fail, ok, recordOf, roundQuestionNumber, type AnswerRecord, type GameState, type Play, type PuzzleBoard, type PuzzlePlay, type Result } from './game';
 import { notStarted } from './splash';
 import { memberOf, teamsOn } from './teams';
 import { limitMsOf, timeOverFor } from './timing';
@@ -92,14 +92,18 @@ function puzzleRecord(state: GameState, play: PuzzleQuestionPlay, board: PuzzleB
   return { answer, timeMs, accepted: solved, accuracy: scored.length === 0 ? 0 : right / scored.length, grade, basePoints: points, streakBonus: 0, points, overridden: false };
 }
 
-/** Спільні перевірки пакета й «Готово»: етап, пауза, старт, гравець (у командах — учасник memberId цієї команди), запитання, тип, час, здана сітка. */
+/**
+ * Спільні перевірки пакета й «Готово»: етап, пауза, старт, гравець (у командах — учасник memberId цієї команди), запитання, тип, час,
+ * здана сітка. questionIndex — номер запитання в поточному раунді (той, що телефон бачить у view.questionIndex).
+ */
 function puzzleRefusal(state: GameState, actorId: string, memberId: string | null, questionIndex: number, now: number): Result | PuzzleQuestionPlay {
   if (state.phase !== 'question') return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (notStarted(state, now)) return fail('not_started');
   if (!state.players.some((p) => p.id === actorId)) return fail('not_found');
   if (memberId !== null && teamsOn(state) && memberOf(state, memberId)?.teamId !== actorId) return fail('not_found');
-  if (questionIndex !== state.questionIndex) return fail('puzzle_stale');
+  // questionIndex — номер запитання в раунді, як у зрізі (view.questionIndex = roundQuestionNumber), а не індекс plays.
+  if (questionIndex !== roundQuestionNumber(state)) return fail('puzzle_stale');
   const play = puzzlePlay(state);
   if (play === null) return fail('type_mismatch');
   if (state.startedAt === null || timeOverFor(state, play, actorId, now)) return fail('time_over');

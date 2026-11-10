@@ -10,7 +10,7 @@ import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, duelWindow
 import { betLimit, betsMinimumNow, betsPlaying, wagerLimitOf } from '../bets';
 import { auctionLeader, auctionNextNow } from '../auction';
 import { placeWager } from '../final';
-import { currentRound, recordOf, submitAnswer, tick, type GameState, type Result, type Rng } from '../game';
+import { currentRound, recordOf, roundQuestionNumber, submitAnswer, tick, type GameState, type Result, type Rng } from '../game';
 import { contestantOf, decideLadder, decisionPending, ladderPlayOf } from '../ladder';
 import { stamp } from '../pacing';
 import { sortOf, sortWord } from '../sort';
@@ -239,9 +239,9 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       const cells = wrong ? [] : puzzleSolution(question).flatMap((v, i) => (v === '' ? [] : [{ i, v }]));
       let s = state;
       for (let k = 0; k < cells.length && s.phase === 'question'; k += LIMITS.puzzleBatch) {
-        s = act(s, puzzleFill(s, playerId, person, s.questionIndex, cells.slice(k, k + LIMITS.puzzleBatch), now), what);
+        s = act(s, puzzleFill(s, playerId, person, roundQuestionNumber(s), cells.slice(k, k + LIMITS.puzzleBatch), now), what);
       }
-      return s.phase === 'question' ? act(s, puzzleFinish(s, playerId, s.questionIndex, now), what) : s;
+      return s.phase === 'question' ? act(s, puzzleFinish(s, playerId, roundQuestionNumber(s), now), what) : s;
     }
     case 'sort': {
       let s = state;

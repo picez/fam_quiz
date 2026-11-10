@@ -71,7 +71,8 @@ export const letterWordSchema = z.object({ word: z.string().max(LIMITS.letterWor
 export const MORELESS_PICKS_PER_SECOND = 5;
 /**
  * «Головоломки» (28d): клітинок в одній події рахує LIMITS.puzzleBatch; значення (цифру чи літеру) перевіряє рушій.
- * questionIndex — без верхньої межі: записів у plays буває більше за запитання вікторини, а застаріле відсікає puzzle_stale.
+ * questionIndex — номер запитання в поточному раунді, як у зрізі (view.questionIndex), не індекс plays; без верхньої межі,
+ * застаріле відсікає puzzle_stale.
  */
 export const PUZZLE_BATCHES_PER_SECOND = 6;
 export const puzzleFillSchema = z

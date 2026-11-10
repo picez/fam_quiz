@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
-import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, puzzlesRound, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
+import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, puzzlesRound, single, survivalRound, text as textQ, truthRound, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
 import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, countSudoku, crosswordCells, generateSudoku, layoutCrossword, levelOf, pickKeyCells, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type CrosswordLayout, type PublicPuzzle, type SudokuLevel, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
@@ -26026,6 +26026,15 @@ it('part 28d: puzzles with 24 players — the stage thumbnails fit 1600×900', a
   }
 }, 600_000);
 
+it('part 28d: puzzles after a classic and a truth round — digits and letters stay, an incomplete grid is done', async () => {
+  try {
+    await puzzlesAfterTruth28d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
 type Crossword28d = Extract<PublicPuzzle, { kind: 'crossword' }>;
 type StoredSudoku28d = { type: 'sudoku'; level: string; seed: number | null; givens: string; solution: string; timeLimit: number; points: number };
 type StoredCrossword28d = { type: 'crossword'; mode: 'full' | 'key'; key: string | null; entries: { id: string; answer: string; clue: string }[]; layout: CrosswordLayout; timeLimit: number };
@@ -26536,6 +26545,108 @@ async function puzzlesGame28d() {
   await toWinners27c(host, stage);
 
   expect(problems).toEqual([]);
+}
+
+/**
+ * Регресія «Пробного забігу»: раунд «Головоломки» після класики й «Правди про гравця». Телефон шле номер запитання в раунді
+ * (view.questionIndex), сервер порівнював його з індексом plays — цифри й літери одразу стиралися, «Готово» повертало назад.
+ */
+async function puzzlesAfterTruth28d() {
+  const host = await open('host28dx', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host28dx@example.com');
+  const sudoku = sudoku28d('x28d', 11, 'easy', 120);
+  const cross = crossword28d('y28d', WORDS28D, null, 120);
+  const data = {
+    ...makeRoundsQuiz(
+      [
+        classicRound('cx28d', [withId(single, 'cx1')], { speedBonus: false }),
+        truthRound('tx28d', { title: 'Правда', timeLimit: 25 }),
+        puzzlesRound('px28d', [sudoku as never, cross as never]),
+      ],
+      { leaderboard: 'end' },
+    ),
+    title: 'Головоломки після правди 28d',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Головоломки після правди 28d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28dx', 1600, 900);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya28dx', 375, 812);
+  const taras = await open('taras28dx', 360, 740);
+  const olyaFrames = socketFrames(olya);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  const phones = [olya, taras];
+  const named = new Map<string, Page>([['Оля', olya], ['Тарас', taras]]);
+  // Факти в лобі: раунд «Правда» матиме два запитання.
+  await writeFact28b(olya, 'Я стрибала з парашутом');
+  await writeFact28b(taras, 'Я вивчив іспанську за рік');
+
+  // ── Класика й «Правда про гравця». ──
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await olya.getByRole('button', { name: /Київ/ }).click();
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  for (let k = 0; k < 2; k++) {
+    if (k > 0) await next27a(host);
+    await afterSplash(host, stage, ...phones);
+    const author = await hostAuthor28b(host);
+    const guesser = [...named].find(([name]) => name !== author)![1];
+    await pickName28b(guesser, author);
+    await reveal28a(host);
+  }
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // ── Судоку: цифра лишається, «Заповнено 1 з N» на пульті, «Готово» з неповною сіткою спрацьовує. ──
+  for (const page of phones) await page.locator('.sudoku-play').waitFor();
+  const shown = stateViews(olyaFrames).at(-1)!;
+  expect(shown.questionIndex, 'the phone’s question number in the round').toBe(0);
+  const e = empties28d(sudoku.givens);
+  const sendsFrom = olyaFrames.length;
+  await fillSudoku28d(olya, [[e[0]!, sudoku.solution[e[0]!]!]], 'keypad');
+  // Довше за вікно пакета й тротл розсилки: цифра не відкочується.
+  await sleep(1500);
+  expect(await sudokuCell28d(olya, e[0]!).textContent(), 'the digit after the batch went out').toBe(sudoku.solution[e[0]!]);
+  await host.locator('#live-answers').waitFor();
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain(`Заповнено 1 з ${e.length}`);
+  const sent = olyaFrames.slice(sendsFrom).join(NL);
+  expect(sent, 'a stale refusal to the phone').not.toContain('puzzle_stale');
+  await done28d(olya);
+  expect(await olya.locator('.puzzle-keypad').count(), 'the keypad after done').toBe(0);
+  await done28d(taras);
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
+  await reveal28a(host);
+
+  // ── Кросворд (друге запитання раунду): літери лишаються, «Готово» з неповною сіткою. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('.crossword-play').waitFor();
+  const puzzle = lastPuzzle28d(olyaFrames) as Crossword28d;
+  const letters = crosswordCells(cross.layout, cross.entries).map((letter) => letter ?? '');
+  await typeCrossword28d(olya, puzzle, letters, 0);
+  await sleep(1500);
+  const word = words28d(puzzle)[0]!;
+  for (const cell of word.cells) expect(await crosswordCell28d(olya, cell).locator('.crossword-letter').textContent(), `the letter in cell ${cell}`).toBe(letters[cell]);
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain(`Заповнено ${word.cells.length} з ${letters.filter((l) => l !== '').length}`);
+  await done28d(olya);
+  await done28d(taras);
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
 }
 
 async function puzzlesTeams28d() {

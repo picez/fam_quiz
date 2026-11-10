@@ -57,6 +57,7 @@ export interface LiveDraft {
 
 /** Пакет host:drafts (12b): усі чинні живі вибори поточного запитання (або питання на виживання, trial). */
 export interface HostDrafts {
+  /** Номер запитання в раунді, як view.questionIndex пульта (не індекс plays). */
   questionIndex: number;
   trial: boolean;
   drafts: LiveDraft[];
