@@ -1,4 +1,4 @@
-import { boardCells, type Answer, type Question } from '@quiz/shared';
+import { boardCells, LIMITS, type Answer, type Question } from '@quiz/shared';
 import { planAutopilot, pilotStep } from '../autopilot';
 import { attemptsUsed, blitzRulesOf, buzz, isInstant, nextDeadline } from '../blitz';
 import { bluffPlayOf, pickBluff, writeLie } from '../bluff';
@@ -21,6 +21,7 @@ import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
 import { moreLessOf, moreLessPick } from '../moreless';
 import { drawGuess, drawStroke } from '../drawing';
+import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
@@ -229,6 +230,18 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       if (wrong) return state;
       const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
       return person === undefined ? state : act(state, drawGuess(state, person, question.accepted[0], now), what);
+    }
+    case 'sudoku':
+    case 'crossword': {
+      // Бот (у командах — перший учасник) вписує розв'язок пакетами по межі події й тисне «Готово»; неправильний — здає порожню сітку.
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      if (person === undefined) return state;
+      const cells = wrong ? [] : puzzleSolution(question).flatMap((v, i) => (v === '' ? [] : [{ i, v }]));
+      let s = state;
+      for (let k = 0; k < cells.length && s.phase === 'question'; k += LIMITS.puzzleBatch) {
+        s = act(s, puzzleFill(s, playerId, person, s.questionIndex, cells.slice(k, k + LIMITS.puzzleBatch), now), what);
+      }
+      return s.phase === 'question' ? act(s, puzzleFinish(s, playerId, s.questionIndex, now), what) : s;
     }
     case 'sort': {
       let s = state;

@@ -1,7 +1,7 @@
 import { DEFAULT_RULES, DEBUFF_KINDS, LEGACY_DEBUFFS, type Answer, type Question } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { pickCell } from './board';
-import { buffBlock, buffsUsed, fiftyCount, takeBuff } from './buffs';
+import { buffBlock, buffQuestions, buffsUsed, fiftyCount, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { acceptAnswer, lock, next, override, pause, removePlayer, start, submitAnswer, type GameState } from './game';
 import { FIRST_BUFFS, T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing/buffs';
@@ -27,6 +27,9 @@ import {
   text,
   timedlist,
   truthRound,
+  puzzlesRound,
+  sudoku,
+  crosswordFull,
   letterwords,
   moreless,
   drawing,
@@ -191,6 +194,13 @@ describe('buffs', () => {
     expect(takeBuff(s, 'p2', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p2', 'double')).toBe('off_drawing');
     expect(buffBlock(s, 'p1', 'double')).toBe('off_drawing');
+  });
+
+  it('the puzzles round has no buffs (28d)', () => {
+    const s = startRound(lobbyWith(makeRoundsQuiz([puzzlesRound('pz', [sudoku, crosswordFull])], { buffs }), 'Оля', 'Тарас'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_puzzles');
+    expect(buffQuestions(makeRoundsQuiz([puzzlesRound('pz', [sudoku])]))).toEqual([]);
   });
 
   it('an auction round has no buffs and no debuff shop (27b)', () => {

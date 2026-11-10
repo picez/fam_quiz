@@ -38,6 +38,7 @@ import {
   withId,
   withPoints,
   withVideo,
+  puzzlesQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -166,6 +167,8 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['survival with luck', survivalQuiz('luck')],
   ['host-picked untimed ladder with every lifeline', ladderQuiz],
   ['duels', duelQuiz()],
+  ['puzzles: a sudoku and two crosswords', puzzlesQuiz({ leaderboard: 'end' })],
+  ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
   ...(['host', 'pick', 'random', 'dice'] as TeamForm[]).map(
     (form): [string, Quiz, (lobby: GameState) => GameState] => [`teams «${form}»`, teamsQuiz, (s) => must(authorTeamForm(s, form))],
@@ -316,6 +319,17 @@ describe('autopilot: scores and defaults', () => {
       ['a', 300],
       ['p2', -300],
     ]);
+  });
+
+  it('puzzles: every bot fills the solution and presses done, every grid is right (28d)', () => {
+    const { state } = play(puzzlesQuiz(), answering);
+    expect(state.plays.map((p) => p.question.id)).toEqual(['z1', 'z2', 'z3']);
+    for (const p of state.plays) {
+      for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points]).toEqual([p.question.id, id, 'correct', 300]);
+    }
+    expect(state.players.map((p) => p.score)).toEqual([900, 900, 900]);
+    // сітки минулих запитань спорожнено, записи їх зберігають
+    expect(state.plays.slice(0, 2).every((p) => Object.keys(p.puzzle?.boards ?? {}).length === 0)).toBe(true);
   });
 
   it('a team game: every team answers right through its captain', () => {

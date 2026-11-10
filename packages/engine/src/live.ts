@@ -35,15 +35,16 @@ import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
 import { duelistOf, memberOf, teamsOn } from './teams';
 import { drawingCould } from './drawing';
+import { puzzleSolution } from './puzzles';
 
 /** Етапи, на яких іде відповідь (до розкриття): ведучий бачить, хто що відповів. */
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
 
 /** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sort', 'wall', 'bluff'];
+const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'sort', 'wall', 'bluff'];
 
 /** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sort', 'wall', 'survey', 'bluff'];
+const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -159,6 +160,13 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     if (drawing === undefined) return null;
     // Рядок — сторона (гравець чи команда): художником вважається сторона художника.
     return { kind: 'drawing', role: id === drawing.side ? 'drawer' : 'guesser', guessed: drawing.guessed.includes(id) };
+  }
+  if (question.type === 'sudoku' || question.type === 'crossword') {
+    // Скільки клітинок заповнено, без значень і правильності.
+    const board = play.puzzle?.boards[id];
+    const solution = puzzleSolution(question);
+    const filled = board === undefined ? 0 : solution.filter((v, i) => v !== '' && board.cells[i] !== '').length;
+    return { kind: 'puzzle', filled, total: solution.filter((v) => v !== '').length, done: board?.done === true };
   }
   if (question.type === 'sort') {
     const progress = sortOf(state, id);

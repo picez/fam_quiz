@@ -30,6 +30,7 @@ export * from './timedlist';
 export * from './letterwords';
 export * from './moreless';
 export * from './drawing';
+export * from './puzzles';
 export * from './truth';
 export * from './wordladder';
 export * from './sort';
