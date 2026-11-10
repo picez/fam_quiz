@@ -24,7 +24,7 @@ describe('the achievements catalog', () => {
     const goals = Object.fromEntries(ACHIEVEMENTS.filter((id) => ACHIEVEMENT_INFO[id].goal !== null).map((id) => [id, ACHIEVEMENT_INFO[id].goal]));
     expect(goals).toEqual({
       games_10: 10, games_50: 50, games_100: 100, veteran: 250, wins_10: 10, host_10: 10, podium_10: 10, prankster: 10,
-      author_hit: 10, friends_5: 5, streak_5: 5, streak_10: 10, win_streak_3: 3, all_rounds: 8, all_types: 18, // 26c: новий тип запитання; 27a: новий тип раунду
+      author_hit: 10, friends_5: 5, streak_5: 5, streak_10: 10, win_streak_3: 3, all_rounds: 9, all_types: 18, // 26c: новий тип запитання; 27a, 27b: новий тип раунду
     });
     expect(ACHIEVEMENT_INFO.all_rounds.goal).toBe(ROUND_TYPES.length);
     expect(ACHIEVEMENT_INFO.all_types.goal).toBe(QUESTION_TYPES.length);

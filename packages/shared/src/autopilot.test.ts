@@ -103,6 +103,18 @@ const bets = (id: string, patch: object = {}) => ({
   questions: [single(`${id}q`, { betsCut: 1 })],
   ...patch,
 });
+const auction = (id: string, patch: object = {}) => ({
+  id,
+  type: 'auction',
+  title: '',
+  shuffleOptions: false,
+  check: 'auto',
+  bidMode: 'step',
+  bidStep: 50,
+  loss: 'bid',
+  questions: [single(`${id}q`, { betsCut: 1 })],
+  ...patch,
+});
 const ladder = (id: string, patch: object = {}, questionPatch: object = {}) => ({
   id,
   type: 'ladder',
@@ -185,6 +197,13 @@ describe('autopilotCheck and autopilotQuiz', () => {
     const q = quiz([bets('r0', { check: 'manual' })]);
     expect(codes(q)).toEqual([{ code: 'manual', rounds: [0] }]);
     expect((autopilotQuiz(q).rounds[0] as Extract<Round, { type: 'bets' }>).check).toBe('auto');
+    expect(() => quizSchema.parse(autopilotQuiz(q))).not.toThrow();
+  });
+
+  it('a manual auction round becomes automatic', () => {
+    const q = quiz([auction('r0', { check: 'manual' })]);
+    expect(codes(q)).toEqual([{ code: 'manual', rounds: [0] }]);
+    expect((autopilotQuiz(q).rounds[0] as Extract<Round, { type: 'auction' }>).check).toBe('auto');
     expect(() => quizSchema.parse(autopilotQuiz(q))).not.toThrow();
   });
 

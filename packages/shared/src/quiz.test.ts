@@ -2159,3 +2159,74 @@ describe('bets round (27a)', () => {
     expect(roundQuestions(parsed.rounds[0]!)).toHaveLength(3);
   });
 });
+
+describe('auction round (27b)', () => {
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const strip = (q: object) => {
+    const copy = { ...q } as { options?: unknown; correctId?: unknown };
+    delete copy.options;
+    delete copy.correctId;
+    return copy;
+  };
+  const bool = { ...strip(single), id: 'qb', type: 'boolean', correct: true };
+  const numeric = { ...strip(single), id: 'qn', type: 'numeric', correct: 5, tolerance: 0 };
+  const cut = (q: object) => ({ ...q, betsCut: 2 });
+  const auctionRound = (questions: object[], patch: object = {}) => ({
+    id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+    questions: questions.map(cut), ...patch,
+  });
+  const three = [{ ...single, id: 'q1' }, bool, numeric];
+
+  it('accepts an auction round', () => {
+    expect(issues(quizOf([auctionRound(three)]))).toEqual([]);
+    for (const bidMode of ['step', 'free']) for (const loss of ['bid', 'bid_price']) expect(issues(quizOf([auctionRound(three, { bidMode, loss })]))).toEqual([]);
+  });
+
+  it('an auction question needs a cut', () => {
+    expect(issues(quizOf([auctionRound(three, { questions: three })]))).toContain('bets_cut_missing');
+    expect(issues(quizOf([round('r', [cut({ ...single, id: 'c1' })])]))).toContain('bets_cut_place');
+  });
+
+  it('auction takes the final question types', () => {
+    const base = { imageUrl: null, video: null, timeLimit: 30, points: 1000 };
+    const tiles = (p: string) => ['а', 'б', 'в', 'г'].map((text, i) => ({ id: `${p}${i}`, text }));
+    const row = (id: string, text: string, popularity: number) => ({ id, text, popularity, accepted: [] });
+    const rejected: [object, string][] = [
+      [{ ...base, id: 'x1', type: 'clues', text: 'Хто я?', clues: ['а', 'б', 'в'], accepted: ['Х'], interval: 5 }, 'clues_place'],
+      [{ ...base, id: 'x2', type: 'pin', text: 'Де?', map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 }, 'pin_place'],
+      [{ ...base, id: 'x3', type: 'wall', text: 'Стіна', mistakes: 3, groups: ['a', 'b', 'c', 'd'].map((g) => ({ id: g, name: g, tiles: tiles(g) })) }, 'wall_place'],
+      [{ ...base, id: 'x4', type: 'survey', text: 'Фрукт', answers: 3, rows: [row('a', 'Яблуко', 32), row('b', 'Банан', 25), row('c', 'Груша', 15), row('d', 'Кавун', 10)] }, 'survey_place'],
+      [{ ...base, id: 'x5', type: 'bluff', text: 'Факт з …', choiceTime: 30, timeLimit: 60, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] }, 'bluff_place'],
+      [{ ...base, id: 'x6', type: 'poll', text: 'Пора року?', points: 0, options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }] }, 'vote_place'],
+      [{ ...base, id: 'x7', type: 'wordcloud', text: 'Київ?', points: 0, words: 3 }, 'vote_place'],
+    ];
+    for (const [q, message] of rejected) expect(issues(quizOf([auctionRound([q])]))).toContain(message);
+    const chain = { ...base, id: 'c1', type: 'chain', text: 'Ланцюжок', timeLimit: 60, words: ['Форель', 'Риба', 'Океан'], hintSeconds: 5 };
+    const ladder = { ...base, id: 'wl', type: 'wordladder', text: 'Від ПОЛЕ до ТАРА', timeLimit: 90, path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8 };
+    expect(issues(quizOf([auctionRound([chain, ladder])]))).toEqual([]);
+  });
+
+  it('refuses a zero or fractional step', () => {
+    expect(issues(quizOf([auctionRound(three, { bidStep: 0 })]))).not.toEqual([]);
+    expect(issues(quizOf([auctionRound(three, { bidStep: 2.5 })]))).not.toEqual([]);
+  });
+
+  it('old quizzes still parse; rulesOf(auction) is the default rules and the type follows bets', () => {
+    expect(quizSchema.safeParse(quizOf([round('r', [single])])).success).toBe(true);
+    const parsed = quizSchema.parse(quizOf([auctionRound(three)]));
+    expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);
+    expect(ROUND_TYPES.indexOf('auction')).toBe(ROUND_TYPES.indexOf('bets') + 1);
+    expect(roundQuestions(parsed.rounds[0]!)).toHaveLength(3);
+  });
+
+  it('roundBrief(auction) carries the mode, step, loss and count; others have none', () => {
+    expect(emptyBrief('auction').auction).toBeNull();
+    const parsed = quizSchema.parse(quizOf([auctionRound(three), round('r', [{ ...single, id: 'other' }])]));
+    expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('auction'), auction: { mode: 'step', step: 50, loss: 'bid', count: 3 } });
+    expect(roundBrief(parsed.rounds[1]!).auction).toBeNull();
+  });
+});
