@@ -133,6 +133,37 @@ describe('letter words', () => {
       });
       expect(s.players.find((p) => p.id === 'p1')?.score).toBe(60);
       expect(letterPoints(s, s.plays[0], ['кіт', 'морква'])).toBe(40);
+      // не найкращий результат — «частково», без зарахування
+      expect(record(s, 'p2')).toMatchObject({ grade: 'partial', accepted: false, points: 40 });
+    });
+
+    it('correct is the best result of all, a tie too; fewer words are partial; none is wrong', () => {
+      const tie = add(add(add(dealt(fresh()), 'p1', ['кіт', 'сік']), 'p2', ['рот', 'сом']), 'p3', ['сова']);
+      const s = must(lock(tie, 5000));
+      expect(['p1', 'p2', 'p3'].map((id) => record(s, id)?.grade)).toEqual(['correct', 'correct', 'partial']);
+      expect(['p1', 'p2', 'p3'].map((id) => record(s, id)?.accepted)).toEqual([true, true, false]);
+      // за літеру: три трилітерні слова (9 літер) кращі за «морква» (6)
+      const letters = add(add(dealt(fresh({ ...letterwords, per: 'letter', points: 10 })), 'p1', ['морква']), 'p2', ['кіт', 'сік', 'рот']);
+      const byLetter = must(lock(letters, 5000));
+      expect([record(byLetter, 'p1')?.grade, record(byLetter, 'p2')?.grade]).toEqual(['partial', 'correct']);
+      // найдовше: одне шестилітерне краще за три трилітерні
+      const longest = add(add(dealt(fresh({ ...letterwords, goal: 'longest', per: 'letter', points: 10 })), 'p1', ['морква']), 'p2', ['кіт', 'сік', 'рот']);
+      const byLongest = must(lock(longest, 5000));
+      expect([record(byLongest, 'p1')?.grade, record(byLongest, 'p2')?.grade]).toEqual(['correct', 'partial']);
+    });
+
+    it('points stop at the question price times the round multiplier', () => {
+      // 20 за слово, стеля 10 слів = 200; 12 слів дали б 240
+      const s = must(lock(add(dealt(fresh()), 'p1', threes(12), 1000, anyWord), 5000));
+      expect(points(s, 'p1')).toBe(200);
+      expect(letterPoints(s, s.plays[0], threes(12))).toBe(200);
+      expect(letterPoints(s, s.plays[0], threes(9))).toBe(180);
+      // за літеру 10, стеля 40 літер = 400; 15 трилітерних = 45 літер
+      const perLetter = must(lock(add(dealt(fresh({ ...letterwords, per: 'letter', points: 10 })), 'p1', threes(15), 1000, anyWord), 5000));
+      expect(points(perLetter, 'p1')).toBe(400);
+      // множник раунду ×2 піднімає й стелю: 400
+      const doubled = must(lock(add(dealt(fresh(letterwords, { rules: { ...DEFAULT_RULES, multiplier: 2 as const } })), 'p1', threes(12), 1000, anyWord), 5000));
+      expect(points(doubled, 'p1')).toBe(400);
     });
 
     it('most words, per letter', () => {
@@ -171,6 +202,7 @@ describe('letter words', () => {
       const open = dealt(must(setConnected(must(next(must(start(away)), 0)), 'p4', true, 500)));
       const s = must(lock(add(add(open, 'p4', ['сова']), 'p1', ['кіт']), 5000));
       expect([points(s, 'p1'), points(s, 'p4')]).toEqual([20, 20]);
+      expect([record(s, 'p1')?.grade, record(s, 'p4')?.grade]).toEqual(['correct', 'correct']);
       const removed = must(removePlayer(s, 'p4'));
       expect(points(removed, 'p1')).toBe(20);
       expect(record(removed, 'p4')).toBeUndefined();
@@ -207,6 +239,7 @@ describe('letter words', () => {
     t = add(t, 't2', ['кіт']);
     const locked = must(lock(t, 5000));
     expect([points(locked, 't1'), points(locked, 't2')]).toEqual([60, 30]);
+    expect([record(locked, 't1')?.grade, record(locked, 't2')?.grade]).toEqual(['correct', 'partial']);
   });
 
   it('on a board cell only the chooser plays and the cell mark multiplies', () => {
@@ -218,7 +251,11 @@ describe('letter words', () => {
     expect(one.phase).toBe('question');
     const timed = tick(one, 90_001);
     expect(points(timed, 'p1')).toBe(120);
+    expect(record(timed, 'p1')).toMatchObject({ grade: 'correct', accepted: true });
     expect(record(timed, 'p2')).toBeUndefined();
+    // стеля з позначкою ×3: 10 слів × 20 × 3 = 600, а 12 слів дали б 720
+    const many = tick(add(s, 'p1', threes(12), 1000, anyWord), 90_001);
+    expect(points(many, 'p1')).toBe(600);
   });
 
   it('on a board cell with a minus the silent chooser gets a record with 0', () => {

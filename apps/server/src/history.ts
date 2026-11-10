@@ -647,6 +647,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         question: cloudRows === undefined ? question : { ...question, rows: cloudRows },
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
+        ...(ref?.letterwords === undefined || question.type !== 'letterwords' ? {} : { letterwords: ref.letterwords }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
         responses: responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz), appeals.filter((a) => a.questionIndex === index), awayMarks.filter((a) => a.questionIndex === index)),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),

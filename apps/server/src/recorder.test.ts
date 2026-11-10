@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, timedlist, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -197,10 +197,23 @@ describe('recorder', () => {
     ctx.host('lock');
     const { answers } = await ctx.saved();
 
-    // 20 балів за слово.
+    // 20 балів за слово; зараховано лише найкращому результату.
     expect(answers).toHaveLength(2);
-    expect(answers[0]).toMatchObject({ accepted: true, points: 20, payload: { type: 'letterwords', words: ['кіт'], longest: 3 } });
+    expect(answers[0]).toMatchObject({ accepted: false, points: 20, payload: { type: 'letterwords', words: ['кіт'], longest: 3 } });
     expect(answers[1]).toMatchObject({ accepted: true, points: 60, payload: { type: 'letterwords', words: ['кіт', 'сік', 'морква'], longest: 6 } });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a letter words question keeps the dealt letters and the longest possible words in the play journal', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([letterwordsRandom], { speedBonus: false }));
+    ctx.host('start');
+    ctx.host('next');
+    const dealt = ctx.room.state.plays[0].letterwords;
+    expect(dealt?.letters).toHaveLength(9);
+    ctx.host('lock');
+    ctx.host('next');
+    const { games } = await ctx.saved();
+    expect(games[0].plays[0]).toEqual({ roundIndex: 0, questionId: letterwordsRandom.id, letterwords: { letters: dealt?.letters, best: dealt?.best } });
     expect(ctx.errors).toEqual([]);
   });
 

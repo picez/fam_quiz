@@ -1305,6 +1305,7 @@ function playerLetterWords(state: GameState, playerId: string): PlayerLetterWord
   const { play } = open;
   if (play.board !== undefined && play.board.chooserId !== playerId) return undefined;
   const words = letterWordsOf(state, playerId).words.map((text) => ({ text, letters: wordLetters(text).length }));
+  // Кінця часу зріз не знає (у нього немає now): між endsAt і закриттям поле гасить телефон за годинником (PlayerScreen).
   const canType = state.phase === 'question' && !state.paused && (play.letterwords?.best ?? null) !== null;
   return { words, canType };
 }

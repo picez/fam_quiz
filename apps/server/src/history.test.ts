@@ -718,8 +718,9 @@ describe('host history: answers', () => {
     expect(result.questions[0].question.type).toBe('letterwords');
     expect(result.questions[0].responses).toMatchObject([
       { nickname: 'Олена', answer: { type: 'letterwords', words: ['кіт', 'сік', 'морква'], longest: 6 }, accepted: true },
-      { nickname: 'Тарас', answer: { type: 'letterwords', words: ['острів'], longest: 6 }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'letterwords', words: ['острів'], longest: 6 }, accepted: false },
     ]);
+    expect(result.questions[0]).toMatchObject({ answered: 2, accepted: 1, letterwords: { letters: [...'морквасті'], best: room.state.plays[0].letterwords?.best } });
     expect(standings.map((s) => [s.nickname, s.score])).toEqual([
       ['Олена', engine[olena]],
       ['Тарас', engine[taras]],

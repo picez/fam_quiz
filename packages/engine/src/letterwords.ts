@@ -1,4 +1,4 @@
-import { LIMITS, fitsLetters, ladderKey, rulesOf, wordLetters, type Question } from '@quiz/shared';
+import { LIMITS, fitsLetters, ladderKey, questionPrice, rulesOf, wordLetters, type Grade, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { betsRefusal } from './bets';
@@ -53,14 +53,22 @@ function longestOf(words: readonly string[]): number {
   return words.reduce((most, w) => Math.max(most, wordLetters(w).length), 0);
 }
 
-/** Бали гравця (команди) за словами: сума за одиницю × множник раунду × позначка клітинки (ціна клітинки не діє). */
+/** Результат гравця (команди) в одиницях цілі: слів, літер у сумі чи літер у найдовшому слові. */
+function measureOf(question: Extract<Question, { type: 'letterwords' }>, words: readonly string[]): number {
+  if (question.goal === 'longest') return longestOf(words);
+  return question.per === 'word' ? words.length : words.reduce((sum, w) => sum + wordLetters(w).length, 0);
+}
+
+/**
+ * Бали гравця (команди) за словами: сума за одиницю × множник раунду × позначка клітинки (ціна клітинки не діє).
+ * Стеля — ціна запитання (questionPrice: 10 слів, 40 літер чи 7 літер) з тими самими множниками.
+ */
 export function letterPoints(state: GameState, play: Play, words: readonly string[]): number {
   const question = play.question;
   if (question.type !== 'letterwords') return 0;
-  const unit = question.points * rulesOf(state.quiz.rounds[play.roundIndex]).multiplier * (play.board?.multiplier ?? 1);
-  if (question.goal === 'longest') return Math.round(unit * longestOf(words));
-  const count = question.per === 'word' ? words.length : words.reduce((sum, w) => sum + wordLetters(w).length, 0);
-  return Math.round(unit * count);
+  const multiplier = rulesOf(state.quiz.rounds[play.roundIndex]).multiplier * (play.board?.multiplier ?? 1);
+  const cap = Math.round(questionPrice(question) * multiplier);
+  return Math.min(cap, Math.round(question.points * multiplier * measureOf(question, words)));
 }
 
 /**
@@ -92,25 +100,28 @@ export function letterWord(state: GameState, playerId: string, word: string, now
   return ok(withPlay(state, { ...play, letterwords: { ...letters, progress: { ...letters.progress, [playerId]: { words: [...progress.words, key] } } } }));
 }
 
-/** Запис гравця (команди): правильно, коли є хоча б одне слово; точність — частка можливих слів чи найдовшого можливого. */
-function lettersRecord(state: GameState, play: LettersPlay, words: string[], timeMs: number): AnswerRecord {
+/**
+ * Запис гравця (команди): правильно — найкращий результат серед усіх (нічия теж), частково — є слова, але не найкращий,
+ * неправильно — жодного слова. Точність — частка можливих слів чи найдовшого можливого.
+ */
+function lettersRecord(state: GameState, play: LettersPlay, words: string[], best: number, timeMs: number): AnswerRecord {
   const longest = longestOf(words);
-  const { possible, best } = play.letterwords ?? { possible: null, best: null };
-  const top = best?.[0];
+  const { possible, best: top } = play.letterwords ?? { possible: null, best: null };
+  const first = top?.[0];
   const accuracy =
-    possible === null || possible === 0 || top === undefined
+    possible === null || possible === 0 || first === undefined
       ? 0
       : play.question.goal === 'longest'
-        ? Math.min(1, longest / wordLetters(top).length)
+        ? Math.min(1, longest / wordLetters(first).length)
         : Math.min(1, words.length / possible);
-  const correct = words.length > 0;
+  const grade: Grade = words.length === 0 ? 'wrong' : measureOf(play.question, words) >= best ? 'correct' : 'partial';
   const points = letterPoints(state, play, words);
   return {
     answer: { type: 'letterwords', words, longest },
     timeMs,
-    accepted: correct,
+    accepted: grade === 'correct',
     accuracy,
-    grade: correct ? 'correct' : 'wrong',
+    grade,
     basePoints: points,
     streakBonus: 0,
     points,
@@ -121,20 +132,22 @@ function lettersRecord(state: GameState, play: LettersPlay, words: string[], tim
 /**
  * На етапі question: записи тим, хто склав хоча б одне слово; на клітинці поля той, хто вибрав і нічого не склав, — запис з 0
  * (як у списку: інакше unansweredIsWrong дав би мінус ціни клітинки). Бали кожного — лише за його слова, тож вилучення інших
- * гравців їх не змінює. Інакше стан той самий. Швидкість, «частково», мінус-штраф раунду й бафи не діють.
+ * гравців їх не змінює. Інакше стан той самий. Швидкість, «частково» раунду, мінус-штраф раунду й бафи не діють.
  */
 export function scoreLetterWords(state: GameState): GameState {
   const play = lettersPlay(state);
   if (state.phase !== 'question' || play === null) return state;
   const limitMs = limitMsOf(play) ?? 0;
   const answers = { ...play.answers };
-  for (const [playerId, progress] of Object.entries(play.letterwords?.progress ?? {})) {
-    if (!state.players.some((p) => p.id === playerId) || progress.words.length === 0) continue;
-    answers[playerId] = lettersRecord(state, play, progress.words, limitMs);
-  }
+  const scored = Object.entries(play.letterwords?.progress ?? {}).filter(
+    ([playerId, progress]) => state.players.some((p) => p.id === playerId) && progress.words.length > 0,
+  );
+  // Найкращий результат серед усіх (без стелі балів): його власники — «правильно».
+  const best = scored.reduce((most, [, progress]) => Math.max(most, measureOf(play.question, progress.words)), 0);
+  for (const [playerId, progress] of scored) answers[playerId] = lettersRecord(state, play, progress.words, best, limitMs);
   const chooser = play.board?.chooserId;
   if (chooser !== undefined && state.players.some((p) => p.id === chooser) && !Object.hasOwn(answers, chooser)) {
-    answers[chooser] = lettersRecord(state, play, [], limitMs);
+    answers[chooser] = lettersRecord(state, play, [], best, limitMs);
   }
   return withPlay(state, { ...play, answers });
 }

@@ -582,7 +582,7 @@ describe('letter words (27d)', () => {
     }
   });
 
-  it('letter words reach the engine with the room dictionary and change the answer stamp', () => {
+  it('letter words reach the engine with the room dictionary and change the view only on an accepted word', () => {
     const manager = new RoomManager(new FakeScheduler(), () => 0.5, { nouns: NOUNS });
     const room = manager.create(makeQuiz([letterwords]));
     manager.connect(room, HOST);
