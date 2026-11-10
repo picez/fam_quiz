@@ -592,7 +592,8 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
   },
-  // Постамент plinth(0.22, 0.2) (грань 0.156); куля r 0.1 на y 0.45; крила-віяла від (±0.05, 0.5), лице пір'їн z −0.034…−0.058.
+  // Постамент plinth(0.22, 0.2) (грань 0.156); куля r 0.1 на y 0.45; крила — три ряди пір'їн віялом від (±0.05, 0.52),
+  // лице крила на y 0.68: z −0.05 біля кореня … −0.08 на x ±0.22.
   wings: {
     surfaces: { orb: 'revolved', 'wing-left': 'flat', 'wing-right': 'flat', ...PLINTH },
     band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
@@ -600,9 +601,10 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     gems: { center: [0, 0.45, 0], axis: 'y', radius: 0.101, size: 0.04, surface: 'orb' },
     plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      // На віялі за 0.22 від кореня під кутом 0.6 від вертикалі: там пір'їни ще накривають одна одну.
-      left: spot([-0.174, 0.68, -0.045], FRONT, 0.1, 'wing-left'),
-      right: spot([0.174, 0.68, -0.045], FRONT, 0.1, 'wing-right'),
+      // На крилі за 0.2 від кореня під кутом 0.6 від вертикалі: там ряди пір'їн накривають одне одне; крило вигинається
+      // назад (z спадає на ~0.3 на кожну одиницю вбік), тож нормаль відхилена назовні.
+      left: spot([-0.174, 0.68, -0.066], unit(-0.3, 0, 1), 0.1, 'wing-left'),
+      right: spot([0.174, 0.68, -0.066], unit(0.3, 0, 1), 0.1, 'wing-right'),
       'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
