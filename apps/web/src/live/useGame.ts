@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { REACTION_SHOW_MS, type ClientToServerEvents, type CloseReason, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { freshSplash } from '../clock';
 import { dropReaction, upsertReaction } from '../reactions';
+import { emptyDrawing, needsSync, reduceDrawing, type DrawingModel } from './drawing';
 import type { Send, SendResult } from './types';
 
 /** Остання команда звуку від ведучого; seq зростає, тож кожна нова — окрема. */
@@ -12,6 +13,10 @@ export type Status = 'connecting' | 'live' | 'offline' | 'restarting' | 'unautho
 
 /** Пауза перед ручним перепідключенням, коли socket.io не робить цього сам. */
 export const RETRY_MS = 1500;
+/** «Малюнок» (28c): скільки чекати знімка, що йде слідом за першим зрізом після підключення, перш ніж просити самому. */
+export const DRAW_SNAPSHOT_WAIT_MS = 2000;
+/** Повтор draw:sync після too_soon (вікно сервера — 2 на секунду). */
+export const DRAW_SYNC_RETRY_MS = 600;
 
 /** Ключ тексту для екрана без гри чи смуги над грою. */
 export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'connecting' =>
@@ -36,7 +41,11 @@ export function useGame(auth: SocketAuth | null) {
   const [drafts, setDrafts] = useState<HostDrafts | null>(null);
   // Остання реакція кожної людини (13a), REACTION_SHOW_MS; лише в пам'яті, з розривом зникає.
   const [reactions, setReactions] = useState<Reaction[]>([]);
+  // Малюнок поточного запитання (28c): знімок + операції; лише в пам'яті, з розривом зникає.
+  const [drawing, setDrawing] = useState<DrawingModel | null>(null);
   const socketRef = useRef<GameSocket | null>(null);
+  // Запит повного малюнка; живе в ефекті сокета, назовні — requestSync.
+  const syncRef = useRef<() => void>(() => {});
 
   const code = auth?.code;
   const role = auth?.role;
@@ -53,6 +62,7 @@ export function useGame(auth: SocketAuth | null) {
     setTilts({});
     setDrafts(null);
     setReactions([]);
+    setDrawing(null);
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -65,6 +75,59 @@ export function useGame(auth: SocketAuth | null) {
     const reactionTimers = new Set<ReturnType<typeof setTimeout>>();
     // Запитання, на якому зібрано нахили: нове запитання їх скидає.
     let tiltsAt: number | null = null;
+    // Малюнок (28c). fresh — ще не було зрізу після (пере)підключення; snapshotDue — сервер от-от надішле знімок
+    // (він шле його слідом за першим зрізом), тож самому не просити; syncing — запит уже в польоті.
+    let model: DrawingModel | null = null;
+    let lastView: GameView | null = null;
+    let fresh = true;
+    let snapshotDue = false;
+    let syncing = false;
+    let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+    let syncRetry: ReturnType<typeof setTimeout> | null = null;
+    const setModel = (next: DrawingModel | null) => {
+      model = next;
+      setDrawing(next);
+    };
+    const stopDrawingTimers = () => {
+      if (snapshotTimer !== null) clearTimeout(snapshotTimer);
+      if (syncRetry !== null) clearTimeout(syncRetry);
+      snapshotTimer = null;
+      syncRetry = null;
+    };
+    const requestSync = () => {
+      if (snapshotDue || syncing || !socket.connected) return;
+      syncing = true;
+      socket.emit('draw:sync', (result) => {
+        syncing = false;
+        if (result.ok || result.error !== 'too_soon' || syncRetry !== null) return;
+        syncRetry = setTimeout(() => {
+          syncRetry = null;
+          if (lastView !== null && needsSync(model, lastView)) requestSync();
+        }, DRAW_SYNC_RETRY_MS);
+      });
+    };
+    syncRef.current = requestSync;
+    const checkDrawing = (next: GameView) => {
+      lastView = next;
+      if (fresh) {
+        fresh = false;
+        // На «Малюнку» сервер шле знімок одразу після цього зрізу: чекаємо його, а не просимо вдруге.
+        snapshotDue = next.drawing !== undefined;
+        if (snapshotDue)
+          snapshotTimer = setTimeout(() => {
+            snapshotTimer = null;
+            snapshotDue = false;
+            if (lastView !== null && needsSync(model, lastView)) requestSync();
+          }, DRAW_SNAPSHOT_WAIT_MS);
+      }
+      if (next.drawing === undefined) {
+        if (model !== null) setModel(null);
+        return;
+      }
+      // Нове запитання без жодного штриха: малюнок порожній, просити нічого.
+      if ((model === null || model.questionIndex !== next.questionIndex) && next.drawing.rev === 0) setModel(emptyDrawing(next.questionIndex));
+      if (needsSync(model, next)) requestSync();
+    };
     const again = () => {
       if (retry === null)
         retry = setTimeout(() => {
@@ -84,6 +147,17 @@ export function useGame(auth: SocketAuth | null) {
       setStageOnline(meta.stageOnline ?? true);
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
+      checkDrawing(next);
+    });
+    socket.on('drawing', (event) => {
+      if (event.kind === 'sync') {
+        snapshotDue = false;
+        if (snapshotTimer !== null) clearTimeout(snapshotTimer);
+        snapshotTimer = null;
+      }
+      const next = reduceDrawing(model, event);
+      if (next !== model) setModel(next);
+      if (next.stale) requestSync();
     });
     socket.on('audio', (command) => setAudioCommand(command));
     socket.on('awards', (step) => setAwardsSeq(step.seq));
@@ -112,6 +186,12 @@ export function useGame(auth: SocketAuth | null) {
       for (const timer of reactionTimers) clearTimeout(timer);
       reactionTimers.clear();
       setReactions([]);
+      // Малюнок: модель забувається, наступне підключення знову чекає на свій знімок.
+      stopDrawingTimers();
+      setModel(null);
+      fresh = true;
+      snapshotDue = false;
+      syncing = false;
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -136,6 +216,8 @@ export function useGame(auth: SocketAuth | null) {
     return () => {
       if (retry !== null) clearTimeout(retry);
       for (const timer of reactionTimers) clearTimeout(timer);
+      stopDrawingTimers();
+      syncRef.current = () => {};
       socket.close();
       socketRef.current = null;
     };
@@ -160,5 +242,8 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
   }, []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send };
+  /** Просить у сервера повний малюнок (28c), напр. після відмови ack художникові; поки знімок і так іде чи запит у польоті — нічого. */
+  const requestSync = useCallback(() => syncRef.current(), []);
+
+  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
 }

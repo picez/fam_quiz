@@ -50,6 +50,8 @@ function filled(question: Question): Question {
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'timedlist':
       return { ...question, text, items: question.items.map((item, i) => ({ ...item, text: `Пункт ${i + 1}` })) };
+    case 'drawing':
+      return { ...question, text, accepted: ['Соняшник'] };
     case 'moreless':
       return { ...question, text, pairs: question.pairs.map((p, i) => ({ ...p, prompt: `Що більше ${i + 1}?`, a: { text: `Лівий ${i + 1}`, value: `${i + 10}` }, b: { text: `Правий ${i + 1}`, value: `${i + 20}` } })) };
     case 'sort':
@@ -377,7 +379,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2792,6 +2794,75 @@ describe('more or less in the editor (28a)', () => {
     const question = moreQ();
     saveDraft('more-less', quizWith(question));
     expect(roundQuestions(loadDraft('more-less')!.rounds[0])[0]).toEqual(question);
+  });
+});
+
+describe('drawing in the editor (28c)', () => {
+  type Draw = Extract<Question, { type: 'drawing' }>;
+  const drawQ = (patch: Partial<Draw> = {}): Draw => ({ ...(newQuestion('drawing') as Draw), text: 'Що це?', accepted: ['Соняшник', 'соняшнік'], ...patch });
+  const place = t('problemDrawingPlace', { index: 1 });
+
+  it('a new drawing is classic only: 60 seconds, 100 points, one empty word, no video', () => {
+    const q = newQuestion('drawing') as Draw;
+    expect(q).toMatchObject({ type: 'drawing', timeLimit: LIMITS.defaultDrawingTime, points: LIMITS.defaultDrawingPoints, accepted: [''], video: null });
+    for (const round of ['blitz', 'board', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('drawing');
+    expect(questionTypesFor('classic')).toContain('drawing');
+    const ofBlitz: Quiz = { ...quizWith(drawQ()), rounds: [{ ...newBlitzRound(), questions: [drawQ()] }] };
+    expect(problemsOf(ofBlitz)).toEqual([place]);
+    expect(problemsOf({ ...quizWith(drawQ()), rounds: [{ ...newFinalRound(), questions: [drawQ()] }] })).toEqual([place]);
+  });
+
+  it('a filled drawing has no problems and passes the schema', () => {
+    const quiz = quizWith(drawQ());
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('an empty word is a problem, an empty extra spelling is dropped', () => {
+    const word = t('problemDrawingWord', { index: 1 });
+    expect(problemsOf(quizWith(drawQ({ accepted: [''] })))).toEqual([word]);
+    expect(problemsOf(quizWith(drawQ({ accepted: ['  ', 'Маяк'] })))).toEqual([word]);
+    const [question] = (cleaned(quizWith(drawQ({ accepted: [' Маяк ', '', ' маяк '] }))).rounds[0] as ClassicRound).questions as Draw[];
+    expect(question.accepted).toEqual(['Маяк', 'маяк']);
+  });
+
+  it('a spelling too long for the guess field is its own problem', () => {
+    const long = t('problemDrawingLong', { index: 1, max: LIMITS.drawGuess });
+    expect(problemsOf(quizWith(drawQ({ accepted: ['Маяк', 'м'.repeat(LIMITS.drawGuess + 1)] })))).toEqual([long]);
+    expect(problemsOf(quizWith(drawQ({ accepted: ['м'.repeat(LIMITS.drawGuess)] })))).toEqual([]);
+  });
+
+  it('a bad time or price is a limits problem', () => {
+    expect(problemsOf(quizWith(drawQ({ timeLimit: 3 })))).toEqual([t('problemLimits', { index: 1 })]);
+    expect(problemsOf(quizWith(drawQ({ points: Number.NaN })))).toEqual([t('problemLimits', { index: 1 })]);
+  });
+
+  it('a changed type keeps the spellings of a text and drops the video, the sound and the hint', () => {
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } as const;
+    const text = { ...newQuestion('text'), text: 'Що це?', accepted: ['Маяк', 'маяк'], hint: 'Світить', audio } as Question;
+    const drawing = changeType(text, 'drawing') as Draw;
+    expect(drawing).toMatchObject({ type: 'drawing', accepted: ['Маяк', 'маяк'], video: null });
+    expect('hint' in drawing || 'audio' in drawing || 'reveal' in drawing).toBe(false);
+    expect((changeType(drawing, 'text') as Extract<Question, { type: 'text' }>).accepted).toEqual(['Маяк', 'маяк']);
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question;
+    expect(changeType(withVideo, 'drawing').video).toBeNull();
+    // Підказка з імпорту чи старої чернетки не зберігається: бафів у малюнку немає.
+    const [saved] = (cleaned(quizWith({ ...drawQ(), hint: 'Жовтий' } as Question)).rounds[0] as ClassicRound).questions;
+    expect('hint' in saved!).toBe(false);
+  });
+
+  it('a copy keeps the spellings, a draft survives storage with broken fields mended', () => {
+    const question = drawQ();
+    const copy = duplicateQuestion(question) as Draw;
+    expect(copy.id).not.toBe(question.id);
+    expect(copy.accepted).toEqual(question.accepted);
+    expect(copy.accepted).not.toBe(question.accepted);
+    saveDraft('drawing', quizWith(question));
+    expect(roundQuestions(loadDraft('drawing')!.rounds[0])[0]).toEqual(question);
+    sessionStorage.setItem('quiz:draft:drawing-bad', JSON.stringify(quizWith({ ...question, accepted: 5, video: { id: 'dQw4w9WgXcQ', start: 0 }, hint: 'x' } as unknown as Question)));
+    const revived = roundQuestions(loadDraft('drawing-bad')!.rounds[0])[0] as Draw;
+    expect(revived).toMatchObject({ accepted: [''], video: null });
+    expect('hint' in revived).toBe(false);
   });
 });
 

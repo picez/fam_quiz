@@ -230,3 +230,71 @@ describe('useGame reactions (13a)', () => {
     expect(result.current.reactions).toEqual([]);
   });
 });
+
+describe('useGame drawing (28c)', () => {
+  const drawingView = (questionIndex: number, rev: number) => ({ ...view, questionIndex, drawing: { rev } }) as unknown as GameView;
+  const syncCalls = (socket: (typeof sockets)[number]) => (socket.emit as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call) => call[0] === 'draw:sync');
+  const spy = (socket: (typeof sockets)[number]) => {
+    socket.emit = vi.fn() as never;
+    return socket;
+  };
+
+  it('a drawing event gives the model, a fresh question starts empty', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    act(() => socket.fire('state', { ...view, questionIndex: 1 }, meta()));
+    expect(result.current.drawing).toBeNull();
+    act(() => socket.fire('state', drawingView(2, 0), meta()));
+    expect(result.current.drawing).toEqual({ questionIndex: 2, rev: 0, strokes: [], stale: false });
+    act(() => socket.fire('drawing', { kind: 'ops', questionIndex: 2, rev: 1, op: { op: 'begin', c: 0, w: 1, p: [10, 10] } }));
+    expect(result.current.drawing?.strokes).toEqual([{ c: 0, w: 1, p: [10, 10] }]);
+    expect(syncCalls(socket)).toHaveLength(0);
+  });
+
+  it('useDrawing resyncs when the view is ahead, but not before the snapshot that follows a connect', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    // Підключення посеред малюнка: сервер шле зріз (rev 2), а слідом — повний знімок. Просити самому не треба.
+    act(() => socket.fire('state', drawingView(2, 2), meta()));
+    act(() => socket.fire('state', drawingView(2, 2), meta()));
+    expect(syncCalls(socket)).toHaveLength(0);
+    act(() => result.current.requestSync());
+    expect(syncCalls(socket)).toHaveLength(0);
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 2, strokes: [{ c: 1, w: 0, p: [1, 1] }, { c: 1, w: 0, p: [2, 2] }] }));
+    expect(result.current.drawing).toMatchObject({ rev: 2, stale: false });
+    // Зріз випередив модель: одна подія штриха загубилася.
+    act(() => socket.fire('state', drawingView(2, 4), meta()));
+    expect(syncCalls(socket)).toHaveLength(1);
+    // Поки відповіді немає, другий запит не йде.
+    act(() => socket.fire('state', drawingView(2, 5), meta()));
+    expect(syncCalls(socket)).toHaveLength(1);
+    const ack = syncCalls(socket)[0]![1] as (result: { ok: boolean }) => void;
+    act(() => ack({ ok: true }));
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 5, strokes: [] }));
+    expect(result.current.drawing).toMatchObject({ rev: 5, strokes: [] });
+  });
+
+  it('an op past a gap asks for a sync', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    act(() => socket.fire('state', drawingView(2, 0), meta()));
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 0, strokes: [] }));
+    act(() => socket.fire('drawing', { kind: 'ops', questionIndex: 2, rev: 3, op: { op: 'undo' } }));
+    expect(result.current.drawing?.stale).toBe(true);
+    expect(syncCalls(socket)).toHaveLength(1);
+  });
+
+  it('a lost connection drops the model and the next connect waits for its snapshot again', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    act(() => socket.fire('state', drawingView(2, 0), meta()));
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 0, strokes: [] }));
+    expect(result.current.drawing).not.toBeNull();
+    act(() => socket.fire('disconnect', 'transport close'));
+    expect(result.current.drawing).toBeNull();
+    act(() => socket.fire('state', drawingView(2, 7), meta()));
+    expect(syncCalls(socket)).toHaveLength(0);
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 7, strokes: [] }));
+    expect(result.current.drawing?.rev).toBe(7);
+  });
+});

@@ -71,8 +71,15 @@ export { QUESTION_TYPES, type QuestionType };
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  * «Список на час» — так само: класика й поле, не бліц, не фінал, не ставки й не аукціон.
  * «Слова з літер» і «Більше чи менше» — так само, як «Список на час».
+ * «Малюнок» — лише класика (на полі, у бліці, фіналі, ставках, аукціоні й решті раундів його немає).
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
+  if (roundType !== 'classic') return questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing');
+  return QUESTION_TYPES;
+}
+
+/** Типи поза класикою (до відсіву «Малюнка»). */
+function questionTypesBeyondClassic(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
     return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'letterwords' && type !== 'moreless' && type !== 'bluff' && !unscored(type));
@@ -198,6 +205,11 @@ function build(common: Common, type: QuestionType): Question {
         points: LIMITS.defaultMoreLessPoints * NEW_MORELESS_PAIRS,
         pairs: Array.from({ length: NEW_MORELESS_PAIRS }, () => blankMoreLessPair(LIMITS.defaultMoreLessPoints)),
       };
+    case 'drawing': {
+      // Без відео, звуку й «перевертання»: видали б слово, а без таймера малюнок не скінчиться. Підказки немає: бафів теж.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      return { ...rest, video: null, type, timeLimit: LIMITS.defaultDrawingTime, points: LIMITS.defaultDrawingPoints, accepted: [''] };
+    }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
     case 'poll':
@@ -294,6 +306,8 @@ export function changeType(question: Question, type: QuestionType): Question {
     return made.type === 'bluff' ? { ...made, accepted: [...question.accepted] } : made;
   }
   if (question.type === 'bluff' && type === 'text') return { ...build(common, type), accepted: [...question.accepted] } as Question;
+  // Текст і малюнок: написання ті самі, перше — слово художника.
+  if ((question.type === 'text' || question.type === 'drawing') && (type === 'text' || type === 'drawing')) return { ...build(common, type), accepted: [...question.accepted] } as Question;
   return build(common, type);
 }
 
@@ -338,6 +352,7 @@ export function duplicateQuestion(question: Question): Question {
         pairs: question.pairs.map((pair) => ({ left: { ...pair.left, id: newId() }, right: { ...pair.right, id: newId() } })),
       };
     case 'text':
+    case 'drawing':
       return { ...question, id, accepted: [...question.accepted] };
     case 'clues':
       return { ...question, id, clues: [...question.clues], accepted: [...question.accepted] };
@@ -722,6 +737,12 @@ const cleanBody = (question: Question): Question => {
     }
     case 'text':
       return { ...question, text, accepted: question.accepted.map((s) => s.trim()).filter((s) => s !== '') };
+    case 'drawing': {
+      // Слово — перше написання: порожнє лишається, щоб про нього сказала перевірка; порожні додаткові відкидаються. Підказки в малюнку немає.
+      const { hint: _hint, ...rest } = question;
+      const [word = '', ...others] = question.accepted.map((s) => s.trim());
+      return { ...rest, text, accepted: [word, ...others.filter((s) => s !== '')] };
+    }
     case 'bluff': {
       // Правда — перше написання: порожня лишається, щоб про неї сказала перевірка; порожні додаткові написання відкидаються.
       const [truth = '', ...others] = question.accepted.map((s) => s.trim());
@@ -857,19 +878,21 @@ interface Place {
   letterwords: boolean;
   /** Більше чи менше: так само (правило moreless_place схеми). */
   moreless: boolean;
+  /** Малюнок: лише класика, жодної клітинки поля (правило drawing_place схеми). */
+  drawing: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1083,6 +1106,11 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (pairs.reduce((sum, pair) => sum + pair.points, 0) > LIMITS.maxPoints) return 'problemMoreLessPoints';
       break;
     }
+    case 'drawing':
+      if ((question.accepted[0] ?? '') === '') return 'problemDrawingWord';
+      // Довше за поле вгадування не впише ніхто (буває з імпорту: редактор довше не пускає).
+      if (question.accepted.some((s) => s.length > LIMITS.drawGuess)) return 'problemDrawingLong';
+      break;
     case 'bluff': {
       const [truth = ''] = question.accepted;
       if (truth === '') return 'problemBluffTruth';
@@ -1123,6 +1151,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'timedlist' && !place.timedlist) return 'problemListPlace';
   if (question.type === 'letterwords' && !place.letterwords) return 'problemLettersPlace';
   if (question.type === 'moreless' && !place.moreless) return 'problemMoreLessPlace';
+  if (question.type === 'drawing' && !place.drawing) return 'problemDrawingPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
@@ -1280,6 +1309,8 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
               ? LIMITS.maxLetterSet
               : key === 'problemMoreLessPairs'
                 ? LIMITS.maxMoreLessPairs
+                : key === 'problemDrawingLong'
+                ? LIMITS.drawGuess
                 : key === 'problemListPoints' || key === 'problemListMinus' || key === 'problemLettersPoints' || key === 'problemMoreLessPairPoints' || key === 'problemMoreLessPoints'
                   ? LIMITS.maxPoints
                   : LIMITS.maxAudioSeconds,

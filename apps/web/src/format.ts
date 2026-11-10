@@ -122,6 +122,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return t('wallCorrect', { groups: question.groups.map((group) => group.name).join('; ') });
     case 'bluff':
       return question.accepted[0] ?? '';
+    case 'drawing':
+      // Слово, яке бачив художник.
+      return question.accepted[0] ?? '';
     case 'survey':
       return surveyOrder(question.rows).map((row) => `${row.text} (${row.popularity})`).join('; ');
     case 'poll':
@@ -232,6 +235,10 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return t('lettersAnswer', { n: answer.words.length, longest: answer.longest });
     case 'moreless':
       return t('morelessAnswer', { right: answer.right, total: answer.total });
+    case 'drawing':
+      // Вгадувач — що вписав; художник — скільки вгадали; решта без запису вгадування — прочерк.
+      if (answer.guess !== null) return t('drawingAnswer', { guess: answer.guess });
+      return answer.drew === null ? '—' : t('drawingDrewAnswer', { guessed: answer.drew.guessed, could: answer.drew.could });
     case 'timedlist':
       return t(answer.wrong > 0 ? 'listAnswerWrong' : 'listAnswer', { found: answer.found.length, total: answer.total, wrong: answer.wrong });
     case 'sort':

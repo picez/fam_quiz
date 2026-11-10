@@ -41,6 +41,9 @@ function started(row: LiveRow): boolean {
       return progress.words.length > 0;
     case 'moreless':
       return progress.done > 0;
+    case 'drawing':
+      // Художника видно завжди; вгадувача — коли вгадав (спроби нікому не показуються).
+      return progress.role === 'drawer' || progress.guessed;
     case 'sort':
       return progress.sorted > 0 || progress.misses > 0;
     case 'wall':
@@ -97,6 +100,10 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         break;
       case 'moreless':
         parts.push(t('morelessLive', { done: progress.done, total: progress.total, right: progress.right }));
+        break;
+      case 'drawing':
+        // Що вгадав вгадувач — уже у відповіді рядка.
+        if (progress.role === 'drawer') parts.push(t('drawingLive'));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));

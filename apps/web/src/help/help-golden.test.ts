@@ -57,6 +57,12 @@ describe('host help uk golden', () => {
     expect(JSON.stringify(helpEntry('question.moreless'))).not.toMatch(/швидк/i);
   });
 
+  it('drawing help says nothing about speed and names only household words', () => {
+    const text = JSON.stringify(helpEntry('question.drawing'));
+    expect(text).not.toMatch(/швидк/i);
+    expect(text).toMatch(/соняшник|парасольк|маяк|равлик|вишиванк/i);
+  });
+
   it('takes the active help dictionary and falls back to uk per field', () => {
     activateLocaleForTests('en', { help: { 'round.classic.title': 'Classic' } });
     const entry = helpEntry('round.classic');

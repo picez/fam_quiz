@@ -176,6 +176,18 @@ describe('LiveAnswers', () => {
     expect(document.querySelector('.live-count')?.textContent).toMatch(/^Відповіли 0 з /);
   });
 
+  it('marks the drawer and the ones who guessed a drawing, the rest stay waiting', () => {
+    show([
+      row({ progress: { kind: 'drawing', role: 'drawer', guessed: false } }),
+      row({ id: 'b', nickname: 'Богдан', answered: true, answer: { type: 'drawing', guess: 'маяк', drew: null }, progress: { kind: 'drawing', role: 'guesser', guessed: true } }),
+      row({ id: 'c', nickname: 'Віра', progress: { kind: 'drawing', role: 'guesser', guessed: false } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows).toHaveLength(2);
+    expect(rows.find((text) => text.includes('Оля'))).toContain(t('drawingLive'));
+    expect(rows.find((text) => text.includes('Богдан'))).toContain('Вгадано: маяк');
+  });
+
   it('writes the slider distance', () => {
     show([row({ answered: true, answer: { type: 'slider', value: 47 } as never })], base({ correct: slider }));
     expect(document.querySelector('.live-answer')?.textContent).toBe('47 % · відстань 3 %');
