@@ -23579,3 +23579,404 @@ async function auctionGame27b() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 27c: a timed list — typos forgiven, repeats free, a minus only on enter, rarity points for four players, a team list, only counts on the stage', async () => {
+  try {
+    await timedListGame27c();
+    await timedListTeams27c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Поле вводу списку на телефоні (підпис мовою телефона). */
+const listInput27c = (page: Page) => page.locator('.timedlist-form input');
+
+/** Вводить слово: з enter — тисне Enter, без — чекає авто-перевірки (400 мс) і відповіді сервера. */
+async function listType27c(page: Page, word: string, { enter }: { enter: boolean }) {
+  await listInput27c(page).fill(word);
+  if (enter) await listInput27c(page).press('Enter');
+  else await page.waitForTimeout(700);
+}
+
+/** Тексти клітинок по порядку; порожня клітинка — ''. */
+const listCells27c = (page: Page) =>
+  page.locator('.timedlist-cells .timedlist-cell').evaluateAll((all) => all.map((cell) => cell.querySelector('.timedlist-text')?.textContent ?? ''));
+
+/** Лічильник «3 / 8» на телефоні (без «−50» поруч). */
+const listCount27c = (page: Page) => page.locator('.timedlist-counter').evaluate((el) => el.firstChild?.textContent ?? '');
+
+/** Кількість різних колонок у сітці клітинок. */
+const listColumns27c = (page: Page) =>
+  page.locator('.timedlist-cells .timedlist-cell').evaluateAll((all) => new Set(all.map((cell) => (cell as HTMLElement).offsetLeft)).size);
+
+/** Рядок гравця (чи команди) на табло списку. */
+const listRow27c = (page: Page, name: string) => page.locator('.timedlist-board li', { has: page.locator('.name', { hasText: new RegExp(`^${name}$`) }) });
+
+/** Пункт розкритого списку за назвою. */
+const listItem27c = (page: Page, text: string) => page.locator('.timedlist-reveal > li', { has: page.locator('.timedlist-text', { hasText: new RegExp(`^${text}$`) }) });
+
+/** Пункт у редакторі: поле назви. */
+const listItemInput27c = (page: Page, index: number) => page.locator(`input[aria-label="Пункт ${index}"]`);
+
+/** Заповнює пункти поточного запитання-списку в редакторі (3 вже є, решту додає). */
+async function fillList27c(host: Page, items: string[]) {
+  for (let n = 3; n < items.length; n++) await click(host, 'Додати пункт');
+  for (const [at, text] of items.entries()) await listItemInput27c(host, at + 1).fill(text);
+}
+
+/** «Далі» з розкриття до кінця гри: проходить таблицю, доки сцена не покаже переможців. */
+async function toWinners27c(host: Page, stage: Page) {
+  await step27a(host, 'Далі');
+  const winners = stage.getByRole('heading', { name: 'Переможці' });
+  for (let tries = 0; tries < 3; tries++) {
+    if (await winners.waitFor({ timeout: 4000 }).then(() => true, () => false)) return;
+    for (const name of ['Наступне запитання', 'Далі', 'Завершити гру']) {
+      const button = host.getByRole('button', { name, ...exact });
+      if ((await button.count()) > 0 && !(await button.isDisabled())) {
+        await button.click();
+        break;
+      }
+    }
+  }
+  await winners.waitFor();
+}
+
+const PLANETS27C = ['Меркурій', 'Венера', 'Земля', 'Марс', 'Юпітер', 'Сатурн', 'Уран', 'Нептун'];
+const RAINBOW27C = ['Червоний', 'Помаранчевий', 'Жовтий', 'Зелений', 'Блакитний', 'Синій', 'Фіолетовий'];
+
+async function timedListGame27c() {
+  // ── Редактор: класичний раунд, два списки — планети (мінус 50, 90 с) і веселка (без мінуса, 60 с). ──
+  const host = await open('host27c', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host27c@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Список 27c');
+  await click(host, 'список на час');
+  await questionText(host).fill('Планети Сонячної системи');
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a timed list has no video').toBe(0);
+  expect(await listItemInput27c(host, 3).count(), 'three blank items to start').toBe(1);
+  await fillList27c(host, PLANETS27C);
+  const mars = host.getByRole('group', { name: 'Інші написання пункту 4', ...exact });
+  await mars.getByRole('button', { name: 'Додати написання', ...exact }).click();
+  await mars.getByLabel('Написання 1', exact).fill('Червона планета');
+  await field(host, 'Ціна пункту').fill('100');
+  await field(host, 'Мінус за слово не зі списку').setChecked(true);
+  expect(await field(host, 'Скільки знімати').inputValue(), 'the default minus').toBe('50');
+  await field(host, 'Час, с').fill('90');
+
+  await click(host, 'Додати запитання');
+  await click(host, 'список на час');
+  await questionText(host).fill('Кольори веселки');
+  // Сьомий пункт спершу — «синій» удруге: збереження називає проблему.
+  await fillList27c(host, [...RAINBOW27C.slice(0, 6), 'синій']);
+  await field(host, 'Ціна пункту').fill('100');
+  expect(await field(host, 'Мінус за слово не зі списку').isChecked(), 'a minus by default').toBe(false);
+  await field(host, 'Час, с').fill('60');
+  const duplicate = 'Запитання 2: «синій» веде у два пункти.';
+  await click(host, 'Зберегти');
+  await host.getByText(duplicate, exact).first().waitFor();
+  await shot(host, 'timedlist27c-editor');
+  await listItemInput27c(host, 7).fill('Фіолетовий');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Список 27c' }).waitFor();
+  expect(await host.getByText(duplicate).count(), 'the duplicate problem after the fix').toBe(0);
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Список 27c')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    rounds: { type: string; questions: { type: string; items: { text: string; accepted: string[] }[] }[] }[];
+  };
+  expect(stored.rounds[0]!.type).toBe('classic');
+  const [planets, rainbow] = stored.rounds[0]!.questions;
+  expect(planets).toMatchObject({ type: 'timedlist', points: 100, minus: 50, timeLimit: 90, video: null });
+  expect(planets!.items.map((item) => item.text)).toEqual(PLANETS27C);
+  expect(planets!.items[3]!.accepted).toEqual(['Червона планета']);
+  expect(rainbow).toMatchObject({ type: 'timedlist', points: 100, minus: null, timeLimit: 60 });
+  expect(rainbow!.items.map((item) => item.text)).toEqual(RAINBOW27C);
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27c', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya27c', 375, 812);
+  const taras = await open('taras27c', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  const ira = await open('ira27c', 360, 740);
+  const jose = await open('jose27c', 320, 640, { locale: 'es-ES' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, ira, jose];
+  const scores = async (wanted: [string, string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await listInput27c(page).waitFor();
+
+  // Сцена: підказка про телефон, рядки «0 / 8».
+  await stage.getByText('Пишіть пункти на телефоні', exact).waitFor();
+  await olya.getByText('Слово не зі списку: −50', exact).waitFor();
+  expect(await listCells27c(olya), 'empty cells before any find').toEqual(Array(8).fill(''));
+  expect(await olya.locator('.timedlist-cell .timedlist-n').allTextContents()).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+
+  // ── Оля: описка без Enter стає в клітинку 5. ──
+  await listInput27c(olya).fill('Юпітр');
+  await expect.poll(() => listCells27c(olya), POLL).toEqual(['', '', '', '', 'Юпітер', '', '', '']);
+  expect(await listCount27c(olya)).toBe('1 / 8');
+  await expect.poll(() => listInput27c(olya).inputValue(), POLL).toBe('');
+  await olya.waitForTimeout(300);
+  await shot(olya, 'timedlist27c-phone-found');
+  // Повтор з Enter — без мінуса й без нової клітинки; знайдена клітинка блимає.
+  await listType27c(olya, 'юпітер', { enter: true });
+  await expect.poll(() => olya.locator('.timedlist-status').textContent(), POLL).toBe('Цей пункт уже знайдено');
+  await olya.locator('.timedlist-cell.is-again').waitFor({ timeout: 2000 }).catch(() => undefined);
+  await shot(olya, 'timedlist27c-phone-repeat');
+  expect(await listCount27c(olya)).toBe('1 / 8');
+  expect(await olya.locator('.timedlist-minus-flash').count(), 'a minus for a repeat').toBe(0);
+  expect(await olya.locator('.timedlist-wrong').count(), 'a mistake for a repeat').toBe(0);
+  await listType27c(olya, 'Венера', { enter: false });
+  await listType27c(olya, 'червона планета', { enter: true });
+  await expect.poll(() => listCount27c(olya), POLL).toBe('3 / 8');
+  expect(await listCells27c(olya)).toEqual(['', 'Венера', '', 'Марс', 'Юпітер', '', '', '']);
+  // «Плутон» без Enter — нічого: ні мінуса, ні помилки, слово лишається в полі.
+  await listType27c(olya, 'Плутон', { enter: false });
+  expect(await listInput27c(olya).inputValue()).toBe('Плутон');
+  expect(await olya.locator('.timedlist-minus-flash').count(), 'a minus while typing').toBe(0);
+  expect(await olya.locator('.timedlist-wrong').count(), 'a mistake while typing').toBe(0);
+  await shot(olya, 'timedlist27c-phone-typing');
+  // Тепер з Enter — «−50» біля лічильника і «Помилок: 1».
+  await listInput27c(olya).press('Enter');
+  await olya.locator('.timedlist-minus-flash').getByText('−50', exact).waitFor();
+  await olya.locator('.timedlist-wrong').getByText('Помилок: 1', exact).waitFor();
+  expect(await olya.locator('.timedlist-status').textContent()).toBe('Такого пункту немає в списку');
+  await olya.waitForTimeout(350);
+  await shot(olya, 'timedlist27c-phone-minus');
+
+  // Тарас — три пункти, Іра й Хосе — Юпітер.
+  await listType27c(taras, 'Юпітер', { enter: true });
+  await listType27c(taras, 'Венера', { enter: false });
+  await listType27c(taras, 'Меркурій', { enter: true });
+  await expect.poll(() => listCount27c(taras), POLL).toBe('3 / 8');
+  await listType27c(ira, 'Юпітер', { enter: false });
+  await expect.poll(() => listCount27c(ira), POLL).toBe('1 / 8');
+  await listType27c(jose, 'Юпітер', { enter: true });
+  await expect.poll(() => listCount27c(jose), POLL).toBe('1 / 8');
+  expect(await listCells27c(taras)).toEqual(['Меркурій', 'Венера', '', '', 'Юпітер', '', '', '']);
+
+  // Хосе (es, 320): клітинки у дві колонки, без прокрутки вбік.
+  await jose.getByText(es.listMinusNote!.replace('{minus}', '50'), exact).waitFor();
+  expect(await listColumns27c(jose), 'cell columns at 320 px').toBe(2);
+  // Кадр — після анімації появи щойно знайденої клітинки.
+  await jose.waitForTimeout(300);
+  await expectNoSideScroll(jose, 'timedlist27c-phone-es-320');
+  expect(await listColumns27c(taras), 'cell columns at 360 px').toBe(2);
+  await expectNoSideScroll(taras, 'timedlist27c-phone-360');
+
+  // Сцена: лише лічильники; жодної назви пункту.
+  for (const [name, count] of [['Оля', '3 / 8'], ['Тарас', '3 / 8'], ['Іра', '1 / 8'], ['Хосе', '1 / 8']] as const) {
+    await expect.poll(() => listRow27c(stage, name).locator('.tag').first().textContent(), POLL).toBe(count);
+  }
+  await listRow27c(stage, 'Оля').getByText('Помилок: 1', exact).waitFor();
+  const stageHtml = await stage.content();
+  const stageSeen = stageFrames.join(NL);
+  for (const hidden of ['Меркурій', 'Марс', 'Червона планета', 'Нептун', 'Юпітер']) {
+    expect(stageHtml, `«${hidden}» in the stage DOM before the reveal`).not.toContain(hidden);
+    expect(stageSeen, `«${hidden}» sent to the stage before the reveal`).not.toContain(hidden);
+  }
+  expect(tarasFrames.join(NL), 'Olya’s Mars sent to Taras').not.toContain('Марс');
+  expect(tarasFrames.join(NL), 'a spelling sent to Taras').not.toContain('Червона планета');
+  expect(await stage.locator('.timedlist-reveal').count(), 'the list on the stage before the reveal').toBe(0);
+  await shot(stage, 'timedlist27c-stage-question');
+
+  // Пульт: знахідки Олі наживо й увесь список.
+  await host.locator('#live-answers').waitFor();
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain('3 / 8');
+  const olyaLive = await liveRow(host, 'Оля').innerText();
+  for (const found of ['Юпітер', 'Венера', 'Марс']) expect(olyaLive, `«${found}» in Olya’s live row`).toContain(found);
+  // Увесь список із номерами — у рядку правильної відповіді (панель списку ховається, поки є «Відповіді наживо», як у драбини).
+  await host.getByText(`Правильна відповідь: ${PLANETS27C.map((text, at) => `${at + 1}. ${text}`).join(', ')}`, exact).waitFor();
+  await shot(host, 'timedlist27c-host-live');
+
+  // ── Закриття й розкриття: увесь список із тими, хто знайшов. ──
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => stage.locator('.timedlist-reveal > li').count(), POLL).toBe(8);
+  expect(await stage.locator('.timedlist-reveal .timedlist-text').allTextContents()).toEqual(PLANETS27C);
+  const jupiter = await listItem27c(stage, 'Юпітер').locator('.timedlist-finders').textContent();
+  for (const name of ['Оля', 'Тарас', 'Іра', 'Хосе']) expect(jupiter, `${name} among the Jupiter finders`).toContain(name);
+  expect(await listItem27c(stage, 'Юпітер').locator('.score').textContent()).toBe('+25');
+  expect(await listItem27c(stage, 'Венера').locator('.timedlist-finders').textContent()).toBe('Знайшли: Оля, Тарас');
+  expect(await listItem27c(stage, 'Венера').locator('.score').textContent()).toBe('+75');
+  expect(await listItem27c(stage, 'Марс').locator('.timedlist-finders').textContent()).toBe('Знайшли: Оля');
+  expect(await listItem27c(stage, 'Марс').locator('.score').textContent()).toBe('+100');
+  expect(await listItem27c(stage, 'Меркурій').locator('.score').textContent()).toBe('+100');
+  expect(await listItem27c(stage, 'Нептун').locator('.timedlist-finders').textContent()).toBe('Ніхто не знайшов');
+  expect(await listItem27c(stage, 'Нептун').locator('.score').count()).toBe(0);
+  // Спеллінги не потрапляють і на розкриття.
+  expect(await stage.content(), 'a spelling on the reveal').not.toContain('Червона планета');
+  for (const [name, points] of [['Оля', '+150'], ['Тарас', '+200'], ['Іра', '+25'], ['Хосе', '+25']] as const) {
+    await expect.poll(() => listRow27c(stage, name).locator('.score').textContent(), POLL).toBe(points);
+  }
+  await scores(['150', '200', '25', '25']);
+  await olya.locator('.timedlist-reveal > li.is-mine').first().waitFor();
+  expect(await olya.locator('.timedlist-reveal > li.is-mine').count(), 'Olya’s own finds highlighted').toBe(3);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'timedlist27c-stage-reveal');
+  const [height8, client8] = (await stage.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight]')) as [number, number];
+  expect(height8, `the 8-item reveal with four players scrolls the stage (${height8} > ${client8})`).toBeLessThanOrEqual(client8);
+  await shot(olya, 'timedlist27c-phone-reveal');
+  await shot(jose, 'timedlist27c-phone-es-reveal');
+
+  // ── Запитання 2 (без мінуса). ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await expect.poll(() => listCount27c(page).catch(() => ''), POLL).toBe('0 / 7');
+  expect(await olya.getByText('Слово не зі списку', { exact: false }).count(), 'the minus note without a minus').toBe(0);
+  await listType27c(olya, 'синій', { enter: false });
+  await listType27c(olya, 'фіолетовй', { enter: false });
+  await expect.poll(() => listCount27c(olya), POLL).toBe('2 / 7');
+  await listType27c(olya, 'Плутон', { enter: true });
+  await expect.poll(() => olya.locator('.timedlist-status').textContent(), POLL).toBe('Такого пункту немає в списку');
+  expect(await olya.locator('.timedlist-minus-flash').count(), 'a minus with the minus off').toBe(0);
+  expect(await olya.locator('.timedlist-wrong').count(), 'a mistake line with the minus off').toBe(0);
+  await listType27c(taras, 'синій', { enter: true });
+  await expect.poll(() => listCount27c(taras), POLL).toBe('1 / 7');
+  expect(await listRow27c(stage, 'Оля').locator('.timedlist-wrong').count(), 'a mistake on the stage with the minus off').toBe(0);
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => listItem27c(stage, 'Синій').locator('.score').textContent(), POLL).toBe('+75');
+  expect(await listItem27c(stage, 'Синій').locator('.timedlist-finders').textContent()).toBe('Знайшли: Оля, Тарас');
+  expect(await listItem27c(stage, 'Фіолетовий').locator('.score').textContent()).toBe('+100');
+  await expect.poll(() => listRow27c(stage, 'Оля').locator('.score').textContent(), POLL).toBe('+175');
+  expect(await listRow27c(stage, 'Тарас').locator('.score').textContent()).toBe('+75');
+  await scores(['325', '275', '25', '25']);
+
+  // ── Історія гри. ──
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Список 27c/ }).click();
+  for (const [title, line] of [['Планети Сонячної системи', 'Знайдено 3 з 8 · помилок: 1'], ['Кольори веселки', 'Знайдено 2 з 7']] as const) {
+    const question = host.locator('.rows.stacked > li', { hasText: title });
+    await question.getByText(/Відповіді \(\d+\)/).click();
+    await question.locator('.responses li', { hasText: 'Оля' }).getByText(line, exact).waitFor();
+  }
+  await shot(host, 'timedlist27c-history');
+
+  expect(problems).toEqual([]);
+}
+
+const CITIES27C = ['Київ', 'Львів', 'Харків', 'Одеса', 'Дніпро', 'Вінниця', 'Полтава', 'Ужгород'];
+/** 30 міст для перевірки, що розкриття на 30 пунктів уміщається на сцені 1600 × 900. */
+const CITIES30_27C = [
+  'Київ', 'Львів', 'Харків', 'Одеса', 'Дніпро', 'Запоріжжя', 'Вінниця', 'Полтава', 'Чернігів', 'Черкаси',
+  'Житомир', 'Суми', 'Рівне', 'Луцьк', 'Тернопіль', 'Хмельницький', 'Ужгород', 'Чернівці', 'Івано-Франківськ', 'Кропивницький',
+  'Миколаїв', 'Херсон', 'Кам’янець-Подільський', 'Білгород-Дністровський', 'Біла Церква', 'Кременчук', 'Мукачево', 'Умань', 'Ніжин', 'Дрогобич',
+];
+
+async function timedListTeams27c() {
+  const host = await open('host27ct', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host27ct@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 90, minus: null };
+  const items = (texts: string[], prefix: string) => texts.map((text, at) => ({ id: `${prefix}${at + 1}`, text, accepted: [] as string[] }));
+  const l1 = { ...common, id: 'l1', type: 'timedlist' as const, text: 'Обласні центри України', points: 100, items: items(CITIES27C, 'c') };
+  const l2 = { ...common, id: 'l2', type: 'timedlist' as const, text: 'Міста України', points: 50, items: items(CITIES30_27C, 'm') };
+  const round = classicRound('rt27c', [l1, l2] as never, { title: 'Команди 27c', speedBonus: false });
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'] } }), title: 'Команди 27c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 27c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27ct', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya27ct', 375, 812);
+  const petro = await open('petro27ct', 375, 812);
+  const ira = await open('ira27ct', 375, 812);
+  const marko = await open('marko27ct', 375, 812);
+  const markoFrames = socketFrames(marko);
+  const phones = [olya, petro, ira, marko];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Сині'],
+    [marko, 'Марко', 'Сині'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await listInput27c(page).waitFor();
+
+  // Оля й Петро вводять різні міста — обидва лягають у спільний список Червоних.
+  await listType27c(olya, 'Київ', { enter: true });
+  await listType27c(petro, 'Харків', { enter: false });
+  for (const page of [olya, petro]) await expect.poll(() => listCells27c(page), POLL).toEqual(['Київ', '', 'Харків', '', '', '', '', '']);
+  // Петро вводить місто, яке вже знайшла Оля, — повтор.
+  await listType27c(petro, 'київ', { enter: true });
+  await expect.poll(() => petro.locator('.timedlist-status').textContent(), POLL).toBe('Цей пункт уже знайдено');
+  expect(await listCount27c(petro)).toBe('2 / 8');
+  // Іра (Сині) — Київ і Ужгород; Марко бачить їх, а знахідок Червоних — ні.
+  await listType27c(ira, 'Київ', { enter: false });
+  await listType27c(ira, 'Ужгород', { enter: true });
+  await expect.poll(() => listCells27c(marko), POLL).toEqual(['Київ', '', '', '', '', '', '', 'Ужгород']);
+  expect(markoFrames.join(NL), 'the Reds’ Kharkiv sent to Marko').not.toContain('Харків');
+  await expect.poll(() => listRow27c(stage, 'Червоні').locator('.tag').first().textContent(), POLL).toBe('2 / 8');
+  await expect.poll(() => listRow27c(stage, 'Сині').locator('.tag').first().textContent(), POLL).toBe('2 / 8');
+  await petro.waitForTimeout(300);
+  await shot(petro, 'timedlist27c-team-phone');
+
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => listItem27c(stage, 'Київ').locator('.score').textContent(), POLL).toBe('+50');
+  const kyiv = await listItem27c(stage, 'Київ').locator('.timedlist-finders').textContent();
+  for (const team of ['Червоні', 'Сині']) expect(kyiv, `${team} among the Kyiv finders`).toContain(team);
+  expect(await listItem27c(stage, 'Харків').locator('.score').textContent()).toBe('+100');
+  expect(await listItem27c(stage, 'Ужгород').locator('.score').textContent()).toBe('+100');
+  await expect.poll(() => listRow27c(stage, 'Червоні').locator('.score').textContent(), POLL).toBe('+150');
+  expect(await listRow27c(stage, 'Сині').locator('.score').textContent()).toBe('+150');
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'timedlist27c-team-stage-reveal');
+
+  // ── 30 пунктів: розкриття на сцені 1600 × 900 вміщається без прокрутки й без обрізаних назв. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await listInput27c(olya).waitFor();
+  await expect.poll(() => listCount27c(olya), POLL).toBe('0 / 30');
+  await listType27c(olya, 'Дрогобич', { enter: true });
+  await listType27c(ira, 'Кам’янець-Подільський', { enter: true });
+  await expect.poll(() => listCount27c(ira), POLL).toBe('1 / 30');
+  await olya.waitForTimeout(300);
+  await shot(olya, 'timedlist27c-phone-30');
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => stage.locator('.timedlist-reveal > li').count(), POLL).toBe(30);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'timedlist27c-stage-reveal-30');
+  const [scroll, client] = (await stage.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight]')) as [number, number];
+  expect(scroll, `the 30-item reveal scrolls the stage (${scroll} > ${client})`).toBeLessThanOrEqual(client);
+  const columns = await stage.locator('.timedlist-reveal > li').evaluateAll((all) => new Set(all.map((li) => Math.round(li.getBoundingClientRect().left))).size);
+  expect(columns, 'two columns for 30 items').toBe(2);
+  const clipped = await stage.locator('.timedlist-reveal .timedlist-text').evaluateAll((all) => all.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent));
+  expect(clipped, 'clipped item names').toEqual([]);
+
+  expect(problems).toEqual([]);
+}
