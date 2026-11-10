@@ -21,15 +21,30 @@ function fieldLetters(text: string): string[] {
 /** Великою — як на плитці. */
 const upper = (letter: string) => letter.toLocaleUpperCase('uk');
 
+/** Дотик до кнопки не забирає фокус (і клавіатуру Android) з поля. */
+const keepFocus = { onPointerDown: (event: { preventDefault: () => void }) => event.preventDefault(), onMouseDown: (event: { preventDefault: () => void }) => event.preventDefault() };
+
 /**
  * Плитки набору. used — літери, вже взяті полем: k-та плитка літери гасне, коли поле взяло цю літеру k разів.
- * onPick — додати літеру; без нього — лише показ (сцена, пульт).
+ * onPick — додати літеру; без нього — лише показ (сцена, пульт). off — гра стоїть (пауза, кінець часу): усі плитки бліді й неактивні.
  */
-export function LetterTiles({ letters, used = [], onPick, big = false }: { letters: string[]; used?: string[]; onPick?: (letter: string) => void; big?: boolean }) {
+export function LetterTiles({
+  letters,
+  used = [],
+  onPick,
+  big = false,
+  off = false,
+}: {
+  letters: string[];
+  used?: string[];
+  onPick?: (letter: string) => void;
+  big?: boolean;
+  off?: boolean;
+}) {
   const taken = new Map<string, number>();
   for (const l of used) taken.set(l, (taken.get(l) ?? 0) + 1);
   const seen = new Map<string, number>();
-  const className = big ? 'letterwords-tiles is-big' : 'letterwords-tiles';
+  const className = ['letterwords-tiles', big ? 'is-big' : '', off && onPick !== undefined ? 'is-off' : ''].filter(Boolean).join(' ');
   if (onPick === undefined) {
     return (
       <ul className={className} lang="uk" dir="ltr">
@@ -46,7 +61,7 @@ export function LetterTiles({ letters, used = [], onPick, big = false }: { lette
       {letters.map((letter, at) => {
         const nth = (seen.get(letter) ?? 0) + 1;
         seen.set(letter, nth);
-        const out = (taken.get(letter) ?? 0) >= nth;
+        const out = off || (taken.get(letter) ?? 0) >= nth;
         return (
           <button
             key={at}
@@ -54,9 +69,7 @@ export function LetterTiles({ letters, used = [], onPick, big = false }: { lette
             className="letterwords-tile"
             aria-label={t('lettersTile', { letter: upper(letter) })}
             aria-disabled={out}
-            // Дотик до плитки не забирає фокус (і клавіатуру) з поля.
-            onPointerDown={(event) => event.preventDefault()}
-            onMouseDown={(event) => event.preventDefault()}
+            {...keepFocus}
             onClick={() => {
               if (!out) onPick(letter);
             }}
@@ -104,6 +117,8 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
   /** Один запит за раз; Enter, натиснутий під час запиту, чекає тут. */
   const busy = useRef(false);
   const waiting = useRef<string | null>(null);
+  /** Слово, що зараз у запиті: другий дотик до «Додати» на ньому не ставить його в чергу вдруге. */
+  const inFlight = useRef<string | null>(null);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const known = useRef(new Set(info.words.map((w) => w.text)));
 
@@ -155,6 +170,7 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
 
   const run = async (sent: string) => {
     busy.current = true;
+    inFlight.current = sent;
     try {
       const result = await send('player:letters', { word: sent });
       if (result.ok) {
@@ -180,6 +196,7 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
       setStatus(t('err_unknown'));
     } finally {
       busy.current = false;
+      inFlight.current = null;
       // Фокус повертається, лише якщо гравець свідомо не пішов з поля: інакше клавіатура вискакувала б знову.
       const active = document.activeElement;
       if (active === null || active === document.body || active === input.current) input.current?.focus();
@@ -197,7 +214,8 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
     const now = value.current;
     if (offNow.current || fieldLetters(now).length < MIN_WORD) return;
     if (busy.current) {
-      waiting.current = now;
+      // Те саме слово вже в запиті — не дублюємо; інше — чекає своєї черги.
+      waiting.current = now === inFlight.current ? null : now;
       return;
     }
     void run(now);
@@ -224,7 +242,7 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
 
   return (
     <section className="letterwords-play">
-      <LetterTiles letters={tiles} used={fieldLetters(word)} onPick={pick} />
+      <LetterTiles letters={tiles} used={fieldLetters(word)} onPick={pick} off={off} />
       <form className="letterwords-form" onSubmit={submit}>
         <label className="field">
           <span className="meta">{t('lettersLabel')}</span>
@@ -252,16 +270,16 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
           {status}
         </p>
         <div className="letterwords-actions">
-          <button type="submit" className="btn btn-primary" disabled={off || !enough}>
+          <button type="submit" className="btn btn-primary" disabled={off || !enough} {...keepFocus}>
             {t('wordLadderAdd')}
           </button>
-          <button type="button" className="btn" aria-label={t('lettersErase')} title={t('lettersErase')} disabled={off || word === ''} onMouseDown={(event) => event.preventDefault()} onClick={erase}>
+          <button type="button" className="btn" aria-label={t('lettersErase')} title={t('lettersErase')} disabled={off || word === ''} {...keepFocus} onClick={erase}>
             ⌫
           </button>
-          <button type="button" className="btn" disabled={off || word === ''} onMouseDown={(event) => event.preventDefault()} onClick={() => change('')}>
+          <button type="button" className="btn" disabled={off || word === ''} {...keepFocus} onClick={() => change('')}>
             {t('lettersClear')}
           </button>
-          <button type="button" className="btn" disabled={letters.length < 2} onMouseDown={(event) => event.preventDefault()} onClick={shuffle}>
+          <button type="button" className="btn" disabled={off || letters.length < 2} {...keepFocus} onClick={shuffle}>
             {t('lettersShuffle')}
           </button>
         </div>

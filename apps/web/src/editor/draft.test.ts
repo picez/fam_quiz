@@ -2658,13 +2658,15 @@ describe('letter words in the editor (27d)', () => {
     expect(problemsOf(quizWith(lettersQ({ set: { kind: 'fixed', letters: "м'ясо, дім" } })))).toEqual([]);
   });
 
-  it('a unit that makes the price too big has its own problem, and a broken unit is a limits problem', () => {
+  it('a unit that makes the price too big has its own problem, and a broken unit is a limits problem about the sum', () => {
     const big = t('problemLettersPoints', { index: 1, max: LIMITS.maxPoints });
     expect(problemsOf(quizWith(lettersQ({ points: 201 })))).toEqual([big]);
     expect(problemsOf(quizWith(lettersQ({ points: 200 })))).toEqual([]);
     expect(problemsOf(quizWith(lettersQ({ per: 'letter', points: 51 })))).toEqual([big]);
     expect(problemsOf(quizWith(lettersQ({ goal: 'longest', per: 'letter', points: 286 })))).toEqual([big]);
-    expect(problemsOf(quizWith(lettersQ({ points: Number.NaN })))).toEqual([t('problemLimits', { index: 1 })]);
+    // Поле зветься «Сума»: текст про суму, а не про бали.
+    expect(problemsOf(quizWith(lettersQ({ points: Number.NaN })))).toEqual([t('problemLettersLimits', { index: 1 })]);
+    expect(problemsOf(quizWith(lettersQ({ timeLimit: 3 })))).toEqual([t('problemLettersLimits', { index: 1 })]);
   });
 
   it('letters are only for classic and a normal phone cell', () => {

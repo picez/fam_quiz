@@ -372,6 +372,7 @@
   "question.letterwords.points.0": "Per parola: importo × numero di parole. Con un importo di 20, la parola «морква» dà 20 punti.",
   "question.letterwords.points.1": "Per lettera: importo × numero di lettere di tutte le parole. Con un importo di 10, la parola «морква» dà 6 × 10 = 60 punti.",
   "question.letterwords.points.2": "Parola più lunga: importo × numero di lettere della parola più lunga del giocatore (della squadra). Con un importo di 10, la parola più lunga «морква» dà 6 × 10 = 60 punti. Il moltiplicatore del round e il segno della casella valgono; i potenziamenti e il meno del round no.",
+  "question.letterwords.points.3": "Tetto: per domanda non più dell’importo × 10 parole, × 40 lettere o × 7 lettere (per la parola più lunga), con il moltiplicatore del round e il segno della casella; è anche il prezzo sul tabellone. «Giusto» va a chi ha il risultato migliore (in caso di parità, a tutti i migliori), «giusto in parte» a chi ne ha formate meno, «sbagliato» a chi non ha nessuna parola.",
   "question.letterwords.tip.0": "Un insieme casuale contiene sempre almeno una parola. Per un insieme proprio l’editor mostra dopo una pausa quante parole si possono formare e quali sono le più lunghe.",
   "question.letterwords.title": "Parole con le lettere",
   "question.letterwords.what": "Il gioco dà un insieme di lettere e i giocatori formano parole con esso sui loro telefoni. Il dizionario controlla ogni parola; vince chi ha più parole o la parola più lunga.",

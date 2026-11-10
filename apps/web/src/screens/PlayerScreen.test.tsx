@@ -1618,6 +1618,12 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('ставок')).toBeTruthy();
   });
 
+  it('27d: when the time runs out the field and the tiles stop before the server closes the question', () => {
+    show(onQuestion({ question: lettersQuestion, endsAt: Date.now() - 1000, me: { ...me, letterwords: myWords } }));
+    expect((screen.getByLabelText('Ваше слово') as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Літера М' }).getAttribute('aria-disabled')).toBe('true');
+  });
+
   it('27d: a watcher of a board cell sees the count of the chooser', () => {
     const letterwords = { rows: [{ playerId: 'p2', nickname: 'Тарас', found: 3, top: null, more: null, points: null }], best: null, possible: null, words: null };
     show(onQuestion({ question: lettersQuestion, endsAt: Date.now() + 20_000, letterwords }));

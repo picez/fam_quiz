@@ -903,7 +903,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     Number.isInteger(points) &&
     points >= 0 &&
     points <= LIMITS.maxPoints;
-  if (!inLimits) return 'problemLimits';
+  // У «Словах з літер» поле балів зветься «Сума» (за одиницю).
+  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : 'problemLimits';
 
   switch (question.type) {
     case 'single':

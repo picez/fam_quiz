@@ -93,6 +93,49 @@ describe('LetterWordsPlay', () => {
     expect(document.activeElement).toBe(field());
   });
 
+  it('add, erase, clear and shuffle keep the focus in the field', () => {
+    render(<LetterWordsPlay info={mineOf()} question={question} paused={false} send={vi.fn<Send>()} />);
+    typeIn('мак');
+    for (const name of ['Додати', 'Стерти літеру', 'Очистити', 'Перемішати']) {
+      const button = screen.getByRole('button', { name });
+      // preventDefault на pointerdown і mousedown: на Android дотик не закриває клавіатуру.
+      expect(fireEvent.pointerDown(button), name).toBe(false);
+      expect(fireEvent.mouseDown(button), name).toBe(false);
+    }
+  });
+
+  it('while off the tiles look disabled and do nothing, shuffle too', () => {
+    for (const info of [mineOf(), mineOf({ canType: false })]) {
+      const paused = info.canType;
+      render(<LetterWordsPlay info={info} question={question} paused={paused} send={vi.fn<Send>()} />);
+      const tiles = screen.getAllByRole('button', { name: /^Літера / });
+      expect(tiles.every((el) => el.getAttribute('aria-disabled') === 'true')).toBe(true);
+      expect(document.querySelector('.letterwords-tiles.is-off')).not.toBeNull();
+      fireEvent.click(tile('м'));
+      expect(field().value).toBe('');
+      expect((screen.getByRole('button', { name: 'Перемішати' }) as HTMLButtonElement).disabled).toBe(true);
+      cleanup();
+    }
+    render(<LetterWordsPlay info={mineOf()} question={question} paused={false} send={vi.fn<Send>()} />);
+    expect(document.querySelector('.letterwords-tiles.is-off')).toBeNull();
+    expect((screen.getByRole('button', { name: 'Перемішати' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a second tap on a word already in flight does not send it again', async () => {
+    const { send, answer } = deferred();
+    render(<LetterWordsPlay info={mineOf()} question={question} paused={false} send={send} />);
+    typeIn('мама');
+    submit();
+    submit();
+    await answer({ ok: false, error: 'letters_not_in_set' });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(field().value).toBe('мама');
+    // Виправлене слово йде як завжди.
+    typeIn('мак');
+    submit();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
   it('shuffle keeps the same letters', () => {
     render(<LetterWordsPlay info={mineOf()} question={question} paused={false} send={vi.fn<Send>()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Перемішати' }));

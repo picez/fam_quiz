@@ -1,4 +1,4 @@
-import { LIMITS, letterSet, type Question } from '@quiz/shared';
+import { LIMITS, letterSet, questionPrice, type Question } from '@quiz/shared';
 import { useEffect, useState } from 'react';
 import { checkLetterWords } from '../api';
 import { t } from '../i18n';
@@ -47,7 +47,10 @@ export function LetterWordsEditor({ question, onChange }: { question: Letters; o
   }, [key]);
 
   const checked = result !== null && result.key === key ? result : null;
-  const warning = checked === null ? '' : checked.possible === 0 ? t('lettersCheckNone') : t('lettersCheckSome', { n: checked.possible, words: checked.best.join(', ') });
+  const none = checked !== null && checked.possible === 0;
+  const warning = checked === null ? '' : none ? t('lettersCheckNone') : t('lettersCheckSome', { n: checked.possible, words: checked.best.join(', ') });
+  // Попередження — лише набір без слів; «Складається слів: …» — добра новина.
+  const checkClass = warning === '' ? 'letterwords-editor-check is-empty' : none ? 'letterwords-editor-check is-none' : 'letterwords-editor-check';
 
   const chip = (on: boolean) => (on ? 'chip is-on' : 'chip');
 
@@ -104,9 +107,10 @@ export function LetterWordsEditor({ question, onChange }: { question: Letters; o
       {longest && <p className="meta">{t('lettersLongestHint')}</p>}
 
       <NumberField label={t('lettersUnit')} value={points} onChange={(value) => onChange({ ...question, points: value })} />
+      {Number.isFinite(points) && <p className="meta">{t('lettersCap', { max: questionPrice(question) })}</p>}
       <p className="meta">{t('lettersHint')}</p>
       {/* Завжди в DOM: поява попередження озвучується. */}
-      <p className={warning === '' ? 'letterwords-editor-check is-empty' : 'letterwords-editor-check'} role="status">
+      <p className={checkClass} role="status">
         {warning}
       </p>
     </div>

@@ -29,6 +29,15 @@ describe('LetterWordsEditor', () => {
     expect((screen.getByLabelText(t('lettersUnit')) as HTMLInputElement).value).toBe('20');
     expect(screen.queryByLabelText(t('lettersOwn'))).toBeNull();
     expect(screen.getByText(t('lettersHint'))).toBeTruthy();
+    // Стеля балів: 20 × 10 слів.
+    expect(screen.getByText(t('lettersCap', { max: 200 }))).toBeTruthy();
+  });
+
+  it('the cap follows the goal and the way to count', () => {
+    const { rerender } = view(letters({ per: 'letter', points: 10 }));
+    expect(screen.getByText(t('lettersCap', { max: 400 }))).toBeTruthy();
+    rerender(<LetterWordsEditor question={letters({ goal: 'longest', per: 'letter', points: 10 })} onChange={vi.fn()} />);
+    expect(screen.getByText(t('lettersCap', { max: 70 }))).toBeTruthy();
   });
 
   it('switches the source, the goal and the unit and warns about a set without words', async () => {
@@ -59,12 +68,15 @@ describe('LetterWordsEditor', () => {
     // Набір готовий: після паузи — скільки слів і найдовші.
     show(letters({ set: { kind: 'fixed', letters: 'Морк васті' } }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe(t('lettersCheckSome', { n: 5, words: 'морква, острів' })));
+    // Добра новина — спокійним тоном, не попередженням.
+    expect(screen.getByRole('status').classList.contains('is-none')).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ letters: 'Морк васті' });
 
     // Набір без слів.
     show(letters({ set: { kind: 'fixed', letters: 'бджщ' } }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe(t('lettersCheckNone')));
+    expect(screen.getByRole('status').classList.contains('is-none')).toBe(true);
 
     // Ціль «найдовше»: спосіб лише «за літеру», типова сума стає десяткою; «за слово» вимкнено з підказкою.
     show(letters());

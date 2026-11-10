@@ -372,6 +372,7 @@
   "question.letterwords.points.0": "Pro Wort: Betrag × Anzahl der Wörter. Bei einem Betrag von 20 bringt das Wort „морква“ 20 Punkte.",
   "question.letterwords.points.1": "Pro Buchstabe: Betrag × Anzahl der Buchstaben in allen Wörtern. Bei einem Betrag von 10 bringt das Wort „морква“ 6 × 10 = 60 Punkte.",
   "question.letterwords.points.2": "Längstes Wort: Betrag × Anzahl der Buchstaben im längsten Wort des Spielers (Teams). Bei einem Betrag von 10 bringt das längste Wort „морква“ 6 × 10 = 60 Punkte. Der Rundenmultiplikator und die Feldmarkierung wirken; Buffs und das Minus der Runde nicht.",
+  "question.letterwords.points.3": "Obergrenze: pro Frage höchstens Betrag × 10 Wörter, × 40 Buchstaben oder × 7 Buchstaben (beim längsten Wort), mit Rundenmultiplikator und Feldmarkierung; das ist auch der Preis auf der Tafel. „Richtig“ bekommt, wer das beste Ergebnis hat (bei Gleichstand alle Besten), „teilweise richtig“, wer weniger gebildet hat, „falsch“, wer kein Wort hat.",
   "question.letterwords.tip.0": "Eine zufällige Menge enthält immer mindestens ein Wort. Bei einer eigenen Menge zeigt der Editor nach einer Pause, wie viele Wörter sich daraus bilden lassen und welche die längsten sind.",
   "question.letterwords.title": "Wörter aus Buchstaben",
   "question.letterwords.what": "Das Spiel gibt eine Buchstabenmenge vor, und die Spieler bilden auf ihren Handys Wörter daraus. Das Wörterbuch prüft jedes Wort; gewinnt, wer die meisten Wörter oder das längste Wort hat.",

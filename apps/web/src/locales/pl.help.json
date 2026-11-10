@@ -372,6 +372,7 @@
   "question.letterwords.points.0": "Za każde słowo: kwota × liczba słów. Przy kwocie 20 słowo „морква” daje 20 punktów.",
   "question.letterwords.points.1": "Za każdą literę: kwota × liczba liter we wszystkich słowach. Przy kwocie 10 słowo „морква” daje 6 × 10 = 60 punktów.",
   "question.letterwords.points.2": "Najdłuższe słowo: kwota × liczba liter w najdłuższym słowie gracza (drużyny). Przy kwocie 10 najdłuższe słowo „морква” daje 6 × 10 = 60 punktów. Mnożnik rundy i oznaczenie pola działają; buffy i minus rundy — nie.",
+  "question.letterwords.points.3": "Limit: za pytanie nie więcej niż kwota × 10 słów, × 40 liter albo × 7 liter (dla najdłuższego słowa), z mnożnikiem rundy i oznaczeniem pola; to też cena na tablicy. „Dobrze” dostaje ten, kto ma najlepszy wynik (przy remisie — wszyscy najlepsi), „częściowo dobrze” — kto ułożył mniej, „źle” — kto nie ma żadnego słowa.",
   "question.letterwords.tip.0": "Losowy zestaw zawsze zawiera co najmniej jedno słowo. Dla własnego zestawu edytor po chwili pokaże, ile słów da się z niego ułożyć i które są najdłuższe.",
   "question.letterwords.title": "Słowa z liter",
   "question.letterwords.what": "Gra podaje zestaw liter, a gracze na telefonach układają z niego słowa. Każde słowo sprawdza słownik; wygrywa ten, kto ma najwięcej słów albo najdłuższe słowo.",

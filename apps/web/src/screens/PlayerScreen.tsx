@@ -1082,8 +1082,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Глядач клітинки поля: лише рядок того, хто вибрав (лічильник без назв).
               view.timedlist !== undefined && <TimedListBoard info={view.timedlist} reveal={false} />
             ) : question.type === 'letterwords' && me.letterwords !== undefined ? (
-              // Слова з літер (27d): у командній грі поле — у кожного учасника, слова спільні.
-              <LetterWordsPlay key={view.questionIndex} info={me.letterwords} question={question} paused={locked} send={send} />
+              // Слова з літер (27d): у командній грі поле — у кожного учасника, слова спільні. Сплив час (з особистим додатковим) гасить
+              // поле ще до того, як сервер закриє запитання: рушій однаково відповів би time_over.
+              <LetterWordsPlay key={view.questionIndex} info={me.letterwords} question={question} paused={locked || buffTimeOver} send={send} />
             ) : question.type === 'letterwords' ? (
               // Глядач клітинки поля: лише рядок того, хто вибрав (кількість слів, без самих слів).
               view.letterwords !== undefined && <LetterWordsBoard info={view.letterwords} reveal={false} />

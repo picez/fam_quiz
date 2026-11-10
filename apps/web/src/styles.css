@@ -17346,15 +17346,21 @@ button.wall-tile:disabled {
 }
 
 /* Попередження словника: не помилка, збереженню не заважає. */
+/* Перевірка набору: «Складається слів» — спокійна добра новина; набір без слів (is-none) — попередження. */
 .letterwords-editor-check {
   margin: 0;
   padding-block: 0.5rem;
   padding-inline: 0.875rem;
-  border-inline-start: 4px solid var(--amber);
+  border-inline-start: 4px solid var(--correct);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  background: color-mix(in srgb, var(--correct) 10%, transparent);
   color: var(--paper);
   overflow-wrap: anywhere;
+}
+
+.letterwords-editor-check.is-none {
+  border-inline-start-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
 }
 
 .letterwords-editor-check.is-empty {
