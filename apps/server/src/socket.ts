@@ -124,7 +124,12 @@ export interface SocketOptions {
   lookupsPerMinute?: number;
   /** Найкоротша пауза між пакетами host:drafts (12b); типово HOST_DRAFTS_MS. */
   draftsGapMs?: number;
+  /** Найкоротша пауза між зрізами кімнати від пакетів клітинок «Головоломок» (28d); типово PUZZLE_PUSH_MS. */
+  puzzleGapMs?: number;
 }
+
+/** Вікно злиття зрізів від пакетів клітинок (28d): телефон шле пакет раз на 250 мс, тож на кімнату — не частіше. */
+export const PUZZLE_PUSH_MS = 250;
 
 /** Адреса клієнта за тими самими правилами, що й request.ip у Fastify (proxy-addr). */
 export function clientAddress(socket: { handshake: { address: string; headers: Record<string, string | string[] | undefined> } }, trust: boolean | number): string {
@@ -234,6 +239,44 @@ export function attachSockets(
     }, wait);
   };
 
+  const puzzleGap = options.puzzleGapMs ?? PUZZLE_PUSH_MS;
+  /** Зрізи від пакетів клітинок (28d) за кімнатою: мить останньої розсилки й таймер замикальної. */
+  const puzzlePushes = new Map<Room, { last: number; timer: ReturnType<typeof setTimeout> | null }>();
+  const roomSockets = (room: Room) => [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
+  const dropPuzzle = (room: Room) => {
+    const entry = puzzlePushes.get(room);
+    if (entry?.timer) clearTimeout(entry.timer);
+    puzzlePushes.delete(room);
+  };
+  /** Будь-яка інша зміна йде одразу й несе найсвіжіший стан — відкладений зріз уже не потрібен. */
+  const pushedNow = (room: Room) => {
+    const entry = puzzlePushes.get(room);
+    if (entry === undefined) return;
+    if (entry.timer !== null) clearTimeout(entry.timer);
+    entry.timer = null;
+    entry.last = Date.now();
+  };
+  /** Перший зріз — одразу, далі — не частіше ніж раз на puzzleGap: у кінці вікна з найсвіжішим станом. */
+  const schedulePuzzle = (room: Room) => {
+    const entry = puzzlePushes.get(room) ?? { last: -Infinity, timer: null };
+    puzzlePushes.set(room, entry);
+    if (entry.timer !== null) return;
+    const wait = entry.last + puzzleGap - Date.now();
+    if (wait <= 0) {
+      entry.last = Date.now();
+      roomSockets(room).forEach(push);
+      scheduleDrafts(room);
+      return;
+    }
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      if (manager.get(room.code) !== room) return dropPuzzle(room);
+      entry.last = Date.now();
+      roomSockets(room).forEach(push);
+      scheduleDrafts(room);
+    }, wait);
+  };
+
   manager.onEvent((room, event) => {
     if (event.type === 'draft') {
       // Чернетка капітана — решті команди автора зрізом (10j): ні автору, ні сцені, ні іншим командам.
@@ -254,6 +297,12 @@ export function attachSockets(
     if (event.type === 'like') return;
     const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
     if (event.type === 'changed') {
+      if (event.puzzle === true) {
+        // Пакет клітинок (28d): ack уже синхронний, тож зрізи кімнати зливаються в замикальному вікні.
+        schedulePuzzle(room);
+        return;
+      }
+      pushedNow(room);
       members.forEach(push);
       // Стан змінився — чернетка могла застаріти: пульт отримує свіжий пакет.
       scheduleDrafts(room);
@@ -286,6 +335,7 @@ export function attachSockets(
     }
     if (event.type === 'moved') {
       dropDrafts(room);
+      dropPuzzle(room);
       // Кімнату веде інший процес: перепідключитися з тим самим токеном.
       for (const socket of members) {
         socket.emit('restarting');
@@ -299,7 +349,10 @@ export function attachSockets(
       void never;
       return;
     }
-    if (event.type === 'closed') dropDrafts(room);
+    if (event.type === 'closed') {
+      dropDrafts(room);
+      dropPuzzle(room);
+    }
     const leaving =
       event.type === 'kicked' ? members.filter((s) => s.data.identity.playerId === event.playerId) : members;
     const reason = event.type === 'kicked' ? (event.reason ?? 'kicked') : event.saved !== undefined ? 'saved' : 'expired';

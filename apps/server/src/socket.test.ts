@@ -709,11 +709,38 @@ describe('host presence', () => {
     const phone = await until(olena, (view) => view.role === 'player' && view.me.puzzle?.seq === 1);
     if (phone.role !== 'player') throw new Error('not a player');
     expect(phone.me.puzzle?.cells[cell]).toBe(digit);
-    const shown = await until(stage, (view) => (view.puzzle?.boards.length ?? 0) === 2);
-    expect(shown.puzzle?.boards.every((b) => b.mask[cell] === '1' && b.cells === null)).toBe(true);
+    // Зрізи від пакетів зливаються (замикальне вікно), тож чекаємо на обидві маски.
+    const shown = await until(stage, (view) => (view.puzzle?.boards.length ?? 0) === 2 && view.puzzle?.boards.every((b) => b.mask[cell] === '1') === true);
+    expect(shown.puzzle?.boards.every((b) => b.cells === null)).toBe(true);
     expect(shown.puzzle?.solution).toBeNull();
     expect(await send(olena, 'player:puzzle-done', { questionIndex: 0 })).toEqual({ ok: true });
     expect(await send(olena, 'player:puzzle', { questionIndex: 0, cells: [{ i: cell, v: '' }] })).toEqual({ ok: false, error: 'puzzle_done' });
+  });
+
+  it('grid batches reach the room at most once per window, done goes out at once', async () => {
+    const created = (await startGame(ctx.app, puzzlesQuiz())).game;
+    const { host, stage, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(stage, inPhase('question'));
+    await until(olena, inPhase('question'));
+    await pause(300);
+    const empty = [...sudoku.givens].flatMap((v, i) => (v === '0' ? [i] : [])).slice(0, 5);
+    const before = stage.states;
+    for (const i of empty) expect(await send(olena, 'player:puzzle', { questionIndex: 0, cells: [{ i, v: sudoku.solution[i] }] })).toEqual({ ok: true });
+    // П'ять пакетів поспіль: перший зріз одразу, решта — один замикальний з найсвіжішим станом.
+    const shown = await until(stage, (view) => empty.every((i) => view.puzzle?.boards[0]?.mask[i] === '1'));
+    await pause(400);
+    expect(stage.states - before).toBeLessThanOrEqual(2);
+    expect(shown.puzzle?.boards[0]?.cells).toBeNull();
+    // «Готово» — без затримки, навіть одразу після пакета.
+    expect(await send(olena, 'player:puzzle', { questionIndex: 0, cells: [{ i: empty[0], v: '' }] })).toEqual({ ok: true });
+    const started = Date.now();
+    expect(await send(olena, 'player:puzzle-done', { questionIndex: 0 })).toEqual({ ok: true });
+    const done = await until(stage, (view) => view.puzzle?.boards[0]?.done === true);
+    expect(Date.now() - started).toBeLessThan(150);
+    // Відкладений зріз злився з негайним: стерта клітинка вже порожня.
+    expect(done.puzzle?.boards[0]?.mask[empty[0]]).not.toBe('1');
   });
 
   it('player:draw and player:draw-guess are player-only and validated', async () => {

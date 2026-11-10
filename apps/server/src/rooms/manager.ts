@@ -342,7 +342,8 @@ export interface Tilt {
 
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
 export type RoomEvent =
-  | { type: 'changed' }
+  /** puzzle — зміна лише від пакета клітинок «Головоломок» (28d): socket.ts зливає такі зрізи для кімнати в замикальному вікні. */
+  | { type: 'changed'; puzzle?: true }
   /** released — ведучий (автор) звільнив місце збереженої гри (13b): гравець лишається в грі, телефон іде. */
   | { type: 'kicked'; playerId: string; reason?: 'released' }
   /** saved — гру збережено (13b): рекордер пише її як «Не завершену». */
@@ -1686,7 +1687,8 @@ export class RoomManager {
   /**
    * Пакет клітинок «Головоломок» (28d): у командній грі — будь-який учасник за команду (рушій пише його в by). Ack лише { ok: true }
    * чи відмова, без правильності. Пакет без зміни — ok без розсилки. Понад PUZZLE_BATCHES_PER_SECOND пакетів на секунду від людини — too_soon.
-   * Збереження — звичайний commit (changed): сховище зливає часті пакети у вікні saveDelayMs, тож окремого дроселя, як у малюнка, не треба.
+   * Збереження — звичайний commit: сховище зливає часті пакети у вікні saveDelayMs. Подія changed позначена puzzle: розсилку зрізів
+   * socket.ts зливає в замикальному вікні PUZZLE_PUSH_MS (інакше кожен пакет будував би зрізи для всієї кімнати).
    */
   puzzleFill(room: Room, playerId: string, questionIndex: number, cells: readonly { i: number; v: string }[]): AckResult {
     if (!this.alive(room)) return this.gone();
@@ -1696,7 +1698,7 @@ export class RoomManager {
     if (!windowAllowed(room.puzzleRate, playerId, now, PUZZLE_BATCHES_PER_SECOND)) return { ok: false, error: 'too_soon' };
     const result = puzzleFill(room.state, who.id, playerId, questionIndex, cells, now);
     if (!result.ok) return { ok: false, error: result.error };
-    if (result.state !== room.state) this.commit(room, result.state);
+    if (result.state !== room.state) this.commit(room, result.state, this.now(), true);
     return { ok: true };
   }
 
@@ -2291,8 +2293,8 @@ export class RoomManager {
     return { ok: true };
   }
 
-  /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
-  private commit(room: Room, state: GameState, at = this.now()): void {
+  /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. puzzle — зміну дав лише пакет клітинок (28d). */
+  private commit(room: Room, state: GameState, at = this.now(), puzzle = false): void {
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
     // Слова з літер (27d): роздача — до розсилки, збереження й плану автопілота; next, tick, автопілот і поле проходять тут.
@@ -2314,7 +2316,7 @@ export class RoomManager {
       this.watchAuthor(room);
     }
     this.reschedule(room);
-    this.emit(room, { type: 'changed' });
+    this.emit(room, puzzle ? { type: 'changed', puzzle: true } : { type: 'changed' });
   }
 
   /** Приводить таймери кімнати у відповідність до її стану. */
