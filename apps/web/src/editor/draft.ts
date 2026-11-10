@@ -14,6 +14,7 @@ import {
   blitzRulesSchema,
   type AnswerMode,
   type AuctionRound,
+  type TruthRound,
   type BetsRound,
   type BlitzRound,
   type BoardCategory,
@@ -308,6 +309,8 @@ export function applyRoundTime(round: Round, seconds: number): Round {
       })),
     };
   }
+  // «Правда про гравця»: запитань у раунді немає, таймер — поле самого раунду.
+  if (round.type === 'truth') return { ...round, timeLimit: seconds };
   return { ...round, questions: round.questions.map(timed) } as Round;
 }
 
@@ -520,6 +523,11 @@ export function newBetsRound(): BetsRound {
 /** Новий раунд «Аукціон»: одне запитання без обрізу, торг фіксованим кроком, помилка коштує ставки; автоматична перевірка. */
 export function newAuctionRound(): AuctionRound {
   return { id: newId(), type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: LIMITS.defaultBidStep, loss: 'bid', questions: [newQuestion('single')] };
+}
+
+/** Новий «Правда про гравця»: без запитань (їх створює гра з фактів), ціна й таймер типові (30 с). */
+export function newTruthRound(): TruthRound {
+  return { id: newId(), type: 'truth', title: '', points: LIMITS.defaultPoints, timeLimit: LIMITS.defaultTime };
 }
 
 /** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
@@ -795,6 +803,7 @@ export function cleaned(quiz: Quiz): Quiz {
     description: quiz.description.trim(),
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
+      if (round.type === 'truth') return { ...round, title };
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(noCut(cleanedQuestion(question)))) };
       if (round.type === 'bets' || round.type === 'auction') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
       if (round.type === 'survival') {
@@ -1142,6 +1151,10 @@ const betsSettingsBroken = (round: BetsRound) => betsNumbersBroken(round) || bet
 /** Крок ставки «Аукціону» поза межами 1…maxBet. Схема вимагає крок і в режимі free, тому RoundSettings при перемиканні на free повертає некоректний крок до типового. */
 const auctionNumbersBroken = (round: AuctionRound) => !wholeBet(round.bidStep, 1);
 
+/** Ціна чи таймер «Правди про гравця» поза межами. */
+const truthNumbersBroken = (round: TruthRound) =>
+  !Number.isInteger(round.points) || round.points < 0 || round.points > LIMITS.maxPoints || !Number.isInteger(round.timeLimit) || round.timeLimit < LIMITS.minTime || round.timeLimit > LIMITS.maxTime;
+
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */
 export function firstProblem(quiz: Quiz): ProblemPlace | null {
   const rounds = cleaned(quiz).rounds;
@@ -1157,6 +1170,11 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
         }
         question += cells.length;
       }
+      continue;
+    }
+    // Запитань у «Правді про гравця» немає: проблема — другий такий раунд чи числа раунду.
+    if (current.type === 'truth') {
+      if (truthNumbersBroken(current) || rounds.findIndex((r) => r.type === 'truth') !== round) return { round, question: 0, cell: null };
       continue;
     }
     // Налаштування ставок (числа, найбільша ставка) зламані: вказуємо на раунд, а не на запитання.
@@ -1362,6 +1380,11 @@ export function problemsOf(quiz: Quiz): string[] {
       for (const issue of boardRoundIssues(round)) {
         problems.push(where(t(issue === 'too_many_questions' ? 'problemBoardTooMany' : 'problemGeneric', { index: 1 })));
       }
+      return;
+    }
+    if (round.type === 'truth') {
+      if (draft.rounds.findIndex((r) => r.type === 'truth') !== roundIndex) problems.push(where(t('problemTruthOnce')));
+      if (truthNumbersBroken(round)) problems.push(where(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })));
       return;
     }
     if (round.type === 'bets') {

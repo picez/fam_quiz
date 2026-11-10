@@ -30,6 +30,7 @@ import { buffOf, isSilentRisk, questionFor } from './buffs';
 import { sortOf, sortSeq } from './sort';
 import { survivalAlive, survivalPlayOf, trialOpen } from './survival';
 import { wallOf } from './wall';
+import { truthGuessers } from './truth';
 import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
 import { duelistOf, memberOf, teamsOn } from './teams';
@@ -422,6 +423,9 @@ export function hostLive(state: GameState): HostLive | null {
     aside = asideOf('hall', hall.map((h) => answerRow(state, play, h, false)));
   } else if (play.board !== undefined) {
     who = answerersOf(state, [play.board.chooserId]);
+  } else if (play.truth !== undefined) {
+    // «Правда про гравця» (28b): чекають лише тих, хто вгадує; автор (ведучий його знає) — не в лічильнику.
+    who = answerersOf(state, truthGuessers(state, play));
   } else {
     who = answerersOf(
       state,

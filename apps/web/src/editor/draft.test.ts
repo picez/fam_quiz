@@ -4,7 +4,7 @@ import { loadDraft, saveDraft } from './draft-storage';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -2792,5 +2792,36 @@ describe('more or less in the editor (28a)', () => {
     const question = moreQ();
     saveDraft('more-less', quizWith(question));
     expect(roundQuestions(loadDraft('more-less')!.rounds[0])[0]).toEqual(question);
+  });
+});
+
+describe('truth round (28b)', () => {
+  const quizWith = (...rounds: Quiz['rounds']): Quiz => ({ ...newQuiz(), title: 'Гра', rounds });
+
+  it('a new truth round has the default price and a 30 second timer and no questions', () => {
+    expect(newTruthRound()).toMatchObject({ type: 'truth', title: '', points: LIMITS.defaultPoints, timeLimit: LIMITS.defaultTime });
+    expect(LIMITS.defaultTime).toBe(30);
+    expect(roundQuestions(newTruthRound())).toEqual([]);
+  });
+
+  it('a second truth round is a problem', () => {
+    expect(problemsOf(quizWith(newTruthRound()))).toEqual([]);
+    expect(problemsOf(quizWith(newTruthRound(), newTruthRound())).some((problem) => problem.includes(t('problemTruthOnce')))).toBe(true);
+  });
+
+  it('a bad price or timer has its own problem text', () => {
+    const problem = t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime });
+    for (const bad of [{ points: -1 }, { points: LIMITS.maxPoints + 1 }, { points: 1.5 }, { timeLimit: LIMITS.minTime - 1 }, { timeLimit: LIMITS.maxTime + 1 }, { timeLimit: Number.NaN }]) {
+      const problems = problemsOf(quizWith({ ...newTruthRound(), ...bad }));
+      expect(problems.some((p) => p.includes(problem))).toBe(true);
+      expect(problems.some((p) => p.includes(t('problemRules')))).toBe(false);
+    }
+  });
+
+  it('a draft with a truth round passes the schema after cleaning and survives storage', () => {
+    const quiz = quizWith(newTruthRound());
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+    saveDraft('truth-x', quiz);
+    expect(loadDraft('truth-x')?.rounds[0]).toMatchObject({ type: 'truth', points: LIMITS.defaultPoints, timeLimit: 30 });
   });
 });

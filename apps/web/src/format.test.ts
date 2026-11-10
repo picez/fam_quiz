@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type Answer, type Question, type RoundInfo } from '@quiz/shared';
-import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
+import { questionLabel, roundFacts, roundLabel, answerText, choiceLabel, choicesOf, correctPairs, correctText, formatDate, formatDay, orderLabelsText, pairTexts, pickedText, quizSizeText, secondsText, shownChoices, seenText, signed, sliderNumber } from './format';
 import { activateLocaleForTests } from './i18n';
 
 const base = { id: 'q', text: '?', imageUrl: null, video: null, timeLimit: 20, points: 1000 };
@@ -371,5 +371,14 @@ describe('more or less texts (28a)', () => {
   it('writes how many were right and has no single right answer to show', () => {
     expect(answerText({ type: 'moreless', picks: ['a', 'a', 'a'], right: 2, total: 3 }, moreQ)).toBe('Правильно: 2 з 3');
     expect(correctText(moreQ)).toBe('—');
+  });
+});
+
+describe('quizSizeText (28b)', () => {
+  it('a truth round is named beside the count, and instead of «0 questions»', () => {
+    expect(quizSizeText('Запитань: 5', 5, undefined)).toBe('Запитань: 5');
+    expect(quizSizeText('Запитань: 5', 5, false)).toBe('Запитань: 5');
+    expect(quizSizeText('Запитань: 5', 5, true)).toBe('Запитань: 5 · + факти гравців');
+    expect(quizSizeText('Запитань: 0', 0, true)).toBe('Запитання — з фактів гравців');
   });
 });

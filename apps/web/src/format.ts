@@ -89,6 +89,15 @@ export function questionClass(text: string): string {
 const optionText = (text: string) => (text === '' ? t('imagePlain') : text);
 
 /**
+ * Підпис розміру вікторини в списках (28b): запитань раунду «Правда про гравця» у лічильнику немає — їх дає гра з фактів.
+ * Є такий раунд — «… · + факти гравців»; інших запитань немає — лише «Запитання — з фактів гравців», а не «0 запитань».
+ */
+export function quizSizeText(countLabel: string, count: number, truth: boolean | undefined): string {
+  if (truth !== true) return countLabel;
+  return count === 0 ? t('quizTruthOnly') : `${countLabel} · ${t('quizTruthNote')}`;
+}
+
+/**
  * Правильна відповідь словами, для розкриття та пульта.
  * presented — варіанти в порядку показу: літери мають збігатися з тим, що бачать гравці.
  */

@@ -2,6 +2,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { Link } from 'react-router-dom';
 import { LOBBY_POLL_MS, type LobbyRow } from '@quiz/shared';
 import { listLobbies } from '../api';
+import { quizSizeText } from '../format';
 import { countText, t } from '../i18n';
 import { agoText } from '../locales/grammar';
 import { nickText } from '../nick';
@@ -87,7 +88,7 @@ export function LobbyList(): JSX.Element {
                   <span className="meta lobby-facts">
                     <span>{t('lobbyPlayers', { count: row.players, max: row.maxPlayers })}</span>
                     <span>{countText('lobbyRounds', row.rounds, { count: row.rounds })}</span>
-                    <span>{countText('lobbyQuestions', row.questions, { count: row.questions })}</span>
+                    <span>{quizSizeText(countText('lobbyQuestions', row.questions, { count: row.questions }), row.questions, row.truth)}</span>
                     <span>{age < 60_000 ? t('lobbyJustNow') : t('lobbyOpened', { ago: agoText(age) })}</span>
                   </span>
                   {row.friends.length > 0 && (

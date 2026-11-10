@@ -10,6 +10,7 @@ import {
   newBlitzRound,
   newBoardRound,
   newAuctionRound,
+  newTruthRound,
   newBetsRound,
   newFinalRound,
   newWipeoutQuestion,
@@ -73,8 +74,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const { rounds, settings } = quiz;
   const ri = Math.min(roundIndex, rounds.length - 1);
   const round = rounds[ri];
-  // У полі плаского списку запитань немає: ним керує BoardEditor.
-  const questions: Question[] = round.type === 'board' ? [] : round.questions;
+  // У полі плаского списку запитань немає: ним керує BoardEditor. У «Правді про гравця» запитань теж немає: їх створює гра.
+  const questions: Question[] = round.type === 'board' || round.type === 'truth' ? [] : round.questions;
   const current = questions[Math.min(selected, questions.length - 1)];
   const last = questions.length - 1;
 
@@ -95,7 +96,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const setRounds = (next: Quiz['rounds']) => update({ ...quiz, rounds: next });
   const setRound = (next: Round) => setRounds(rounds.map((r, index) => (index === ri ? next : r)));
   const setQuestions = (next: Question[]) => {
-    if (round.type !== 'board') setRound({ ...round, questions: next });
+    if (round.type !== 'board' && round.type !== 'truth') setRound({ ...round, questions: next });
   };
   /** Запитань у всій вікторині: ліміт 200 діє на всі раунди разом. */
   const total = questionsOf(quiz).length + quiz.rounds.reduce((sum, r) => sum + roundTrials(r).length, 0);
@@ -173,7 +174,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -221,6 +222,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       // Ставки: найбільша ставка й числа лежать у налаштуваннях раунду.
       const betsMaxPrefix = t('problemBetsMax', { min: 0, max: 0 }).split('0')[0];
       if (found.some((problem) => problem.includes(betsMaxPrefix) || problem.includes(t('problemRules')))) setSettingsOpen(true);
+      // Ціна й таймер «Правди про гравця» — у налаштуваннях раунду.
+      if (found.some((problem) => problem.includes(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
@@ -357,7 +360,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
       <div className="editor-grid">
         <aside className="editor-side">
-          {round.type !== 'board' && round.type !== 'final' && (
+          {round.type !== 'board' && round.type !== 'final' && round.type !== 'truth' && (
             <>
               {/* На вузькому екрані список схований; ці кнопки гортають запитання й відкривають його. */}
               <div className="question-nav">
@@ -450,7 +453,11 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           )}
         </aside>
 
-        {round.type === 'board' ? (
+        {round.type === 'truth' ? (
+          <section className="editor-stage">
+            <p className="meta truth-editor-note">{t('truthEditorNote')}</p>
+          </section>
+        ) : round.type === 'board' ? (
           <section className="editor-stage">
             <BoardEditor
               likes={likes?.questions}

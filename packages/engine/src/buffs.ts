@@ -34,6 +34,7 @@ import {
   present,
   recordOf,
   revealNow,
+  shuffles,
   withCurrentPlay,
   withRecord,
   type AnswerRecord,
@@ -122,7 +123,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_truth' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_moreless' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -142,11 +143,13 @@ function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock 
 }
 
 /** Раунд, де бафів немає взагалі (поле перевіряється за клітинкою); null — раунд їх дозволяє. */
-function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_bets' | 'off_auction' | 'off_wipeout' | 'off_survival' | 'off_ladder' | null {
+function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_bets' | 'off_auction' | 'off_truth' | 'off_wipeout' | 'off_survival' | 'off_ladder' | null {
   if (round.type === 'blitz') return 'off_blitz';
   if (round.type === 'final') return 'off_final';
   if (round.type === 'bets') return 'off_bets';
   if (round.type === 'auction') return 'off_auction';
+  // «Правда про гравця» (28b): бали — за ім'я, без доповнень.
+  if (round.type === 'truth') return 'off_truth';
   if (round.type === 'wipeout') return 'off_wipeout';
   if (round.type === 'survival') return 'off_survival';
   if (round.type === 'ladder') return 'off_ladder';
@@ -397,7 +400,7 @@ function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPla
   const timed = isTimed(play.question) && state.endsAt !== null;
   const endsAt = state.endsAt ?? now;
   const limitMs = timed ? Math.max(endsAt - now, SWAP_MIN_MS) : null;
-  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, round.shuffleOptions, rng), startedAt: now, limitMs } };
+  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, shuffles(round), rng), startedAt: now, limitMs } };
   const taken = withCurrentPlay(
     { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
     { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },

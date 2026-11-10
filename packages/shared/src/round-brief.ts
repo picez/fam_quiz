@@ -35,9 +35,11 @@ export interface RoundBrief {
   bets: { betStart: number; betStep: number; betMax: number | null; count: number } | null;
   /** «Аукціон»: режим торгу, крок, що втрачає переможець, запитань; null поза ним. */
   auction: { mode: AuctionBidMode; step: number; loss: AuctionLoss; count: number } | null;
+  /** «Правда про гравця»: ціна й таймер; null поза ним. */
+  truth: { points: number; time: number } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets і auction null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction і truth null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -58,6 +60,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     ladder: null,
     bets: null,
     auction: null,
+    truth: null,
   };
 }
 
@@ -70,6 +73,7 @@ export function roundBrief(round: Round): RoundBrief {
   if (round.type === 'auction') {
     return { ...base, auction: { mode: round.bidMode, step: round.bidStep, loss: round.loss, count: round.questions.length } };
   }
+  if (round.type === 'truth') return { ...base, truth: { points: round.points, time: round.timeLimit } };
   if (round.type === 'wipeout') return base;
   if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };
   const rules = rulesOf(round);

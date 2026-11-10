@@ -357,7 +357,9 @@ function looksLikeQuiz(value: unknown): value is Quiz {
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&
         // У фіналі, «Ва-банк» і «Мільйонері» правил немає.
-        (type === 'final' || type === 'bets' || type === 'auction' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
+        (type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
+      // «Правда про гравця» без запитань: ціна й таймер.
+      if (type === 'truth') return common && typeof (round as Record<string, unknown>).points === 'number' && typeof (round as Record<string, unknown>).timeLimit === 'number';
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
       return common && Array.isArray(questions) && questions.length > 0 && questions.every(looksLikeQuestion);
     })
@@ -383,6 +385,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
           const { categories, ...rest } = round;
           return { ...rest, categories: categories.map(reviveCategory) };
         }
+        if (round.type === 'truth') return { ...round, points: round.points ?? LIMITS.defaultPoints, timeLimit: round.timeLimit ?? LIMITS.defaultTime };
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder') return { ...round, questions };
         if (round.type === 'auction') return { ...round, bidStep: round.bidStep ?? LIMITS.defaultBidStep, questions };

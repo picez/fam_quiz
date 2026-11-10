@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -215,6 +215,34 @@ describe('recorder', () => {
     // m1 a і m3 a правильні (100 + 200), m2 — ні.
     expect(answers).toHaveLength(1);
     expect(answers[0]).toMatchObject({ accepted: false, points: 300, payload: { type: 'moreless', picks: ['a', 'a', 'a'], right: 2, total: 3 } });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a truth question is recorded with its generated question', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]));
+    const joined = ctx.manager.join(ctx.room.code, 'Віра', null);
+    if (!joined.ok) throw new Error(joined.error);
+    const vira = joined.playerId;
+    ctx.manager.connect(ctx.room, { role: 'player', playerId: vira });
+    expect(ctx.manager.truth(ctx.room, ctx.olena, 'Я стрибала з парашутом')).toEqual({ ok: true });
+    ctx.host('start');
+    ctx.host('next');
+    // Тарас вгадав Олену, Віра — ні: Олені половина ціни
+    expect(ctx.manager.answer(ctx.room, ctx.taras, { type: 'single', optionId: ctx.olena })).toEqual({ ok: true });
+    expect(ctx.manager.answer(ctx.room, vira, { type: 'single', optionId: ctx.taras })).toEqual({ ok: true });
+    expect(ctx.room.state.phase).toBe('locked');
+    const { games, answers, participants } = await ctx.saved();
+    const ref = games[0].plays[0];
+    expect(ref.questionId).toBe('truth-0');
+    expect(ref.truth).toMatchObject({ author: ctx.olena, authorName: 'Олена', actor: ctx.olena, question: { id: 'truth-0', type: 'single', text: 'Я стрибала з парашутом', correctId: ctx.olena, points: 300 } });
+    const of = (id: string) => answers.filter((a) => a.participantId === id);
+    expect(of(ctx.taras)).toMatchObject([{ attempt: 0, payload: { type: 'single', optionId: ctx.olena }, accepted: true, points: 300 }]);
+    expect(of(vira)).toMatchObject([{ attempt: 0, payload: { type: 'single', optionId: ctx.taras }, accepted: false, points: 0 }]);
+    // рядок автора — бали без відповіді: не відповідь для статистики
+    expect(of(ctx.olena)).toMatchObject([{ attempt: PENALTY_ATTEMPT, payload: null, points: 150 }]);
+    expect(participants.find((p) => p.id === ctx.olena)?.score).toBe(150);
+    // факт — лише в журналі цієї гри
+    expect(JSON.stringify(games[0].quizSnapshot)).not.toContain('парашутом');
     expect(ctx.errors).toEqual([]);
   });
 

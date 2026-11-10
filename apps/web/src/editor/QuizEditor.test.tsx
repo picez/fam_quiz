@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Вибування' | 'Мільйонер') => {
   click('+ Раунд');
   click(type);
 };
@@ -1177,7 +1177,7 @@ describe('QuizEditor: YouTube video', () => {
     const quiz = newQuiz();
     const [round] = quiz.rounds;
     if (round.type === 'board') throw new Error('unexpected');
-    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Так?', ...extra }] }] } as Quiz;
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...roundQuestions(round)[0], text: 'Так?', ...extra }] }] } as Quiz;
   };
 
   it('a pasted YouTube link becomes a video with a preview and hides the time field', async () => {
@@ -1835,7 +1835,7 @@ describe('QuizEditor: slider, audio, revealing picture (10b)', () => {
     const quiz = newQuiz();
     const [round] = quiz.rounds;
     if (round.type === 'board') throw new Error('unexpected');
-    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Так?', type: 'boolean', correct: true, ...extra }] }] } as Quiz;
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...roundQuestions(round)[0], text: 'Так?', type: 'boolean', correct: true, ...extra }] }] } as Quiz;
   };
 
   it('the slider chip shows its fields and saves them with the unit and the zero line', async () => {
@@ -1945,7 +1945,7 @@ describe('QuizEditor: reveal, video and audio together (10b)', () => {
     const quiz = newQuiz();
     const [round] = quiz.rounds;
     if (round.type === 'board') throw new Error('unexpected');
-    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...round.questions[0], text: 'Число?', type: 'numeric', correct: 1, tolerance: 0, ...extra }] }] } as Quiz;
+    return { ...quiz, title: 'Гра', rounds: [{ ...round, questions: [{ ...roundQuestions(round)[0], text: 'Число?', type: 'numeric', correct: 1, tolerance: 0, ...extra }] }] } as Quiz;
   };
 
   it('adding a video link drops the reveal mode, and the quiz still saves', async () => {
@@ -2992,6 +2992,60 @@ describe('QuizEditor: auction round (27b)', () => {
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(saved(onSave).rounds[1]).toMatchObject({ type: 'auction', bidMode: 'free', bidStep: 75 });
+  });
+});
+
+describe('QuizEditor: truth round (28b)', () => {
+  const settingsBlock = () => screen.getAllByText('Налаштування раунду')[0];
+
+  it('creates a truth round with a price and a timer', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Правда про гравця');
+    fireEvent.click(settingsBlock());
+    fill(t('truthPointsLabel'), '300');
+    fill(t('truthTimeLabel'), '30');
+    expect(screen.getByText(t('truthEditorNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Текст запитання')).toBeNull();
+    expect(screen.queryByRole('button', { name: t('addQuestion') })).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'truth', points: 300, timeLimit: 30 });
+    expect(roundQuestions(quiz.rounds[1])).toEqual([]);
+  });
+
+  it('a second truth round is refused with its own problem', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Правда про гравця');
+    addRound('Правда про гравця');
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(new RegExp(t('problemTruthOnce'))).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('a bad price or timer is refused with its own problem, not the shared round settings one', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Правда про гравця');
+    fireEvent.click(settingsBlock());
+    fill(t('truthTimeLabel'), '2');
+    click('Зберегти');
+    const problem = t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime });
+    await waitFor(() => expect(screen.getAllByText(new RegExp(problem.slice(0, 20))).length).toBeGreaterThan(0));
+    expect(screen.queryByText(new RegExp(t('problemRules').slice(0, 20)))).toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
+    fill(t('truthTimeLabel'), '30');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
   });
 });
 

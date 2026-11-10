@@ -3564,3 +3564,48 @@ describe('HostScreen: auction (27b)', () => {
     expect(meta).not.toContain('Ставки');
   });
 });
+
+describe('HostScreen: player truth (28b)', () => {
+  const truthRound: RoundInfo = { index: 0, total: 1, title: '', type: 'truth', partial: false, description: '', brief: emptyBrief('truth'), times: null };
+  const names = [
+    { id: 'p1', text: 'Олена' },
+    { id: 'p2', text: 'Тарас' },
+  ];
+  const truthQuestion: Question = { id: 'truth-0', type: 'single', text: 'Я стрибала з парашутом', imageUrl: null, video: null, timeLimit: 30, points: 200, options: names, correctId: 'p1' };
+  const facts = [
+    { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
+    { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: true, inDeck: true },
+  ];
+  const truth = (over: object = {}) => ({ open: true, count: 2, index: null, reveal: null, skipped: false, facts, author: null, ...over });
+  const row = (playerId: string, nickname: string, over: object = {}) => ({ playerId, nickname, answer: null, timeMs: 30000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 200, overridden: false, buff: null, spare: null, clue: null, ...over });
+
+  it('the host sees and hides facts in the lobby', async () => {
+    const send = show(view({ truth: truth() }));
+    expect(screen.getByText(t('truthHostTitle'))).toBeTruthy();
+    expect(screen.getByText('Маю трьох котів')).toBeTruthy();
+    expect(screen.getByText(t('truthHostRevised'))).toBeTruthy();
+    fireEvent.click(screen.getAllByRole('button', { name: t('truthHostHide') })[0]!);
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:truth-hide', { playerId: 'p1', hidden: true }));
+  });
+
+  it('a quiz without a truth round has no fact panel', () => {
+    show(view());
+    expect(screen.queryByText(t('truthHostTitle'))).toBeNull();
+  });
+
+  it('on the question the host sees the author, and the author row is marked without grade buttons', () => {
+    const responses = [row('p2', 'Тарас', { answer: { type: 'single', optionId: 'p2' }, accepted: false, grade: 'wrong' as const, points: 0 }), row('p1', 'Олена')];
+    show(during('locked', truthQuestion, { round: truthRound, truth: truth({ open: false, index: 0, author: { id: 'p1', nickname: 'Олена' } }), responses }));
+    expect(screen.getByText('Автор: Олена')).toBeTruthy();
+    const items = screen.getAllByRole('listitem').filter((li) => li.querySelector('.given') !== null);
+    const author = items.find((li) => li.textContent?.includes('Олена'))!;
+    expect(within(author).queryAllByRole('button')).toHaveLength(0);
+    expect(within(author).getByText(t('truthHistoryAuthorRow'))).toBeTruthy();
+  });
+
+  it('the right answer of a truth question is the name, without an option letter', () => {
+    show(during('reveal', truthQuestion, { round: truthRound, truth: truth({ open: false, index: 0 }) }));
+    expect(screen.getByText('Правильна відповідь: Олена')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь: A\./)).toBeNull();
+  });
+});

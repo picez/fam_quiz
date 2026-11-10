@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
+import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -332,6 +332,15 @@ describe('host history: broken snapshot', () => {
     expect(detail?.standings.map((s) => [s.nickname, s.rounds, s.breakdown])).toEqual([
       ['Тарас', [1000, -300], { parts: [{ source: 'answers', plus: 1000, minus: -300 }], plus: 1000, minus: -300 }],
     ]);
+  });
+});
+
+describe('gameQuestionCount (28b)', () => {
+  it('adds the generated truth questions of the record to the snapshot count', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]);
+    const truth = (k: number) => ({ roundIndex: 1, questionId: `truth-${k}`, truth: { question: { ...single, id: `truth-${k}` }, author: 'p1', authorName: 'Оля', actor: 'p1' } });
+    expect(gameQuestionCount({ quizSnapshot: quiz, plays: [] })).toBe(1);
+    expect(gameQuestionCount({ quizSnapshot: quiz, plays: [{ roundIndex: 0, questionId: single.id }, truth(0), truth(1)] as never })).toBe(3);
   });
 });
 
@@ -781,6 +790,54 @@ describe('host history: answers', () => {
     const detail = await field.detail();
     expect((detail.questions[0] as unknown as { cell: object }).cell).toMatchObject({ price: 400, multiplier: 2, points: 800 });
     await field.local.app.close();
+  });
+
+  it('truth questions come from the game, not the quiz', async () => {
+    const quiz = makeRoundsQuiz([truthRound('r1', { points: 200 }), classicRound('r2', [single])]);
+    const played = await start(quiz);
+    const olena = await played.enter('Олена');
+    const taras = await played.enter('Тарас');
+    const vira = await played.enter('Віра');
+    const { manager } = played.local;
+    expect(manager.truth(played.room, olena, 'Я стрибала з парашутом')).toEqual({ ok: true });
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(played.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    // обоє не вгадали: Олені повна ціна
+    expect(manager.answer(played.room, taras, { type: 'single', optionId: vira })).toEqual({ ok: true });
+    expect(manager.answer(played.room, vira, { type: 'single', optionId: taras })).toEqual({ ok: true });
+    step('next');
+    const result = (await played.detail()) as unknown as {
+      questions: { text: string; answered: number; accepted: number; question: { type: string; id: string; options: { text: string }[] }; truth?: unknown; responses: { nickname: string; answer: unknown }[] }[];
+      standings: { nickname: string; correct: number; score: number }[];
+    };
+    expect(result.questions).toHaveLength(1);
+    const [q] = result.questions;
+    expect(q.text).toBe('Я стрибала з парашутом');
+    expect(q.question).toMatchObject({ id: 'truth-0', type: 'single', correctId: olena });
+    // вибори — нікнейми варіантів
+    expect(q.question.options.map((o) => o.text)).toEqual(['Віра', 'Олена', 'Тарас']);
+    expect(q.truth).toEqual({ author: 'Олена', points: 200 });
+    // рядок автора — не відповідь
+    expect(q.responses).toMatchObject([
+      { nickname: 'Віра', answer: { type: 'single', optionId: taras } },
+      { nickname: 'Тарас', answer: { type: 'single', optionId: vira } },
+    ]);
+    expect(q.responses).toHaveLength(2);
+    expect([q.answered, q.accepted]).toEqual([2, 0]);
+    expect(result.standings.find((s) => s.nickname === 'Олена')).toMatchObject({ score: 200, correct: 0 });
+    await played.local.app.close();
+
+    // без фактів раунд пропущено: записів немає
+    const empty = await start(quiz);
+    await empty.enter('Олена');
+    await empty.enter('Тарас');
+    const go = (type: 'start' | 'next') => expect(empty.local.manager.host(empty.room, { type })).toEqual({ ok: true });
+    go('start');
+    go('next');
+    expect(empty.room.state.phase).toBe('round_end');
+    expect((await empty.detail()).questions).toEqual([]);
+    await empty.local.app.close();
   });
 
   it('a more or less game lands in the history with the engine points and the price of the whole row', async () => {
@@ -2296,6 +2353,49 @@ describe('answeredTypes (12i)', () => {
       ],
     });
     expect(await answeredTypes(db, account.id)).toEqual(new Set(['single']));
+  });
+
+  it('a truth question counts as single for the guesser; the author share is no answer and not their question', async () => {
+    const [guesser, author] = await db
+      .insert(user)
+      .values([
+        { id: 'types-truth-g', name: 'Тарас', email: 'types-truth-g@example.com' },
+        { id: 'types-truth-a', name: 'Олена', email: 'types-truth-a@example.com' },
+      ])
+      .returning();
+    const quiz = makeRoundsQuiz([truthRound('t1'), classicRound('r1', [single])]);
+    const question = { id: 'truth-0', type: 'single', text: 'Я стрибала з парашутом', options: [{ id: 'pa', text: 'Олена' }, { id: 'pg', text: 'Тарас' }], correctId: 'pa', points: 300, timeLimit: 30, imageUrl: null, video: null } as Question;
+    const plays = (actor: string) => [
+      { roundIndex: 0, questionId: 'truth-0', truth: { question, author: actor, authorName: 'Олена', actor } },
+      { roundIndex: 1, questionId: single.id },
+    ];
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: host,
+      startedAt: new Date('2026-10-04T18:00:00Z'),
+      snapshot: quiz,
+      questionsPlayed: 2,
+      plays: plays('unknown'),
+      players: [
+        { userId: guesser.id, nickname: 'Тарас', score: 0, rank: 2, rows: [{ questionIndex: 0, accepted: false, points: 0 }] },
+        {
+          userId: author.id,
+          nickname: 'Олена',
+          score: 300,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, attempt: PENALTY_ATTEMPT, accepted: true, points: 300 },
+            { questionIndex: 1, accepted: true, points: 0 },
+          ],
+        },
+      ],
+    });
+    // id учасників seedGame дає сам: журнал — з автором Оленою
+    await db.update(game).set({ plays: plays(participantIds[1]!) }).where(eq(game.id, gameId));
+    expect(await answeredTypes(db, guesser.id)).toEqual(new Set(['single']));
+    // рядок частки — не відповідь, а запитання про свій факт — не її запитання
+    const [mine] = await playerGames(db, author.id, null);
+    expect(mine.played).toMatchObject({ gameId, correct: 1, answered: 1, questionsPlayed: 1 });
+    expect(mine.marks).toEqual([{ questionIndex: 1, attempt: 0, accepted: true }]);
   });
 
   it('an old game without plays gives no types', async () => {

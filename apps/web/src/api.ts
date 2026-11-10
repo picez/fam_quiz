@@ -24,6 +24,8 @@ export interface QuizSummary {
   title: string;
   description: string;
   questionCount: number;
+  /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
+  truth?: boolean;
   updatedAt: string;
 }
 

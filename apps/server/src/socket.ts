@@ -38,6 +38,8 @@ import {
   timeSchema,
   undebuffSchema,
   teamPickSchema,
+  truthFactSchema,
+  truthHideSchema,
   duelistSchema,
   pickAnswererSchema,
   draftSchema,
@@ -544,6 +546,13 @@ export function attachSockets(
       return payload.success ? manager.teamPick(room, identity.playerId, payload.data.teamId) : INVALID;
     });
 
+    // «Правда про гравця» (28b): факт про себе; ack без тексту.
+    on('player:truth', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = truthFactSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.truth(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
     on('player:team-roll', () => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       return manager.teamRoll(room, identity.playerId);
@@ -727,6 +736,12 @@ export function attachSockets(
       if (!hostSide) return FORBIDDEN;
       const payload = teamAssignSchema.safeParse(payloadOf(args));
       return payload.success ? run({ type: 'team-assign', ...payload.data }) : INVALID;
+    });
+
+    on('host:truth-hide', (args) => {
+      if (!hostSide) return FORBIDDEN;
+      const payload = truthHideSchema.safeParse(payloadOf(args));
+      return payload.success ? run({ type: 'truth-hide', ...payload.data }) : INVALID;
     });
 
     on('host:captain', (args) => {

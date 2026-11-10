@@ -6,6 +6,9 @@ import {
   type AuctionInfo,
   type HostAuction,
   type PlayerAuction,
+  type HostTruth,
+  type PlayerTruth,
+  type TruthInfo,
   betMinimum,
   betsTeaser,
   type BetsInfo,
@@ -138,6 +141,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
+import { inTruthDeck, truthCount, truthGuessers, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -454,6 +458,8 @@ function pinMarks(state: GameState, forHost: boolean): PinMark[] | null {
 function timesOf(round: Round): { min: number; max: number } | null {
   // «Мільйонер» без таймера: час запитань не діє.
   if (round.type === 'ladder' && !round.timer) return null;
+  // «Правда про гравця» (28b): запитань у вікторині немає, усі з часом раунду.
+  if (round.type === 'truth') return { min: round.timeLimit, max: round.timeLimit };
   const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [q.timeLimit] : []));
   return limits.length === 0 ? null : { min: Math.min(...limits), max: Math.max(...limits) };
 }
@@ -1091,6 +1097,100 @@ function playerAuction(state: GameState, playerId: string): PlayerAuction | null
   }
   const status: PlayerAuction['status'] = open.open ? 'open' : open.winnerId === playerId ? 'winner' : 'watching';
   return { status, limit, next: 0, canBid: false };
+}
+
+/** Люди гри для зрізів «Правди про гравця»: соло — гравці, командна гра — учасники (у лобі й без команди теж). */
+function truthPeople(state: GameState): { id: string; nickname: string }[] {
+  return teamsOn(state) ? state.teams.members : state.players;
+}
+
+/** Людина ще грає: до роздачі — будь-хто в лобі; після — соло гравець, командна гра учасник команди, що грає. */
+function truthPresent(state: GameState, personId: string): boolean {
+  if (!teamsOn(state) || state.truth?.deck === undefined) return truthPeople(state).some((p) => p.id === personId);
+  const teamId = memberOf(state, personId)?.teamId ?? null;
+  return teamId !== null && state.players.some((p) => p.id === teamId);
+}
+
+/** Номер запитання раунду truth (від 0) на етапах question, locked, reveal; інакше null. */
+function truthIndex(state: GameState): number | null {
+  if (truthPlayOf(state) === null || !ANSWERING.includes(state.phase)) return null;
+  return state.plays.filter((p, i) => p.roundIndex === state.roundIndex && i <= state.questionIndex).length - 1;
+}
+
+/** Розкриття: чий факт і хто кого вибрав; лише коли запитання розкрито. */
+function truthReveal(state: GameState): TruthInfo['reveal'] {
+  const open = truthPlayOf(state);
+  if (open === null || state.phase !== 'reveal' || !isRevealed(state) || spoilerHeld(state)) return null;
+  const options = open.question.type === 'single' ? open.question.options : [];
+  const nameOf = (id: string) => options.find((o) => o.id === id)?.text ?? '';
+  return {
+    author: { id: open.truth.authorId, nickname: nameOf(open.truth.authorId) },
+    points: recordOf(state, state.questionIndex, open.truth.actorId)?.points ?? 0,
+    picks: truthGuessers(state).map((id) => {
+      const record = recordOf(state, state.questionIndex, id);
+      const pickedId = record?.answer?.type === 'single' ? record.answer.optionId : null;
+      return { id, nickname: state.players.find((p) => p.id === id)?.nickname ?? '', pickedId, picked: pickedId === null ? null : nameOf(pickedId), correct: record?.grade === 'correct' };
+    }),
+  };
+}
+
+/** Для всіх ролей: лише число фактів до роздачі, номер запитання й розкриття; автора до reveal тут немає. */
+function truthInfo(state: GameState): TruthInfo | undefined {
+  const truth = state.truth;
+  if (truth === undefined) return undefined;
+  const round = truthRoundOf(state);
+  return {
+    open: truthOpen(state),
+    count: truthCount(state),
+    index: truthIndex(state),
+    reveal: truthReveal(state),
+    // Пропуск — колоду роздано, а запитань з неї немає. Останній такий раунд закінчує гру одразу (finished без round_end) —
+    // повідомлення тоді на підсумках; дострокове завершення до роздачі (колоди ще немає) чи з фактами в колоді пропуском не є.
+    skipped: (state.phase === 'round_end' || state.phase === 'finished') && round !== null && truthSkipped(state),
+  };
+}
+
+/** Ведучому: ще й усі факти тих, хто в грі, і автор запитання, що йде (question, locked). */
+function hostTruth(state: GameState): HostTruth | undefined {
+  const info = truthInfo(state);
+  const truth = state.truth;
+  if (info === undefined || truth === undefined) return undefined;
+  const facts = truthPeople(state).flatMap((p) => {
+    const fact = Object.hasOwn(truth.facts, p.id) ? truth.facts[p.id] : undefined;
+    if (fact === undefined || !truthPresent(state, p.id)) return [];
+    return [
+      {
+        id: p.id,
+        nickname: p.nickname,
+        text: fact.text,
+        hidden: fact.hidden,
+        played: state.plays.some((play) => play.truth?.authorId === p.id),
+        revised: fact.revised === true,
+        inDeck: inTruthDeck(state, p.id),
+      },
+    ];
+  });
+  const open = truthPlayOf(state);
+  const authorId = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth.authorId : null;
+  // Автора вилучили на відкритому запитанні — нік зі знімка варіантів.
+  const options = open?.question.type === 'single' ? open.question.options : [];
+  const nickname = authorId === null ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
+  return { ...info, facts, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '' } };
+}
+
+/** Людині про себе: свій факт, чи можна писати, і (question, locked) чи це її факт — у командній грі факт її команди. */
+function playerTruth(state: GameState, personId: string): PlayerTruth | undefined {
+  const truth = state.truth;
+  if (truth === undefined || !truthPeople(state).some((p) => p.id === personId)) return undefined;
+  const fact = Object.hasOwn(truth.facts, personId) ? truth.facts[personId] : undefined;
+  const open = truthPlayOf(state);
+  const actor = teamsOn(state) ? (memberOf(state, personId)?.teamId ?? null) : personId;
+  return {
+    fact: fact?.text ?? '',
+    hidden: fact?.hidden ?? false,
+    canWrite: truthOpen(state),
+    own: open !== null && (state.phase === 'question' || state.phase === 'locked') && actor !== null && open.truth.actorId === actor,
+  };
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
@@ -2183,8 +2283,8 @@ function base(state: GameState, forHost: boolean) {
     paused: state.paused,
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
-    // Пропущені «100 до 1» (хмара без слів) у лічильник не входять.
-    total: round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
+    // Пропущені «100 до 1» (хмара без слів) у лічильник не входять. «Правда про гравця» (28b): запитань у вікторині немає — колода.
+    total: round?.type === 'truth' ? truthCount(state) : round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
     question: shownPublic(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
@@ -2198,7 +2298,12 @@ function base(state: GameState, forHost: boolean) {
     held,
     // Командна гра: на опитуванні й «хмарі» відповідають люди — «Відповіли N з M» рахує їх; поза запитанням («Місце N з M») — команди.
     // «Ставки» (27a): на відкритому запитанні «Відповіли N з M» (question, locked) рахує лише тих, хто грає; «Місце N з M» на reveal — усіх.
-    playerCount: unscoredNow(state) && ANSWERING.includes(state.phase) ? voterList(state).length : (answeringBets(state)?.length ?? state.players.length),
+    playerCount:
+      unscoredNow(state) && ANSWERING.includes(state.phase)
+        ? voterList(state).length
+        : truthPlayOf(state) !== null && (state.phase === 'question' || state.phase === 'locked')
+          ? truthGuessers(state).length
+          : (answeringBets(state)?.length ?? state.players.length),
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
@@ -2206,6 +2311,7 @@ function base(state: GameState, forHost: boolean) {
     final: finalInfo(state),
     ...optional('bets', betsInfo(state) ?? undefined),
     ...optional('auction', auctionInfo(state) ?? undefined),
+    ...optional('truth', truthInfo(state)),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
@@ -2259,7 +2365,7 @@ function teamsView(state: GameState): TeamsView | null {
   // На запитанні — лише ті, хто на ньому справді відповідає (поле — хто вибрав клітинку, «Ва-банк» — хто ще в грі, бліц — ніхто,
   const play = onQuestion(state) ? state.plays[state.questionIndex] : undefined;
   // «Ставки» — хто грає запитання).
-  const answering = play === undefined ? null : (betsPlaying(state) ?? answeringTeams(state, play));
+  const answering = play === undefined || play.truth !== undefined ? null : (betsPlaying(state) ?? answeringTeams(state, play));
   return {
     form,
     answerer: answererMode(state),
@@ -2465,7 +2571,8 @@ function answeredCount(state: GameState): number {
   // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
   const answers = currentAnswers(state);
   const recorded = Object.keys(answers).filter((id) => play === undefined || !isSilentRisk(play, answers[id]));
-  const answered = [...new Set([...recorded, ...held])];
+  // «Правда про гравця»: запис автора (його частка) відповіддю не рахується — лічильник дорівнює числу вгадувачів, що відповіли.
+  const answered = [...new Set([...recorded, ...held])].filter((id) => play?.truth?.actorId !== id);
   // Список (27c): відповів, хто щось знайшов чи помилився; на клітинці поля той, хто нічого не ввів, до закриття не рахується (запис з 0 він отримує при закритті).
   const list = currentList(state);
   if (list !== null) {
@@ -2555,8 +2662,10 @@ function revealStats(state: GameState, question: Question): RevealStats {
   );
   const play = state.plays[state.questionIndex];
   const board = play?.board !== undefined;
-  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
-  const records = Object.values(currentAnswers(state)).filter((record) => (board || record.spare === undefined) && (play === undefined || !isSilentRisk(play, record)));
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь. Частка автора «Правди про гравця» (28b) — не відповідь.
+  const records = Object.entries(currentAnswers(state))
+    .filter(([id, record]) => id !== play?.truth?.actorId && (board || record.spare === undefined) && (play === undefined || !isSilentRisk(play, record)))
+    .map(([, record]) => record);
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     // У бліці гравець міг натиснути й не встигнути відповісти.
@@ -2630,7 +2739,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   return {
     ...view,
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -2678,6 +2787,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
       tip: null,
       vote: null,
       appeal: null,
+      ...optional('truth', playerTruth(state, member.id)),
     },
     reveal: null,
     standings: null,
@@ -2825,6 +2935,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       final: playerFinal(state, playerId),
       ...optional('bets', playerBets(state, playerId) ?? undefined),
       ...optional('auction', playerAuction(state, playerId) ?? undefined),
+      ...optional('truth', teamsOn(state) ? undefined : playerTruth(state, playerId)),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
@@ -2958,7 +3069,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, ...shared } = base(state, true);
   return {
     ...shared,
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
@@ -2980,6 +3091,7 @@ export function hostView(state: GameState): HostView {
     final: hostFinal(state),
     ...optional('bets', hostBets(state) ?? undefined),
     ...optional('auction', hostAuction(state) ?? undefined),
+    ...optional('truth', hostTruth(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),

@@ -73,6 +73,20 @@ describe('bets round texts', () => {
   });
 });
 
+describe('truth round texts', () => {
+  it('has a name, an icon and a how-it-goes line', () => {
+    expect(t(ROUND_NAMES.truth)).toBe('Правда про гравця');
+    expect(ROUND_ICONS.truth).toBe('🕵️');
+    expect(roundHow(emptyBrief('truth'))[0]).toContain('маловідомий факт');
+  });
+
+  it('the refusals of a fact have texts', () => {
+    expect(errorText('truth_closed')).toBe('Факти вже не приймаються.');
+    expect(errorText('truth_own')).toBe('Це ваш факт — вгадують інші.');
+    expect(errorText('truth_text')).toBe('Факт задовгий: до 200 символів.');
+  });
+});
+
 describe('auction round texts', () => {
   it('has a name, an icon and a how-it-goes line', () => {
     expect(t(ROUND_NAMES.auction)).toBe('Аукціон');

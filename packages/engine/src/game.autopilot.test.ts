@@ -18,7 +18,8 @@ import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
 import { captainOf, dealTeams, pickTeam, rollTeamRest, setTeamForm, teamMembers } from './teams';
 import { answerAs, commit, drive } from './testing/autopilot';
-import { auctionRound, betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { auctionRound, betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, truthRound, withId } from './testing/fixtures';
+import { submitTruth } from './truth';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
 
@@ -396,5 +397,32 @@ describe('autopilot bets round (27a)', () => {
       { a: 200, p2: 200 },
       { a: 300, p2: 300 },
     ]);
+  });
+});
+
+describe('autopilot player truth round (28b)', () => {
+  it('the autopilot walks a truth round and skips an empty one', () => {
+    const quiz = autopilotQuiz(makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2'), classicRound('r3', [withId(single, 'q3')])]));
+    const walk = (facts: Record<string, string>) => {
+      let lobby = pilotLobby(quiz, 'Ігор', 'Олена');
+      for (const [id, text] of Object.entries(facts)) lobby = must(submitTruth(lobby, id, text, T0));
+      const started = commit(lobby, must(autopilotStart(lobby, T0, rng)), T0);
+      // бот суворий: відповідь автора за свій факт (truth_own) зламала б прогін
+      return drive(started, { now: T0, rng, people: answerAs() }).state;
+    };
+    const played = walk({ a: 'Я бачила кита', p2: 'Я вмію жонглювати' });
+    expect(played.phase).toBe('finished');
+    const truths = played.plays.filter((p) => p.roundIndex === 1);
+    expect(truths.map((p) => p.question.id)).toEqual(['truth-0', 'truth-1']);
+    for (const p of truths) {
+      const actor = p.truth?.actorId ?? '';
+      // автор не відповідав: його запис — частка (усі вгадали — 0), інші вгадали
+      expect(p.answers[actor]).toMatchObject({ answer: null, points: 0 });
+      expect(Object.keys(p.answers).sort()).toEqual(['a', 'p2', 'p3']);
+    }
+    const empty = walk({});
+    expect(empty.phase).toBe('finished');
+    expect(empty.plays.filter((p) => p.roundIndex === 1)).toEqual([]);
+    expect(empty.truth?.deck).toEqual([]);
   });
 });

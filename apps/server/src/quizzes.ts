@@ -1,4 +1,4 @@
-import { questionsOf, quizSchema, type Duels, type Question, type Quiz, type QuizSettings } from '@quiz/shared';
+import { hasTruthRound, questionsOf, quizSchema, type Duels, type Question, type Quiz, type QuizSettings } from '@quiz/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { quiz } from './db/schema';
@@ -12,6 +12,8 @@ export interface QuizSummary {
   title: string;
   description: string;
   questionCount: number;
+  /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
+  truth: boolean;
   updatedAt: string;
 }
 
@@ -38,6 +40,7 @@ export async function listQuizzes(db: Db, ownerId: string): Promise<QuizSummary[
     title: row.title,
     description: row.description,
     questionCount: questionsOf(row).length,
+    truth: hasTruthRound(row),
     updatedAt: row.updatedAt.toISOString(),
   }));
 }

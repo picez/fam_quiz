@@ -4,6 +4,7 @@ export * from './survival';
 export * from './ladder';
 export * from './bets';
 export * from './auction';
+export * from './truth';
 export * from './wordladder';
 export * from './letterwords';
 export * from './round-brief';

@@ -5,7 +5,9 @@ import { actAnswer } from './team-act';
 import { suspend } from './restore';
 import { assignTeam, captainOf, dealTeams, pickTeam, presentMembers, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { placeWager } from './final';
-import { auctionRound, betsRound, boardRound, classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { auctionRound, betsRound, boardRound, classicRound, makeRoundsQuiz, poll, single, truthRound, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { answeringTeams } from './answerer';
+import { submitTruth } from './truth';
 import { stageView } from './views';
 import { decideWipeout, decisionOpen, wipeoutTable } from './wipeout';
 import { must } from './testing/helpers';
@@ -471,5 +473,43 @@ describe('team game: bets (27a)', () => {
       ['t1', true],
       ['t2', false],
     ]);
+  });
+});
+
+describe('team game: player truth (28b)', () => {
+  it("teams guess by captain; the author's team waits and earns the share", () => {
+    const quiz = teamQuiz([classicRound('r1', [single]), truthRound('r2')], 2, 'rotate');
+    let s = teamGame(quiz, [
+      ['Олена', 'Тарас'],
+      ['Віра', 'Хосе'],
+    ]);
+    // факти пишуть учасники; Тарас (m2, команда t1) — єдиний
+    s = must(submitTruth(s, 'm2', 'Я грав в оркестрі', 0));
+    expect(Object.keys(s.truth?.facts ?? {})).toEqual(['m2']);
+    s = must(next(s, 0));
+    s = must(next(must(lock(s)), 1000));
+    s = must(next(s, 2000));
+    s = must(next(must(next(s, 3000)), 4000, () => 0));
+    expect(s.phase).toBe('question');
+    const play = s.plays[s.questionIndex];
+    expect(play.truth).toEqual({ authorId: 'm2', actorId: 't1', guessers: ['t2'] });
+    // варіанти — імена учасників за абеткою
+    expect(play.question.type === 'single' ? play.question.options : null).toEqual([
+      { id: 'm3', text: 'Віра' },
+      { id: 'm1', text: 'Олена' },
+      { id: 'm2', text: 'Тарас' },
+      { id: 'm4', text: 'Хосе' },
+    ]);
+    // на «Правді» відповідача немає, але сцена не виділяє команду автора: жодна команда не має null
+    expect(answeringTeams(s, play)).toEqual([]);
+    expect(stageView(s).teams?.teams.map((t) => t.answererId)).toEqual(['m1', 'm3']);
+    // капітан команди автора не вгадує
+    expect(actAnswer(s, 'm1', { type: 'single', optionId: 'm3' }, 5000)).toEqual({ ok: false, error: 'truth_own' });
+    // капітан t2 помиляється — команда автора бере повну ціну
+    s = must(actAnswer(s, 'm3', { type: 'single', optionId: 'm1' }, 5000));
+    expect(s.phase).toBe('locked');
+    expect(recordOf(s, s.questionIndex, 't1')).toMatchObject({ answer: null, points: 300, grade: 'correct' });
+    expect(recordOf(s, s.questionIndex, 't2')?.points).toBe(0);
+    expect(s.players.find((p) => p.id === 't1')?.score).toBe(300);
   });
 });

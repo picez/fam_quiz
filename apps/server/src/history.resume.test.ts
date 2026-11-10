@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { factInput, hostView } from '@quiz/engine';
-import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
+import { classicRound, makeRoundsQuiz, single, truthRound, withId } from '@quiz/engine/testing';
 import { defaultTeams, gameAwards, type ResumeOption, type ResumeSetup } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
@@ -50,6 +50,15 @@ describe('resumeRound (12r)', () => {
     // Раунду 5 у знімку немає: останній раунд знімка.
     expect(resumeRound(quiz, [ref(5, 'q9')], 1)).toBe(2);
     expect(resumeRound(quiz, [ref(0, 'q1'), ref(3, 'q9')], 2)).toBe(2);
+  });
+
+  it('a truth round with a played fact is finished: the facts do not move to the new game (28b)', () => {
+    const withTruth = makeRoundsQuiz([classicRound('r0', [single]), truthRound('r1'), classicRound('r2', [withId(single, 'q3')])]);
+    expect(resumeRound(withTruth, [ref(0, 'q1'), ref(1, 'truth-0')], 2)).toBe(2);
+    expect(resumeRound(withTruth, [ref(0, 'q1'), ref(1, 'truth-0'), ref(1, 'truth-1')], 3)).toBe(2);
+    // Останній раунд — truth: далі йти нікуди, лишається він сам.
+    const lastTruth = makeRoundsQuiz([classicRound('r0', [single]), truthRound('r1')]);
+    expect(resumeRound(lastTruth, [ref(0, 'q1'), ref(1, 'truth-0')], 2)).toBe(1);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { bluff, bool, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text, withId } from '@quiz/engine/testing';
+import { bluff, bool, classicRound, cloud, makeQuiz, makeRoundsQuiz, single, sortQ, text, truthRound, withId } from '@quiz/engine/testing';
 import { paceWindow, sortOf, stageView, type GameState } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -256,6 +256,41 @@ describe('an autopilot game with no presses (11g)', () => {
     expect(room.state.phase).toBe('locked');
     scheduler.advance(1500);
     expect(room.state.phase).toBe('reveal');
+  });
+});
+
+describe('an autopilot truth round (28b)', () => {
+  const truthQuiz = () => makeRoundsQuiz([truthRound('r1', { timeLimit: 10 }), classicRound('r2', [single])]);
+
+  it('the autopilot plays a truth round with facts and without', () => {
+    for (const facts of [true, false]) {
+      const { manager, scheduler, room, act, authorId, others } = autopilot(truthQuiz());
+      const taras = others[0].playerId;
+      if (facts) {
+        expect(manager.truth(room, authorId, 'Я пекла хліб у печі')).toEqual({ ok: true });
+        expect(manager.truth(room, taras, 'Я бачив північне сяйво')).toEqual({ ok: true });
+      }
+      expect(act({ type: 'start' })).toEqual({ ok: true });
+      let asked = 0;
+      for (let i = 0; i < 400 && room.state.phase !== 'finished'; i++) {
+        if (room.state.phase === 'question' && room.state.plays[room.state.questionIndex]?.truth !== undefined) {
+          const play = room.state.plays[room.state.questionIndex];
+          const guesser = play.truth?.actorId === authorId ? taras : authorId;
+          if (play.answers[guesser] === undefined) {
+            asked += 1;
+            // автор факту не вгадує свій факт
+            expect(manager.answer(room, play.truth!.actorId, { type: 'single', optionId: guesser })).toEqual({ ok: false, error: 'truth_own' });
+            expect(manager.answer(room, guesser, { type: 'single', optionId: guesser })).toEqual({ ok: true });
+          }
+        }
+        scheduler.advance(500);
+      }
+      expect(room.state.phase).toBe('finished');
+      expect(asked).toBe(facts ? 2 : 0);
+      expect(room.state.truth?.deck).toHaveLength(facts ? 2 : 0);
+      // кожен обдурив другого: повна ціна автору
+      if (facts) expect(room.state.players.every((p) => p.score >= 300)).toBe(true);
+    }
   });
 });
 

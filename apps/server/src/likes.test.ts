@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bool, classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
+import { bool, classicRound, makeRoundsQuiz, single, truthRound, withId } from '@quiz/engine/testing';
 import type { GameView, PlayerView, Quiz } from '@quiz/shared';
 import { user, userLike } from './db/schema';
 import * as store from './like-store';
@@ -28,14 +28,13 @@ const likeQuiz = (): Quiz => ({
   spares: [withId(bool, 's1')],
 });
 
-async function world() {
+async function world(quiz: Quiz = likeQuiz()) {
   const db = await createTestDb();
   await db.insert(user).values([
     { id: 'a', name: 'Автор', email: 'a@example.com' },
     { id: 'o', name: 'Оля', email: 'o@example.com' },
     { id: 'p', name: 'Петро', email: 'p@example.com' },
   ]);
-  const quiz = likeQuiz();
   const quizId = await createQuiz(db, 'a', quiz);
   const scheduler = new FakeScheduler();
   const manager = new RoomManager(scheduler, () => 0.5);
@@ -62,6 +61,23 @@ async function world() {
 }
 
 describe('likes of accounts in the room', () => {
+  it('a truth question cannot be liked', async () => {
+    const w = await world(makeRoundsQuiz([truthRound('r1'), classicRound('r2', [withId(single, 'q1')])], { leaderboard: 'end' }));
+    const olya = w.enter('Оля', 'o');
+    const petro = w.enter('Петро', 'p');
+    await w.likes.idle();
+    expect(w.manager.truth(w.room, petro, 'Я бачив північне сяйво')).toEqual({ ok: true });
+    w.toReveal();
+    expect(w.room.state.plays[w.room.state.questionIndex].question.id).toBe('truth-0');
+    await w.likes.idle();
+    // серця на запитанні-факті немає
+    expect(likesOf(w.manager.view(w.room, { role: 'player', playerId: olya }))).toBeUndefined();
+    expect(w.manager.like(w.room, olya, { target: 'question', liked: true })).toEqual({ ok: false, error: 'not_allowed' });
+    await w.likes.idle();
+    expect(await w.rows()).toEqual([]);
+    expect(w.errors).toEqual([]);
+  });
+
   it('a change reads each account once and gives Оля her heart', async () => {
     const w = await world();
     const olya = w.enter('Оля', 'o');

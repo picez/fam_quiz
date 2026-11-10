@@ -41,6 +41,8 @@ export interface LobbyRow {
   maxPlayers: number;
   rounds: number;
   questions: number;
+  /** Є раунд «Правда про гравця»: його запитань у questions немає. */
+  truth?: boolean;
   locked: boolean;
   /** Продовжена гра, що вже йде. */
   late: boolean;

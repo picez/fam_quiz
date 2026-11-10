@@ -491,7 +491,7 @@ if (import.meta.main ?? process.argv[1]?.endsWith('check.ts')) {
   const types = new Map<string, number>();
   for (const q of played) types.set(q.type, (types.get(q.type) ?? 0) + 1);
   console.log(`played ${played.length}, spares ${allSpares(quiz).length}; types: ${[...types].map(([k, v]) => `${k} ${v}`).join(', ')}`);
-  for (const r of quiz.rounds) console.log(`round ${r.id} (${r.type}): ${r.type === 'board' ? r.categories.reduce((a, c) => a + c.cells.length, 0) : r.questions.length}`);
+  for (const r of quiz.rounds) console.log(`round ${r.id} (${r.type}): ${r.type === 'board' ? r.categories.reduce((a, c) => a + c.cells.length, 0) : r.type === 'truth' ? 0 : r.questions.length}`);
   console.log(`images ${played.filter((q) => q.imageUrl).length}; yes/no: ${bools.length - no} yes, ${no} no`);
   for (const r of quiz.rounds) if (r.type === 'board') for (const c of r.categories) console.log(`board ${c.title}: ${c.cells.map((x) => `${x.question.points}${x.mark === 'none' ? '' : x.mark}${x.kind === 'blitz' ? ' бліц' : ''}${x.answerMode === 'voice' ? ' вголос' : ''}`).join(' | ')}`);
   console.log(problems.length ? `PROBLEMS:\n${problems.join('\n')}` : 'OK');

@@ -48,7 +48,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
     // У фіналі, «Ва-банк» і «Мільйонері» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'wipeout' || round.type === 'ladder') return;
+    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
@@ -96,7 +96,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           {t('roundDescriptionCount', { count: descriptionLength, max: LIMITS.roundDescription })}
         </span>
       </div>
-      {round.type !== 'final' && (
+      {round.type !== 'final' && round.type !== 'truth' && (
       <div className="same-time">
         <span>{t('sameTimeTitle')}</span>
         <label className="field">
@@ -124,14 +124,42 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <HelpButton id="setting.speedBonus" />
         </div>
       )}
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={round.shuffleOptions}
-          onChange={(event) => onChange({ ...round, shuffleOptions: event.target.checked })}
-        />
-        <span>{t('shuffleOptions')}</span>
-      </label>
+      {round.type !== 'truth' && (
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={round.shuffleOptions}
+            onChange={(event) => onChange({ ...round, shuffleOptions: event.target.checked })}
+          />
+          <span>{t('shuffleOptions')}</span>
+        </label>
+      )}
+      {round.type === 'truth' && (
+        <>
+          <label className="field">
+            <span>{t('truthPointsLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={LIMITS.maxPoints}
+              value={Number.isNaN(round.points) ? '' : round.points}
+              onChange={(event) => onChange({ ...round, points: toNumber(event.target.value) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t('truthTimeLabel')}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={LIMITS.minTime}
+              max={LIMITS.maxTime}
+              value={Number.isNaN(round.timeLimit) ? '' : round.timeLimit}
+              onChange={(event) => onChange({ ...round, timeLimit: toNumber(event.target.value) })}
+            />
+          </label>
+        </>
+      )}
       {round.type === 'board' && (
         <>
           <label className="field">
@@ -450,7 +478,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'wipeout' && round.type !== 'ladder' && (
+      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'truth' && round.type !== 'wipeout' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

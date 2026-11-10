@@ -21,6 +21,12 @@ describe('roundSummary', () => {
     ]);
   });
 
+  it('truth: the price of a guess and the author share', () => {
+    expect(roundSummary({ ...emptyBrief('truth'), truth: { points: 300, time: 30 } })).toEqual([
+      'Запитання — факти гравців; вгадали — 300, автор — частка за кожного, хто не вгадав',
+    ]);
+  });
+
   it('a default classic round: everyone answers, faster is more', () => {
     expect(roundSummary({ ...emptyBrief('classic'), speedBonus: true })).toEqual([
       'Відповідають усі: бали отримує кожен, хто відповів правильно.',

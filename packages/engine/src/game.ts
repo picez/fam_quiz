@@ -76,6 +76,7 @@ import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
+import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
@@ -201,6 +202,8 @@ export interface Play {
   letterwords?: LetterWordsPlay;
   /** Лише в запитанні «Більше чи менше» (28a). */
   moreless?: MoreLessPlay;
+  /** Лише в запитанні раунду «Правда про гравця» (28b). */
+  truth?: TruthPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -537,6 +540,35 @@ export interface MoreLessPlay {
   scored?: { right: number[] };
 }
 
+/** «Правда про гравця» (28b): факти людей і колода авторів. */
+export interface TruthState {
+  /** Факти за id людини (соло — гравець, командна гра — учасник). Немає ключа — факту немає. */
+  facts: Record<string, TruthFact>;
+  /** Автори в порядку запитань, роздано на старті раунду (rng кімнати); немає ключа — ще не роздано (факти приймаються). */
+  deck?: string[];
+}
+
+/** Факт людини про себе: текст (пробіли зведено), чи сховав ведучий, мить останньої зміни тексту (час сервера). */
+export interface TruthFact {
+  text: string;
+  hidden: boolean;
+  at: number;
+  /** Текст змінено після першого подання, а ведучий ще не відреагував (hideTruth); ведучий бачить позначку «новий текст». */
+  revised?: true;
+}
+
+/** Запитання раунду truth (28b): чий факт, хто з учасників рушія не вгадує, хто вгадує. */
+export interface TruthPlay {
+  /** Автор факту (людина). */
+  authorId: string;
+  /** Учасник рушія автора на мить відкриття: соло — сам автор, командна гра — його команда. */
+  actorId: string;
+  /** Хто вгадує: присутні учасники рушія на відкритті, крім actorId (як timedlist.present у 27c); на закритті — truthGuessers тієї миті. Знаменник частки автора. */
+  guessers: string[];
+  /** Хто з guessers вгадав; ключ з'являється на закритті (withTruthPoints) — тоді guessers і right сталі, вилучення частки не міняє. */
+  right?: string[];
+}
+
 /** Фінал поточного раунду; null поза раундом фіналу. */
 export interface FinalState {
   /** Межа ставки: max(0, рахунок) на вході в етап wager; бали від ведучого під час ставок її оновлюють. */
@@ -744,6 +776,8 @@ export interface GameState {
   appeals?: Appeal[];
   /** Бонуси рівня гравців на цю гру (15a): id гравця → видача; ключ є, лише коли хтось має бонус. Без ключа — бонусів немає (і стан до 15a). */
   perks?: Record<string, PerkState>;
+  /** «Правда про гравця» (28b): ключ є лише у вікторині з раундом truth (createGame). */
+  truth?: TruthState;
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -861,6 +895,8 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
             duelists: {},
           },
         }),
+    // «Правда про гравця» (28b): факти приймаються з лобі.
+    ...(quiz.rounds.some((r) => r.type === 'truth') ? { truth: { facts: {} } } : {}),
   };
 }
 
@@ -956,6 +992,10 @@ function removeFromGame(state: GameState, playerId: string): Result {
     if (play.letterwords !== undefined) {
       const { [playerId]: _progress, ...progress } = play.letterwords.progress;
       kept.letterwords = { ...play.letterwords, progress };
+    }
+    // «Правда про гравця» (28b): лише відкрите запитання; на закритому guessers і right сталі.
+    if (play.truth !== undefined && index === state.questionIndex && state.phase === 'question') {
+      kept.truth = { ...play.truth, guessers: play.truth.guessers.filter((id) => id !== playerId) };
     }
     // «Більше чи менше» (28a): лише відкрите запитання; закрите вже пораховане (scored), його вибори лишаються як були.
     if (play.moreless !== undefined && index === state.questionIndex && state.phase === 'question') {
@@ -1054,7 +1094,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
   const kicked = withTotals({
-    ...unpicked,
+    ...dropTruthFacts(unpicked, [playerId]),
     players: state.players.filter((p) => p.id !== playerId),
     plays,
     board,
@@ -1177,21 +1217,36 @@ export function questionsLeft(state: GameState): boolean {
   return currentRound(state)?.type === 'board' ? hasActiveCells(state) : nextQuestion(state) !== undefined;
 }
 
+/** Наступне запитання — ще в поточному раунді: на заставці раунду (навіть коли nextQuestion мовчить — учасника «Мільйонера» ще не вибрано) чи поки в ньому є запитання. */
+function comingInRound(state: GameState): boolean {
+  const fresh = state.phase === 'intro' || state.phase === 'guide';
+  return state.phase !== 'round_end' && (fresh || questionsLeft(state));
+}
+
+/** Раунд наступного запитання (як у comingQuestion): поточний, поки в ньому ще будуть запитання, інакше наступний; кінець гри — null. */
+export function comingRound(state: GameState): Round | null {
+  return comingInRound(state) ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
+}
+
 /**
  * Наступне запитання, яке відкриється (12g, щоб капітан не вибирав відповідача на бліц, опитування чи «хмару»):
  * у раунді, де ще є запитання (і на заставці раунду), — nextQuestion чи перше; на round_end чи коли раунд вичерпано — перше запитання наступного раунду.
  * blitz — запитання піде з чергою натискань (бліц-раунд, крім сортування); ladder — запитання «Мільйонера».
  * Поле (клітинку ще не вибрано) і кінець гри — null.
  */
-export function comingQuestion(state: GameState): { question: Question; blitz: boolean; ladder: boolean } | null {
-  // Заставка раунду: раунд ще попереду, навіть коли nextQuestion мовчить (учасника «Мільйонера» ще не вибрано).
+export function comingQuestion(state: GameState): { question: Question; blitz: boolean; ladder: boolean; truth: boolean } | null {
   const fresh = state.phase === 'intro' || state.phase === 'guide';
-  const inRound = state.phase !== 'round_end' && (fresh || questionsLeft(state));
-  const round = inRound ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
+  const inRound = comingInRound(state);
+  const round = comingRound(state);
   if (round === null || round.type === 'board') return null;
+  // «Правда про гравця» (28b): запитання створює роздача; до неї (і в наступному раунді) їх ще немає.
+  if (round.type === 'truth') {
+    const question = inRound ? nextQuestion(state) : undefined;
+    return question === undefined ? null : { question, blitz: false, ladder: false, truth: true };
+  }
   const first = () => round.questions.find((q) => playable(state, q));
   const question = inRound ? (nextQuestion(state) ?? (fresh ? first() : undefined)) : first();
-  return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort', ladder: round.type === 'ladder' };
+  return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort', ladder: round.type === 'ladder', truth: false };
 }
 
 /**
@@ -1201,6 +1256,8 @@ export function comingQuestion(state: GameState): { question: Question; blitz: b
 function nextQuestion(state: GameState): Question | undefined {
   const round = currentRound(state);
   if (round === null || round.type === 'board') return undefined;
+  // «Правда про гравця» (28b): перше незігране запитання колоди, чий факт не сховано й автор ще в грі; до роздачі — нічого.
+  if (round.type === 'truth') return nextTruthQuestion(state);
   // «Ва-банк»: коли в грі нікого не лишилося, решта драбини лишається незіграною.
   if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
   // «Вибування»: щойно після вибування живих ≤ N, решта запитань лишається незіграною.
@@ -1255,6 +1312,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(round.type === 'survival' ? { survival: { ghosts: {}, edge: null, trial: null, end: false } } : {}),
     // «Мільйонер»: сходинка = кількість уже зіграних запитань раунду; рівень і таймер — знімки раунду.
     ...(round.type === 'ladder' ? { ladder: ladderPlayFor(state, round.levels, round.timer) } : {}),
+    // «Правда про гравця» (28b): автор, його учасник рушія і присутні вгадувачі на мить відкриття.
+    ...(round.type === 'truth' ? { truth: truthPlayFor(state, question) } : {}),
   };
   // Таймер стартує після заставки (класика, фінал, клітинка поля); у бліц-раунді заставки немає.
   // Клітинка з ×2/×3 перегортається довше: після перегортання — сюрприз.
@@ -1270,7 +1329,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       phase: 'question',
       questionIndex: state.plays.length,
       plays: [...state.plays, play],
-      presented: present(question, round.shuffleOptions, rng),
+      presented: present(question, shuffles(round), rng),
       startedAt: at,
       // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
       endsAt: isTimed(question) && !(round.type === 'ladder' && !round.timer) ? at + answerWindowMs(question) : null,
@@ -1280,6 +1339,11 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     now,
   );
   return fireDebuffs(startAnswerers(opened), at);
+}
+
+/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою. */
+export function shuffles(round: Round): boolean {
+  return round.type === 'truth' ? false : round.shuffleOptions;
 }
 
 /** Новий LadderPlay для запитання «Мільйонера», що відкривається. */
@@ -1538,7 +1602,8 @@ function streakBase(play: Play, playerId: string, record: AnswerRecord): number 
 export function withTotals(input: GameState): GameState {
   // Бали фіналу залежать від усіх записів запитання (спільний банк), тож перераховуються першими;
   // бали «Ва-банк» — з драбини всього раунду.
-  const state = withWipeoutPoints(withFinalPoints(input));
+  // «Правда про гравця» (28b): бали автора — з записів усіх вгадувачів закритих запитань.
+  const state = withWipeoutPoints(withFinalPoints(withTruthPoints(input)));
   // Відкрите запитання завжди останнє в журналі.
   const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
   const plays = state.plays.map((play, index) => {
@@ -1663,8 +1728,17 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   }
   const type = currentRound(state)?.type;
   // «Ставки»: лише тих, хто грає; без них запитання закриє таймер чи ведучий. «Аукціон»: продане — лише переможця, непродане — усіх.
+  // «Правда про гравця» (28b): лише тих, хто вгадує (автора — ні).
   const playing =
-    type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : type === 'bets' || type === 'auction' ? betsPlaying(state) : null;
+    type === 'wipeout'
+      ? wipeoutIn(state)
+      : type === 'survival'
+        ? survivalAlive(state)
+        : type === 'bets' || type === 'auction'
+          ? betsPlaying(state)
+          : type === 'truth'
+            ? truthGuessers(state)
+            : null;
   const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
@@ -1726,6 +1800,14 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   // «Ставки»: хто не поставив, пропускає запитання.
   const skipped = betsRefusal(state, playerId);
   if (skipped !== null) return fail(skipped);
+  // «Правда про гравця» (28b): свій факт не вгадують; вибрати можна лише ім'я зі списку.
+  const truthPlay = truthPlayOf(state);
+  if (truthPlay !== null) {
+    if (truthPlay.truth.actorId === playerId) return fail('truth_own');
+    const asked = truthPlay.question;
+    const optionId = answer.type === 'single' ? answer.optionId : null;
+    if (optionId !== null && asked.type === 'single' && !asked.options.some((o) => o.id === optionId)) return fail('not_found');
+  }
   // «Вибування»: привид відповідає «для себе» — поза answers, без балів; живі йдуть класичним шляхом.
   if (currentRound(state)?.type === 'survival' && isGhost(state, playerId)) return submitGhostAnswer(state, playerId, answer, now);
   const play = state.plays[state.questionIndex];
@@ -2112,6 +2194,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (state.final !== null) return ok(enterWager(state, state.final));
       // «Мільйонер»: без учасника «Далі» — жереб чи «найменші бали» (етап лишається intro); з учасником — перше запитання.
       if (inLadderRound(state) && (state.ladder?.contestantId ?? null) === null) return drawContestant(state, rng);
+      // «Правда про гравця» (28b): роздача фактів (rng кімнати); порожня колода — одразу кінець раунду.
+      if (currentRound(state)?.type === 'truth') return ok(advance(dealTruth(state, rng), now, rng));
       return ok(advance(state, now, rng));
     case 'wager':
       // «Ставки»: «Відкрити запитання» — хто не поставив, пропускає.
@@ -2382,6 +2466,8 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
   if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
+  // «Правда про гравця» (28b): бали автора рахує гра з оцінок вгадувачів.
+  if (truthPlayOf(state)?.truth.actorId === playerId) return fail('not_allowed');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
   // «Аукціон»: непродане запитання (без play.final) оцінюється класичним шляхом нижче.

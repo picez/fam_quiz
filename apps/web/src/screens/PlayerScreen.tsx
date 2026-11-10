@@ -38,6 +38,7 @@ import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
+import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -359,7 +360,9 @@ function Result({ view }: { view: PlayerView }) {
       )}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
+      {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
+        view.truth?.index == null &&
         (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
@@ -827,6 +830,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     !(board !== null && !chooserIsMe && me.blitz === null);
 
   const place = me.rank !== null && <p className="place">{t('yourPlace', { rank: me.rank, total: view.playerCount })}</p>;
+  // «Правда про гравця» (28b): запитання раунду — факт, варіанти — імена людей гри.
+  const truthQ = view.truth !== undefined && view.truth.index !== null && question?.type === 'single';
+  const truthOwn = truthQ && me.truth?.own === true;
+  // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
+  const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
+  // Пізній гравець (продовжена гра) пише факт і між запитаннями, поки раунд не роздано; форма лишається до кінця цих етапів.
+  const between = phase === 'intro' || phase === 'leaderboard' || phase === 'round_end' || phase === 'guide';
+  const truthLateNeed = between && me.truth !== undefined && me.truth.canWrite && (me.truth.fact === '' || me.truth.hidden);
+  const [truthLate, setTruthLate] = useState(false);
+  if (truthLateNeed && !truthLate) setTruthLate(true);
+  const truthLateForm = between && me.truth !== undefined && me.truth.canWrite && truthLate;
 
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
@@ -901,6 +915,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </div>
       )}
       {phase === 'lobby' && view.author === null && view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="phone" />}
+      {/* «Правда про гравця» (28b): лише число фактів — чиї вони, телефон не каже. */}
+      {phase === 'lobby' && view.truth !== undefined && <p className="meta truth-lobby-count">{t('truthFactsCount', { count: view.truth.count })}</p>}
+      {(phase === 'lobby' || truthLateForm) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} onError={setError} />}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 
@@ -1016,7 +1033,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           )}
           {team !== null && !debuffHere && me.debuff !== null && <DebuffStrip debuff={me.debuff} answerer={team.answererId !== team.captainId} />}
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
-          {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
+          {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && !truthOwn && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
             <AwayNote away={view.away} />
@@ -1080,8 +1097,13 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               ) : (
                 <MoreLessPlay key={view.questionIndex} info={me.moreless} question={question} paused={locked} timeUp={buffTimeOver} send={send} />
               )
+            ) : truthOwn ? (
+              <TruthOwn team={team !== null} />
             ) : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
+            ) : truthQ && me.answer === null ? (
+              // Пауза, заставка чи сплив час — імена на місці, лише вимкнені.
+              <TruthPick key={view.questionIndex} question={question} disabled={locked || buffTimeOver} send={send} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
@@ -1221,7 +1243,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {question?.clues != null && <CluesList clues={question.clues} offsetMs={offsetMs} />}
           {auctionWatching && me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
-          {isSort ? (
+          {truthOwn ? (
+            <section className="sent">
+              <TruthOwn team={team !== null} />
+              <p className="lead">{t('waitReveal')}</p>
+            </section>
+          ) : isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
             <section className="sent">
               {me.sort !== null ? (
@@ -1332,6 +1359,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {view.reveal !== null && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'pin' && view.reveal.type !== 'sort' && (
                 <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>
               )}
+            </>
+          ) : truthQ && view.truth !== undefined ? (
+            <>
+              <TruthReveal truth={view.truth} />
+              {!truthAuthor && <Result view={view} />}
             </>
           ) : isBluff ? (
             <BluffResult view={view} />
@@ -1465,6 +1497,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />
         </>
       )}
+
+      {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
 
       {phase === 'round_end' && view.standings !== null && (
         <>

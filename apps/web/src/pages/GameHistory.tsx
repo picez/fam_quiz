@@ -201,6 +201,11 @@ export function auctionLine(entry: { nickname: string; wager: number; points: nu
   return t('auctionHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
+/** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
+export function truthLine(info: { author: string; points: number }): string {
+  return t('truthHistoryAuthor', { nickname: info.author, points: signed(info.points) });
+}
+
 /** «Слова з літер»: роздані літери великими й найдовші можливі слова (їх немає — лише набір). */
 export function lettersLines(info: NonNullable<GameQuestionResult['letterwords']>): string[] {
   const set = t('lettersHistorySet', { letters: info.letters.map((l) => l.toLocaleUpperCase('uk')).join(' ') });
@@ -423,6 +428,7 @@ export function GameHistory() {
                           </div>
                         )}
                         {question.auction && question.final === null && <p className="meta auction-open">{t('auctionHistoryOpen')}</p>}
+                        {question.truth !== undefined && <p className="meta truth-history">{truthLine(question.truth)}</p>}
                         {question.wipeout !== undefined && (
                           <ul className="wipeout-history">
                             {wipeoutLines(question.wipeout).map((line, at) => (
@@ -491,10 +497,20 @@ export function GameHistory() {
                             ))}
                           </ul>
                         )}
-                        {question.responses.length > 0 && (
+                        {(question.responses.length > 0 || question.truth !== undefined) && (
                           <details className="responses">
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>
+                              {/* «Правда про гравця» (28b): автор не відповідав — його рядок з позначкою й часткою, без відповіді. */}
+                              {question.truth !== undefined && (
+                                <li className="truth-author-row">
+                                  <span className="responses-who">
+                                    <span className="responses-name">{question.truth.author}</span>
+                                    <span className="tag">{t('truthHistoryAuthorRow')}</span>
+                                  </span>
+                                  <span className="responses-answer">{signed(question.truth.points)}</span>
+                                </li>
+                              )}
                               {question.responses.map((response, at) => (
                                 <li
                                   key={at}

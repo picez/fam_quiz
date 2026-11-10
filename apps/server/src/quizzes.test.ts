@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { questionsOf, quizSchema } from '@quiz/shared';
 import { eq, sql } from 'drizzle-orm';
-import { bool, boardRound, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { bool, boardRound, classicRound, duels, makeQuiz, makeRoundsQuiz, single, text, truthRound, withId } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { answer, game, quiz, user, userLike } from './db/schema';
 import { createQuiz as saveQuiz, deleteQuestionAsAdmin, deleteQuiz, getQuiz, listQuizzes } from './quizzes';
@@ -131,8 +131,16 @@ describe('quizzes', () => {
     const { id } = created.json() as { id: string };
 
     expect((await call('GET', `/api/quizzes/${id}`, cookie)).json()).toEqual({ id, ...rounds });
-    const list = (await call('GET', '/api/quizzes', cookie)).json() as { questionCount: number }[];
-    expect(list.map((item) => item.questionCount)).toEqual([3]);
+    const list = (await call('GET', '/api/quizzes', cookie)).json() as { questionCount: number; truth: boolean }[];
+    expect(list.map((item) => [item.questionCount, item.truth])).toEqual([[3, false]]);
+  });
+
+  it('a quiz with a truth round says so beside its count (28b)', async () => {
+    const { cookie } = await signUp(ctx.app, 'Олена');
+    const created = await call('POST', '/api/quizzes', cookie, makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]));
+    expect(created.statusCode).toBe(201);
+    const list = (await call('GET', '/api/quizzes', cookie)).json() as { questionCount: number; truth: boolean }[];
+    expect(list.map((item) => [item.questionCount, item.truth])).toEqual([[1, true]]);
   });
 
   it('a quiz with duels saves and loads; an invalid pool is refused', async () => {

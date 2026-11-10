@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQuiz, fetchQuizLikes, getQuiz, me, updateQuiz } from '../api';
+import { roundQuestions } from '@quiz/shared';
 import { demoQuiz } from '../demo-quiz';
 import { EditQuiz } from './EditQuiz';
 
@@ -70,7 +71,7 @@ describe('EditQuiz', () => {
   it('gives a repeated question id a fresh one when the quiz is opened (17a)', async () => {
     const first = demoQuiz.rounds[0]!;
     if (first.type === 'board') throw new Error('demo quiz starts with a board');
-    const [a, b] = first.questions;
+    const [a, b] = roundQuestions(first);
     const repeated = { ...demoQuiz, rounds: [{ ...first, questions: [a!, { ...b!, id: a!.id }] }] };
     vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: repeated });
     vi.mocked(updateQuiz).mockResolvedValue({ ok: true, id: 'q1' });

@@ -3,6 +3,7 @@ import {
   adminPages,
   ADMIN_PAGE_SIZE,
   ADMIN_QUERY_MAX,
+  hasTruthRound,
   questionsOf,
   type AdminList,
   type AdminLogEntry,
@@ -180,6 +181,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
       author: { id: r.row.ownerId, nickname },
       authorBanned: r.banned === true,
       questionCount: questionsOf(r.row).length,
+      truth: hasTruthRound(r.row),
       games: num(r.games),
       updatedAt: iso(r.row.updatedAt),
     });

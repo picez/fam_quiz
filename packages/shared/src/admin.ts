@@ -24,6 +24,8 @@ export interface AdminUserRow {
 export interface AdminQuizRow {
   id: string; title: string; author: { id: string; nickname: string | null }; authorBanned: boolean;
   questionCount: number; games: number; updatedAt: string;
+  /** Є раунд «Правда про гравця»: його запитань у questionCount немає. */
+  truth?: boolean;
 }
 export interface AdminQuizView { id: string; author: { id: string; nickname: string | null }; quiz: Quiz; updatedAt: string; effects: Record<string, RemovalEffect> }
 export interface AdminPrize { id: string; content: PrizeContent; status: 'free' | 'reserved'; createdAt: string }

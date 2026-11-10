@@ -73,13 +73,16 @@ import {
   type TimedListScored,
   type TimedListProgress,
   type WordLadderProgress,
+  type TruthFact,
+  type TruthPlay,
+  type TruthState,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
 import { openClue } from './clues';
 import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
-import { writeLie } from './bluff';
+import { seededRng, writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
 import {
@@ -115,6 +118,7 @@ import {
   moreless,
   withReveal,
   wordladder,
+  truthRound,
 } from './testing/fixtures';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
@@ -123,6 +127,7 @@ import { guessWall } from './wall';
 import { listEntry } from './timedlist';
 import { dealLetters, letterWord } from './letterwords';
 import { moreLessPick } from './moreless';
+import { hideTruth, submitTruth } from './truth';
 import { ladderWord } from './wordladder';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
@@ -310,14 +315,14 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks', 'truth',
     ],
     true,
   ),
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -365,6 +370,9 @@ const STATE_SHAPE: Record<string, string> = {
   MoreLessPlay: keysOf<MoreLessPlay>()(['progress', 'scored'], true),
   MoreLessScored: keysOf<NonNullable<MoreLessPlay['scored']>>()(['right'], true),
   MoreLessProgress: keysOf<MoreLessProgress>()(['picks'], true),
+  TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
+  TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
+  TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1165,11 +1173,11 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions',
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,letterwords,moreless,overtime,question,roundIndex,sort,survey,survival,timedlist,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,letterwords,moreless,overtime,question,roundIndex,sort,survey,survival,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1211,6 +1219,9 @@ const KEYS: Record<number, Record<string, string>> = {
     MoreLessPlay: 'progress,scored',
     MoreLessScored: 'right',
     MoreLessProgress: 'picks',
+    TruthState: 'deck,facts',
+    TruthFact: 'at,hidden,revised,text',
+    TruthPlay: 'actorId,authorId,guessers,right',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1461,6 +1472,11 @@ function representative(): GameState[] {
   const moreOpen = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [moreless])]), 'Оля', 'Петро'), T0);
   const morePicked = must(moreLessPick(must(moreLessPick(moreOpen, 'p1', 0, 'a', T0 + 1000)), 'p1', 1, 'a', T0 + 1500));
   const moreClosed = must(lock(morePicked, T0 + 2000));
+  // 28b: «Правда про гравця» — у лобі два факти, один сховано: GameState.truth, TruthState, TruthFact.
+  const truthLobby = truthFacts();
+  // 28b: відкрите запитання (Play.truth, колода) і закрите (заморожені guessers і right, запис автора).
+  const truthOpen = truthAsked();
+  const truthClosed = must(lock(truthOpen, T0 + 2000));
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1501,6 +1517,9 @@ function representative(): GameState[] {
     lettering,
     morePicked,
     moreClosed,
+    truthLobby,
+    truthOpen,
+    truthClosed,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1509,6 +1528,22 @@ function representative(): GameState[] {
     perked(),
     hintPerked(),
   ];
+}
+
+/** 28b: перше запитання «Правди про гравця» (Оля, Петро, Іра; факти Олі й Петра; seededRng(7)), один вгадувач уже відповів правильно. */
+function truthAsked(): GameState {
+  let lobby = lobbyWith(makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]), 'Оля', 'Петро', 'Іра');
+  lobby = must(submitTruth(must(submitTruth(lobby, 'p1', 'Я стрибала з парашутом', T0)), 'p2', 'Я знаю шість мов', T0));
+  const open = must(next(must(start(lobby)), T0, seededRng(7)));
+  const author = open.plays[0].truth?.authorId ?? '';
+  return must(submitAnswer(open, 'p3', { type: 'single', optionId: author }, T0 + 1000));
+}
+
+/** 28b: лобі «Правди про гравця» — Оля й Петро написали факти, факт Петра ведучий сховав. */
+function truthFacts(): GameState {
+  const lobby = lobbyWith(makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]), 'Оля', 'Петро');
+  const written = must(submitTruth(must(submitTruth(lobby, 'p1', 'Я стрибала з парашутом', T0)), 'p2', 'Я знаю шість мов', T0 + 500));
+  return must(hideTruth(written, 'p2', true));
 }
 
 /** 15a: Оля взяла «Підказку рівня» на q1 — у стані індекс запитання й показаний текст. */
@@ -1759,6 +1794,47 @@ describe('the saved state', () => {
     // старий знімок без поля відновлюється й без нього
     const plain = roundTrip(suspend(roundTrip({ ...open, plays: open.plays.map(({ moreless: _row, ...p }) => p) }), T0 + 1000));
     expect('moreless' in plain.plays[0]).toBe(false);
+  });
+
+  it('a suspended lobby keeps the facts', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const lobby = truthFacts();
+    const back = roundTrip(suspend(roundTrip(lobby), T0 + 1000));
+    expect(back.truth).toEqual({
+      facts: { p1: { text: 'Я стрибала з парашутом', hidden: false, at: T0 }, p2: { text: 'Я знаю шість мов', hidden: true, at: T0 + 500 } },
+    });
+    // факти й далі приймаються
+    expect(must(submitTruth(back, 'p1', 'Я плавала з акулами', T0 + 2000)).truth?.facts.p1.text).toBe('Я плавала з акулами');
+    // старий знімок без поля відновлюється без нього
+    const { truth: _truth, ...plain } = lobby;
+    expect('truth' in roundTrip(suspend(roundTrip(plain), T0 + 1000))).toBe(false);
+  });
+
+  it('a suspended truth question keeps the deck, the author and the records', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = truthAsked();
+    const author = open.plays[0].truth?.authorId ?? '';
+    const other = author === 'p1' ? 'p2' : 'p1';
+    const back = roundTrip(suspend(roundTrip(open), T0 + 1500));
+    expect(back.truth).toEqual(open.truth);
+    expect(back.plays[0].truth).toEqual({ authorId: author, actorId: author, guessers: [other, 'p3'] });
+    expect(back.plays[0].question).toEqual(open.plays[0].question);
+    expect(back.plays[0].answers).toEqual(open.plays[0].answers);
+    // гра йде далі: другий вгадувач помиляється — частка автора та сама, що й без перезапуску
+    const resumed = must(resume(back, T0 + 1500 + HOUR));
+    expect(submitAnswer(resumed, author, { type: 'single', optionId: other }, T0 + 2000 + HOUR)).toEqual({ ok: false, error: 'truth_own' });
+    // останній вгадувач відповів — запитання закривається само
+    const closed = must(submitAnswer(resumed, other, { type: 'single', optionId: 'p3' }, T0 + 2000 + HOUR));
+    const direct = must(submitAnswer(open, other, { type: 'single', optionId: 'p3' }, T0 + 1500));
+    expect([closed.phase, direct.phase]).toEqual(['locked', 'locked']);
+    expect(closed.plays[0].answers[author]).toEqual(direct.plays[0].answers[author]);
+    expect(closed.plays[0].answers[author]?.points).toBe(150);
+    // після закриття: перезапуск зберігає заморожені guessers і right, частка та сама
+    const again = roundTrip(suspend(roundTrip(closed), T0 + 4000 + HOUR));
+    expect(again.plays[0].truth).toEqual({ authorId: author, actorId: author, guessers: [other, 'p3'], right: ['p3'] });
+    const revealed = must(next(must(resume(again, T0 + 5000 + HOUR)), T0 + 6000 + HOUR));
+    expect(revealed.plays[0].answers[author]?.points).toBe(150);
+    expect(revealed.players.find((p) => p.id === author)?.score).toBe(150);
   });
 
   it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
@@ -2023,6 +2099,9 @@ describe('the saved state', () => {
       add('MoreLessPlay', s.plays.map((p) => p.moreless));
       add('MoreLessScored', s.plays.map((p) => p.moreless?.scored));
       add('MoreLessProgress', s.plays.flatMap((p) => Object.values(p.moreless?.progress ?? {})));
+      add('TruthState', [s.truth]);
+      add('TruthFact', Object.values(s.truth?.facts ?? {}));
+      add('TruthPlay', s.plays.map((p) => p.truth));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

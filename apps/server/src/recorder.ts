@@ -1,4 +1,4 @@
-import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay } from '@quiz/engine';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type GameState, type LadderPlay, type SurvivalPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { awardGame } from './achievement-store';
@@ -146,7 +146,8 @@ function answerRowsOf(state: GameState, index: number, playerId: string, engineP
     const { final } = play;
     // Мовчання у фіналі — рядок балів без відповіді, як штраф бліц-клітинки. Ставка йде окремо:
     // у спільному банку бали не дорівнюють ±ставці. Мовчання з «Ризиком» у класиці (12h) — теж штраф, з бафом на рядку.
-    const silent = (final !== undefined && payload === null) || isSilentRisk(play, record);
+    // Частка автора «Правди про гравця» (28b) — бали без відповіді: рядок штрафу, щоб історія, профіль і ачівки не рахували її відповіддю.
+    const silent = (final !== undefined && payload === null) || isSilentRisk(play, record) || play.truth?.actorId === playerId;
     const wager = final === undefined ? null : Object.hasOwn(final.wagers, playerId) ? final.wagers[playerId] : 0;
     // Голос в опитуванні чи «хмарі» — не відповідь для статистики: свій номер рядка.
     const vote = isUnscored(state.plays[index].question);
@@ -197,6 +198,12 @@ function answerRowsOf(state: GameState, index: number, playerId: string, engineP
     ...rows,
     { attempt: PENALTY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: penalty, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, clue: null, answeredBy: null },
   ];
+}
+
+/** «Правда про гравця» (28b) для PlayRef: запитання з фактом, автор і його нікнейм з варіантів (вони не міняються після вилучення). */
+function truthRef(truth: TruthPlay, question: Question): NonNullable<PlayRef['truth']> {
+  const authorName = question.type === 'single' ? (question.options.find((o) => o.id === truth.authorId)?.text ?? '') : '';
+  return { question, author: truth.authorId, authorName, actor: truth.actorId };
 }
 
 /** «Вибування» для PlayRef: лише закрите випробування; відповіді привидів — лише лічильники. */
@@ -273,6 +280,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),
+      ...(play.truth === undefined ? {} : { truth: truthRef(play.truth, play.question) }),
     })),
     finishedAt: finished ? new Date() : null,
   };

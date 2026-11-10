@@ -18,6 +18,7 @@ import {
   type RevealMode,
   type Round,
   type SurvivalRound,
+  type TruthRound,
   type Video,
   type WipeoutRound,
 } from '@quiz/shared';
@@ -449,6 +450,11 @@ export function auctionRound(
     ...options,
     questions: questions.map((question) => (question.betsCut === undefined ? { ...question, betsCut: 2 } : question)),
   };
+}
+
+/** «Правда про гравця» (28b): типово title '', points 300, timeLimit 30; запитання створює гра з фактів. */
+export function truthRound(id: string, options: Partial<Omit<TruthRound, 'id' | 'type'>> = {}): TruthRound {
+  return { id, type: 'truth', title: '', points: 300, timeLimit: 30, ...options };
 }
 
 /** «Ва-банк»: типово title '', shuffleOptions false. */

@@ -64,6 +64,14 @@ export function snapshotOf(raw: unknown): Quiz | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Скільки запитань у грі: зі знімка вікторини й запитання раунду «Правда про гравця» (28b), яких у знімку немає —
+ * гра створює їх сама, тож вони є лише в журналі (PlayRef.truth).
+ */
+export function gameQuestionCount(row: { quizSnapshot: unknown; plays: PlayRef[] }): number {
+  return questionCountOf(row.quizSnapshot) + row.plays.filter((ref) => ref.truth !== undefined).length;
+}
+
 /** Кількість запитань у знімку без повної валідації: зіпсований знімок рахуємо за сирою структурою. */
 export function questionCountOf(raw: unknown): number {
   const quiz = snapshotOf(raw);
@@ -93,6 +101,12 @@ function roundQuestionsAt(quiz: Quiz, roundIndex: number): Question[] {
   return round ? roundQuestions(round) : [];
 }
 
+/** Запитання запису: «Правда про гравця» (28b) — згенероване з журналу гри (у знімку його немає), решта — зі знімка. */
+function questionOf(quiz: Quiz, ref: PlayRef): Question | undefined {
+  if (ref.truth !== undefined) return quiz.rounds[ref.roundIndex]?.type === 'truth' ? ref.truth.question : undefined;
+  return roundQuestionsAt(quiz, ref.roundIndex).find((q) => q.id === ref.questionId);
+}
+
 /** Закриті запитання гри в порядку гри; індекс у масиві відповідає answer.question_index. */
 export function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: number) {
   // Старі ігри не мають журналу: вони йшли одним списком, тож зіграно перші questionsPlayed запитань.
@@ -103,7 +117,7 @@ export function playedQuestions(quiz: Quiz, plays: PlayRef[], questionsPlayed: n
   }
   return plays.slice(0, questionsPlayed).map((ref) => ({
     roundIndex: ref.roundIndex,
-    question: roundQuestionsAt(quiz, ref.roundIndex).find((q) => q.id === ref.questionId),
+    question: questionOf(quiz, ref),
     ref,
   }));
 }
@@ -123,6 +137,12 @@ function bluffResult(ref: PlayRef | undefined, nicknames: Map<string, string>): 
       removed: o.removed,
     })),
   };
+}
+
+/** «Правда про гравця» (28b): нікнейм автора й бали його учасника (рядок частки; немає — 0). */
+function truthResult(truth: NonNullable<PlayRef['truth']>, given: { participantId: string; attempt: number; points: number }[]): GameQuestionResult['truth'] {
+  const share = given.find((a) => a.participantId === truth.actor && a.attempt === PENALTY_ATTEMPT);
+  return { author: truth.authorName, points: share?.points ?? 0 };
 }
 
 /** Клітинка запитання для історії: категорія, ціна й множник зі знімка, вибравший і його бали. */
@@ -308,7 +328,7 @@ function wipeoutResult(
   if (ref === undefined) return undefined;
   const indices = plays.flatMap((play, i) => (i <= index && play.roundIndex === ref.roundIndex ? [i] : []));
   const steps = indices.flatMap((i) => {
-    const question = roundQuestionsAt(quiz, plays[i].roundIndex).find((q) => q.id === plays[i].questionId);
+    const question = questionOf(quiz, plays[i]);
     if (question === undefined) return [];
     return [
       {
@@ -464,7 +484,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     finishedAt: row.finishedAt?.toISOString() ?? null,
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     teams: teamGames.has(row.id),
     autopilot: row.autopilot,
   }));
@@ -481,6 +501,9 @@ export function resumeRound(quiz: Quiz | null, plays: PlayRef[], questionsPlayed
   if (quiz === null) return last;
   const round = quiz.rounds[last];
   if (round === undefined) return Math.min(last, quiz.rounds.length - 1);
+  // «Правда про гравця» (28b): запитань у вікторині немає, вони — з фактів лобі старої гри, а факти в нову гру не переходять.
+  // Тож раунд truth хоч з одним зіграним запитанням — завершений: продовження йде з наступного раунду.
+  if (round.type === 'truth') return Math.min(last + 1, quiz.rounds.length - 1);
   const done = refs.filter((ref) => ref.roundIndex === last).length >= roundQuestions(round).length;
   return Math.min(done ? last + 1 : last, quiz.rounds.length - 1);
 }
@@ -513,7 +536,7 @@ export async function resumeOptions(db: Db, hostId: string, quizId: string, excl
     startedAt: row.startedAt.toISOString(),
     status: row.status,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     autopilot: row.autopilot,
     roundIndex: resumeRound(snapshotOf(row.quizSnapshot), row.plays, row.questionsPlayed),
     scores: (byGame.get(row.id) ?? [])
@@ -615,7 +638,8 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         nickname: p.nickname,
         score: p.score,
         rank: p.rank,
-        correct: distinct((answersOf.get(p.id) ?? []).filter((a) => a.accepted).map((a) => a.questionIndex)),
+        // Частка автора «Правди про гравця» (28b, рядок штрафу) — не відповідь.
+        correct: distinct((answersOf.get(p.id) ?? []).filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
         rounds: roundTotals(own, roundCount),
         breakdown: breakdownOf(own),
         ...(p.isTeam ? { members: membersOf(p.id).map((m) => m.nickname) } : {}),
@@ -644,7 +668,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         text: question.text,
         type: question.type,
         answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
-        accepted: distinct(main.filter((a) => a.accepted).map((a) => a.participantId)),
+        accepted: distinct(main.filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
         question: cloudRows === undefined ? question : { ...question, rows: cloudRows },
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
@@ -664,6 +688,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
               : null,
         bets: round?.type === 'bets',
         auction: round?.type === 'auction',
+        ...(ref?.truth === undefined ? {} : { truth: truthResult(ref.truth, given) }),
       },
     ];
   });
@@ -677,7 +702,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     autopilot: row.autopilot,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,
@@ -742,7 +767,7 @@ function unplayedWipeout(snapshot: unknown, plays: PlayRef[] | null, questionsPl
     if (quiz.rounds[roundIndex]?.type !== 'wipeout') continue;
     const indices = played.flatMap((ref, i) => (ref.roundIndex === roundIndex ? [i] : []));
     const steps = indices.map((i) => ({
-      price: roundQuestionsAt(quiz, roundIndex).find((q) => q.id === played[i].questionId)?.points ?? 0,
+      price: questionOf(quiz, played[i])?.points ?? 0,
       correct: accepted.has(i) ? [participantId] : [],
       took: played[i].wipeout?.took ?? [],
     }));
@@ -787,6 +812,11 @@ function unplayedLadder(snapshot: unknown, plays: PlayRef[] | null, questionsPla
   return plays
     .slice(0, questionsPlayed)
     .filter((ref, i) => quiz.rounds[ref.roundIndex]?.type === 'ladder' && ref.ladder?.contestant !== participantId && !answered.has(i)).length;
+}
+
+/** Скільки запитань «Правди про гравця» (28b) — про факт цього учасника: він їх не вгадував, тож це не його запитання. */
+function unplayedTruth(plays: PlayRef[] | null, questionsPlayed: number, participantId: string): number {
+  return (plays ?? []).slice(0, questionsPlayed).filter((ref) => ref.truth?.actor === participantId).length;
 }
 
 /** Ігри гравця з акаунта, найновіші першими, з рядками його відповідей; limit null — усі. */
@@ -835,7 +865,8 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
         score: row.participant.score,
         rank: row.participant.rank,
         playerCount: players.get(row.game.id) ?? 0,
-        correct: distinct(mine.filter((a) => a.accepted).map((a) => a.questionIndex)),
+        // Частка автора «Правди про гравця» (28b, рядок штрафу) — не відповідь.
+        correct: distinct(mine.filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
         answered: distinct(mine.filter((a) => isAnswerRow(a.attempt)).map((a) => a.questionIndex)),
         questionsPlayed:
           row.game.questionsPlayed -
@@ -848,6 +879,7 @@ export async function playerGames(db: Db, userId: string, limit: number | null):
             new Set(mine.filter((a) => a.accepted && a.attempt === 0).map((a) => a.questionIndex)),
           ) -
           unplayedSurvival(row.game.quizSnapshot, row.game.plays, row.game.questionsPlayed, playing) -
+          unplayedTruth(row.game.plays, row.game.questionsPlayed, playing) -
           unplayedLadder(
             row.game.quizSnapshot,
             row.game.plays,
@@ -875,7 +907,9 @@ async function answeredTypeRows(db: Db, userId: string, aroundGameId: string | n
   const ref = sql`${game.plays}->${answer.questionIndex}`;
   const round = sql`${game.quizSnapshot}->'rounds'->((${ref}->>'roundIndex')::int)`;
   const vars = sql`jsonb_build_object('id', ${ref}->'questionId')`;
+  // «Правда про гравця» (28b): запитання згенероване, його тип — у журналі гри.
   const type = sql<string | null>`coalesce(
+    ${ref}#>'{truth,question,type}',
     jsonb_path_query_first(${round}, '$.questions[*] ? (@.id == $id).type', ${vars}),
     jsonb_path_query_first(${round}, '$.categories[*].cells[*].question ? (@.id == $id).type', ${vars})
   ) #>> '{}'`;

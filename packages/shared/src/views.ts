@@ -939,6 +939,48 @@ export interface PlayerBets {
   canBet: boolean;
 }
 
+/** «Правда про гравця» (28b): для всіх ролей. До reveal автора факту не видно: лише число фактів, номер і кількість. */
+export interface TruthInfo {
+  /** Факти ще приймаються. */
+  open: boolean;
+  /**
+   * До роздачі — скільки нехованих фактів написано (лише число, без імен; після старту — людей, що грають);
+   * після — зіграні запитання й ті записи колоди, що ще зіграються (сховане чи вилучене після роздачі не рахується).
+   */
+  count: number;
+  /** question…reveal раунду truth: номер запитання (від 0); інакше null. */
+  index: number | null;
+  /** Лише reveal: чий факт і хто кого вибрав; інакше null. Ім'я вибору — текст варіанта. */
+  reveal: {
+    author: { id: string; nickname: string };
+    /** Бали автора (запис actorId); 0 — нікого не обдурив. */
+    points: number;
+    picks: { id: string; nickname: string; pickedId: string | null; picked: string | null; correct: boolean }[];
+  } | null;
+  /** Лише round_end (чи finished) раунду truth, коли колоду роздано, а запитань з неї немає й не буде. */
+  skipped: boolean;
+}
+
+/** Як TruthInfo, але ведучому ще й усі факти й автор поточного запитання. */
+export interface HostTruth extends TruthInfo {
+  /** Факти тих, хто в грі, у порядку приходу людей: сховано, чи запитання вже відкрито, чи текст змінено після дії ведучого;
+   * inDeck — факт іде в колоду (до роздачі — завжди; після — лише роздані, решта вже не зіграється). */
+  facts: { id: string; nickname: string; text: string; hidden: boolean; played: boolean; revised: boolean; inDeck: boolean }[];
+  /** question/locked: автор поточного запитання; інакше null. */
+  author: { id: string; nickname: string } | null;
+}
+
+/** Власний факт людини. */
+export interface PlayerTruth {
+  /** Свій факт ('' — ще немає) і чи сховав його ведучий. */
+  fact: string;
+  hidden: boolean;
+  /** Можна написати чи змінити. */
+  canWrite: boolean;
+  /** question/locked: це мій факт (соло) або факт моєї команди. До reveal лише тут є знак автора. */
+  own: boolean;
+}
+
 /** «Аукціон» (27b): для всіх ролей до продажу — лише початок тексту; ставка й лідер відкриті. */
 export interface AuctionInfo {
   /** Тема — назва раунду (може бути порожньою). */
@@ -1432,6 +1474,8 @@ interface BaseView {
   bets?: BetsInfo;
   /** «Аукціон» (27b): від intro до leaderboard раунду auction; поза ним ключа немає. */
   auction?: AuctionInfo;
+  /** «Правда про гравця» (28b): у вікторині з раундом truth на всіх етапах; без нього ключа немає. */
+  truth?: TruthInfo;
   /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
@@ -1644,6 +1688,8 @@ export interface PlayerView extends BaseView {
     bets?: PlayerBets;
     /** «Аукціон» (27b): власний статус торгу; поза раундом auction (intro…leaderboard) ключа немає. */
     auction?: PlayerAuction;
+    /** «Правда про гравця» (28b): власний факт; без раунду truth ключа немає. */
+    truth?: PlayerTruth;
     /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
     wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
     /** Власний стан у «Вибуванні»; null поза раундом. */
@@ -1864,6 +1910,8 @@ export interface HostView extends BaseView {
   bets?: HostBets;
   /** Як у BaseView, але з повним запитанням і межами всіх. */
   auction?: HostAuction;
+  /** Як у BaseView, але з усіма фактами й автором поточного запитання. */
+  truth?: HostTruth;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
   /** Як у BaseView, але ведучому завжди весь список з тими, хто знайшов. */

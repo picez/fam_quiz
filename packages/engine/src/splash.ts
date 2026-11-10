@@ -37,7 +37,9 @@ export function questionSplashKind(state: GameState, board?: BoardPlay): SplashK
   if (board?.kind === 'blitz') return 'blitz';
   if (board !== undefined) return 'cell';
   const type = state.quiz.rounds[state.roundIndex]?.type;
-  return type === 'classic' || type === 'final' || type === 'bets' || type === 'auction' || type === 'wipeout' || type === 'survival' || type === 'ladder' ? 'question' : null;
+  return type === 'classic' || type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'wipeout' || type === 'survival' || type === 'ladder'
+    ? 'question'
+    : null;
 }
 
 /** Чи запитання (чи запитання дуелі) ще не почалося: startedAt у майбутньому. */

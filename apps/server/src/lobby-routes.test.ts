@@ -252,6 +252,7 @@ describe('GET /api/lobbies (24c)', () => {
       maxPlayers: 50,
       rounds: 1,
       questions: 1,
+      truth: false,
       locked: true,
       late: false,
       friends: ['Петро'],
