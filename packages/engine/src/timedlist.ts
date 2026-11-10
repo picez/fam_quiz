@@ -46,11 +46,15 @@ export function timedListOf(state: GameState, playerId: string): TimedListProgre
   return progress !== undefined && Object.hasOwn(progress, playerId) ? progress[playerId] : UNTOUCHED;
 }
 
-/** Гравці, що грали запитання (N): present ∪ ключі progress серед state.players, у порядку гравців. */
+/**
+ * Гравці, що грали запитання (N): present ∪ пізні з хоча б однією знахідкою, серед state.players, у порядку гравців.
+ * Пізній гравець лише з промахами N не збільшує (мінус він однаково отримує).
+ */
 export function listPlayers(state: GameState, play: Play): string[] {
   const list = play.timedlist;
   if (list === undefined) return [];
-  const ids = new Set([...list.present, ...Object.keys(list.progress)]);
+  const finders = Object.entries(list.progress).flatMap(([id, progress]) => (progress.found.length > 0 ? [id] : []));
+  const ids = new Set([...list.present, ...finders]);
   return state.players.filter((p) => ids.has(p.id)).map((p) => p.id);
 }
 
@@ -135,7 +139,8 @@ export function listEntry(state: GameState, playerId: string, word: string, ente
 
 /**
  * На етапі question: бали за рідкісністю кожного знайденого пункту мінус промахи з Enter; записи тим, хто має знахідки чи промахи
- * (наявні записи тих, хто знайшов усе, отримують справжні бали). Інакше стан той самий. Швидкість, «частково», мінус-штраф раунду й бафи не діють.
+ * (наявні записи тих, хто знайшов усе, отримують справжні бали); на клітинці поля той, хто вибрав і нічого не ввів, — запис з 0
+ * (як у сортуванні й стіні: інакше unansweredIsWrong дав би мінус ціни клітинки). Інакше стан той самий. Швидкість, «частково», мінус-штраф раунду й бафи не діють.
  */
 export function scoreTimedList(state: GameState): GameState {
   const play = listPlay(state);
@@ -151,6 +156,10 @@ export function scoreTimedList(state: GameState): GameState {
     const points = found - progress.wrong * minus;
     const timeMs = Object.hasOwn(answers, playerId) ? answers[playerId].timeMs : limitMs;
     answers[playerId] = listRecord(play, progress, points, timeMs);
+  }
+  const chooser = play.board?.chooserId;
+  if (chooser !== undefined && state.players.some((p) => p.id === chooser) && !Object.hasOwn(answers, chooser)) {
+    answers[chooser] = listRecord(play, UNTOUCHED, 0, limitMs);
   }
   return withPlay(state, { ...play, answers });
 }

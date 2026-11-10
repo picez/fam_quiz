@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardRound, classicRound, makeQuiz, makeRoundsQuiz, single, timedlist } from './testing/fixtures';
 import { pickCell } from './board';
-import { lock, next, pause, resume, start, type GameState } from './game';
+import { lock, next, pause, resume, start, tick, type GameState } from './game';
 import { hostLive } from './live';
 import { listEntry } from './timedlist';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -146,7 +146,7 @@ describe('timed list on a board cell', () => {
   const round = boardRound('b1', [{ title: 'Космос', cells: [{ mark: 'x3', answerMode: 'phone', question: timedlist }] }]);
   const lobby = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Олена', 'Тарас'))), 0));
 
-  it('a chooser who typed nothing has no record and counts as not answered; the other player has no list', () => {
+  it('a chooser who typed nothing counts as not answered until the close, then has a record with 0; the other player has no list', () => {
     const s = must(pickCell(lobby, 'p1', 'q11', 0, () => 0));
     expect(playerView(s, 'p1')?.me.timedlist).toMatchObject({ found: [], canType: true, done: false });
     expect(playerView(s, 'p2')?.me).not.toHaveProperty('timedlist');
@@ -156,5 +156,8 @@ describe('timed list on a board cell', () => {
     const typed = enter(s, 'p1', ['Марс']);
     expect(stageView(typed).answeredCount).toBe(1);
     expect(JSON.stringify(stageView(typed))).not.toContain('Марс');
+    const closed = tick(s, 90_001);
+    expect(stageView(closed).answeredCount).toBe(1);
+    expect(stageList(must(next(closed, 91_000)))).toMatchObject({ players: 1, rows: [{ playerId: 'p1', found: 0, points: 0 }] });
   });
 });

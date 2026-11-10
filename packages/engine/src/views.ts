@@ -2312,7 +2312,7 @@ function answeredCount(state: GameState): number {
   const answers = currentAnswers(state);
   const recorded = Object.keys(answers).filter((id) => play === undefined || !isSilentRisk(play, answers[id]));
   const answered = [...new Set([...recorded, ...held])];
-  // Список (27c): відповів, хто щось знайшов чи помилився; на клітинці поля той, хто нічого не ввів, не має запису й не рахується.
+  // Список (27c): відповів, хто щось знайшов чи помилився; на клітинці поля той, хто нічого не ввів, до закриття не рахується (запис з 0 він отримує при закритті).
   const list = currentList(state);
   if (list !== null) {
     const moved = new Set([...Object.keys(list.play.timedlist?.progress ?? {}), ...answered]);

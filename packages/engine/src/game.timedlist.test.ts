@@ -163,6 +163,16 @@ describe('timed list', () => {
       expect(points(s, 'p5')).toBe(80);
     });
 
+    it('a late player with only a miss does not raise N but still pays the minus', () => {
+      const lobby = lobbyWith(makeQuiz([timedlist]), ...PLAYERS, 'Ігор');
+      const away = must(setConnected(lobby, 'p5', false, 0));
+      const open = must(setConnected(must(next(must(start(away)), 0)), 'p5', true, 500));
+      const s = must(lock(enter(enter(open, 'p5', ['Плутон']), 'p1', ['Марс']), 5000));
+      expect(listPlayers(s, s.plays[0])).toEqual(['p1', 'p2', 'p3', 'p4']);
+      expect(points(s, 'p1')).toBe(100);
+      expect(points(s, 'p5')).toBe(-50);
+    });
+
     it('a removed player lowers N', () => {
       let t = fresh();
       for (const id of ['p1', 'p2', 'p3', 'p4']) t = enter(t, id, ['Юпітер']);
@@ -231,6 +241,19 @@ describe('timed list', () => {
     // один пункт і закриття таймером: 100 × 3
     const timed = tick(one, 90_001);
     expect(points(timed, 'p1')).toBe(300);
+  });
+
+  it('on a board cell with a minus the silent chooser gets a record with 0', () => {
+    const round = boardRound('b1', [{ title: 'Космос', cells: [{ answerMode: 'phone', question: timedlist }] }], {
+      rules: { ...DEFAULT_RULES, penalty: 'minus' },
+    });
+    const lobby = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Олена', 'Тарас'))), 0));
+    const s = must(pickCell(lobby, 'p1', 'q11', 0, () => 0));
+    const timed = tick(s, 90_001);
+    expect(record(timed, 'p1')).toMatchObject({ points: 0, grade: 'wrong', answer: { type: 'timedlist', found: [], wrong: 0 } });
+    const revealed = must(next(timed, 91_000));
+    expect(record(revealed, 'p1')).toMatchObject({ points: 0, grade: 'wrong' });
+    expect(revealed.players.find((p) => p.id === 'p1')?.score).toBe(0);
   });
 
   it('the plain answer event and the host grade do not apply', () => {
