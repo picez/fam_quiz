@@ -378,7 +378,7 @@ const STATE_SHAPE: Record<string, string> = {
   TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
-  DrawingPlay: keysOf<DrawingPlay>()(['drawerId', 'side', 'strokes', 'rev', 'guessed', 'scored'], true),
+  DrawingPlay: keysOf<DrawingPlay>()(['drawerId', 'side', 'strokes', 'packed', 'rev', 'guessed', 'scored'], true),
   DrawingScored: keysOf<NonNullable<DrawingPlay['scored']>>()(['guessed', 'could'], true),
   Stroke: keysOf<Stroke>()(['c', 'w', 'p'], true),
   DrawTurns: keysOf<DrawTurns>()(['last', 'members'], true),
@@ -1231,7 +1231,7 @@ const KEYS: Record<number, Record<string, string>> = {
     TruthState: 'deck,facts',
     TruthFact: 'at,hidden,revised,text',
     TruthPlay: 'actorId,authorId,guessers,right',
-    DrawingPlay: 'drawerId,guessed,rev,scored,side,strokes',
+    DrawingPlay: 'drawerId,guessed,packed,rev,scored,side,strokes',
     DrawingScored: 'could,guessed',
     Stroke: 'c,p,w',
     DrawTurns: 'last,members',
@@ -1493,6 +1493,8 @@ function representative(): GameState[] {
   // 28c: «Малюнок» — Оля малює один штрих, Петро вгадав: Play.drawing, DrawingPlay, Stroke, GameState.drawTurns; закрите — DrawingPlay.scored.
   const drawOpen = drawn();
   const drawClosed = must(lock(drawOpen, T0 + 3000));
+  // 28c: наступний малюнок — минулий стиснено (DrawingPlay.packed).
+  const drawPacked = drawnTwice();
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1538,6 +1540,7 @@ function representative(): GameState[] {
     truthClosed,
     drawOpen,
     drawClosed,
+    drawPacked,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1562,6 +1565,15 @@ function drawn(): GameState {
   const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [drawing])]), 'Оля', 'Петро', 'Іра'), T0);
   const drew = must(drawStroke(open, 'p1', { op: 'begin', c: 2, w: 1, p: [100, 200, 300, 400] }, T0 + 500));
   return must(drawGuess(drew, 'p2', 'соняшник', T0 + 1000));
+}
+
+/** 28c: другий «Малюнок» відкрито — перший закрито й стиснено. */
+function drawnTwice(): GameState {
+  const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [drawing, withId(drawing, 'd2')])]), 'Оля', 'Петро', 'Іра'), T0);
+  const drew = must(drawStroke(open, 'p1', { op: 'begin', c: 2, w: 1, p: [100, 200, 300, 400] }, T0 + 500));
+  let s = must(lock(drew, T0 + 1000));
+  for (let i = 0; i < 5 && s.plays.length < 2; i++) s = must(next(s, T0 + 2000));
+  return s;
 }
 
 /** 28b: лобі «Правди про гравця» — Оля й Петро написали факти, факт Петра ведучий сховав. */
