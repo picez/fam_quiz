@@ -1507,7 +1507,7 @@ function drawerName(state: GameState, id: string): string | null {
  * Малюнок (28c) без штрихів: хто малює, rev, скільки вгадали з скількох. Слово й імена вгадавших — лише на reveal
  * (пульту завжди); бали — з записів сторін. Лічильники після закриття беруться із заморожених scored.
  */
-function drawingInfo(state: GameState, forHost: boolean): DrawingInfo | HostDrawing | undefined {
+function drawingInfo(state: GameState, forHost: boolean): DrawingInfo | undefined {
   const drawing = drawingOf(state);
   const play = state.plays[state.questionIndex];
   if (drawing === null || play === undefined || play.question.type !== 'drawing') return undefined;
@@ -1531,7 +1531,13 @@ function drawingInfo(state: GameState, forHost: boolean): DrawingInfo | HostDraw
   return info;
 }
 
-/** Власний бік гравця (чи команди) в малюнку; слово — лише художникові (людині drawerId), не товаришам. */
+/** Малюнок для пульта: слово й імена завжди (drawingInfo з forHost їх уже містить). */
+function hostDrawing(state: GameState): HostDrawing | undefined {
+  const info = drawingInfo(state, true);
+  return info === undefined ? undefined : { ...info, word: info.word ?? '', guessers: info.guessers ?? [] };
+}
+
+/** Власний бік гравця (или команди) в малюнку; слово — лише художникові (людині drawerId), не товаришам. */
 function playerDrawing(state: GameState, personId: string): PlayerDrawing | undefined {
   const drawing = drawingOf(state);
   if (drawing === null) return undefined;
@@ -3139,7 +3145,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, drawing: _publicDrawing, ...shared } = base(state, true);
   return {
     ...shared,
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
@@ -3162,6 +3168,7 @@ export function hostView(state: GameState): HostView {
     ...optional('bets', hostBets(state) ?? undefined),
     ...optional('auction', hostAuction(state) ?? undefined),
     ...optional('truth', hostTruth(state)),
+    ...optional('drawing', hostDrawing(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),
