@@ -24933,3 +24933,467 @@ async function moreLessBoard28a() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 28b: player truth — facts in the lobby, the host hiding one, guessing names, the author sitting out, the author’s share, an empty round skipped', async () => {
+  try {
+    await truthGame28b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 28b: player truth in teams — every member writes, captains guess, the author’s team waits and takes the share', async () => {
+  try {
+    await truthTeams28b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+const es28b = es as Record<string, string>;
+
+/** Пише (чи стирає — '') факт на телефоні й тисне «Зберегти»; чекає збереженого рядка (чи його зникнення). */
+async function writeFact28b(page: Page, text: string, dict?: Record<string, string>) {
+  await field(page, dict?.truthFactLabel ?? 'Ваш маловідомий факт').fill(text);
+  await click(page, dict?.truthFactSave ?? 'Зберегти');
+  if (text === '') await expect.poll(() => page.locator('.truth-saved').count(), POLL).toBe(0);
+  else await expect.poll(() => page.locator('.truth-saved').textContent(), POLL).toBe((dict?.truthFactSaved ?? 'Ваш факт: «{text}»').replace('{text}', text));
+}
+
+/** Рядок факту людини на пульті. */
+const hostFact28b = (host: Page, nickname: string) => host.locator('.truth-host .truth-fact', { has: host.locator('.name', { hasText: new RegExp(`^${nickname}$`) }) });
+
+/** Автор поточного запитання — з пульта («Автор: Оля»). */
+async function hostAuthor28b(host: Page): Promise<string> {
+  await host.locator('.truth-host-author').waitFor();
+  return (await host.locator('.truth-host-author').textContent())!.replace(/^Автор: /, '');
+}
+
+/** Імена на сцені (дрібно) чи на телефоні (кнопки або список для читання). */
+const stageNames28b = (stage: Page) => stage.locator('.truth-stage-names li').allTextContents();
+const phoneNames28b = (page: Page) => page.locator('.truth-names .truth-name').allTextContents();
+
+/** Вибір імені на телефоні: кнопки зникають, коли відповідь прийнято. */
+async function pickName28b(page: Page, nickname: string) {
+  await page.locator('button.truth-name', { hasText: new RegExp(`^${nickname}$`) }).click();
+  await expect.poll(() => page.locator('button.truth-name').count(), POLL).toBe(0);
+}
+
+/** Кадри від позиції from без ознак автора: ні own: true, ні correctId, ні authorId / actorId. */
+function expectNoAuthorIn28b(frames: string[], from: number, label: string) {
+  const seen = frames.slice(from).join(NL);
+  for (const hidden of ['"own":true', '"correctId"', '"authorId"', '"actorId"']) expect(seen, `«${hidden}» sent to ${label} before the reveal`).not.toContain(hidden);
+}
+
+/** Останній зріз гравця з кадрів сокета. */
+const lastView28b = (frames: string[]) => stateViews(frames).at(-1)!;
+
+/** Сцена 1600 × 900: без прокрутки, факт, імена й розкриття в межах вікна. */
+async function expectTruthStageFits28b(stage: Page, name: string) {
+  const [height, clientH, width, clientW] = (await stage.evaluate(
+    '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
+  )) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  const out = await stage
+    .locator('.truth-stage h1, .truth-stage-names li, .truth-reveal p, .truth-pick-row')
+    .evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1; }).map((el) => el.textContent));
+  expect(out, `${name}: texts outside the stage`).toEqual([]);
+}
+
+const FACTS28B = {
+  olya: 'Я стрибала з парашутом',
+  taras: 'Я вмію жонглювати п’ятьма м’ячами',
+  tarasNew: 'Я вивчив іспанську за рік',
+  iraFirst: 'Я бачила полярне сяйво',
+  ira: 'Я їла сарану',
+};
+
+async function truthGame28b() {
+  // ── Редактор: класика «один варіант» за 100 і раунд «Правда про гравця» — ціна 300, час 30. ──
+  const host = await open('host28b', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host28b@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Правда 28b');
+  await host.locator('details.rules').first().locator('summary').click();
+  await select27b(host, 'Показувати рейтинг', 'end');
+  await openRoundSettings(host);
+  await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
+  await questionText(host).fill('Яка планета найбільша?');
+  await field(host, 'Варіант 1').fill('Сатурн');
+  await field(host, 'Варіант 2').fill('Юпітер');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Бали').fill('100');
+  await click(host, '+ Раунд');
+  await click(host, 'Правда про гравця');
+  await openRoundSettings(host);
+  await field(host, 'Ціна запитання').fill('300');
+  await field(host, 'Час на запитання, с').fill('30');
+  await host.locator('.truth-editor-note').getByText(ukMessages.truthEditorNote, exact).waitFor();
+  expect(await host.getByRole('button', { name: 'Додати запитання', ...exact }).count(), 'a question list in a truth round').toBe(0);
+  expect(await questionText(host).count(), 'a question text in a truth round').toBe(0);
+  await shot(host, 'truth28b-editor');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Правда 28b' }).waitFor();
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Правда 28b')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: Record<string, unknown>[] };
+  expect(stored.rounds[1]).toMatchObject({ type: 'truth', points: 300, timeLimit: 30 });
+  expect(stored.rounds[1], 'a truth round has no questions').not.toHaveProperty('questions');
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28b', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya28b', 375, 812);
+  const taras = await open('taras28b', 360, 740);
+  const ira = await open('ira28b', 360, 740);
+  const jose = await open('jose28b', 320, 640, { locale: 'es-ES' });
+  const frames = new Map<Page, string[]>([olya, taras, ira, jose].map((page) => [page, socketFrames(page)]));
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, ira, jose];
+  const named = new Map<string, Page>([['Оля', olya], ['Тарас', taras], ['Іра', ira], ['Хосе', jose]]);
+  const nameOf = (page: Page) => [...named].find(([, p]) => p === page)![0];
+
+  // ── Лобі: факти. ──
+  await field(olya, 'Ваш маловідомий факт').waitFor();
+  await olya.getByText('Фактів: 0', exact).waitFor();
+  await stage.getByText('Фактів: 0', exact).waitFor();
+  await host.locator('.truth-host').getByText('Ще ніхто не написав факт', exact).waitFor();
+  await writeFact28b(olya, FACTS28B.olya);
+  await writeFact28b(taras, FACTS28B.taras);
+  await writeFact28b(ira, FACTS28B.iraFirst);
+  await writeFact28b(ira, FACTS28B.ira);
+  await stage.getByText('Фактів: 3', exact).waitFor();
+  // Хосе: понад 200 символів — лічильник зупиняється на 200; він зберігає, потім стирає й лишається без факту.
+  const long = 'Una vez crucé a nado un lago helado en pleno invierno con mis amigos del barrio. '.repeat(4);
+  expect(long.length).toBeGreaterThan(LIMITS.truthText);
+  await field(jose, es28b.truthFactLabel!).fill(long);
+  await expect.poll(() => jose.locator('.truth-count').textContent(), POLL).toBe('200 / 200');
+  expect((await field(jose, es28b.truthFactLabel!).inputValue()).length, 'the fact field takes more than 200').toBe(LIMITS.truthText);
+  await expectNoSideScroll(jose, 'truth28b-phone-fact-es-320');
+  await click(jose, es28b.truthFactSave!);
+  await jose.locator('.truth-saved').waitFor();
+  await stage.getByText('Фактів: 4', exact).waitFor();
+  await writeFact28b(jose, '', es28b);
+  await expect.poll(() => jose.locator('.truth-count').textContent(), POLL).toBe('0 / 200');
+  await stage.getByText('Фактів: 3', exact).waitFor();
+  await olya.getByText('Фактів: 3', exact).waitFor();
+  await expectNoSideScroll(taras, 'truth28b-phone-fact-360');
+  await shot(olya, 'truth28b-phone-fact');
+  // Сцена й інші телефони — лише число: ні чужих фактів, ні хто написав.
+  for (const [label, page, list] of [['stage', stage, stageFrames], ['Оля', olya, frames.get(olya)!]] as const) {
+    const html = await page.content();
+    expect(html, `${label}: a foreign fact in the lobby`).not.toContain('жонглювати');
+    expect(html, `${label}: a foreign fact in the lobby`).not.toContain('сарану');
+    expect(list.join(NL), `${label}: a foreign fact sent in the lobby`).not.toContain('жонглювати');
+  }
+  expect(await bodyText(stage), 'the stage DOM in the lobby').not.toContain(FACTS28B.olya);
+  // Пульт: три факти з іменами.
+  await expect.poll(() => host.locator('.truth-host .truth-fact').count(), POLL).toBe(3);
+  for (const [name, text] of [['Оля', FACTS28B.olya], ['Тарас', FACTS28B.taras], ['Іра', FACTS28B.ira]] as const) {
+    expect(await hostFact28b(host, name).locator('.truth-fact-text').textContent(), `${name}’s fact on the host`).toBe(text);
+  }
+  // Ведучий ховає факт Тараса: Тарас бачить позначку й пише інший — на пульті знову видно, з «новий текст».
+  await hostFact28b(host, 'Тарас').getByRole('button', { name: 'Сховати', ...exact }).click();
+  await hostFact28b(host, 'Тарас').getByText('сховано', exact).waitFor();
+  await taras.locator('.truth-hidden').getByText('Ведучий сховав ваш факт — напишіть інший.', exact).waitFor();
+  await stage.getByText('Фактів: 2', exact).waitFor();
+  await shot(taras, 'truth28b-phone-hidden');
+  await expectNoSideScroll(taras, 'truth28b-phone-hidden-360');
+  await field(taras, 'Ваш маловідомий факт').fill(FACTS28B.tarasNew);
+  await click(taras, 'Зберегти');
+  await expect.poll(() => taras.locator('.truth-saved').textContent(), POLL).toBe(`Ваш факт: «${FACTS28B.tarasNew}»`);
+  expect(await taras.locator('.truth-hidden').count(), 'the hidden mark after a new text').toBe(0);
+  await expect.poll(() => hostFact28b(host, 'Тарас').locator('.truth-fact-text').textContent(), POLL).toBe(FACTS28B.tarasNew);
+  await hostFact28b(host, 'Тарас').getByText('новий текст', exact).waitFor();
+  expect(await hostFact28b(host, 'Тарас').getByText('сховано', exact).count(), 'a new text is hidden').toBe(0);
+  // Факт Іри — сховано остаточно.
+  await hostFact28b(host, 'Іра').getByRole('button', { name: 'Сховати', ...exact }).click();
+  await hostFact28b(host, 'Іра').getByText('сховано', exact).waitFor();
+  await hostFact28b(host, 'Іра').getByRole('button', { name: 'Показати', ...exact }).waitFor();
+  await host.locator('.truth-host').getByText('Фактів: 2', exact).waitFor();
+  await stage.getByText('Фактів: 2', exact).waitFor();
+  await shot(host, 'truth28b-host-facts');
+  await shot(stage, 'truth28b-stage-lobby');
+  expect(await bodyText(stage), 'the stage DOM after the rewrite').not.toContain(FACTS28B.tarasNew);
+
+  // ── Класика: Оля й Тарас правильно (по 100). ──
+  const scores = async (wanted: [string, string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  expect(await field(olya, 'Ваш маловідомий факт').count(), 'the fact form after the start').toBe(0);
+  await olya.getByRole('button', { name: /Юпітер/ }).click();
+  await taras.getByRole('button', { name: /Юпітер/ }).click();
+  await ira.getByRole('button', { name: /Сатурн/ }).click();
+  await jose.getByRole('button', { name: /Сатурн/ }).click();
+  await reveal28a(host);
+  await scores(['100', '100', '0', '0']);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+
+  // ── Раунд «Правда про гравця»: два запитання (Оля, Тарас — порядок з rng кімнати). ──
+  const facts: Record<string, string> = { Оля: FACTS28B.olya, Тарас: FACTS28B.tarasNew };
+  const seenAuthors: string[] = [];
+  for (let k = 0; k < 2; k++) {
+    if (k > 0) await next27a(host);
+    await afterSplash(host, stage, ...phones);
+    await stage.locator('.truth-stage .truth-who').getByText('Хто це написав?', exact).waitFor();
+    const author = await hostAuthor28b(host);
+    expect(['Оля', 'Тарас'], `the author of question ${k + 1}`).toContain(author);
+    expect(seenAuthors, 'a fact asked twice').not.toContain(author);
+    seenAuthors.push(author);
+    const authorPage = named.get(author)!;
+    const others = phones.filter((page) => page !== authorPage);
+    const from = new Map<Page, number>([[stage, stageFrames.length], ...phones.map((page): [Page, number] => [page, frames.get(page)!.length])]);
+    // Сцена: «Хто це написав?», факт, «Факт k з 2», чотири імена за абеткою.
+    await expect.poll(() => stage.locator('.truth-stage h1').textContent(), POLL).toBe(facts[author]);
+    await stage.getByText(`Факт ${k + 1} з 2`, exact).waitFor();
+    expect(await stageNames28b(stage)).toEqual(['Іра', 'Оля', 'Тарас', 'Хосе']);
+    // Автор: «Це ваш факт — вгадують інші.» без кнопок.
+    await authorPage.locator('.truth-own').getByText('Це ваш факт — вгадують інші.', exact).waitFor();
+    expect(await authorPage.locator('button.truth-name').count(), 'name buttons for the author').toBe(0);
+    // Лічильник запитань на телефоні — з колоди, а не з вікторини (де запитань раунду немає).
+    expect(await bodyText(authorPage), 'the question counter on the phone').toMatch(new RegExp(`Запитання ${k + 1} з 2`));
+    // Решта: ті самі імена кнопками, що й на сцені; жодної ознаки автора.
+    for (const page of others) {
+      await expect.poll(() => page.locator('button.truth-name').count(), POLL).toBe(4);
+      expect(await phoneNames28b(page), `names on ${nameOf(page)}’s phone`).toEqual(['Іра', 'Оля', 'Тарас', 'Хосе']);
+      expect(await page.locator('.truth-own').count(), `the author notice on ${nameOf(page)}’s phone`).toBe(0);
+      const html = await page.content();
+      expect(html, `the author notice in ${nameOf(page)}’s DOM`).not.toContain('Це ваш факт');
+      expect(html, `the author notice in ${nameOf(page)}’s DOM`).not.toContain(es28b.truthOwn!);
+    }
+    const stageHtml = await stage.content();
+    for (const hidden of ['Це ваш факт', 'Автор:', 'truth-own', 'truth-host-author', 'is-correct', 'is-picked']) expect(stageHtml, `«${hidden}» on the stage during the question`).not.toContain(hidden);
+    // Ведучий бачить автора.
+    expect(await hostAuthor28b(host)).toBe(author);
+    if (k === 0) {
+      await shot(stage, 'truth28b-stage-question');
+      await expectTruthStageFits28b(stage, 'question');
+      await shot(authorPage, 'truth28b-phone-own');
+      await shot(host, 'truth28b-host-question');
+      await jose.getByText(es28b.truthWho!, exact).waitFor();
+      await expectNoSideScroll(jose, 'truth28b-phone-pick-es-320');
+      await expectNoSideScroll(ira, 'truth28b-phone-pick-360');
+    }
+    // Вибір: про Олю — Тарас вгадує, Іра — ні, Хосе мовчить; про Тараса — не вгадує ніхто.
+    if (author === 'Оля') {
+      await pickName28b(taras, 'Оля');
+      await pickName28b(ira, 'Хосе');
+      await stage.getByText('Відповіли 2 з 3', exact).waitFor();
+    } else {
+      await pickName28b(olya, 'Іра');
+      await pickName28b(ira, 'Оля');
+      await pickName28b(jose, 'Оля');
+    }
+    // До розкриття ні сцена, ні ті, хто вгадує, ознак автора не отримали; автор свій знак має.
+    expectNoAuthorIn28b(stageFrames, from.get(stage)!, 'the stage');
+    for (const page of others) expectNoAuthorIn28b(frames.get(page)!, from.get(page)!, nameOf(page));
+    expect(lastView28b(frames.get(authorPage)!).me.truth?.own, 'own on the author phone').toBe(true);
+    for (const page of others) expect(lastView28b(frames.get(page)!).truth?.reveal ?? null, `a reveal for ${nameOf(page)} before the reveal`).toBeNull();
+
+    await reveal28a(host);
+    await stage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
+    const rows = async () => (await stage.locator('.truth-pick-row').allTextContents()).sort();
+    if (author === 'Оля') {
+      await stage.locator('.truth-author-points').getByText('Автор: +200', exact).waitFor();
+      expect(await rows()).toEqual(['Іра → Хосе ✗', 'Тарас → Оля ✓', 'Хосе — без вибору'].sort());
+    } else {
+      await stage.locator('.truth-author-points').getByText('Автор: +300', exact).waitFor();
+      expect(await rows()).toEqual(['Іра → Оля ✗', 'Оля → Іра ✗', 'Хосе → Оля ✗'].sort());
+    }
+    await authorPage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
+    await jose.locator('.truth-reveal').getByText(es28b.truthAuthorIs!.replace('{nickname}', author), exact).waitFor();
+    if (author === 'Оля') {
+      if (process.env.E2E_SHOTS === '1') await sleep(800);
+      await shot(stage, 'truth28b-stage-reveal');
+      await expectTruthStageFits28b(stage, 'reveal');
+      await shot(taras, 'truth28b-phone-reveal');
+      await expectNoSideScroll(jose, 'truth28b-phone-reveal-es-320');
+    }
+  }
+  // Рахунки: Оля 100 + 200 (частка), Тарас 100 + 300 (вгадав) + 300 (частка), Іра й Хосе — 0.
+  await scores(['300', '700', '0', '0']);
+
+  // ── Історія гри. ──
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Правда 28b/ }).click();
+  await host.getByText('Запитань зіграно: 3 з 3', exact).waitFor();
+  const olyaRow = host.locator('.rows.stacked > li', { hasText: FACTS28B.olya });
+  await olyaRow.locator('.truth-history').getByText('автор факту', exact).waitFor();
+  expect(await olyaRow.locator('.truth-history').textContent()).toContain('Факт написав(ла): Оля · автор +200');
+  const tarasRow = host.locator('.rows.stacked > li', { hasText: FACTS28B.tarasNew });
+  expect(await tarasRow.locator('.truth-history').textContent()).toContain('Факт написав(ла): Тарас · автор +300');
+  expect(await host.locator('.rows.stacked > li', { hasText: FACTS28B.ira }).count(), 'a hidden fact in the history').toBe(0);
+  await shot(host, 'truth28b-history');
+
+  // ── Друга кімната: ніхто не пише факт — раунд пропущено. ──
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Правда 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code2 = host.url().slice(-6);
+  const stageUrl2 = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage2 = await open('stage28b2', 1600, 900);
+  await stage2.goto(stageUrl2);
+  const olya2 = await open('olya28b2', 375, 812);
+  const taras2 = await open('taras28b2', 360, 740);
+  await join(olya2, code2, 'Оля', false);
+  await join(taras2, code2, 'Тарас', false);
+  await stage2.getByText('Тарас').waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage2, olya2, taras2);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage2, olya2, taras2);
+  await olya2.getByRole('button', { name: /Юпітер/ }).click();
+  await taras2.getByRole('button', { name: /Сатурн/ }).click();
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage2, olya2, taras2);
+  const skipped = 'Фактів немає — раунд «Правда про гравця» пропущено.';
+  for (const page of [stage2, olya2, taras2]) await page.locator('.truth-skipped').getByText(skipped, exact).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage2, 'truth28b-stage-skipped');
+  await shot(olya2, 'truth28b-phone-skipped');
+  // Раунд останній: гра одразу на підсумках, повідомлення — над переможцями.
+  await stage2.getByRole('heading', { name: 'Переможці' }).waitFor();
+  expect(await host.getByRole('button', { name: 'Наступний раунд', ...exact }).count(), 'a next round after the skipped last round').toBe(0);
+
+  expect(problems).toEqual([]);
+}
+
+async function truthTeams28b() {
+  const host = await open('host28bt', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host28bt@example.com');
+  const round = { id: 'tr28b', type: 'truth', title: 'Хто з нас?', points: 300, timeLimit: 30 };
+  const data = { ...makeRoundsQuiz([round as never], { leaderboard: 'end', teams: { count: 2, names: ['Червоні', 'Сині'], answerer: 'chosen' } }), title: 'Правда команд 28b' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Правда команд 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28bt', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya28bt', 375, 812);
+  const petro = await open('petro28bt', 375, 812);
+  const ira = await open('ira28bt', 375, 812);
+  const marko = await open('marko28bt', 320, 640);
+  const phones = [olya, petro, ira, marko];
+  const people: [Page, string, string, string][] = [
+    [olya, 'Оля', 'Червоні', 'Я двічі бачила дельфінів у Чорному морі'],
+    [petro, 'Петро', 'Червоні', 'Я зібрав сто кубиків Рубіка'],
+    [ira, 'Іра', 'Сині', 'Я пробігла марафон за чотири години'],
+    [marko, 'Марко', 'Сині', 'Я грав на трембіті на весіллі'],
+  ];
+  for (const [page, nickname, team, fact] of people) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+    // Кожен учасник пише свій факт.
+    await writeFact28b(page, fact);
+  }
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+  await stage.getByText('Фактів: 4', exact).waitFor();
+  await expect.poll(() => host.locator('.truth-host .truth-fact').count(), POLL).toBe(4);
+  await expectNoSideScroll(marko, 'truth28b-team-fact-320');
+  expect(stageFrames.join(NL), 'a fact sent to the stage in the lobby').not.toContain('дельфінів');
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await step27a(host, 'Почати раунд');
+
+  const teamOf = new Map(people.map(([, nickname, teamName, fact]) => [nickname, { teamName, fact }]));
+  const captainOf = (teamName: string) => (teamName === 'Червоні' ? olya : ira);
+  const mateOf = (teamName: string) => (teamName === 'Червоні' ? petro : marko);
+  const score: Record<string, number> = { Червоні: 0, Сині: 0 };
+  let blueQuestions = 0;
+  let shotOwn = false;
+  let shotReveal = false;
+  for (let k = 0; k < 4; k++) {
+    if (k > 0) await next27a(host);
+    await afterSplash(host, stage, ...phones);
+    await stage.locator('.truth-stage .truth-who').waitFor();
+    const author = await hostAuthor28b(host);
+    const { teamName, fact } = teamOf.get(author)!;
+    const otherTeam = teamName === 'Червоні' ? 'Сині' : 'Червоні';
+    await expect.poll(() => stage.locator('.truth-stage h1').textContent(), POLL).toBe(fact);
+    // Сцена: рядок відповідачів — обидві команди, команда автора не випадає.
+    const line = stage.locator('.truth-stage > .stage-answerers');
+    await line.waitFor();
+    expect(await line.textContent()).toContain('Червоні — відповідає: Оля');
+    expect(await line.textContent()).toContain('Сині — відповідає: Іра');
+    expect(await stageNames28b(stage)).toEqual(['Іра', 'Марко', 'Оля', 'Петро']);
+    // Команда автора: обоє бачать «Це факт вашої команди…», без кнопок.
+    for (const page of [captainOf(teamName), mateOf(teamName)]) {
+      await page.locator('.truth-own').getByText('Це факт вашої команди — вгадують інші.', exact).waitFor();
+      expect(await page.locator('button.truth-name').count(), 'name buttons in the author’s team').toBe(0);
+    }
+    // Інша команда: капітан вибирає, товариш бачить імена лише для читання.
+    const captain = captainOf(otherTeam);
+    const mate = mateOf(otherTeam);
+    await expect.poll(() => captain.locator('button.truth-name').count(), POLL).toBe(4);
+    await mate.locator('.truth-names.is-readonly').waitFor();
+    expect(await mate.locator('button.truth-name').count(), 'name buttons for a teammate').toBe(0);
+    expect(await phoneNames28b(mate)).toEqual(['Іра', 'Марко', 'Оля', 'Петро']);
+    expect(await mate.content(), 'the author notice for the guessing team').not.toContain('Це факт вашої команди');
+    expect(await stage.content(), 'the author notice on the stage').not.toContain('Це факт вашої команди');
+    if (teamName === 'Червоні' && !shotOwn) {
+      shotOwn = true;
+      await shot(captainOf(teamName), 'truth28b-team-own');
+      await shot(captain, 'truth28b-team-pick');
+      await shot(mate, 'truth28b-team-watch');
+      await shot(stage, 'truth28b-team-stage-question');
+      await expectNoSideScroll(marko, 'truth28b-team-names-320');
+    }
+    // Факт Червоних: Сині не вгадують — частка Червоним. Факт Синіх: Червоні вгадують перший, на другому помиляються.
+    let right: boolean;
+    if (teamName === 'Червоні') {
+      await pickName28b(ira, 'Марко');
+      right = false;
+    } else {
+      blueQuestions++;
+      right = blueQuestions === 1;
+      await pickName28b(olya, right ? author : 'Петро');
+    }
+    score[right ? otherTeam : teamName]! += 300;
+    await reveal28a(host);
+    await stage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
+    await stage.locator('.truth-author-points').getByText(`Автор: ${right ? '0' : '+300'}`, exact).waitFor();
+    for (const [page, , teamName2] of people) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(String(score[teamName2]));
+    if (teamName === 'Червоні' && !shotReveal) {
+      shotReveal = true;
+      if (process.env.E2E_SHOTS === '1') await sleep(800);
+      await shot(stage, 'truth28b-team-stage-reveal');
+      await expectTruthStageFits28b(stage, 'team reveal');
+    }
+  }
+  // Два факти Червоних без вгадування — 600 Червоним; факти Синіх: один вгадали Червоні (+300), другий ні (+300 Синім).
+  expect(score).toEqual({ Червоні: 900, Сині: 300 });
+  await toWinners27c(host, stage);
+
+  expect(problems).toEqual([]);
+}
