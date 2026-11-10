@@ -1103,11 +1103,12 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Слова з літер (27d): набір, слова кожного наживо й найдовші можливі слова завжди; бали — на розкритті. Оцінювати нічого. */}
-      {view.letterwords !== undefined && !liveHides && (
+      {/* З «Відповідями наживо» слова кожного вже в рядках панелі: ховається лише табло, набір і найдовші слова лишаються. */}
+      {view.letterwords !== undefined && (
         <section className="panel host-letterwords">
           <h2>{t('type_letterwords')}</h2>
           {view.question?.letterwords !== undefined && <LetterTiles letters={view.question.letterwords.letters} />}
-          <LetterWordsBoard info={view.letterwords} reveal={phase === 'reveal'} />
+          {!liveHides && <LetterWordsBoard info={view.letterwords} reveal={phase === 'reveal'} />}
           <LetterWordsBest info={view.letterwords} />
         </section>
       )}
