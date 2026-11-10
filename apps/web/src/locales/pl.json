@@ -884,6 +884,7 @@
   "crosswordClue": "Podpowiedź",
   "crosswordCluePlaceholder": "Ptak, który wraca wiosną",
   "crosswordClues": "Wszystkie podpowiedzi",
+  "puzzleDoneOf": "Gotowe: {done} z {total}",
   "crosswordDefaultText": "Rozwiąż krzyżówkę.",
   "crosswordDown": "Pionowo",
   "crosswordDuplicateWarn": "Słowo się powtarza: {words}.",

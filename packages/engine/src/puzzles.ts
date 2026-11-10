@@ -87,6 +87,7 @@ function puzzleRecord(state: GameState, play: PuzzleQuestionPlay, board: PuzzleB
     filled: solution.filter((v, i) => v !== '' && board.cells[i] !== '').length,
     total: solution.filter((v) => v !== '').length,
     solved,
+    done: board.done,
   };
   return { answer, timeMs, accepted: solved, accuracy: scored.length === 0 ? 0 : right / scored.length, grade, basePoints: points, streakBonus: 0, points, overridden: false };
 }

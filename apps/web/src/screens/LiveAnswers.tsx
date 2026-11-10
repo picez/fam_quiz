@@ -41,6 +41,8 @@ function started(row: LiveRow): boolean {
       return progress.words.length > 0;
     case 'moreless':
       return progress.done > 0;
+    case 'puzzle':
+      return progress.filled > 0 || progress.done;
     case 'drawing':
       // Художника видно завжди; вгадувача — коли вгадав (спроби нікому не показуються).
       return progress.role === 'drawer' || progress.guessed;
@@ -100,6 +102,11 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         break;
       case 'moreless':
         parts.push(t('morelessLive', { done: progress.done, total: progress.total, right: progress.right }));
+        break;
+      case 'puzzle':
+        // Заповненість уже є у відповіді рядка («Не розв'язано · заповнено …»), коли запис є.
+        if (answer === null) parts.push(t('puzzleFilled', { filled: progress.filled, total: progress.total }));
+        if (progress.done) parts.push(`${t('puzzleDone')} ✓`);
         break;
       case 'drawing':
         // Що вгадав вгадувач — уже у відповіді рядка.
@@ -292,9 +299,12 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const now = useServerNow(ticking, offsetMs);
   const context: RowContext = { view, tilts, drafts, now };
   // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як у шапці пульта й на сцені (live.answered рахує й тих, хто лише почав).
+  // Головоломки (28d): «відповіли» — ті, хто натиснув «Готово», як на сцені й у шапці пульта.
   const answered = live.rows.some((row) => row.progress?.kind === 'moreless')
     ? live.rows.filter((row) => row.progress?.kind === 'moreless' && row.progress.done >= row.progress.total).length
-    : live.answered;
+    : live.rows.some((row) => row.progress?.kind === 'puzzle')
+      ? live.rows.filter((row) => row.progress?.kind === 'puzzle' && row.progress.done).length
+      : live.answered;
   const count = !duel && (
     <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered, total: live.total })}</p>
   );

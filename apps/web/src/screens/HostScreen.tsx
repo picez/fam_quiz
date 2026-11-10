@@ -13,6 +13,7 @@ import { WordLadderBoard, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
+import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { DrawingBoard, DrawingGuessers, DrawingLive, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { SortBoard } from './SortView';
@@ -537,6 +538,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         : view.moreless !== undefined
           ? // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як на сцені (answeredCount рахує й тих, хто лише почав).
             t('answeredOf', { answered: view.moreless.rows.filter((row) => row.done >= row.total).length, total: view.playerCount })
+        : view.puzzle !== undefined
+          ? // Головоломки (28d): «відповіли» — ті, хто натиснув «Готово», як на сцені (на закритті записи мають і ті, хто не натиснув).
+            t('answeredOf', { answered: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })
           : blitz === null
           ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
           : instant
@@ -795,7 +799,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </div>
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -1152,6 +1156,18 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* Головоломки (28d): сітки кожного зі значеннями наживо й розв'язок збоку — завжди, і з «Відповідями наживо» теж
+          (у рядках панелі лише «Заповнено N з M · Готово»). Правильність клітинок — на розкритті. Оцінювати нічого. */}
+      {view.puzzle !== undefined && view.question?.puzzle !== undefined && (
+        <section className="panel host-puzzle">
+          <h2>{t(view.puzzle.kind === 'sudoku' ? 'type_sudoku' : 'type_crossword')}</h2>
+          <div className="host-puzzle-body">
+            <PuzzleBoards info={view.puzzle} puzzle={view.question.puzzle} reveal={phase === 'reveal'} teams={view.teams?.teams ?? null} host />
+            {view.puzzle.solution !== null && <PuzzleSolution puzzle={view.question.puzzle} solution={view.puzzle.solution} />}
+          </div>
+        </section>
+      )}
+
       {/* Малюнок (28c): слово, хто малює, полотно наживо й імена тих, хто вгадав, — пульту завжди. Оцінювати нічого. */}
       {view.drawing !== undefined && (
         <section className="panel host-drawing">
@@ -1224,7 +1240,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.moreless !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.moreless !== undefined || view.puzzle !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

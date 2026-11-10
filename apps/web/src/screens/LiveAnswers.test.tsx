@@ -407,6 +407,27 @@ describe('LiveAnswers', () => {
   });
 });
 
+describe('LiveAnswers: puzzles (28d)', () => {
+  const sudoku = { id: 's1', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy', seed: 1, givens: '0'.repeat(36), solution: '1'.repeat(36) } as unknown as Question;
+
+  it('live answers show progress and done', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', progress: { kind: 'puzzle', filled: 5, total: 24, done: false } }),
+      row({ id: 'p2', nickname: 'Тарас', answered: true, answer: { type: 'puzzle', kind: 'sudoku', grid: '0'.repeat(36), filled: 24, total: 24, solved: false, done: true }, progress: { kind: 'puzzle', filled: 24, total: 24, done: true } }),
+      row({ id: 'p3', nickname: 'Ната', progress: { kind: 'puzzle', filled: 0, total: 24, done: false } }),
+    ];
+    show(rows, base({ correct: sudoku }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers[0]).toBe('Заповнено 5 з 24');
+    expect(answers[1]).toContain('Готово ✓');
+    // «Не розв'язано» до розкриття — лише ведучому, як і значення; заповненість не повторюється.
+    expect(answers[1]?.match(/24 з 24/g)).toHaveLength(1);
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+    // Хто ще нічого не вписав — серед тих, на кого чекаємо.
+    expect(within(document.querySelector('.live-waiting') as HTMLElement).getByText('Ната')).toBeTruthy();
+  });
+});
+
 describe('LiveAnswers: where the card is heading (11d)', () => {
   const sortView = (over: Partial<HostView> = {}) =>
     base({ question: { choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } } as never, ...over });

@@ -884,6 +884,7 @@
   "crosswordClue": "Pista",
   "crosswordCluePlaceholder": "Ave que vuelve en primavera",
   "crosswordClues": "Todas las pistas",
+  "puzzleDoneOf": "Listos: {done} de {total}",
   "crosswordDefaultText": "Resuelve el crucigrama.",
   "crosswordDown": "Verticales",
   "crosswordDuplicateWarn": "Una palabra se repite: {words}.",

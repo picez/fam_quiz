@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SPLASH_MS, emptyBrief, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
+import { SPLASH_MS, emptyBrief, generateSudoku, type PuzzleBoardView, type PuzzleInfo, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
 import { t } from '../i18n';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
@@ -1032,6 +1032,85 @@ describe('StageScreen final', () => {
     expect(screen.getByText('+200')).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     expect(screen.queryByText('Порівнюйте на телефоні')).toBeNull();
+  });
+
+  describe('puzzles (28d)', () => {
+    const { givens, solution } = generateSudoku(7, 'easy');
+    const values = solution.split('').map((ch, i) => (givens[i] === '0' ? ch : ''));
+    const empties = givens.split('').flatMap((ch, i) => (ch === '0' ? [i] : []));
+    const sudokuQ = { ...question, type: 'sudoku' as const, text: 'Розв’яжіть судоку', choices: [], timeLimit: 180, points: 300, puzzle: { kind: 'sudoku' as const, givens } };
+    const sudokuFull: Question = { id: 's1', type: 'sudoku', text: 'Розв’яжіть судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy', seed: 7, givens, solution };
+    const maskOf = (filled: number[]) => givens.split('').map((ch, i) => (ch !== '0' ? 'g' : filled.includes(i) ? '1' : '0')).join('');
+    const board = (playerId: string, nickname: string, filled: number[], over: Partial<PuzzleBoardView> = {}): PuzzleBoardView => ({
+      playerId, nickname, mask: maskOf(filled), filled: filled.length, total: empties.length, done: false, last: null, cells: null, solved: null, points: null, ...over,
+    });
+
+    it('the stage draws masks without values', () => {
+      const info: PuzzleInfo = { kind: 'sudoku', boards: [board('p1', 'Олена', empties.slice(0, 4), { done: true }), board('p2', 'Тарас', empties.slice(0, 1))], solution: null };
+      show(view({ phase: 'question', questionIndex: 0, question: sudokuQ, endsAt: Date.now() + 60_000, playerCount: 2, answeredCount: 1, puzzle: info }));
+      expect(screen.getByText('Розв’яжіть судоку')).toBeTruthy();
+      expect(document.querySelectorAll('.puzzle-stage .puzzle-thumb')).toHaveLength(2);
+      const text = [...document.querySelectorAll('.puzzle-thumb-cell')].map((c) => c.textContent).join('');
+      expect(text).not.toMatch(/[1-6]/);
+      expect(screen.getByText('Відповіли 1 з 2')).toBeTruthy();
+      expect(document.querySelector('.puzzle-stage-solution')).toBeNull();
+    });
+
+    it('reveal marks wrong cells and shows the solution', () => {
+      const cells = new Array<string>(36).fill('');
+      for (const i of empties) cells[i] = values[i];
+      const bad = [...cells];
+      bad[empties[0]] = values[empties[0]] === '1' ? '2' : '1';
+      const info: PuzzleInfo = {
+        kind: 'sudoku',
+        boards: [
+          board('p1', 'Олена', empties, { done: true, cells, solved: true, points: 300 }),
+          board('p2', 'Тарас', empties, { cells: bad, solved: false, points: 0 }),
+        ],
+        solution: values,
+      };
+      show(view({ phase: 'reveal', questionIndex: 0, question: sudokuQ, reveal: sudokuFull, playerCount: 2, answeredCount: 2, puzzle: info }));
+      const big = document.querySelector('.puzzle-stage-solution .puzzle-reveal-grid')!;
+      expect([...big.querySelectorAll('.sudoku-cell')].map((c) => c.textContent).join('')).toBe(solution);
+      const thumbs = document.querySelectorAll('.puzzle-stage .puzzle-thumb');
+      expect(thumbs[0].classList.contains('is-solved')).toBe(true);
+      expect(thumbs[1].querySelectorAll('.puzzle-thumb-cell.is-wrong')).toHaveLength(1);
+      expect(thumbs[1].querySelectorAll('.puzzle-thumb-cell')[empties[0]].classList.contains('is-wrong')).toBe(true);
+      expect(thumbs[0].querySelectorAll('.puzzle-thumb-cell')[empties[0]].textContent).toBe(values[empties[0]]);
+      expect(screen.getByText('+300')).toBeTruthy();
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
+
+    it('the key word is shown on reveal', () => {
+      // «лис» по горизонталі, «липа» по вертикалі; ключ — клітинки 2, 6, 9: «спа».
+      const puzzle = {
+        kind: 'crossword' as const, mode: 'key' as const, width: 3, height: 4, mask: '111100100100',
+        words: [
+          { number: 1, row: 0, col: 0, dir: 'across' as const, length: 3, clue: 'Руда хитрунка' },
+          { number: 1, row: 0, col: 0, dir: 'down' as const, length: 4, clue: 'Дерево з запашним цвітом' },
+        ],
+        keyCells: [2, 6, 9],
+      };
+      const letters = ['л', 'и', 'с', 'и', '', '', 'п', '', '', 'а', '', ''];
+      const crossQ = { ...question, type: 'crossword' as const, text: 'Кросворд', choices: [], timeLimit: 240, points: 300, puzzle };
+      const full: Question = {
+        id: 'c1', type: 'crossword', text: 'Кросворд', imageUrl: null, video: null, timeLimit: 240, points: 300, mode: 'key', key: 'спа',
+        entries: [{ id: 'a', answer: 'лис', clue: 'Руда хитрунка' }, { id: 'b', answer: 'липа', clue: 'Дерево з запашним цвітом' }],
+        layout: { width: 3, height: 4, words: [{ id: 'a', row: 0, col: 0, dir: 'across' }, { id: 'b', row: 0, col: 0, dir: 'down' }], keyCells: [2, 6, 9] },
+      };
+      const mask = letters.map((v) => (v === '' ? '#' : '1')).join('');
+      const info: PuzzleInfo = {
+        kind: 'crossword',
+        boards: [{ playerId: 'p1', nickname: 'Олена', mask, filled: 6, total: 6, done: true, last: 9, cells: letters, solved: true, points: 300 }],
+        solution: letters,
+      };
+      show(view({ phase: 'reveal', questionIndex: 0, question: crossQ, reveal: full, playerCount: 1, answeredCount: 1, puzzle: info }));
+      expect(document.querySelector('.puzzle-key-word strong')?.textContent).toBe('СПА');
+      expect(screen.getByText('ЛИС')).toBeTruthy();
+      expect(screen.getByText('ЛИПА')).toBeTruthy();
+      expect(screen.getByText('Дерево з запашним цвітом')).toBeTruthy();
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
   });
 
   it('a timed list shows only counts while playing, then the whole list', () => {

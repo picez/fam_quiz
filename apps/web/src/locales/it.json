@@ -884,6 +884,7 @@
   "crosswordClue": "Indizio",
   "crosswordCluePlaceholder": "Uccello che torna in primavera",
   "crosswordClues": "Tutti gli indizi",
+  "puzzleDoneOf": "Fatto: {done} su {total}",
   "crosswordDefaultText": "Risolvi il cruciverba.",
   "crosswordDown": "Verticali",
   "crosswordDuplicateWarn": "Una parola si ripete: {words}.",

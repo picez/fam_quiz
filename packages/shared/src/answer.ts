@@ -128,6 +128,8 @@ export interface PuzzleAnswer {
   filled: number;
   total: number;
   solved: boolean;
+  /** Натиснуто «Готово» (у команді — будь-ким); false — сітку зафіксував кінець часу. Немає — запис до цього поля. */
+  done?: boolean;
 }
 
 export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer;

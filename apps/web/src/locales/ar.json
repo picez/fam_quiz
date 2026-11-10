@@ -902,6 +902,7 @@
   "crosswordClue": "التلميح",
   "crosswordCluePlaceholder": "طائر يعود في الربيع",
   "crosswordClues": "كل التلميحات",
+  "puzzleDoneOf": "تمّ: {done} من {total}",
   "crosswordDefaultText": "حلّ الكلمات المتقاطعة.",
   "crosswordDown": "عموديًا",
   "crosswordDuplicateWarn": "كلمة مكرّرة: {words}.",

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { crosswordLetter, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion } from '@quiz/shared';
+import { crosswordCells, crosswordLetter, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type Question, type TeamView } from '@quiz/shared';
+import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { usePuzzleBoard, type PuzzleBoardModel } from '../live/usePuzzleBoard';
@@ -580,5 +581,261 @@ export function PuzzleReveal({ mine, question, solution }: { mine: PlayerPuzzle 
         </figure>
       )}
     </section>
+  );
+}
+
+/** Понад стільки мініатюр сцена показує їх сторінками по черзі (до 40 мініатюра лишається не меншою за ~90 px на 1600×900). */
+export const PUZZLE_PAGE_SIZE = 40;
+/** На розкритті половину сцени займає розв'язок, а мініатюри несуть значення: сторінка менша. */
+export const PUZZLE_REVEAL_PAGE_SIZE = 24;
+export const PUZZLE_PAGE_MS = 8000;
+
+/** Щільні мініатюри (підпис в один рядок): понад стільки дошок на сторінці; на розкритті — удвічі менше. */
+export const PUZZLE_DENSE = 24;
+
+/**
+ * Стовпці й рядки мініатюр для n дошок: найбільша сітка, що вміщається на сцені 1600×900 (до розкриття — уся ширина під
+ * заголовком, ≈ 1440×610; на розкритті — праворуч від розв'язку, ≈ 930×680). Від сітки віднімаються підпис (два рядки ≈ 50 px,
+ * щільний — один ≈ 28 px), поля й проміжок. Сама розкладка тягнеться за екраном (CSS), тут — лише стовпці й рядки.
+ */
+export function puzzleGrid(n: number, reveal: boolean): { cols: number; rows: number; dense: boolean } {
+  const dense = n > (reveal ? PUZZLE_DENSE / 2 : PUZZLE_DENSE);
+  const [w, h] = reveal ? [930, 680] : [1440, 610];
+  const caption = dense ? 28 : 50;
+  let best = { cols: 1, rows: Math.max(1, n), size: -Infinity };
+  for (let cols = 1; cols <= Math.max(1, n); cols += 1) {
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const size = Math.min(w / cols - 26, h / rows - caption - 26);
+    if (size > best.size) best = { cols, rows, size };
+  }
+  return { cols: best.cols, rows: best.rows, dense };
+}
+
+/** Поточна сторінка мініатюр: понад size сторінки міняються кожні PUZZLE_PAGE_MS. */
+function usePage(count: number, size: number, enabled: boolean): number {
+  const pages = enabled ? Math.max(1, Math.ceil(count / size)) : 1;
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    if (pages <= 1) return;
+    const id = setInterval(() => setPage((p) => (p + 1) % pages), PUZZLE_PAGE_MS);
+    return () => clearInterval(id);
+  }, [pages]);
+  return pages <= 1 ? 0 : page % pages;
+}
+
+const sizeOf = (puzzle: PublicPuzzle) => (puzzle.kind === 'sudoku' ? { w: SUDOKU_SIDE, h: SUDOKU_SIDE } : { w: puzzle.width, h: puzzle.height });
+
+/** Межі блоків 2×3 судоку для клітинки i. */
+function boxEdges(i: number): string {
+  const row = Math.floor(i / SUDOKU_SIDE);
+  const col = i % SUDOKU_SIDE;
+  return `${col === 2 ? ' is-box-end' : ''}${row === 1 || row === 3 ? ' is-box-bottom' : ''}`;
+}
+
+/** Клітинки, від яких залежить оцінка: кросворд з ключем — ключові, інакше null (усі для вписування). */
+function scoredSet(puzzle: PublicPuzzle): ReadonlySet<number> | null {
+  return puzzle.kind === 'crossword' && puzzle.mode === 'key' && puzzle.keyCells.length > 0 ? new Set(puzzle.keyCells) : null;
+}
+
+interface ThumbProps {
+  board: PuzzleBoardView;
+  puzzle: PublicPuzzle;
+  solution: readonly string[] | null;
+  reveal: boolean;
+  /** Командна гра: учасники команди в порядку маски ('1'…'9'); соло — undefined. */
+  members: string[] | undefined;
+  /** Соло: колір гравця (клас by-N). */
+  tone: string;
+}
+
+/**
+ * Мініатюра однієї дошки. Клітинка — колір того, хто вписав (соло — колір гравця, команда — учасника); задані цифри судоку — сірі,
+ * блоки кросворду — темні. Значення — лише коли вони є в дошці (пульт завжди, сцена — на розкритті); на розкритті хибні вписані
+ * клітинки червоні. Остання вписана клітинка коротко спалахує.
+ */
+function Thumb({ board, puzzle, solution, reveal, members, tone }: ThumbProps) {
+  const { w, h } = sizeOf(puzzle);
+  const team = members !== undefined;
+  const keys = puzzle.kind === 'crossword' ? new Set(puzzle.keyCells) : null;
+  const scored = scoredSet(puzzle);
+  const classes = ['puzzle-thumb', team ? '' : tone, board.done ? 'is-done' : '', board.solved === true ? 'is-solved' : '', board.solved === false ? 'is-unsolved' : ''].filter(Boolean).join(' ');
+  return (
+    <li className={classes}>
+      <div className="puzzle-thumb-fit">
+        <div className={`puzzle-mini is-${puzzle.kind}`} style={{ '--cols': w, '--rows': h } as CSSProperties} dir="ltr" aria-hidden="true">
+          {Array.from({ length: w * h }, (_, i) => {
+            const m = board.mask[i] ?? '0';
+            const block = m === '#';
+            const given = m === 'g';
+            const filled = m >= '1' && m <= '9';
+            const value = board.cells === null || block ? '' : given ? (puzzle.kind === 'sudoku' ? (puzzle.givens[i] ?? '') : '') : (board.cells[i] ?? '');
+            const wrong = reveal && solution !== null && filled && value !== '' && (scored === null || scored.has(i)) && value !== solution[i];
+            const cls = [
+              'puzzle-thumb-cell',
+              block ? 'is-block' : '',
+              given ? 'is-given' : '',
+              filled ? 'is-filled' : '',
+              filled && team ? `by-${m}` : '',
+              !reveal && filled && board.last === i ? 'is-last' : '',
+              wrong ? 'is-wrong' : '',
+              keys?.has(i) === true ? 'is-key' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+            return (
+              <span key={i} className={`${cls}${puzzle.kind === 'sudoku' ? boxEdges(i) : ''}`}>
+                {value}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+      <p className="puzzle-thumb-name" dir="auto" title={board.nickname}>
+        {board.nickname}
+      </p>
+      <p className="puzzle-thumb-caption">
+        <span className="puzzle-thumb-count">
+          {board.filled} / {board.total}
+        </span>
+        {board.done && (
+          <span className="puzzle-thumb-done" role="img" aria-label={t('puzzleDone')} title={t('puzzleDone')}>
+            ✓
+          </span>
+        )}
+        {board.points !== null && board.points > 0 && <span className="score">{signed(board.points)}</span>}
+      </p>
+      {team && members.length > 1 && (
+        <p className="puzzle-thumb-members">
+          {members.map((name, n) => (
+            <span key={n} className={`by-${Math.min(n + 1, 9)}`} dir="auto">
+              {name}
+            </span>
+          ))}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Мініатюри сіток усіх гравців (команд). Сцена й інші бачать лише маски (без значень, cells === null); пульт — значення наживо.
+ * На сцені мініатюри займають усю решту екрана: стовпці й рядки — за кількістю дошок (puzzleGrid), понад 40 (на розкритті понад 24) —
+ * сторінки по черзі.
+ * Пульт (host) — звичайна сітка мініатюр без сторінок.
+ */
+export function PuzzleBoards({ info, puzzle, reveal, host = false, teams = null }: { info: PuzzleInfo; puzzle: PublicPuzzle; reveal: boolean; host?: boolean; teams?: TeamView[] | null }) {
+  const size = reveal ? PUZZLE_REVEAL_PAGE_SIZE : PUZZLE_PAGE_SIZE;
+  const page = usePage(info.boards.length, size, !host);
+  const from = host ? 0 : page * size;
+  const shown = host ? info.boards : info.boards.slice(from, from + size);
+  const grid = puzzleGrid(shown.length, reveal);
+  return (
+    <div className={host ? 'puzzle-boards-fit is-host' : grid.dense ? 'puzzle-boards-fit is-dense' : 'puzzle-boards-fit'}>
+      <ul className="puzzle-boards" style={host ? undefined : ({ '--cols': grid.cols, '--rows': grid.rows } as CSSProperties)}>
+        {shown.map((board, n) => (
+          <Thumb
+            key={board.playerId}
+            board={board}
+            puzzle={puzzle}
+            solution={info.solution}
+            reveal={reveal}
+            members={teams === null ? undefined : teams.find((team) => team.id === board.playerId)?.members.map((member) => member.nickname)}
+            tone={`by-${((from + n) % 9) + 1}`}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Літери слова кросворду з розв'язку. */
+function wordText(puzzle: Crossword, solution: readonly string[], word: Crossword['words'][number]): string {
+  let text = '';
+  for (let k = 0; k < word.length; k += 1) {
+    const at = (word.row + (word.dir === 'down' ? k : 0)) * puzzle.width + word.col + (word.dir === 'across' ? k : 0);
+    text += solution[at] ?? '';
+  }
+  return text.toLocaleUpperCase('uk');
+}
+
+/**
+ * Правильний розв'язок: велика сітка; у кросворді ще й слова з підказками (по горизонталі, по вертикалі), у режимі ключа — ключове
+ * слово великими літерами. Сцена — на розкритті, пульт — завжди.
+ */
+export function PuzzleSolution({ puzzle, solution }: { puzzle: PublicPuzzle; solution: readonly string[] }) {
+  const { w, h } = sizeOf(puzzle);
+  const key = puzzle.kind === 'crossword' && puzzle.mode === 'key' && puzzle.keyCells.length > 0 ? puzzle.keyCells.map((i) => solution[i] ?? '').join('').toLocaleUpperCase('uk') : null;
+  return (
+    <figure className="puzzle-solution">
+      <figcaption className="meta">{t('puzzleSolution')}</figcaption>
+      {key !== null && (
+        <p className="puzzle-key-word">
+          <span className="meta">{t('crosswordModeKey')}</span> <strong dir="auto">{key}</strong>
+        </p>
+      )}
+      <div className="puzzle-solution-fit" style={{ '--gw': w, '--gh': h } as CSSProperties}>
+        <StaticGrid puzzle={puzzle} values={solution} />
+      </div>
+      {puzzle.kind === 'crossword' && (
+        <div className="puzzle-words">
+          {(['across', 'down'] as const).map((dir) => {
+            const words = puzzle.words.filter((word) => word.dir === dir);
+            return (
+              words.length > 0 && (
+                <section key={dir}>
+                  <h3 className="meta">{t(dir === 'across' ? 'crosswordAcross' : 'crosswordDown')}</h3>
+                  <ol>
+                    {words.map((word) => (
+                      <li key={`${word.number}-${dir}`}>
+                        <span className="crossword-n">{word.number}.</span> <strong dir="auto">{wordText(puzzle, solution, word)}</strong> <span dir="auto">{word.clue}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              )
+            );
+          })}
+        </div>
+      )}
+    </figure>
+  );
+}
+
+/**
+ * Фінальна сітка гравця (команди) в історії: компактна, задані цифри сірі, хибні вписані — червоні; у кросворді з ключем —
+ * ключове слово гравця; «Готово ✓», якщо сітку зафіксували самі (а не кінець часу).
+ */
+export function PuzzleHistoryGrid({ answer, question, playerKey }: { answer: PuzzleAnswer; question: Question; playerKey?: string }) {
+  if (question.type !== 'sudoku' && question.type !== 'crossword') return null;
+  const layout = question.type === 'crossword' ? question.layout : null;
+  const w = question.type === 'sudoku' ? SUDOKU_SIDE : (layout?.width ?? 0);
+  const h = question.type === 'sudoku' ? SUDOKU_SIDE : (layout?.height ?? 0);
+  const chars = [...answer.grid];
+  if (w === 0 || chars.length !== w * h) return null;
+  const right = question.type === 'sudoku' ? [...question.solution] : layout === null ? [] : crosswordCells(layout, question.entries).map((ch) => ch ?? '');
+  const keys = new Set(question.type === 'crossword' && question.mode === 'key' ? (layout?.keyCells ?? []) : []);
+  return (
+    <div className="puzzle-history">
+      <div className={`puzzle-mini puzzle-history-grid is-${question.type}`} style={{ '--cols': w, '--rows': h } as CSSProperties} dir="ltr" aria-hidden="true">
+        {chars.map((ch, i) => {
+          const given = question.type === 'sudoku' && question.givens[i] !== '0';
+          const block = question.type === 'crossword' && ch === '#';
+          const value = ch === '0' || ch === '.' || ch === '#' ? '' : ch;
+          const wrong = !given && !block && value !== '' && (keys.size === 0 || keys.has(i)) && value !== right[i];
+          const cls = ['puzzle-thumb-cell', block ? 'is-block' : '', given ? 'is-given' : '', !given && value !== '' ? 'is-filled' : '', wrong ? 'is-wrong' : '', keys.has(i) ? 'is-key' : ''].filter(Boolean).join(' ');
+          return (
+            <span key={i} className={`${cls}${question.type === 'sudoku' ? boxEdges(i) : ''}`}>
+              {value}
+            </span>
+          );
+        })}
+      </div>
+      {playerKey !== undefined && (
+        <p className="meta puzzle-history-key">
+          {t('crosswordModeKey')}: <strong dir="auto">{playerKey.replace(/\./g, '·').toLocaleUpperCase('uk')}</strong>
+        </p>
+      )}
+      {answer.done === true && <span className="tag puzzle-history-done">{`${t('puzzleDone')} ✓`}</span>}
+    </div>
   );
 }

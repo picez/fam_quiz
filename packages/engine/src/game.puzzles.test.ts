@@ -189,7 +189,7 @@ describe('puzzles: done and scoring', () => {
     expect(puzzleOf(fixed, 'p1')!.done).toBe(true);
     expect(record(fixed, 'p1')).toMatchObject({ grade: 'correct', points: 300, basePoints: 300, streakBonus: 0, accuracy: 1, accepted: true, timeMs: 5000 });
     const answer = record(fixed, 'p1')!.answer;
-    expect(answer).toEqual({ type: 'puzzle', kind: 'sudoku', grid: sudoku.solution, filled: puzzleTotal(sudoku), total: puzzleTotal(sudoku), solved: true });
+    expect(answer).toEqual({ type: 'puzzle', kind: 'sudoku', grid: sudoku.solution, filled: puzzleTotal(sudoku), total: puzzleTotal(sudoku), solved: true, done: true });
     expect(fixed.players.find((p) => p.id === 'p1')?.score).toBe(0);
     expect(fixed.phase).toBe('question');
     expect(puzzleFill(fixed, 'p1', 'p1', 0, [{ i: firstEmpty, v: '1' }], 5100)).toEqual({ ok: false, error: 'puzzle_done' });
@@ -210,7 +210,7 @@ describe('puzzles: done and scoring', () => {
   it('an empty grid may be done too', () => {
     const s = done(fresh(), 'p2');
     expect(record(s, 'p2')).toMatchObject({ grade: 'wrong', points: 0, accuracy: 0 });
-    expect(record(s, 'p2')!.answer).toEqual({ type: 'puzzle', kind: 'sudoku', grid: sudoku.givens, filled: 0, total: puzzleTotal(sudoku), solved: false });
+    expect(record(s, 'p2')!.answer).toEqual({ type: 'puzzle', kind: 'sudoku', grid: sudoku.givens, filled: 0, total: puzzleTotal(sudoku), solved: false, done: true });
     expect(puzzleOf(s, 'p2')).toMatchObject({ done: true, seq: 0, last: null });
   });
 
@@ -236,7 +236,7 @@ describe('puzzles: done and scoring', () => {
     expect(closed.phase).toBe('locked');
     expect(recordOf(closed, 0, 'p2')).toMatchObject({ grade: 'correct', points: 300, timeMs: 180_000 });
     expect(recordOf(closed, 0, 'p1')).toMatchObject({ grade: 'wrong', points: 0 });
-    expect(recordOf(closed, 0, 'p1')!.answer).toMatchObject({ filled: 1, solved: false });
+    expect(recordOf(closed, 0, 'p1')!.answer).toMatchObject({ filled: 1, solved: false, done: false });
     // Петро нічого не вписав: запису немає (як у «Більше чи менше» — «був у кімнаті» не відповідь), мінусу немає
     expect(recordOf(closed, 0, 'p3')).toBeUndefined();
     expect(closed.players.map((p) => p.score)).toEqual([0, 300, 0]);

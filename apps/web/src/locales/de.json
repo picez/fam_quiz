@@ -878,6 +878,7 @@
   "crosswordClue": "Hinweis",
   "crosswordCluePlaceholder": "Ein Vogel, der im Frühling zurückkehrt",
   "crosswordClues": "Alle Hinweise",
+  "puzzleDoneOf": "Fertig: {done} von {total}",
   "crosswordDefaultText": "Löse das Kreuzworträtsel.",
   "crosswordDown": "Senkrecht",
   "crosswordDuplicateWarn": "Ein Wort kommt doppelt vor: {words}.",

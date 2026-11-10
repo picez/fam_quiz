@@ -1118,7 +1118,13 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : question.type === 'sudoku' || question.type === 'crossword' ? (
               // Головоломки (28d): у команді одна спільна сітка, вписує будь-хто; кольори — хто з учасників що вписав.
               me.puzzle !== undefined && (
-                <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} members={puzzleMembers} />
+                <>
+                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} members={puzzleMembers} />
+                  {/* Чужі сітки на телефоні не показуються (місце): лише скільки вже натиснули «Готово». */}
+                  {view.puzzle !== undefined && (
+                    <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                  )}
+                </>
               )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />

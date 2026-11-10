@@ -2686,6 +2686,7 @@ const uk = {
   crosswordGridLabel: 'Сітка кросворду',
   crosswordInput: 'Літера',
   crosswordClues: 'Усі підказки',
+  puzzleDoneOf: 'Готово: {done} з {total}',
   typeHow_sort: 'Розкладіть слова по категоріях: перетягніть картку або торкніться категорії. Після помилки екран ненадовго підвисає.',
   buffGuide_fifty: 'Прибирає частину неправильних варіантів.',
   buffGuide_double: 'Подвоює бали за це запитання.',

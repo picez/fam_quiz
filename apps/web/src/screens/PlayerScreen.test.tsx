@@ -1758,6 +1758,14 @@ describe('PlayerScreen final', () => {
     expect(screen.getByRole('button', { name: 'Готово' })).toBeTruthy();
   });
 
+  it('28d: a phone sees only how many are done, never rival grids', () => {
+    const board = (playerId: string, done: boolean) => ({ playerId, nickname: playerId, mask: 'g'.padEnd(36, '1'), filled: 35, total: 35, done, last: null, cells: null, solved: null, points: null });
+    const puzzle = { kind: 'sudoku' as const, boards: [board('p1', false), board('p2', true)], solution: null };
+    show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, playerCount: 2, puzzle, me: { ...me, puzzle: myGrid } }));
+    expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
+    expect(document.querySelector('.puzzle-thumb')).toBeNull();
+  });
+
   it('28d: when the time runs out the grid stops before the server closes the question', () => {
     show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() - 1000, me: { ...me, puzzle: myGrid } }));
     expect(document.querySelector('.puzzle-play.is-off')).not.toBeNull();

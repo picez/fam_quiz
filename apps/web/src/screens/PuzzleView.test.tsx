@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
-import { generateSudoku, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion } from '@quiz/shared';
+import { generateSudoku, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleBoardView, type PuzzleInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
 import { PUZZLE_FLUSH_MS } from '../live/usePuzzleBoard';
-import { CrosswordPlay, PUZZLE_TAP_GAP_MS, PuzzleReveal, SudokuPlay } from './PuzzleView';
+import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid } from './PuzzleView';
 
 const base: Omit<PublicQuestion, 'type' | 'puzzle'> = {
   text: 'Розв’яжіть',
@@ -275,6 +275,120 @@ describe('PuzzleReveal', () => {
     expect(yours[emptyAt].classList.contains('is-wrong')).toBe(true);
     const right = document.querySelectorAll('.puzzle-reveal-grid')[1].querySelectorAll('.sudoku-cell');
     expect([...right].map((c) => c.textContent).join('')).toBe(solution);
+  });
+});
+
+const sudokuSolution = solution.split('').map((ch, i) => (givens[i] === '0' ? ch : ''));
+const empties = givens.split('').flatMap((ch, i) => (ch === '0' ? [i] : []));
+const boardOf = (over: Partial<PuzzleBoardView> = {}): PuzzleBoardView => ({
+  playerId: 'p1',
+  nickname: 'Олена',
+  mask: givens.split('').map((ch) => (ch === '0' ? '0' : 'g')).join(''),
+  filled: 0,
+  total: empties.length,
+  done: false,
+  last: null,
+  cells: null,
+  solved: null,
+  points: null,
+  ...over,
+});
+/** Маска з вписаними клітинками at (хто — by). */
+const maskWith = (at: number[], by = '1') => givens.split('').map((ch, i) => (ch !== '0' ? 'g' : at.includes(i) ? by : '0')).join('');
+
+describe('PuzzleBoards', () => {
+  it('the stage draws masks without values', () => {
+    const info: PuzzleInfo = {
+      kind: 'sudoku',
+      boards: [boardOf({ mask: maskWith(empties.slice(0, 3)), filled: 3, last: empties[2] }), boardOf({ playerId: 'p2', nickname: 'Тарас', done: true })],
+      solution: null,
+    };
+    render(<PuzzleBoards info={info} puzzle={sudoku.puzzle!} reveal={false} />);
+    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(2);
+    const cells = [...document.querySelectorAll('.puzzle-thumb-cell')];
+    expect(cells).toHaveLength(72);
+    // Жодної цифри: ні вписаних, ні заданих.
+    expect(cells.map((c) => c.textContent).join('')).toBe('');
+    const first = document.querySelectorAll('.puzzle-thumb')[0];
+    expect(first.querySelectorAll('.puzzle-thumb-cell.is-filled')).toHaveLength(3);
+    expect(first.querySelectorAll('.puzzle-thumb-cell.is-given')).toHaveLength(36 - empties.length);
+    expect(first.querySelectorAll('.puzzle-thumb-cell')[empties[2]].classList.contains('is-last')).toBe(true);
+    expect(screen.getByText(`3 / ${empties.length}`)).toBeTruthy();
+    // «Готово» — лише в Тараса.
+    expect(document.querySelectorAll('.puzzle-thumb-done')).toHaveLength(1);
+    expect(document.querySelectorAll('.puzzle-thumb')[1].querySelector('.puzzle-thumb-done')).not.toBeNull();
+  });
+
+  it('a team grid colours each cell by its filler and names the members', () => {
+    const mask = givens.split('').map((ch, i) => (ch !== '0' ? 'g' : i === empties[0] ? '1' : i === empties[1] ? '2' : '0')).join('');
+    const info: PuzzleInfo = { kind: 'sudoku', boards: [boardOf({ playerId: 'team-b', nickname: 'Сині', mask, filled: 2 })], solution: null };
+    const teams = [{ id: 'team-b', name: 'Сині', color: 1, captainId: 'u2', answererId: 'u2', members: [{ id: 'u2', nickname: 'Оля', connected: true }, { id: 'u3', nickname: 'Петро', connected: true }] }];
+    render(<PuzzleBoards info={info} puzzle={sudoku.puzzle!} reveal={false} teams={teams} />);
+    const cells = document.querySelectorAll('.puzzle-thumb-cell');
+    expect(cells[empties[0]].classList.contains('by-1')).toBe(true);
+    expect(cells[empties[1]].classList.contains('by-2')).toBe(true);
+    expect(screen.getByText('Оля').classList.contains('by-1')).toBe(true);
+    expect(screen.getByText('Петро').classList.contains('by-2')).toBe(true);
+  });
+
+  it('many boards share the stage: denser columns, two pages over 40', () => {
+    expect(puzzleGrid(4, false)).toEqual({ cols: 4, rows: 1, dense: false });
+    const g24 = puzzleGrid(24, false);
+    expect(g24.cols * g24.rows).toBeGreaterThanOrEqual(24);
+    expect(g24.cols).toBeGreaterThanOrEqual(6);
+    expect(g24.dense).toBe(false);
+    const g40 = puzzleGrid(40, false);
+    expect(g40).toMatchObject({ cols: 10, rows: 4, dense: true });
+    expect(puzzleGrid(24, true)).toMatchObject({ cols: 6, rows: 4, dense: true });
+    vi.useFakeTimers();
+    const boards = Array.from({ length: 45 }, (_, n) => boardOf({ playerId: `p${n}`, nickname: `Гравець ${n + 1}` }));
+    render(<PuzzleBoards info={{ kind: 'sudoku', boards, solution: null }} puzzle={sudoku.puzzle!} reveal={false} />);
+    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(40);
+    expect(screen.getByText('Гравець 1')).toBeTruthy();
+    act(() => vi.advanceTimersByTime(PUZZLE_PAGE_MS));
+    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(5);
+    expect(screen.getByText('Гравець 45')).toBeTruthy();
+  });
+
+  it('the host sees the values live', () => {
+    const cells = new Array<string>(36).fill('');
+    cells[empties[0]] = sudokuSolution[empties[0]];
+    const info: PuzzleInfo = { kind: 'sudoku', boards: [boardOf({ mask: maskWith([empties[0]]), filled: 1, cells })], solution: sudokuSolution };
+    render(<PuzzleBoards info={info} puzzle={sudoku.puzzle!} reveal={false} host />);
+    const shown = document.querySelectorAll('.puzzle-thumb-cell');
+    expect(shown[empties[0]].textContent).toBe(sudokuSolution[empties[0]]);
+    expect(shown[givenAt].textContent).toBe(givens[givenAt]);
+    // До кінця часу ведучий правильності клітинок не бачить позначками.
+    expect(document.querySelector('.puzzle-thumb-cell.is-wrong')).toBeNull();
+  });
+});
+
+describe('PuzzleHistoryGrid', () => {
+  const layoutQ = {
+    id: 'cw', type: 'crossword' as const, text: 'Кросворд', imageUrl: null, video: null, timeLimit: 240, points: 300, mode: 'key' as const,
+    entries: [{ id: 'a', answer: 'лис', clue: 'Руда хитрунка' }, { id: 'b', answer: 'липа', clue: 'Дерево' }],
+    key: 'спа',
+    layout: { width: 3, height: 4, words: [{ id: 'a', row: 0, col: 0, dir: 'across' as const }, { id: 'b', row: 0, col: 0, dir: 'down' as const }], keyCells: [2, 6, 9] },
+  };
+
+  it('shows the final grid compactly, the key word and «done»', () => {
+    const answer = { type: 'puzzle' as const, kind: 'crossword' as const, grid: 'лис' + 'и##' + 'п##' + 'а##', filled: 6, total: 6, solved: true, done: true };
+    render(<PuzzleHistoryGrid answer={answer} question={layoutQ} playerKey="спа" />);
+    expect([...document.querySelectorAll('.puzzle-history-grid .puzzle-thumb-cell')].map((c) => c.textContent).join('')).toBe('лисипа');
+    expect(document.querySelectorAll('.puzzle-history-grid .is-block')).toHaveLength(6);
+    expect(screen.getByText('СПА')).toBeTruthy();
+    expect(screen.getByText('Готово ✓')).toBeTruthy();
+  });
+
+  it('a sudoku grid keeps the givens and marks empty cells', () => {
+    const grid = givens.split('').map((ch, i) => (ch !== '0' ? ch : i === emptyAt ? solution[i] : '0')).join('');
+    const q = { id: 's', type: 'sudoku' as const, text: 'С', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy' as const, seed: 7, givens, solution };
+    render(<PuzzleHistoryGrid answer={{ type: 'puzzle', kind: 'sudoku', grid, filled: 1, total: empties.length, solved: false }} question={q} />);
+    const cells = document.querySelectorAll('.puzzle-history-grid .puzzle-thumb-cell');
+    expect(cells[emptyAt].textContent).toBe(solution[emptyAt]);
+    expect(cells[givenAt].classList.contains('is-given')).toBe(true);
+    expect(cells[empties[1]].textContent).toBe('');
+    expect(screen.queryByText('Готово ✓')).toBeNull();
   });
 });
 

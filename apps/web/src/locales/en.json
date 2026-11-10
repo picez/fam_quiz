@@ -878,6 +878,7 @@
   "crosswordClue": "Clue",
   "crosswordCluePlaceholder": "A bird that comes back in spring",
   "crosswordClues": "All clues",
+  "puzzleDoneOf": "Done: {done} of {total}",
   "crosswordDefaultText": "Solve the crossword.",
   "crosswordDown": "Down",
   "crosswordDuplicateWarn": "A word repeats: {words}.",
