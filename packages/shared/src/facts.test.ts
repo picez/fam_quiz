@@ -426,6 +426,8 @@ describe('in-game facts (12d)', () => {
     expect(factLimitMs({ ...single, type: 'wordladder', path: ['поле', 'пола'], maxSteps: 8 } as unknown as Question, classic, false)).toBeNull();
     // 27a: у ставках швидкості немає — ні «Блискавки», ні швидкісних ачівок, хоч у запитання є таймер.
     expect(factLimitMs(single, { type: 'bets' } as Round, false)).toBeNull();
+    // 27b: в аукціоні швидкості немає ні в проданому, ні в непроданому запитанні.
+    expect(factLimitMs(single, { type: 'auction' } as Round, false)).toBeNull();
     const audio = { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5, duration: 30 };
     expect(factLimitMs({ ...single, audio } as Question, classic, false)).toBe(50000);
   });

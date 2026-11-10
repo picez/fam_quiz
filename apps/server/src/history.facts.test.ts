@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { defaultTeams, factTable, gameAwards, revealFacts } from '@quiz/shared';
 import { factInput } from '@quiz/engine';
-import { betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
@@ -207,6 +207,61 @@ describe('history facts (12d)', () => {
     // Швидкісних карток ставки не дають. Єдина правильна відповідь гри — швидка відповідь Олі на ставках (r1 ніхто не відповідав),
     // тож без захисту «Блискавка» була б саме з неї: у грі немає жодної швидкісної картки.
     expect(live.rows.filter((r) => r.accepted).map((r) => [r.playerId, r.questionIndex])).toEqual([[olya, betsQuestion!.index]]);
+    const kinds = gameAwards(live).map((a) => a.kind);
+    expect(kinds).not.toContain('lightning');
+    expect(kinds).not.toContain('nerves');
+    expect(found?.detail.facts.awards).toEqual(gameAwards(live));
+    await local.app.close();
+  });
+
+  it('auction questions give the same facts live and in the history: only the sold one is final, neither has an answer time (27b)', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const [account] = await localDb.select().from(user).where(eq(user.email, host.email));
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [single], { speedBonus: false }),
+      auctionRound('a', [withId(single, 'a1'), withId(single, 'a2')], { bidMode: 'free' }),
+    ]);
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const { Оля: olya, Петро: petro } = ids;
+    const host$ = (type: 'start' | 'next' | 'lock') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    host$('start');
+    host$('next');
+    toBetsWager(local.manager, room, { [olya]: 800, [petro]: 500 });
+    // Перше продано Олі; друге не купує ніхто — швидкі правильні відповіді обох без швидкісних карток.
+    expect(local.manager.wager(room, olya, 400)).toEqual({ ok: true });
+    host$('next');
+    expect(local.manager.answer(room, olya, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') host$('lock');
+    for (let guard = 0; guard < 5 && room.state.phase !== 'wager'; guard++) host$('next');
+    host$('next');
+    expect(room.state.phase).toBe('question');
+    expect(local.manager.answer(room, olya, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(local.manager.answer(room, petro, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') host$('lock');
+    for (let guard = 0; guard < 10 && room.state.phase !== 'finished'; guard++) host$('next');
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const found = await hostGameWithFacts(localDb, account.id, created.gameId);
+    const live = factInput(room.state);
+    expect(found?.factInput.questions).toEqual(live.questions);
+    expect(live.questions.filter((q) => q.roundIndex === 1).map((q) => [q.final, q.limitMs])).toEqual([
+      [true, null],
+      [false, null],
+    ]);
     const kinds = gameAwards(live).map((a) => a.kind);
     expect(kinds).not.toContain('lightning');
     expect(kinds).not.toContain('nerves');

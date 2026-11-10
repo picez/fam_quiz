@@ -1,6 +1,6 @@
 import { suspendAutopilot } from './autopilot';
 import { awayCloseAll } from './away';
-import { pause, setConnected, tick, type GameState } from './game';
+import { pause, setConnected, tick, type GameState, type Rng } from './game';
 
 /** Версія формату GameState для збережених кімнат (9b). Піднімати, коли змінюється форма стану; кімнати іншої версії не відновлюються.
  * 2 — 9c: DebuffState.by, ScoreAdjustment.target/debuff, QuizSettings.debuffPrices.
@@ -81,10 +81,11 @@ export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 
  * (крім лобі й фінішу; уже поставлений на паузу лишається як був), усі гравці поза зв'язком.
  * Простій нікому не коштує часу: resume зсуне годинники на всю тривалість паузи.
  * Автопілот (11g): гра, що йшла, чекає, поки хтось повернеться, і пам'ятає залишок до кроку (suspendAutopilot).
+ * rng — для запитання, яке відкриває годинник, що сплив до збереження (продаж «Аукціону», 27b).
  */
-export function suspend(state: GameState, at: number): GameState {
+export function suspend(state: GameState, at: number, rng: Rng = Math.random): GameState {
   // Дедлайни, що сплили до збереження, застосовуються першими.
-  let s = tick(state, at);
+  let s = tick(state, at, rng);
   const wasPaused = s.paused;
   if (s.phase !== 'lobby' && s.phase !== 'finished' && !s.paused) {
     const paused = pause(s, at);

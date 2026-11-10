@@ -687,7 +687,7 @@ export class RoomManager {
       quizId: saved.quizId,
       playerUsers: new Map(saved.playerUsers),
       // На паузі з миті знімка; усі поза зв'язком, доки не відкриють сокет.
-      state: suspend(saved.state, saved.savedAt),
+      state: suspend(saved.state, saved.savedAt, this.rng),
       playerTokens: new Map(saved.playerTokens),
       connections: new Map(),
       deadline: null,
@@ -1918,7 +1918,7 @@ export class RoomManager {
     // Новою головою черги може стати гравець, чиє вікно вже сплило, поки чекали на ведучого;
     // таймер його вже минув, тож доводимо стан до поточної миті тут.
     room.tickedTo = Math.max(room.tickedTo, this.now());
-    this.commit(room, tick(removed.state, room.tickedTo));
+    this.commit(room, tick(removed.state, room.tickedTo, this.rng));
     return { ok: true };
   }
 
@@ -2078,7 +2078,7 @@ export class RoomManager {
         room.deadline = null;
         // Справжній таймер може спрацювати на мілісекунду раніше; цей дедлайн однаково настав.
         room.tickedTo = Math.max(this.now(), at);
-        const ticked = tick(room.state, room.tickedTo);
+        const ticked = tick(room.state, room.tickedTo, this.rng);
         // Навіть без змін стану (відповідь у черзі чекає на ведучого) таймер ставиться на наступну мить.
         if (ticked !== room.state) this.commit(room, ticked, room.tickedTo);
         else this.reschedule(room);
@@ -2093,7 +2093,7 @@ export class RoomManager {
         room.pilot = null;
         room.tickedTo = Math.max(this.now(), pilotAt);
         // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotTry скидає at (чи ставить повтор), нову мить ставить planAutopilot у commit.
-        const ticked = tick(room.state, room.tickedTo);
+        const ticked = tick(room.state, room.tickedTo, this.rng);
         // Таймер запізнився й рушій уже перейшов на інший підкрок: крок для нього не планувався — commit спланує новий.
         if (pilotKey(ticked) !== pilotKey(room.state)) return this.commit(room, ticked, room.tickedTo);
         const { state: stepped, error } = pilotTry(ticked, room.tickedTo, this.rng);

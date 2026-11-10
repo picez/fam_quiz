@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -902,6 +902,62 @@ describe('history: bets (27a)', () => {
       ['Анна', 400, 300],
       ['Богдан', 300, -300],
     ]);
+  });
+});
+
+describe('history: auction (27b)', () => {
+  it('auction questions are marked in the history', async () => {
+    const host = await signUp(ctx.app, 'Ведуча');
+    const quiz = makeRoundsQuiz([
+      classicRound('r1', [withId(single, 's1')], { speedBonus: false }),
+      auctionRound('a', [withId(single, 'a1'), withId(single, 'a2')], { bidMode: 'free' }),
+    ]);
+    const quizId = ((await post('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await post('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const join = async (nickname: string) =>
+      ((await post(`/api/games/by-code/${created.code}/join`, { nickname })).json() as { playerId: string }).playerId;
+    const anna = await join('Анна');
+    const bohdan = await join('Богдан');
+    const room = ctx.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    for (const playerId of [anna, bohdan]) ctx.manager.connect(room, { role: 'player', playerId });
+    const step = (type: 'start' | 'next' | 'lock') => expect(ctx.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    toBetsWager(ctx.manager, room, { [anna]: 800, [bohdan]: 500 });
+    // Перше запитання Анна купує за 300 і помиляється; друге не купує ніхто — відповідають обоє.
+    expect(ctx.manager.wager(room, bohdan, 200)).toEqual({ ok: true });
+    expect(ctx.manager.wager(room, anna, 300)).toEqual({ ok: true });
+    step('next');
+    expect(room.state.phase).toBe('question');
+    expect(ctx.manager.answer(room, anna, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') step('lock');
+    step('next');
+    for (let guard = 0; guard < 5 && room.state.phase !== 'wager'; guard++) step('next');
+    step('next');
+    expect(room.state.phase).toBe('question');
+    expect(ctx.manager.answer(room, anna, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    expect(ctx.manager.answer(room, bohdan, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') step('lock');
+    step('next');
+    expect(room.state.phase).toBe('reveal');
+    await ctx.recorder.idle();
+
+    const detail = (await get(`/api/games/${created.gameId}`, host.cookie)).json() as {
+      questions: { auction: boolean; bets: boolean; final: { mode: string; entries: { nickname: string; wager: number; points: number }[] } | null; answered: number }[];
+    };
+    expect(detail.questions.map((q) => [q.auction, q.bets])).toEqual([
+      [false, false],
+      [true, false],
+      [true, false],
+    ]);
+    // Продане — рядок лише переможця, «класичний» (ставка — плюс чи мінус); непродане — звичайні відповіді всіх.
+    expect(detail.questions[0].final).toBeNull();
+    expect(detail.questions[1].final).toMatchObject({ mode: 'classic' });
+    expect(detail.questions[1].final?.entries.map(({ nickname, wager, points }) => [nickname, wager, points])).toEqual([['Анна', 300, -300]]);
+    expect(detail.questions[1].answered).toBe(1);
+    expect(detail.questions[2].final).toBeNull();
+    expect(detail.questions[2].answered).toBe(2);
   });
 });
 

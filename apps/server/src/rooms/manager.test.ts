@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
 import { hostView, sortOf } from '@quiz/engine';
-import { defaultTeams, SPLASH_MS } from '@quiz/shared';
+import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { toBetsWager } from '../testing/bets-game';
 import { nounsOf } from '../wordladder/nouns';
@@ -1408,6 +1408,15 @@ describe('teams (10j)', () => {
     expect(room.state.final?.wagers[red]).toBe(300);
   });
 
+  it('only the captain bids for the team in an auction', () => {
+    const { manager, room, olena, taras, red } = teamPlaying([classicRound('r1', [single]), auctionRound('r2', [withId(single, 'a1')])]);
+    toBetsWager(manager, room, { [red]: 800 });
+    expect(manager.wager(room, taras.playerId, 100)).toEqual({ ok: false, error: 'not_captain' });
+    expect(room.state.final?.wagers).toEqual({});
+    expect(manager.wager(room, olena.playerId, 100)).toEqual({ ok: true });
+    expect(room.state.final?.wagers).toEqual({ [red]: 100 });
+  });
+
   it('blitz: anyone buzzes and the one who buzzed answers', () => {
     const { manager, room, olena, taras, red } = teamPlaying([blitzRound('b1', [text], { check: 'manual' })]);
     expect(manager.buzz(room, taras.playerId)).toEqual({ ok: true });
@@ -1803,5 +1812,34 @@ describe('pacing (11b)', () => {
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect('stepAt' in room.state).toBe(false);
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+  });
+});
+
+describe('auction (27b)', () => {
+  it('the room sells the auction when the clock runs out', () => {
+    const scheduler = new FakeScheduler();
+    // rng 0: варіанти тасуються однозначно, тож видно, що продаж на таймері тягне rng кімнати.
+    const manager = new RoomManager(scheduler, () => 0);
+    const room = manager.create(makeRoundsQuiz([classicRound('r1', [single]), auctionRound('a', [withId(single, 'a1')], { shuffleOptions: true })]));
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    toBetsWager(manager, room, { [olena.playerId]: 800, [taras.playerId]: 500 });
+    expect(room.state.endsAt).toBe(scheduler.now() + AUCTION_OPEN_MS);
+    scheduler.advance(2_000);
+    expect(manager.wager(room, taras.playerId, 100)).toEqual({ ok: true });
+    expect(manager.wager(room, olena.playerId, 200)).toEqual({ ok: true });
+    // Ставка перезапускає годинник: дедлайн кімнати — 5 с від останньої ставки.
+    expect(room.state.endsAt).toBe(scheduler.now() + AUCTION_BID_MS);
+    expect(scheduler.pending()).toContain(AUCTION_BID_MS);
+    scheduler.advance(AUCTION_BID_MS - 1);
+    expect(room.state.phase).toBe('wager');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('question');
+    expect(room.state.plays[room.state.questionIndex].final?.wagers).toEqual({ [olena.playerId]: 200 });
+    expect(room.state.presented).toEqual(['b', 'c', 'a']);
+    expect(manager.answer(room, taras.playerId, correct)).toEqual({ ok: false, error: 'bet_skipped' });
+    expect(manager.answer(room, olena.playerId, correct)).toEqual({ ok: true });
   });
 });
