@@ -58,6 +58,8 @@ import {
   timedListWordSchema,
   letterWordSchema,
   moreLessPickSchema,
+  puzzleDoneSchema,
+  puzzleFillSchema,
   drawGuessSchema,
   drawOpSchema,
   DRAW_SYNC_PER_SECOND,
@@ -385,6 +387,19 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = moreLessPickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.moreLess(room, identity.playerId, payload.data.index, payload.data.pick) : INVALID;
+    });
+
+    // «Головоломки» (28d): ack лише { ok: true } чи відмова — однаковий для правильної й хибної цифри (літери) і сітки.
+    on('player:puzzle', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = puzzleFillSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.puzzleFill(room, identity.playerId, payload.data.questionIndex, payload.data.cells) : INVALID;
+    });
+
+    on('player:puzzle-done', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = puzzleDoneSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.puzzleDone(room, identity.playerId, payload.data.questionIndex) : INVALID;
     });
 
     on('player:draw', (args) => {

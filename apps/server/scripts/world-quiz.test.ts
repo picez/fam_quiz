@@ -10,7 +10,7 @@ const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
 
 /** Усі типи, крім опитувань і «хмари слів» — їх у вікторинах для власника не використовуємо (реальні опитування лише як «100 до 1»). */
-const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing'); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»
+const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword'); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду
 
 /** Заборонені корені: росія й радянський період; шукаються на початку слова. */
 const BANNED = [
@@ -30,7 +30,7 @@ describe('the «Все на світі: десять тем» quiz', () => {
   });
 
   it('uses every round type and every question type except polls and word clouds', () => {
-    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction' && type !== 'truth'))); // 28b: новий тип раунду, сід-скрипти не змінюються
+    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction' && type !== 'truth' && type !== 'puzzles'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»
     expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(EXPECTED_TYPES));
     const votes = played(quiz).filter((q) => q.type === 'poll' || q.type === 'wordcloud');
     expect(votes).toEqual([]);

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -862,6 +862,48 @@ describe('host history: answers', () => {
     expect(empty.room.state.phase).toBe('round_end');
     expect((await empty.detail()).questions).toEqual([]);
     await empty.local.app.close();
+  });
+
+  it('history shows a solved puzzle', async () => {
+    const game = await start(makeRoundsQuiz([puzzlesRound('pz', [sudoku, crosswordKey])]));
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    const fill = (who: string, index: number, cells: { i: number; v: string }[]) => {
+      for (let k = 0; k < cells.length; k += 12) expect(manager.puzzleFill(game.room, who, index, cells.slice(k, k + 12))).toEqual({ ok: true });
+    };
+    step('start');
+    step('next');
+    // Олена розв'язує судоку й тисне «Готово»; Тарас вписує одну хибну цифру й чекає кінця.
+    fill(olena, 0, [...sudoku.solution].flatMap((v, i) => (sudoku.givens[i] === '0' ? [{ i, v }] : [])));
+    expect(manager.puzzleDone(game.room, olena, 0)).toEqual({ ok: true });
+    const first = sudoku.givens.indexOf('0');
+    fill(taras, 0, [{ i: first, v: String((Number(sudoku.solution[first]) % 6) + 1) }]);
+    step('lock');
+    step('next');
+    for (let i = 0; i < 5 && game.room.state.phase !== 'question'; i++) step('next');
+    // Кросворд з ключем «ліс»: Олена вписує лише ключові клітинки.
+    const keyCells = crosswordKey.layout.keyCells;
+    fill(olena, 1, keyCells.map((i, k) => ({ i, v: [...'ліс'][k] })));
+    expect(manager.puzzleDone(game.room, olena, 1)).toEqual({ ok: true });
+    step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { rounds: unknown; questions: { responses: object[] }[] };
+    expect(result.rounds).toEqual([{ title: '', type: 'puzzles' }]);
+    expect(result.questions.map((q) => q.question.type)).toEqual(['sudoku', 'crossword']);
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'puzzle', kind: 'sudoku', grid: sudoku.solution, solved: true }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'puzzle', kind: 'sudoku', filled: 1, solved: false }, accepted: false },
+    ]);
+    expect(result.questions[1].responses).toMatchObject([{ nickname: 'Олена', answer: { type: 'puzzle', kind: 'crossword', solved: true }, accepted: true, key: 'ліс' }]);
+    expect(result.questions[0].responses[0]).not.toHaveProperty('key');
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(standings.map((s) => [s.nickname, s.score])).toEqual([
+      ['Олена', 600],
+      ['Тарас', 0],
+    ]);
+    await game.local.app.close();
   });
 
   it('a more or less game lands in the history with the engine points and the price of the whole row', async () => {

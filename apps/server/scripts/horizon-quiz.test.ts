@@ -46,7 +46,7 @@ describe('the «Горизонт» quiz', () => {
 
   it('has every round type, two classic rounds, a warm-up and the new rounds right before the final', () => {
     const types = horizonQuiz.rounds.map((r) => r.type);
-    for (const type of ROUND_TYPES.filter((round) => round !== 'bets' && round !== 'auction' && round !== 'truth')) expect(types).toContain(type); // 28b: новий тип раунду, сід-скрипти не змінюються
+    for (const type of ROUND_TYPES.filter((round) => round !== 'bets' && round !== 'auction' && round !== 'truth' && round !== 'puzzles')) expect(types).toContain(type); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»
     expect(types.filter((t) => t === 'classic').length).toBeGreaterThanOrEqual(2);
     expect(types.slice(-4)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
     expect(types.length).toBeLessThanOrEqual(LIMITS.maxRounds);
@@ -61,7 +61,7 @@ describe('the «Горизонт» quiz', () => {
   it('has every question type', () => {
     const types = new Set(questionsOf(horizonQuiz).map((q) => q.type));
     // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер.
-    for (const type of QUESTION_TYPES.filter((t) => t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing')) expect(types.has(type)).toBe(true); // 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»
+    for (const type of QUESTION_TYPES.filter((t) => t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless' && t !== 'drawing' && t !== 'sudoku' && t !== 'crossword')) expect(types.has(type)).toBe(true); // 28a: новий тип, демо без «Більше чи менше»; 28c: новий тип, демо без «Малюнка»; 28d: нові типи, демо без судоку й кросворду
   });
 
   it('every board has 5–6 categories going 100…500 with ×2, ×3, blitz, voice cells, a pin, a 3×3 wall and spares', () => {

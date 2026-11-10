@@ -14,6 +14,7 @@ const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board' | 'truth'>, number> =
   wipeout: LIMITS.minWipeoutQuestions,
   survival: LIMITS.minSurvivalQuestions,
   ladder: LIMITS.minLadderQuestions,
+  puzzles: 1,
 };
 
 type RoundChange = { round: Round | null; effect: 'question' | 'category' | 'round' };

@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -676,6 +676,44 @@ describe('host presence', () => {
     const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless?.done === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.moreless?.picks).toEqual(['a']);
+  });
+
+  it('fills a grid through the socket', async () => {
+    const created = (await startGame(ctx.app, puzzlesQuiz())).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    const cell = sudoku.givens.indexOf('0');
+    const digit = sudoku.solution[cell];
+    const other = String((Number(digit) % 6) + 1);
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:puzzle', { questionIndex: 0, cells: [{ i: cell, v: digit }] })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:puzzle-done', { questionIndex: 0 })).toEqual({ ok: false, error: 'forbidden' });
+    }
+    const bad = [
+      { questionIndex: 0, cells: [] },
+      { questionIndex: 0, cells: [{ i: 144, v: '1' }] },
+      { questionIndex: 0, cells: [{ i: 0, v: '123' }] },
+      { questionIndex: 0, cells: Array.from({ length: 13 }, (_, i) => ({ i, v: '1' })) },
+      { questionIndex: -1, cells: [{ i: 0, v: '1' }] },
+      { questionIndex: 0, cells: [{ i: 0, v: '1', x: 1 }] },
+      undefined,
+    ];
+    for (const payload of bad) expect(await send(olena, 'player:puzzle', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const payload of [{}, { questionIndex: 'a' }, undefined]) expect(await send(olena, 'player:puzzle-done', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+
+    // Ack однаковий для правильної й хибної цифри.
+    expect(JSON.stringify(await send(olena, 'player:puzzle', { questionIndex: 0, cells: [{ i: cell, v: digit }] }))).toBe('{"ok":true}');
+    expect(JSON.stringify(await send(taras, 'player:puzzle', { questionIndex: 0, cells: [{ i: cell, v: other }] }))).toBe('{"ok":true}');
+    const phone = await until(olena, (view) => view.role === 'player' && view.me.puzzle?.seq === 1);
+    if (phone.role !== 'player') throw new Error('not a player');
+    expect(phone.me.puzzle?.cells[cell]).toBe(digit);
+    const shown = await until(stage, (view) => (view.puzzle?.boards.length ?? 0) === 2);
+    expect(shown.puzzle?.boards.every((b) => b.mask[cell] === '1' && b.cells === null)).toBe(true);
+    expect(shown.puzzle?.solution).toBeNull();
+    expect(await send(olena, 'player:puzzle-done', { questionIndex: 0 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:puzzle', { questionIndex: 0, cells: [{ i: cell, v: '' }] })).toEqual({ ok: false, error: 'puzzle_done' });
   });
 
   it('player:draw and player:draw-guess are player-only and validated', async () => {
