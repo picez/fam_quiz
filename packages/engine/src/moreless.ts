@@ -27,7 +27,7 @@ export function moreLessOf(state: GameState, playerId: string): MoreLessProgress
 }
 
 /** Скільки виборів збігається з правильною стороною (зайві вибори понад ряд не рахуються). */
-function rightOf(question: MoreLessQuestion, picks: readonly MoreLessSide[]): number {
+export function rightOf(question: MoreLessQuestion, picks: readonly MoreLessSide[]): number {
   return question.pairs.filter((pair, i) => picks[i] === pair.correct).length;
 }
 

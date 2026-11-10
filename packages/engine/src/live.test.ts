@@ -26,6 +26,7 @@ import {
 } from './game';
 import { pickContestant } from './ladder';
 import { hostLive } from './live';
+import { moreLessPick } from './moreless';
 import { sortOf, sortWord } from './sort';
 import { answerTrial, pickDoor, survivalPlayOf, trialOpen } from './survival';
 import { actAnswer, actBuzz } from './team-act';
@@ -57,6 +58,7 @@ import {
   wipeoutLadder,
   wipeoutRound,
   withId,
+  moreless,
 } from './testing/fixtures';
 import { lobbyWith, must, openAt, sendBlitz, startRound } from './testing/helpers';
 import { head as sortHead, right as rightCategory, sortAll, toSort, wrong as wrongCategory } from './testing/sort';
@@ -419,6 +421,17 @@ describe('live answers: chain, sort and wall progress', () => {
     expect(row(s, 'p1').progress).toMatchObject({ kind: 'sort', cardId: sortHead(s, 'p1'), seq: 2, sorted: 1, misses: 1 });
     s = sortAll(s, 'p1', 10_000);
     expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'sort', card: null, cardId: null, sorted: 4 } });
+  });
+
+  it('moreless: how far each got and how many are right, no verdict; answered from the first pick', () => {
+    let s = openAt(lobbyWith(makeQuiz([moreless], { leaderboard: 'end' }), 'Оля', 'Петро'), 0, rng);
+    expect(row(s, 'p1')).toMatchObject({ answered: false, progress: { kind: 'moreless', done: 0, total: 3, right: 0 } });
+    s = must(moreLessPick(s, 'p1', 0, 'a', 1000));
+    s = must(moreLessPick(s, 'p1', 1, 'a', 1100));
+    expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'moreless', done: 2, total: 3, right: 1 } });
+    expect(live(s).answered).toBe(1);
+    s = must(moreLessPick(s, 'p1', 2, 'a', 1200));
+    expect(row(s, 'p1')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'moreless', done: 3, total: 3, right: 2 } });
   });
 
   it('wall: found groups and mistakes, the same numbers as the host wall rows', () => {

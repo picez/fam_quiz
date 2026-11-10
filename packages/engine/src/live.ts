@@ -22,6 +22,7 @@ import { verdictOf } from './check';
 import { chainOf } from './chain';
 import { wordLadderOf } from './wordladder';
 import { letterWordsOf } from './letterwords';
+import { moreLessOf, rightOf } from './moreless';
 import { timedListOf } from './timedlist';
 import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
@@ -37,10 +38,10 @@ import { duelistOf, memberOf, teamsOn } from './teams';
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
 
 /** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'sort', 'wall', 'bluff'];
+const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'sort', 'wall', 'bluff'];
 
 /** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'sort', 'wall', 'survey', 'bluff'];
+const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -148,6 +149,9 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     return { kind: 'timedlist', found: found.flatMap((f) => question.items.find((item) => item.id === f)?.text ?? []), total: question.items.length, wrong };
   }
   if (question.type === 'letterwords') return { kind: 'letterwords', words: letterWordsOf(state, id).words };
+  if (question.type === 'moreless') {
+    return { kind: 'moreless', done: moreLessOf(state, id).picks.length, total: question.pairs.length, right: rightOf(question, moreLessOf(state, id).picks) };
+  }
   if (question.type === 'sort') {
     const progress = sortOf(state, id);
     const head = progress.queue[0];
@@ -201,6 +205,7 @@ function progressRow(state: GameState, play: Play, base: LiveRow, record: Answer
     // Список (27c): відповів, хто щось знайшов чи помилився, — як answeredCount у views.ts.
     if (play.question.type === 'timedlist') return Object.hasOwn(play.timedlist?.progress ?? {}, base.id) ? { ...base, answered: true } : base;
     if (play.question.type === 'letterwords') return Object.hasOwn(play.letterwords?.progress ?? {}, base.id) ? { ...base, answered: true } : base;
+    if (play.question.type === 'moreless') return Object.hasOwn(play.moreless?.progress ?? {}, base.id) ? { ...base, answered: true } : base;
     // Фінал (і «Ставки») сортування: відповів, хто зробив хоч один хід, — як answeredCount у views.ts.
     const finalSort = play.question.type === 'sort' && stakedPlay(play);
     return finalSort && Object.hasOwn(play.sort ?? {}, base.id) ? { ...base, answered: true } : base;

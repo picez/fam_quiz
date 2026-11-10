@@ -41,6 +41,10 @@ import {
   type PlayerLetterWords,
   type PlayerTimedList,
   type LetterWordsInfo,
+  type MoreLessInfo,
+  type MoreLessRow,
+  type PlayerMoreLess,
+  type PublicMoreLess,
   type LetterWordsRow,
   type PublicLetterWords,
   type TimedListInfo,
@@ -166,6 +170,7 @@ import { wordLadderOf } from './wordladder';
 import { listItemPoints, listPlayers, listRows, timedListOf } from './timedlist';
 import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
+import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
@@ -184,7 +189,7 @@ import { rankPlayers } from './ranking';
 import { gameFacts, ownFacts, roundQuestionShares } from './facts';
 import { firstRound, groupByPlayer, roundCount, scoreLines, scoreLinesByPlayer, visibleLines, withRounds, type PlayerScoreLine } from './breakdown';
 import { actorOf, voterList } from './team-act';
-import { answererMode, answeringNow, answeringTeams, canPickNow, onQuestion, shownAnswerer, upcomingPick } from './answerer';
+import { answererMode, answererOf, answeringNow, answeringTeams, canPickNow, onQuestion, shownAnswerer, upcomingPick } from './answerer';
 import { captainOf, duelistOf, memberOf, teamMembers, teamsOn } from './teams';
 import { isTimed, limitMsOf, overtimeOf, remainingOf } from './timing';
 
@@ -249,7 +254,7 @@ function withoutBluffSecrets(question: Question): Question {
  */
 function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
   if (answer === null) return answer;
-  if (answer.type === 'bluff') return revealed ? answer : null;
+  if (answer.type === 'bluff' || answer.type === 'moreless') return revealed ? answer : null;
   return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
@@ -285,6 +290,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
     ...(question.type === 'timedlist' ? { timedlist: { total: question.items.length, minus: question.minus } } : {}),
     ...(question.type === 'letterwords' ? { letterwords: publicLetters(question, letters) } : {}),
+    ...(question.type === 'moreless' ? { moreless: publicMoreLess(question) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -323,6 +329,11 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
 }
 
 /** Набір, ціль, спосіб і сума «Слів з літер» для всіх; слів і найкращих слів тут немає. */
+/** Тексти варіантів без значень і без правильної сторони. */
+function publicMoreLess(question: Extract<Question, { type: 'moreless' }>): PublicMoreLess {
+  return { pairs: question.pairs.map((pair) => ({ id: pair.id, prompt: pair.prompt, a: pair.a.text, b: pair.b.text, points: pair.points })) };
+}
+
 function publicLetters(question: Extract<Question, { type: 'letterwords' }>, letters: string[] | null): PublicLetterWords {
   return { letters: letters ?? [], goal: question.goal, per: question.per, unit: question.points };
 }
@@ -862,7 +873,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords';
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -953,7 +964,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless';
   return {
     ...info,
     question,
@@ -1058,7 +1069,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless';
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1308,6 +1319,74 @@ function playerLetterWords(state: GameState, playerId: string): PlayerLetterWord
   // Кінця часу зріз не знає (у нього немає now): між endsAt і закриттям поле гасить телефон за годинником (PlayerScreen).
   const canType = state.phase === 'question' && !state.paused && (play.letterwords?.best ?? null) !== null;
   return { words, canType };
+}
+
+/** Поточне запитання «Більше чи менше» з його грою; null поза запитанням або для інших типів. */
+function currentMoreLess(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'moreless' ? { play, question: play.question } : null;
+}
+
+/**
+ * Поступ гравців на «Більше чи менше» (28a). Сцена й гравці до reveal бачать лише скільки пройдено; правильні, бали, значення й
+ * таблиця порівнянь — лише на reveal. Ведучий значення, правильні сторони, вибори й правильні кожного (без балів) бачить завжди.
+ */
+function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefined {
+  const open = currentMoreLess(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  const players = play.board === undefined ? state.players : state.players.filter((p) => p.id === play.board?.chooserId);
+  const rows: MoreLessRow[] = players.map((player) => {
+    const picks = moreLessOf(state, player.id).picks;
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      done: picks.length,
+      total: question.pairs.length,
+      right: forHost || revealed ? rightOf(question, picks) : null,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+    };
+  });
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => b.done - a.done);
+  const counts = moreLessRight(state, play);
+  return {
+    rows,
+    pairs:
+      forHost || revealed
+        ? question.pairs.map((pair, i) => ({
+            id: pair.id,
+            prompt: pair.prompt,
+            a: { text: pair.a.text, value: pair.a.value },
+            b: { text: pair.b.text, value: pair.b.value },
+            correct: pair.correct,
+            points: pair.points,
+            right: counts[i] ?? 0,
+          }))
+        : null,
+    picks: forHost ? Object.fromEntries(rows.map((r) => [r.playerId, moreLessOf(state, r.playerId).picks])) : null,
+  };
+}
+
+/** Власний ряд гравця (команди); поза запитанням і для глядача клітинки поля — undefined. Кінця часу зріз не знає: кнопки гасить годинник телефона. */
+function playerMoreLess(state: GameState, playerId: string): PlayerMoreLess | undefined {
+  const open = currentMoreLess(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  if (play.board !== undefined && play.board.chooserId !== playerId) return undefined;
+  const picks = moreLessOf(state, playerId).picks;
+  const record = recordOf(state, state.questionIndex, playerId);
+  const revealed = state.phase === 'reveal';
+  return {
+    done: picks.length,
+    total: question.pairs.length,
+    picks,
+    canPick: state.phase === 'question' && !state.paused && record === undefined && picks.length < question.pairs.length,
+    marks: revealed ? question.pairs.map((pair, i) => (i >= picks.length ? 'late' : picks[i] === pair.correct ? 'right' : 'wrong')) : null,
+    points: revealed ? (record?.points ?? 0) : null,
+  };
 }
 
 /** Поточне запитання-сортування з його грою; null поза запитанням або для інших типів. */
@@ -2133,6 +2212,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
     ...optional('letterwords', lettersInfo(state, forHost)),
+    ...optional('moreless', moreLessInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -2398,6 +2478,12 @@ function answeredCount(state: GameState): number {
     const moved = new Set([...Object.keys(letters.play.letterwords?.progress ?? {}), ...answered]);
     return state.players.filter((p) => moved.has(p.id)).length;
   }
+  // «Більше чи менше» (28a): так само, як слова з літер.
+  const rowPlay = currentMoreLess(state);
+  if (rowPlay !== null) {
+    const moved = new Set([...Object.keys(rowPlay.play.moreless?.progress ?? {}), ...answered]);
+    return state.players.filter((p) => moved.has(p.id)).length;
+  }
   const sort = currentSort(state);
   const ladder = currentLadder(state);
   if ((sort === null && ladder === null) || !stakedPlay(play)) return answered.length;
@@ -2544,7 +2630,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   return {
     ...view,
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -2745,6 +2831,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('wordladder', playerWordLadder(state, playerId)),
       ...optional('timedlist', playerTimedList(state, playerId)),
       ...optional('letterwords', playerLetterWords(state, playerId)),
+      ...optional('moreless', playerMoreLess(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
