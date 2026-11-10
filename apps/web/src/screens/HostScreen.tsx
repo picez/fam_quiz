@@ -5,6 +5,7 @@ import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
 import { HostAuctionPanel } from './AuctionView';
+import { HostTruthFacts } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -477,6 +478,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const teamLobby = phase === 'lobby' && view.teams !== null;
   const peopleCount = view.teams === null ? 0 : view.teams.teams.reduce((sum, team) => sum + team.members.length, 0) + view.teams.unassigned.length;
   const teamOf = (playerId: string) => view.teams?.teams.find((team) => team.id === playerId) ?? null;
+  // «Правда про гравця» (28b): рядок автора (у командах — його команди) — частка за чужі помилки, без оцінки.
+  const truthAuthorId = view.truth?.author?.id ?? view.truth?.reveal?.author.id ?? null;
+  const truthActor = truthAuthorId === null ? null : view.teams === null ? truthAuthorId : (view.teams.teams.find((team) => team.members.some((member) => member.id === truthAuthorId))?.id ?? null);
+  // Пульт фактів: у лобі, поки факти приймаються, і в самому раунді (сховати ще не відкритий).
+  const truthFacts = view.truth !== undefined && phase !== 'finished' && (view.truth.open || (round?.type === 'truth' && phase !== 'round_end'));
   const teamStartable = view.teams === null || teamsStartable(view.teams);
   // Дії над людьми команди йдуть по одній: подвійний дотик не вилучає двох.
   const [peopleBusy, setPeopleBusy] = useState(false);
@@ -716,6 +722,11 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {view.question !== null && phase !== 'finished' && (
         <section className="panel">
           {round !== null && <HostContext round={round} question={view.question} />}
+          {view.truth?.author != null && (
+            <p className="lead truth-host-author" dir="auto">
+              {t('truthHostAuthor', { nickname: view.truth.author.nickname })}
+            </p>
+          )}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
@@ -1211,7 +1222,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   {response.spare !== null && <SpareMark spare={response.spare} />}
                   <span className="given">
                     {/* Мовчання з «Ризиком» (12h) — рядок штрафу, а не відповідь. */}
-                    {response.silent
+                    {response.playerId === truthActor && response.answer === null
+                      ? t('truthHistoryAuthorRow')
+                      : response.silent
                       ? t('hostRiskSilent')
                       : response.spare !== null
                         ? answerText(response.answer, response.spare)
@@ -1237,7 +1250,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
                   )}
                   {response.streakBonus > 0 && <span className="streak-bonus">{t('streakBonusLine', { points: response.streakBonus })}</span>}
                   {canGrade && response.playerId === appealPassed && <span className="meta appeal-passed">{t('appealPassedHint')}</span>}
-                  {canGrade && response.playerId !== appealPassed && !response.silent && (
+                  {canGrade && response.playerId !== appealPassed && !response.silent && response.playerId !== truthActor && (
                     <>
                       {response.grade !== 'correct' && (
                         <button type="button" className="btn btn-small" onClick={() => grade(response.playerId, 'correct')}>
@@ -1363,6 +1376,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </ul>
         </section>
       )}
+
+      {truthFacts && view.truth !== undefined && <HostTruthFacts truth={view.truth} send={send} onError={setError} />}
 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 

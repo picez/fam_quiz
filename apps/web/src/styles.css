@@ -18037,3 +18037,190 @@ button.letterwords-tile:focus-visible {
     animation: none;
   }
 }
+
+/* «Правда про гравця» (28b): факт у лобі, пульт фактів, імена на телефоні, сцена й розкриття. */
+.truth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.truth-form .truth-text {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 5.5rem;
+  resize: vertical;
+  padding: 0.625rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.truth-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.truth-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.truth-saved,
+.truth-hidden,
+.truth-fact-text,
+.truth-own,
+.truth-author,
+.truth-pick-row,
+.truth-host-author {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.truth-hidden {
+  color: var(--wrong);
+}
+
+.truth-error:empty {
+  display: none;
+}
+
+.truth-facts .truth-fact {
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+}
+
+.truth-facts .truth-fact-text {
+  flex: 1 1 12rem;
+}
+
+.truth-facts .truth-fact.is-hidden .truth-fact-text {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.truth-revised {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+/* Телефон: імена в одну колонку на всю ширину; довгі нікнейми переносяться, а не розпирають екран. */
+.truth-names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.truth-names .truth-name {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.truth-names.is-readonly .truth-name {
+  padding: 0.625rem 0.875rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.truth-names.is-readonly .truth-name.is-draft {
+  border: 2px dashed var(--team, var(--amber));
+}
+
+.truth-names .truth-name.is-picked {
+  border-color: var(--amber);
+  opacity: 1;
+}
+
+/* Сцена: факт великим, імена — дрібні пігулки в кілька рядків (12 імен уміщаються на 1600×900). */
+.truth-stage .truth-who {
+  margin: 0;
+  color: var(--dim);
+}
+
+.truth-stage-names {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(1rem, 1.6vw, 1.625rem);
+}
+
+.truth-stage-names li {
+  max-width: 24ch;
+  padding: 0.25rem 0.875rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truth-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.truth-reveal .truth-author {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.truth-reveal.is-big .truth-author {
+  font-size: clamp(2rem, 4.5vw, 4.25rem);
+  text-align: center;
+}
+
+.truth-reveal.is-big .truth-author-points {
+  text-align: center;
+}
+
+.truth-author-points.is-up {
+  color: var(--correct);
+}
+
+.truth-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.truth-reveal.is-big .truth-picks {
+  justify-content: center;
+  font-size: clamp(1rem, 1.6vw, 1.625rem);
+}
+
+.truth-pick-row.is-correct {
+  color: var(--correct);
+}
+
+.truth-pick-row.is-wrong {
+  color: var(--wrong);
+}
+
+.truth-skipped {
+  text-align: center;
+}

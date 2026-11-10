@@ -49,6 +49,7 @@ import { WordLadderBoard, WordLadderGoal, WordLadderPath } from './WordLadderVie
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
+import { TruthSkipped, TruthStage } from './TruthView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -92,6 +93,8 @@ function hostOf(url: string): string {
 }
 
 function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>) {
+  // «Правда про гравця» (28b): лише число фактів, без імен тих, хто написав.
+  const facts = view.truth !== undefined && <p className="meta truth-lobby-count">{t('truthFactsCount', { count: view.truth.count })}</p>;
   return (
     <div className="stage-lobby">
       <div className="invite">
@@ -107,10 +110,12 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
       {view.teams !== null ? (
         <div className="roster">
           <StageTeams teams={view.teams} titles={view.titles} levels={view.levels} />
+          {facts}
         </div>
       ) : (
         <div className="roster">
           <p className="meta">{view.playerCount === 0 ? t('noPlayersYet') : t('playersIn', { count: view.playerCount })}</p>
+          {facts}
           <ul className="chips">
             {view.players.map((player) => (
               <li key={player.id} className={player.connected ? undefined : 'is-away'} dir="auto">
@@ -918,6 +923,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const showPrizes = useShowPrizesAtIntro(view);
   const ceremony = useCeremony(view);
   const appeal = phase === 'reveal' ? view.appeal : null;
+  // «Правда про гравця» (28b): своя сцена запитання — факт, імена дрібно, без варіантів A–F і без позначок «відповів».
+  const truthStage = view.truth !== undefined && view.truth.index !== null && view.question?.type === 'single';
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
     <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
@@ -942,7 +949,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'lobby' && <Lobby view={view} code={code} joinUrl={joinUrl} />}
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && truthStage && <TruthStage view={view} offsetMs={offsetMs} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
       {/* Апеляція (12f) — шар position: fixed унизу по центру; .has-appeal тримає під ним запас унизу, щоб розкриття не ховалося. */}
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}
@@ -954,6 +962,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
+      {phase === 'round_end' && view.truth?.skipped === true && <TruthSkipped />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
         <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}

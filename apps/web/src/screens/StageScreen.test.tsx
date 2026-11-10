@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SPLASH_MS, emptyBrief, type AppealView, type WipeoutInfo, type WipeoutRow, type DuelInfo, type BoardInfo, type Question, RoundInfo, StageView, type SurvivalInfo, type SurvivalRow, type SurvivalTrialInfo } from '@quiz/shared';
+import { t } from '../i18n';
 import { StageScreen } from './StageScreen';
 import { ROLL_MS } from './Dice';
 import { ladderInfo } from './ladder-fixtures';
@@ -2793,5 +2794,44 @@ describe('StageScreen: auction (27b)', () => {
     unmount();
     const unsold = show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000, answeredCount: 1, playerCount: 4, auction: auction({ ...sold, bid: 0, leader: null, open: true }) }));
     expect(unsold.container.textContent).toContain('Відповіли 1 з 4');
+  });
+});
+
+describe('StageScreen: player truth (28b)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'truth', partial: false, description: '', brief: emptyBrief('truth'), times: null };
+  const names = Array.from({ length: 12 }, (_, i) => ({ id: `p${i + 1}`, text: `Гравець ${i + 1}` }));
+  const truthQuestion = { ...question, text: 'Я стрибала з парашутом', points: 200, timeLimit: 30, choices: names };
+  const info = (over: object = {}) => ({ open: false, count: 3, index: 0, reveal: null, skipped: false, ...over });
+
+  it('the lobby shows the fact count, the round the fact and the reveal the author', () => {
+    const players = [{ id: 'p1', nickname: 'Олена', connected: true, streak: 0 }];
+    const lobby = show(view({ players, playerCount: 1, truth: info({ open: true, count: 2, index: null }) }));
+    expect(screen.getByText('Фактів: 2')).toBeTruthy();
+    // Лише число: хто написав, сцена не каже.
+    expect(lobby.container.querySelector('.is-written')).toBeNull();
+    lobby.unmount();
+
+    const asked = show(view({ phase: 'question', round, questionIndex: 0, question: truthQuestion, endsAt: Date.now() + 30_000, limitMs: 30_000, playerCount: 12, answeredCount: 4, truth: info() }));
+    expect(screen.getByText(t('truthWho'))).toBeTruthy();
+    expect(screen.getByText('Я стрибала з парашутом')).toBeTruthy();
+    expect(screen.getByText('Факт 1 з 3')).toBeTruthy();
+    expect(screen.getByText('Відповіли 4 з 12')).toBeTruthy();
+    expect(screen.getByText('Гравець 12')).toBeTruthy();
+    // Ні стандартних варіантів A–F, ні позначок «відповів» по людях.
+    expect(asked.container.querySelector('.choices')).toBeNull();
+    expect(asked.container.querySelector('.stage-answerers')).toBeNull();
+    asked.unmount();
+
+    const reveal = { author: { id: 'p1', nickname: 'Гравець 1' }, points: 100, picks: [{ id: 'p2', nickname: 'Гравець 2', pickedId: 'p1', picked: 'Гравець 1', correct: true }] };
+    show(view({ phase: 'reveal', round, questionIndex: 0, question: truthQuestion, reveal: { ...full, text: truthQuestion.text, options: names, correctId: 'p1' }, truth: info({ reveal }) }));
+    expect(screen.getByText('Це написав(ла) Гравець 1')).toBeTruthy();
+    expect(screen.getByText('Автор: +100')).toBeTruthy();
+    expect(screen.getByText('Гравець 2 → Гравець 1 ✓')).toBeTruthy();
+  });
+
+  it('a round with no facts says it was skipped', () => {
+    const standings = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 1, rank: 1 }];
+    show(view({ phase: 'round_end', round, standings, truth: info({ index: null, count: 0, skipped: true }) }));
+    expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
   });
 });

@@ -3,6 +3,7 @@ import { act, cleanup, render, renderHook, screen } from '@testing-library/react
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Answer } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { t } from '../i18n';
 import { TeamWatch, useDraftSender } from './TeamWatch';
 import { baseMe, publicQuestion, teamPlayerView } from './team-test-view';
 
@@ -326,5 +327,28 @@ describe('TeamWatch: live sort (11d)', () => {
     expect(document.querySelector('.sort-live-card')?.textContent).toBe('Груша');
     const zone = [...document.querySelectorAll('.sort-zone')].find((el) => el.textContent?.startsWith('Фрукти · '))!;
     expect(zone.classList.contains('is-toward')).toBe(true);
+  });
+});
+
+describe('TeamWatch: player truth (28b)', () => {
+  const names = [
+    { id: 'u1', text: 'Іра' },
+    { id: 'u2', text: 'Оля' },
+  ];
+  const truthQuestion = { ...publicQuestion, text: 'Я стрибала з парашутом', choices: names };
+  const info = { open: false, count: 2, index: 0, reveal: null, skipped: false };
+  const truth = (own: boolean) => ({ fact: '', hidden: false, canWrite: false, own });
+
+  it('a teammate of the author sees the team notice', () => {
+    render(<TeamWatch view={watching(null, { question: truthQuestion, truth: info, me: { ...baseMe, truth: truth(true) } })} />);
+    expect(screen.getByText(t('truthOwnTeam'))).toBeTruthy();
+    expect(screen.queryByText('Іра')).toBeNull();
+  });
+
+  it('a teammate who is not the captain sees the names without buttons', () => {
+    render(<TeamWatch view={watching({ type: 'single', optionId: 'u1' }, { question: truthQuestion, truth: info, me: { ...baseMe, truth: truth(false) } })} />);
+    expect(screen.getByText('Іра')).toBeTruthy();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(document.querySelector('.truth-names .is-draft')?.textContent).toContain('Іра');
   });
 });

@@ -11,6 +11,7 @@ import { SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { BluffBoard } from './BluffBoard';
 import { buzzerOf, memberName, teamOf } from './TeamBar';
+import { TruthNames, TruthOwn } from './TruthView';
 
 export type DraftSender = ((draft: DraftValue | null) => void) & { cancel: () => void };
 /** Поле з живим вибором (12b): кожна зміна — onDraft; перед власною подією (спроба стіни, слово, вигадка) — cancel, якщо є. */
@@ -141,6 +142,9 @@ export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView
         ? t('teamWatchAnswerer', { name: answererName })
         : t('teamWatchLead', { name: memberName(view, team.captainId) });
   const mark = t(buzzer !== null || other ? 'teamDraftNeutral' : 'teamDraftMark');
+  // «Правда про гравця» (28b): факт моєї команди — команда не вгадує.
+  const truth = view.truth !== undefined && view.truth.index !== null;
+  if (truth && me.truth?.own === true) return <TruthOwn team />;
   if (me.answer !== null) {
     return (
       <section className="sent team-watch">
@@ -179,7 +183,9 @@ export function TeamWatch({ view, tilts = {}, offsetMs = 0 }: { view: PlayerView
       )}
       {question.type === 'bluff' && view.bluff !== null && view.bluff.stage === 'choice' && <BluffBoard info={view.bluff} autopilot={view.autopilot} />}
       {question.type === 'bluff' && <p className="meta">{other ? t('teamAnswererDecides', { name: answererName }) : t('teamCaptainDecides')}</p>}
-      {question.type === 'boolean' ? (
+      {truth ? (
+        <TruthNames question={question} draft={draft} mark={mark} />
+      ) : question.type === 'boolean' ? (
         <DraftBoolean draft={draft} mark={mark} />
       ) : (question.type === 'single' || question.type === 'multi') && question.choices.length > 0 ? (
         <DraftChoices question={question} draft={draft} mark={mark} />

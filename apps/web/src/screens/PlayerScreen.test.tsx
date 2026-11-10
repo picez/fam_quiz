@@ -4627,3 +4627,64 @@ describe('PlayerScreen auction (27b)', () => {
     expect(screen.queryByText(t('resultNone'))).toBeNull();
   });
 });
+
+describe('PlayerScreen player truth (28b)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: '', type: 'truth', partial: false, description: '', brief: emptyBrief('truth'), times: null };
+  const names = [
+    { id: 'p1', text: 'Олена' },
+    { id: 'p2', text: 'Тарас' },
+    { id: 'p3', text: 'Хосе' },
+  ];
+  const truthQuestion = { ...publicQuestion, text: 'Я стрибала з парашутом', points: 200, timeLimit: 30, choices: names };
+  const truthFull: Question = { id: 'truth-0', type: 'single', text: truthQuestion.text, imageUrl: null, video: null, timeLimit: 30, points: 200, options: names, correctId: 'p1' };
+  const info = (over: object = {}) => ({ open: false, count: 3, index: 0, reveal: null, skipped: false, ...over });
+  const mine = (over: object = {}) => ({ fact: '', hidden: false, canWrite: false, own: false, ...over });
+
+  it('the lobby shows the fact form and the count only with a truth round', () => {
+    show(view({ truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } }));
+    expect(screen.getByLabelText(t('truthFactLabel'))).toBeTruthy();
+    expect(screen.getByText('Фактів: 2')).toBeTruthy();
+    cleanup();
+    show(view());
+    expect(screen.queryByLabelText(t('truthFactLabel'))).toBeNull();
+    expect(screen.queryByText(/Фактів/)).toBeNull();
+  });
+
+  it('a late player writes a fact between questions until the deal', () => {
+    show(view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } }));
+    expect(screen.getByLabelText(t('truthFactLabel'))).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true, fact: 'Вже є' }) } }));
+    expect(screen.queryByLabelText(t('truthFactLabel'))).toBeNull();
+  });
+
+  it('a guesser picks a name from the list', async () => {
+    const send = show(onQuestion({ round, question: truthQuestion, truth: info(), me: { ...me, truth: mine() } }));
+    expect(screen.getByText(t('truthWho'))).toBeTruthy();
+    // Варіанти — не стандартні A–F, а імена кнопками.
+    expect(document.querySelector('.truth-names')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Хосе' }));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:answer', { type: 'single', optionId: 'p3' }));
+  });
+
+  it('on pause the names are off', () => {
+    show(onQuestion({ round, paused: true, question: truthQuestion, truth: info(), me: { ...me, truth: mine() } }));
+    expect((screen.getByRole('button', { name: 'Хосе' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the author sees the notice and no names', () => {
+    show(onQuestion({ round, question: truthQuestion, truth: info(), me: { ...me, truth: mine({ own: true }) } }));
+    expect(screen.getByText(t('truthOwn'))).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Хосе' })).toBeNull();
+    cleanup();
+    show(view({ phase: 'locked', round, questionIndex: 0, question: truthQuestion, truth: info(), me: { ...me, truth: mine({ own: true }) } }));
+    expect(screen.getByText(t('truthOwn'))).toBeTruthy();
+  });
+
+  it('the reveal shows the author and the picks', () => {
+    const reveal = { author: { id: 'p2', nickname: 'Тарас' }, points: 100, picks: [{ id: 'p1', nickname: 'Олена', pickedId: 'p3', picked: 'Хосе', correct: false }] };
+    show(view({ phase: 'reveal', round, questionIndex: 0, question: truthQuestion, reveal: { ...truthFull, correctId: 'p2' }, truth: info({ reveal }), me: { ...me, truth: mine(), answer: { type: 'single', optionId: 'p3' }, result: { grade: 'wrong', accepted: false, points: 0, streakBonus: 0 } as never } }));
+    expect(screen.getByText('Це написав(ла) Тарас')).toBeTruthy();
+    expect(screen.getByText('Олена → Хосе ✗')).toBeTruthy();
+  });
+});
