@@ -24952,6 +24952,80 @@ it('part 28b: player truth in teams — every member writes, captains guess, the
   }
 }, 600_000);
 
+it('part 28b: player truth with 22 players — the stage question and reveal fit 1600×900', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await truthCrowd28b(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+/** 22 гравці без браузера (сокети): один пише факт, решта вгадують; сцена 1600×900 вміщає 22 імена й 21 рядок розкриття. */
+async function truthCrowd28b(sockets: Socket[]) {
+  const host = await open('host28bc', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', 'host28bc@example.com');
+  const round = { id: 'tr28bc', type: 'truth', title: '', points: 300, timeLimit: 60 };
+  const data = { ...makeRoundsQuiz([round as never], { leaderboard: 'end' }), title: 'Правда натовпу 28b' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Правда натовпу 28b' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28bc', 1600, 900);
+  await stage.goto(stageUrl);
+  // Довгі імена — до межі в 20 символів: так рядки розкриття найширші.
+  const names = [
+    'Олександра Петренко', 'Богдана Коваленко', 'Ярослав Шевченко', 'Мирослава Бондар', 'Владислав Ткаченко', 'Анастасія Мельник',
+    'Святослав Кравчук', 'Христина Олійник', 'Станіслав Лисенко', 'Катерина Руденко', 'Остап Марченко', 'Соломія Савченко',
+    'Тарас Гончаренко', 'Ірина Кузьменко', 'Максим Литвиненко', 'Вероніка Захарчук', 'Назар Поліщук', 'Злата Тимошенко',
+    'Дмитро Павленко', 'Олена Кириленко', 'Роман Мороз', 'Оксана Бойко',
+  ];
+  const players: { nickname: string; socket: Socket; id: string }[] = [];
+  for (const nickname of names) {
+    const response = await fetch(`${base}/api/games/by-code/${code}/join`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nickname }) });
+    expect(response.status, nickname).toBe(201);
+    const { token, playerId } = (await response.json()) as { token: string; playerId: string };
+    const socket = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+    sockets.push(socket);
+    await new Promise<void>((done, fail) => {
+      socket.once('connect', () => done());
+      socket.once('connect_error', fail);
+    });
+    players.push({ nickname, socket, id: playerId });
+  }
+  const emit = <T,>(socket: Socket, event: string, payload: unknown) => new Promise<T>((done) => socket.emit(event, payload, done));
+  const [author, ...guessers] = players;
+  expect(await emit<{ ok: boolean }>(author!.socket, 'player:truth', { text: 'Я тричі перепливла Дніпро біля Києва' }), 'the fact').toEqual({ ok: true });
+  await stage.getByText('Фактів: 1', exact).waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await stage.locator('.truth-stage .truth-who').waitFor();
+  await expect.poll(() => stage.locator('.truth-stage-names li').count(), POLL).toBe(22);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'truth28b-stage-question-22');
+  await expectTruthStageFits28b(stage, 'question with 22 players');
+  // Половина вгадує, половина — ні, один мовчить.
+  for (const [at, guesser] of guessers.entries()) {
+    if (at === guessers.length - 1) break;
+    const optionId = at % 2 === 0 ? author!.id : guessers[(at + 1) % guessers.length]!.id;
+    expect(await emit<{ ok: boolean }>(guesser.socket, 'player:answer', { type: 'single', optionId }), `${guesser.nickname} picks`).toEqual({ ok: true });
+  }
+  await reveal28a(host);
+  await stage.locator('.truth-reveal').getByText(`Це написав(ла) ${author!.nickname}`, exact).waitFor();
+  await expect.poll(() => stage.locator('.truth-pick-row').count(), POLL).toBe(21);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'truth28b-stage-reveal-22');
+  await expectTruthStageFits28b(stage, 'reveal with 22 players');
+}
+
 const es28b = es as Record<string, string>;
 
 /** Пише (чи стирає — '') факт на телефоні й тисне «Зберегти»; чекає збереженого рядка (чи його зникнення). */
@@ -25146,6 +25220,9 @@ async function truthGame28b() {
   await scores(['100', '100', '0', '0']);
   await step27a(host, 'Далі');
   await step27a(host, 'Наступний раунд');
+  // Заставка раунду truth: число фактів і час раунду, а не «0 запитань · без таймера».
+  await stage.locator('.round-facts').getByText('2 запитання · 30 с на кожне', exact).waitFor();
+  await host.locator('.round-facts').getByText('2 запитання · 30 с на кожне', exact).waitFor();
   await step27a(host, 'Почати раунд');
 
   // ── Раунд «Правда про гравця»: два запитання (Оля, Тарас — порядок з rng кімнати). ──
@@ -25221,6 +25298,9 @@ async function truthGame28b() {
     }
     await authorPage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
     await jose.locator('.truth-reveal').getByText(es28b.truthAuthorIs!.replace('{nickname}', author), exact).waitFor();
+    // Пульт: правильна відповідь — ім'я без літери варіанта; телефон автора не повторює «Це написав(ла) …» рядком відповіді.
+    await host.getByText(`Правильна відповідь: ${author}`, exact).waitFor();
+    for (const page of phones) expect(await bodyText(page), `the right answer line on ${nameOf(page)}’s phone`).not.toContain('Правильна відповідь');
     if (author === 'Оля') {
       if (process.env.E2E_SHOTS === '1') await sleep(800);
       await shot(stage, 'truth28b-stage-reveal');
@@ -25238,8 +25318,13 @@ async function truthGame28b() {
   await host.getByRole('link', { name: /Правда 28b/ }).click();
   await host.getByText('Запитань зіграно: 3 з 3', exact).waitFor();
   const olyaRow = host.locator('.rows.stacked > li', { hasText: FACTS28B.olya });
-  await olyaRow.locator('.truth-history').getByText('автор факту', exact).waitFor();
   expect(await olyaRow.locator('.truth-history').textContent()).toContain('Факт написав(ла): Оля · автор +200');
+  // У списку відповідей автор — окремий рядок з позначкою «автор факту» і часткою; «Відповіді (2)» — лише ті, хто вгадував.
+  await olyaRow.locator('.responses summary').click();
+  await olyaRow.locator('.truth-author-row').getByText('автор факту', exact).waitFor();
+  expect(await olyaRow.locator('.truth-author-row .responses-name').textContent()).toBe('Оля');
+  expect(await olyaRow.locator('.truth-author-row .responses-answer').textContent()).toBe('+200');
+  expect(await olyaRow.locator('.responses summary').textContent()).toBe('Відповіді (2)');
   const tarasRow = host.locator('.rows.stacked > li', { hasText: FACTS28B.tarasNew });
   expect(await tarasRow.locator('.truth-history').textContent()).toContain('Факт написав(ла): Тарас · автор +300');
   expect(await host.locator('.rows.stacked > li', { hasText: FACTS28B.ira }).count(), 'a hidden fact in the history').toBe(0);
