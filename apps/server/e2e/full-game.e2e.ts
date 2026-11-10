@@ -24698,7 +24698,18 @@ async function moreLessGame28a() {
   await host.locator('.host-moreless').getByText('2850 км', exact).waitFor();
   expect(await morelessRow28a(host, 'Оля').locator('.moreless-pick').count(), 'Olya’s picks on the host').toBe(6);
   expect(await morelessRow28a(host, 'Оля').locator('.moreless-pick.is-wrong').count(), 'Olya’s miss on the host').toBe(1);
+  // «Відповіли» — ті, хто пройшов увесь ряд: на пульті так само, як на сцені; рядка «Правильна відповідь: —» немає.
+  await expect.poll(() => host.locator('.live-jump').textContent(), POLL).toBe('Відповіли 1 з 3');
+  expect(await host.locator('.live-count').textContent(), 'the live panel count').toBe('Відповіли 1 з 3');
+  await expect.poll(() => stage.getByText('Відповіли 1 з 3', exact).count(), POLL).toBe(1);
+  expect(await host.getByText(/Правильна відповідь/).count(), 'an empty right answer line on the host').toBe(0);
   await shot(host, 'moreless28a-host-live');
+
+  // Ведучий закриває раніше часу: «Запитання закрито», а не «Час вийшов».
+  await click(host, 'Закрити запитання');
+  await taras.getByText('Запитання закрито: пройдено 2 з 6', exact).waitFor();
+  await jose.getByText('Pregunta cerrada: 1 de 6 hechas', exact).waitFor();
+  expect(await taras.getByText(/Час вийшов/).count(), 'time up after the host closed').toBe(0);
 
   // ── Розкриття: таблиця зі значеннями, правильний підсвічено, «Правильно: N»; бали. ──
   await reveal28a(host);
@@ -24716,9 +24727,9 @@ async function moreLessGame28a() {
   if (process.env.E2E_SHOTS === '1') await sleep(800);
   await shot(stage, 'moreless28a-stage-reveal');
   await expectMoreLessStageFits28a(stage, 'q1 reveal');
-  // Телефони: свої позначки — у Тараса чотири «не встиг».
+  // Телефони: свої позначки — у Тараса чотири «без відповіді».
   await taras.locator('.moreless-reveal').waitFor();
-  expect(await taras.locator('.moreless-mark').allTextContents()).toEqual(['правильно', 'правильно', 'не встиг', 'не встиг', 'не встиг', 'не встиг']);
+  expect(await taras.locator('.moreless-mark').allTextContents()).toEqual(['правильно', 'правильно', 'без відповіді', 'без відповіді', 'без відповіді', 'без відповіді']);
   expect(await olya.locator('.moreless-mark.is-wrong').count(), 'Olya’s miss').toBe(1);
   expect(await olya.locator('.result > h2').textContent(), 'Olya with one miss').toBe('Частково правильно');
   await shot(taras, 'moreless28a-phone-reveal');
