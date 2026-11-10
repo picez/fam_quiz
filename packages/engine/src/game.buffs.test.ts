@@ -15,6 +15,7 @@ import {
   bool,
   boardRound,
   chain,
+  classicRound,
   finalRound,
   makeQuiz,
   makeRoundsQuiz,
@@ -244,6 +245,23 @@ describe('buffs', () => {
     expect(takeBuff(open, 'p2', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(open, 'p2', 'double')).toBe('off_truth');
     expect(shopBlock(open, 'p2')).toBe('phase');
+  });
+
+  it('a puzzles round has no debuffs: none set, none sold, a waiting one waits (28d)', () => {
+    const quiz = makeRoundsQuiz([classicRound('c1', [single4]), puzzlesRound('pz', [sudoku])], { buffs, debuffs: ['fog'] });
+    let s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0, rng0));
+    expect(s.phase).toBe('question');
+    s = must(setDebuff(s, 'p2', 'fog'));
+    let guard = 0;
+    while (!(s.phase === 'question' && s.roundIndex === 1) && guard++ < 20) {
+      s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
+      if (s.roundIndex === 1 && s.phase !== 'round_end') {
+        expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
+        expect(shopBlock(s, 'p1')).toBe('phase');
+      }
+    }
+    expect(s.phase).toBe('question');
+    expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });
   });
 
   it('buffs work only where the player answers from the phone', () => {
