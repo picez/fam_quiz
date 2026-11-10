@@ -281,8 +281,12 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const ticking = !collapsed && [...live.rows, ...(live.aside?.rows ?? [])].some((row) => draftOf(row, drafts) !== undefined);
   const now = useServerNow(ticking, offsetMs);
   const context: RowContext = { view, tilts, drafts, now };
+  // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як у шапці пульта й на сцені (live.answered рахує й тих, хто лише почав).
+  const answered = live.rows.some((row) => row.progress?.kind === 'moreless')
+    ? live.rows.filter((row) => row.progress?.kind === 'moreless' && row.progress.done >= row.progress.total).length
+    : live.answered;
   const count = !duel && (
-    <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
+    <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered, total: live.total })}</p>
   );
   const body = collapsed ? (
     <>

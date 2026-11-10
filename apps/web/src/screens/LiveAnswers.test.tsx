@@ -172,6 +172,8 @@ describe('LiveAnswers', () => {
     const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toContain('2 / 3 · правильно 1');
+    // Почав один, увесь ряд не пройшов ніхто — «Відповіли 0», як у шапці пульта й на сцені.
+    expect(document.querySelector('.live-count')?.textContent).toMatch(/^Відповіли 0 з /);
   });
 
   it('writes the slider distance', () => {
