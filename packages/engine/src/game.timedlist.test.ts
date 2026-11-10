@@ -43,9 +43,34 @@ describe('timed list', () => {
       { id: 's2', text: 'Сатурнія', accepted: [] },
     ];
     expect(listHit(saturns, ['s1'], 'Сатурнія')).toEqual({ kind: 'found', id: 's2' });
-    // «Сатурні» — описка обох; незнайдений пункт має перевагу, а знайдений не забирає його
-    expect(listHit(saturns, ['s1'], 'Сатурні')).toEqual({ kind: 'found', id: 's2' });
-    expect(listHit(saturns, ['s1', 's2'], 'Сатурні')).toEqual({ kind: 'repeat', id: 's1' });
+    // «Сатурні» однаково близьке до обох пунктів — не зараховується нікому
+    expect(listHit(saturns, ['s1'], 'Сатурні')).toEqual({ kind: 'miss' });
+    expect(listHit(saturns, [], 'Сатурні')).toEqual({ kind: 'miss' });
+    // «Сатурнії» ближче до «Сатурнія» (1), ніж до «Сатурн» (2)
+    expect(listHit(saturns, [], 'Сатурнії')).toEqual({ kind: 'found', id: 's2' });
+  });
+
+  it('listHit forgives at most one typo and takes the nearest item', () => {
+    const countries: TimedListItem[] = [
+      { id: 'c1', text: 'Австралія', accepted: [] },
+      { id: 'c2', text: 'Ісландія', accepted: [] },
+      { id: 'c3', text: 'Нідерланди', accepted: ['Голландія'] },
+    ];
+    // дві описки до «Австралії» — у списку вже інше слово
+    expect(listHit(countries, [], 'Австрія')).toEqual({ kind: 'miss' });
+    expect(listHit(countries, [], 'Австралия')).toEqual({ kind: 'found', id: 'c1' });
+    expect(listHit(countries, [], 'Австрaлія')).toEqual({ kind: 'found', id: 'c1' });
+    expect(listHit(countries, [], 'Нидерланды')).toEqual({ kind: 'miss' });
+    expect(listHit(countries, [], 'Голандія')).toEqual({ kind: 'found', id: 'c3' });
+    // точний збіг іншого написання знайденого пункту й описка знайденого — повтор
+    expect(listHit(countries, ['c3'], 'голландія')).toEqual({ kind: 'repeat', id: 'c3' });
+    expect(listHit(countries, ['c1'], 'Австралия')).toEqual({ kind: 'repeat', id: 'c1' });
+    // точний збіг перемагає описку сусіда; слово за одну описку від двох пунктів — нікому
+    const islands = [...countries, { id: 'c4', text: 'Ірландія', accepted: [] }];
+    expect(listHit(islands, [], 'Ірландія')).toEqual({ kind: 'found', id: 'c4' });
+    expect(listHit(islands, [], 'Ісландія')).toEqual({ kind: 'found', id: 'c2' });
+    expect(listHit(islands, [], 'Іландія')).toEqual({ kind: 'miss' });
+    expect(listHit(islands, ['c2'], 'Іландія')).toEqual({ kind: 'miss' });
   });
 
   it('a found word takes its place and a repeat changes nothing', () => {
@@ -55,6 +80,9 @@ describe('timed list', () => {
     expect(s.plays[0].timedlist?.progress.p2).toBeUndefined();
     const again = listEntry(s, 'p1', 'ЮПІТЕР', true, 1500);
     expect(again.ok && again.hit).toBe('repeat');
+    expect(again.ok && again.index).toBe(5);
+    const typo = listEntry(s, 'p1', 'Юпітр', false, 1500);
+    expect(typo).toMatchObject({ ok: true, hit: 'repeat', index: 5 });
     expect(again.ok && again.state).toBe(s);
     const found = listEntry(s, 'p1', 'Марс', false, 1500);
     expect(found.ok && found.hit).toBe('found');
@@ -194,6 +222,30 @@ describe('timed list', () => {
     it('a total of only misses is negative', () => {
       const s = must(lock(enter(fresh(), 'p1', ['Плутон']), 5000));
       expect(record(s, 'p1')).toMatchObject({ points: -50, accuracy: 0, grade: 'wrong', answer: { found: [], wrong: 1 } });
+    });
+
+    it('the total minus is capped at the full price of the question', () => {
+      const misses = Array.from({ length: 17 }, () => 'Плутон');
+      // 8 пунктів × 100 = 800; 17 × 50 = 850 → −800
+      const s = must(lock(enter(fresh(), 'p1', misses), 5000));
+      expect(points(s, 'p1')).toBe(-800);
+      expect(record(s, 'p1')?.answer).toMatchObject({ wrong: 17 });
+      // знахідки додаються до обмеженого мінуса: 100 − 800
+      const found = must(lock(enter(enter(fresh(), 'p1', misses), 'p1', ['Марс']), 5000));
+      expect(points(found, 'p1')).toBe(100 - 800);
+      // множник раунду множить і стелю: 1600
+      const doubled = { rules: { ...DEFAULT_RULES, multiplier: 2 as const } };
+      expect(points(must(lock(enter(fresh(timedlist, doubled), 'p1', misses), 5000)), 'p1')).toBe(-1600);
+      // 16 промахів — рівно 800, без обмеження
+      expect(points(must(lock(enter(fresh(), 'p1', misses.slice(1)), 5000)), 'p1')).toBe(-800);
+      expect(points(must(lock(enter(fresh(), 'p1', misses.slice(2)), 5000)), 'p1')).toBe(-750);
+    });
+
+    it('a removed player after the close keeps everyone else as scored', () => {
+      const s = must(lock(played(fresh()), 5000));
+      const removed = must(removePlayer(s, 'p4'));
+      expect(removed.plays[0].timedlist?.present).toEqual(['p1', 'p2', 'p3', 'p4']);
+      expect(['p1', 'p2', 'p3'].map((id) => points(removed, id))).toEqual([150, 200, 25]);
     });
 
     it('speed, partial and the round minus change nothing', () => {

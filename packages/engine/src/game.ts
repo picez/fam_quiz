@@ -490,6 +490,13 @@ export interface TimedListProgress {
 export interface TimedListPlay {
   present: string[];
   progress: Record<string, TimedListProgress>;
+  /** З закриття (scoreTimedList): N і бали кожного пункту, як їх нараховано; вилучення гравця їх уже не змінює. */
+  scored?: TimedListScored;
+}
+
+export interface TimedListScored {
+  players: number;
+  items: Record<string, { finders: string[]; points: number }>;
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -902,9 +909,10 @@ function removeFromGame(state: GameState, playerId: string): Result {
       const { [playerId]: _progress, ...wordladder } = play.wordladder;
       kept.wordladder = wordladder;
     }
-    if (play.timedlist !== undefined) {
+    // Список (27c): лише відкрите запитання; закрите вже пораховане (scored), його поступ лишається як був.
+    if (play.timedlist !== undefined && index === state.questionIndex && state.phase === 'question') {
       const { [playerId]: _progress, ...progress } = play.timedlist.progress;
-      kept.timedlist = { present: play.timedlist.present.filter((id) => id !== playerId), progress };
+      kept.timedlist = { ...play.timedlist, present: play.timedlist.present.filter((id) => id !== playerId), progress };
     }
     if (play.sort !== undefined) {
       const { [playerId]: _progress, ...sort } = play.sort;

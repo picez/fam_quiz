@@ -158,7 +158,7 @@ import {
 import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
 import { blitzSeriesPoints } from './score';
 import { wordLadderOf } from './wordladder';
-import { listItemPoints, listPlayers, timedListOf } from './timedlist';
+import { listItemPoints, listPlayers, listRows, timedListOf } from './timedlist';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -1194,8 +1194,9 @@ function timedListInfo(state: GameState, forHost: boolean): TimedListInfo | unde
   if (open === null) return undefined;
   const { play, question } = open;
   const revealed = state.phase === 'reveal';
-  const players = listPlayers(state, play);
-  const rows: TimedListRow[] = players.map((id) => {
+  // Рядки — усі, хто грав (і пізній лише з промахами: його мінус має бути видно); N — окремо (listPlayers), після закриття — заморожене.
+  const players = play.timedlist?.scored?.players ?? listPlayers(state, play).length;
+  const rows: TimedListRow[] = listRows(state, play).map((id) => {
     const { found, wrong } = timedListOf(state, id);
     const record = recordOf(state, state.questionIndex, id);
     return {
@@ -1209,16 +1210,18 @@ function timedListInfo(state: GameState, forHost: boolean): TimedListInfo | unde
   // sort стабільний: рівні лишаються в порядку гравців.
   rows.sort((a, b) => b.found - a.found);
   const byItem = listItemPoints(state, play);
+  // Вилученого знахідника вже немає серед імен; бали пункту лишаються, як їх нараховано.
+  const finders = (id: string) => (byItem[id]?.finders ?? []).filter((finder) => state.players.some((p) => p.id === finder));
   const items: TimedListItemView[] | null =
     forHost || revealed
       ? question.items.map((item, i) => ({
           index: i + 1,
           text: item.text,
-          finders: byItem[item.id]?.finders ?? [],
+          finders: finders(item.id),
           points: revealed ? (byItem[item.id]?.points ?? 0) : null,
         }))
       : null;
-  return { total: question.items.length, minus: question.minus, players: players.length, rows, items };
+  return { total: question.items.length, minus: question.minus, players, rows, items };
 }
 
 /** Власні знахідки гравця (команди) на списку; поза списком і для глядача клітинки поля — undefined. */

@@ -66,6 +66,7 @@ import {
   type WallProgress,
   type WipeoutPlay,
   type TimedListPlay,
+  type TimedListScored,
   type TimedListProgress,
   type WordLadderProgress,
 } from './game';
@@ -348,7 +349,8 @@ const STATE_SHAPE: Record<string, string> = {
   BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   WordLadderProgress: keysOf<WordLadderProgress>()(['words'], true),
-  TimedListPlay: keysOf<TimedListPlay>()(['present', 'progress'], true),
+  TimedListPlay: keysOf<TimedListPlay>()(['present', 'progress', 'scored'], true),
+  TimedListScored: keysOf<TimedListScored>()(['players', 'items'], true),
   TimedListProgress: keysOf<TimedListProgress>()(['found', 'wrong'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
@@ -1188,7 +1190,8 @@ const KEYS: Record<number, Record<string, string>> = {
     BluffOption: 'authors,id,kind,removed,text',
     ChainProgress: 'hints,shown,solved',
     WordLadderProgress: 'words',
-    TimedListPlay: 'present,progress',
+    TimedListPlay: 'present,progress,scored',
+    TimedListScored: 'items,players',
     TimedListProgress: 'found,wrong',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
@@ -1431,6 +1434,8 @@ function representative(): GameState[] {
   const listMars = listMarsResult.ok ? listMarsResult.state : listOpen;
   const listResult = listEntry(listMars, 'p1', 'Плутон', true, T0 + 1500);
   const listing = listResult.ok ? listResult.state : listMars;
+  // Закрите запитання: TimedListPlay.scored, TimedListScored.
+  const listClosed = must(lock(listing, T0 + 2000));
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1467,6 +1472,7 @@ function representative(): GameState[] {
     selfOpened,
     laddering,
     listing,
+    listClosed,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1948,6 +1954,7 @@ describe('the saved state', () => {
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
       add('WordLadderProgress', s.plays.flatMap((p) => Object.values(p.wordladder ?? {})));
       add('TimedListPlay', s.plays.map((p) => p.timedlist));
+      add('TimedListScored', s.plays.map((p) => p.timedlist?.scored));
       add('TimedListProgress', s.plays.flatMap((p) => Object.values(p.timedlist?.progress ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);

@@ -1,6 +1,6 @@
 import { rulesOf, type ErrorCode, type Question, type TimedListItem } from '@quiz/shared';
 import { withPlay } from './blitz';
-import { shareVerdict, textAccepts, textMatches } from './check';
+import { shareVerdict, textMatches, typoGap } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, recordOf, revealNow, type AnswerRecord, type GameState, type Play, type TimedListProgress } from './game';
 import { normalizeText } from './normalize';
@@ -24,20 +24,29 @@ export type ListHit = { kind: 'found'; id: string } | { kind: 'repeat'; id: stri
 
 const spellings = (item: TimedListItem) => [item.text, ...item.accepted];
 
+/** Скільки описок прощається пункту списку: не більше однієї (у списку сусідні назви — часто інші пункти). */
+const LIST_TYPOS = 1;
+
 /**
- * Чим є слово: спершу точний збіг з будь-яким написанням (за порядком пунктів), потім описка серед незнайдених пунктів
- * (found), потім описка серед знайдених (repeat); інакше miss. Порожнє після normalizeText слово — miss.
+ * Чим є слово: спершу точний збіг з будь-яким написанням (за порядком пунктів), далі — найближчий пункт за не більше ніж
+ * LIST_TYPOS описки; незнайдений — found, знайдений — repeat. Слово однаково близьке до двох пунктів — miss, як і порожнє після normalizeText.
  */
 export function listHit(items: readonly TimedListItem[], found: readonly string[], value: string): ListHit {
   if (normalizeText(value) === '') return { kind: 'miss' };
   const hit = (item: TimedListItem): ListHit => (found.includes(item.id) ? { kind: 'repeat', id: item.id } : { kind: 'found', id: item.id });
   const exact = items.find((item) => textMatches(spellings(item), value));
   if (exact !== undefined) return hit(exact);
-  // Описка, ближча до вже знайденого пункту, не забирає незнайдений: незнайдені перевіряються першими.
-  const fresh = items.find((item) => !found.includes(item.id) && textAccepts(spellings(item), value));
-  if (fresh !== undefined) return { kind: 'found', id: fresh.id };
-  const again = items.find((item) => found.includes(item.id) && textAccepts(spellings(item), value));
-  return again !== undefined ? { kind: 'repeat', id: again.id } : { kind: 'miss' };
+  let best: { item: TimedListItem; gap: number } | null = null;
+  let tie = false;
+  for (const item of items) {
+    const gap = typoGap(spellings(item), value, LIST_TYPOS);
+    if (gap === null) continue;
+    if (best === null || gap < best.gap) {
+      best = { item, gap };
+      tie = false;
+    } else if (gap === best.gap) tie = true;
+  }
+  return best === null || tie ? { kind: 'miss' } : hit(best.item);
 }
 
 /** Знахідки гравця (команди) на поточному запитанні; без запису — { found: [], wrong: 0 }. */
@@ -58,14 +67,26 @@ export function listPlayers(state: GameState, play: Play): string[] {
   return state.players.filter((p) => ids.has(p.id)).map((p) => p.id);
 }
 
+/** Рядки поступу: present ∪ усі, хто має знахідки чи промахи (і пізній лише з промахами), серед state.players, у порядку гравців. */
+export function listRows(state: GameState, play: Play): string[] {
+  const list = play.timedlist;
+  if (list === undefined) return [];
+  const ids = new Set([...list.present, ...Object.keys(list.progress)]);
+  return state.players.filter((p) => ids.has(p.id)).map((p) => p.id);
+}
+
 /** Множник ціни: раунду × позначка клітинки поля (ціна клітинки не діє, як у сортуванні). */
 function multiplierOf(state: GameState, play: Play): number {
   return rulesOf(state.quiz.rounds[play.roundIndex]).multiplier * (play.board?.multiplier ?? 1);
 }
 
-/** Бали за кожен пункт для кожного знахідника за поточним станом (для зрізу reveal і для scoreTimedList); ключ — id пункту. */
+/**
+ * Бали за кожен пункт для кожного знахідника (для зрізу reveal і для scoreTimedList); ключ — id пункту.
+ * Після закриття — заморожені scoreTimedList (вилучення гравця вже не перераховує їх), до того — за поточним станом.
+ */
 export function listItemPoints(state: GameState, play: Play): Record<string, { finders: string[]; points: number }> {
   if (play.question.type !== 'timedlist') return {};
+  if (play.timedlist?.scored !== undefined) return play.timedlist.scored.items;
   const players = listPlayers(state, play);
   const progress = play.timedlist?.progress ?? {};
   const unit = play.question.points * multiplierOf(state, play);
@@ -78,7 +99,8 @@ export function listItemPoints(state: GameState, play: Play): Record<string, { f
   );
 }
 
-export type ListResult = { ok: true; state: GameState; hit: ListHit['kind'] } | { ok: false; error: ErrorCode };
+/** index — номер пункту (від 1) при повторі: телефон підсвічує клітинку й тоді, коли повтор — інше написання чи описка. */
+export type ListResult = { ok: true; state: GameState; hit: ListHit['kind']; index?: number } | { ok: false; error: ErrorCode };
 
 const refuse = (error: ErrorCode): ListResult => ({ ok: false, error });
 
@@ -122,7 +144,7 @@ export function listEntry(state: GameState, playerId: string, word: string, ente
 
   const progress = timedListOf(state, playerId);
   const hit = listHit(play.question.items, progress.found, word);
-  if (hit.kind === 'repeat') return { ok: true, state, hit: 'repeat' };
+  if (hit.kind === 'repeat') return { ok: true, state, hit: 'repeat', index: play.question.items.findIndex((item) => item.id === hit.id) + 1 };
   if (hit.kind === 'miss') {
     const costs = enter && play.question.minus !== null && normalizeText(word) !== '';
     return { ok: true, state: costs ? withProgress(state, play, playerId, { ...progress, wrong: progress.wrong + 1 }) : state, hit: 'miss' };
@@ -140,7 +162,8 @@ export function listEntry(state: GameState, playerId: string, word: string, ente
 /**
  * На етапі question: бали за рідкісністю кожного знайденого пункту мінус промахи з Enter; записи тим, хто має знахідки чи промахи
  * (наявні записи тих, хто знайшов усе, отримують справжні бали); на клітинці поля той, хто вибрав і нічого не ввів, — запис з 0
- * (як у сортуванні й стіні: інакше unansweredIsWrong дав би мінус ціни клітинки). Інакше стан той самий. Швидкість, «частково», мінус-штраф раунду й бафи не діють.
+ * (як у сортуванні й стіні: інакше unansweredIsWrong дав би мінус ціни клітинки). Сума мінусів — не більше повної ціни запитання.
+ * N і бали пунктів заморожуються в timedlist.scored. Інакше стан той самий. Швидкість, «частково», мінус-штраф раунду й бафи не діють.
  */
 export function scoreTimedList(state: GameState): GameState {
   const play = listPlay(state);
@@ -148,12 +171,14 @@ export function scoreTimedList(state: GameState): GameState {
   const byItem = listItemPoints(state, play);
   const multiplier = multiplierOf(state, play);
   const minus = play.question.minus === null ? 0 : Math.round(play.question.minus * multiplier);
+  // Стеля мінусу: не більше повної ціни запитання (ціна пункту × пунктів, з тими самими множниками).
+  const cap = Math.round(play.question.points * multiplier) * play.question.items.length;
   const limitMs = limitMsOf(play) ?? 0;
   const answers = { ...play.answers };
   for (const [playerId, progress] of Object.entries(play.timedlist?.progress ?? {})) {
     if (!state.players.some((p) => p.id === playerId)) continue;
     const found = progress.found.reduce((sum, id) => sum + (byItem[id]?.finders.includes(playerId) ? byItem[id].points : 0), 0);
-    const points = found - progress.wrong * minus;
+    const points = found - Math.min(progress.wrong * minus, cap);
     const timeMs = Object.hasOwn(answers, playerId) ? answers[playerId].timeMs : limitMs;
     answers[playerId] = listRecord(play, progress, points, timeMs);
   }
@@ -161,5 +186,6 @@ export function scoreTimedList(state: GameState): GameState {
   if (chooser !== undefined && state.players.some((p) => p.id === chooser) && !Object.hasOwn(answers, chooser)) {
     answers[chooser] = listRecord(play, UNTOUCHED, 0, limitMs);
   }
-  return withPlay(state, { ...play, answers });
+  const list = play.timedlist ?? { present: [], progress: {} };
+  return withPlay(state, { ...play, answers, timedlist: { ...list, scored: { players: listPlayers(state, play).length, items: byItem } } });
 }

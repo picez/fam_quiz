@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardRound, classicRound, makeQuiz, makeRoundsQuiz, single, timedlist } from './testing/fixtures';
 import { pickCell } from './board';
-import { lock, next, pause, resume, start, tick, type GameState } from './game';
+import { lock, next, pause, removePlayer, resume, setConnected, start, tick, type GameState } from './game';
 import { hostLive } from './live';
 import { listEntry } from './timedlist';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -88,6 +88,39 @@ describe('timed list views', () => {
       { index: 5, text: 'Юпітер' },
       { index: 1, text: 'Меркурій' },
     ]);
+  });
+
+  it('removing a player after the close keeps the item points as scored', () => {
+    for (const close of ['locked', 'reveal'] as const) {
+      let s = must(lock(played(), 5000));
+      if (close === 'reveal') s = must(next(s, 6000));
+      const removed = must(removePlayer(s, 'p4'));
+      const revealed = removed.phase === 'reveal' ? removed : must(next(removed, 6000));
+      const info = stageList(revealed);
+      expect(info.players).toBe(4);
+      expect(info.items?.[4]).toEqual({ index: 5, text: 'Юпітер', finders: ['p1', 'p2', 'p3'], points: 25 });
+      expect(info.items?.[1]).toMatchObject({ finders: ['p1'], points: 100 });
+      expect(info.rows.map((r) => r.points)).toEqual([175, 125, 25]);
+    }
+  });
+
+  it('a late player with only misses has a row but does not count in N', () => {
+    const lobby = lobbyWith(makeQuiz([timedlist]), ...PLAYERS, 'Ігор');
+    const away = must(setConnected(lobby, 'p5', false, 0));
+    let s = must(setConnected(must(next(must(start(away)), 0)), 'p5', true, 500));
+    s = enter(enter(s, 'p5', ['Плутон']), 'p1', ['Марс']);
+    expect(stageList(s).players).toBe(4);
+    expect(stageList(s).rows.map((r) => [r.playerId, r.found, r.wrong])).toEqual([
+      ['p1', 1, 0],
+      ['p2', 0, 0],
+      ['p3', 0, 0],
+      ['p4', 0, 0],
+      ['p5', 0, 1],
+    ]);
+    expect(hostView(s).timedlist?.rows.map((r) => r.playerId)).toContain('p5');
+    const revealed = must(next(must(lock(s, 5000)), 6000));
+    expect(stageList(revealed).players).toBe(4);
+    expect(stageList(revealed).rows.find((r) => r.playerId === 'p5')?.points).toBe(-50);
   });
 
   it('the host sees the whole list and the finders live', () => {

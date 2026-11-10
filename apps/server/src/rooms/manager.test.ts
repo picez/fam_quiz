@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, timedlist, wordladder } from '@quiz/engine/testing';
 import { hostView, sortOf } from '@quiz/engine';
-import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, SPLASH_MS } from '@quiz/shared';
+import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, LIST_WORDS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { toBetsWager } from '../testing/bets-game';
 import { nounsOf } from '../wordladder/nouns';
@@ -481,7 +481,9 @@ describe('word ladder', () => {
     };
 
     expect(manager.timedList(room, olena.playerId, 'Юпітер', false)).toEqual({ ok: true });
-    expect(manager.timedList(room, olena.playerId, 'юпітер', true)).toEqual({ ok: false, error: 'list_repeat' });
+    // Повтор називає номер пункту — і для іншого написання чи описки.
+    expect(manager.timedList(room, olena.playerId, 'юпітер', true)).toEqual({ ok: false, error: 'list_repeat', index: 5 });
+    expect(manager.timedList(room, olena.playerId, 'Юпітр', false)).toEqual({ ok: false, error: 'list_repeat', index: 5 });
     // Живе введення без Enter мінуса не дає і стану не змінює.
     let changes = events.length;
     expect(manager.timedList(room, olena.playerId, 'Плутон', false)).toEqual({ ok: false, error: 'list_miss' });
@@ -494,6 +496,23 @@ describe('word ladder', () => {
     expect(mine()?.wrong).toBe(1);
     expect(mine()?.found).toEqual([{ index: 5, text: 'Юпітер' }]);
     expect(manager.timedList(room, 'nobody', 'Марс', true)).toMatchObject({ ok: false });
+  });
+
+  it('list words are limited per second, so a script cannot sweep a dictionary', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([timedlist]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    for (let i = 0; i < LIST_WORDS_PER_SECOND; i++) expect(manager.timedList(room, olena.playerId, `Плутон${'а'.repeat(i)}`, false)).toEqual({ ok: false, error: 'list_miss' });
+    expect(manager.timedList(room, olena.playerId, 'Марс', false)).toEqual({ ok: false, error: 'too_soon' });
+    // Ліміт — на людину: інший гравець пише вільно.
+    expect(manager.timedList(room, taras.playerId, 'Марс', false)).toEqual({ ok: true });
+    scheduler.advance(1000);
+    expect(manager.timedList(room, olena.playerId, 'Марс', false)).toEqual({ ok: true });
   });
 });
 
@@ -1634,7 +1653,7 @@ describe('teams (10j)', () => {
     // Тарас — не капітан, а пункт однаково лягає в спільний список червоних.
     expect(manager.timedList(room, olena.playerId, 'Марс', false)).toEqual({ ok: true });
     expect(manager.timedList(room, taras.playerId, 'Венера', false)).toEqual({ ok: true });
-    expect(manager.timedList(room, taras.playerId, 'марс', true)).toEqual({ ok: false, error: 'list_repeat' });
+    expect(manager.timedList(room, taras.playerId, 'марс', true)).toEqual({ ok: false, error: 'list_repeat', index: 4 });
     const found = (identity: Identity) => {
       const view = manager.view(room, identity);
       return view?.role === 'player' ? view.me.timedlist?.found : undefined;

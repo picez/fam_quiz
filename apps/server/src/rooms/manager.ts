@@ -133,7 +133,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -242,6 +242,8 @@ export interface Room {
   likes: RoomLikes;
   /** Вікно частоти player:like (17a), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
   likeRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:list (27c), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
+  listRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -649,6 +651,7 @@ export class RoomManager {
       levels: new Map(),
       likes: { mine: new Map() },
       likeRate: new Map(),
+      listRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -721,6 +724,7 @@ export class RoomManager {
       levels: new Map(),
       likes: { mine: new Map() },
       likeRate: new Map(),
+      listRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1518,17 +1522,23 @@ export class RoomManager {
 
   /**
    * Слово списку (27c): у командній грі — будь-який учасник за команду. found → ok; repeat → list_repeat;
-   * miss → list_miss (стан з мінусом уже збережено й розіслано).
+   * miss → list_miss (стан з мінусом уже збережено й розіслано). Понад LIST_WORDS_PER_SECOND слів на секунду від людини — too_soon.
    */
   timedList(room: Room, playerId: string, word: string, enter: boolean): AckResult {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
-    const result = listEntry(room.state, who.id, word, enter, this.now());
+    // Частота — на людину (у команді кожен учасник має своє вікно), як у чернеток.
+    const now = this.now();
+    const rate = room.listRate.get(playerId);
+    if (rate === undefined || now - rate.from >= 1000) room.listRate.set(playerId, { from: now, count: 1 });
+    else if (rate.count + 1 > LIST_WORDS_PER_SECOND) return { ok: false, error: 'too_soon' };
+    else rate.count += 1;
+    const result = listEntry(room.state, who.id, word, enter, now);
     if (!result.ok) return { ok: false, error: result.error };
     // Стан той самий (повтор, живий промах) — нічого не розсилаємо.
     if (result.state !== room.state) this.commit(room, result.state);
-    if (result.hit === 'repeat') return { ok: false, error: 'list_repeat' };
+    if (result.hit === 'repeat') return { ok: false, error: 'list_repeat', ...(result.index !== undefined ? { index: result.index } : {}) };
     if (result.hit === 'miss') return { ok: false, error: 'list_miss' };
     return { ok: true };
   }

@@ -623,7 +623,7 @@ describe('host presence', () => {
     await until(olena, inPhase('question'));
 
     expect(await send(olena, 'player:list', { word: 'Марс', enter: false })).toEqual({ ok: true });
-    expect(await send(olena, 'player:list', { word: 'марс', enter: true })).toEqual({ ok: false, error: 'list_repeat' });
+    expect(await send(olena, 'player:list', { word: 'марс', enter: true })).toEqual({ ok: false, error: 'list_repeat', index: 4 });
     expect(await send(olena, 'player:list', { word: 'Плутон', enter: true })).toEqual({ ok: false, error: 'list_miss' });
     const mine = await until(olena, (view) => view.role === 'player' && view.me.timedlist?.wrong === 1);
     if (mine.role !== 'player') throw new Error('not a player');
