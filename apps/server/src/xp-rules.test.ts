@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AchievementGame, AchievementPlayer, AchievementRow } from './achievement-games';
+import { PENALTY_ATTEMPT } from './db/schema';
 import { capXp, gameXp, kyivDay } from './xp-rules';
 
 const row = (participantId: string, questionIndex: number, patch: Partial<AchievementRow> = {}): AchievementRow => ({
@@ -59,6 +60,12 @@ describe('gameXp', () => {
     expect(by(xs, 'u3').base).toBe(50 + 0 + 30);
     expect(by(xs, 'u4').base).toBe(50);
     expect(xs.every((x) => x.counted && x.reason === null)).toBe(true);
+  });
+
+  it('частка автора «Правди про гравця» (28b) — не правильна відповідь', () => {
+    const base = solo();
+    const xs = gameXp({ ...base, rows: [...base.rows, row('p3', 5, { attempt: PENALTY_ATTEMPT, points: 300 })] }, 'owner', () => false);
+    expect(by(xs, 'u3').base).toBe(50 + 0 + 30);
   });
 
   it('нічия ділить місце', () => {

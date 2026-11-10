@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeQuiz, single, withId } from '@quiz/engine/testing';
+import { classicRound, makeQuiz, makeRoundsQuiz, single, truthRound, withId } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import type { SavedGameData } from './continuation';
 import { RoomManager, joinableOf, type Identity, type RoomEvent } from './manager';
@@ -88,5 +88,58 @@ describe('joinableOf', () => {
     expect(result.room.lobby).toMatchObject({ visibility: 'friends', password: null });
     result.room.state = { ...result.room.state, phase: 'finished' };
     expect(joinableOf(result.room)).toBeNull();
+  });
+});
+
+describe('player truth facts (28b)', () => {
+  const FACT = 'Я стрибала з парашутом';
+
+  function truthRoom() {
+    const { manager, scheduler } = setup();
+    const room = manager.create(makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]), 'u1');
+    manager.connect(room, HOST);
+    const olena = manager.join(room.code, 'Олена', null);
+    const taras = manager.join(room.code, 'Тарас', null);
+    if (!olena.ok || !taras.ok) throw new Error('join');
+    return { manager, scheduler, room, olena: olena.playerId, taras: taras.playerId };
+  }
+
+  it('facts are rate limited and not emitted', () => {
+    const { manager, scheduler, room, olena } = truthRoom();
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.truth(room, olena, FACT)).toEqual({ ok: true });
+    expect(manager.truth(room, olena, `${FACT}!`)).toEqual({ ok: true });
+    expect(manager.truth(room, olena, `${FACT}!!`)).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state.truth?.facts[olena]?.text).toBe(`${FACT}!`);
+    scheduler.advance(1000);
+    expect(manager.truth(room, olena, `${FACT}!!`)).toEqual({ ok: true });
+    expect(room.state.truth?.facts[olena]?.text).toBe(`${FACT}!!`);
+    expect(events.map((e) => e.type)).toContain('changed');
+    expect(JSON.stringify(events)).not.toContain('парашут');
+  });
+
+  it('a fact sent after the deal is refused', () => {
+    const { manager, scheduler, room, olena, taras } = truthRoom();
+    expect(manager.truth(room, olena, FACT)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(room.state.phase).toBe('intro');
+    // на заставці раунду ще можна
+    expect(manager.truth(room, taras, 'Я знаю шість мов')).toEqual({ ok: true });
+    scheduler.advance(10_000);
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(room.state.truth?.deck).toHaveLength(2);
+    expect(room.state.phase).toBe('question');
+    scheduler.advance(1000);
+    expect(manager.truth(room, taras, 'Я бачив північне сяйво')).toEqual({ ok: false, error: 'truth_closed' });
+    expect(room.state.truth?.facts[taras]?.text).toBe('Я знаю шість мов');
+  });
+
+  it('host truth-hide hides a fact', () => {
+    const { manager, room, olena } = truthRoom();
+    expect(manager.truth(room, olena, FACT)).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'truth-hide', playerId: olena, hidden: true })).toEqual({ ok: true });
+    expect(room.state.truth?.facts[olena]?.hidden).toBe(true);
+    expect(manager.host(room, { type: 'truth-hide', playerId: 'nobody', hidden: true })).toEqual({ ok: false, error: 'not_found' });
   });
 });

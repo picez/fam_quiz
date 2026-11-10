@@ -112,6 +112,8 @@ import {
   letterWordsOf,
   moreLessOf,
   moreLessPick,
+  submitTruth,
+  hideTruth,
   lettersDue,
   ladderWord,
   ladderBack,
@@ -151,6 +153,8 @@ import { dealOf, letterIndexOf, pickLetters } from '../letterwords/deal';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
+/** «Правда про гравця» (28b): понад стільки фактів за секунду від людини — too_soon. */
+export const TRUTH_PER_SECOND = 2;
 export const FINISHED_TTL_MS = 30 * 60_000;
 /** Кімната-автопілот без жодного гравця на зв'язку стільки часу (у грі) → «Завершити гру» (11g). */
 export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
@@ -253,6 +257,8 @@ export interface Room {
   listRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:moreless (28a), окреме від listRate, щоб вибори не з'їдали вікно слів. Лише в пам'яті. */
   moreLessRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:truth (28b), як draftRate. Лише в пам'яті. */
+  truthRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -365,7 +371,9 @@ export type HostAction =
   | { type: 'team-form'; form: TeamForm }
   | { type: 'team-assign'; memberId: string; teamId: string | null }
   | { type: 'team-deal' | 'team-dice' | 'team-roll' }
-  | { type: 'captain'; teamId: string; memberId: string };
+  | { type: 'captain'; teamId: string; memberId: string }
+  /** «Правда про гравця» (28b): сховати чи показати факт людини. Лише ведучий: автор кімнати-автопілота теж вгадує. */
+  | { type: 'truth-hide'; playerId: string; hidden: boolean };
 
 /** Дії, які автор кімнати-автопілота шле з телефона (11g); решта — not_allowed. */
 // Прості дії лежать у HostAction одним членом з іншими (lock, next, …), тож Extract їх не виділяє.
@@ -664,6 +672,7 @@ export class RoomManager {
       likeRate: new Map(),
       listRate: new Map(),
       moreLessRate: new Map(),
+      truthRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -738,6 +747,7 @@ export class RoomManager {
       likeRate: new Map(),
       listRate: new Map(),
       moreLessRate: new Map(),
+      truthRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -904,6 +914,8 @@ export class RoomManager {
         key = 'quiz';
         change = { ...base, kind: 'quiz' };
       } else {
+        // Факт гравця (28b) лайкнути не можна: це не запитання вікторини.
+        if (state.plays[state.questionIndex]?.truth !== undefined) return NOT_ALLOWED;
         const questionId = likedQuestionId(state, by);
         if (questionId === undefined) return { ok: false, error: 'like_unavailable' };
         key = `q:${questionId}`;
@@ -1473,6 +1485,20 @@ export class RoomManager {
     return this.apply(room, pickTeam(room.state, playerId, teamId));
   }
 
+  /**
+   * «Правда про гравця» (28b): людина пише чи міняє свій факт ('' прибирає). Ack — лише ok чи помилка; текст не йде ні в події, ні в логи.
+   * Понад TRUTH_PER_SECOND за секунду — too_soon.
+   */
+  truth(room: Room, playerId: string, text: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const now = this.now();
+    const rate = room.truthRate.get(playerId);
+    if (rate === undefined || now - rate.from >= 1000) room.truthRate.set(playerId, { from: now, count: 1 });
+    else if (rate.count + 1 > TRUTH_PER_SECOND) return { ok: false, error: 'too_soon' };
+    else rate.count += 1;
+    return this.apply(room, submitTruth(room.state, playerId, text, now));
+  }
+
   /** Командна гра: учасник кидає кубик формування. */
   teamRoll(room: Room, playerId: string): AckResult {
     if (!this.alive(room)) return this.gone();
@@ -1975,6 +2001,8 @@ export class RoomManager {
         return this.apply(room, rollTeamRest(state, this.rng));
       case 'captain':
         return this.apply(room, setCaptain(state, action.teamId, action.memberId));
+      case 'truth-hide':
+        return this.apply(room, hideTruth(state, action.playerId, action.hidden));
     }
   }
 
@@ -2006,6 +2034,7 @@ export class RoomManager {
     room.appealRate.delete(playerId);
     room.pickRate.delete(playerId);
     room.moreLessRate.delete(playerId);
+    room.truthRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {

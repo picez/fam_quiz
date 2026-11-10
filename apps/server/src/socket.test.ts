@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -669,6 +669,37 @@ describe('host presence', () => {
     const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless?.done === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.moreless?.picks).toEqual(['a']);
+  });
+
+  it('player:truth saves the fact and answers ok only', async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]))).game;
+    const { host, stage, olena, taras, olenaJoin } = await lobby(created);
+    for (const who of [host, stage]) expect(await send(who, 'player:truth', { text: 'Я стрибала з парашутом' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ text: 5 }, {}, undefined]) expect(await send(olena, 'player:truth', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:truth', { text: 'я'.repeat(201) })).toEqual({ ok: false, error: 'truth_text' });
+    // ack — лише ok: ні тексту, ні id
+    expect(await send(olena, 'player:truth', { text: 'Я стрибала з парашутом' })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.truth?.fact === 'Я стрибала з парашутом');
+    if (mine.role !== 'player') throw new Error('not a player');
+    const panel = await until(host, (view) => view.role === 'host' && (view.truth?.facts.length ?? 0) === 1);
+    if (panel.role !== 'host') throw new Error('not a host');
+    expect(panel.truth?.facts).toMatchObject([{ id: olenaJoin.playerId, text: 'Я стрибала з парашутом', hidden: false }]);
+    // сусід і сцена бачать лише число
+    const other = await until(taras, (view) => view.truth?.count === 1);
+    const scene = await until(stage, (view) => view.truth?.count === 1);
+    for (const view of [other, scene]) expect(JSON.stringify(view)).not.toContain('парашутом');
+  });
+
+  it('host:truth-hide hides a fact', async () => {
+    const created = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]))).game;
+    const { host, olena, olenaJoin } = await lobby(created);
+    expect(await send(olena, 'player:truth', { text: 'Я знаю шість мов' })).toEqual({ ok: true });
+    for (const payload of [{ playerId: olenaJoin.playerId }, { hidden: true }, undefined]) expect(await send(host, 'host:truth-hide', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'host:truth-hide', { playerId: olenaJoin.playerId, hidden: true })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:truth-hide', { playerId: 'nobody', hidden: true })).toEqual({ ok: false, error: 'not_found' });
+    expect(await send(host, 'host:truth-hide', { playerId: olenaJoin.playerId, hidden: true })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.truth?.hidden === true);
+    expect(mine.truth?.count).toBe(0);
   });
 
   it('player:sort is player-only and validated', async () => {
@@ -2067,6 +2098,17 @@ describe('autopilot sockets (11g)', () => {
     expect(await send(taras, 'host:kick', { playerId: other.playerId })).toEqual({ ok: false, error: 'not_allowed' });
     expect(await send(author, 'host:start')).toEqual({ ok: true });
     await until(taras, (view) => view.phase !== 'lobby');
+  });
+
+  it('host:truth-hide: the autopilot author cannot hide a fact, and writes one like anybody', async () => {
+    const { author, taras, other } = await autopilotRoom(makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]));
+    expect(await send(taras, 'player:truth', { text: 'Я бачив північне сяйво' })).toEqual({ ok: true });
+    expect(await send(author, 'host:truth-hide', { playerId: other.playerId, hidden: true })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(taras, 'host:truth-hide', { playerId: other.playerId, hidden: true })).toEqual({ ok: false, error: 'not_allowed' });
+    expect(await send(author, 'player:truth', { text: 'Я пекла хліб у печі' })).toEqual({ ok: true });
+    const view = await until(author, (v) => v.truth?.count === 2);
+    // автор кімнати теж вгадує: чужого факту не бачить
+    expect(JSON.stringify(view)).not.toContain('сяйво');
   });
 
   it('lets the author kick another player but not themselves', async () => {

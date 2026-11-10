@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
 import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -395,6 +395,57 @@ describe('a server restart', () => {
     expect(await send(host, 'host:resume')).toEqual({ ok: true });
     expect(await send(olena, 'player:moreless', { index: 2, pick: 'a' })).toEqual({ ok: true });
     expect(second.ctx.manager.get(started.code)!.state.plays[0].answers[olenaJoin.playerId]).toMatchObject({ grade: 'partial', points: 300 });
+  }, 30_000);
+
+  it('a restored room keeps the facts and the deck', async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+    expect(await send(olena, 'player:truth', { text: 'Я стрибала з парашутом' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:truth', { text: 'Я знаю шість мов' })).toEqual({ ok: true });
+    expect(await send(host, 'host:truth-hide', { playerId: tarasJoin.playerId, hidden: true })).toEqual({ ok: true });
+    const lobbyFacts = first.ctx.manager.get(started.code)!.state.truth;
+    expect(lobbyFacts?.facts[tarasJoin.playerId]?.hidden).toBe(true);
+
+    // збережено в лобі: ті самі факти й «сховано»
+    await first.ctx.shutdown();
+    host.last = olena.last = taras.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'lobby' && view.players.filter((p) => p.connected).length === 2);
+    expect(second.ctx.manager.get(started.code)!.state.truth).toEqual(lobbyFacts);
+    expect(await send(host, 'host:truth-hide', { playerId: tarasJoin.playerId, hidden: false })).toEqual({ ok: true });
+
+    // збережено на запитанні: колода, play.truth і записи ті самі
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    const room = second.ctx.manager.get(started.code)!;
+    const play = room.state.plays[0];
+    const olenaWrote = play.truth?.authorId === olenaJoin.playerId;
+    const guesser = olenaWrote ? taras : olena;
+    const guesserId = olenaWrote ? tarasJoin.playerId : olenaJoin.playerId;
+    // вгадувач вибирає себе — помилка
+    expect(await send(guesser, 'player:answer', { type: 'single', optionId: guesserId })).toEqual({ ok: true });
+    const before = { deck: room.state.truth?.deck, plays: room.state.plays };
+    expect(before.deck).toHaveLength(2);
+    // одного вгадувача на двох — після відповіді запитання закрито; частка автора — повна ціна
+    const share = (s: typeof room.state) => s.plays[0].answers[play.truth!.actorId]?.points;
+    expect(share(room.state)).toBe(300);
+    await second.ctx.shutdown();
+    host.last = olena.last = taras.last = null;
+    const third = await boot(db, 'c', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase !== 'lobby');
+    const restored = third.ctx.manager.get(started.code)!.state;
+    expect(restored.truth?.deck).toEqual(before.deck);
+    expect(restored.plays[0].truth).toEqual(before.plays[0].truth);
+    expect(restored.plays[0].answers).toEqual(before.plays[0].answers);
+    expect(share(restored)).toBe(300);
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

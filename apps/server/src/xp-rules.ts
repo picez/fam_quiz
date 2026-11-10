@@ -1,5 +1,6 @@
 import { LEVEL_XP } from '@quiz/shared';
 import type { AchievementGame } from './achievement-games';
+import { PENALTY_ATTEMPT } from './db/schema';
 
 export type XpReason = 'few_questions' | 'few_accounts' | 'author' | 'repeat_quiz' | 'cap';
 
@@ -18,7 +19,8 @@ export function gameXp(game: AchievementGame, ownerId: string | null, seen: (use
   const correct = (participantId: string, byPerson: string | null): number => {
     const done = new Set<number>();
     for (const row of game.rows) {
-      if (row.participantId !== participantId || !row.accepted) continue;
+      // Рядок штрафу (частка автора «Правди про гравця», 28b) — не відповідь.
+      if (row.participantId !== participantId || !row.accepted || row.attempt === PENALTY_ATTEMPT) continue;
       if (byPerson !== null && row.answeredBy !== null && row.answeredBy !== byPerson) continue;
       done.add(row.questionIndex);
     }

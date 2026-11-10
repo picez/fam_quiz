@@ -19,7 +19,9 @@ export function personOf(state: GameState, id: string): { id: string; nickname: 
 /** Запитання, яке бачить людина на поточному розкритті: запасне після «Заміни» (9d), у команді — запитання її команди. */
 export function likedQuestionId(state: GameState, personId: string): string | undefined {
   const play = state.plays[state.questionIndex];
-  return play === undefined ? undefined : questionFor(state, play, teamOf(state, personId) ?? personId).id;
+  // Запитання «Правди про гравця» (28b) — чийсь факт, а не запитання автора вікторини: серця немає.
+  if (play === undefined || play.truth !== undefined) return undefined;
+  return questionFor(state, play, teamOf(state, personId) ?? personId).id;
 }
 
 /** Люди стану з акаунтом, крім акаунта me, по одному на акаунт (перше місце в порядку стану). */

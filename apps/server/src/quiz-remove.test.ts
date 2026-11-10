@@ -17,6 +17,7 @@ import {
   survivalTrials,
   surveyCloud,
   text,
+  truthRound,
   withId,
 } from '@quiz/engine/testing';
 import { removalEffect, removalEffects, removeQuestion } from './quiz-remove';
@@ -203,5 +204,17 @@ describe('removalEffect: locked when the rest fails the schema', () => {
     expect(quizSchema.safeParse(quiz).success).toBe(true);
     expect(removalEffect(quiz, cloud.id)).toBe('locked');
     expect(removalEffect(quiz, surveyCloud.id)).toBe('question');
+  });
+});
+
+describe('player truth round (28b)', () => {
+  it('has no questions to remove; removing from another round keeps it', () => {
+    const quiz = makeRoundsQuiz([truthRound('t1'), classicRound('r1', [withId(single, 'q1'), withId(single, 'q2')])]);
+    const result = remove(quiz, 'q1');
+    expect(result).toMatchObject({ ok: true, effect: 'question' });
+    if (result.ok) expect(result.quiz.rounds.map((r) => r.type)).toEqual(['truth', 'classic']);
+    expect(remove(quiz, 'truth-0')).toEqual({ ok: false, error: 'not_found' });
+    // останнє запитання вікторини лишається: сам раунд truth запитань не має
+    expect(remove(makeRoundsQuiz([truthRound('t1'), classicRound('r1', [withId(single, 'q1')])]), 'q1')).toEqual({ ok: false, error: 'last_question' });
   });
 });

@@ -4,8 +4,8 @@ export type RemoveResult =
   | { ok: true; quiz: Quiz; effect: 'question' | 'category' | 'round' }
   | { ok: false; error: 'not_found' | 'last_question' };
 
-/** Найменше запитань раунду за схемою; менше — раунд іде цілком. */
-const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board'>, number> = {
+/** Найменше запитань раунду за схемою; менше — раунд іде цілком. «Правда про гравця» (28b) запитань у вікторині не має. */
+const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board' | 'truth'>, number> = {
   classic: 1,
   blitz: 1,
   final: 1,
@@ -46,6 +46,8 @@ function removeFromRound(round: Round, id: string): RoundChange | null {
   if (round.type === 'survival' && round.trials.some((q) => q.id === id)) {
     return { round: { ...round, trials: without(round.trials, id) }, effect: 'question' };
   }
+  // Запитання «Правди про гравця» (28b) гра робить із фактів: у вікторині їх немає.
+  if (round.type === 'truth') return null;
   const index = round.questions.findIndex((q) => q.id === id);
   if (index === -1) return null;
   const questions = without(round.questions, id);
