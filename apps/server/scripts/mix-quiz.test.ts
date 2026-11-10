@@ -137,7 +137,13 @@ describe('the «Сім доріг» mixed quiz', () => {
     const others = readdirSync(dir)
       .filter((f) => f.endsWith('-quiz.ts') && f !== 'mix-quiz.ts')
       .map((f) => readFileSync(join(dir, f), 'utf8'))
-      .concat(readdirSync(join(dir, 'evening')).map((f) => readFileSync(join(dir, 'evening', f), 'utf8')))
+      .concat(
+        ['evening', 'classroom', 'logic', 'movies90'].flatMap((sub) =>
+          readdirSync(join(dir, sub))
+            .filter((f) => f.endsWith('.ts'))
+            .map((f) => readFileSync(join(dir, sub, f), 'utf8')),
+        ),
+      )
       .join('\n');
     const duels = (quiz.duels?.categories ?? []).flatMap((c) => c.questions.map((d) => d.text));
     expect([...everything.map((q) => q.text), ...duels].filter((text) => others.includes(text))).toEqual([]);
