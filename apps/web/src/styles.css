@@ -18812,3 +18812,333 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
   padding-inline-start: 1.5rem;
 }
+
+/* Головоломки: телефон (28d). Сітки тягнуться за шириною екрана: судоку на 320 px — клітинка ≈ 48 px, кросворд з 12 стовпців —
+   ≈ 24 px; прокрутки вбік немає. Вимкнена сітка (пауза, кінець часу, «Готово») тьмяна й не відповідає на дотик. */
+.puzzle-play {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.puzzle-play.is-off .sudoku-grid,
+.puzzle-play.is-off .crossword-grid,
+.puzzle-play.is-off .puzzle-keypad,
+.puzzle-play.is-off .crossword-key,
+.puzzle-play.is-off .puzzle-tools {
+  opacity: 0.55;
+}
+
+.puzzle-play.is-off button {
+  cursor: default;
+}
+
+.puzzle-count {
+  margin: 0;
+}
+
+.sudoku-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  width: min(100%, 24rem);
+  margin-inline: auto;
+  border: 2px solid var(--paper);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+  touch-action: manipulation;
+}
+
+.sudoku-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-inline-end: 1px solid var(--line);
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--by, var(--amber));
+  font: inherit;
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.sudoku-cell:nth-child(6n) {
+  border-inline-end: 0;
+}
+
+.sudoku-cell.is-box-end {
+  border-inline-end: 2px solid var(--paper);
+}
+
+.sudoku-cell.is-box-bottom {
+  border-block-end: 2px solid var(--paper);
+}
+
+.sudoku-cell.is-given {
+  background: var(--track);
+  color: var(--paper);
+  font-weight: 800;
+}
+
+.sudoku-cell.is-peer {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.sudoku-cell.is-given.is-peer {
+  background: color-mix(in srgb, var(--accent) 12%, var(--track));
+}
+
+.sudoku-cell.is-selected,
+.crossword-play-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 38%, var(--surface));
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+.sudoku-cell:focus-visible,
+.crossword-play-cell:focus-visible,
+.crossword-key-cell:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: -2px;
+}
+
+.sudoku-cell.is-wrong,
+.crossword-play-cell.is-wrong {
+  background: color-mix(in srgb, var(--wrong) 30%, var(--surface));
+  color: var(--wrong);
+}
+
+.puzzle-keypad {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.375rem;
+  width: min(100%, 24rem);
+  margin-inline: auto;
+}
+
+.puzzle-key {
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0;
+  font-size: 1.25rem;
+}
+
+.puzzle-key.puzzle-erase {
+  grid-column: 1 / -1;
+  font-size: 1rem;
+}
+
+.puzzle-play [aria-disabled='true'].btn {
+  opacity: 0.4;
+}
+
+.puzzle-tools {
+  display: flex;
+  justify-content: center;
+}
+
+/* Кросворд: --cols — ширина сітки; клітинка — частка ширини, на великих екранах не більша за 2.75rem. */
+.crossword-active {
+  margin: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--amber);
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.crossword-board {
+  position: relative;
+  min-width: 0;
+}
+
+.crossword-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 1px;
+  width: min(100%, calc(var(--cols) * 2.75rem));
+  margin-inline: auto;
+  touch-action: manipulation;
+}
+
+.crossword-play-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--dim);
+  background: var(--surface);
+  color: var(--by, var(--paper));
+  font: inherit;
+  font-size: clamp(0.8rem, 4.5vw, 1.25rem);
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.crossword-play-cell.is-block {
+  border-color: transparent;
+  background: transparent;
+}
+
+.crossword-play-cell.is-word {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+
+.crossword-play-cell.is-key {
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 5px var(--amber);
+}
+
+.crossword-play-cell .crossword-number,
+.crossword-play-cell .crossword-key-n {
+  font-size: clamp(0.45rem, 2vw, 0.6rem);
+}
+
+/* Поле системної клавіатури: невидиме, але в DOM і під сіткою (фокус не стрибає, сторінка не прокручується). 16 px — iOS не збільшує. */
+.crossword-input {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  font-size: 1rem;
+  caret-color: transparent;
+  pointer-events: none;
+}
+
+.crossword-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.crossword-key-cell {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 2px solid var(--amber);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.crossword-key-cell.is-selected {
+  background: color-mix(in srgb, var(--accent) 38%, var(--surface));
+}
+
+.crossword-clues > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.crossword-clues ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crossword-clue {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  text-align: start;
+}
+
+/* Хто з команди вписав клітинку: колір учасника (маска '1'…'9'). */
+.by-1 { --by: #5ec8ff; }
+.by-2 { --by: #ffcf5c; }
+.by-3 { --by: #b8ff5c; }
+.by-4 { --by: #ff7eb6; }
+.by-5 { --by: #9b8cff; }
+.by-6 { --by: #3ddcc0; }
+.by-7 { --by: #ff9f5c; }
+.by-8 { --by: #e0e0e0; }
+.by-9 { --by: #c8a2ff; }
+
+.puzzle-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.puzzle-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.puzzle-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--by);
+}
+
+.puzzle-status {
+  margin: 0;
+  min-height: 1.5em;
+  text-align: center;
+}
+
+.puzzle-done-box {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.puzzle-done {
+  width: 100%;
+}
+
+.puzzle-confirm {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 2px solid var(--amber);
+  border-radius: var(--radius);
+}
+
+.puzzle-confirm > p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.puzzle-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.puzzle-reveal {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.puzzle-reveal-part {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+}
+/* Головоломки: кінець телефона */
