@@ -53,6 +53,7 @@ import {
   likeSchema,
   perkSchema,
   wordLadderWordSchema,
+  timedListWordSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -350,6 +351,12 @@ export function attachSockets(
     on('player:wordladder-back', () => {
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       return manager.wordLadderBack(room, identity.playerId);
+    });
+
+    on('player:list', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = timedListWordSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.timedList(room, identity.playerId, payload.data.word, payload.data.enter) : INVALID;
     });
 
     on('player:sort', (args) => {

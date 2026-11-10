@@ -44,6 +44,8 @@ export type BuffBlock =
   | 'off_vote'
   /** «Словесна драбина»: бафів немає (26c). */
   | 'off_wordladder'
+  /** «Список на час»: бафів немає (27c). */
+  | 'off_timedlist'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -126,6 +128,8 @@ export type ErrorCode =
   | 'no_players'
   /** «Мільйонер»: ведучий ще не вибрав учасника (10i). */
   | 'ladder_pick'
+  /** «Список на час»: слово не зі списку (мінус) / уже знайдений пункт (27c). */
+  | 'list_miss' | 'list_repeat'
   /** «Ставки»: гравець пропускає це запитання (27a). */
   | 'bet_skipped'
   /** «Аукціон»: у гравця немає балів для ставки / лідер не перебиває сам себе / ставка замала / більша за бали (27b). */

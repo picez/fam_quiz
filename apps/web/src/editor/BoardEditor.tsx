@@ -231,6 +231,8 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           <p className="meta">{t('wallCellNote')}</p>
         ) : current.question.type === 'survey' ? (
           <p className="meta">{t('surveyCellNote')}</p>
+        ) : current.question.type === 'timedlist' ? (
+          <p className="meta">{t('timedlistCellNote')}</p>
         ) : (
           <>
             {current.question.type === 'clues' ? (
@@ -282,7 +284,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           cluesByHost={cellAnswerMode(round, current) === 'voice'}
           onChange={(question) =>
             setCell(
-              question.type === 'sort' || question.type === 'pin' || question.type === 'wall'
+              question.type === 'sort' || question.type === 'pin' || question.type === 'wall' || question.type === 'timedlist'
                 ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' }
                 : question.type === 'survey'
                   ? { question: withoutCloud(question), kind: 'normal', answerMode: 'phone', penalty: 'none' }

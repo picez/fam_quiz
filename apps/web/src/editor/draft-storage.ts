@@ -94,6 +94,27 @@ function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
 }
 
 /**
+ * Список на час з чернетки: пункти — об'єкти з назвою й написаннями-рядками (інакше три порожні), ціна й час — числа, мінус — число або null; відео немає.
+ */
+function reviveTimedList(base: Extract<Question, { type: 'timedlist' }>): Question {
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  const raw = Array.isArray(base.items) ? (base.items as unknown[]).filter(isRecord) : [];
+  const items = raw.map((item) => ({
+    id: typeof item.id === 'string' ? item.id : newId(),
+    text: text(item.text),
+    accepted: Array.isArray(item.accepted) ? (item.accepted as unknown[]).map(text) : [],
+  }));
+  const blank = () => ({ id: newId(), text: '', accepted: [] as string[] });
+  const minus: unknown = base.minus;
+  return {
+    ...base,
+    video: null,
+    items: items.length === 0 ? Array.from({ length: LIMITS.minListItems }, blank) : items,
+    minus: typeof minus === 'number' ? minus : null,
+  };
+}
+
+/**
  * Блеф з чернетки: правда й написання — рядки (інакше одне порожнє), запасні вигадки — рядки (інакше дві порожні);
  * час вибору — число, порожнє поле (null у JSON) — NaN, будь-що інше — типові 30. Відео блеф не має.
  */
@@ -174,6 +195,7 @@ function revive(stored: Question): Question {
   if (base.type === 'wall') return reviveWall(base);
   if (base.type === 'survey') return reviveSurvey(base);
   if (base.type === 'bluff') return reviveBluff(base);
+  if (base.type === 'timedlist') return reviveTimedList(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

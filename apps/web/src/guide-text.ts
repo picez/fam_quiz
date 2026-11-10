@@ -55,6 +55,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   wordcloud: '☁',
   survey: '💯',
   bluff: '🎭',
+  timedlist: '📝',
 };
 
 /** Значок типу запитання мовою інтерфейсу. */

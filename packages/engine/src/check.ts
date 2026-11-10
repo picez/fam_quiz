@@ -48,6 +48,25 @@ export function textAccepts(accepted: string[], value: string): boolean {
   });
 }
 
+/**
+ * Найменша кількість описок до одного з написань у межах допуску (як у textAccepts), але не більше cap; точний збіг — 0.
+ * null — слово не впізнано (порожнє, з цифрами, інша перша літера чи задалеко).
+ */
+export function typoGap(accepted: string[], value: string, cap: number): number | null {
+  if (textMatches(accepted, value)) return 0;
+  const typed = normalizeText(value);
+  if (typed === '' || /\d/u.test(typed)) return null;
+  let best: number | null = null;
+  for (const spelling of accepted) {
+    const key = normalizeText(spelling);
+    const budget = Math.min(cap, typoBudget(key));
+    if (budget <= 0 || /\d/u.test(key) || key[0] !== typed[0] || Math.abs([...key].length - [...typed].length) > budget) continue;
+    const distance = typoDistance(key, typed);
+    if (distance <= budget && (best === null || distance < best)) best = distance;
+  }
+  return best;
+}
+
 /** Скільки одруківок прощається: до 4 літер — жодної, 5–8 — одна, від 9 — дві. */
 function typoBudget(key: string): number {
   const length = [...key].length;

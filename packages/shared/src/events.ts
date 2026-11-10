@@ -19,7 +19,8 @@ export type Role = 'host' | 'stage' | 'player';
 
 export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found' | 'restarting';
 
-export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode };
+/** index — лише з list_repeat (27c): номер уже знайденого пункту (від 1). */
+export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode; index?: number };
 export type Ack = (result: AckResult) => void;
 
 /** saved — гру збережено (13b); released — ведучий звільнив місце збереженої гри (13b). */
@@ -59,6 +60,10 @@ export const orderSchema = z.object({ playerIds: z.array(playerId).max(LIMITS.ma
 export const guessSchema = z.object({ word: z.string().max(LIMITS.chainWord).refine(isStorable, UNSTORABLE) });
 /** Хід «Словесної драбини» (26c): слово, як його ввели; ключ і перевірки — у рушії. */
 export const wordLadderWordSchema = z.object({ word: z.string().max(LIMITS.wordLadderWord).refine(isStorable, UNSTORABLE) });
+/** Слово «Списку на час» (27c): enter — підтверджено Enter, лише такий промах вважається словом не зі списку. */
+/** «Список на час» (27c): скільки слів на секунду приймає сервер від людини — живому набору (перевірка після паузи 400 мс і Enter) досить, перебору словника — ні. */
+export const LIST_WORDS_PER_SECOND = 6;
+export const timedListWordSchema = z.object({ word: z.string().max(LIMITS.listWord).refine(isStorable, UNSTORABLE), enter: z.boolean() });
 /** Перевірка шляху редактора словником (26c): POST /api/wordladder/check. */
 export const wordLadderCheckSchema = z.object({
   words: z.array(z.string().max(LIMITS.wordLadderWord).refine(isStorable, UNSTORABLE)).min(1).max(LIMITS.maxWordLadderSteps + 1),
@@ -179,6 +184,7 @@ export interface ClientToServerEvents {
   /** «Словесна драбина» (26c): наступне слово й «Крок назад». */
   'player:wordladder': (payload: z.infer<typeof wordLadderWordSchema>, ack: Ack) => void;
   'player:wordladder-back': (ack: Ack) => void;
+  'player:list': (payload: z.infer<typeof timedListWordSchema>, ack: Ack) => void;
   /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
   'player:clue': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;

@@ -26,6 +26,7 @@ export * from './final';
 export * from './bets';
 export * from './auction';
 export * from './chain';
+export * from './timedlist';
 export * from './wordladder';
 export * from './sort';
 export * from './wall';

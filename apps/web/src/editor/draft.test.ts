@@ -47,6 +47,8 @@ function filled(question: Question): Question {
       return { ...question, text, accepted: ['Правда'], lies: ['Вигадка 1', 'Вигадка 2'] };
     case 'survey':
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
+    case 'timedlist':
+      return { ...question, text, items: question.items.map((item, i) => ({ ...item, text: `Пункт ${i + 1}` })) };
     case 'sort':
       return {
         ...question,
@@ -372,7 +374,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2489,5 +2491,120 @@ describe('auction round (27b)', () => {
   it('an auction question may be a word ladder', () => {
     const round = { ...newAuctionRound(), questions: [{ ...filled(newQuestion('wordladder')), betsCut: 1 }] };
     expect(problemsOf(quizWith(round))).toEqual([]);
+  });
+});
+
+describe('timed list in the editor (27c)', () => {
+  type List = Extract<Question, { type: 'timedlist' }>;
+  const planets = ['Меркурій', 'Венера', 'Земля', 'Марс', 'Юпітер', 'Сатурн', 'Уран', 'Нептун'];
+  const listQ = (texts: string[] = planets): List => {
+    const blank = newQuestion('timedlist') as List;
+    return { ...blank, text: 'Назвіть планети', items: texts.map((text, i) => ({ id: `l${i + 1}`, text, accepted: [] })) };
+  };
+  const ofBlitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+  const onCell = (question: Question, cell: Partial<BoardRound['categories'][number]['cells'][number]>): Quiz => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i + 1}`,
+      cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })),
+    }));
+    const [first, ...rest] = categories;
+    const [head, ...cells] = first.cells;
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, ...cell, question }, ...cells] }, ...rest] }] };
+  };
+
+  it('a new timed list is 90 seconds, 100 a point, no minus and three blank items, without video', () => {
+    expect(newQuestion('timedlist')).toMatchObject({ type: 'timedlist', video: null, timeLimit: LIMITS.defaultListTime, points: LIMITS.defaultListPoints, minus: null });
+    const blank = newQuestion('timedlist') as List;
+    expect(blank.items).toHaveLength(3);
+    expect(blank.items.every((item) => item.text === '' && item.accepted.length === 0)).toBe(true);
+    expect(new Set(blank.items.map((item) => item.id)).size).toBe(3);
+  });
+
+  it('questionTypesFor: the list is in classic and on the board only', () => {
+    for (const round of ['blitz', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('timedlist');
+    for (const round of ['classic', 'board'] as const) expect(questionTypesFor(round), round).toContain('timedlist');
+  });
+
+  it('cleaning trims names and spellings and drops blank items and blank spellings', () => {
+    const dirty: List = {
+      ...listQ(['  Меркурій ', 'Венера', '', 'Земля', '  ']),
+      items: [
+        { id: 'a', text: '  Меркурій ', accepted: ['  Mercury ', ''] },
+        { id: 'b', text: 'Венера', accepted: [] },
+        { id: 'c', text: '', accepted: [] },
+        { id: 'd', text: 'Земля', accepted: [' ', ''] },
+        { id: 'e', text: '  ', accepted: [] },
+      ],
+    };
+    const clean = cleaned(quizWith(dirty)).rounds[0] as ClassicRound;
+    const [question] = clean.questions as List[];
+    expect(question.items).toEqual([
+      { id: 'a', text: 'Меркурій', accepted: ['Mercury'] },
+      { id: 'b', text: 'Венера', accepted: [] },
+      { id: 'd', text: 'Земля', accepted: [] },
+    ]);
+  });
+
+  it('a filled list has no problems and passes the schema', () => {
+    const quiz = quizWith(listQ());
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+  });
+
+  it('too few items after cleaning', () => {
+    expect(problemsOf(quizWith(listQ(['Марс', 'Венера', ''])))).toEqual([t('problemListItems', { index: 1, min: LIMITS.minListItems, max: LIMITS.maxListItems })]);
+  });
+
+  it('an item with spellings but no name is named by its number', () => {
+    const question = listQ();
+    const items = question.items.map((item, i) => (i === 1 ? { ...item, text: '', accepted: ['Venus'] } : item));
+    expect(problemsOf(quizWith({ ...question, items }))).toEqual([t('problemListEmpty', { index: 1, item: 2 })]);
+  });
+
+  it('a spelling that leads to two items is named as written where it repeats, compared without case', () => {
+    const question = listQ();
+    const items = question.items.map((item, i) => (i === 1 ? { ...item, accepted: ['марс'] } : item));
+    expect(problemsOf(quizWith({ ...question, items }))).toEqual([t('problemListDuplicate', { index: 1, text: 'Марс' })]);
+    // Повтор усередині одного пункту не заважає.
+    const same = question.items.map((item, i) => (i === 3 ? { ...item, accepted: ['марс'] } : item));
+    expect(problemsOf(quizWith({ ...question, items: same }))).toEqual([]);
+  });
+
+  it('the price times the number of items has a ceiling', () => {
+    expect(problemsOf(quizWith({ ...listQ(), points: 300 }))).toEqual([t('problemListPoints', { index: 1, max: LIMITS.maxPoints })]);
+    expect(problemsOf(quizWith({ ...listQ(), points: 250 }))).toEqual([]);
+  });
+
+  it('a wrong minus has its own problem', () => {
+    for (const minus of [0, -5, 2001, Number.NaN, 1.5]) {
+      expect(problemsOf(quizWith({ ...listQ(), minus })), String(minus)).toEqual([t('problemListMinus', { index: 1, max: LIMITS.maxPoints })]);
+    }
+    expect(problemsOf(quizWith({ ...listQ(), minus: 50 }))).toEqual([]);
+  });
+
+  it('a list is only for classic and a normal phone cell', () => {
+    const question = listQ();
+    const place = t('problemListPlace', { index: 1 });
+    expect(problemsOf(ofBlitz(question))).toEqual([place]);
+    expect(problemsOf({ ...quizWith(question), rounds: [{ ...newFinalRound(), questions: [question] }] })).toEqual([place]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'phone' }))).toEqual([]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'voice' }))).toEqual([t('problemCell', { category: 1, problem: place.charAt(0).toLowerCase() + place.slice(1) })]);
+    expect(problemsOf(onCell(question, { kind: 'blitz', answerMode: 'phone' }))).toHaveLength(1);
+  });
+
+  it('a question changed to a list loses its video, and the copy has new item ids', () => {
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question;
+    expect(changeType(withVideo, 'timedlist').video).toBeNull();
+    const copy = duplicateQuestion(listQ()) as List;
+    expect(copy.items.some((item) => /^l\d$/.test(item.id))).toBe(false);
+    expect(copy.items.map((item) => item.text)).toEqual(planets);
+  });
+
+  it('a draft with a timed list survives storage', () => {
+    const question: List = { ...listQ(), minus: 50, items: listQ().items.map((item, i) => (i === 0 ? { ...item, accepted: ['Mercury'] } : item)) };
+    saveDraft('timed-list', quizWith(question));
+    expect(roundQuestions(loadDraft('timed-list')!.rounds[0])[0]).toEqual(question);
   });
 });

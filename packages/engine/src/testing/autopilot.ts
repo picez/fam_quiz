@@ -17,6 +17,7 @@ import { sortOf, sortWord } from '../sort';
 import { notStarted } from '../splash';
 import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestionOf } from '../survival';
 import { pickTeam, rollTeamDie } from '../teams';
+import { listEntry, timedListOf } from '../timedlist';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
@@ -185,6 +186,12 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       let s = state;
       for (const word of question.path.slice(1 + wordLadderOf(s, playerId).words.length)) s = act(s, ladderWord(s, playerId, word, now, () => false), what);
       return s;
+    }
+    case 'timedlist': {
+      // Бот вводить перший пункт і чекає кінця часу.
+      if (timedListOf(state, playerId).found.length > 0) return state;
+      const result = listEntry(state, playerId, question.items[0].text, true, now);
+      return act(state, result.ok ? { ok: true, state: result.state } : result, what);
     }
     case 'sort': {
       let s = state;

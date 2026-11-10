@@ -17055,3 +17055,276 @@ button.wall-tile:disabled {
 .auction-host-text {
   margin: 0 0 0.5rem;
 }
+
+/* Список на час: редактор (27c). */
+.timedlist-editor-item {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.timedlist-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* Поле назви пункту — як поля редактора (без цього — системне світле поле дрібним шрифтом). */
+.timedlist-editor-head > input {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+}
+
+.timedlist-editor-head > input:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.timedlist-editor-head > input::placeholder {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+/* Список на час: телефон, сцена й пульт (27c). */
+.timedlist-play {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.timedlist-count {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timedlist-counter {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+
+.timedlist-minus-flash {
+  margin-inline-start: 0.5rem;
+  color: var(--signal);
+}
+
+.timedlist-wrong {
+  color: var(--wrong);
+}
+
+.timedlist-form {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timedlist-status {
+  margin: 0;
+  min-block-size: 1.5em;
+  color: var(--dim);
+}
+
+/* Дві колонки й на 320 px: 2 × 8.5rem + проміжок уміщаються без горизонтальної прокрутки. */
+.timedlist-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timedlist-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-block-size: 2.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-small);
+}
+
+.timedlist-cell.is-found {
+  border: 1px solid var(--correct);
+  background: var(--sort-landed);
+}
+
+.timedlist-n {
+  flex: none;
+  min-inline-size: 1.5em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.timedlist-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@keyframes timedlist-pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes timedlist-again {
+  0%,
+  100% {
+    background: var(--sort-landed);
+  }
+  50% {
+    background: var(--spot);
+  }
+}
+
+@keyframes timedlist-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-0.375rem);
+  }
+  75% {
+    transform: translateX(0.375rem);
+  }
+}
+
+.timedlist-cell.is-fresh {
+  animation: timedlist-pop 250ms ease-out;
+}
+
+.timedlist-cell.is-again {
+  outline: 2px solid var(--amber);
+  animation: timedlist-again 600ms ease-in-out;
+}
+
+.timedlist-form input.is-shake {
+  animation: timedlist-shake 300ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timedlist-cell.is-fresh,
+  .timedlist-cell.is-again,
+  .timedlist-form input.is-shake {
+    animation: none;
+  }
+}
+
+.timedlist-reveal {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Рядок пункту: номер, назва й бали поруч в одному рядку, знахідники — завжди окремим рядком під назвою (однаковий перенос для всіх). */
+.timedlist-reveal > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "n text score"
+    ". finders finders";
+  align-items: baseline;
+  gap: 0.125rem 0.5rem;
+  min-width: 0;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-small);
+}
+
+.timedlist-reveal > li > .timedlist-n {
+  grid-area: n;
+}
+
+.timedlist-reveal > li > .timedlist-text {
+  grid-area: text;
+}
+
+.timedlist-reveal > li > .score {
+  grid-area: score;
+}
+
+.timedlist-reveal > li > .timedlist-finders {
+  grid-area: finders;
+}
+
+.timedlist-reveal > li.is-mine {
+  background: var(--sort-landed);
+}
+
+.timedlist-finders {
+  min-width: 0;
+}
+
+/*
+ * Сцена: спільні колонки для всіх рядків (subgrid) — номер, назва (за найдовшою), бали одразу за назвами, знахідники в решті ширини.
+ * Бали стоять поруч з назвами, а «Знайшли: …» починається й переноситься однаково в кожному рядку.
+ */
+.stage .timedlist-reveal {
+  grid-template-columns: auto auto auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+}
+
+.stage .timedlist-reveal > li {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  grid-template-areas: "n text score finders";
+}
+
+.stage .timedlist-reveal > li > .score {
+  text-align: end;
+}
+
+/* Сцена 1600×900: від 11 пунктів — дві колонки, кожна з тими самими чотирма спільними колонками. */
+.stage-question .timedlist-reveal.is-wide {
+  grid-template-columns: repeat(2, auto auto auto minmax(0, 1fr));
+}
+
+.stage-question .timedlist-reveal.is-wide > li {
+  grid-column: span 4;
+}
+
+.timedlist-note {
+  margin: 0;
+}
+
+/* Сцена: назва пункту — головна, знахідники дрібніші; рядки щільні, тож 30 пунктів (15 рядків у дві колонки) з табло вміщаються в 1600 × 900. */
+.stage .timedlist-reveal {
+  gap: 0;
+}
+
+.stage .timedlist-reveal > li {
+  padding: 0.125rem 0.5rem;
+  font-size: clamp(1rem, 1.25vw, 1.5rem);
+  line-height: 1.2;
+}
+
+.stage .timedlist-reveal .timedlist-text {
+  font-weight: 700;
+}
+
+.stage .timedlist-reveal .timedlist-finders {
+  font-size: 0.8em;
+}
+
+.stage .timedlist-board li {
+  padding-block: 0.375rem;
+}

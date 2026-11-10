@@ -90,7 +90,15 @@ export interface WordLadderAnswer {
   finished: boolean;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer;
+/** Підсумок списку гравця (команди); складає рушій, з телефона не приходить. found — id пунктів у порядку знахідок. */
+export interface TimedListAnswer {
+  type: 'timedlist';
+  found: string[];
+  total: number;
+  wrong: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

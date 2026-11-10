@@ -166,6 +166,14 @@ export const LIMITS = {
   defaultBetStep: 100,
   /** «Аукціон» (27b): типовий крок ставки. */
   defaultBidStep: 50,
+  /** «Список на час» (27c): пунктів у списку, символів у назві пункту й написанні, символів у полі вводу, типові час (с), ціна пункту й мінус. */
+  minListItems: 3,
+  maxListItems: 30,
+  listItemText: 60,
+  listWord: 60,
+  defaultListTime: 90,
+  defaultListPoints: 100,
+  defaultListMinus: 50,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -271,7 +279,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'bluff'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
@@ -461,6 +469,25 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('timedlist'),
+      /** Схований список; номер клітинки — позиція пункту. points — ціна одного пункту. */
+      items: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            /** Назва на табло; вона ж перше написання. */
+            text: z.string().trim().min(1).max(LIMITS.listItemText).refine(isStorable, UNSTORABLE),
+            /** Інші написання (без text). */
+            accepted: z.array(z.string().trim().min(1).max(LIMITS.listItemText).refine(isStorable, UNSTORABLE)).max(LIMITS.maxAccepted - 1),
+          }),
+        )
+        .min(LIMITS.minListItems)
+        .max(LIMITS.maxListItems),
+      /** Мінус за слово не зі списку; null — без мінуса. */
+      minus: z.number().int().min(1).max(LIMITS.maxPoints).nullable(),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -487,7 +514,9 @@ export const questionSchema = z
                 ? [...q.groups.map((g) => g.id), ...q.groups.flatMap((g) => g.tiles.map((t) => t.id))]
                 : q.type === 'survey'
                   ? q.rows.map((r) => r.id)
-                  : [];
+                  : q.type === 'timedlist'
+                    ? q.items.map((i) => i.id)
+                    : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'wordladder') {
@@ -544,6 +573,14 @@ export const questionSchema = z
       // Ключ той самий, що й у перевірці відповіді рушієм: одне написання не веде у два рядки; повтор у межах рядка не заважає.
       const keys = q.rows.flatMap((r) => [...new Set([r.text, ...r.accepted].map(answerKey))]);
       if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'survey_duplicate' });
+    }
+    if (q.type === 'timedlist') {
+      // Без таймера список не скінчиться.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'timedlist_video' });
+      if (q.points * q.items.length > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'timedlist_points' });
+      // Одне написання не веде у два пункти; повтор у межах пункту не заважає.
+      const keys = q.items.flatMap((i) => [...new Set([i.text, ...i.accepted].map(answerKey))]);
+      if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'timedlist_duplicate' });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
@@ -660,6 +697,8 @@ export function wallShare(found: number, groups: number): number {
   return groups <= 0 ? 0 : wallScored(found, groups) / groups;
 }
 
+export type TimedListItem = Extract<Question, { type: 'timedlist' }>['items'][number];
+
 export type SurveyRow = Extract<Question, { type: 'survey' }>['rows'][number];
 
 /** Рядки за місцем на табло: популярність спаданням, за рівності — порядок дошки. */
@@ -727,9 +766,10 @@ export function proximityPartial(question: Question): boolean {
   return question.type === 'slider' || question.type === 'pin' || question.type === 'wall' || question.type === 'survey';
 }
 
-/** Ціна запитання: для сортування — найбільша сума (слова × бали за слово), інакше points. */
+/** Ціна запитання: для сортування й списку — найбільша сума (слова чи пункти × бали за одне), інакше points. */
 export function questionPrice(question: Question): number {
   if (question.type === 'poll' || question.type === 'wordcloud') return 0;
+  if (question.type === 'timedlist') return question.points * question.items.length;
   return question.type === 'sort' ? question.points * question.words.length : question.points;
 }
 
@@ -1154,6 +1194,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'survey' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'survey');
       if (surveyPlace) ctx.addIssue({ code: 'custom', message: 'survey_place' });
+      // «Список на час»: класика й звичайна клітинка з телефона.
+      const timedListPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'timedlist' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'timedlist');
+      if (timedListPlace) ctx.addIssue({ code: 'custom', message: 'timedlist_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

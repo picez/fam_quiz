@@ -90,7 +90,7 @@ describe('careerEarned', () => {
 
   it('the six new career ones earn on the threshold and not one below', () => {
     const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
-    const at = { ...base, games: 250, podium: 10, debuffsBought: 10, authorGames: 10, roundTypes: 9, questionTypes: 18 }; // 26c: новий тип; 27a: раунд bets; 27b: раунд auction
+    const at = { ...base, games: 250, podium: 10, debuffsBought: 10, authorGames: 10, roundTypes: 9, questionTypes: 19 }; // 26c: новий тип; 27a: раунд bets; 27b: раунд auction; 27c: новий тип
     expect(careerEarned(at).filter((id) => ['veteran', 'podium_10', 'prankster', 'author_hit', 'all_rounds', 'all_types'].includes(id))).toEqual([
       'all_rounds',
       'all_types',

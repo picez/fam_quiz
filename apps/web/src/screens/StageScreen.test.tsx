@@ -963,6 +963,42 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('a timed list shows only counts while playing, then the whole list', () => {
+    const listQ = { ...question, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 3, minus: null } };
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', found: 2, wrong: 0, points: null },
+      { playerId: 'p2', nickname: 'Тарас', found: 1, wrong: 0, points: null },
+    ];
+    const info = { total: 3, minus: null, players: 2, rows, items: null };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: listQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 2, timedlist: info }));
+    expect(screen.getByText('Назвіть планети')).toBeTruthy();
+    expect(screen.getByText('Пишіть пункти на телефоні')).toBeTruthy();
+    expect(screen.getByText('Знайшли: 2 з 3')).toBeTruthy();
+    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Меркурій');
+    unmount();
+    const items = [
+      { index: 1, text: 'Меркурій', finders: ['p1', 'p2'], points: 50 },
+      { index: 2, text: 'Венера', finders: ['p1'], points: 100 },
+      { index: 3, text: 'Нептун', finders: [], points: 0 },
+    ];
+    const reveal: Question = { id: 'tl', type: 'timedlist', text: 'Назвіть планети', imageUrl: null, video: null, timeLimit: 90, points: 100, minus: null, items: items.map((item) => ({ id: `i${item.index}`, text: item.text, accepted: [] })) };
+    show(view({ phase: 'reveal', questionIndex: 0, question: listQ, reveal, playerCount: 2, answeredCount: 2, timedlist: { ...info, items, rows: [{ ...rows[0], points: 150 }, { ...rows[1], points: 50 }] } }));
+    expect(screen.getByText('Меркурій')).toBeTruthy();
+    expect(screen.getByText('Знайшли: Олена, Тарас')).toBeTruthy();
+    expect(screen.getByText('Ніхто не знайшов')).toBeTruthy();
+    expect(screen.getByText('Гравців: 2 · рідкісніше — дорожче')).toBeTruthy();
+    expect(document.querySelector('.timedlist-board .score')?.textContent).toBe('+150');
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    expect(screen.queryByText('Пишіть пункти на телефоні')).toBeNull();
+    cleanup();
+    // У командній грі N — це команди.
+    const teams = { teams: [], mode: 'captain' } as unknown as StageView['teams'];
+    show(view({ phase: 'reveal', questionIndex: 0, question: listQ, reveal, playerCount: 2, answeredCount: 2, teams, timedlist: { ...info, items, rows: [{ ...rows[0], points: 150 }, { ...rows[1], points: 50 }] } }));
+    expect(screen.getByText('Команд: 2 · рідкісніше — дорожче')).toBeTruthy();
+    expect(screen.queryByText(/Гравців:/)).toBeNull();
+  });
+
   it('a word ladder in the final shows the plain answered count, not how many reached the target', () => {
     const ladderQ = { ...question, type: 'wordladder' as const, choices: [], wordladder: { start: 'поле', target: 'тара', letters: 4, maxSteps: 8 } };
     show(view({ phase: 'question', questionIndex: 0, question: ladderQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1 }));

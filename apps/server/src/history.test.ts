@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -665,6 +665,36 @@ describe('host history: answers', () => {
     expect(result.standings.map((s) => [s.nickname, s.correct])).toEqual([
       ['Олена', 1],
       ['Тарас', 0],
+    ]);
+    await local.app.close();
+  });
+
+  it('a timed list game lands in the history with rarity points', async () => {
+    const { local, room, enter, detail } = await start(makeQuiz([timedlist], { speedBonus: false }));
+    const olena = await enter('Олена');
+    const taras = await enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    for (const word of ['Юпітер', 'Венера', 'Марс']) local.manager.timedList(room, olena, word, false);
+    local.manager.timedList(room, olena, 'Плутон', true);
+    local.manager.timedList(room, taras, 'Юпітер', false);
+    step('lock');
+    const engine = Object.fromEntries(Object.entries(room.state.plays[0].answers).map(([id, record]) => [id, record.points]));
+    // Юпітер знайшли обоє (50), Венеру й Марс — лише Олена (по 100), мінус 50; Тарас — 50.
+    expect(engine).toEqual({ [olena]: 200, [taras]: 50 });
+    step('next');
+    step('next');
+    const result = await detail();
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(result.questions[0].question.type).toBe('timedlist');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'timedlist', found: ['l5', 'l2', 'l4'], total: 8, wrong: 1 }, accepted: false },
+      { nickname: 'Тарас', answer: { type: 'timedlist', found: ['l5'], total: 8, wrong: 0 }, accepted: false },
+    ]);
+    expect(standings.map((s) => [s.nickname, s.score])).toEqual([
+      ['Олена', engine[olena]],
+      ['Тарас', engine[taras]],
     ]);
     await local.app.close();
   });

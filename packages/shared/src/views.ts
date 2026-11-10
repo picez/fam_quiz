@@ -106,6 +106,8 @@ export interface PublicQuestion {
   chain: PublicChain | null;
   /** Лише на запитанні-драбині (26c); ключа немає в інших типів. Проміжних слів шляху тут немає. */
   wordladder?: PublicWordLadder;
+  /** Лише на запитанні-списку (27c); ключа немає в інших типів. Пунктів і написань тут немає. */
+  timedlist?: PublicTimedList;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -250,6 +252,53 @@ export interface WordLadderInfo {
   path: string[] | null;
   /** Фінішери за кроками за зростанням, далі решта за кроками спаданням, далі в порядку гравців. */
   rows: WordLadderRow[];
+}
+
+/** Видиме всім: скільки пунктів і мінус (без назв). */
+export interface PublicTimedList {
+  total: number;
+  minus: number | null;
+}
+
+export interface TimedListRow {
+  playerId: string;
+  nickname: string;
+  found: number;
+  wrong: number;
+  /** Бали лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface TimedListItemView {
+  /** Номер клітинки з 1. */
+  index: number;
+  text: string;
+  /** Хто знайшов: ведучому завжди, іншим лише на reveal. */
+  finders: string[];
+  /** Бали кожному знахіднику — лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface TimedListInfo {
+  total: number;
+  minus: number | null;
+  /** N — гравці, що грали запитання. */
+  players: number;
+  /** За found спаданням, далі в порядку гравців. */
+  rows: TimedListRow[];
+  /** Увесь список: ведучому завжди, іншим лише на reveal; інакше null. */
+  items: TimedListItemView[] | null;
+}
+
+export interface PlayerTimedList {
+  /** Власні знахідки в порядку знаходження: номер клітинки з 1 і назва пункту ведучого. */
+  found: { index: number; text: string }[];
+  total: number;
+  wrong: number;
+  /** question, не пауза, немає запису. */
+  canType: boolean;
+  /** Знайдено все. */
+  done: boolean;
 }
 
 export interface PlayerWordLadder {
@@ -1302,6 +1351,8 @@ interface BaseView {
   chain: ChainInfo | null;
   /** Словесна драбина (26c): лише на запитанні-драбині (question, locked, reveal), для сцени й гравців не у фіналі; інакше ключа немає. */
   wordladder?: WordLadderInfo;
+  /** «Список на час» (27c): лише на запитанні-списку (question, locked, reveal); інакше ключа немає. */
+  timedlist?: TimedListInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
@@ -1537,6 +1588,8 @@ export interface PlayerView extends BaseView {
     chain: PlayerChain | null;
     /** Власна драбина гравця (26c): лише на запитанні-драбині; інакше ключа немає. */
     wordladder?: PlayerWordLadder;
+    /** Власний список гравця (27c): лише на запитанні-списку; інакше ключа немає. */
+    timedlist?: PlayerTimedList;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -1626,6 +1679,7 @@ export type LiveVerdict = 'correct' | 'partial' | 'wrong';
 export type LiveProgress =
   | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
   | { kind: 'wordladder'; steps: number; words: string[]; finished: boolean }
+  | { kind: 'timedlist'; found: string[]; total: number; wrong: number }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1711,6 +1765,8 @@ export interface HostView extends BaseView {
   auction?: HostAuction;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
+  /** Як у BaseView, але ведучому завжди весь список з тими, хто знайшов. */
+  timedlist?: TimedListInfo;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */

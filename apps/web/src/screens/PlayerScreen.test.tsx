@@ -1561,6 +1561,50 @@ describe('PlayerScreen final', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: ladderQuestion, me: { ...me, wordladder: done } }));
     expect(screen.getByText('Готово! Кроків: 4')).toBeTruthy();
   });
+
+  const listQuestion = { ...publicQuestion, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 8, minus: null } };
+  const myList = { found: [{ index: 5, text: 'Юпітер' }], total: 8, wrong: 0, canType: true, done: false };
+
+  it('27c: a timed list question shows the field without a send button under the shared timer', () => {
+    show(onQuestion({ question: listQuestion, endsAt: Date.now() + 20_000, me: { ...me, timedlist: myList } }));
+    expect(screen.getAllByRole('timer')).toHaveLength(1);
+    expect(screen.getByLabelText('Ваш варіант')).toBeTruthy();
+    expect(screen.getByText('1 / 8')).toBeTruthy();
+    expect(screen.getByText('Юпітер')).toBeTruthy();
+    expect(document.querySelector('button[type="submit"]')).toBeNull();
+  });
+
+  it('27c: a watcher of a board cell sees the row of the chooser', () => {
+    const timedlist = { total: 8, minus: null, players: 1, rows: [{ playerId: 'p2', nickname: 'Тарас', found: 3, wrong: 0, points: null }], items: null };
+    show(onQuestion({ question: listQuestion, endsAt: Date.now() + 20_000, timedlist }));
+    expect(screen.queryByLabelText('Ваш варіант')).toBeNull();
+    expect(screen.getByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('3 / 8')).toBeTruthy();
+  });
+
+  it('27c: after a timed list closes the phone shows its cells', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: listQuestion, me: { ...me, timedlist: { ...myList, canType: false } } }));
+    expect(screen.queryByLabelText('Ваш варіант')).toBeNull();
+    expect(screen.getByText('Юпітер')).toBeTruthy();
+    expect(screen.getByText('1 / 8')).toBeTruthy();
+    expect(screen.getByLabelText('Клітинка 1')).toBeTruthy();
+  });
+
+  it('27c: the reveal of a timed list shows the whole list with the own finds marked', () => {
+    const items = [
+      { index: 1, text: 'Меркурій', finders: ['p2'], points: 100 },
+      { index: 5, text: 'Юпітер', finders: [me.id, 'p2'], points: 50 },
+    ];
+    const timedlist = { total: 8, minus: null, players: 2, rows: [{ playerId: me.id, nickname: me.nickname, found: 1, wrong: 0, points: 50 }, { playerId: 'p2', nickname: 'Тарас', found: 2, wrong: 0, points: 150 }], items };
+    const reveal = { id: 'tl', type: 'timedlist' as const, text: 'Назвіть планети', imageUrl: null, video: null, timeLimit: 90, points: 100, minus: null, items: [{ id: 'i1', text: 'Меркурій', accepted: [] }, { id: 'i5', text: 'Юпітер', accepted: [] }] };
+    show(view({ phase: 'reveal', questionIndex: 0, question: listQuestion, reveal, me: { ...me, timedlist: { ...myList, canType: false } }, timedlist, own: { reveal: { kind: 'share', percent: 0 }, round: null, game: null } }));
+    // Частка «правильних» (знайшли все) для списку нічого не каже — рядка немає.
+    expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
+    expect(screen.getByText('Меркурій')).toBeTruthy();
+    expect(screen.getByText('Юпітер').closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(screen.getByText('Меркурій').closest('li')?.classList.contains('is-mine')).toBe(false);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
 });
 
 describe('PlayerScreen round facts', () => {
@@ -3399,6 +3443,18 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     show(asQuestion(olya, { me }));
     expect(document.querySelector('[data-debuff]')).toBeNull();
     expect(document.querySelector('.team-debuff-strip')?.textContent).toMatch(/^Дебаф «.+» — у того, хто відповідає$/);
+  });
+
+  it('27c: on a timed list the team debuff acts on every member who can type', () => {
+    const listQuestion = { ...publicQuestion, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 8, minus: null } };
+    const timedlist = { found: [], total: 8, wrong: 0, canType: true, done: false };
+    const me = { ...baseMe, debuff: { kind: 'fog' as const, since: Date.now(), by: null }, timedlist };
+    show(asQuestion({ ...olya, canAct: true }, { question: listQuestion, me }));
+    expect(document.querySelector('[data-debuff="fog"]')).not.toBeNull();
+    expect(document.querySelector('.team-debuff-strip')).toBeNull();
+    cleanup();
+    show(asQuestion(olya, { question: listQuestion, me }));
+    expect(document.querySelector('[data-debuff]')).toBeNull();
   });
 
   it('in chosen mode with no pick the captain answers and reads the banner', () => {

@@ -57,6 +57,8 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
       // Опитування й «хмару слів» кожен проходить сам.
       const play = state.plays[state.questionIndex];
       if (play !== undefined && isUnscored(play.question)) return actor(memberId);
+      // «Список на час» (27c): кожен учасник дописує спільний список команди.
+      if (play !== undefined && play.question.type === 'timedlist') return actor(team);
       const blitz = blitzPlay(state);
       // Миттєвий бліц: відповідає будь-хто, поки команди немає в черзі; повтор відхилить рушій (already_answered).
       if (blitz !== null && blitz.instant) return actor(team);
