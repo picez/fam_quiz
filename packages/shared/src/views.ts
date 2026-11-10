@@ -381,6 +381,42 @@ export interface PlayerMoreLess {
   points: number | null;
 }
 
+/** Малюнок (28c) для всіх: без штрихів (вони йдуть подією drawing) і без слова до reveal. */
+export interface DrawingInfo {
+  /** Людина, що малює; null — малювати нікому. */
+  drawerId: string | null;
+  drawerName: string | null;
+  /** Сторона художника (соло — гравець, командна гра — команда). */
+  side: string | null;
+  /** Скільки операцій малювання прийнято; клієнт порівнює зі своїм, щоб помітити відставання. */
+  rev: number;
+  /** Скільки сторін вгадало. */
+  guessed: number;
+  /** Скільки могли вгадати (до закриття — за поточним станом, потім заморожено). */
+  could: number;
+  /** Лише reveal: слово й хто вгадав (сторони в порядку вгадування, з балами); до того null. */
+  word: string | null;
+  guessers: { id: string; nickname: string; points: number }[] | null;
+  drawerPoints: number | null;
+}
+
+/** Малюнок для пульта: слово й імена вгадавших завжди. */
+export interface HostDrawing extends DrawingInfo {
+  word: string;
+  guessers: { id: string; nickname: string; points: number }[];
+}
+
+/** Власний бік гравця в малюнку; слово — лише художникові. */
+export interface PlayerDrawing {
+  role: 'drawer' | 'teammate' | 'guesser';
+  word: string | null;
+  guessed: boolean;
+  canDraw: boolean;
+  canGuess: boolean;
+  /** Лише reveal: бали сторони гравця. */
+  points: number | null;
+}
+
 export interface PlayerTimedList {
   /** Власні знахідки в порядку знаходження: номер клітинки з 1 і назва пункту ведучого. */
   found: { index: number; text: string }[];
@@ -1492,6 +1528,8 @@ interface BaseView {
   letterwords?: LetterWordsInfo;
   /** «Більше чи менше» (28a): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
   moreless?: MoreLessInfo;
+  /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
+  drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
@@ -1735,6 +1773,8 @@ export interface PlayerView extends BaseView {
     letterwords?: PlayerLetterWords;
     /** Власний ряд гравця (28a): лише на запитанні «Більше чи менше»; інакше ключа немає. */
     moreless?: PlayerMoreLess;
+    /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
+    drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -1827,6 +1867,7 @@ export type LiveProgress =
   | { kind: 'timedlist'; found: string[]; total: number; wrong: number }
   | { kind: 'letterwords'; words: string[] }
   | { kind: 'moreless'; done: number; total: number; right: number }
+  | { kind: 'drawing'; role: 'drawer' | 'guesser'; guessed: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1920,6 +1961,8 @@ export interface HostView extends BaseView {
   letterwords?: LetterWordsInfo;
   /** Як у BaseView, але ведучому завжди ще й значення, правильні сторони, вибори кожного й right наживо. */
   moreless?: MoreLessInfo;
+  /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
+  drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */

@@ -44,6 +44,9 @@ import {
   type PlayerLetterWords,
   type PlayerTimedList,
   type LetterWordsInfo,
+  type DrawingInfo,
+  type HostDrawing,
+  type PlayerDrawing,
   type MoreLessInfo,
   type MoreLessRow,
   type PlayerMoreLess,
@@ -174,6 +177,7 @@ import { wordLadderOf } from './wordladder';
 import { listItemPoints, listPlayers, listRows, timedListOf } from './timedlist';
 import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
+import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -879,7 +883,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless';
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -970,7 +974,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing';
   return {
     ...info,
     question,
@@ -1075,7 +1079,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing';
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1486,6 +1490,65 @@ function playerMoreLess(state: GameState, playerId: string): PlayerMoreLess | un
     canPick: state.phase === 'question' && !state.paused && record === undefined && picks.length < question.pairs.length,
     marks: revealed ? question.pairs.map((pair, i) => (i >= picks.length ? 'late' : picks[i] === pair.correct ? 'right' : 'wrong')) : null,
     points: revealed ? (record?.points ?? 0) : null,
+  };
+}
+
+/** Ім'я сторони малюнка: гравець чи команда. */
+function sideName(state: GameState, id: string): string {
+  return state.players.find((p) => p.id === id)?.nickname ?? '';
+}
+
+/** Людина, що малює: соло — гравець, командна гра — учасник. */
+function drawerName(state: GameState, id: string): string | null {
+  return (teamsOn(state) ? memberOf(state, id)?.nickname : state.players.find((p) => p.id === id)?.nickname) ?? null;
+}
+
+/**
+ * Малюнок (28c) без штрихів: хто малює, rev, скільки вгадали з скількох. Слово й імена вгадавших — лише на reveal
+ * (пульту завжди); бали — з записів сторін. Лічильники після закриття беруться із заморожених scored.
+ */
+function drawingInfo(state: GameState, forHost: boolean): DrawingInfo | HostDrawing | undefined {
+  const drawing = drawingOf(state);
+  const play = state.plays[state.questionIndex];
+  if (drawing === null || play === undefined || play.question.type !== 'drawing') return undefined;
+  const revealed = state.phase === 'reveal';
+  const open = revealed || forHost;
+  // Закритий малюнок може тримати id вилученого (вилучення після закриття): таких сторін уже немає — пропускаємо.
+  const guessers = drawing.guessed
+    .filter((id) => state.players.some((p) => p.id === id))
+    .map((id) => ({ id, nickname: sideName(state, id), points: recordOf(state, state.questionIndex, id)?.points ?? 0 }));
+  const info: DrawingInfo = {
+    drawerId: drawing.drawerId,
+    drawerName: drawing.drawerId === null ? null : drawerName(state, drawing.drawerId),
+    side: drawing.side,
+    rev: drawing.rev,
+    guessed: drawing.scored?.guessed ?? drawing.guessed.length,
+    could: drawing.scored?.could ?? drawingCould(state, play).length,
+    word: open ? play.question.accepted[0] : null,
+    guessers: open ? guessers : null,
+    drawerPoints: revealed && drawing.side !== null ? (recordOf(state, state.questionIndex, drawing.side)?.points ?? 0) : null,
+  };
+  return info;
+}
+
+/** Власний бік гравця (чи команди) в малюнку; слово — лише художникові (людині drawerId), не товаришам. */
+function playerDrawing(state: GameState, personId: string): PlayerDrawing | undefined {
+  const drawing = drawingOf(state);
+  if (drawing === null) return undefined;
+  const member = memberOf(state, personId);
+  const side = teamsOn(state) ? (member?.teamId ?? personId) : personId;
+  const isDrawer = drawing.drawerId !== null && drawing.drawerId === personId;
+  const role: PlayerDrawing['role'] = isDrawer ? 'drawer' : side === drawing.side ? 'teammate' : 'guesser';
+  const guessed = drawing.guessed.includes(side);
+  const live = state.phase === 'question' && !state.paused;
+  const word = state.plays[state.questionIndex]?.question;
+  return {
+    role,
+    word: isDrawer && word?.type === 'drawing' ? word.accepted[0] : null,
+    guessed,
+    canDraw: isDrawer && live,
+    canGuess: role === 'guesser' && live && !guessed,
+    points: state.phase === 'reveal' ? (recordOf(state, state.questionIndex, side)?.points ?? 0) : null,
   };
 }
 
@@ -2303,7 +2366,9 @@ function base(state: GameState, forHost: boolean) {
         ? voterList(state).length
         : truthPlayOf(state) !== null && (state.phase === 'question' || state.phase === 'locked')
           ? truthGuessers(state).length
-          : (answeringBets(state)?.length ?? state.players.length),
+          : drawingOf(state) !== null && (state.phase === 'question' || state.phase === 'locked')
+            ? drawingCould(state, state.plays[state.questionIndex]).length
+            : (answeringBets(state)?.length ?? state.players.length),
     answeredCount: answeredCount(state),
     blitz: blitzInfo(state, forHost),
     board: boardInfo(state, forHost),
@@ -2319,6 +2384,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('timedlist', timedListInfo(state, forHost)),
     ...optional('letterwords', lettersInfo(state, forHost)),
     ...optional('moreless', moreLessInfo(state, forHost)),
+    ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -2585,6 +2651,9 @@ function answeredCount(state: GameState): number {
     const moved = new Set([...Object.keys(letters.play.letterwords?.progress ?? {}), ...answered]);
     return state.players.filter((p) => moved.has(p.id)).length;
   }
+  // «Малюнок» (28c): скільки сторін вгадало (художник відповіді не дає).
+  const drawn = drawingOf(state);
+  if (drawn !== null) return drawn.scored?.guessed ?? drawn.guessed.length;
   // «Більше чи менше» (28a): так само, як слова з літер.
   const rowPlay = currentMoreLess(state);
   if (rowPlay !== null) {
@@ -2739,7 +2808,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   return {
     ...view,
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -2943,6 +3012,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('timedlist', playerTimedList(state, playerId)),
       ...optional('letterwords', playerLetterWords(state, playerId)),
       ...optional('moreless', playerMoreLess(state, playerId)),
+      ...optional('drawing', playerDrawing(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),

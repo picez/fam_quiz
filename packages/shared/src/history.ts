@@ -95,6 +95,8 @@ export interface GameQuestionResult {
   } | null;
   /** Знімок запитання з правильною відповіддю: історію бачить лише ведучий. */
   question: Question;
+  /** «Малюнок» (28c): нік художника й стиснені штрихи (packStrokes). */
+  drawing?: { drawer: string; strokes: string };
   /** Ключі (cloudKey) слів «хмари», які ведучий сховав зі сцени; немає — нічого не сховано. */
   cloudHidden?: string[];
   /** «100 до 1»: дошку збудовано з хмари слів (question.rows — збудовані рядки). */
