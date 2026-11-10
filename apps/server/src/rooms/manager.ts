@@ -110,6 +110,8 @@ import {
   dealLetters,
   letterWord,
   letterWordsOf,
+  moreLessOf,
+  moreLessPick,
   lettersDue,
   ladderWord,
   ladderBack,
@@ -137,7 +139,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, type AckResult, type Answer, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -249,6 +251,8 @@ export interface Room {
   likeRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:list (27c) і player:letters (27d), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
   listRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:moreless (28a), окреме від listRate, щоб вибори не з'їдали вікно слів. Лише в пам'яті. */
+  moreLessRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -521,7 +525,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку й слів з літер, вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер і ряду «Більше чи менше», вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -537,6 +541,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'wordladder' ? wordLadderOf(state, id) : null,
     play?.question.type === 'timedlist' ? timedListOf(state, id) : null,
     play?.question.type === 'letterwords' ? letterWordsOf(state, id) : null,
+    play?.question.type === 'moreless' ? moreLessOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -658,6 +663,7 @@ export class RoomManager {
       likes: { mine: new Map() },
       likeRate: new Map(),
       listRate: new Map(),
+      moreLessRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -731,6 +737,7 @@ export class RoomManager {
       likes: { mine: new Map() },
       likeRate: new Map(),
       listRate: new Map(),
+      moreLessRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1555,6 +1562,26 @@ export class RoomManager {
     return this.apply(room, letterWord(room.state, who.id, word, now, (key) => this.nouns.isNoun(key)));
   }
 
+  /** Вибір у «Більше чи менше» (28a): у командній грі — відповідач команди. Ack без правильності. Понад MORELESS_PICKS_PER_SECOND — too_soon. */
+  moreLess(room: Room, playerId: string, index: number, pick: MoreLessSide): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answerer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!this.pickAllowed(room, playerId, now)) return { ok: false, error: 'too_soon' };
+    // apply дає лише { ok: true } чи помилку: ні правильності, ні номера, ні поступу — ack однаковий для правильного й неправильного вибору.
+    return this.apply(room, moreLessPick(room.state, who.id, index, pick, now));
+  }
+
+  /** Понад MORELESS_PICKS_PER_SECOND виборів на секунду від людини (28a) — ні. Вікно своє, як у wordAllowed, але окреме. */
+  private pickAllowed(room: Room, playerId: string, now: number): boolean {
+    const rate = room.moreLessRate.get(playerId);
+    if (rate === undefined || now - rate.from >= 1000) room.moreLessRate.set(playerId, { from: now, count: 1 });
+    else if (rate.count + 1 > MORELESS_PICKS_PER_SECOND) return false;
+    else rate.count += 1;
+    return true;
+  }
+
   /**
    * Понад LIST_WORDS_PER_SECOND слів на секунду від людини (список 27c, слова з літер 27d) — ні, щоб скрипт не перебирав словник.
    * Частота — на людину (у команді кожен учасник має своє вікно), як у чернеток; вікно спільне, бо запитання одне за раз.
@@ -1975,6 +2002,7 @@ export class RoomManager {
     room.awayRate.delete(playerId);
     room.appealRate.delete(playerId);
     room.pickRate.delete(playerId);
+    room.moreLessRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {

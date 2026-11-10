@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, timedlist, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -201,6 +201,20 @@ describe('recorder', () => {
     expect(answers).toHaveLength(2);
     expect(answers[0]).toMatchObject({ accepted: false, points: 20, payload: { type: 'letterwords', words: ['кіт'], longest: 3 } });
     expect(answers[1]).toMatchObject({ accepted: true, points: 60, payload: { type: 'letterwords', words: ['кіт', 'сік', 'морква'], longest: 6 } });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a more or less answer is recorded with its picks and right count', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([moreless], { speedBonus: false }));
+    ctx.host('start');
+    ctx.host('next');
+    for (const [index, pick] of (['a', 'a', 'a'] as const).entries()) expect(ctx.manager.moreLess(ctx.room, ctx.olena, index, pick)).toEqual({ ok: true });
+    ctx.host('lock');
+    const { answers } = await ctx.saved();
+
+    // m1 a і m3 a правильні (100 + 200), m2 — ні.
+    expect(answers).toHaveLength(1);
+    expect(answers[0]).toMatchObject({ accepted: false, points: 300, payload: { type: 'moreless', picks: ['a', 'a', 'a'], right: 2, total: 3 } });
     expect(ctx.errors).toEqual([]);
   });
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -780,6 +780,53 @@ describe('host history: answers', () => {
     sortWords(field, anna, 4);
     const detail = await field.detail();
     expect((detail.questions[0] as unknown as { cell: object }).cell).toMatchObject({ price: 400, multiplier: 2, points: 800 });
+    await field.local.app.close();
+  });
+
+  it('a more or less game lands in the history with the engine points and the price of the whole row', async () => {
+    const classic = await start(makeQuiz([moreless], { speedBonus: false }));
+    const olena = await classic.enter('Олена');
+    const taras = await classic.enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(classic.local.manager.host(classic.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    for (const [index, pick] of (['a', 'a', 'a'] as const).entries()) expect(classic.local.manager.moreLess(classic.room, olena, index, pick)).toEqual({ ok: true });
+    expect(classic.local.manager.moreLess(classic.room, taras, 0, 'a')).toEqual({ ok: true });
+    step('lock');
+    const engine = Object.fromEntries(Object.entries(classic.room.state.plays[0].answers).map(([id, record]) => [id, record.points]));
+    expect(engine).toEqual({ [olena]: 300, [taras]: 100 });
+    step('next');
+    step('next');
+    const result = await classic.detail();
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(result.questions[0].question.type).toBe('moreless');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'moreless', picks: ['a', 'a', 'a'], right: 2, total: 3 }, accepted: false },
+      { nickname: 'Тарас', answer: { type: 'moreless', picks: ['a'], right: 1, total: 3 }, accepted: false },
+    ]);
+    expect(standings.map((s) => [s.nickname, s.score])).toEqual([
+      ['Олена', engine[olena]],
+      ['Тарас', engine[taras]],
+    ]);
+    await classic.local.app.close();
+
+    const field = await start(
+      makeRoundsQuiz([
+        boardRound('g1', [
+          { title: 'Порівняння', cells: [{ mark: 'x2', answerMode: 'phone', question: moreless }, withId(single, 's1'), withId(single, 's2')] },
+          { title: 'Інше', cells: [withId(single, 's3'), withId(single, 's4'), withId(single, 's5')] },
+          { title: 'Ще', cells: [withId(single, 's6'), withId(single, 's7'), withId(single, 's8')] },
+        ]),
+      ]),
+    );
+    const anna = await field.enter('Анна');
+    expect(field.local.manager.host(field.room, { type: 'start' })).toEqual({ ok: true });
+    expect(field.local.manager.host(field.room, { type: 'next' })).toEqual({ ok: true });
+    expect(field.local.manager.pick(field.room, anna, moreless.id)).toEqual({ ok: true });
+    for (const [index, pick] of (['a', 'b', 'b'] as const).entries()) expect(field.local.manager.moreLess(field.room, anna, index, pick)).toEqual({ ok: true });
+    expect(field.room.state.plays[0].answers[anna]?.points).toBe(400);
+    const detail = await field.detail();
+    expect((detail.questions[0] as unknown as { cell: object }).cell).toMatchObject({ price: 400, multiplier: 2, points: 400 });
     await field.local.app.close();
   });
 

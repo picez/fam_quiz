@@ -9,7 +9,7 @@ const themes = Object.keys(HALLOWEEN_THEMES) as HalloweenTheme[];
 const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
 
-const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'timedlist' && t !== 'letterwords'); // 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер
+const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless'); // 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»
 
 const BANNED = [
   'росі', 'росс', 'русск', 'москв', 'ссср', 'срср', 'урср', 'радянськ', 'совєт', 'совет', 'кремл', 'путін', 'ленін', 'сталін',

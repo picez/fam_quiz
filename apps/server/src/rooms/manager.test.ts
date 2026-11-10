@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, timedlist, wordladder } from '@quiz/engine/testing';
 import { hostView, lettersDue, seededRng, sortOf } from '@quiz/engine';
-import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, LIST_WORDS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
+import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { toBetsWager } from '../testing/bets-game';
 import { nounsOf } from '../wordladder/nouns';
@@ -625,6 +625,69 @@ describe('letter words (27d)', () => {
     expect(manager.letterWord(room, taras.playerId, 'кіт')).toEqual({ ok: true });
     scheduler.advance(1000);
     expect(manager.letterWord(room, olena.playerId, 'кіт')).toEqual({ ok: true });
+  });
+
+  it('more or less picks reach the engine', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(makeQuiz([moreless, single]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const done = () => {
+      const view = manager.view(room, olena.identity);
+      return view?.role === 'player' ? view.me.moreless?.done : undefined;
+    };
+    expect(done()).toBe(0);
+    expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
+    // Другий натиск того самого порівняння — stale, стан той самий.
+    const before = room.state;
+    expect(manager.moreLess(room, olena.playerId, 0, 'b')).toEqual({ ok: false, error: 'moreless_stale' });
+    expect(room.state).toBe(before);
+    expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
+    expect(manager.moreLess(room, olena.playerId, 2, 'a')).toEqual({ ok: true });
+    expect(done()).toBe(3);
+    expect(room.state.plays[0].answers[olena.playerId]).toMatchObject({ grade: 'correct', points: 400 });
+    expect(manager.moreLess(room, olena.playerId, 3, 'a')).toEqual({ ok: false, error: 'already_answered' });
+    expect(manager.moreLess(room, 'nobody', 0, 'a')).toMatchObject({ ok: false });
+  });
+
+  it('a pick ack says nothing about the answer', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(makeQuiz([moreless]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    // m1: правильна a. Олена права, Тарас ні; і останній вибір ряду (запис) — той самий ack.
+    const right = JSON.stringify(manager.moreLess(room, olena.playerId, 0, 'a'));
+    const wrong = JSON.stringify(manager.moreLess(room, taras.playerId, 0, 'b'));
+    expect(right).toBe('{"ok":true}');
+    expect(wrong).toBe(right);
+    expect(JSON.stringify(manager.moreLess(room, olena.playerId, 1, 'a'))).toBe(right);
+    expect(JSON.stringify(manager.moreLess(room, olena.playerId, 2, 'b'))).toBe(right);
+    expect(room.state.plays[0].answers[olena.playerId]).toBeDefined();
+  });
+
+  it('picks are rate limited per person', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz([moreless]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
+    for (let i = 1; i < MORELESS_PICKS_PER_SECOND; i++) expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: false, error: 'moreless_stale' });
+    expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: false, error: 'too_soon' });
+    expect(manager.moreLess(room, taras.playerId, 0, 'a')).toEqual({ ok: true });
+    // Окреме вікно: вибори не з'їдають вікно слів (список і слова з літер), тож тут — відмова рушія, а не too_soon.
+    expect(manager.timedList(room, olena.playerId, 'Марс', true)).toEqual({ ok: false, error: 'type_mismatch' });
+    scheduler.advance(1000);
+    expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
   });
 });
 
@@ -1774,6 +1837,21 @@ describe('teams (10j)', () => {
     expect(words(taras.identity)).toEqual(['морква', 'ставок']);
     expect(words(ira.identity)).toEqual([]);
     expect(JSON.stringify(manager.view(room, ira.identity))).not.toContain('ставок');
+  });
+
+  it('only the team answerer picks', () => {
+    const { manager, room, olena, taras, ira, red } = teamPlaying([classicRound('r1', [moreless])]);
+    expect(manager.moreLess(room, taras.playerId, 0, 'a')).toEqual({ ok: false, error: 'not_captain' });
+    expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
+    expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
+    expect(room.state.plays[0].moreless?.progress[red]?.picks).toEqual(['a', 'b']);
+    const done = (identity: Identity) => {
+      const view = manager.view(room, identity);
+      return view?.role === 'player' ? view.me.moreless?.done : undefined;
+    };
+    expect(done(olena.identity)).toBe(2);
+    expect(done(taras.identity)).toBe(2);
+    expect(done(ira.identity)).toBe(0);
   });
 
   it('any team member enters list words', () => {

@@ -85,6 +85,9 @@ const answersOf = (q: Question): string[] => {
     // Слова з літер (27d): відповіді-тексту немає — гравці складають слова самі.
     case 'letterwords':
       return [];
+    // «Більше чи менше» (28a): значення обох варіантів не стоять ні в тексті запитання, ні в запитанні порівняння.
+    case 'moreless':
+      return q.pairs.flatMap((pair) => [pair.a.value, pair.b.value]);
     default:
       return [];
   }
@@ -98,7 +101,7 @@ const NAMED = [
 ];
 for (const q of everything) {
   if (NAMED.some((p) => q.text.startsWith(p))) continue;
-  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : ''].join(' '));
+  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : '', q.type === 'moreless' ? q.pairs.map((p) => p.prompt).join(' ') : ''].join(' '));
   for (const a of answersOf(q)) if (!skip(a) && where.includes(norm(a))) problems.push(`${short(q)}: answer «${a}» appears in the question`);
 }
 for (const c of quiz.duels?.categories ?? []) for (const d of c.questions) for (const a of d.accepted) if (!skip(a) && norm(d.text).includes(norm(a))) problems.push(`duel «${d.text}»: answer in text`);

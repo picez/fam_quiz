@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
 import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -365,6 +365,36 @@ describe('a server restart', () => {
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.question?.letterwords?.letters).toEqual(before?.letters);
     expect(mine.me.letterwords?.words.map((w) => w.text)).toEqual([best[0]]);
+  }, 30_000);
+
+  it('a restored room keeps the picks', async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeQuiz([moreless]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 1);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:moreless', { index: 0, pick: 'a' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:moreless', { index: 1, pick: 'a' })).toEqual({ ok: true });
+    const before = first.ctx.manager.get(started.code)!.state.plays[0].moreless;
+    expect(before?.progress).toEqual({ [olenaJoin.playerId]: { picks: ['a', 'a'] } });
+
+    await first.ctx.shutdown();
+    host.last = olena.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question' && view.paused);
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].moreless).toEqual(before);
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless !== undefined);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.me.moreless?.picks).toEqual(['a', 'a']);
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    expect(await send(olena, 'player:moreless', { index: 2, pick: 'a' })).toEqual({ ok: true });
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].answers[olenaJoin.playerId]).toMatchObject({ grade: 'partial', points: 300 });
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {
