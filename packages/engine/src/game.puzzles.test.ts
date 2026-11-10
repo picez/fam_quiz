@@ -61,7 +61,7 @@ describe('puzzles: the round', () => {
     expect(first.splash).toMatchObject({ kind: 'question', at: 10_000 });
     expect(first.startedAt).toBe(10_000 + SPLASH_MS.question);
     expect(first.endsAt).toBe(10_000 + SPLASH_MS.question + 180_000);
-    expect(first.plays[0].puzzle).toEqual({ present: ['p1', 'p2', 'p3'], boards: {} });
+    expect(first.plays[0].puzzle).toEqual({ boards: {} });
     // варіантів немає й не перемішуються: present — порожній
     expect(first.presented).toEqual([]);
     const locked = must(lock(first, 20_000));
@@ -284,7 +284,6 @@ describe('puzzles: done and scoring', () => {
   it('teammates share one grid and the last write wins', () => {
     const quiz = teamQuiz([puzzlesRound('pz', [sudoku])]);
     const s = must(next(teamGame(quiz, LAYOUT), 0, rng0));
-    expect(s.plays[0].puzzle?.present).toEqual(['t1', 't2']);
     for (const [member, team] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']] as const) {
       expect(actorOf(s, member, 'answer'), member).toEqual({ ok: true, id: team });
     }
@@ -356,7 +355,6 @@ describe('puzzles: players come and go', () => {
     let s = fills(fills(fresh(), 'p1', [{ i: firstEmpty, v: '1' }]), 'p2', [{ i: firstEmpty, v: '2' }]);
     s = must(removePlayer(s, 'p2'));
     expect(Object.keys(s.plays[0].puzzle!.boards)).toEqual(['p1']);
-    expect(s.plays[0].puzzle!.present).toEqual(['p1', 'p3']);
     // хто лишився, закриває запитання
     s = done(done(s, 'p1'), 'p3');
     expect(s.phase).toBe('locked');
@@ -364,7 +362,6 @@ describe('puzzles: players come and go', () => {
 
   it('a late joiner fills their own grid', () => {
     const s = fresh();
-    expect(s.plays[0].puzzle!.present).toEqual(['p1', 'p2', 'p3']);
     // гравця, що прийшов пізніше, теж приймають
     const late = { ...s, players: [...s.players, { ...s.players[0], id: 'p4', nickname: 'Ганна', score: 0 }] };
     expect(puzzleOf(must(puzzleFill(late, 'p4', 'p4', 0, [{ i: firstEmpty, v: '3' }], 1000)), 'p4')!.cells[firstEmpty]).toBe('3');
@@ -375,8 +372,8 @@ describe('puzzles: players come and go', () => {
     s = done(solve(s, 'p1', sudoku), 'p1');
     s = must(lock(s, 3000));
     for (let i = 0; i < 5 && s.phase !== 'question'; i++) s = must(next(s, 4000, rng0));
-    expect(s.plays[0].puzzle).toEqual({ present: ['p1', 'p2', 'p3'], boards: {} });
+    expect(s.plays[0].puzzle).toEqual({ boards: {} });
     expect(recordOf(s, 0, 'p1')!.answer).toMatchObject({ grid: sudoku.solution, solved: true });
-    expect(s.plays[1].puzzle).toEqual({ present: ['p1', 'p2', 'p3'], boards: {} });
+    expect(s.plays[1].puzzle).toEqual({ boards: {} });
   });
 });

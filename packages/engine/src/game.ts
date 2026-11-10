@@ -568,8 +568,6 @@ export interface DrawingPlay {
 
 /** «Головоломки» (28d): сітки гравців (команд); гравця тут немає, поки він нічого не вписав і не натиснув «Готово». */
 export interface PuzzlePlay {
-  /** Гравці (команди), присутні на відкритті (як timedlist.present); записів без дошки на закритті не дає — «був у кімнаті» не відповідь. */
-  present: string[];
   /** Дошки поточного запитання; openQuestion спорожнює дошки минулих запитань (сітку зберігає запис, answer.grid). */
   boards: Record<string, PuzzleBoard>;
 }
@@ -1057,7 +1055,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     // «Головоломки» (28d): бали кожного залежать лише від його сітки, тож дошка йде разом із записом.
     if (play.puzzle !== undefined) {
       const { [playerId]: _board, ...boards } = play.puzzle.boards;
-      kept.puzzle = { present: play.puzzle.present.filter((id) => id !== playerId), boards };
+      kept.puzzle = { boards };
     }
     // «Більше чи менше» (28a): лише відкрите запитання; закрите вже пораховане (scored), його вибори лишаються як були.
     if (play.moreless !== undefined && index === state.questionIndex && state.phase === 'question') {
@@ -1369,7 +1367,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'moreless' ? { moreless: { progress: {} } } : {}),
     ...(drawn !== null ? { drawing: drawn.drawing } : {}),
     // «Головоломки» (28d): кожен гравець (команда) розв'язує свою сітку; присутні — на мить відкриття.
-    ...(isPuzzle(question) ? { puzzle: { present: presentPlayers(state).map((p) => p.id), boards: {} } } : {}),
+    ...(isPuzzle(question) ? { puzzle: { boards: {} } } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
