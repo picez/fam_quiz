@@ -25,6 +25,7 @@ import {
   sortQ,
   text,
   timedlist,
+  letterwords,
   withId,
   wordladder,
 } from './testing/fixtures';
@@ -167,6 +168,12 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([timedlist], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_timedlist');
+  });
+
+  it('letter words have no buffs (27d)', () => {
+    const s = startRound(lobbyWith(makeQuiz([letterwords], { buffs }), 'Оля'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_letterwords');
   });
 
   it('an auction round has no buffs and no debuff shop (27b)', () => {

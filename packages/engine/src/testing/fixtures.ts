@@ -150,6 +150,29 @@ export const timedlist = {
   ],
 } satisfies Question;
 
+/** «Слова з літер» (27d): свій набір «морквасті», якнайбільше слів, 20 балів за слово, 90 с; до типового списку makeQuiz не входить. */
+export const letterwords = {
+  ...base,
+  id: 'q12',
+  type: 'letterwords',
+  text: 'Складіть слова з літер',
+  timeLimit: 90,
+  points: 20,
+  set: { kind: 'fixed', letters: 'морквасті' },
+  goal: 'most',
+  per: 'word',
+} satisfies Question;
+
+/** «Слова з літер» (27d): випадковий набір з 9 літер, найдовше слово, 10 балів за літеру. */
+export const letterwordsRandom = {
+  ...letterwords,
+  id: 'q13',
+  set: { kind: 'random', count: 9 },
+  goal: 'longest',
+  per: 'letter',
+  points: 10,
+} satisfies Question;
+
 /** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
 export const sortQ = {
   ...base,

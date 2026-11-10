@@ -65,6 +65,8 @@ import {
   type AutopilotState,
   type WallProgress,
   type WipeoutPlay,
+  type LetterWordsPlay,
+  type LetterWordsProgress,
   type TimedListPlay,
   type TimedListScored,
   type TimedListProgress,
@@ -107,6 +109,7 @@ import {
   withAudio,
   withId,
   timedlist,
+  letterwords,
   withReveal,
   wordladder,
 } from './testing/fixtures';
@@ -115,6 +118,7 @@ import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
 import { listEntry } from './timedlist';
+import { dealLetters, letterWord } from './letterwords';
 import { ladderWord } from './wordladder';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
@@ -309,7 +313,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -352,6 +356,8 @@ const STATE_SHAPE: Record<string, string> = {
   TimedListPlay: keysOf<TimedListPlay>()(['present', 'progress', 'scored'], true),
   TimedListScored: keysOf<TimedListScored>()(['players', 'items'], true),
   TimedListProgress: keysOf<TimedListProgress>()(['found', 'wrong'], true),
+  LetterWordsPlay: keysOf<LetterWordsPlay>()(['letters', 'best', 'possible', 'progress'], true),
+  LetterWordsProgress: keysOf<LetterWordsProgress>()(['words'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1156,7 +1162,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,timedlist,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,letterwords,overtime,question,roundIndex,sort,survey,survival,timedlist,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1193,6 +1199,8 @@ const KEYS: Record<number, Record<string, string>> = {
     TimedListPlay: 'present,progress,scored',
     TimedListScored: 'items,players',
     TimedListProgress: 'found,wrong',
+    LetterWordsPlay: 'best,letters,possible,progress',
+    LetterWordsProgress: 'words',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1436,6 +1444,9 @@ function representative(): GameState[] {
   const listing = listResult.ok ? listResult.state : listMars;
   // Закрите запитання: TimedListPlay.scored, TimedListScored.
   const listClosed = must(lock(listing, T0 + 2000));
+  // 27d: «Слова з літер» — набір роздано, Оля склала «кіт»: Play.letterwords, LetterWordsPlay, LetterWordsProgress.
+  const lettersOpen = dealLetters(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [letterwords])]), 'Оля', 'Петро'), T0), { letters: [...'морквасті'], best: ['комісар'], possible: 196 });
+  const lettering = must(letterWord(lettersOpen, 'p1', 'кіт', T0 + 1000, () => true));
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1473,6 +1484,7 @@ function representative(): GameState[] {
     laddering,
     listing,
     listClosed,
+    lettering,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1697,6 +1709,21 @@ describe('the saved state', () => {
     // старий знімок без поля відновлюється й без нього
     const plain = roundTrip(suspend(roundTrip({ ...open, plays: open.plays.map(({ timedlist: _list, ...p }) => p) }), T0 + 1000));
     expect('timedlist' in plain.plays[0]).toBe(false);
+  });
+
+  it('a letter words snapshot keeps the set and the words without a new version', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = dealLetters(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [letterwords])]), 'Оля', 'Петро'), T0), { letters: [...'морквасті'], best: ['комісар'], possible: 196 });
+    const saved = must(letterWord(open, 'p1', 'кіт', T0 + 500, () => true));
+    const back = roundTrip(suspend(roundTrip(saved), T0 + 1000));
+    expect(back.plays[0].letterwords).toEqual({ letters: [...'морквасті'], best: ['комісар'], possible: 196, progress: { p1: { words: ['кіт'] } } });
+    // гра йде далі з тим самим набором і словами
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const moved = must(letterWord(resumed, 'p1', 'сік', T0 + 2000 + HOUR, () => true));
+    expect(moved.plays[0].letterwords?.progress.p1).toEqual({ words: ['кіт', 'сік'] });
+    // старий знімок без поля відновлюється й без нього
+    const plain = roundTrip(suspend(roundTrip({ ...open, plays: open.plays.map(({ letterwords: _letters, ...p }) => p) }), T0 + 1000));
+    expect('letterwords' in plain.plays[0]).toBe(false);
   });
 
   it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
@@ -1956,6 +1983,8 @@ describe('the saved state', () => {
       add('TimedListPlay', s.plays.map((p) => p.timedlist));
       add('TimedListScored', s.plays.map((p) => p.timedlist?.scored));
       add('TimedListProgress', s.plays.flatMap((p) => Object.values(p.timedlist?.progress ?? {})));
+      add('LetterWordsPlay', s.plays.map((p) => p.letterwords));
+      add('LetterWordsProgress', s.plays.flatMap((p) => Object.values(p.letterwords?.progress ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));
