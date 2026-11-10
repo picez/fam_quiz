@@ -53,6 +53,20 @@ function teamPlaying(rounds: Parameters<typeof makeRoundsQuiz>[0]) {
 }
 
 describe('solo live drafts (12b)', () => {
+  it('in a later round the host batch carries the round-local number the host view shows', () => {
+    // Регресія: пакет ніс індекс plays, а пульт порівнює його з view.questionIndex (номер у раунді) — після першого раунду живі вибори зникали.
+    const { manager, room, olena } = playing(makeRoundsQuiz([classicRound('a', [multi, text]), classicRound('b', [single])]));
+    for (let i = 0; i < 30 && !(room.state.phase === 'question' && room.state.plays[room.state.questionIndex].question.id === single.id); i++) {
+      expect(manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
+    }
+    expect(room.state.questionIndex).toBe(2);
+    expect(manager.draft(room, olena.playerId, { type: 'single', optionId: 'b' })).toEqual({ ok: true });
+    const batch = manager.liveDrafts(room);
+    expect(batch.questionIndex).toBe(manager.view(room, HOST)!.questionIndex);
+    expect(batch.questionIndex).toBe(0);
+    expect(batch.drafts.map((d) => d.id)).toEqual([olena.playerId]);
+  });
+
   it('a solo player drafts; the host batch has it with changes and time, nobody else sees it, the saved room neither', () => {
     const { scheduler, manager, room, events, olena, taras } = playing();
     const before = room.state;
