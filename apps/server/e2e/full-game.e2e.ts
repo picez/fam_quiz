@@ -17208,7 +17208,7 @@ async function wordLadderGame26c() {
   // ── Тарас: дві відмови, слово й «Крок назад». ──
   await ladderMove26c(taras, 'ПІЛА', 'Ви замінили більше ніж одну літеру');
   expect(await ladderColumn26c(taras), 'a refusal keeps the column').toEqual(['ПОЛЕ']);
-  await ladderMove26c(taras, 'ПОСЕ', 'Такого слова не існує');
+  await ladderMove26c(taras, 'ПОСЕ', 'Немає такого іменника в словнику');
   await expectLadderInputShown26c(taras, 'wordladder26c-phone-error');
   await shot(taras, 'wordladder26c-phone-error');
   await ladderMove26c(taras, 'пола');
@@ -24186,7 +24186,7 @@ async function letterWordsGame27d() {
   await olya.waitForTimeout(350);
   await shot(olya, 'letterwords27d-phone-refused');
   await lettersType27d(olya, 'ворк');
-  await expect.poll(() => lettersStatus27d(olya), POLL).toBe('Такого слова не існує');
+  await expect.poll(() => lettersStatus27d(olya), POLL).toBe('Немає такого іменника в словнику');
   await lettersInput27d(olya).fill('ро');
   expect(await lettersAdd27d(olya).isDisabled(), 'Add with two letters').toBe(true);
   await lettersType27d(olya, 'сік');

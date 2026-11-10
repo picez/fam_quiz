@@ -206,7 +206,7 @@ describe('LetterWordsPlay', () => {
     submit();
     await answer({ ok: false, error: 'word_unknown' });
     expect(field().value).toBe('корт');
-    expect(screen.getByRole('status').textContent).toBe('Такого слова не існує');
+    expect(screen.getByRole('status').textContent).toBe('Немає такого іменника в словнику');
     // Ліміт частоти — тихо: ні трусу, ні тексту, слово лишається.
     cleanup();
     const soon = deferred();
