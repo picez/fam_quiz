@@ -1611,6 +1611,7 @@
   "listOnPhone": "Tippt die Einträge auf dem Handy",
   "listOtherSpellings": "Andere Schreibweisen von Eintrag {index}",
   "listPlayersNote": "Spieler: {n} · seltener ist mehr wert",
+  "listTeamsNote": "Teams: {n} · seltener ist mehr wert",
   "listPrice": "Preis eines Eintrags",
   "listTitle": "Liste auf Zeit",
   "listWrong": "Fehler: {wrong}",

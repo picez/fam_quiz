@@ -203,6 +203,35 @@ describe('TimedListPlay', () => {
     expect(screen.getByText('Нова Каховка').closest('li')?.classList.contains('is-again')).toBe(true);
   });
 
+  it('a repeat through another spelling or a typo flashes the cell the server names', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf({ found: [{ index: 4, text: 'Марс' }] })} question={question} paused={false} send={send} />);
+    typeIn('Червона планета');
+    await wait(400);
+    await answer({ ok: false, error: 'list_repeat', index: 4 });
+    expect(screen.getByText('Марс').closest('li')?.classList.contains('is-again')).toBe(true);
+  });
+
+  it('after a pause the word already in the field is checked', async () => {
+    const { send } = deferred();
+    const { rerender } = render(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    typeIn('Юпітер');
+    rerender(<TimedListPlay list={listOf()} question={question} paused send={send} />);
+    await wait(400);
+    expect(send).not.toHaveBeenCalled();
+    rerender(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    await wait(0);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith('player:list', { word: 'Юпітер', enter: false });
+    // Порожнє поле після паузи нічого не шле.
+    cleanup();
+    const empty = deferred();
+    const again = render(<TimedListPlay list={listOf()} question={question} paused send={empty.send} />);
+    again.rerender(<TimedListPlay list={listOf()} question={question} paused={false} send={empty.send} />);
+    await wait(400);
+    expect(empty.send).not.toHaveBeenCalled();
+  });
+
   it('found words take their numbered place and a new find pops', () => {
     const { rerender } = render(<TimedListPlay list={listOf()} question={question} paused={false} send={vi.fn<Send>()} />);
     rerender(<TimedListPlay list={listOf({ found: [{ index: 5, text: 'Юпітер' }] })} question={question} paused={false} send={vi.fn<Send>()} />);

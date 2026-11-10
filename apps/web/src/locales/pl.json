@@ -1634,6 +1634,7 @@
   "listOnPhone": "Wpisujcie pozycje na telefonie",
   "listOtherSpellings": "Inne pisownie pozycji {index}",
   "listPlayersNote": "Graczy: {n} · rzadsze — droższe",
+  "listTeamsNote": "Drużyn: {n} · rzadsze — droższe",
   "listPrice": "Cena pozycji",
   "listTitle": "Lista na czas",
   "listWrong": "Błędy: {wrong}",

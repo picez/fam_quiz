@@ -661,7 +661,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const answersForTeam = team === null || team.answerer;
   // Хто вирішує за команду, коли це не я: вибраний (12g) чи капітан.
   const decidesText = team !== null && team.answererId !== null && team.answererId !== team.captainId ? t('teamAnswererDecides', { name: memberName(view, team.answererId) }) : t('teamCaptainDecides');
-  const debuff = answersForTeam ? me.debuff : null;
+  // «Список на час» (27c): пишуть усі, хто може діяти за команду, тож дебаф команди діє на телефоні кожного з них.
+  const debuffHere = answersForTeam || (question?.type === 'timedlist' && acting);
+  const debuff = debuffHere ? me.debuff : null;
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
   // «Вибування»: привид відповідає «для себе».
@@ -994,7 +996,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               💡 {tip}
             </p>
           )}
-          {team !== null && !answersForTeam && me.debuff !== null && <DebuffStrip debuff={me.debuff} answerer={team.answererId !== team.captainId} />}
+          {team !== null && !debuffHere && me.debuff !== null && <DebuffStrip debuff={me.debuff} answerer={team.answererId !== team.captainId} />}
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
           {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
@@ -1309,7 +1311,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {me.bets !== undefined && view.bets !== undefined && <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />}
             </>
           )}
-          {view.own?.reveal != null && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {/* Список (27c): «правильно» — лише знайти все, тож частка правильних тут нічого не каже. */}
+          {view.own?.reveal != null && question?.type !== 'timedlist' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
           {me.appeal?.reasons.map((reason) => (
             <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
               {appealButtonText(reason, me.appeal?.left ?? 0)}

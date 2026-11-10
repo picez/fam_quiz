@@ -434,7 +434,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           {view.phase === 'reveal' && (
             <>
               <TimedListReveal info={view.timedlist} />
-              <p className="meta timedlist-note">{t('listPlayersNote', { n: view.timedlist.players })}</p>
+              <p className="meta timedlist-note">{t(view.teams !== null ? 'listTeamsNote' : 'listPlayersNote', { n: view.timedlist.players })}</p>
             </>
           )}
           <TimedListBoard info={view.timedlist} reveal={view.phase === 'reveal'} />

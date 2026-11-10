@@ -991,6 +991,12 @@ describe('StageScreen final', () => {
     expect(document.querySelector('.timedlist-board .score')?.textContent).toBe('+150');
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     expect(screen.queryByText('Пишіть пункти на телефоні')).toBeNull();
+    cleanup();
+    // У командній грі N — це команди.
+    const teams = { teams: [], mode: 'captain' } as unknown as StageView['teams'];
+    show(view({ phase: 'reveal', questionIndex: 0, question: listQ, reveal, playerCount: 2, answeredCount: 2, teams, timedlist: { ...info, items, rows: [{ ...rows[0], points: 150 }, { ...rows[1], points: 50 }] } }));
+    expect(screen.getByText('Команд: 2 · рідкісніше — дорожче')).toBeTruthy();
+    expect(screen.queryByText(/Гравців:/)).toBeNull();
   });
 
   it('a word ladder in the final shows the plain answered count, not how many reached the target', () => {

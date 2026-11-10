@@ -1634,6 +1634,7 @@
   "listOnPhone": "Escribid los elementos en el móvil",
   "listOtherSpellings": "Otras grafías del elemento {index}",
   "listPlayersNote": "Jugadores: {n} · lo más raro vale más",
+  "listTeamsNote": "Equipos: {n} · lo más raro vale más",
   "listPrice": "Precio de un elemento",
   "listTitle": "Lista a contrarreloj",
   "listWrong": "Errores: {wrong}",

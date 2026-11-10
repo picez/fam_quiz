@@ -1634,6 +1634,7 @@
   "listOnPhone": "Scrivete le voci sul telefono",
   "listOtherSpellings": "Altre grafie della voce {index}",
   "listPlayersNote": "Giocatori: {n} · più rara vale di più",
+  "listTeamsNote": "Squadre: {n} · più rara vale di più",
   "listPrice": "Prezzo di una voce",
   "listTitle": "Lista a tempo",
   "listWrong": "Errori: {wrong}",

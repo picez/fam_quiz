@@ -146,9 +146,11 @@ describe('LiveAnswers', () => {
     expect(rows[0]).toContain('2 / 8');
     expect(rows[0]).toContain('Юпітер');
     expect(rows[0]).toContain('Марс');
-    expect(rows[0]).toContain('−1');
+    // Помилки словами, а не «−1», що читається як мінус бал.
+    expect(rows[0]).toContain('Помилок: 1');
+    expect(rows[0]).not.toContain('−1');
     expect(rows[1]).toContain('1 / 8');
-    expect(rows[1]).not.toContain('−');
+    expect(rows[1]).not.toContain('Помилок');
   });
 
   it('writes the slider distance', () => {

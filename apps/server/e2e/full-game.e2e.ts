@@ -23803,6 +23803,9 @@ async function timedListGame27c() {
   await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain('3 / 8');
   const olyaLive = await liveRow(host, 'Оля').innerText();
   for (const found of ['Юпітер', 'Венера', 'Марс']) expect(olyaLive, `«${found}» in Olya’s live row`).toContain(found);
+  // Помилки словами, а не «−1», що читається як мінус бал.
+  expect(olyaLive, 'mistakes in Olya’s live row').toContain('Помилок: 1');
+  expect(olyaLive, 'a bare «−1» in Olya’s live row').not.toContain('−1');
   // Увесь список із номерами — у рядку правильної відповіді (панель списку ховається, поки є «Відповіді наживо», як у драбини).
   await host.getByText(`Правильна відповідь: ${PLANETS27C.map((text, at) => `${at + 1}. ${text}`).join(', ')}`, exact).waitFor();
   await shot(host, 'timedlist27c-host-live');
@@ -23834,7 +23837,16 @@ async function timedListGame27c() {
   await shot(stage, 'timedlist27c-stage-reveal');
   const [height8, client8] = (await stage.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight]')) as [number, number];
   expect(height8, `the 8-item reveal with four players scrolls the stage (${height8} > ${client8})`).toBeLessThanOrEqual(client8);
+  // Одна колонка: бали стоять поруч з назвами (одна спільна колонка за найдовшою назвою), «Знайшли: …» починається однаково в кожному рядку.
+  const columnOf = (selector: string) => stage.locator(`.timedlist-reveal ${selector}`).evaluateAll((all) => [...new Set(all.map((el) => Math.round(el.getBoundingClientRect().left)))]);
+  expect((await columnOf('.score')).length, 'item points in one column').toBe(1);
+  expect((await columnOf('.timedlist-finders')).length, 'finders start in one column').toBe(1);
+  const textRight = await stage.locator('.timedlist-reveal .timedlist-text').evaluateAll((all) => Math.max(...all.map((el) => el.getBoundingClientRect().right)));
+  expect((await columnOf('.score'))[0] - textRight, 'item points next to the names').toBeLessThan(80);
+  expect(await stage.getByText('Гравців: 4 · рідкісніше — дорожче', exact).count()).toBe(1);
   await shot(olya, 'timedlist27c-phone-reveal');
+  // Частка «правильних» (знайшли все) для списку нічого не каже — рядка на телефоні немає.
+  expect(await olya.getByText(/Правильно відповіли/).count(), 'the share line on a list reveal').toBe(0);
   await shot(jose, 'timedlist27c-phone-es-reveal');
 
   // ── Запитання 2 (без мінуса). ──
@@ -23953,6 +23965,8 @@ async function timedListTeams27c() {
   expect(await listItem27c(stage, 'Ужгород').locator('.score').textContent()).toBe('+100');
   await expect.poll(() => listRow27c(stage, 'Червоні').locator('.score').textContent(), POLL).toBe('+150');
   expect(await listRow27c(stage, 'Сині').locator('.score').textContent()).toBe('+150');
+  // У командній грі N — це команди.
+  await stage.getByText('Команд: 2 · рідкісніше — дорожче', exact).waitFor();
   if (process.env.E2E_SHOTS === '1') await sleep(800);
   await shot(stage, 'timedlist27c-team-stage-reveal');
 

@@ -1703,6 +1703,7 @@
   "listOnPhone": "اكتبوا العناصر على الهاتف",
   "listOtherSpellings": "كتابات أخرى للعنصر {index}",
   "listPlayersNote": "اللاعبون: {n} · الأندر أغلى",
+  "listTeamsNote": "الفرق: {n} · الأندر أغلى",
   "listPrice": "سعر العنصر",
   "listTitle": "قائمة بالوقت",
   "listWrong": "الأخطاء: {wrong}",

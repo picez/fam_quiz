@@ -85,7 +85,7 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'timedlist':
         parts.push(t('listLive', { found: progress.found.length, total: progress.total }));
         if (progress.found.length > 0) parts.push(progress.found.join(' · '));
-        if (progress.wrong > 0) parts.push(`−${progress.wrong}`);
+        if (progress.wrong > 0) parts.push(t('listWrong', { wrong: progress.wrong }));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));

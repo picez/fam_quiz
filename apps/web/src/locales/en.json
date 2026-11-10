@@ -1611,6 +1611,7 @@
   "listOnPhone": "Type the items on your phone",
   "listOtherSpellings": "Other spellings of item {index}",
   "listPlayersNote": "Players: {n} · rarer is worth more",
+  "listTeamsNote": "Teams: {n} · rarer is worth more",
   "listPrice": "Price of an item",
   "listTitle": "Timed list",
   "listWrong": "Mistakes: {wrong}",

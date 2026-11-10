@@ -154,7 +154,8 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
         clearIf(request.word);
       } else if (result.error === 'list_repeat') {
         clearIf(request.word);
-        const cell = listNow.current.found.find((entry) => sameWord(entry.text, request.word));
+        // Сервер називає номер пункту (і для іншого написання чи описки); без нього — пошук за точним словом.
+        const cell = listNow.current.found.find((entry) => (result.index !== undefined ? entry.index === result.index : sameWord(entry.text, request.word)));
         if (cell !== undefined) {
           setAgain(cell.index);
           later('again', AGAIN_MS, () => setAgain(null));
@@ -196,6 +197,18 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
       }
     }
   };
+
+  // Після зняття паузи слово, набране до неї, перевіряється без нової літери.
+  const wasOff = useRef(off);
+  useEffect(() => {
+    const before = wasOff.current;
+    wasOff.current = off;
+    if (!before || off) return;
+    const now = value.current;
+    if (now.trim() !== '' && now !== checked.current) void run({ word: now, enter: false });
+    // run читає все потрібне з ref-ів; реагуємо лише на перехід off.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [off]);
 
   const change = (next: string) => {
     value.current = next;
