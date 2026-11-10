@@ -296,7 +296,7 @@ function looksLikeQuiz(value: unknown): value is Quiz {
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&
         // У фіналі, «Ва-банк» і «Мільйонері» правил немає.
-        (type === 'final' || type === 'bets' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
+        (type === 'final' || type === 'bets' || type === 'auction' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
       return common && Array.isArray(questions) && questions.length > 0 && questions.every(looksLikeQuestion);
     })
@@ -324,6 +324,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
         }
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder') return { ...round, questions };
+        if (round.type === 'auction') return { ...round, bidStep: round.bidStep ?? LIMITS.defaultBidStep, questions };
         if (round.type === 'bets') return { ...round, betMax: round.betMax ?? null, questions };
         if (round.type === 'survival') return { ...round, questions, trials: round.trials.map(revive) };
         // Чернетка до типів ставок — класичні ставки.

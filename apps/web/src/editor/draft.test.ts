@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -2435,6 +2435,59 @@ describe('bets round (27a)', () => {
 
   it('a bets question may be a word ladder', () => {
     const round = { ...newBetsRound(), questions: [{ ...filled(newQuestion('wordladder')), betsCut: 1 }] };
+    expect(problemsOf(quizWith(round))).toEqual([]);
+  });
+});
+
+describe('auction round (27b)', () => {
+  const single = (text: string, betsCut?: number): Question => {
+    const q = filled(newQuestion('single'));
+    return { ...q, text, ...(betsCut === undefined ? {} : { betsCut }) };
+  };
+  const quizWith = (round: ReturnType<typeof newAuctionRound>): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [round] });
+
+  it('a new auction round bids by the default step and loses the bid only', () => {
+    expect(newAuctionRound()).toMatchObject({ type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: LIMITS.defaultBidStep, loss: 'bid' });
+    expect(newAuctionRound().questions).toHaveLength(1);
+    expect(newAuctionRound().questions[0].betsCut).toBeUndefined();
+  });
+
+  it('auction questions allow the same types as the final', () => {
+    expect(questionTypesFor('auction')).toEqual(questionTypesFor('final'));
+  });
+
+  it('a question without a cut is a problem', () => {
+    const round = { ...newAuctionRound(), questions: [single('Яке місто?')] };
+    expect(problemsOf(quizWith(round))).toContain(t('problemAuctionCut'));
+    expect(firstProblem(quizWith(round))).toEqual({ round: 0, question: 0, cell: null });
+  });
+
+  it('a step out of range is a settings problem', () => {
+    const round = { ...newAuctionRound(), bidStep: 0, questions: [single('Яке місто?', 1)] };
+    expect(problemsOf(quizWith(round))).toContain(t('problemRules'));
+    expect(firstProblem(quizWith(round))).toEqual({ round: 0, question: 0, cell: null });
+  });
+
+  it('a question moved out of an auction round loses its cut, between bets and auction keeps it', () => {
+    const classic: Quiz = { ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [single('Яке місто?', 2)] }] };
+    expect('betsCut' in roundQuestions(cleaned(classic).rounds[0])[0]).toBe(false);
+    const auction = { ...newAuctionRound(), questions: [single('Яке місто?', 2)] };
+    expect(roundQuestions(cleaned(quizWith(auction)).rounds[0])[0].betsCut).toBe(2);
+    const bets = { ...newBetsRound(), questions: [single('Яке місто?', 2)] };
+    expect(roundQuestions(cleaned({ ...newQuiz(), title: 'Гра', rounds: [bets] }).rounds[0])[0].betsCut).toBe(2);
+  });
+
+  it('an auction draft passes the schema after cleaning and survives session storage', () => {
+    const round = { ...newAuctionRound(), bidMode: 'free' as const, loss: 'bid_price' as const, questions: [single('Яке місто є столицею?', 2), single('Яка річка?', 0)] };
+    const quiz = quizWith(round);
+    expect(problemsOf(quiz)).toEqual([]);
+    expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+    saveDraft('auction-x', quiz);
+    expect(loadDraft('auction-x')?.rounds[0]).toMatchObject({ type: 'auction', bidMode: 'free', bidStep: 50, loss: 'bid_price' });
+  });
+
+  it('an auction question may be a word ladder', () => {
+    const round = { ...newAuctionRound(), questions: [{ ...filled(newQuestion('wordladder')), betsCut: 1 }] };
     expect(problemsOf(quizWith(round))).toEqual([]);
   });
 });

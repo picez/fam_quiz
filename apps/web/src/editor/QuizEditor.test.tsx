@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Вибування' | 'Мільйонер') => {
   click('+ Раунд');
   click(type);
 };
@@ -2925,5 +2925,57 @@ describe('QuizEditor: bets settings problems open the settings (27a)', () => {
     click('Зберегти');
     expect(onSave).not.toHaveBeenCalled();
     expect(settings().open).toBe(true);
+  });
+});
+
+describe('QuizEditor: auction round (27b)', () => {
+  const settingsBlock = () => screen.getAllByText('Налаштування раунду')[0];
+  const cut = (word: string) => fireEvent.click(within(screen.getByRole('radiogroup', { name: t('auctionCutLabel') })).getByRole('radio', { name: word }));
+  const fillQuestion = (text: string, price: string, word: string) => {
+    fill('Текст запитання', text);
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    fill(t('pointsLabel'), price);
+    cut(word);
+  };
+
+  it('creates an auction round with a mode, a step, a loss and a cut per question', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Аукціон');
+    fireEvent.click(settingsBlock());
+    fireEvent.change(screen.getByLabelText(t('auctionModeLabel')), { target: { value: 'step' } });
+    fill(t('auctionStepLabel'), '50');
+    fireEvent.change(screen.getByLabelText(t('auctionLossLabel')), { target: { value: 'bid_price' } });
+    expect(screen.getByText(t('auctionSettingsNote'))).toBeTruthy();
+    fillQuestion('Яке місто столиця', '300', 'місто');
+    click(t('addQuestion'));
+    fillQuestion('Яка річка найдовша', '500', 'річка');
+    click(t('addQuestion'));
+    fillQuestion('Яка гора найвища', '700', t('betsCutNone'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'auction', bidMode: 'step', bidStep: 50, loss: 'bid_price' });
+    expect(roundQuestions(quiz.rounds[1]).map((q: Question) => q.betsCut)).toEqual([2, 2, 0]);
+    expect(roundQuestions(quiz.rounds[1]).map((q: Question) => q.points)).toEqual([300, 500, 700]);
+  });
+
+  it('hides the step in the free mode but keeps the number', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Аукціон');
+    fireEvent.click(settingsBlock());
+    fill(t('auctionStepLabel'), '75');
+    fireEvent.change(screen.getByLabelText(t('auctionModeLabel')), { target: { value: 'free' } });
+    expect(screen.queryByLabelText(t('auctionStepLabel'))).toBeNull();
+    fillQuestion('Яке місто столиця', '300', t('betsCutAll'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).rounds[1]).toMatchObject({ type: 'auction', bidMode: 'free', bidStep: 75 });
   });
 });

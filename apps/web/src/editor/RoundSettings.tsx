@@ -48,7 +48,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
     // У фіналі, «Ва-банк» і «Мільйонері» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'bets' || round.type === 'wipeout' || round.type === 'ladder') return;
+    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
@@ -218,6 +218,45 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             <p className="meta bets-minimums">{t('betsMinimumsNote', { list: betsMinimums(round, round.questions.length).join(', ') })}</p>
           )}
           <p className="meta">{t('betsSettingsNote')}</p>
+        </>
+      )}
+      {round.type === 'auction' && (
+        <>
+          <label className="field">
+            <span>{t('finalCheck')}</span>
+            <select value={round.check} onChange={(event) => onChange({ ...round, check: event.target.value === 'manual' ? 'manual' : 'auto' })}>
+              <option value="auto">{t('blitzCheckAuto')}</option>
+              <option value="manual">{t('blitzCheckManual')}</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>{t('auctionModeLabel')}</span>
+            <select value={round.bidMode} onChange={(event) => onChange({ ...round, bidMode: event.target.value === 'free' ? 'free' : 'step' })}>
+              <option value="step">{t('auctionModeStep')}</option>
+              <option value="free">{t('auctionModeFree')}</option>
+            </select>
+          </label>
+          {round.bidMode === 'step' && (
+            <label className="field">
+              <span>{t('auctionStepLabel')}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={LIMITS.maxBet}
+                value={Number.isNaN(round.bidStep) ? '' : round.bidStep}
+                onChange={(event) => onChange({ ...round, bidStep: toNumber(event.target.value) })}
+              />
+            </label>
+          )}
+          <label className="field">
+            <span>{t('auctionLossLabel')}</span>
+            <select value={round.loss} onChange={(event) => onChange({ ...round, loss: event.target.value === 'bid_price' ? 'bid_price' : 'bid' })}>
+              <option value="bid">{t('auctionLossBid')}</option>
+              <option value="bid_price">{t('auctionLossBidPrice')}</option>
+            </select>
+          </label>
+          <p className="meta">{t('auctionSettingsNote')}</p>
         </>
       )}
       {round.type === 'blitz' && (
@@ -411,7 +450,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'wipeout' && round.type !== 'ladder' && (
+      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'wipeout' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

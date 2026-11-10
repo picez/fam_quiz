@@ -196,6 +196,11 @@ export function wagerLine(bets: boolean, entry: { nickname: string; wager: numbe
   return t(bets ? 'betsHistoryLine' : 'finalHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
+/** Рядок покупця на аукціоні: хто купив, за яку ставку й скільки балів отримав. */
+export function auctionLine(entry: { nickname: string; wager: number; points: number }): string {
+  return t('auctionHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
+}
+
 /** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
 export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, question: GameQuestionResult['question']): string[] {
   const choices = choicesOf(question);
@@ -400,17 +405,18 @@ export function GameHistory() {
                         </span>
                         {question.final !== null && (
                           <div className="wager-list">
-                            <h4>{t(question.bets ? 'roundTypeBets' : question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
+                            <h4>{t(question.auction ? 'roundTypeAuction' : question.bets ? 'roundTypeBets' : question.final.mode === 'bank' ? 'historyFinalBank' : 'historyFinal')}</h4>
                             <ul>
                               {question.final.entries.map((entry, at) => (
                                 <li key={at} className={`${entry.accepted ? 'is-correct' : 'is-wrong'}${ledger.answers.has(undoAnswerKey(entry.nickname, question.index)) ? ' is-undone' : ''}`}>
-                                  {wagerLine(question.bets, entry)}
+                                  {question.auction ? auctionLine(entry) : wagerLine(question.bets, entry)}
                                   {entry.awayMs != null && <span className="meta history-away">{` ${t('historyAway', { seconds: awaySeconds(entry.awayMs) })}`}</span>}
                                 </li>
                               ))}
                             </ul>
                           </div>
                         )}
+                        {question.auction && question.final === null && <p className="meta auction-open">{t('auctionHistoryOpen')}</p>}
                         {question.wipeout !== undefined && (
                           <ul className="wipeout-history">
                             {wipeoutLines(question.wipeout).map((line, at) => (
