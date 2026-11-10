@@ -23994,3 +23994,443 @@ async function timedListTeams27c() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 27d: letter words — most words per word and per letter, the longest word from a random set, refusals and free repeats, a team list, only counts on the stage', async () => {
+  try {
+    await letterWordsGame27d();
+    await letterWordsTeams27d();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Поле вводу слова на телефоні. */
+const lettersInput27d = (page: Page) => page.locator('.letterwords-form input');
+/** Кнопка «Додати» (submit форми — і на іншій мові). */
+const lettersAdd27d = (page: Page) => page.locator('.letterwords-form button[type="submit"]');
+
+/** Вводить слово з клавіатури й тисне Enter. */
+async function lettersType27d(page: Page, word: string) {
+  await lettersInput27d(page).fill(word);
+  await lettersInput27d(page).press('Enter');
+}
+
+/** Набирає слово плитками (по літері) і тисне «Додати». */
+async function lettersTap27d(page: Page, word: string) {
+  for (const letter of word) {
+    const upper = letter.toLocaleUpperCase('uk');
+    await page.locator('button.letterwords-tile:not([aria-disabled="true"])', { hasText: new RegExp(`^${upper}$`) }).first().click();
+  }
+  expect(await lettersInput27d(page).inputValue(), `tiles typed «${word}»`).toBe(word);
+  await lettersAdd27d(page).click();
+}
+
+/** Літери плиток по порядку (малі); scope — де шукати (сцена: '.letterwords-stage'). */
+const lettersTiles27d = (page: Page, scope = '') =>
+  page.locator(`${scope} .letterwords-tiles .letterwords-tile`.trim()).evaluateAll((all) => all.map((el) => (el.textContent ?? '').toLocaleLowerCase('uk')));
+
+/** Власні слова на телефоні (новіші зверху). */
+const lettersMine27d = (page: Page) => page.locator('.letterwords-mine .letterwords-word').allTextContents();
+/** Рядок причини під полем. */
+const lettersStatus27d = (page: Page) => page.locator('.letterwords-status').textContent();
+/** Рядок гравця (чи команди) на табло слів. */
+const lettersRow27d = (page: Page, name: string) => page.locator('.letterwords-board li', { has: page.locator('.name', { hasText: new RegExp(`^${name}$`) }) });
+
+/** Кількість літер слова: апостроф плитки не займає. */
+const size27d = (word: string) => [...word.replace(/['’ʼ]/g, '')].length;
+let dictionary27d: string[] | null = null;
+/** Слова словника драбини, що складаються з набору (кожна плитка — один раз), за довжиною спадно, далі за абеткою. */
+function formable27d(letters: string[]): string[] {
+  dictionary27d ??= readFileSync(resolve(import.meta.dirname, '../data/wordladder-uk.txt'), 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'));
+  const have = new Map<string, number>();
+  for (const l of letters) have.set(l, (have.get(l) ?? 0) + 1);
+  return dictionary27d
+    .filter((word) => {
+      const need = new Map<string, number>();
+      for (const l of word.replace(/['’ʼ]/g, '')) need.set(l, (need.get(l) ?? 0) + 1);
+      return size27d(word) >= 3 && [...need].every(([l, n]) => (have.get(l) ?? 0) >= n);
+    })
+    .sort((a, b) => size27d(b) - size27d(a) || a.localeCompare(b, 'uk'));
+}
+
+/** Сцена 1600 × 900: без прокрутки вниз і вбік, жоден рядок слів і жодне найдовше слово не обрізано. */
+async function expectLettersStageFits27d(stage: Page, name: string) {
+  const [height, clientH, width, clientW] = (await stage.evaluate(
+    '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
+  )) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  const clipped = await stage
+    .locator('.letterwords-board .letterwords-words, .letterwords-board .name, .letterwords-best .letterwords-word')
+    .evaluateAll((all) => all.filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent));
+  expect(clipped, `${name}: clipped words`).toEqual([]);
+}
+
+async function letterWordsGame27d() {
+  // ── Редактор: класичний раунд, три запитання — свій набір за слово, свій набір за літеру, випадковий набір на найдовше. ──
+  const host = await open('host27d', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host27d@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Слова 27d');
+  await click(host, 'слова з літер');
+  await questionText(host).fill('Складіть якнайбільше слів');
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'letter words have no video').toBe(0);
+  expect(await field(host, 'Скільки літер').inputValue(), 'a random set of 9 by default').toBe('9');
+  await click(host, 'Свій набір');
+  const checked = host.waitForResponse((response) => response.url().endsWith('/api/letterwords/check'));
+  await field(host, 'Літери').fill('морквасті');
+  expect((await checked).ok()).toBe(true);
+  await host.locator('.letterwords-editor-check', { hasText: 'Складається слів:' }).waitFor();
+  expect(await host.locator('.letterwords-editor-check').textContent()).toContain('комісар');
+  expect(await field(host, 'Сума').inputValue(), 'the default sum per word').toBe('20');
+  await field(host, 'Час, с').fill('90');
+  await shot(host, 'letterwords27d-editor');
+
+  await click(host, 'Додати запитання');
+  await click(host, 'слова з літер');
+  await questionText(host).fill('Кожна літера — бали');
+  await click(host, 'Свій набір');
+  // «abc» — не українські літери: збереження називає проблему.
+  await field(host, 'Літери').fill('abc');
+  await click(host, 'Зберегти');
+  await host.getByText('Запитання 2: набір — від 4 до 12 українських літер.', exact).first().waitFor();
+  await shot(host, 'letterwords27d-editor-problem');
+  await field(host, 'Літери').fill('квітнесар');
+  await click(host, 'За кожну літеру');
+  await expect.poll(() => field(host, 'Сума').inputValue(), POLL).toBe('10');
+  await field(host, 'Час, с').fill('60');
+
+  await click(host, 'Додати запитання');
+  await click(host, 'слова з літер');
+  await questionText(host).fill('Найдовше слово');
+  await field(host, 'Скільки літер').fill('9');
+  await click(host, 'Найдовше слово');
+  expect(await host.getByRole('button', { name: 'За кожне слово', ...exact }).isDisabled(), 'per word with the longest goal').toBe(true);
+  expect(await host.getByRole('button', { name: 'За кожну літеру', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await field(host, 'Сума').fill('10');
+  await field(host, 'Час, с').fill('60');
+  await shot(host, 'letterwords27d-editor-longest');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Слова 27d' }).waitFor();
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Слова 27d')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: Record<string, unknown>[] }[] };
+  expect(stored.rounds[0]!.type).toBe('classic');
+  const [q1, q2, q3] = stored.rounds[0]!.questions;
+  expect(q1).toMatchObject({ type: 'letterwords', set: { kind: 'fixed', letters: 'морквасті' }, goal: 'most', per: 'word', points: 20, timeLimit: 90, video: null });
+  expect(q2).toMatchObject({ type: 'letterwords', set: { kind: 'fixed', letters: 'квітнесар' }, goal: 'most', per: 'letter', points: 10, timeLimit: 60 });
+  expect(q3).toMatchObject({ type: 'letterwords', set: { kind: 'random', count: 9 }, goal: 'longest', per: 'letter', points: 10, timeLimit: 60 });
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27d', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya27d', 375, 812);
+  const taras = await open('taras27d', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  const jose = await open('jose27d', 320, 640, { locale: 'es-ES' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, jose];
+  const scores = async (wanted: [string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await lettersInput27d(page).waitFor();
+
+  // ── Запитання 1: «морквасті», якнайбільше, 20 за слово. ──
+  const MORKVA = ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'];
+  await stage.getByText('Складайте слова на телефоні', exact).waitFor();
+  expect(await lettersTiles27d(stage, '.letterwords-stage')).toEqual(MORKVA);
+  for (const page of phones) expect(await lettersTiles27d(page)).toEqual(MORKVA);
+
+  // Оля: дві плитки в полі — вони бліді, «Додати» ще неактивна.
+  for (const letter of 'кі') await olya.locator('button.letterwords-tile', { hasText: new RegExp(`^${letter.toLocaleUpperCase('uk')}$`) }).click();
+  expect(await olya.locator('button.letterwords-tile[aria-disabled="true"]').count(), 'used tiles').toBe(2);
+  expect(await lettersAdd27d(olya).isDisabled(), 'Add with two letters').toBe(true);
+  await shot(olya, 'letterwords27d-phone-tiles');
+  await olya.getByRole('button', { name: 'Очистити', ...exact }).click();
+  // «кіт» плитками.
+  await lettersTap27d(olya, 'кіт');
+  await olya.locator('.letterwords-mine h2').getByText('Ваші слова: 1', exact).waitFor();
+  expect(await lettersInput27d(olya).inputValue(), 'the field after an accepted word').toBe('');
+  expect(await lettersMine27d(olya)).toEqual(['кіт']);
+  // Повтор з клавіатури великими — без кари, лічильник той самий.
+  await lettersType27d(olya, 'КІТ');
+  await expect.poll(() => lettersStatus27d(olya), POLL).toBe('Це слово вже є у списку');
+  await olya.locator('.letterwords-mine li.is-again').waitFor({ timeout: 2000 }).catch(() => undefined);
+  await shot(olya, 'letterwords27d-phone-repeat');
+  expect(await lettersMine27d(olya)).toEqual(['кіт']);
+  // Не з набору: «молоко» потребує трьох «о».
+  await lettersType27d(olya, 'молоко');
+  await expect.poll(() => lettersStatus27d(olya), POLL).toBe('Це слово не складається з літер набору');
+  expect(await lettersInput27d(olya).inputValue(), 'a refused word stays in the field').toBe('молоко');
+  await olya.waitForTimeout(350);
+  await shot(olya, 'letterwords27d-phone-refused');
+  await lettersType27d(olya, 'ворк');
+  await expect.poll(() => lettersStatus27d(olya), POLL).toBe('Такого слова не існує');
+  await lettersInput27d(olya).fill('ро');
+  expect(await lettersAdd27d(olya).isDisabled(), 'Add with two letters').toBe(true);
+  await lettersType27d(olya, 'сік');
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual(['сік', 'кіт']);
+  await lettersType27d(olya, 'морква');
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual(['морква', 'сік', 'кіт']);
+  await olya.locator('.letterwords-mine h2').getByText('Ваші слова: 3', exact).waitFor();
+  await olya.waitForTimeout(300);
+  await shot(olya, 'letterwords27d-phone-words');
+
+  // Тарас: перемішані плитки — той самий набір; «рот» і «сом».
+  await taras.getByRole('button', { name: 'Перемішати', ...exact }).click();
+  expect([...(await lettersTiles27d(taras))].sort(), 'the shuffled set').toEqual([...MORKVA].sort());
+  await lettersType27d(taras, 'рот');
+  await expect.poll(() => lettersMine27d(taras), POLL).toEqual(['рот']);
+  await lettersType27d(taras, 'сом');
+  await expect.poll(() => lettersMine27d(taras), POLL).toEqual(['сом', 'рот']);
+  // Хосе (es, 320): «ставок» з клавіатури; 9 плиток без прокрутки вбік.
+  await lettersType27d(jose, 'ставок');
+  await expect.poll(() => lettersMine27d(jose), POLL).toEqual(['ставок']);
+  expect(await jose.locator('button.letterwords-tile').count()).toBe(9);
+  const joseTile = (await jose.locator('button.letterwords-tile').first().boundingBox())!;
+  expect(joseTile.width, 'a tile wide enough for a finger at 320 px').toBeGreaterThanOrEqual(40);
+  expect(joseTile.height, 'a tile tall enough for a finger at 320 px').toBeGreaterThanOrEqual(40);
+  await jose.waitForTimeout(300);
+  await expectNoSideScroll(jose, 'letterwords27d-phone-es-320');
+  await expectNoSideScroll(taras, 'letterwords27d-phone-360');
+
+  // Сцена: лише кількість слів; ні слів, ні найдовших можливих.
+  for (const [name, count] of [['Оля', 'Слів: 3'], ['Тарас', 'Слів: 2'], ['Хосе', 'Слів: 1']] as const) {
+    await expect.poll(() => lettersRow27d(stage, name).locator('.tag').first().textContent(), POLL).toBe(count);
+  }
+  const stageHtml = await stage.content();
+  const stageSeen = stageFrames.join(NL);
+  for (const hidden of ['морква', 'комісар', 'самотік', 'ставок']) {
+    expect(stageHtml, `«${hidden}» in the stage DOM before the reveal`).not.toContain(hidden);
+    expect(stageSeen, `«${hidden}» sent to the stage before the reveal`).not.toContain(hidden);
+  }
+  expect(tarasFrames.join(NL), 'Olya’s word sent to Taras').not.toContain('морква');
+  expect(tarasFrames.join(NL), 'the best words sent to Taras').not.toContain('комісар');
+  expect(await stage.locator('.letterwords-best').count(), 'the best words on the stage before the reveal').toBe(0);
+  await shot(stage, 'letterwords27d-stage-question');
+
+  // Пульт: слова Олі наживо й найдовші можливі.
+  await host.locator('#live-answers').waitFor();
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain('Слів: 3');
+  const olyaLive = await liveRow(host, 'Оля').innerText();
+  for (const word of ['кіт', 'сік', 'морква']) expect(olyaLive, `«${word}» in Olya’s live row`).toContain(word);
+  await host.getByText('комісар').first().waitFor();
+  await shot(host, 'letterwords27d-host-live');
+
+  // ── Розкриття: найкращі слова кожного, бали, найдовші можливі. ──
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  for (const [name, points] of [['Оля', '+60'], ['Тарас', '+40'], ['Хосе', '+20']] as const) {
+    await expect.poll(() => lettersRow27d(stage, name).locator('.score').textContent(), POLL).toBe(points);
+  }
+  const olyaTop = await lettersRow27d(stage, 'Оля').locator('.letterwords-words').textContent();
+  for (const word of ['морква', 'кіт', 'сік']) expect(olyaTop, `«${word}» among Olya’s best`).toContain(word);
+  expect(await stage.locator('.letterwords-best .letterwords-word').allTextContents()).toEqual(['комісар', 'самотік']);
+  await stage.getByText(/^Усього слів у наборі: \d+$/).waitFor();
+  await scores(['60', '40', '20']);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'letterwords27d-stage-reveal');
+  await expectLettersStageFits27d(stage, 'q1 reveal');
+  await olya.locator('.letterwords-board li.is-mine').waitFor();
+  await olya.locator('.letterwords-best').waitFor();
+  await shot(olya, 'letterwords27d-phone-reveal');
+  await shot(jose, 'letterwords27d-phone-es-reveal');
+
+  // ── Запитання 2: «квітнесар», 10 за кожну літеру. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await expect.poll(() => lettersTiles27d(page).catch(() => []), POLL).toEqual(['к', 'в', 'і', 'т', 'н', 'е', 'с', 'а', 'р']);
+  await lettersType27d(olya, 'сітка');
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual(['сітка']);
+  await lettersType27d(olya, 'рік');
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual(['рік', 'сітка']);
+  await lettersType27d(taras, 'верстак');
+  await expect.poll(() => lettersMine27d(taras), POLL).toEqual(['верстак']);
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => lettersRow27d(stage, 'Оля').locator('.score').textContent(), POLL).toBe('+80');
+  expect(await lettersRow27d(stage, 'Тарас').locator('.score').textContent()).toBe('+70');
+  // Без слів — без запису: нуль балів, «Слів: 0».
+  expect(await lettersRow27d(stage, 'Хосе').locator('.score').textContent(), 'points for Jose without words').toBe('0');
+  expect(await lettersRow27d(stage, 'Хосе').locator('.tag').first().textContent()).toBe('Слів: 0');
+  // Найдовші можливі — два перші за абеткою серед семилітерних (верстак і кентавр серед них не перші).
+  expect(await stage.locator('.letterwords-best .letterwords-word').allTextContents()).toEqual(formable27d([...'квітнесар']).slice(0, 2));
+  await scores(['140', '110', '20']);
+  // Без слів — картка «неправильно»: заголовок найдовших слів не стає другим вердиктом (без «✗»).
+  await jose.locator('.result .letterwords-best h2').waitFor();
+  expect(await jose.locator('.result .letterwords-best h2').evaluate((el) => getComputedStyle(el, '::before').content), 'a ✗ before the best words title').toBe('none');
+  await shot(jose, 'letterwords27d-phone-es-wrong');
+
+  // ── Запитання 3: випадковий набір з 9 літер, найдовше слово, 10 за літеру. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await lettersInput27d(olya).waitFor();
+  await expect.poll(() => lettersTiles27d(stage, '.letterwords-stage').then((tiles) => tiles.join('')), POLL).not.toBe('квітнесар');
+  const random = await lettersTiles27d(stage, '.letterwords-stage');
+  expect(random, 'nine random tiles').toHaveLength(9);
+  for (const page of phones) await expect.poll(() => lettersTiles27d(page), POLL).toEqual(random);
+  const words = formable27d(random);
+  expect(words.length, `a word in the random set ${random.join('')}`).toBeGreaterThan(0);
+  const w1 = words[0]!;
+  const w2 = words.find((word) => size27d(word) < size27d(w1));
+  expect(w2, `a shorter word in ${random.join('')}`).toBeDefined();
+  const short = words.find((word) => size27d(word) === 3 && word !== w1);
+  await lettersType27d(olya, w1);
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual([w1]);
+  if (short !== undefined) {
+    await lettersType27d(olya, short);
+    await expect.poll(() => lettersMine27d(olya), POLL).toEqual([short, w1]);
+  }
+  await lettersType27d(taras, w2!);
+  await expect.poll(() => lettersMine27d(taras), POLL).toEqual([w2]);
+  await expect.poll(() => lettersRow27d(stage, 'Оля').locator('.tag').first().textContent(), POLL).toBe(`Слів: ${short === undefined ? 1 : 2}`);
+  expect(stageFrames.join(NL), `«${w1}» sent to the stage before the reveal`).not.toContain(`"${w1}"`);
+  await shot(stage, 'letterwords27d-stage-random-question');
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => lettersRow27d(stage, 'Оля').locator('.score').textContent(), POLL).toBe(`+${10 * size27d(w1)}`);
+  expect(await lettersRow27d(stage, 'Тарас').locator('.score').textContent()).toBe(`+${10 * size27d(w2!)}`);
+  expect(await lettersRow27d(stage, 'Оля').locator('.letterwords-words').textContent(), 'only the longest word in Olya’s row').toBe(w1);
+  const best = await stage.locator('.letterwords-best .letterwords-word').allTextContents();
+  expect(best.some((word) => size27d(word) === size27d(w1)), `a longest possible word of ${size27d(w1)} letters among ${best.join(', ')}`).toBe(true);
+  await scores([`${140 + 10 * size27d(w1)}`, `${110 + 10 * size27d(w2!)}`, '20']);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'letterwords27d-stage-random-reveal');
+  await expectLettersStageFits27d(stage, 'q3 reveal');
+
+  // ── Історія гри: «Слів: 3 · найдовше: 6 літ.» у Олі на першому запитанні. ──
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Слова 27d/ }).click();
+  const first = host.locator('.rows.stacked > li', { hasText: 'Складіть якнайбільше слів' });
+  await first.getByText(/Відповіді \(\d+\)/).click();
+  await first.locator('.responses li', { hasText: 'Оля' }).getByText('Слів: 3 · найдовше: 6 літ.', exact).waitFor();
+  await shot(host, 'letterwords27d-history');
+
+  expect(problems).toEqual([]);
+}
+
+async function letterWordsTeams27d() {
+  const host = await open('host27dt', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host27dt@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 90, type: 'letterwords' as const, goal: 'most' as const, per: 'word' as const, points: 20 };
+  const l1 = { ...common, id: 'w1', text: 'Слова з набору', set: { kind: 'fixed' as const, letters: 'морквасті' } };
+  const l2 = { ...common, id: 'w2', text: 'Дванадцять літер', set: { kind: 'random' as const, count: 12 } };
+  const round = classicRound('rt27d', [l1, l2] as never, { title: 'Команди 27d', speedBonus: false });
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'] } }), title: 'Команди 27d' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 27d' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27dt', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya27dt', 375, 812);
+  const petro = await open('petro27dt', 375, 812);
+  const ira = await open('ira27dt', 375, 812);
+  // Марко — найвужчий телефон: на ньому 12 плиток.
+  const marko = await open('marko27dt', 320, 640);
+  const markoFrames = socketFrames(marko);
+  const phones = [olya, petro, ira, marko];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Сині'],
+    [marko, 'Марко', 'Сині'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await lettersInput27d(page).waitFor();
+
+  // Оля й Петро — один список Червоних.
+  await lettersType27d(olya, 'острів');
+  await expect.poll(() => lettersMine27d(olya), POLL).toEqual(['острів']);
+  await lettersType27d(petro, 'ставок');
+  for (const page of [olya, petro]) await expect.poll(() => lettersMine27d(page), POLL).toEqual(['ставок', 'острів']);
+  // Петро — слово, яке вже додала Оля: повтор.
+  await lettersType27d(petro, 'острів');
+  await expect.poll(() => lettersStatus27d(petro), POLL).toBe('Це слово вже є у списку');
+  expect((await lettersMine27d(petro)).length).toBe(2);
+  // Іра (Сині) — «кіт»; Марко бачить його, а слів Червоних — ні.
+  await lettersType27d(ira, 'кіт');
+  await expect.poll(() => lettersMine27d(marko), POLL).toEqual(['кіт']);
+  expect(markoFrames.join(NL), 'the Reds’ word sent to Marko').not.toContain('острів');
+  await expect.poll(() => lettersRow27d(stage, 'Червоні').locator('.tag').first().textContent(), POLL).toBe('Слів: 2');
+  await expect.poll(() => lettersRow27d(stage, 'Сині').locator('.tag').first().textContent(), POLL).toBe('Слів: 1');
+  await petro.waitForTimeout(300);
+  await shot(petro, 'letterwords27d-team-phone');
+
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => lettersRow27d(stage, 'Червоні').locator('.score').textContent(), POLL).toBe('+40');
+  expect(await lettersRow27d(stage, 'Сині').locator('.score').textContent()).toBe('+20');
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'letterwords27d-team-stage-reveal');
+  await expectLettersStageFits27d(stage, 'team reveal');
+
+  // ── 12 випадкових літер: на 320 px — два ряди плиток без прокрутки вбік; на сцені — довгі слова без обрізання. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await expect.poll(() => lettersTiles27d(marko).then((tiles) => tiles.length).catch(() => 0), POLL).toBe(12);
+  const twelve = await lettersTiles27d(marko);
+  expect(await lettersTiles27d(stage, '.letterwords-stage')).toEqual(twelve);
+  const rows = await marko.locator('button.letterwords-tile').evaluateAll((all) => new Set(all.map((el) => Math.round(el.getBoundingClientRect().top))).size);
+  expect(rows, 'tile rows for 12 letters at 320 px').toBeLessThanOrEqual(2);
+  const tile = (await marko.locator('button.letterwords-tile').first().boundingBox())!;
+  expect(tile.width, 'a tile wide enough for a finger at 320 px').toBeGreaterThanOrEqual(40);
+  const words = formable27d(twelve);
+  expect(words.length, `words in ${twelve.join('')}`).toBeGreaterThanOrEqual(7);
+  const reds = words.slice(0, 5);
+  const blues = [words[0]!, ...words.slice(5, 7)];
+  for (const [at, word] of reds.entries()) {
+    await lettersType27d(olya, word);
+    await expect.poll(() => lettersMine27d(olya).then((mine) => mine.length), POLL).toBe(at + 1);
+  }
+  for (const [at, word] of blues.entries()) {
+    await lettersType27d(ira, word);
+    await expect.poll(() => lettersMine27d(ira).then((mine) => mine.length), POLL).toBe(at + 1);
+  }
+  await expect.poll(() => lettersMine27d(marko).then((mine) => mine.length), POLL).toBe(blues.length);
+  await lettersInput27d(marko).fill(words.at(-1)!);
+  await marko.waitForTimeout(300);
+  await expectNoSideScroll(marko, 'letterwords27d-phone-320-12');
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await expect.poll(() => lettersRow27d(stage, 'Червоні').locator('.score').textContent(), POLL).toBe(`+${20 * reds.length}`);
+  expect(await lettersRow27d(stage, 'Сині').locator('.score').textContent()).toBe(`+${20 * blues.length}`);
+  await lettersRow27d(stage, 'Червоні').getByText(`ще ${reds.length - 3}`, exact).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'letterwords27d-team-stage-reveal-12');
+  await expectLettersStageFits27d(stage, '12-letter reveal');
+  await shot(marko, 'letterwords27d-phone-320-12-reveal');
+
+  expect(problems).toEqual([]);
+}
