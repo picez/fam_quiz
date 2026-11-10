@@ -1003,6 +1003,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (items.length < LIMITS.minListItems || items.length > LIMITS.maxListItems) return 'problemListItems';
       if (duplicateListSpelling(question) !== '') return 'problemListDuplicate';
       if (question.points * items.length > LIMITS.maxPoints) return 'problemListPoints';
+      if (question.minus !== null && (!Number.isInteger(question.minus) || question.minus < 1 || question.minus > LIMITS.maxPoints)) return 'problemListMinus';
       break;
     }
     case 'bluff': {
@@ -1187,7 +1188,7 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
           ? LIMITS.maxTime
           : key === 'problemListItems'
             ? LIMITS.maxListItems
-            : key === 'problemListPoints'
+            : key === 'problemListPoints' || key === 'problemListMinus'
               ? LIMITS.maxPoints
               : LIMITS.maxAudioSeconds,
     // Номер першого пункту списку без назви.

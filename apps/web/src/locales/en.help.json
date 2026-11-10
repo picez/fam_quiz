@@ -499,7 +499,7 @@
   "question.timedlist.points.1": "A repeated word and a recognised typo cost nothing: the penalty applies only to a word not on the list sent with Enter. Speed, partial credit and buffs do not apply, the round multiplier does; the total can be negative.",
   "question.timedlist.tip.0": "Add the common other spellings of the items: that way a player will not lose a find over a different form of the word.",
   "question.timedlist.title": "Timed list",
-  "question.timedlist.what": "The host hides a list of items and players race to name them on their phones: a correct word drops into its own numbered cell.",
+  "question.timedlist.what": "The host hides a list of items and players name them on their own phones: a correct word drops into its own numbered cell.",
   "question.wall.how.0": "You set 4 groups of 4 tiles (4×4) or 3 groups of 3 (3×3) and name the link of each group, plus the mistake limit (3 by default).",
   "question.wall.how.1": "Players see the same tiles, shuffled so that no row is a ready-made group.",
   "question.wall.how.2": "The player selects 4 (or 3) tiles and presses “Check”: a correct group is coloured and locked in place, a wrong one is a mistake. The same wrong selection doesn't count twice.",

@@ -499,7 +499,7 @@
   "question.timedlist.points.1": "Una parola ripetuta e un errore di battitura riconosciuto non costano nulla: la penalità vale solo per una parola non in lista inviata con Invio. Velocità, valutazione parziale e buff non valgono; il moltiplicatore del round sì; il totale può essere negativo.",
   "question.timedlist.tip.0": "Aggiungi le altre grafie comuni delle voci: così il giocatore non perde un ritrovamento per un'altra forma della parola.",
   "question.timedlist.title": "Lista a tempo",
-  "question.timedlist.what": "Il conduttore nasconde una lista di voci e i giocatori gareggiano a nominarle sul telefono: la parola giusta va da sola nella sua casella numerata.",
+  "question.timedlist.what": "Il conduttore nasconde una lista di voci e i giocatori le nominano sul proprio telefono: la parola giusta va da sola nella sua casella numerata.",
   "question.wall.how.0": "Imposti 4 gruppi da 4 tessere (4×4) o 3 gruppi da 3 (3×3) e dai un nome al collegamento di ogni gruppo, oltre al limite di errori (di norma 3).",
   "question.wall.how.1": "I giocatori vedono le stesse tessere, mescolate in modo che nessuna fila sia un gruppo già pronto.",
   "question.wall.how.2": "Il giocatore sceglie 4 (o 3) tessere e preme «Verifica»: un gruppo giusto si colora e si fissa, uno sbagliato è un errore. La stessa scelta sbagliata una seconda volta non conta.",

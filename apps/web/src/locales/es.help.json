@@ -499,7 +499,7 @@
   "question.timedlist.points.1": "Una palabra repetida y un error de escritura reconocido no cuestan nada: la resta solo vale para una palabra que no está en la lista enviada con Intro. La velocidad, la puntuación parcial y los buffs no cuentan; el multiplicador de la ronda sí; el total puede ser negativo.",
   "question.timedlist.tip.0": "Añade las otras grafías habituales de los elementos: así el jugador no perderá un hallazgo por otra forma de la palabra.",
   "question.timedlist.title": "Lista a contrarreloj",
-  "question.timedlist.what": "El presentador oculta una lista de elementos y los jugadores compiten por nombrarlos en el móvil: la palabra correcta se coloca sola en su casilla numerada.",
+  "question.timedlist.what": "El presentador oculta una lista de elementos y los jugadores los nombran en su propio móvil: la palabra correcta se coloca sola en su casilla numerada.",
   "question.wall.how.0": "Fijas 4 grupos de 4 fichas (4×4) o 3 grupos de 3 (3×3) y nombras la conexión de cada grupo, además del límite de fallos (por defecto, 3).",
   "question.wall.how.1": "Los jugadores ven las mismas fichas, mezcladas de modo que ninguna fila sea un grupo ya hecho.",
   "question.wall.how.2": "El jugador elige 4 (o 3) fichas y pulsa «Comprobar»: un grupo correcto se colorea y se fija; uno incorrecto es un fallo. La misma elección errónea por segunda vez no cuenta.",

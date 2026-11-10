@@ -2577,6 +2577,13 @@ describe('timed list in the editor (27c)', () => {
     expect(problemsOf(quizWith({ ...listQ(), points: 250 }))).toEqual([]);
   });
 
+  it('a wrong minus has its own problem', () => {
+    for (const minus of [0, -5, 2001, Number.NaN, 1.5]) {
+      expect(problemsOf(quizWith({ ...listQ(), minus })), String(minus)).toEqual([t('problemListMinus', { index: 1, max: LIMITS.maxPoints })]);
+    }
+    expect(problemsOf(quizWith({ ...listQ(), minus: 50 }))).toEqual([]);
+  });
+
   it('a list is only for classic and a normal phone cell', () => {
     const question = listQ();
     const place = t('problemListPlace', { index: 1 });
