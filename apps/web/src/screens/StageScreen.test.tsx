@@ -2848,3 +2848,39 @@ describe('StageScreen: player truth (28b)', () => {
     expect(line.textContent).toContain('відповідає: Оля');
   });
 });
+
+describe('StageScreen: drawing (28c)', () => {
+  const drawQ = { ...question, type: 'drawing' as const, text: 'Намалюйте рослину', timeLimit: 60, points: 100, choices: [] };
+  const info = { drawerId: 'p1', drawerName: 'Оля', side: 'p1', rev: 2, guessed: 1, could: 3, word: null, guessers: null, drawerPoints: null };
+
+  it('the stage shows the live drawing, who draws and how many guessed, without the word or names', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    render(
+      <StageScreen
+        view={view({ phase: 'question', questionIndex: 0, question: drawQ, endsAt: Date.now() + 40_000, playerCount: 3, answeredCount: 1, drawing: info })}
+        code="123456"
+        joinUrl="http://quiz.test/play/123456"
+        offsetMs={0}
+        hostOnline
+        drawing={{ questionIndex: 0, rev: 2, strokes: [{ c: 0, w: 1, p: [1, 1, 9, 9] }, { c: 1, w: 2, p: [5, 5] }], stale: false }}
+      />,
+    );
+    expect(screen.getByText('Малює: Оля')).toBeTruthy();
+    expect(screen.getByText('Вгадали 1 з 3')).toBeTruthy();
+    expect(document.querySelector('.drawing-stage canvas')?.getAttribute('data-strokes')).toBe('2');
+    expect(document.body.textContent).not.toContain('соняшник');
+    expect(screen.queryByText('Відповідайте на телефоні')).toBeNull();
+  });
+
+  it('on reveal the stage shows the word and the guessers with points', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const reveal: Question = { id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник'] };
+    const revealed = { ...info, word: 'соняшник', guessers: [{ id: 'p2', nickname: 'Тарас', points: 100 }], drawerPoints: 33 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: drawQ, reveal, playerCount: 3, answeredCount: 1, drawing: revealed }));
+    expect(screen.getByText('Слово: соняшник')).toBeTruthy();
+    expect(screen.getByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('+100')).toBeTruthy();
+    expect(screen.getByText('Художник: Оля')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+});
