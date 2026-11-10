@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { makeRoundsQuiz, puzzlesQuiz, puzzlesRound, sudoku } from '@quiz/engine/testing';
+import { bool, classicRound, makeRoundsQuiz, moreless, puzzlesQuiz, puzzlesRound, single, sudoku, truthRound } from '@quiz/engine/testing';
 import { defaultTeams, PUZZLE_BATCHES_PER_SECOND } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { RoomManager, type Identity, type Room } from './manager';
@@ -168,5 +168,64 @@ describe('puzzles (28d) in the room manager', () => {
     expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
     expect(next.puzzleFill(back, olena.playerId, 0, [{ i: b, v: right(b) }])).toEqual({ ok: true });
     expect(next.puzzleFill(back, taras.playerId, 0, [{ i: b, v: right(b) }])).toEqual({ ok: false, error: 'puzzle_done' });
+  });
+});
+
+describe('puzzles (28d) after earlier rounds', () => {
+  // Регресія «Пробного забігу»: телефон шле view.questionIndex (номер у раунді), а сервер порівнював із індексом plays —
+  // після «Правди про гравця» (і будь-якого раунду перед «Головоломками») кожна цифра й «Готово» відкидалися як puzzle_stale.
+  it('a truth round and a classic round before: the phone fills with the view index and an incomplete grid is done', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const quiz = makeRoundsQuiz([truthRound('t', { timeLimit: 10 }), classicRound('c', [single, bool]), puzzlesRound('pz', [sudoku, { ...sudoku, id: 'z2' }])]);
+    const room = manager.create(quiz);
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.truth(room, olena.playerId, 'Я пекла хліб у печі')).toEqual({ ok: true });
+    expect(manager.truth(room, taras.playerId, 'Я бачив північне сяйво')).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    const toPuzzle = (id: string) => {
+      for (let i = 0; i < 60 && !(room.state.phase === 'question' && room.state.plays[room.state.questionIndex].question.id === id); i++) {
+        expect(manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
+      }
+      expect(room.state.plays[room.state.questionIndex].question.id).toBe(id);
+    };
+    toPuzzle(sudoku.id);
+    // правда додала свої записи в plays: глобальний індекс далеко від номера в раунді
+    expect(room.state.questionIndex).toBeGreaterThan(2);
+    const view = manager.view(room, olena.identity);
+    expect(view?.questionIndex).toBe(0);
+    const at = view!.questionIndex;
+    const [a] = empties;
+    expect(manager.puzzleFill(room, olena.playerId, at, [{ i: a, v: right(a) }])).toEqual({ ok: true });
+    expect(mine(manager, room, olena.identity)?.cells[a]).toBe(right(a));
+    expect(manager.puzzleFill(room, olena.playerId, room.state.questionIndex, [{ i: a, v: '' }])).toEqual({ ok: false, error: 'puzzle_stale' });
+    // «Готово» з неповною сіткою спрацьовує: сітку зафіксовано, балів немає
+    expect(manager.puzzleDone(room, olena.playerId, at)).toEqual({ ok: true });
+    expect(mine(manager, room, olena.identity)).toMatchObject({ done: true, canEdit: false });
+    expect(manager.puzzleDone(room, taras.playerId, at)).toEqual({ ok: true });
+    toPuzzle('z2');
+    expect(manager.view(room, olena.identity)?.questionIndex).toBe(1);
+    expect(manager.puzzleFill(room, olena.playerId, 0, [{ i: a, v: right(a) }])).toEqual({ ok: false, error: 'puzzle_stale' });
+    expect(manager.puzzleFill(room, olena.playerId, 1, [{ i: a, v: right(a) }])).toEqual({ ok: true });
+  });
+
+  it('«Більше чи менше» after a truth round: the pair index is per question, so picks still land', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeRoundsQuiz([truthRound('t', { timeLimit: 10 }), classicRound('m', [moreless])]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.truth(room, olena.playerId, 'Я пекла хліб у печі')).toEqual({ ok: true });
+    expect(manager.truth(room, taras.playerId, 'Я бачив північне сяйво')).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    for (let i = 0; i < 60 && !(room.state.phase === 'question' && room.state.plays[room.state.questionIndex].question.id === moreless.id); i++) {
+      expect(manager.host(room, { type: room.state.phase === 'question' ? 'lock' : 'next' })).toEqual({ ok: true });
+    }
+    expect(room.state.questionIndex).toBeGreaterThan(0);
+    expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
+    expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
   });
 });

@@ -7,7 +7,7 @@ import { puzzleFill, puzzleFinish, puzzleOf, puzzleSolution, puzzleSolved, puzzl
 import { actorOf } from './team-act';
 import { playerView, stageView } from './views';
 import { FIRST_BUFFS } from './testing/buffs';
-import { crosswordFull, crosswordKey, makeRoundsQuiz, puzzlesQuiz, puzzlesRound, sudoku } from './testing/fixtures';
+import { bool, classicRound, crosswordFull, crosswordKey, makeRoundsQuiz, puzzlesQuiz, puzzlesRound, single, sudoku } from './testing/fixtures';
 import { lobbyWith, lobbyWithSplash, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
@@ -157,6 +157,39 @@ describe('puzzles: batches', () => {
     const splashed = must(next(must(start(lobbyWithSplash(quiz, ...PLAYERS), 0)), 10_000, rng0));
     expect(puzzleFill(splashed, 'p1', 'p1', 0, cell, 10_001)).toEqual({ ok: false, error: 'not_started' });
     expect(puzzleFinish(splashed, 'p1', 0, 10_001)).toEqual({ ok: false, error: 'not_started' });
+  });
+
+  it('after an earlier round the phone sends the round-local number from its view, and the server takes it', () => {
+    // Регресія: телефон шле view.questionIndex (номер у раунді), а рушій порівнював із глобальним state.questionIndex — після
+    // будь-якого раунду перед «Головоломками» кожен пакет і «Готово» відкидалися як puzzle_stale.
+    const quiz = makeRoundsQuiz([classicRound('c', [{ ...single, id: 'c1' }, { ...bool, id: 'c2' }]), puzzlesRound('pz', [sudoku, crosswordFull])]);
+    let s = startRound(lobbyWith(quiz, ...PLAYERS), 0);
+    const toPuzzle = (from: GameState, id: string) => {
+      let current = from;
+      for (let i = 0; i < 20 && !(current.phase === 'question' && current.plays[current.questionIndex].question.id === id); i++) {
+        current = must(current.phase === 'question' ? lock(current, 1000) : next(current, 1000, rng0));
+      }
+      return current;
+    };
+    s = toPuzzle(s, sudoku.id);
+    expect(s.roundIndex).toBe(1);
+    expect(s.questionIndex).toBe(2);
+    const shown = playerView(s, 'p1')!.questionIndex;
+    expect(shown).toBe(0);
+    const filled = must(puzzleFill(s, 'p1', 'p1', shown, [{ i: firstEmpty, v: '1' }], 1000));
+    expect(puzzleOf(filled, 'p1')!.cells[firstEmpty]).toBe('1');
+    expect(playerView(filled, 'p1')!.me.puzzle?.cells[firstEmpty]).toBe('1');
+    // глобальний номер запитання — уже не той, що бачить телефон
+    expect(puzzleFill(s, 'p1', 'p1', 2, [{ i: firstEmpty, v: '1' }], 1000)).toEqual({ ok: false, error: 'puzzle_stale' });
+    // «Готово» з неповною сіткою: фіксує, 0 балів
+    const finished = must(puzzleFinish(filled, 'p1', shown, 2000));
+    expect(recordOf(finished, finished.questionIndex, 'p1')).toMatchObject({ grade: 'wrong', points: 0 });
+    expect(puzzleOf(finished, 'p1')!.done).toBe(true);
+    // друге запитання раунду — номер 1 у зрізі
+    const second = toPuzzle(must(lock(finished, 3000)), crosswordFull.id);
+    expect(playerView(second, 'p1')!.questionIndex).toBe(1);
+    expect(puzzleFinish(second, 'p1', 1, 3000).ok).toBe(true);
+    expect(puzzleFinish(second, 'p1', 0, 3000)).toEqual({ ok: false, error: 'puzzle_stale' });
   });
 
   it('refuses a puzzle batch on another question type', () => {
