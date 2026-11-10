@@ -72,6 +72,7 @@ import {
   answerKey,
   wordLadderCheckSchema,
   wordLadderWordSchema,
+  timedListWordSchema,
   type Answer,
   type BoardRound,
   type Question,
@@ -2228,5 +2229,90 @@ describe('auction round (27b)', () => {
     const parsed = quizSchema.parse(quizOf([auctionRound(three), round('r', [{ ...single, id: 'other' }])]));
     expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('auction'), auction: { mode: 'step', step: 50, loss: 'bid', count: 3 } });
     expect(roundBrief(parsed.rounds[1]!).auction).toBeNull();
+  });
+});
+
+describe('timed list question (27c)', () => {
+  const item = (id: string, text: string, accepted: string[] = []) => ({ id, text, accepted });
+  const listQ = (patch: object = {}) => ({ id: 'tl', type: 'timedlist', text: 'Назвіть планети Сонячної системи', imageUrl: null, video: null,
+    timeLimit: 90, points: 100, minus: 50,
+    items: [item('i1', 'Меркурій'), item('i2', 'Венера'), item('i3', 'Земля'), item('i4', 'Марс', ['Червона планета']), item('i5', 'Юпітер')], ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('accepts a timed list with spellings and an optional minus', () => {
+    expect(QUESTION_TYPES.indexOf('timedlist')).toBe(QUESTION_TYPES.indexOf('survey') + 1);
+    expect(qIssues(listQ())).toEqual([]);
+    expect(qIssues(listQ({ minus: null }))).toEqual([]);
+    expect(issues(quizOf([round('r', [listQ()])]))).toEqual([]);
+  });
+
+  it('refuses duplicate spellings across items, a video, too few items and too many points', () => {
+    const dup = listQ({ items: [item('i1', 'Меркурій'), item('i2', 'Венера'), item('i3', 'Земля'), item('i4', 'Марс'), item('i5', 'Юпітер', ['марс'])] });
+    expect(qIssues(dup)).toContain('timedlist_duplicate');
+    const same = listQ({ items: [item('i1', 'Меркурій'), item('i2', 'Венера'), item('i3', 'Марс', ['марс'])] });
+    expect(qIssues(same)).toEqual([]);
+    expect(qIssues(listQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('timedlist_video');
+    expect(valid(questionSchema, listQ({ items: [item('i1', 'Меркурій'), item('i2', 'Венера')] }))).toBe(false);
+    const many = Array.from({ length: 30 }, (_, i) => item(`n${i}`, `Пункт ${i}`));
+    expect(qIssues(listQ({ items: many }))).toContain('timedlist_points');
+    expect(qIssues(listQ({ items: many, points: 30 }))).toEqual([]);
+    expect(valid(questionSchema, listQ({ minus: 0 }))).toBe(false);
+    expect(qIssues(listQ({ items: [item('i1', 'Меркурій'), item('i1', 'Венера'), item('i3', 'Земля')] }))).toContain('duplicate_ids');
+  });
+
+  it('a timed list plays in classic rounds and normal phone cells only', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [listQ({ id: 'lb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [listQ({ id: 'lf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...listQ({ id: 'lbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...listQ({ id: 'lau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [listQ({ id: 'lw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    expect(issues(quizOf([round('r', [listQ()])]))).toEqual([]);
+    expect(issues(quizOf([board(listQ())]))).toEqual([]);
+    for (const bad of [blitzRound, final, bets, auction, wipeout]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('timedlist_place');
+    }
+    expect(issues(withCell(listQ(), { kind: 'blitz' }))).toContain('timedlist_place');
+    expect(issues(withCell(listQ(), { answerMode: 'voice' }))).toContain('timedlist_place');
+    expect(issues(quizOf([board(listQ(), { answerMode: 'voice' })]))).toContain('timedlist_place');
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single, orderSpare])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('timedlist');
+  });
+
+  it('answerSchema never accepts a list summary; the list event is limited', () => {
+    expect(valid(answerSchema, { type: 'timedlist', found: ['i1'], total: 5, wrong: 0 })).toBe(false);
+    expect(valid(timedListWordSchema, { word: 'Марс', enter: false })).toBe(true);
+    expect(valid(timedListWordSchema, { word: 'я'.repeat(61), enter: true })).toBe(false);
+    expect(valid(timedListWordSchema, { word: 'Марс' })).toBe(false);
+    expect(valid(timedListWordSchema, { word: 'Марс', enter: 'yes' })).toBe(false);
+  });
+
+  it('questionPrice of a timed list is the price of every item', () => {
+    expect(questionPrice(questionSchema.parse(listQ()))).toBe(500);
   });
 });
