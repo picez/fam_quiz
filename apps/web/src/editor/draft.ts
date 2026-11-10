@@ -65,15 +65,16 @@ export { QUESTION_TYPES, type QuestionType };
  * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
  * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
+ * «Список на час» — так само: класика й поле, не бліц, не фінал, не ставки й не аукціон.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
   if (roundType === 'final' || roundType === 'bets' || roundType === 'auction') {
-    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
   if (roundType === 'survival') return SURVIVAL_TYPES;
@@ -150,6 +151,17 @@ function build(common: Common, type: QuestionType): Question {
         answers: LIMITS.defaultSurveyAnswers,
         // popularity 0 — чернетка: редактор вимагає заповнення, схему проходить лише заповнена.
         rows: Array.from({ length: 5 }, () => ({ id: newId(), text: '', popularity: 0, accepted: [] as string[] })),
+      };
+    case 'timedlist':
+      // Без відео: без таймера список не скінчиться. Три порожні пункти, мінуса немає.
+      return {
+        ...common,
+        video: null,
+        type,
+        timeLimit: LIMITS.defaultListTime,
+        points: LIMITS.defaultListPoints,
+        minus: null,
+        items: Array.from({ length: LIMITS.minListItems }, () => ({ id: newId(), text: '', accepted: [] as string[] })),
       };
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -304,6 +316,8 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, accepted: [...question.accepted], lies: [...question.lies] };
     case 'survey':
       return { ...question, id, rows: question.rows.map((row) => ({ ...row, id: newId(), accepted: [...row.accepted] })) };
+    case 'timedlist':
+      return { ...question, id, items: question.items.map((item) => ({ ...item, id: newId(), accepted: [...item.accepted] })) };
     case 'poll':
       return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
@@ -600,6 +614,13 @@ const cleanBody = (question: Question): Question => {
       const spareOff = question.cloudId !== undefined && kept.length === 0;
       return { ...question, text, rows: kept.length >= LIMITS.minSurveyRows ? kept : spareOff ? [] : rows };
     }
+    case 'timedlist': {
+      // Пункт без назви й без написань не зберігається; порожні написання відкидаються. Пункт лише з написаннями лишається: про нього скаже перевірка.
+      const items = question.items
+        .map((item) => ({ ...item, text: item.text.trim(), accepted: item.accepted.map((s) => s.trim()).filter((s) => s !== '') }))
+        .filter((item) => item.text !== '' || item.accepted.length > 0);
+      return { ...question, text, items };
+    }
     case 'multi': {
       const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
       const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
@@ -773,19 +794,21 @@ interface Place {
   chain: boolean;
   /** Словесна драбина: лише класика, фінал і ставки (правило wordladder_place схеми). */
   wordladder: boolean;
+  /** Список на час: класика й звичайна клітинка з телефона (правило timedlist_place схеми). */
+  timedlist: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction' };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -974,6 +997,14 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (!Number.isInteger(answers) || answers < 1 || answers > LIMITS.maxSurveyAnswers) return 'problemSurveyAnswers';
       break;
     }
+    case 'timedlist': {
+      const { items } = question;
+      if (items.some((item) => item.text === '')) return 'problemListEmpty';
+      if (items.length < LIMITS.minListItems || items.length > LIMITS.maxListItems) return 'problemListItems';
+      if (duplicateListSpelling(question) !== '') return 'problemListDuplicate';
+      if (question.points * items.length > LIMITS.maxPoints) return 'problemListPoints';
+      break;
+    }
     case 'bluff': {
       const [truth = ''] = question.accepted;
       if (truth === '') return 'problemBluffTruth';
@@ -1011,6 +1042,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'sort' && !place.sort) return 'problemSortPlace';
   if (question.type === 'chain' && !place.chain) return 'problemChainPlace';
   if (question.type === 'wordladder' && !place.wordladder) return 'problemWordLadderPlace';
+  if (question.type === 'timedlist' && !place.timedlist) return 'problemListPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
@@ -1102,6 +1134,22 @@ function duplicateSpelling(question: Extract<Question, { type: 'survey' }>): str
   return '';
 }
 
+/** Перше написання, що веде у два пункти списку (тим самим ключем, що й схема), — так, як його ввів ведучий; повтор у межах пункту не заважає. */
+function duplicateListSpelling(question: Extract<Question, { type: 'timedlist' }>): string {
+  const seen = new Set<string>();
+  for (const item of question.items) {
+    const mine = new Set<string>();
+    for (const spelling of [item.text, ...item.accepted]) {
+      const key = answerKey(spelling);
+      if (mine.has(key)) continue;
+      if (seen.has(key)) return spelling.trim();
+      mine.add(key);
+    }
+    for (const key of mine) seen.add(key);
+  }
+  return '';
+}
+
 /**
  * Запасні вигадки блефу: скільки заповнено, перша, що збігається з написанням правди, і перша, що повторює іншу
  * (тим самим ключем, що й схема), — так, як її ввів ведучий (обрізана).
@@ -1131,8 +1179,19 @@ const bluffSpareText = (question: Extract<Question, { type: 'bluff' }>, key: Tex
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : LIMITS.minAudioSeconds,
-    max: key === 'problemBluffTruthLong' ? LIMITS.bluffLie : key === 'problemBluffChoiceTime' ? LIMITS.maxTime : LIMITS.maxAudioSeconds,
+    min: key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : LIMITS.minAudioSeconds,
+    max:
+      key === 'problemBluffTruthLong'
+        ? LIMITS.bluffLie
+        : key === 'problemBluffChoiceTime'
+          ? LIMITS.maxTime
+          : key === 'problemListItems'
+            ? LIMITS.maxListItems
+            : key === 'problemListPoints'
+              ? LIMITS.maxPoints
+              : LIMITS.maxAudioSeconds,
+    // Номер першого пункту списку без назви.
+    item: question?.type === 'timedlist' ? question.items.findIndex((entry) => entry.text === '') + 1 : 0,
     clueMin: LIMITS.minClueSeconds,
     clueMax: LIMITS.maxClueSeconds,
     pinMax: LIMITS.pinMaxZeroRadius,
@@ -1142,7 +1201,7 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
     cloudMax: LIMITS.maxCloudWords,
     tile: question?.type === 'wall' ? duplicateTile(question) : '',
     total: question?.type === 'survey' ? surveyTotal(question) : 0,
-    text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
+    text: question?.type === 'survey' ? duplicateSpelling(question) : question?.type === 'timedlist' ? duplicateListSpelling(question) : question?.type === 'bluff' ? bluffSpareText(question, key) : '',
     surveyMin: LIMITS.minSurveyRows,
     surveyMax: LIMITS.maxSurveyAnswers,
     letterMin: LIMITS.minWordLadderLetters,

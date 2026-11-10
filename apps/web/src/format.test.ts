@@ -217,6 +217,17 @@ describe('word ladder texts', () => {
   });
 });
 
+describe('timed list texts', () => {
+  const planets = ['Меркурій', 'Венера', 'Земля', 'Марс', 'Юпітер', 'Сатурн', 'Уран', 'Нептун'];
+  const listQ: Question = { ...base, type: 'timedlist', items: planets.map((text, n) => ({ id: `l${n + 1}`, text, accepted: [] })), minus: 50 };
+  it('writes found of total, with the mistakes only when there are some, and the numbered list as the right answer', () => {
+    expect(answerText({ type: 'timedlist', found: ['l5', 'l2', 'l4'], total: 8, wrong: 1 }, listQ)).toBe('Знайдено 3 з 8 · помилок: 1');
+    expect(answerText({ type: 'timedlist', found: ['l5', 'l2', 'l4'], total: 8, wrong: 0 }, listQ)).toBe('Знайдено 3 з 8');
+    expect(correctText(listQ).startsWith('1. Меркурій, 2. Венера')).toBe(true);
+    expect(correctText(listQ).endsWith('8. Нептун')).toBe(true);
+  });
+});
+
 describe('chain texts', () => {
   const chainQ: Question = { ...base, type: 'chain', words: ['Форель', 'Риба', 'Океан', 'Корабель'], hintSeconds: 5 };
   it('writes the chain and chain answers in words', () => {

@@ -2994,3 +2994,42 @@ describe('QuizEditor: auction round (27b)', () => {
     expect(saved(onSave).rounds[1]).toMatchObject({ type: 'auction', bidMode: 'free', bidStep: 75 });
   });
 });
+
+describe('QuizEditor: timed list (27c)', () => {
+  const planets = ['Меркурій', 'Венера', 'Земля', 'Марс', 'Юпітер', 'Сатурн', 'Уран', 'Нептун'];
+  const itemInput = (n: number) => within(screen.getByRole('group', { name: `Пункт ${n}` })).getByLabelText(`Пункт ${n}`);
+
+  it('saves a timed list', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Назвіть планети Сонячної системи');
+    click('список на час');
+    expect(screen.getAllByRole('group', { name: /^Пункт \d+$/ })).toHaveLength(3);
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemListItems', { index: 1, min: 3, max: 30 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    for (let n = 1; n <= 3; n += 1) fireEvent.change(itemInput(n), { target: { value: planets[n - 1] } });
+    for (let n = 4; n <= 8; n += 1) {
+      click(t('addListItem'));
+      fireEvent.change(itemInput(n), { target: { value: planets[n - 1] } });
+    }
+    fireEvent.click(screen.getByRole('checkbox', { name: t('listMinusOn') }));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'timedlist', points: 100, minus: 50, video: null, timeLimit: 90 });
+    if (question.type !== 'timedlist') throw new Error('unexpected');
+    expect(question.items.map((item) => item.text)).toEqual(planets);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a blitz round has no list chip, the board has it', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'список на час' })).toBeNull();
+    click('+ Раунд');
+    click('Ігрове поле');
+    screen.getByRole('button', { name: 'список на час' });
+  });
+});

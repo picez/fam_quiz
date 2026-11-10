@@ -135,6 +135,22 @@ describe('LiveAnswers', () => {
     expect(rows[1]).not.toContain('Кроків: 4');
   });
 
+  it('writes the count and the names found so far of a timed list, and the mistakes', () => {
+    show([
+      row({ progress: { kind: 'timedlist', found: ['Юпітер', 'Марс'], total: 8, wrong: 1 } }),
+      row({ id: 'b', nickname: 'Богдан', progress: { kind: 'timedlist', found: ['Венера'], total: 8, wrong: 0 } }),
+      row({ id: 'c', nickname: 'Софія', progress: { kind: 'timedlist', found: [], total: 8, wrong: 0 } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain('2 / 8');
+    expect(rows[0]).toContain('Юпітер');
+    expect(rows[0]).toContain('Марс');
+    expect(rows[0]).toContain('−1');
+    expect(rows[1]).toContain('1 / 8');
+    expect(rows[1]).not.toContain('−');
+  });
+
   it('writes the slider distance', () => {
     show([row({ answered: true, answer: { type: 'slider', value: 47 } as never })], base({ correct: slider }));
     expect(document.querySelector('.live-answer')?.textContent).toBe('47 % · відстань 3 %');

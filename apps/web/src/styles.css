@@ -17055,3 +17055,25 @@ button.wall-tile:disabled {
 .auction-host-text {
   margin: 0 0 0.5rem;
 }
+
+/* Список на час: редактор (27c). */
+.timedlist-editor-item {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.timedlist-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.timedlist-editor-head > input {
+  flex: 1 1 0;
+  min-width: 0;
+}

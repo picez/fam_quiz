@@ -51,6 +51,8 @@ export function questionLines(question: Question): string[] {
         return question.rows.map((row) => row.text);
       case 'bluff':
         return [...question.accepted, ...question.lies];
+      case 'timedlist':
+        return question.items.flatMap((item) => [item.text, ...item.accepted]);
       default:
         return [];
     }
