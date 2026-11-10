@@ -15667,11 +15667,20 @@ button.wall-tile:disabled {
   gap: 0.75rem;
   min-width: 0;
 }
+/* Рамка ніку — outline з відступом і сяйво box-shadow поза рамкою span: без обрізання (overflow) і з полями під них.
+   flex-basis 0 — довгий нік не переносить прев'ю під аватар, а скорочується «…» у рядку. */
 .look-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  padding: 0.5rem 0.75rem;
   font-size: 1.25rem;
+}
+.look-preview .profile-badge {
+  flex-shrink: 0;
 }
 
 /* Лайки (17a): ❤️ у шапці тієї ж висоти, що «Таблиця» (не росте й не стискається); блок фіналу — у потоці, чипи переносяться. */
