@@ -5,7 +5,7 @@ import { actAnswer } from './team-act';
 import { suspend } from './restore';
 import { assignTeam, captainOf, dealTeams, pickTeam, presentMembers, rollTeamRest, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { placeWager } from './final';
-import { betsRound, boardRound, classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
+import { auctionRound, betsRound, boardRound, classicRound, makeRoundsQuiz, poll, single, wipeoutLadder, wipeoutRound, withId, withPoints } from './testing/fixtures';
 import { stageView } from './views';
 import { decideWipeout, decisionOpen, wipeoutTable } from './wipeout';
 import { must } from './testing/helpers';
@@ -394,6 +394,35 @@ describe('team game: guards', () => {
     expect(closed.teams?.dice?.tour).toEqual([]);
     expect(must(setTeamForm(closed, 'dice')).teams?.dice).toEqual(closed.teams?.dice);
     expect(must(setTeamForm(closed, 'host')).teams?.dice).toBeNull();
+  });
+});
+
+describe('team game: auction (27b)', () => {
+  it('the captain bids for the team from the shared score', () => {
+    const quiz = teamQuiz([classicRound('r1', [single]), auctionRound('r2', [withId(single, 'a1')])], 2);
+    let s = teamGame(quiz, [
+      ['Олена', 'Тарас'],
+      ['Віра', 'Хосе'],
+    ]);
+    s = must(next(s, 0));
+    s = must(next(must(lock(s)), 1000));
+    s = must(next(s, 2000));
+    s = must(adjustScore(s, 't1', 700, 3000));
+    s = must(adjustScore(s, 't2', 300, 3000));
+    s = must(next(must(next(s, 4000)), 5000));
+    expect(s.phase).toBe('wager');
+    expect(s.final?.limits).toEqual({ t1: 700, t2: 300 });
+    // Учасник не є гравцем рушія: ставку робить капітан за команду (перевірка act — на сервері).
+    expect(placeWager(s, 'm1', 100, 6000, () => 0)).toEqual({ ok: false, error: 'not_found' });
+    s = must(placeWager(s, 't2', 100, 6000, () => 0));
+    s = must(placeWager(s, 't1', 200, 6000, () => 0));
+    // Межа — спільний рахунок команди: t2 (300) не перебиває 400.
+    const higher = must(placeWager(must(placeWager(s, 't2', 300, 6000, () => 0)), 't1', 400, 6000, () => 0));
+    expect(placeWager(higher, 't2', 500, 6000, () => 0)).toEqual({ ok: false, error: 'bid_over' });
+    expect(s.final?.wagers).toEqual({ t1: 200 });
+    s = must(next(s, 7000));
+    expect(s.phase).toBe('question');
+    expect(s.plays[s.questionIndex].final?.wagers).toEqual({ t1: 200 });
   });
 });
 

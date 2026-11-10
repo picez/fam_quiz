@@ -6,6 +6,7 @@ import {
   authorRemoveBluff,
   authorResume,
   authorTeamForm,
+  autopilotDue,
   autopilotStart,
   createAutopilotGame,
   isAuthor,
@@ -17,7 +18,7 @@ import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
 import { captainOf, dealTeams, pickTeam, rollTeamRest, setTeamForm, teamMembers } from './teams';
 import { answerAs, commit, drive } from './testing/autopilot';
-import { betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { auctionRound, betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
 
@@ -329,6 +330,39 @@ describe('author bluff removal (11g final review)', () => {
     const s = soloChoice();
     const { autopilot: _pilot, ...hosted } = s;
     expect(authorRemoveBluff(hosted, option(s, 'Мілан').id)).toEqual(NOT_ALLOWED);
+  });
+});
+
+describe('autopilot auction round (27b)', () => {
+  it('the autopilot walks an auction round', () => {
+    const quiz = autopilotQuiz(
+      makeRoundsQuiz([classicRound('r1', [single]), auctionRound('r2', [withId(single, 'a1'), withId(single, 'a2')], { check: 'manual' })]),
+    );
+    expect(quiz.rounds[1]).toMatchObject({ type: 'auction', check: 'auto' });
+    const lobby = pilotLobby(quiz, 'Ігор');
+    const started = commit(lobby, must(autopilotStart(lobby, T0, rng)), T0);
+    const ends: number[] = [];
+    const sales: number[] = [];
+    const sold: Record<string, number>[] = [];
+    const { state } = drive(started, {
+      now: T0,
+      rng,
+      people: answerAs(),
+      watch: (prev, next, now) => {
+        if (next.phase === 'wager' && next.endsAt !== null) ends.push(next.endsAt);
+        if (prev.phase === 'wager' && next.phase === 'question') {
+          // Автопілот на торгу не ходить: продає годинник рушія.
+          expect(autopilotDue(prev, now)).toBeNull();
+          sales.push(now);
+          sold.push(next.plays[next.questionIndex].final?.wagers ?? {});
+        }
+      },
+    });
+    expect(state.phase).toBe('finished');
+    expect(sales).toHaveLength(2);
+    sales.forEach((at) => expect(ends).toContain(at));
+    // Бот ставить найменшу наступну за першого, хто може (автор із балами за r1).
+    expect(sold).toEqual([{ a: 100 }, { a: 100 }]);
   });
 });
 

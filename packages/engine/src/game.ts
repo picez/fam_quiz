@@ -20,6 +20,7 @@ import {
   type ResumeSetup,
   type SurveyRow,
   type BoardRound,
+  type AuctionRound,
   type BetsRound,
   type FinalRound,
   type LadderOutcomeKind,
@@ -37,6 +38,9 @@ import {
   hallPoints,
   proximityPartial,
   isUnscored,
+  AUCTION_BID_MS,
+  AUCTION_OPEN_MS,
+  auctionPoints,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -63,7 +67,8 @@ import { applyVerdict, attemptsUsed, blitzDone, blitzRulesOf, isInstant, settleQ
 import { withCellPenalty } from './board-cells';
 import { dicePending, dropFromDice } from './board-dice';
 import { advanceTurn, BOARD_AWAY_MS, boardPoints, chooserOf, dropFromCircle, enterBoard, hasActiveCells, initBoard } from './board-turns';
-import { betsPlaying, betsRefusal, enterBetsWager, openBetsQuestion, wagerRound } from './bets';
+import { betsPlaying, betsRefusal, enterBetsWager, openBetsQuestion, stakedPlay, wagerRound } from './bets';
+import { auctionRoundOf, enterAuctionBidding, sellAuction } from './auction';
 import { chainDone, scoreChain } from './chain';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -1220,11 +1225,13 @@ export function withCurrentPlay(state: GameState, play: Play): GameState {
 /**
  * Запитання фіналу поточного раунду, якщо його вже відкрито; інакше undefined.
  * «Ставки» (27a): лише на question, locked і reveal — між запитаннями (ставки наступного, рейтинг) показане запитання стале.
+ * «Аукціон» (27b): так само; непродане запитання play.final не має.
  */
 function finalPlayOf(state: GameState): (Play & { final: FinalPlay }) | undefined {
   const play = state.plays[state.questionIndex];
   if (state.final === null || play?.final === undefined || play.roundIndex !== state.roundIndex) return undefined;
-  if (currentRound(state)?.type === 'bets' && betsPlaying(state) === null) return undefined;
+  const type = currentRound(state)?.type;
+  if ((type === 'bets' || type === 'auction') && betsPlaying(state) === null) return undefined;
   return { ...play, final: play.final };
 }
 
@@ -1239,12 +1246,18 @@ export function finalOutcome(state: GameState): BankOutcome | null {
   if (play === undefined) return null;
   const round = state.quiz.rounds[play.roundIndex];
   // «Ставки»: у банку лише ті, хто грає (поставив до відкриття); хто пропускає, запису не має.
-  const players = round.type === 'bets' ? state.players.filter((p) => Object.hasOwn(play.final.wagers, p.id)) : state.players;
+  // «Аукціон»: лише переможець торгу.
+  const players = round.type === 'bets' || round.type === 'auction' ? state.players.filter((p) => Object.hasOwn(play.final.wagers, p.id)) : state.players;
   const entries = players.map((player) => ({
     playerId: player.id,
     wager: wagerOf(play.final, player.id),
     correct: recordOf(state, state.questionIndex, player.id)?.grade === 'correct',
   }));
+  if (round.type === 'auction') {
+    // Правильно — ціна + ставка; помилка — −ставка (або −ставка − ціна за loss: 'bid_price').
+    const points = Object.fromEntries(entries.map((e) => [e.playerId, auctionPoints(round, play.question.points, e.wager, e.correct)]));
+    return { bank: 0, refund: false, points };
+  }
   if (round.type === 'bets' || (round.type === 'final' && round.wagerMode === 'bank')) return splitBank(entries);
   const points = Object.fromEntries(entries.map((e) => [e.playerId, finalPoints(e.wager, e.correct)]));
   return { bank: 0, refund: false, points };
@@ -1316,8 +1329,9 @@ function settleFinal(state: GameState): GameState {
   const play = finalPlayOf(state);
   if (play === undefined) return state;
   let settled = state;
-  // «Ставки»: мовчання оцінюється лише тим, хто грає.
-  const bets = currentRound(state)?.type === 'bets';
+  // «Ставки» й «Аукціон»: мовчання оцінюється лише тим, хто грає (у «Аукціоні» — переможцю торгу).
+  const type = currentRound(state)?.type;
+  const bets = type === 'bets' || type === 'auction';
   for (const player of state.players) {
     if (recordOf(state, state.questionIndex, player.id) !== undefined) continue;
     if (bets && !Object.hasOwn(play.final.wagers, player.id)) continue;
@@ -1561,8 +1575,9 @@ export function autoLock(state: GameState, now: number | null = null): GameState
     return people.every((m) => recordOf(state, state.questionIndex, m.id) !== undefined) ? lockNow(state) : state;
   }
   const type = currentRound(state)?.type;
-  // «Ставки»: лише тих, хто грає; без них запитання закриє таймер чи ведучий.
-  const playing = type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : type === 'bets' ? betsPlaying(state) : null;
+  // «Ставки»: лише тих, хто грає; без них запитання закриє таймер чи ведучий. «Аукціон»: продане — лише переможця, непродане — усіх.
+  const playing =
+    type === 'wipeout' ? wipeoutIn(state) : type === 'survival' ? survivalAlive(state) : type === 'bets' || type === 'auction' ? betsPlaying(state) : null;
   const connected = presentPlayers(state).filter((p) => playing === null || playing.includes(p.id));
   if (connected.length === 0) return state;
   const everyoneAnswered = connected.every((p) => recordOf(state, state.questionIndex, p.id) !== undefined);
@@ -1656,7 +1671,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
     return submitBlitzAnswer(state, playerId, answer, now);
   }
   if (round.type === 'board') return submitBoardAnswer(state, round, playerId, answer, now);
-  if (wagerRound(round)) return submitFinalAnswer(state, round, playerId, answer, now);
+  // Запитання зі ставками (фінал, «Ставки», продане «Аукціону»); непродане «Аукціону» — класичним шляхом нижче.
+  if (stakedPlay(play) && wagerRound(round)) return submitFinalAnswer(state, round, playerId, answer, now);
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   // Після часткової першої відповіді гравець вибирає через chooseRetry.
   if (buffOf(play, playerId)?.retry === 'choice') return fail('wrong_phase');
@@ -1702,10 +1718,10 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
 }
 
 /**
- * Відповідь у фіналі (і в «Ставках»): лише «правильно» (+ставка) або «неправильно» (−ставка), без часткових балів.
+ * Відповідь у фіналі (і в «Ставках», і переможця «Аукціону»): лише «правильно» (+ставка) або «неправильно» (−ставка), без часткових балів.
  * За ручної перевірки запис тимчасовий («неправильно»), доки ведучий не оцінить.
  */
-function submitFinalAnswer(state: GameState, round: FinalRound | BetsRound, playerId: string, answer: Answer, now: number): Result {
+function submitFinalAnswer(state: GameState, round: FinalRound | BetsRound | AuctionRound, playerId: string, answer: Answer, now: number): Result {
   const play = state.plays[state.questionIndex];
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || timeOver(state, play, now)) return fail('time_over');
@@ -1877,7 +1893,12 @@ export function lock(state: GameState, now?: number): Result {
 }
 
 /** Сервер викликає періодично; закриває запитання, коли сплив час. У бліці також згоряють вікна відповіді. */
-export function tick(state: GameState, now: number): GameState {
+export function tick(state: GameState, now: number, rng: Rng = Math.random): GameState {
+  // «Аукціон» (27b): торг, що сплив (з endsAt включно), продається — і відкриває запитання.
+  if (state.phase === 'wager') {
+    if (state.paused || state.endsAt === null || now < state.endsAt || auctionRoundOf(state) === null) return state;
+    return sellAuction(state, now, rng);
+  }
   // «Ва-банк»: вікно «Далі / Забрати», що сплило, закривається, невирішені забирають банк. Як кінець запитання нижче — з endsAt
   // включно: nextDeadline дає саме endsAt, і сервер тікає рівно в цю мить.
   // «Вибування»: випробування, що сплило, закривається так само (мовчуни питання вибувають, двері вибираються самі).
@@ -1955,7 +1976,7 @@ function enterRound(input: GameState): GameState {
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
-    final: type === 'final' || type === 'bets' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
+    final: type === 'final' || type === 'bets' || type === 'auction' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
     ...(type === 'ladder' ? { ladder: { contestantId: null, drawn: false } } : {}),
   };
 }
@@ -1994,6 +2015,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
       if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(state));
+      if (currentRound(state)?.type === 'auction') return ok(enterAuctionBidding(state, now));
       if (state.final !== null) return ok(enterWager(state, state.final));
       // «Мільйонер»: без учасника «Далі» — жереб чи «найменші бали» (етап лишається intro); з учасником — перше запитання.
       if (inLadderRound(state) && (state.ladder?.contestantId ?? null) === null) return drawContestant(state, rng);
@@ -2001,12 +2023,15 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
     case 'wager':
       // «Ставки»: «Відкрити запитання» — хто не поставив, пропускає.
       if (currentRound(state)?.type === 'bets') return ok(openBetsQuestion(state, now, rng));
+      // «Аукціон»: «Продано» — торг закривається достроково.
+      if (currentRound(state)?.type === 'auction') return ok(sellAuction(state, now, rng));
       return ok(openFinalQuestion(state, now, rng));
     case 'locked':
       if (finalPlayOf(state) !== undefined) {
         const settled = settleFinalWithOrder({ ...state, phase: 'reveal' });
-        // «Ставки»: розкриття по одному немає — ставки й виграші кожного видно одразу.
-        return ok(currentRound(state)?.type === 'bets' ? showAllFinal(settled) : settled);
+        // «Ставки» й «Аукціон»: розкриття по одному немає — ставки й виграші кожного видно одразу.
+        const type = currentRound(state)?.type;
+        return ok(type === 'bets' || type === 'auction' ? showAllFinal(settled) : settled);
       }
       return ok(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' });
     case 'reveal':
@@ -2030,8 +2055,9 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       // «Ва-банк»: драбина з вікном рішення після кожного запитання, крім останнього, незалежно від налаштування leaderboard.
       if (currentRound(state)?.type === 'wipeout') return ok(openDecision(state, now));
       if (state.quiz.settings.leaderboard === 'each') return ok({ ...state, phase: 'leaderboard' });
-      // «Ставки»: наступне запитання починається зі ставок.
+      // «Ставки»: наступне запитання починається зі ставок; «Аукціон» — з торгу.
       if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(state));
+      if (currentRound(state)?.type === 'auction') return ok(enterAuctionBidding(state, now));
       return ok(advance(state, now, rng));
     case 'leaderboard':
       if (currentRound(state)?.type === 'board') return ok(enterBoard(state, now));
@@ -2046,6 +2072,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       // «Вибування»: відкрите випробування «Далі» закриває; інакше — наступне запитання або кінець раунду з бонусом.
       if (trialOpen(state)) return ok(closeTrial(state));
       if (currentRound(state)?.type === 'bets') return ok(questionsLeft(state) ? enterBetsWager(state) : finishRound(state, now));
+      if (currentRound(state)?.type === 'auction') return ok(questionsLeft(state) ? enterAuctionBidding(state, now) : finishRound(state, now));
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
@@ -2083,6 +2110,11 @@ export function pause(state: GameState, now: number): Result {
   // Під час утримання годинник уже стоїть: пауза його не чіпає.
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
   const leaderboardClock = state.phase === 'leaderboard' && (decisionOpen(state) || trialOpen(state));
+  // «Аукціон» (27b): годинник торгу стоїть, залишок — у remainingMs.
+  if (state.phase === 'wager' && auctionRoundOf(state) !== null && state.endsAt !== null) {
+    const remainingMs = Math.max(0, state.endsAt - now);
+    return ok({ ...state, paused: true, pausedAt: now, remainingMs, startedAt: null, endsAt: null });
+  }
   if ((state.phase === 'question' || state.phase === 'duel' || leaderboardClock) && state.endsAt !== null) {
     // Лише таймер запитання (не більше за ліміт): залишок заставки до старту resume бере із самої заставки.
     const remainingMs = Math.max(0, state.endsAt - Math.max(now, state.startedAt ?? now));
@@ -2132,6 +2164,12 @@ function resumeClock(state: GameState, now: number): Result {
   if (state.phase === 'leaderboard' && state.remainingMs !== null) {
     const startedAt = now + lead;
     return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, startedAt, endsAt: startedAt + state.remainingMs });
+  }
+  // «Аукціон» (27b): торг продовжується з того самого залишку.
+  if (state.phase === 'wager' && state.remainingMs !== null) {
+    const endsAt = now + lead + state.remainingMs;
+    const totalMs = Object.keys(state.final?.wagers ?? {}).length > 0 ? AUCTION_BID_MS : AUCTION_OPEN_MS;
+    return ok({ ...state, paused: false, pausedAt: null, remainingMs: null, endsAt, startedAt: endsAt - Math.max(totalMs, state.remainingMs) });
   }
   if (state.phase === 'duel' && state.remainingMs !== null) {
     const endsAt = now + lead + state.remainingMs;
@@ -2253,7 +2291,8 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
-  if (wagerRound(current)) return overrideFinal(state, playerId, grade);
+  // «Аукціон»: непродане запитання (без play.final) оцінюється класичним шляхом нижче.
+  if (wagerRound(current) && (current.type !== 'auction' || finalPlayOf(state) !== undefined)) return overrideFinal(state, playerId, grade);
   // «Вибування»: на сторінці після розкриття — оцінка відповіді на питання на виживання (після закриття випробування).
   if (current?.type === 'survival' && state.phase === 'leaderboard') return overrideTrial(state, playerId, grade);
   if (state.phase !== 'reveal') return fail('wrong_phase');
@@ -2329,9 +2368,10 @@ function endNow(state: GameState, now?: number): Result {
     now ?? 0,
   );
   const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))));
-  // «Ставки»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
+  // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
+  const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {
-    ...(currentRound(scored)?.type === 'bets' ? closeFinal(scored) : scored),
+    ...(stoppedType === 'bets' || stoppedType === 'auction' ? closeFinal(scored) : scored),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,

@@ -1,7 +1,7 @@
 import { LIMITS, ladderKey, oneLetterApart, rulesOf, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { betsRefusal, wagerRound } from './bets';
+import { betsRefusal, stakedPlay } from './bets';
 import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type WordLadderProgress } from './game';
 import { finalPoints, wordLadderShare } from './score';
 import { limitMsOf, timeOverFor } from './timing';
@@ -53,9 +53,9 @@ function withProgress(state: GameState, play: Play, playerId: string, words: str
   return withPlay(state, { ...play, wordladder: words.length === 0 ? others : { ...others, [playerId]: { words } } });
 }
 
-/** Чи зіграно запитання в раунді зі ставками (фінал чи «Ставки»). */
-function isFinal(state: GameState, play: Play): boolean {
-  return wagerRound(state.quiz.rounds[play.roundIndex]);
+/** Чи запитання зі ставками (фінал, «Ставки», продане запитання «Аукціону»). */
+function isFinal(_state: GameState, play: Play): boolean {
+  return stakedPlay(play);
 }
 
 function wagerOf(play: Play, playerId: string): number {

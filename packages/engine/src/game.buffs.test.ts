@@ -8,6 +8,7 @@ import { FIRST_BUFFS, T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing
 import { placeWager } from './final';
 import { shopBlock } from './debuffs';
 import {
+  auctionRound,
   betsRound,
   blitzRound,
   bool,
@@ -159,6 +160,22 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([wordladder], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_wordladder');
+  });
+
+  it('an auction round has no buffs and no debuff shop (27b)', () => {
+    const quiz = makeRoundsQuiz([auctionRound('s1', [single4, withId(single4, 'q2')])], { buffs });
+    const intro = must(start(lobbyWith(quiz, 'Оля')));
+    expect(shopBlock(intro, 'p1')).toBe('phase');
+    const wager = must(next(intro, T0, rng0));
+    expect(wager.phase).toBe('wager');
+    expect(shopBlock(wager, 'p1')).toBe('phase');
+    // Непродане запитання (ніхто не ставив) — і так без бафів.
+    const open = must(next(wager, T0, rng0));
+    expect(open.phase).toBe('question');
+    expect(open.plays[open.questionIndex].final).toBeUndefined();
+    expect(takeBuff(open, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(open, 'p1', 'double')).toBe('off_auction');
+    expect(shopBlock(open, 'p1')).toBe('phase');
   });
 
   it('a bets round has no buffs and no debuff shop (27a)', () => {

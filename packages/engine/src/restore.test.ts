@@ -6,6 +6,7 @@ import { adjustScore } from './adjust';
 import { undoScore } from './undo';
 import { buyDebuff, setDebuff } from './debuffs';
 import { placeWager } from './final';
+import { nextDeadline } from './blitz';
 import { authorTeamForm, autopilotStart, createAutopilotGame, pilotStep, planAutopilot } from './autopilot';
 import { awayEnd, awayStart, awayStep } from './away';
 import { castAppealVote, openAppeal } from './appeal';
@@ -75,6 +76,7 @@ import { writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
 import {
+  auctionRound,
   betsRound,
   blitzRound,
   bluff,
@@ -1606,6 +1608,29 @@ describe('the saved state', () => {
     expect(back.adjustments[1]).toMatchObject({ source: 'undo', undoes: { seq: 1 }, batch: 2, points: -300 });
     expect(back.adjustments).toEqual(undone.adjustments);
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
+  });
+
+  it('an auction snapshot keeps the leader, the bid and the clock without a new version (27b)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const quiz = makeRoundsQuiz([auctionRound('r1', [withId(single, 'a1')])]);
+    let wager = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0));
+    wager = must(adjustScore(wager, 'p1', 500, T0));
+    wager = must(placeWager(wager, 'p1', 100, T0, () => 0));
+    expect(nextDeadline(wager, T0)).toBe(T0 + 5000);
+    const back = roundTrip(suspend(roundTrip(wager), T0 + 1000));
+    expect(back.phase).toBe('wager');
+    expect(back.final).toEqual(wager.final);
+    expect(back.remainingMs).toBe(4000);
+    expect(nextDeadline(back, T0 + 1000)).toBeNull();
+    const resumed = must(resume(back, T0 + HOUR));
+    expect(resumed.endsAt).toBe(T0 + HOUR + 4000);
+    expect(nextDeadline(resumed, T0 + HOUR)).toBe(T0 + HOUR + 4000);
+    const sold = tick(resumed, T0 + HOUR + 4000);
+    expect(sold.plays[sold.questionIndex].final).toEqual({ wagers: { p1: 100 }, allIn: [], graded: [] });
+    // Годинник, що сплив до збереження, продає вже на suspend.
+    const late = suspend(roundTrip(wager), T0 + 6000);
+    expect(late.phase).toBe('question');
+    expect(late.plays[late.questionIndex].final?.wagers).toEqual({ p1: 100 });
   });
 
   it('a bets round snapshot keeps the bets without a new version (27a)', () => {

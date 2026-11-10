@@ -2,6 +2,7 @@ import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   type Answer,
+  type AuctionRound,
   type BetsRound,
   type BlitzRound,
   type BoardRound,
@@ -366,6 +367,26 @@ export function betsRound(id: string, questions: Question[], options: Partial<Om
     betStart: 200,
     betStep: 100,
     betMax: null,
+    ...options,
+    questions: questions.map((question) => (question.betsCut === undefined ? { ...question, betsCut: 2 } : question)),
+  };
+}
+
+/** «Аукціон»: типово title '', shuffleOptions false, check 'auto', bidMode 'step', bidStep 100, loss 'bid'; запитанню без betsCut — 2. */
+export function auctionRound(
+  id: string,
+  questions: Question[],
+  options: Partial<Omit<AuctionRound, 'id' | 'type' | 'questions'>> = {},
+): AuctionRound {
+  return {
+    id,
+    type: 'auction',
+    title: '',
+    shuffleOptions: false,
+    check: 'auto',
+    bidMode: 'step',
+    bidStep: 100,
+    loss: 'bid',
     ...options,
     questions: questions.map((question) => (question.betsCut === undefined ? { ...question, betsCut: 2 } : question)),
   };
