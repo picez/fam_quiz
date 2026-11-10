@@ -108,6 +108,8 @@ export interface PublicQuestion {
   wordladder?: PublicWordLadder;
   /** Лише на запитанні-списку (27c); ключа немає в інших типів. Пунктів і написань тут немає. */
   timedlist?: PublicTimedList;
+  /** Лише на запитанні «Слова з літер» (27d); ключа немає в інших типів. Слів і найкращих слів тут немає. */
+  letterwords?: PublicLetterWords;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -288,6 +290,44 @@ export interface TimedListInfo {
   rows: TimedListRow[];
   /** Увесь список: ведучому завжди, іншим лише на reveal; інакше null. */
   items: TimedListItemView[] | null;
+}
+
+/** «Слова з літер» (27d), усім: набір (порожній, поки випадковий не роздано), ціль, спосіб, сума за одиницю. */
+export interface PublicLetterWords {
+  letters: string[];
+  goal: 'most' | 'longest';
+  per: 'word' | 'letter';
+  unit: number;
+}
+
+export interface LetterWordsRow {
+  playerId: string;
+  nickname: string;
+  found: number;
+  /** Лише на reveal: longest — одне найдовше слово, most — до 3 найдовших; інакше null. */
+  top: string[] | null;
+  /** Лише на reveal, most: скільки слів поза top; інакше null. */
+  more: number | null;
+  /** Бали лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface LetterWordsInfo {
+  /** За found спаданням, далі в порядку гравців. */
+  rows: LetterWordsRow[];
+  /** Найдовші можливі слова: ведучому завжди, іншим лише на reveal; інакше null (і поки не роздано). */
+  best: string[] | null;
+  /** Скільки слів складається з набору: як best. */
+  possible: number | null;
+  /** Слова кожного наживо: лише ведучому, іншим null. */
+  words: Record<string, string[]> | null;
+}
+
+export interface PlayerLetterWords {
+  /** Власні слова в порядку знаходження. */
+  words: { text: string; letters: number }[];
+  /** question, не пауза, набір роздано. */
+  canType: boolean;
 }
 
 export interface PlayerTimedList {
@@ -1353,6 +1393,8 @@ interface BaseView {
   wordladder?: WordLadderInfo;
   /** «Список на час» (27c): лише на запитанні-списку (question, locked, reveal); інакше ключа немає. */
   timedlist?: TimedListInfo;
+  /** «Слова з літер» (27d): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
+  letterwords?: LetterWordsInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
@@ -1590,6 +1632,8 @@ export interface PlayerView extends BaseView {
     wordladder?: PlayerWordLadder;
     /** Власний список гравця (27c): лише на запитанні-списку; інакше ключа немає. */
     timedlist?: PlayerTimedList;
+    /** Власні слова гравця (27d): лише на запитанні «Слова з літер»; інакше ключа немає. */
+    letterwords?: PlayerLetterWords;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -1680,6 +1724,7 @@ export type LiveProgress =
   | { kind: 'chain'; solved: number; total: number; word: string | null; hints: number }
   | { kind: 'wordladder'; steps: number; words: string[]; finished: boolean }
   | { kind: 'timedlist'; found: string[]; total: number; wrong: number }
+  | { kind: 'letterwords'; words: string[] }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1767,6 +1812,8 @@ export interface HostView extends BaseView {
   wordladder?: WordLadderInfo;
   /** Як у BaseView, але ведучому завжди весь список з тими, хто знайшов. */
   timedlist?: TimedListInfo;
+  /** Як у BaseView, але ведучому завжди ще й слова кожного, найкращі слова й скільки їх можливо. */
+  letterwords?: LetterWordsInfo;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */
