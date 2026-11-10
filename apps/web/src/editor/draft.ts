@@ -33,6 +33,7 @@ import {
   ladderPresetSafe,
   type LadderRound,
   type Round,
+  type MoreLessPair,
   type Question,
   type Quiz,
   type RoundRules,
@@ -109,7 +110,7 @@ const blanks = (count: number) => Array.from({ length: count }, () => ({ id: new
 const NEW_MORELESS_PAIRS = 3;
 
 /** Порожнє порівняння «Більше чи менше»: лівий варіант правильний, бали задано. */
-export function blankMoreLessPair(points: number, prompt = ''): Extract<Question, { type: 'moreless' }>['pairs'][number] {
+export function blankMoreLessPair(points: number, prompt = ''): MoreLessPair {
   return { id: newId(), prompt, a: { text: '', value: '' }, b: { text: '', value: '' }, correct: 'a', points };
 }
 

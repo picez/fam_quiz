@@ -1,10 +1,10 @@
-import { LIMITS, type Question } from '@quiz/shared';
+import { LIMITS, answerKey, type MoreLessPair, type Question } from '@quiz/shared';
 import { t } from '../i18n';
 import { blankMoreLessPair, moveItem } from './draft';
 import { NumberField } from './QuestionEditor';
 
 type MoreLess = Extract<Question, { type: 'moreless' }>;
-type Pair = MoreLess['pairs'][number];
+type Pair = MoreLessPair;
 
 const SIDES = ['a', 'b'] as const;
 
@@ -40,10 +40,10 @@ export function MoreLessEditor({ question, onChange }: { question: MoreLess; onC
                 maxLength={LIMITS.moreLessPrompt}
                 onChange={(event) => setPair(pair.id, { prompt: event.target.value })}
               />
-              <button type="button" className="row-button" aria-label={t('moreLessPairUp')} disabled={at === 0} onClick={() => move(at, at - 1)}>
+              <button type="button" className="row-button" aria-label={t('moreLessPairUp', { index })} disabled={at === 0} onClick={() => move(at, at - 1)}>
                 ↑
               </button>
-              <button type="button" className="row-button" aria-label={t('moreLessPairDown')} disabled={at === pairs.length - 1} onClick={() => move(at, at + 1)}>
+              <button type="button" className="row-button" aria-label={t('moreLessPairDown', { index })} disabled={at === pairs.length - 1} onClick={() => move(at, at + 1)}>
                 ↓
               </button>
               <button
@@ -82,6 +82,8 @@ export function MoreLessEditor({ question, onChange }: { question: MoreLess; onC
                 </div>
               ))}
             </div>
+            {/* Однакові значення — неоднозначне порівняння; лише попередження: «рівно» буває задумом ведучого. */}
+            {pair.a.value.trim() !== '' && answerKey(pair.a.value) === answerKey(pair.b.value) && <p className="meta powers-warn">{t('morelessTieWarn')}</p>}
             <NumberField label={t('morelessPoints')} value={pair.points} onChange={(points) => setPair(pair.id, { points })} />
           </div>
         );

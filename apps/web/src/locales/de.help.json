@@ -390,7 +390,7 @@
   "question.moreless.limits.0": "{minMoreLessPairs}–{maxMoreLessPairs} Vergleiche in einer Reihe.",
   "question.moreless.limits.1": "Nur klassische Runde und normales Spielbrettfeld mit Handy-Antwort; ohne Video und ohne Buffs.",
   "question.moreless.points.0": "Jeder Vergleich hat eigene Punkte, und der Preis der Frage ist ihre Summe; der Editor rechnet sie selbst. Ein Spieler bekommt Punkte nur für die Vergleiche, die er richtig gewählt hat. Angenommen, „Was ist höher? Howerla oder Eiffelturm“ bringt 100 Punkte und „Was ist länger? Rhein oder Donau“ 150: Nur das erste richtig gibt 100, beide – 250.",
-  "question.moreless.points.1": "Der Rundenmultiplikator und die Feldmarkierung gelten; Tempo, Teilwertung, das Minus der Runde und Buffs nicht. „Richtig“ heißt, dass alle Vergleiche stimmen, „teilweise richtig“ – mindestens einer, „falsch“ – keiner.",
+  "question.moreless.points.1": "Der Rundenmultiplikator und die Feldmarkierung gelten; Teilwertung, das Minus der Runde und Buffs nicht. „Richtig“ heißt, dass alle Vergleiche stimmen, „teilweise richtig“ – mindestens einer, „falsch“ – keiner.",
   "question.moreless.tip.0": "Gleiche Werte sind kein Fehler: „genau gleich“ entscheidet der Moderator, indem er die richtige Option markiert. Wähle Vergleiche, deren Unterschied nach der Auflösung klar zu sehen ist.",
   "question.moreless.title": "Mehr oder weniger",
   "question.moreless.what": "Eine Reihe von Vergleichen: In jedem wählt der Spieler, welche der beiden Optionen stimmt – höher, länger, älter. Die Werte der Optionen trägt der Moderator vorher ein, und die Spieler sehen sie erst nach der Auflösung.",

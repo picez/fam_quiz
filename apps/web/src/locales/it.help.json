@@ -390,7 +390,7 @@
   "question.moreless.limits.0": "{minMoreLessPairs}–{maxMoreLessPairs} confronti in una serie.",
   "question.moreless.limits.1": "Solo round classico e casella normale del tabellone dal telefono; senza video e senza potenziamenti.",
   "question.moreless.points.0": "Ogni confronto ha i suoi punti, e il prezzo della domanda è la loro somma; la calcola l’editor. Il giocatore riceve punti solo per i confronti in cui ha scelto bene. Poniamo che «Cos’è più alto? L’Hoverla o la Torre Eiffel» valga 100 punti e «Cos’è più lungo? Il Reno o il Danubio» 150: il solo primo giusto dà 100, entrambi 250.",
-  "question.moreless.points.1": "Valgono il moltiplicatore del round e il segno della casella; non valgono la rapidità, il punteggio parziale, il meno del round e i potenziamenti. «Giusto» significa che tutti i confronti sono giusti, «parzialmente giusto» almeno uno, «sbagliato» nessuno.",
+  "question.moreless.points.1": "Valgono il moltiplicatore del round e il segno della casella; non valgono il punteggio parziale, il meno del round e i potenziamenti. «Giusto» significa che tutti i confronti sono giusti, «parzialmente giusto» almeno uno, «sbagliato» nessuno.",
   "question.moreless.tip.0": "I valori uguali non sono un errore: «esattamente uguale» lo decide il conduttore segnando l’opzione giusta. Scegli confronti la cui differenza si vede chiaramente dopo la rivelazione.",
   "question.moreless.title": "Più o meno",
   "question.moreless.what": "Una serie di confronti: in ciascuno il giocatore sceglie quale delle due opzioni è giusta: più alta, più lunga, più antica. I valori delle opzioni li scrive prima il conduttore, e i giocatori li vedono solo dopo la rivelazione.",

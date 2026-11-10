@@ -18018,6 +18018,19 @@ button.letterwords-tile:focus-visible {
   padding-block: 0.375rem;
 }
 
+/* Сцена під час запитання: рядки поступу читаються з залу — великий шрифт, «3 / 8» того самого розміру; багато гравців — два стовпці. */
+.stage .moreless-stage:not(.is-reveal) .moreless-board {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 36rem), 1fr));
+  gap: 0.25rem 2.5rem;
+  font-size: clamp(1.25rem, 2vw, 2.25rem);
+}
+
+.stage .moreless-stage:not(.is-reveal) .moreless-board .tag {
+  font-size: 1em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .moreless-card.is-slide,
   .moreless-side.moreless-right {

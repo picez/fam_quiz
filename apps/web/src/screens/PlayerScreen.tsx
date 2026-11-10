@@ -37,7 +37,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
-import { MoreLessBoard, MoreLessPlay, MoreLessReveal } from './MoreLessView';
+import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -741,6 +741,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  // «Більше чи менше» на locked: «Час вийшов» лише коли справді сплив час, інакше — «Запитання закрито».
+  const ranOut = useTimeRanOut(view.questionIndex, phase, myClock?.endsAt ?? view.endsAt, offsetMs);
   // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі) і час не вийшов.
   const peekAllowed = phase === 'question' && !view.paused && !buffTimeOver && peekSlot?.state === 'ready' && peekSlot.block === null;
   const peekOpen = peekFor === view.questionIndex && peekAllowed;
@@ -1275,7 +1277,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : question?.type === 'moreless' ? (
             <section className="sent">
               {me.moreless !== undefined ? (
-                <h2>{me.moreless.done >= me.moreless.total ? t('morelessDone') : t('morelessLate', { done: me.moreless.done, total: me.moreless.total })}</h2>
+                <h2>{me.moreless.done >= me.moreless.total ? t('morelessDone') : t(ranOut ? 'morelessLate' : 'morelessClosed', { done: me.moreless.done, total: me.moreless.total })}</h2>
               ) : (
                 view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
               )}

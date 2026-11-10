@@ -3074,6 +3074,8 @@ describe('QuizEditor: more or less (28a)', () => {
     fill('Текст запитання', 'Порівняйте');
     click('більше чи менше');
     expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    // Бафів у типу немає — і підказки для них теж.
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
     // Лише три поля балів, по одному в кожному порівнянні: загального немає.
     expect(screen.getAllByLabelText(t('pointsLabel'))).toHaveLength(3);
     const rows = [

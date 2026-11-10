@@ -515,7 +515,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
       : view.survival !== null
         ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
-        : blitz === null
+        : view.moreless !== undefined
+          ? // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як на сцені (answeredCount рахує й тих, хто лише почав).
+            t('answeredOf', { answered: view.moreless.rows.filter((row) => row.done >= row.total).length, total: view.playerCount })
+          : blitz === null
           ? t('answeredOf', { answered: view.answeredCount, total: view.playerCount })
           : instant
             ? t('answeredOf', { answered: blitz.rows.length, total: view.playerCount })
@@ -767,7 +770,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. */}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}

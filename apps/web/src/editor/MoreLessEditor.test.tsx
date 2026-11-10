@@ -52,8 +52,8 @@ describe('MoreLessEditor', () => {
     expect(screen.getByText(t('morelessTotal', { points: 400 }))).toBeTruthy();
 
     // Тексти й значення.
-    fireEvent.change(within(card(2)).getByLabelText(t('morelessPrompt')), { target: { value: 'Що довшe?' } });
-    expect(last(onChange).pairs[1].prompt).toBe('Що довшe?');
+    fireEvent.change(within(card(2)).getByLabelText(t('morelessPrompt')), { target: { value: 'Що довше?!' } });
+    expect(last(onChange).pairs[1].prompt).toBe('Що довше?!');
     fireEvent.change(within(card(2)).getByLabelText(t('morelessOptionB')), { target: { value: 'Дунай!' } });
     expect(last(onChange).pairs[1].b.text).toBe('Дунай!');
     fireEvent.change(within(card(2)).getAllByLabelText(t('morelessValue'))[0], { target: { value: '1233 км ' } });
@@ -77,17 +77,34 @@ describe('MoreLessEditor', () => {
 
     // Місця.
     rerender(<MoreLessEditor question={named()} onChange={onChange} />);
-    fireEvent.click(within(card(1)).getByRole('button', { name: t('moreLessPairDown') }));
+    fireEvent.click(within(card(1)).getByRole('button', { name: t('moreLessPairDown', { index: 1 }) }));
     expect(last(onChange).pairs.map((p) => p.id)).toEqual(['p2', 'p1', 'p3']);
-    fireEvent.click(within(card(3)).getByRole('button', { name: t('moreLessPairUp') }));
+    fireEvent.click(within(card(3)).getByRole('button', { name: t('moreLessPairUp', { index: 3 }) }));
     expect(last(onChange).pairs.map((p) => p.id)).toEqual(['p1', 'p3', 'p2']);
-    expect((within(card(1)).getByRole('button', { name: t('moreLessPairUp') }) as HTMLButtonElement).disabled).toBe(true);
-    expect((within(card(3)).getByRole('button', { name: t('moreLessPairDown') }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(card(1)).getByRole('button', { name: t('moreLessPairUp', { index: 1 }) }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(card(3)).getByRole('button', { name: t('moreLessPairDown', { index: 3 }) }) as HTMLButtonElement).disabled).toBe(true);
+    // Кнопки місць різних порівнянь мають різні імена.
+    expect(t('moreLessPairUp', { index: 2 })).not.toBe(t('moreLessPairUp', { index: 3 }));
 
     // Прибрати.
     fireEvent.click(within(card(2)).getByRole('button', { name: t('removeMoreLessPair', { index: 2 }) }));
     expect(last(onChange).pairs.map((p) => p.id)).toEqual(['p1', 'p3']);
     expect(last(onChange).points).toBe(200);
+  });
+
+  it('warns, without blocking, when the two values of a comparison are the same', () => {
+    const tie = named();
+    tie.pairs[1] = { ...tie.pairs[1], a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: ' 1233 КМ' } };
+    view(tie);
+    expect(within(card(2)).getByText(t('morelessTieWarn'))).toBeTruthy();
+    expect(within(card(1)).queryByText(t('morelessTieWarn'))).toBeNull();
+    expect(screen.getAllByText(t('morelessTieWarn'))).toHaveLength(1);
+    cleanup();
+    // Порожні значення — не нічия (на це є problemMoreLessEmpty).
+    const empty = named();
+    empty.pairs[0] = { ...empty.pairs[0], a: { text: 'Говерла', value: '' }, b: { text: 'Ейфелева вежа', value: '' } };
+    view(empty);
+    expect(screen.queryByText(t('morelessTieWarn'))).toBeNull();
   });
 
   it('keeps between 2 and 20 comparisons', () => {

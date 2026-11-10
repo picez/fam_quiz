@@ -1536,6 +1536,13 @@ describe('HostScreen more or less', () => {
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
   });
 
+  it('no empty right answer line, and «answered» counts whole rows as on the stage', () => {
+    // Почали обидва (answeredCount 2), пройшла весь ряд лише Олена.
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 2, question: { ...publicOf(single), type: 'moreless', choices: [], moreless }, correct: moreQ, endsAt: Date.now() + 20_000, moreless: { ...info, rows: [info.rows[0], { ...info.rows[1], done: 1 }] } }));
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.getByText(/Відповіли 1 з 2/)).toBeTruthy();
+  });
+
   it('with the live panel up, the host still sees the values, the right sides and the picks', () => {
     const live = { kind: 'answers' as const, answered: 0, total: 2, rows: [], aside: null };
     show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'moreless', choices: [], moreless }, correct: moreQ, endsAt: Date.now() + 20_000, moreless: info, live }));

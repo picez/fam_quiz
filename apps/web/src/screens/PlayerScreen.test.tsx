@@ -1698,8 +1698,29 @@ describe('PlayerScreen final', () => {
     show(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: { ...me, moreless: { ...myRow, done: 2, picks: ['a', 'b'], canPick: false } } }));
     expect(screen.getByText('Готово! Чекаємо на відкриття')).toBeTruthy();
     cleanup();
+    // Телефон відкрився вже на locked: кінця часу не знає — «закрито», не «час вийшов».
     show(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: { ...me, moreless: { ...myRow, done: 1, picks: ['a'], canPick: false } } }));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
+    expect(screen.queryByText(/Час вийшов/)).toBeNull();
+  });
+
+  it('28a: the close says the time ran out only when it did', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const screenOf = (current: PlayerView) => <PlayerScreen view={current} hostOnline offsetMs={0} send={send} />;
+    const lockedRow = { ...me, moreless: { ...myRow, done: 1, picks: ['a' as const], canPick: false } };
+    // Ведучий закрив за 20 с до кінця.
+    const { rerender } = render(screenOf(onQuestion({ question: moreQuestion, endsAt: Date.now() + 20_000, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: lockedRow })));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
+    // Наступне запитання закрилося саме, коли сплив час.
+    rerender(screenOf(onQuestion({ questionIndex: 1, question: moreQuestion, endsAt: Date.now() - 100, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 1, question: moreQuestion, me: lockedRow })));
     expect(screen.getByText('Час вийшов: пройдено 1 з 2')).toBeTruthy();
+    // Ведучий закрив під час паузи — теж «закрито».
+    rerender(screenOf(onQuestion({ questionIndex: 2, question: moreQuestion, endsAt: Date.now() - 100, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(onQuestion({ questionIndex: 2, question: moreQuestion, endsAt: null, remainingMs: 5000, paused: true, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 2, question: moreQuestion, me: lockedRow })));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
   });
 
   it('28a: the reveal shows the own marks, the table and the rows', () => {

@@ -914,7 +914,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           />
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
-        {showHint && (
+        {/* Підказка — для бафів; у «Більше чи менше» бафів немає. */}
+        {showHint && question.type !== 'moreless' && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea

@@ -390,7 +390,7 @@
   "question.moreless.limits.0": "{minMoreLessPairs}–{maxMoreLessPairs} porównań w serii.",
   "question.moreless.limits.1": "Tylko runda klasyczna i zwykłe pole planszy z telefonu; bez wideo i bez buffów.",
   "question.moreless.points.0": "Każde porównanie ma własne punkty, a cena pytania to ich suma; edytor liczy ją sam. Gracz dostaje punkty tylko za porównania, w których wybrał dobrze. Niech „Co jest wyższe? Howerla czy Wieża Eiffla” kosztuje 100 punktów, a „Co jest dłuższe? Ren czy Dunaj” — 150: samo pierwsze dobrze daje 100, oba — 250.",
-  "question.moreless.points.1": "Mnożnik rundy i znak pola działają; szybkość, ocena częściowa, minus rundy i buffy — nie. „Dobrze” znaczy, że wszystkie porównania są poprawne, „częściowo dobrze” — co najmniej jedno, „źle” — żadne.",
+  "question.moreless.points.1": "Mnożnik rundy i znak pola działają; ocena częściowa, minus rundy i buffy — nie. „Dobrze” znaczy, że wszystkie porównania są poprawne, „częściowo dobrze” — co najmniej jedno, „źle” — żadne.",
   "question.moreless.tip.0": "Równe wartości to nie błąd: „dokładnie tyle samo” prowadzący rozstrzyga, zaznaczając poprawną opcję. Wybieraj porównania, w których różnicę widać od razu po odkryciu.",
   "question.moreless.title": "Więcej czy mniej",
   "question.moreless.what": "Seria porównań: w każdym gracz wybiera, która z dwóch opcji jest prawdziwa — wyższa, dłuższa, starsza. Wartości opcji prowadzący wpisuje z góry, a gracze widzą je dopiero po odkryciu.",
