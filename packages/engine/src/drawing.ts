@@ -1,4 +1,4 @@
-import { applyDrawOp, LIMITS, questionPrice, rulesOf, strokePoints, type DrawOp, type Grade, type Question } from '@quiz/shared';
+import { applyDrawOp, LIMITS, packStrokes, questionPrice, rulesOf, strokePoints, unpackStrokes, type DrawOp, type Grade, type Question, type Stroke } from '@quiz/shared';
 import { withPlay } from './blitz';
 import { textAccepts } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
@@ -177,24 +177,10 @@ export function drawingDone(state: GameState): boolean {
   return could.length > 0 && could.every((id) => play.drawing.guessed.includes(id));
 }
 
-/** Запис без вгадування (і без малювання): 0 балів, «неправильно». */
-function silentRecord(timeMs: number): AnswerRecord {
-  return {
-    answer: { type: 'drawing', guess: null, drew: null },
-    timeMs,
-    accepted: false,
-    accuracy: 0,
-    grade: 'wrong',
-    basePoints: 0,
-    streakBonus: 0,
-    points: 0,
-    overridden: false,
-  };
-}
-
 /**
  * На етапі question: художникові (його стороні, якщо вона ще в грі) — round(ціна × множник × вгадали / могли), оцінка correct
- * (усі, хто міг), partial (хоч один) чи wrong (ніхто); решті сторін без запису — 0 і wrong (мінус раунду не діє).
+ * (усі, хто міг), partial (хоч один) чи wrong (ніхто). Хто не вгадав, запису не отримує (як у «Більше чи менше»): історія, профіль
+ * і ачівки не рахують «був у кімнаті» відповіддю; мінус раунду діє лише на полі, а малюнка на полі не буває.
  * Лічильники заморожуються в scored: вилучення після закриття їх і балів не змінює. Інакше стан той самий.
  */
 export function scoreDrawing(state: GameState): GameState {
@@ -222,7 +208,6 @@ export function scoreDrawing(state: GameState): GameState {
       overridden: false,
     };
   }
-  for (const player of state.players) if (!Object.hasOwn(answers, player.id)) answers[player.id] = silentRecord(limitMs);
   return withPlay(state, { ...play, answers, drawing: { ...drawing, scored: { guessed, could: could.length } } });
 }
 
@@ -240,4 +225,29 @@ export function dropFromDrawing(state: GameState): GameState {
   const guessed = drawing.guessed.filter(inPlayers);
   if (drawerId === drawing.drawerId && side === drawing.side && guessed.length === drawing.guessed.length) return state;
   return withPlay(state, { ...play, drawing: { ...drawing, drawerId, side, guessed } });
+}
+
+/** Штрихи малюнка: закритий і стиснений (packed) розпаковується. */
+export function drawingStrokes(drawing: DrawingPlay): Stroke[] {
+  return drawing.packed !== undefined ? unpackStrokes(drawing.packed) : drawing.strokes;
+}
+
+/** Стиснений запис штрихів малюнка (для історії): готовий packed або packStrokes(strokes). */
+export function packedStrokes(drawing: DrawingPlay): string {
+  return drawing.packed ?? packStrokes(drawing.strokes);
+}
+
+/**
+ * Для openQuestion: малюнки всіх запитань, крім keep, стискаються — strokes стає [], штрихи йдуть у packed.
+ * Стан кімнати не росте з кожним малюнком: живі штрихи несе лише поточне запитання. Нічого стискати — той самий масив.
+ */
+export function packDrawings(plays: Play[], keep: number): Play[] {
+  let changed = false;
+  const out = plays.map((play, i) => {
+    const drawing = play.drawing;
+    if (i === keep || drawing === undefined || drawing.packed !== undefined) return play;
+    changed = true;
+    return { ...play, drawing: { ...drawing, strokes: [], packed: packStrokes(drawing.strokes) } };
+  });
+  return changed ? out : plays;
 }

@@ -741,7 +741,7 @@ describe('host history: answers', () => {
     const { local, room, enter, detail } = await start(makeQuiz([drawing], { speedBonus: false }));
     const olya = await enter('Оля');
     const taras = await enter('Тарас');
-    const ira = await enter('Іра');
+    await enter('Іра');
     const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
     step('start');
     step('next');
@@ -749,14 +749,15 @@ describe('host history: answers', () => {
     expect(local.manager.drawGuess(room, taras, 'соняшник')).toEqual({ ok: true });
     step('lock');
     const engine = Object.fromEntries(Object.entries(room.state.plays[0].answers).map(([id, record]) => [id, record.points]));
-    expect(engine).toEqual({ [olya]: 50, [taras]: 100, [ira]: 0 });
+    // Іра не вгадала — запису немає (як у «Більше чи менше»), у підсумку 0
+    expect(engine).toEqual({ [olya]: 50, [taras]: 100 });
     step('next');
     step('next');
     const result = await detail();
     const standings = result.standings as unknown as { nickname: string; score: number }[];
     expect(result.questions[0].question.type).toBe('drawing');
     expect(result.questions[0]).toMatchObject({ drawing: { drawer: 'Оля', strokes: packStrokes([{ c: 4, w: 1, p: [300, 300, 320, 340] }]) } });
-    expect(Object.fromEntries(standings.map((s) => [s.nickname, s.score]))).toEqual({ Оля: engine[olya], Тарас: engine[taras], Іра: engine[ira] });
+    expect(Object.fromEntries(standings.map((s) => [s.nickname, s.score]))).toEqual({ Оля: engine[olya], Тарас: engine[taras], Іра: 0 });
     await local.app.close();
   });
 

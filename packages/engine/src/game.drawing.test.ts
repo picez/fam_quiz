@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type DrawOp, type Question } from '@quiz/shared';
-import { drawGuess, drawingCould, drawingDone, drawingOf, drawingPoints, drawStroke, pickDrawer, scoreDrawing } from './drawing';
+import { DEFAULT_RULES, packStrokes, type DrawOp, type Question } from '@quiz/shared';
+import { drawGuess, drawingCould, drawingDone, drawingOf, drawingPoints, drawingStrokes, drawStroke, packedStrokes, pickDrawer, scoreDrawing } from './drawing';
 import { lock, next, pause, recordOf, removePlayer, setConnected, submitAnswer, type GameState } from './game';
 import { actorOf } from './team-act';
 import { classicRound, drawing, makeQuiz, single, withId } from './testing/fixtures';
@@ -232,13 +232,15 @@ describe('drawing: points', () => {
       points: 67,
       overridden: false,
     });
-    expect(record(locked, 'p4')).toMatchObject({ answer: { type: 'drawing', guess: null, drew: null }, points: 0, grade: 'wrong', accepted: false, accuracy: 0 });
+    // хто не вгадав, запису не має: «був у кімнаті» — не відповідь (як у «Більше чи менше»)
+    expect(record(locked, 'p4')).toBeUndefined();
+    expect(Object.keys(locked.plays[0].answers).sort()).toEqual(['p1', 'p2', 'p3']);
     expect(locked.plays[0].drawing?.scored).toEqual({ guessed: 2, could: 3 });
     expect(locked.players.map((p) => p.score)).toEqual([67, 100, 100, 0]);
     // множник раунду ×2; мінус раунду й швидкість не діють
     const rules = { speedBonus: true, rules: { ...DEFAULT_RULES, multiplier: 2 as const, penalty: 'minus' as const } };
     const doubled = must(lock(guesses(fresh([drawing], rules), ['p2', 'p3'], 'соняшник', 30_000), 40_000));
-    expect(['p1', 'p2', 'p3', 'p4'].map((id) => record(doubled, id)?.points)).toEqual([133, 200, 200, 0]);
+    expect(['p1', 'p2', 'p3', 'p4'].map((id) => record(doubled, id)?.points)).toEqual([133, 200, 200, undefined]);
   });
 
   it('an offline non-guesser does not cost the drawer', () => {
@@ -247,7 +249,7 @@ describe('drawing: points', () => {
     // той, хто не вгадав і пішов, закриття не тримає
     expect(away.phase).toBe('locked');
     expect(record(away, 'p1')).toMatchObject({ answer: { type: 'drawing', guess: null, drew: { guessed: 2, could: 2 } }, points: 100, grade: 'correct', accepted: true, accuracy: 1 });
-    expect(record(away, 'p4')).toMatchObject({ points: 0, grade: 'wrong' });
+    expect(record(away, 'p4')).toBeUndefined();
   });
 
   it('nobody could guess gives the drawer nothing', () => {
@@ -256,6 +258,7 @@ describe('drawing: points', () => {
     // з гравцями, що не вгадали, — так само «неправильно»
     const none = must(lock(fresh(), 5000));
     expect(record(none, 'p1')).toMatchObject({ answer: { type: 'drawing', guess: null, drew: { guessed: 0, could: 3 } }, points: 0, grade: 'wrong' });
+    expect(Object.keys(none.plays[0].answers)).toEqual(['p1']);
   });
 
   it('everyone guessed closes the question', () => {
@@ -302,5 +305,56 @@ describe('drawing: points', () => {
     const closed = must(drawGuess(left, 'm3', 'соняшник', 1000));
     expect(closed.phase).toBe('locked');
     expect(record(closed, 't1')).toMatchObject({ points: 100, grade: 'correct' });
+  });
+});
+
+describe('drawing: closed drawings are packed', () => {
+  /** Багато точок: 40 плавних штрихів по 64 точки. */
+  const big = (seed: number): DrawOp[] =>
+    Array.from({ length: 40 }, (_, k) => ({
+      op: 'begin' as const,
+      c: k % 8,
+      w: 1,
+      p: Array.from({ length: 128 }, (_, i) => (i % 2 === 0 ? 100 + k * 10 + seed + (i >> 1) * 3 : 200 + k * 10 + (i >> 1) * 2)),
+    }));
+
+  function playThree(): { states: GameState[]; strokes: ReturnType<typeof drawingStrokes>[] } {
+    let s = fresh([d(1), d(2), d(3), single]);
+    const states: GameState[] = [];
+    const strokes: ReturnType<typeof drawingStrokes>[] = [];
+    for (let n = 0; n < 3; n++) {
+      s = draws(s, drawerOf(s)!, big(n), 1000 + n * 10_000);
+      strokes.push(s.plays[s.questionIndex].drawing!.strokes);
+      s = toNext(s, 2000 + n * 10_000);
+      states.push(s);
+    }
+    return { states, strokes };
+  }
+
+  it('the room state does not grow with every drawing', () => {
+    const { states, strokes } = playThree();
+    const [afterOne, afterTwo, afterThree] = states;
+    // минулі малюнки стиснено: strokes порожні, штрихи в packed
+    expect(afterThree.plays.slice(0, 3).map((p) => p.drawing?.strokes.length)).toEqual([0, 0, 0]);
+    expect(afterThree.plays.slice(0, 3).map((p) => p.drawing?.packed)).toEqual(strokes.map(packStrokes));
+    expect(afterThree.plays.slice(0, 3).map((p) => drawingStrokes(p.drawing!))).toEqual(strokes);
+    expect(afterThree.plays.slice(0, 3).map((p) => packedStrokes(p.drawing!))).toEqual(strokes.map(packStrokes));
+    // кожен закритий малюнок додає до стану лише стиснений рядок, а не JSON штрихів
+    const size = (x: GameState) => JSON.stringify(x).length;
+    const packedSize = packStrokes(strokes[0]).length;
+    expect(size(afterTwo) - size(afterOne)).toBeLessThan(packedSize * 1.5);
+    expect(size(afterThree) - size(afterTwo)).toBeLessThan(packedSize * 1.5);
+    expect(packedSize).toBeLessThan(JSON.stringify(strokes[0]).length / 2);
+  });
+
+  it('the current drawing keeps live strokes until the next question', () => {
+    let s = draws(fresh([d(1), d(2)]), 'p1', [BEGIN]);
+    s = must(lock(s, 5000));
+    expect(s.plays[0].drawing).toMatchObject({ strokes: [{ c: 0, w: 1, p: [10, 10, 20, 20] }] });
+    expect(s.plays[0].drawing?.packed).toBeUndefined();
+    expect(drawingOf(s)?.strokes).toHaveLength(1);
+    const two = toNext(s, 6000);
+    expect(two.plays[0].drawing).toMatchObject({ strokes: [], packed: packStrokes([{ c: 0, w: 1, p: [10, 10, 20, 20] }]) });
+    expect(two.plays[1].drawing?.packed).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
-import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type TruthPlay } from '@quiz/engine';
-import { AWAY_MS, isUnscored, packStrokes, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type TruthPlay } from '@quiz/engine';
+import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { awardGame } from './achievement-store';
 import type { Db } from './db/client';
@@ -210,7 +210,7 @@ function truthRef(truth: TruthPlay, question: Question): NonNullable<PlayRef['tr
 function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef['drawing']> {
   const id = drawing.drawerId;
   const nickname = id === null ? '' : (state.players.find((p) => p.id === id)?.nickname ?? memberOf(state, id)?.nickname ?? '');
-  return { drawer: nickname, strokes: packStrokes(drawing.strokes) };
+  return { drawer: nickname, strokes: packedStrokes(drawing) };
 }
 
 /** «Вибування» для PlayRef: лише закрите випробування; відповіді привидів — лише лічильники. */

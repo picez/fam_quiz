@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, unpackStrokes, type Question, type Quiz } from '@quiz/shared';
+import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, packStrokes, unpackStrokes, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
 import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
@@ -238,6 +238,10 @@ describe('recorder', () => {
     expect(ctx.manager.drawGuess(ctx.room, ira, 'Соняшник')).toEqual({ ok: true });
     const strokes = ctx.room.state.plays[0].drawing?.strokes;
     ctx.host('lock');
+    // наступне запитання стискає закритий малюнок: рекордер бере готовий packed
+    for (let i = 0; i < 5 && ctx.room.state.plays.length < 2; i++) ctx.host('next');
+    expect(ctx.room.state.plays[1].question.type).toBe('single');
+    expect(ctx.room.state.plays[0].drawing).toMatchObject({ strokes: [], packed: packStrokes(strokes!) });
     const { games, answers } = await ctx.saved();
     const ref = games[0].plays[0];
     expect(typeof ref.drawing?.strokes).toBe('string');
@@ -246,7 +250,8 @@ describe('recorder', () => {
     const of = (id: string) => answers.filter((a) => a.participantId === id);
     expect(of(ctx.olena)).toMatchObject([{ payload: { type: 'drawing', guess: null, drew: { guessed: 2, could: 3 } }, points: 67, accepted: false }]);
     expect(of(ctx.taras)).toMatchObject([{ payload: { type: 'drawing', guess: 'соняшник', drew: null }, points: 100, accepted: true }]);
-    expect(of(marko.playerId)).toMatchObject([{ points: 0, accepted: false }]);
+    // хто не вгадав, рядка відповіді не має: «був у кімнаті» — не відповідь
+    expect(of(marko.playerId)).toEqual([]);
     expect(ctx.errors).toEqual([]);
   });
 

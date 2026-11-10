@@ -77,7 +77,7 @@ import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
-import { dropFromDrawing, drawingDone, openDrawing, scoreDrawing } from './drawing';
+import { dropFromDrawing, drawingDone, openDrawing, packDrawings, scoreDrawing } from './drawing';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -550,7 +550,10 @@ export interface DrawingPlay {
   drawerId: string | null;
   /** Сторона художника в state.players (соло — той самий id, командна — команда); null — немає. */
   side: string | null;
+  /** Живі штрихи; у закритого й стисненого малюнка (packed) — []. */
   strokes: Stroke[];
+  /** Стиснені штрихи (packStrokes) малюнка минулого запитання: openQuestion стискає всі, крім поточного. */
+  packed?: string;
   /** Прийнятих операцій від відкриття. */
   rev: number;
   /** Сторони, що вгадали, у порядку вгадування. */
@@ -1360,7 +1363,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       ...(drawn !== null ? { drawTurns: drawn.drawTurns } : {}),
       phase: 'question',
       questionIndex: state.plays.length,
-      plays: [...state.plays, play],
+      // «Малюнок» (28c): штрихи минулих малюнків стискаються — стан кімнати не росте з кожним малюнком.
+      plays: [...packDrawings(state.plays, -1), play],
       presented: present(question, shuffles(round), rng),
       startedAt: at,
       // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
