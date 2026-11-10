@@ -5,6 +5,8 @@ import { ANSWERER_MODES } from './teams';
 import { ladderPathIssue } from './wordladder';
 import { letterSet } from './letterwords';
 import { betsRoundIssue } from './bets';
+import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
+import { crosswordIssue } from './crossword';
 
 export const LIMITS = {
   questionText: 300,
@@ -203,6 +205,23 @@ export const LIMITS = {
   moreLessValue: 40,
   defaultMoreLessTime: 60,
   defaultMoreLessPoints: 100,
+  /** «Головоломки» (28d): запитань у раунді, типові час (с) і бали, слів у кросворді, літер у слові (без апострофа), символів у полі слова й підказці, літер у ключі, найбільша сторона сітки, клітинок в одній події. */
+  maxPuzzles: 10,
+  defaultSudokuTime: 180,
+  defaultCrosswordTime: 240,
+  defaultPuzzlePoints: 300,
+  minCrosswordWords: 4,
+  maxCrosswordWords: 8,
+  minCrosswordWord: 2,
+  maxCrosswordWord: 12,
+  crosswordAnswer: 30,
+  crosswordClue: 120,
+  minCrosswordKey: 3,
+  maxCrosswordKey: 12,
+  maxCrosswordSide: 12,
+  puzzleBatch: 12,
+  /** Найдовший таймер судоку й кросворду, с: типові 180 і 240 довші за загальні maxTime. */
+  maxPuzzleTime: 600,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -308,7 +327,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -317,6 +336,26 @@ export type MoreLessSide = (typeof MORELESS_SIDES)[number];
 const moreLessOption = z.object({
   text: z.string().trim().min(1).max(LIMITS.moreLessOption).refine(isStorable, UNSTORABLE),
   value: z.string().trim().min(1).max(LIMITS.moreLessValue).refine(isStorable, UNSTORABLE),
+});
+/** Звідки судоку (28d): рівень генератора або цифри ведучого. */
+export const SUDOKU_SOURCES = [...SUDOKU_LEVELS, 'custom'] as const;
+/** Режими кросворду (28d): бали за ключове слово чи за весь кросворд. */
+export const CROSSWORD_MODES = ['key', 'full'] as const;
+/** Розкладка кросворду (28d): клітинка i = row × width + col; keyCells — у порядку літер ключа. Узгодженість зі словами перевіряє crosswordIssue. */
+const crosswordLayoutSchema = z.object({
+  width: z.number().int().min(1).max(LIMITS.maxCrosswordSide),
+  height: z.number().int().min(1).max(LIMITS.maxCrosswordSide),
+  words: z
+    .array(
+      z.object({
+        id: z.string().min(1).refine(isStorable, UNSTORABLE),
+        row: z.number().int().min(0).max(LIMITS.maxCrosswordSide - 1),
+        col: z.number().int().min(0).max(LIMITS.maxCrosswordSide - 1),
+        dir: z.enum(['across', 'down']),
+      }),
+    )
+    .max(LIMITS.maxCrosswordWords),
+  keyCells: z.array(z.number().int().min(0).max(LIMITS.maxCrosswordSide ** 2 - 1)).max(LIMITS.maxCrosswordKey),
 });
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
@@ -561,6 +600,39 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('sudoku'),
+      /** Головоломці потрібно більше часу, ніж загальне maxTime. */
+      timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxPuzzleTime),
+      /** Рівень генератора або custom (цифри ведучого); seed — лише для «ще одну таку» в редакторі. */
+      level: z.enum(SUDOKU_SOURCES),
+      seed: z.number().int().min(0).max(2 ** 32 - 1).nullable(),
+      /** 36 цифр, '0' — порожня; solution — єдиний розв'язок (перевіряє sudokuIssue). */
+      givens: z.string().regex(/^[0-6]{36}$/),
+      solution: z.string().regex(/^[0-6]{36}$/),
+    }),
+    z.object({
+      ...base,
+      type: z.literal('crossword'),
+      /** Головоломці потрібно більше часу, ніж загальне maxTime. */
+      timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxPuzzleTime),
+      mode: z.enum(CROSSWORD_MODES),
+      entries: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            answer: z.string().trim().min(1).max(LIMITS.crosswordAnswer).refine(isStorable, UNSTORABLE),
+            clue: z.string().trim().min(1).max(LIMITS.crosswordClue).refine(isStorable, UNSTORABLE),
+          }),
+        )
+        .min(LIMITS.minCrosswordWords)
+        .max(LIMITS.maxCrosswordWords),
+      /** Ключове слово; лише в режимі key. */
+      key: z.string().trim().max(LIMITS.crosswordAnswer).refine(isStorable, UNSTORABLE).nullable(),
+      /** null — ще не складено (редактор); зберегти не можна. */
+      layout: crosswordLayoutSchema.nullable(),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -591,7 +663,9 @@ export const questionSchema = z
                     ? q.items.map((i) => i.id)
                     : q.type === 'moreless'
                       ? q.pairs.map((p) => p.id)
-                      : [];
+                      : q.type === 'crossword'
+                        ? q.entries.map((e) => e.id)
+                        : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'wordladder') {
@@ -680,6 +754,20 @@ export const questionSchema = z
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'drawing_hint' });
       // Слово чи написання довше за поле вгадування вгадати неможливо: телефон обріже текст, сервер відкине.
       if (q.accepted.some((s) => s.length > LIMITS.drawGuess)) ctx.addIssue({ code: 'custom', message: 'drawing_long' });
+    }
+    if (q.type === 'sudoku' || q.type === 'crossword') {
+      // Без таймера головоломка не скінчиться; звук і «перевертання» тут нічого не дають (як у малюнка).
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_video' });
+      // Підказка недосяжна: бафи в раунді вимкнено (off_puzzles).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_hint' });
+    }
+    if (q.type === 'sudoku') {
+      const issue = sudokuIssue(q.givens, q.solution);
+      if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
+    }
+    if (q.type === 'crossword') {
+      const issue = crosswordIssue(q);
+      if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
@@ -1083,6 +1171,25 @@ export const truthRoundSchema = z.object({
 
 export type TruthRound = z.infer<typeof truthRoundSchema>;
 
+/** Типи запитань «Головоломок» (28d); живуть лише в раунді puzzles, а він приймає лише їх. */
+export const PUZZLE_TYPES = ['sudoku', 'crossword'] as const satisfies readonly Question['type'][];
+
+export function isPuzzle(question: { type: Question['type'] }): boolean {
+  return (PUZZLE_TYPES as readonly string[]).includes(question.type);
+}
+
+/** «Головоломки» (28d): лише судоку й кросворди; без правил, швидкості й перемішування. */
+export const puzzlesRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('puzzles'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  questions: z.array(questionSchema).min(1).max(LIMITS.maxPuzzles),
+});
+
+export type PuzzlesRound = z.infer<typeof puzzlesRoundSchema>;
+
 /** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
 export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
 
@@ -1160,7 +1267,7 @@ export const ladderRoundSchema = z.object({
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'ladder'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'puzzles', 'wipeout', 'survival', 'ladder'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -1171,6 +1278,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   betsRoundSchema,
   auctionRoundSchema,
   truthRoundSchema,
+  puzzlesRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
   ladderRoundSchema,
@@ -1183,9 +1291,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Головоломках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -1342,6 +1450,13 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'drawing')
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'drawing');
       if (drawingPlace) ctx.addIssue({ code: 'custom', message: 'drawing_place' });
+      // «Головоломки» (28d): судоку й кросворд — лише в раунді puzzles (і там лише вони); жодної клітинки поля, жодного питання на виживання.
+      const puzzlePlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => isPuzzle(cell.question))
+          : round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some(isPuzzle);
+      if (puzzlePlace) ctx.addIssue({ code: 'custom', message: 'puzzle_place' });
+      if (round.type === 'puzzles' && round.questions.some((q) => !isPuzzle(q))) ctx.addIssue({ code: 'custom', message: 'puzzles_type' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

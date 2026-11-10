@@ -38,6 +38,7 @@ import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
+import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
@@ -368,12 +369,14 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {/* Малюнок (28c): слово, малюнок, хто вгадав і художник; рядок правильної відповіді нижче його лише повторив би.
           Вгадавші й художник — сторони (у командах — команди), тож «своє» — за командою. */}
       {view.phase === 'reveal' && view.drawing !== undefined && <DrawingReveal info={view.drawing} strokes={strokes} me={teamOf(view)?.id ?? view.me.id} />}
+      {/* Головоломки (28d): своя сітка з позначеними помилками й правильний розв'язок. */}
+      {view.phase === 'reveal' && view.question?.puzzle !== undefined && <PuzzleReveal mine={view.me.puzzle} question={view.question} solution={view.puzzle?.solution ?? null} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -754,6 +757,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  // «Головоломки» (28d): кінець часу за годинником телефона — правки в останнє вікно пакета йдуть одразу.
+  const puzzleEnd = myClock?.endsAt ?? view.endsAt;
+  const puzzleDeadline = puzzleEnd === null ? null : puzzleEnd - offsetMs;
   // «Більше чи менше» на locked: «Час вийшов» лише коли справді сплив час, інакше — «Запитання закрито».
   const ranOut = useTimeRanOut(view.questionIndex, phase, myClock?.endsAt ?? view.endsAt, offsetMs);
   // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі) і час не вийшов.
@@ -1110,6 +1116,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : question.type === 'drawing' ? (
               // Малюнок (28c): слово бачить лише художник; товариші художника — хто малює, без поля; решта вгадують.
               <DrawingPhone mine={me.drawing} info={view.drawing} model={drawing} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} requestSync={requestSync} />
+            ) : question.type === 'sudoku' || question.type === 'crossword' ? (
+              // Головоломки (28d): у команді одна спільна сітка, вписує будь-хто; кольори — хто з учасників що вписав.
+              me.puzzle !== undefined && (
+                <>
+                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} />
+                  {/* Чужі сітки на телефоні не показуються (місце): лише скільки вже натиснули «Готово». */}
+                  {view.puzzle !== undefined && (
+                    <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                  )}
+                </>
+              )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1315,6 +1332,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               )}
               {/* Бали залежать від слів, а найдовші можливі слова сцена покаже на розкритті. */}
               <p className="lead">{t('chainWaitResults')}</p>
+            </section>
+          ) : (question?.type === 'sudoku' || question?.type === 'crossword') && me.puzzle !== undefined ? (
+            // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
+            <section className="sent">
+              <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
+              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">

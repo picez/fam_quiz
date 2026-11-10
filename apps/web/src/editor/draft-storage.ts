@@ -6,7 +6,10 @@ import {
   CELL_KINDS,
   CELL_MARKS,
   CELL_PENALTIES,
+  CROSSWORD_MODES,
   DEBUFF_KINDS,
+  EMPTY_SUDOKU,
+  SUDOKU_SOURCES,
   LETTER_GOALS,
   LETTER_UNITS,
   LIMITS,
@@ -26,7 +29,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { QUESTION_TYPES, blankMoreLessPair } from './draft';
+import { QUESTION_TYPES, blankCrosswordEntry, blankMoreLessPair } from './draft';
 import { newId } from './new-id';
 
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -176,6 +179,41 @@ function reviveDrawing(base: Extract<Question, { type: 'drawing' }>): Question {
   return { ...rest, video: null, accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted) };
 }
 
+/**
+ * Судоку з чернетки: сітка — 36 цифр 0–6 (інакше порожня сітка ведучого), рівень і seed — з переліку й цілі (інакше «свої», без seed);
+ * без відео, звуку, «перевертання» й підказки.
+ */
+function reviveSudoku(base: Extract<Question, { type: 'sudoku' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const grid = (value: unknown) => (typeof value === 'string' && /^[0-6]{36}$/.test(value) ? value : EMPTY_SUDOKU);
+  const givens = grid(base.givens);
+  const level = (SUDOKU_SOURCES as readonly unknown[]).includes(base.level) && givens === base.givens ? base.level : 'custom';
+  const seed = level !== 'custom' && Number.isInteger(base.seed) ? base.seed : null;
+  return { ...rest, video: null, level, seed, givens, solution: givens === base.givens ? grid(base.solution) : EMPTY_SUDOKU };
+}
+
+/**
+ * Кросворд з чернетки: слова — об'єкти з рядками (інакше чотири порожні), режим — з переліку (інакше «увесь кросворд»),
+ * ключ — рядок лише в режимі ключа; розкладка — лише об'єкт зі словами й ключовими клітинками (зберігаючи, редактор її перескладе).
+ */
+function reviveCrossword(base: Extract<Question, { type: 'crossword' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  const raw = Array.isArray(base.entries) ? (base.entries as unknown[]).filter(isRecord) : [];
+  const entries = raw.slice(0, LIMITS.maxCrosswordWords).map((entry) => ({ id: typeof entry.id === 'string' ? entry.id : newId(), answer: text(entry.answer), clue: text(entry.clue) }));
+  const mode = (CROSSWORD_MODES as readonly unknown[]).includes(base.mode) ? base.mode : 'full';
+  const layout: unknown = base.layout;
+  const keptLayout = isRecord(layout) && Array.isArray(layout.words) && Array.isArray(layout.keyCells) ? base.layout : null;
+  return {
+    ...rest,
+    video: null,
+    mode,
+    entries: entries.length === 0 ? Array.from({ length: LIMITS.minCrosswordWords }, blankCrosswordEntry) : entries,
+    key: mode === 'key' ? text(base.key) : null,
+    layout: entries.length === 0 ? null : keptLayout,
+  };
+}
+
 function revive(stored: Question): Question {
   // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
   const { hint, audio, reveal, ...question } = stored;
@@ -243,6 +281,8 @@ function revive(stored: Question): Question {
   if (base.type === 'letterwords') return reviveLetterWords(base);
   if (base.type === 'moreless') return reviveMoreLess(base);
   if (base.type === 'drawing') return reviveDrawing(base);
+  if (base.type === 'sudoku') return reviveSudoku(base);
+  if (base.type === 'crossword') return reviveCrossword(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({
@@ -364,8 +404,8 @@ function looksLikeQuiz(value: unknown): value is Quiz {
       const common =
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&
-        // У фіналі, «Ва-банк» і «Мільйонері» правил немає.
-        (type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
+        // У фіналі, «Ва-банк», «Мільйонері» й «Головоломках» правил немає.
+        (type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'puzzles' || type === 'wipeout' || type === 'ladder' || (typeof rules === 'object' && rules !== null));
       // «Правда про гравця» без запитань: ціна й таймер.
       if (type === 'truth') return common && typeof (round as Record<string, unknown>).points === 'number' && typeof (round as Record<string, unknown>).timeLimit === 'number';
       if (type === 'board') return common && Array.isArray(categories) && categories.length > 0 && categories.every(looksLikeCategory);
@@ -395,7 +435,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
         }
         if (round.type === 'truth') return { ...round, points: round.points ?? LIMITS.defaultPoints, timeLimit: round.timeLimit ?? LIMITS.defaultTime };
         const questions = round.questions.map(revive);
-        if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder') return { ...round, questions };
+        if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder' || round.type === 'puzzles') return { ...round, questions };
         if (round.type === 'auction') return { ...round, bidStep: round.bidStep ?? LIMITS.defaultBidStep, questions };
         if (round.type === 'bets') return { ...round, betMax: round.betMax ?? null, questions };
         if (round.type === 'survival') return { ...round, questions, trials: round.trials.map(revive) };

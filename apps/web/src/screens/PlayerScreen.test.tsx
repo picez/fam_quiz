@@ -1747,6 +1747,52 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
   });
 
+  const sudokuGivens = '1'.padEnd(36, '0');
+  const sudokuQuestion = { ...publicQuestion, type: 'sudoku' as const, text: 'Розв’яжіть судоку', choices: [], puzzle: { kind: 'sudoku' as const, givens: sudokuGivens } };
+  const myGrid = { cells: new Array<string>(36).fill(''), mask: 'g'.padEnd(36, '0'), members: [], done: false, canEdit: true, seq: 0, result: null };
+
+  it('28d: a sudoku question shows the grid, the keypad and done', () => {
+    show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, me: { ...me, puzzle: myGrid } }));
+    expect(document.querySelectorAll('.sudoku-cell')).toHaveLength(36);
+    expect(screen.getByRole('button', { name: 'Стерти' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Готово' })).toBeTruthy();
+  });
+
+  it('28d: a phone sees only how many are done, never rival grids', () => {
+    const board = (playerId: string, done: boolean) => ({ playerId, nickname: playerId, mask: 'g'.padEnd(36, '1'), tone: 1, members: [], filled: 35, total: 35, done, last: null, cells: null, solved: null, points: null });
+    const puzzle = { kind: 'sudoku' as const, boards: [board('p1', false), board('p2', true)], solution: null };
+    show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, playerCount: 2, puzzle, me: { ...me, puzzle: myGrid } }));
+    expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
+    expect(document.querySelector('.puzzle-thumb')).toBeNull();
+  });
+
+  it('28d: when the time runs out the grid stops before the server closes the question', () => {
+    show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() - 1000, me: { ...me, puzzle: myGrid } }));
+    expect(document.querySelector('.puzzle-play.is-off')).not.toBeNull();
+    expect(screen.getByText('Час вийшов — сітку зафіксовано.')).toBeTruthy();
+  });
+
+  it('28d: after the close the grid stays read-only', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: sudokuQuestion, me: { ...me, puzzle: { ...myGrid, canEdit: false } } }));
+    expect(screen.getByText('Запитання закрито — сітку зафіксовано.')).toBeTruthy();
+    expect(document.querySelector('.puzzle-play.is-off')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Готово' })).toBeNull();
+  });
+
+  it('28d: the reveal shows the own grid with wrong cells and the solution', () => {
+    const cells = new Array<string>(36).fill('');
+    cells[1] = '3';
+    const solution = ['', ...'23456'.split(''), ...new Array<string>(30).fill('1')];
+    const reveal = { id: 'sd', type: 'sudoku', text: 'Розв’яжіть судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'custom', seed: null, givens: sudokuGivens, solution: '1'.repeat(36) } as unknown as Question;
+    const result = { grade: 'wrong' as const, points: 0, streakBonus: 0 } as PlayerView['me']['result'];
+    const puzzle = { kind: 'sudoku' as const, boards: [], solution };
+    show(view({ phase: 'reveal', questionIndex: 0, question: sudokuQuestion, reveal, puzzle, me: { ...me, result, puzzle: { ...myGrid, cells, canEdit: false, result: { solved: false, wrong: [1], points: 0 } } } }));
+    expect(screen.getByText('Ваша сітка')).toBeTruthy();
+    expect(screen.getByText('Правильний розв’язок')).toBeTruthy();
+    expect(document.querySelectorAll('.puzzle-reveal-grid')[0].querySelectorAll('.sudoku-cell')[1].classList.contains('is-wrong')).toBe(true);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   const drawQuestion = { ...publicQuestion, type: 'drawing' as const, text: 'Намалюйте рослину', timeLimit: 60, points: 100, choices: [] };
   const drawInfo = { drawerId: 'p2', drawerName: 'Оля', side: 'p2', rev: 0, guessed: 0, could: 2, word: null, guessers: null, drawerPoints: null };
   const noCanvas = () => vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);

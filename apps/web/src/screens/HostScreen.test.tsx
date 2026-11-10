@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, SPLASH_MS, emptyBrief, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
+import { DEBUFF_KINDS, SPLASH_MS, emptyBrief, generateSudoku, type PuzzleInfo, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -1549,6 +1549,66 @@ describe('HostScreen more or less', () => {
     expect(document.getElementById('live-answers')).not.toBeNull();
     expect(screen.getByText('2850 км')).toBeTruthy();
     expect(document.querySelectorAll('.host-moreless .moreless-pick')).toHaveLength(2);
+  });
+});
+
+describe('HostScreen puzzles (28d)', () => {
+  const { givens, solution } = generateSudoku(7, 'easy');
+  const values = solution.split('').map((ch, i) => (givens[i] === '0' ? ch : ''));
+  const empties = givens.split('').flatMap((ch, i) => (ch === '0' ? [i] : []));
+  const sudokuQ: Question = { id: 's1', type: 'sudoku', text: 'Розв’яжіть судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy', seed: 7, givens, solution };
+  const publicQ = { ...publicOf(single), type: 'sudoku' as const, text: 'Розв’яжіть судоку', choices: [], puzzle: { kind: 'sudoku' as const, givens } };
+  const cells = new Array<string>(36).fill('');
+  cells[empties[0]] = values[empties[0]];
+  cells[empties[1]] = values[empties[1]] === '1' ? '2' : '1';
+  const mask = givens.split('').map((ch, i) => (ch !== '0' ? 'g' : i === empties[0] || i === empties[1] ? '1' : '0')).join('');
+  const info: PuzzleInfo = {
+    kind: 'sudoku',
+    boards: [
+      { playerId: 'p1', nickname: 'Олена', mask, tone: 1, members: [], filled: 2, total: empties.length, done: true, last: empties[1], cells, solved: null, points: null },
+      { playerId: 'p2', nickname: 'Тарас', mask: givens.split('').map((ch) => (ch !== '0' ? 'g' : '0')).join(''), tone: 2, members: [], filled: 0, total: empties.length, done: false, last: null, cells: new Array<string>(36).fill(''), solved: null, points: null },
+    ],
+    solution: values,
+  };
+
+  it('the host sees digits and letters', () => {
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 1, question: publicQ, correct: sudokuQ, endsAt: Date.now() + 60_000, puzzle: info }));
+    const panel = document.querySelector('.host-puzzle')!;
+    expect(within(panel as HTMLElement).getByRole('heading', { name: 'Судоку' })).toBeTruthy();
+    const thumb = panel.querySelectorAll('.puzzle-thumb')[0];
+    expect(thumb.querySelectorAll('.puzzle-thumb-cell')[empties[0]].textContent).toBe(values[empties[0]]);
+    expect(thumb.querySelectorAll('.puzzle-thumb-cell')[empties[1]].textContent).toBe(cells[empties[1]]);
+    // Розв'язок збоку — уся сітка.
+    expect([...panel.querySelectorAll('.puzzle-solution .sudoku-cell')].map((c) => c.textContent).join('')).toBe(solution);
+    expect(screen.getByText(/Відповіли 1 з 2/)).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+
+  it('with the live panel up, the host still sees the values', () => {
+    const live = { kind: 'answers' as const, answered: 1, total: 2, rows: [], aside: null };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 1, question: publicQ, correct: sudokuQ, endsAt: Date.now() + 60_000, puzzle: info, live }));
+    expect(document.getElementById('live-answers')).not.toBeNull();
+    const thumb = document.querySelectorAll('.host-puzzle .puzzle-thumb')[0];
+    expect(thumb.querySelectorAll('.puzzle-thumb-cell')[empties[0]].textContent).toBe(values[empties[0]]);
+    expect(document.querySelector('.host-puzzle .puzzle-solution')).not.toBeNull();
+  });
+
+  it('a crossword shows its answer like a sudoku: in the solution panel, not as a «correct answer» line', () => {
+    const crossQ = {
+      id: 'c1', type: 'crossword' as const, text: 'Кросворд', imageUrl: null, video: null, timeLimit: 240, points: 300, mode: 'full' as const, key: null,
+      entries: [{ id: 'a', answer: 'лис', clue: 'Руда хитрунка' }, { id: 'b', answer: 'липа', clue: 'Дерево' }],
+      layout: { width: 3, height: 4, words: [{ id: 'a', row: 0, col: 0, dir: 'across' as const }, { id: 'b', row: 0, col: 0, dir: 'down' as const }], keyCells: [] },
+    } satisfies Question;
+    const letters = ['л', 'и', 'с', 'и', '', '', 'п', '', '', 'а', '', ''];
+    const puzzle = {
+      kind: 'crossword' as const, mode: 'full' as const, width: 3, height: 4, mask: '111100100100', keyCells: [],
+      words: [{ number: 1, row: 0, col: 0, dir: 'across' as const, length: 3, clue: 'Руда хитрунка' }, { number: 1, row: 0, col: 0, dir: 'down' as const, length: 4, clue: 'Дерево' }],
+    };
+    const crossInfo: PuzzleInfo = { kind: 'crossword', boards: [{ playerId: 'p1', nickname: 'Олена', mask: '000000000000'.split('').map((_, i) => (letters[i] === '' ? '#' : '0')).join(''), tone: 1, members: [], filled: 0, total: 6, done: false, last: null, cells: new Array<string>(12).fill(''), solved: null, points: null }], solution: letters };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 1, answeredCount: 0, question: { ...publicOf(single), type: 'crossword', choices: [], puzzle }, correct: crossQ, endsAt: Date.now() + 60_000, puzzle: crossInfo }));
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(document.querySelector('.host-puzzle .puzzle-solution .puzzle-words')?.textContent).toContain('ЛИС');
   });
 });
 

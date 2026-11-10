@@ -287,6 +287,20 @@ function responsesOf(
 }
 
 /**
+ * Кросворд з ключовим словом (28d): рядку відповіді — ключове слово учасника з його сітки (answer.grid) за keyCells знімка, '.' — порожньо.
+ * Сітка іншої форми (зіпсований рядок) чи інше запитання — рядки ті самі.
+ */
+function withPuzzleKeys(question: Question, responses: GameResponse[]): GameResponse[] {
+  if (question.type !== 'crossword' || question.mode !== 'key' || question.layout === null) return responses;
+  const { width, height, keyCells } = question.layout;
+  return responses.map((response) => {
+    const grid = response.answer?.type === 'puzzle' ? [...response.answer.grid] : null;
+    if (grid === null || grid.length !== width * height) return response;
+    return { ...response, key: keyCells.map((i) => grid[i] ?? '.').join('') };
+  });
+}
+
+/**
  * Запитання «Аукціону» (27b) продано: рядок переможця несе ставку (торг починається від 1, мовчання теж має рядок).
  * У непроданому всі рядки — звичайні відповіді з wager: null.
  */
@@ -676,7 +690,10 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         ...(ref?.letterwords === undefined || question.type !== 'letterwords' ? {} : { letterwords: ref.letterwords }),
         ...(ref?.drawing === undefined || question.type !== 'drawing' ? {} : { drawing: ref.drawing }),
         ...(ref?.cloudHidden === undefined || ref.cloudHidden.length === 0 ? {} : { cloudHidden: ref.cloudHidden }),
-        responses: responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz), appeals.filter((a) => a.questionIndex === index), awayMarks.filter((a) => a.questionIndex === index)),
+        responses: withPuzzleKeys(
+          question,
+          responsesOf(given, isUnscored(question) ? voters : standings, quiz === null ? [] : allSpares(quiz), appeals.filter((a) => a.questionIndex === index), awayMarks.filter((a) => a.questionIndex === index)),
+        ),
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),

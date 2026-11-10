@@ -4,6 +4,15 @@ import { HELP_TOPICS, helpEntry, helpIds, searchHelp, type HelpId } from './host
 import { helpUk } from './help-uk';
 import { helpVars } from './help-vars';
 import { activateLocaleForTests } from '../i18n';
+import ar from '../locales/ar.help.json';
+import de from '../locales/de.help.json';
+import en from '../locales/en.help.json';
+import es from '../locales/es.help.json';
+import it_ from '../locales/it.help.json';
+import pl from '../locales/pl.help.json';
+
+/** Довідка шести перекладених мов (uk — helpUk). */
+const LOCALE_HELP: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
 
 const ids = HELP_TOPICS.flatMap(helpIds);
 const PREFIXES = ['round', 'question', 'cell', 'buff', 'debuff', 'setting', 'team'];
@@ -61,6 +70,20 @@ describe('host help uk golden', () => {
     const text = JSON.stringify(helpEntry('question.drawing'));
     expect(text).not.toMatch(/швидк/i);
     expect(text).toMatch(/соняшник|парасольк|маяк|равлик|вишиванк/i);
+  });
+
+  it('puzzles help says nothing about speed and names only common words', () => {
+    const text = JSON.stringify([helpEntry('round.puzzles'), helpEntry('question.sudoku'), helpEntry('question.crossword')]);
+    expect(text).not.toMatch(/швидк/i);
+    expect(JSON.stringify(helpEntry('question.crossword'))).toMatch(/калина.*лелека.*вишня/);
+  });
+
+  it('every locale has the puzzles help pages', () => {
+    const keys = Object.keys(helpUk).filter((key) => /^(round\.puzzles|question\.sudoku|question\.crossword)\./.test(key));
+    expect(keys.length).toBeGreaterThan(20);
+    for (const [lang, dict] of Object.entries(LOCALE_HELP)) {
+      expect(keys.filter((key) => !(key in dict)), lang).toEqual([]);
+    }
   });
 
   it('takes the active help dictionary and falls back to uk per field', () => {

@@ -1,6 +1,11 @@
 import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
+  generateSudoku,
+  layoutCrossword,
+  pickKeyCells,
+  type CrosswordLayout,
+  type PuzzlesRound,
   type Answer,
   type AuctionRound,
   type BetsRound,
@@ -367,6 +372,84 @@ export const bluff = {
   accepted: ['Барселона', 'Барселоні'],
   lies: ['Мадрид', 'Лондон', 'Брюссель'],
 } satisfies Question;
+
+/** Розкладка кросворду для фікстур: компонувальник детермінований, тож розкладка завжди та сама. */
+function laidOut(entries: { id: string; answer: string; clue: string }[], key: string | null): CrosswordLayout {
+  const result = layoutCrossword(entries);
+  if (!result.ok) throw new Error(`fixture crossword not laid out: ${result.reason}`);
+  if (key === null) return result.layout;
+  const keyCells = pickKeyCells(result.layout, entries, key);
+  if (!Array.isArray(keyCells)) throw new Error(`fixture crossword key misses ${keyCells.missing.join(',')}`);
+  return { ...result.layout, keyCells };
+}
+
+const sudokuGrid = generateSudoku(1, 'easy');
+
+/** Судоку (28d): generateSudoku(1, 'easy'), 300 балів, 180 с; лише в раунді puzzles. */
+export const sudoku = {
+  ...base,
+  id: 'z1',
+  type: 'sudoku',
+  text: 'Розв’яжіть судоку',
+  timeLimit: 180,
+  points: 300,
+  level: 'easy',
+  seed: 1,
+  givens: sudokuGrid.givens,
+  solution: sudokuGrid.solution,
+} satisfies Question;
+
+const fullEntries = [
+  { id: 'w1', answer: 'калина', clue: 'Червоні ягоди біля хати' },
+  { id: 'w2', answer: 'лелека', clue: 'Птах, що гніздиться на стовпі' },
+  { id: 'w3', answer: 'вишня', clue: 'Садок … коло хати' },
+  { id: 'w4', answer: 'сосна', clue: 'Хвойне дерево з довгими голками' },
+];
+
+/** Кросворд «увесь» (28d): калина, лелека, вишня, сосна; 300 балів, 240 с. */
+export const crosswordFull = {
+  ...base,
+  id: 'z2',
+  type: 'crossword',
+  text: 'Розгадайте кросворд',
+  timeLimit: 240,
+  points: 300,
+  mode: 'full',
+  entries: fullEntries,
+  key: null,
+  layout: laidOut(fullEntries, null),
+} satisfies Question;
+
+const keyEntries = [
+  { id: 'k1', answer: 'ліщина', clue: 'Кущ, що дає горіхи' },
+  { id: 'k2', answer: 'калина', clue: 'Червоні ягоди біля хати' },
+  { id: 'k3', answer: 'сосна', clue: 'Хвойне дерево з довгими голками' },
+  { id: 'k4', answer: 'озеро', clue: 'Світязь, наприклад' },
+];
+
+/** Кросворд з ключовим словом «ліс» (28d): ліщина, калина, сосна, озеро; 300 балів, 240 с. */
+export const crosswordKey = {
+  ...base,
+  id: 'z3',
+  type: 'crossword',
+  text: 'Знайдіть ключове слово',
+  timeLimit: 240,
+  points: 300,
+  mode: 'key',
+  entries: keyEntries,
+  key: 'ліс',
+  layout: laidOut(keyEntries, 'ліс'),
+} satisfies Question;
+
+/** «Головоломки» (28d): типово title ''. */
+export function puzzlesRound(id: string, questions: Question[], options: Partial<Omit<PuzzlesRound, 'id' | 'type' | 'questions'>> = {}): PuzzlesRound {
+  return { id, type: 'puzzles', title: '', ...options, questions };
+}
+
+/** Вікторина з одним раундом «Головоломки»: судоку, кросворд «увесь», кросворд з ключем «ліс». */
+export function puzzlesQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([puzzlesRound('pz', [sudoku, crosswordFull, crosswordKey])], settings);
+}
 
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;

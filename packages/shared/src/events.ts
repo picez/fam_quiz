@@ -69,6 +69,21 @@ export const timedListWordSchema = z.object({ word: z.string().max(LIMITS.listWo
 export const letterWordSchema = z.object({ word: z.string().max(LIMITS.letterWord).refine(isStorable, UNSTORABLE) });
 /** «Більше чи менше» (28a): скільки виборів на секунду приймає сервер від людини; index — номер порівняння, на яке відповідає телефон. */
 export const MORELESS_PICKS_PER_SECOND = 5;
+/**
+ * «Головоломки» (28d): клітинок в одній події рахує LIMITS.puzzleBatch; значення (цифру чи літеру) перевіряє рушій.
+ * questionIndex — без верхньої межі: записів у plays буває більше за запитання вікторини, а застаріле відсікає puzzle_stale.
+ */
+export const PUZZLE_BATCHES_PER_SECOND = 6;
+export const puzzleFillSchema = z
+  .object({
+    questionIndex: z.number().int().nonnegative(),
+    cells: z
+      .array(z.object({ i: z.number().int().min(0).max(143), v: z.string().max(2) }).strict())
+      .min(1)
+      .max(LIMITS.puzzleBatch),
+  })
+  .strict();
+export const puzzleDoneSchema = z.object({ questionIndex: z.number().int().nonnegative() }).strict();
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
 export const DRAW_OPS_PER_SECOND = 25;
@@ -217,6 +232,10 @@ export interface ClientToServerEvents {
   'player:letters': (payload: z.infer<typeof letterWordSchema>, ack: Ack) => void;
   /** «Більше чи менше» (28a): вибір гравця (відповідача команди) у порівнянні index; ack без правильності, moreless_stale — з done. */
   'player:moreless': (payload: z.infer<typeof moreLessPickSchema>, ack: Ack) => void;
+  /** «Головоломки» (28d): пакет клітинок; ack — лише ok чи помилка (puzzle_stale, puzzle_done, puzzle_cell, puzzle_given, time_over, too_soon), без правильності. */
+  'player:puzzle': (payload: z.infer<typeof puzzleFillSchema>, ack: Ack) => void;
+  /** «Головоломки» (28d): кнопка «Готово» (безповоротна; у команді — за всіх). */
+  'player:puzzle-done': (payload: z.infer<typeof puzzleDoneSchema>, ack: Ack) => void;
   /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
   'player:draw': (payload: DrawOp, ack: Ack) => void;
   /** «Малюнок» (28c): спроба вгадати слово; ack — лише { ok: true } чи drawing_miss, слово й відстань не повертаються. */

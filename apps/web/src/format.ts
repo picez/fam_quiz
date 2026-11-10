@@ -157,6 +157,12 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'moreless':
       // Правильні варіанти — у таблиці розкриття, не в рядку.
       return '—';
+    case 'sudoku':
+      // Розв'язок — сітка на розкритті, не рядок.
+      return '—';
+    case 'crossword':
+      // Ключове слово великими літерами або слова кросворду за порядком.
+      return question.mode === 'key' && question.key !== null ? question.key.toLocaleUpperCase('uk') : question.entries.map((entry) => entry.answer).join(', ');
     case 'sort':
       return question.categories
         .map((category) => `${category.text}: ${question.words.filter((word) => word.categoryId === category.id).map((word) => word.text).join(', ')}`)
@@ -239,6 +245,9 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       // Вгадувач — що вписав; художник — скільки вгадали; решта без запису вгадування — прочерк.
       if (answer.guess !== null) return t('drawingAnswer', { guess: answer.guess });
       return answer.drew === null ? '—' : t('drawingDrewAnswer', { guessed: answer.drew.guessed, could: answer.drew.could });
+    case 'puzzle':
+      // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
+      return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });
     case 'timedlist':
       return t(answer.wrong > 0 ? 'listAnswerWrong' : 'listAnswer', { found: answer.found.length, total: answer.total, wrong: answer.wrong });
     case 'sort':

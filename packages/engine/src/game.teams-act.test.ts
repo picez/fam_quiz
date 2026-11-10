@@ -7,7 +7,7 @@ import { surveyBoard } from './survey';
 import { actAnswer, actBuzz, actorOf, canMemberVote, pickDuelist, voterList, type TeamAct } from './team-act';
 import { cloudTally, hideCloudWord } from './votes';
 import { T0, T1, duelQuiz, revealOf } from './testing/duel';
-import { blitzRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, letterwords, single4, surveyCloud, text, timedlist, withId, moreless, drawing } from './testing/fixtures';
+import { blitzRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, letterwords, single4, surveyCloud, text, timedlist, withId, moreless, drawing, puzzlesRound, sudoku, crosswordFull } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
@@ -168,6 +168,17 @@ describe('team act: drawing (28c)', () => {
     const s = opened(teamQuiz([classicRound('r1', [drawing])]));
     for (const [member, team] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']] as const) {
       expect(actorOf(s, member, 'answer'), member).toEqual({ ok: true, id: team });
+    }
+  });
+});
+
+describe('team act: puzzles (28d)', () => {
+  it('every member fills the team grid and presses done for the team', () => {
+    for (const question of [sudoku, crosswordFull]) {
+      const s = opened(teamQuiz([puzzlesRound('pz', [question])]));
+      for (const [member, team] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']] as const) {
+        expect(actorOf(s, member, 'answer'), member).toEqual({ ok: true, id: team });
+      }
     }
   });
 });

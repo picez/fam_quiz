@@ -14,6 +14,7 @@ import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
 import { DrawingLive } from '../screens/DrawingView';
+import { PuzzleHistoryGrid } from '../screens/PuzzleView';
 import { ScoreTable } from '../screens/ScoreTable';
 import { FactCards } from '../screens/FactCards';
 import { historyAppealText } from '../appeal-text';
@@ -555,6 +556,8 @@ export function GameHistory() {
                                         : answerText(response.answer, response.spare ?? question.question)}
                                     </span>
                                   )}
+                                  {/* Головоломки (28d): фінальна сітка компактно, ключове слово учасника й «Готово». */}
+                                  {response.answer?.type === 'puzzle' && <PuzzleHistoryGrid answer={response.answer} question={question.question} playerKey={response.key} />}
                                 </li>
                               ))}
                             </ul>

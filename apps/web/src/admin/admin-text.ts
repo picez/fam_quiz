@@ -58,6 +58,8 @@ export function questionLines(question: Question): string[] {
         return question.pairs.flatMap((pair) => [pair.prompt, pair.a.text, pair.a.value, pair.b.text, pair.b.value]);
       case 'letterwords':
         return question.set.kind === 'fixed' ? [question.set.letters] : [];
+      case 'crossword':
+        return [...question.entries.flatMap((entry) => [entry.answer, entry.clue]), question.key ?? ''];
       default:
         return [];
     }

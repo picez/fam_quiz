@@ -17,7 +17,9 @@ import {
   ladderRound,
   makeRoundsQuiz,
   poll,
+  puzzlesRound,
   single,
+  sudoku,
   sortQ,
   survivalQuestions,
   survivalRound,
@@ -467,6 +469,24 @@ describe('answerer: blitz, polls and clouds next — nothing to pick', () => {
     const clouded = must(lock(toNextQuestion(game(teamQuiz([classicRound('r1', [single, cloud])], 2, 'rotate')))));
     expect(nextAnswerer(clouded, 't1')).toBe('m1');
     expect(pickAnswerer(clouded, 'm1', 'm2', 'question')).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('puzzles (28d): the whole team fills one grid — nothing to pick, the turn stays, nobody is recorded as the answerer', () => {
+    const wrongPhase = { ok: false, error: 'wrong_phase' };
+    expect(pickAnswerer(game(teamQuiz([puzzlesRound('pz', [sudoku])], 2, 'chosen')), 'm1', 'm2', 'question')).toEqual(wrongPhase);
+    const rounds = [classicRound('r1', [single]), puzzlesRound('pz', [sudoku, withId(sudoku, 's2')]), classicRound('r3', [withId(single, 'q3')])];
+    let s = toNextQuestion(game(teamQuiz(rounds, 2, 'rotate')));
+    expect(answererOf(s, 't1')).toBe('m1');
+    s = until(s, 'reveal');
+    expect(pickAnswerer(s, 'm1', 'm2', 'question')).toEqual(wrongPhase);
+    expect(nextAnswerer(s, 't1')).toBe('m1');
+    s = toNextQuestion(s);
+    expect(s.plays[s.questionIndex].question.type).toBe('sudoku');
+    expect(answeredByOf(s, s.questionIndex, 't1')).toBeNull();
+    expect(s.teams?.turns?.t1).toEqual({ questionIndex: 0, memberId: 'm1' });
+    s = toNextQuestion(toNextQuestion(s));
+    expect(s.plays[s.questionIndex].question.id).toBe('q3');
+    expect(answererOf(s, 't1')).toBe('m2');
   });
 
   it('a sort question in a blitz round has an answerer, so the pick is allowed', () => {

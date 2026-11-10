@@ -562,3 +562,14 @@ describe('drawing facts (28c)', () => {
     expect(wholeRowQuestion(draw)).toBe(true);
   });
 });
+
+describe('puzzle facts (28d)', () => {
+  it('a puzzle question has no answer window', () => {
+    const sudoku = { id: 'su', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300 } as unknown as Question;
+    const cross = { ...sudoku, id: 'cr', type: 'crossword' } as unknown as Question;
+    for (const q of [sudoku, cross]) {
+      expect(factLimitMs(q, { type: 'puzzles' } as Round, false)).toBeNull();
+      expect(wholeRowQuestion(q)).toBe(true);
+    }
+  });
+});

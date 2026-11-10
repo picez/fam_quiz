@@ -6,6 +6,7 @@ import {
   autopilotCheck,
   autopilotIntroMs,
   autopilotQuiz,
+  generateSudoku,
   quizSchema,
   type Quiz,
   type Round,
@@ -341,5 +342,14 @@ describe('autopilotIntroMs', () => {
   });
   it('stops at twenty seconds', () => {
     expect(autopilotIntroMs({ ...withDescription(), description: 'а'.repeat(1000) } as Round)).toBe(20_000);
+  });
+});
+
+describe('puzzles round (28d)', () => {
+  it('a puzzles round needs no manual check', () => {
+    const sudoku = { id: 'su', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium') };
+    const q = quiz([classic('r0', list('a', 1)), { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [sudoku] }]);
+    expect(autopilotCheck(q)).toEqual({ blocked: [], changed: [] });
+    expect(autopilotQuiz(q)).toEqual(q);
   });
 });

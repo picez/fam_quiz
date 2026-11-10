@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import golden from './__fixtures__/uk-golden.json';
+import ar from './locales/ar.json';
+import de from './locales/de.json';
+import en from './locales/en.json';
+import es from './locales/es.json';
+import it_ from './locales/it.json';
+import pl from './locales/pl.json';
 import { activateLocale, activateLocaleForTests, activeMessages, countText, errorText, t, ukMessages } from './i18n';
 
 describe('i18n', () => {
@@ -104,6 +110,10 @@ describe('uk golden (22a)', () => {
   const ADDED_28B = ['roundTypeTruth', 'roundHow_truth', 'buffWhy_off_truth', 'scoreSource_truth', 'err_truth_closed', 'err_truth_own', 'err_truth_text', 'summaryTruth', 'truthHistoryAuthor', 'truthHistoryAuthorRow', 'truthPointsLabel', 'truthTimeLabel', 'truthEditorNote', 'problemTruthOnce', 'truthFactLabel', 'truthFactHint', 'truthFactSave', 'truthFactSaved', 'truthFactCount', 'truthFactHidden', 'truthFactsCount', 'truthHostTitle', 'truthHostHide', 'truthHostShow', 'truthHostHiddenMark', 'truthHostPlayed', 'truthHostRevised', 'truthHostNone', 'truthHostAuthor', 'truthWho', 'truthOf', 'truthOwn', 'truthOwnTeam', 'truthAuthorIs', 'truthAuthorPoints', 'truthPicked', 'truthNoPick', 'truthSkipped', 'problemTruthNumbers', 'quizTruthNote', 'quizTruthOnly'];
   /** 28c: тип «Малюнок» — назви, формат відповіді, рядок наживо, редактор, проблеми, полотно. Задача 6 дописує сюди свої. */
   const ADDED_28C = ['type_drawing', 'typeShort_drawing', 'typeHow_drawing', 'buffWhy_off_drawing', 'drawingHelp', 'drawingWordHint', 'problemDrawingWord', 'problemDrawingLong', 'problemDrawingPlace', 'drawingAnswer', 'drawingDrewAnswer', 'drawingLive', 'drawingCanvasLabel', 'drawingYourWord', 'drawingYouDraw', 'drawingDrawer', 'drawingGuessed', 'drawingMiss', 'drawingGuessPlaceholder', 'drawingGuessButton', 'drawingCount', 'drawingTeamWatch', 'drawingUndo', 'drawingClear', 'drawingEraser', 'drawingColor', 'drawingWidth_0', 'drawingWidth_1', 'drawingWidth_2', 'drawingWordWas', 'drawingNobody', 'drawingFull', 'drawingArtist'];
+  /** 28d: раунд «Головоломки», судоку й кросворд — назви, пам'ятка, помилки, формат відповіді, редактор, проблеми. Задачі 7–8 дописують сюди свої. */
+  const ADDED_28D = ['roundTypePuzzles', 'roundHow_puzzles', 'buffWhy_off_puzzles', 'summaryPuzzles', 'summarySudokus_one', 'summaryCrosswords_one', 'puzzlesSettingsNote', 'type_sudoku', 'typeShort_sudoku', 'typeHow_sudoku', 'type_crossword', 'typeShort_crossword', 'typeHow_crossword', 'err_puzzle_stale', 'err_puzzle_done', 'err_puzzle_cell', 'err_puzzle_given', 'puzzleAnswerSolved', 'puzzleAnswerPart', 'sudokuDefaultText', 'crosswordDefaultText', 'sudokuSourceLabel', 'sudokuSourceGenerate', 'sudokuSourceCustom', 'sudokuGenerateConfirm', 'sudokuLevelLabel', 'sudokuLevel_easy', 'sudokuLevel_medium', 'sudokuLevel_hard', 'sudokuNewGrid', 'sudokuGridLabel', 'sudokuCellLabel', 'sudokuGivenCount', 'sudokuCustomHint', 'sudokuUnique', 'sudokuMany', 'sudokuNone', 'sudokuConflict', 'sudokuHelp', 'crosswordWordN', 'crosswordAnswer', 'crosswordAnswerPlaceholder', 'crosswordClue', 'crosswordCluePlaceholder', 'addCrosswordWord', 'removeCrosswordWord', 'crosswordWordUp', 'crosswordWordDown', 'crosswordModeLabel', 'crosswordModeFull', 'crosswordModeKey', 'crosswordKeyLabel', 'crosswordKeyPlaceholder', 'crosswordKeyNote', 'crosswordUnplaced', 'crosswordBadWords', 'crosswordDuplicateWarn', 'crosswordMissing', 'crosswordKeyBad', 'crosswordPreview', 'crosswordAcross', 'crosswordDown', 'crosswordHelp', 'problemPuzzleLimits', 'problemSudokuGrid', 'problemSudokuConflict', 'problemSudokuNone', 'problemSudokuMany', 'problemCrosswordCount', 'problemCrosswordWords', 'problemCrosswordClue', 'problemCrosswordWord', 'problemCrosswordDuplicate', 'problemCrosswordLayout', 'problemCrosswordKey', 'problemCrosswordKeyLetters', 'problemPuzzlePlace', 'problemPuzzlesType', 'puzzleFilled', 'puzzleKeypad', 'puzzleErase', 'puzzleDone', 'puzzleConfirm', 'puzzleConfirmYes', 'puzzleConfirmNo', 'puzzleWaiting', 'puzzleTimeUp', 'puzzleClosed', 'puzzleOffline', 'puzzleYours', 'puzzleSolution', 'crosswordPick', 'crosswordGridLabel', 'crosswordInput', 'crosswordClues', 'puzzleDoneOf'];
+  /** Множина 28d: форми, яких немає в мові (en — без few/many), там і не потрібні; _one є в кожній — перевіряє ADDED_28D. */
+  const ADDED_28D_PLURALS = ['summarySudokus_few', 'summarySudokus_many', 'summaryCrosswords_few', 'summaryCrosswords_many'];
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
   const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
@@ -117,9 +127,15 @@ describe('uk golden (22a)', () => {
     expect(removedStill).toEqual([]);
   });
 
+  it('28d keys are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const key of ADDED_28D) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_28D.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key))).toEqual([]);
   });
 });
 

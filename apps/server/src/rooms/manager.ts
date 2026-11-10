@@ -112,6 +112,9 @@ import {
   letterWordsOf,
   moreLessOf,
   moreLessPick,
+  puzzleFill,
+  puzzleFinish,
+  puzzleOf,
   drawGuess,
   drawingOf,
   drawStroke,
@@ -144,7 +147,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -266,6 +269,8 @@ export interface Room {
   drawRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:draw-guess (28c), окреме від drawRate: спроби вгадати. Лише в пам'яті. */
   drawGuessRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:puzzle (28d): пакети клітинок людини (у команді — кожного учасника окремо). «Готово» його не рахує. Лише в пам'яті. */
+  puzzleRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -337,7 +342,8 @@ export interface Tilt {
 
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
 export type RoomEvent =
-  | { type: 'changed' }
+  /** puzzle — зміна лише від пакета клітинок «Головоломок» (28d): socket.ts зливає такі зрізи для кімнати в замикальному вікні. */
+  | { type: 'changed'; puzzle?: true }
   /** released — ведучий (автор) звільнив місце збереженої гри (13b): гравець лишається в грі, телефон іде. */
   | { type: 'kicked'; playerId: string; reason?: 'released' }
   /** saved — гру збережено (13b): рекордер пише її як «Не завершену». */
@@ -585,6 +591,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'timedlist' ? timedListOf(state, id) : null,
     play?.question.type === 'letterwords' ? letterWordsOf(state, id) : null,
     play?.question.type === 'moreless' ? moreLessOf(state, id) : null,
+    play?.question.type === 'sudoku' || play?.question.type === 'crossword' ? puzzleOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -710,6 +717,7 @@ export class RoomManager {
       truthRate: new Map(),
       drawRate: new Map(),
       drawGuessRate: new Map(),
+      puzzleRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -787,6 +795,7 @@ export class RoomManager {
       truthRate: new Map(),
       drawRate: new Map(),
       drawGuessRate: new Map(),
+      puzzleRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1675,6 +1684,32 @@ export class RoomManager {
     return this.apply(room, drawGuess(room.state, personId, text, now));
   }
 
+  /**
+   * Пакет клітинок «Головоломок» (28d): у командній грі — будь-який учасник за команду (рушій пише його в by). Ack лише { ok: true }
+   * чи відмова, без правильності. Пакет без зміни — ok без розсилки. Понад PUZZLE_BATCHES_PER_SECOND пакетів на секунду від людини — too_soon.
+   * Збереження — звичайний commit: сховище зливає часті пакети у вікні saveDelayMs. Подія changed позначена puzzle: розсилку зрізів
+   * socket.ts зливає в замикальному вікні PUZZLE_PUSH_MS (інакше кожен пакет будував би зрізи для всієї кімнати).
+   */
+  puzzleFill(room: Room, playerId: string, questionIndex: number, cells: readonly { i: number; v: string }[]): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.puzzleRate, playerId, now, PUZZLE_BATCHES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    const result = puzzleFill(room.state, who.id, playerId, questionIndex, cells, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.state !== room.state) this.commit(room, result.state, this.now(), true);
+    return { ok: true };
+  }
+
+  /** «Готово» в «Головоломках» (28d): у командній грі — будь-який учасник за команду. Ack однаковий для правильної й хибної сітки; вікна пакетів не рахує. */
+  puzzleDone(room: Room, playerId: string, questionIndex: number): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    return this.apply(room, puzzleFinish(room.state, who.id, questionIndex, this.now()));
+  }
+
   /** Повний малюнок поточного запитання (28c) для sync: при підключенні й на draw:sync. null — запитання не «Малюнок» (чи не на question/locked/reveal). */
   drawSnapshot(room: Room): DrawingEvent | null {
     const drawing = drawingOf(room.state);
@@ -2125,6 +2160,7 @@ export class RoomManager {
     room.truthRate.delete(playerId);
     room.drawRate.delete(playerId);
     room.drawGuessRate.delete(playerId);
+    room.puzzleRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
@@ -2257,8 +2293,8 @@ export class RoomManager {
     return { ok: true };
   }
 
-  /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. */
-  private commit(room: Room, state: GameState, at = this.now()): void {
+  /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. puzzle — зміну дав лише пакет клітинок (28d). */
+  private commit(room: Room, state: GameState, at = this.now(), puzzle = false): void {
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
     // Слова з літер (27d): роздача — до розсилки, збереження й плану автопілота; next, tick, автопілот і поле проходять тут.
@@ -2280,7 +2316,7 @@ export class RoomManager {
       this.watchAuthor(room);
     }
     this.reschedule(room);
-    this.emit(room, { type: 'changed' });
+    this.emit(room, puzzle ? { type: 'changed', puzzle: true } : { type: 'changed' });
   }
 
   /** Приводить таймери кімнати у відповідність до її стану. */

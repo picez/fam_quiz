@@ -11,6 +11,7 @@ import {
   newBoardRound,
   newAuctionRound,
   newTruthRound,
+  newPuzzlesRound,
   newBetsRound,
   newFinalRound,
   newWipeoutQuestion,
@@ -109,7 +110,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           ? LIMITS.maxSurvivalQuestions
           : round.type === 'ladder'
             ? LIMITS.maxLadderQuestions
-            : LIMITS.maxQuestions) &&
+            : round.type === 'puzzles'
+              ? LIMITS.maxPuzzles
+              : LIMITS.maxQuestions) &&
     total < LIMITS.maxQuizQuestions;
   const setAwayPenalty = (on: boolean) => {
     const { awayPenalty: _off, ...rest } = settings;
@@ -154,7 +157,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       select(questions.length);
       return;
     }
-    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion('single')]);
+    // У «Головоломках» нове запитання — згенероване судоку (інших типів там немає).
+    setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion(round.type === 'puzzles' ? 'sudoku' : 'single')]);
     select(questions.length);
   };
 
@@ -174,7 +178,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'puzzles' ? newPuzzlesRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
