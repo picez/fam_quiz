@@ -192,6 +192,8 @@ const stage = (over: Partial<StageView> = {}): StageView =>
     overtime: [],
     reveal: null,
     truth: info({ open: false, count: 3, index: 0 }),
+    teams: null,
+    blitz: null,
     ...over,
   }) as StageView;
 

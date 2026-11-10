@@ -4,6 +4,7 @@ import { questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
+import { StageAnswerers } from './StageAnswerers';
 
 /** Телефон: поле факту (до 200 символів, лічильник), «Зберегти»; збережений текст або позначка ведучого. Факти закрито — нічого. */
 export function TruthFactForm({ truth, send }: { truth: PlayerTruth; send: Send }) {
@@ -200,7 +201,7 @@ export function TruthOwn({ team }: { team: boolean }) {
 
 /**
  * Сцена на question/locked: «Хто це написав?», факт великим, «Факт k з n», таймер, імена дрібно — без букв варіантів і
- * без позначок «відповів» по людях (лише лічильник). На reveal замість імен — розкриття.
+ * без позначок «відповів» по людях (лише лічильник); у командах — рядок відповідачів (12g). На reveal замість імен — розкриття.
  */
 export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
   const { question, truth } = view;
@@ -211,6 +212,8 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
         <span>{t('truthOf', { index: truth.index + 1, total: truth.count })}</span>
         <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>
       </header>
+      {/* Командна гра не в режимі captain: хто відповідає за кожну команду — за всі однаково (капітан), команда автора не випадає. */}
+      <StageAnswerers view={view} />
       <p className="lead truth-who">{t('truthWho')}</p>
       <div className="stage-main">
         <h1 className={questionClass(question.text)} dir="auto">

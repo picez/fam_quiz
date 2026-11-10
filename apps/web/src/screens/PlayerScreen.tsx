@@ -38,7 +38,7 @@ import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
-import { TruthFactForm, TruthOwn, TruthPick, TruthReveal } from './TruthView';
+import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -1495,6 +1495,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />
         </>
       )}
+
+      {phase === 'round_end' && view.truth?.skipped === true && <TruthSkipped />}
 
       {phase === 'round_end' && view.standings !== null && (
         <>

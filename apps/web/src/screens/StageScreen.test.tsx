@@ -2834,4 +2834,13 @@ describe('StageScreen: player truth (28b)', () => {
     show(view({ phase: 'round_end', round, standings, truth: info({ index: null, count: 0, skipped: true }) }));
     expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
   });
+
+  it('a team question names who answers for every team, the author’s team too', () => {
+    const teams = teamsView({ answerer: 'chosen' });
+    show(view({ phase: 'question', round, questionIndex: 0, question: truthQuestion, endsAt: Date.now() + 30_000, limitMs: 30_000, playerCount: 1, truth: info(), teams }));
+    const line = document.querySelector('.truth-stage > .stage-answerers')!;
+    expect(document.querySelector('.truth-stage > header.bar')!.nextElementSibling).toBe(line);
+    expect(line.textContent).toContain('відповідає: Іра');
+    expect(line.textContent).toContain('відповідає: Оля');
+  });
 });
