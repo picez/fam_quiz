@@ -323,7 +323,7 @@ function layoutBroken(layout: CrosswordLayout, entries: readonly Entry[]): boole
   const side = LIMITS.maxCrosswordSide;
   const { width, height, words } = layout;
   if (!isInt(width, 1, side) || !isInt(height, 1, side)) return true;
-  if (words.length !== entries.length) return true;
+  if (words.length === 0 || words.length !== entries.length) return true;
   const ids = new Set(entries.map((e) => e.id));
   if (ids.size !== entries.length || new Set(words.map((w) => w.id)).size !== words.length) return true;
   if (!words.every((w) => ids.has(w.id))) return true;
@@ -396,4 +396,25 @@ function keyBroken(layout: CrosswordLayout, entries: readonly Entry[], key: stri
   if (new Set(keyCells).size !== keyCells.length) return true;
   const cells = crosswordCells(layout, entries);
   return keyCells.some((i, k) => !isInt(i, 0, cells.length - 1) || cells[i] !== letters[k]);
+}
+
+export type CrosswordIssue = 'crossword_word' | 'crossword_duplicate' | 'crossword_layout' | 'crossword_key' | 'crossword_key_mode' | 'crossword_key_letters';
+
+/** Перевірка збереженого кросворду: слова, повтори, розкладка, ключ і його клітинки; перша знайдена вада або null. */
+export function crosswordIssue(q: {
+  mode: 'key' | 'full';
+  entries: readonly Entry[];
+  key: string | null;
+  layout: CrosswordLayout | null;
+}): CrosswordIssue | null {
+  const letters = q.entries.map((e) => crosswordLetters(e.answer));
+  if (letters.some((l) => l === null)) return 'crossword_word';
+  const keys = letters.map((l) => l!.join(''));
+  if (new Set(keys).size !== keys.length) return 'crossword_duplicate';
+  if (q.layout === null) return 'crossword_layout';
+  if (crosswordLayoutIssue(q.layout, q.entries, null) === 'crossword_layout') return 'crossword_layout';
+  if (q.mode === 'key') {
+    if (q.key === null || crosswordKeyLetters(q.key) === null) return 'crossword_key';
+  } else if (q.key !== null || q.layout.keyCells.length > 0) return 'crossword_key_mode';
+  return crosswordLayoutIssue(q.layout, q.entries, q.key);
 }

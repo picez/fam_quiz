@@ -112,6 +112,8 @@ export interface PublicQuestion {
   letterwords?: PublicLetterWords;
   /** Лише на запитанні «Більше чи менше» (28a); ключа немає в інших типів. Значень і правильних сторін тут немає. */
   moreless?: PublicMoreLess;
+  /** Лише на судоку й кросворді (28d); ключа немає в інших типів. Розв'язку, слів і ключа тут немає. */
+  puzzle?: PublicPuzzle;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -330,6 +332,55 @@ export interface PlayerLetterWords {
   words: { text: string; letters: number }[];
   /** question, не пауза, набір роздано. */
   canType: boolean;
+}
+
+/** «Головоломки» (28d), усім: судоку — задані цифри (вони публічні); кросворд — форма сітки (mask: '1' клітинка, '0' блок) і підказки, без слів і ключа. */
+export type PublicPuzzle =
+  | { kind: 'sudoku'; givens: string }
+  | {
+      kind: 'crossword';
+      mode: 'key' | 'full';
+      width: number;
+      height: number;
+      mask: string;
+      words: { number: number; row: number; col: number; dir: 'across' | 'down'; length: number; clue: string }[];
+      keyCells: number[];
+    };
+
+/** Дошка гравця (команди) в «Головоломках»: маска без значень. mask: '0' порожньо, 'g' задана (судоку), '#' блок, '1'…'9' — хто заповнив (соло завжди '1'; у команді номер учасника, з 9-го '9'). */
+export interface PuzzleBoardView {
+  playerId: string;
+  nickname: string;
+  mask: string;
+  filled: number;
+  total: number;
+  done: boolean;
+  last: number | null;
+  /** Ведучому завжди, іншим лише на reveal; інакше null. */
+  cells: string[] | null;
+  /** Лише на reveal (ведучому теж); інакше null. */
+  solved: boolean | null;
+  /** Лише на reveal; інакше null. */
+  points: number | null;
+}
+
+export interface PuzzleInfo {
+  kind: 'sudoku' | 'crossword';
+  boards: PuzzleBoardView[];
+  /** Правильні значення за клітинками: ведучому завжди, іншим лише на reveal; інакше null. */
+  solution: string[] | null;
+}
+
+/** Власна сітка гравця (28d): значення бачить лише він (і товариші по команді). result — лише на reveal. */
+export interface PlayerPuzzle {
+  cells: string[];
+  mask: string;
+  done: boolean;
+  /** Можна вписувати: question, не пауза, сітку ще не здано. */
+  canEdit: boolean;
+  /** Скільки пакетів сервер прийняв від відкриття. */
+  seq: number;
+  result: { solved: boolean; wrong: number[]; points: number } | null;
 }
 
 /** «Більше чи менше» (28a), усім: тексти варіантів без значень і без правильного. */
@@ -1528,6 +1579,8 @@ interface BaseView {
   letterwords?: LetterWordsInfo;
   /** «Більше чи менше» (28a): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
   moreless?: MoreLessInfo;
+  /** «Головоломки» (28d): лише на судоку й кросворді (question, locked, reveal); маски без значень, значення й розв'язок — після reveal; інакше ключа немає. */
+  puzzle?: PuzzleInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -1773,6 +1826,8 @@ export interface PlayerView extends BaseView {
     letterwords?: PlayerLetterWords;
     /** Власний ряд гравця (28a): лише на запитанні «Більше чи менше»; інакше ключа немає. */
     moreless?: PlayerMoreLess;
+    /** Власна сітка гравця (28d): лише на судоку й кросворді; інакше ключа немає. */
+    puzzle?: PlayerPuzzle;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
@@ -1868,6 +1923,7 @@ export type LiveProgress =
   | { kind: 'letterwords'; words: string[] }
   | { kind: 'moreless'; done: number; total: number; right: number }
   | { kind: 'drawing'; role: 'drawer' | 'guesser'; guessed: boolean }
+  | { kind: 'puzzle'; filled: number; total: number; done: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1961,6 +2017,8 @@ export interface HostView extends BaseView {
   letterwords?: LetterWordsInfo;
   /** Як у BaseView, але ведучому завжди ще й значення, правильні сторони, вибори кожного й right наживо. */
   moreless?: MoreLessInfo;
+  /** Як у BaseView, але ведучому завжди ще й значення кожної дошки та розв'язок. */
+  puzzle?: PuzzleInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */

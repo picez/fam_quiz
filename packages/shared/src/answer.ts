@@ -120,7 +120,17 @@ export interface DrawingAnswer {
   drew: { guessed: number; could: number } | null;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer;
+/** Запис «Головоломок» (28d) гравця (команди); складає рушій, з телефона не приходить. grid — сітка одним рядком ('0' — порожньо), filled — заповнено клітинок, total — усього. */
+export interface PuzzleAnswer {
+  type: 'puzzle';
+  kind: 'sudoku' | 'crossword';
+  grid: string;
+  filled: number;
+  total: number;
+  solved: boolean;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

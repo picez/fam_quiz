@@ -84,6 +84,13 @@ import {
   type Quiz,
   emptyBrief,
   roundBrief,
+  generateSudoku,
+  layoutCrossword,
+  pickKeyCells,
+  duelQuestionSchema,
+  puzzleFillSchema,
+  puzzleDoneSchema,
+  PUZZLE_BATCHES_PER_SECOND,
 } from './index';
 
 const single = {
@@ -2656,5 +2663,183 @@ describe('drawing question (28c)', () => {
     expect(valid(drawGuessSchema, { text: 'я'.repeat(60) })).toBe(true);
     expect(valid(drawGuessSchema, { text: 'я'.repeat(61) })).toBe(false);
     expect(valid(answerSchema, { type: 'drawing', guess: 'соняшник', drew: null })).toBe(false);
+  });
+});
+
+describe('puzzles round (28d)', () => {
+  const sudokuQ = (patch: object = {}) => ({ id: 'su', type: 'sudoku', text: 'Розв’яжіть судоку', imageUrl: null, video: null,
+    timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium'), ...patch });
+  const WORDS = ['калина', 'лелека', 'вишня', 'соняшник', 'мак', 'криниця'];
+  const entries = WORDS.map((answer, i) => ({ id: `w${i}`, answer, clue: `Підказка ${i}` }));
+  const laid = () => {
+    const result = layoutCrossword(entries);
+    if (!result.ok) throw new Error('not laid out');
+    return result.layout;
+  };
+  const crosswordQ = (patch: object = {}) => ({ id: 'cr', type: 'crossword', text: 'Розгадайте кросворд', imageUrl: null, video: null,
+    timeLimit: 240, points: 300, mode: 'full', entries, key: null, layout: laid(), ...patch });
+  const keyQ = (key = 'лис') => {
+    const keyCells = pickKeyCells(laid(), entries, key);
+    if (!Array.isArray(keyCells)) throw new Error('no key cells');
+    return crosswordQ({ mode: 'key', key, layout: { ...laid(), keyCells } });
+  };
+  const puzzles = (questions: object[], patch: object = {}) => ({ id: 'pz', type: 'puzzles', title: 'Головоломки', questions, ...patch });
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+
+  it('accepts a generated and a custom sudoku', () => {
+    expect(QUESTION_TYPES.indexOf('sudoku')).toBe(QUESTION_TYPES.indexOf('drawing') + 1);
+    expect(QUESTION_TYPES.indexOf('crossword')).toBe(QUESTION_TYPES.indexOf('sudoku') + 1);
+    expect(ROUND_TYPES.indexOf('puzzles')).toBe(ROUND_TYPES.indexOf('truth') + 1);
+    expect(qIssues(sudokuQ())).toEqual([]);
+    const { givens, solution } = generateSudoku(11, 'easy');
+    expect(qIssues(sudokuQ({ level: 'custom', seed: null, givens, solution }))).toEqual([]);
+    expect(issues(quizOf([puzzles([sudokuQ(), crosswordQ()])]))).toEqual([]);
+  });
+
+  it('refuses a sudoku without one solution', () => {
+    const { givens, solution } = generateSudoku(3, 'medium');
+    // менше заданих: розв'язків багато
+    expect(qIssues(sudokuQ({ givens: '0'.repeat(30) + givens.slice(30) }))).toContain('sudoku_many');
+    expect(qIssues(sudokuQ({ givens: '0'.repeat(36) }))).toContain('sudoku_many');
+    // два однакових у рядку: конфлікт
+    expect(qIssues(sudokuQ({ givens: '110000'.padEnd(36, '0') }))).toContain('sudoku_conflict');
+    // без конфлікту, але без розв'язку: у клітинці 5 першого рядка жодного кандидата
+    expect(qIssues(sudokuQ({ givens: '123400' + '000056' + '0'.repeat(24) }))).toContain('sudoku_none');
+    // розв'язок не той
+    const other = solution.replace(/[12]/g, (d) => (d === '1' ? '2' : '1'));
+    expect(qIssues(sudokuQ({ solution: other }))).toContain('sudoku_solution');
+    // задані не є підмножиною розв'язку
+    expect(qIssues(sudokuQ({ solution: solution.split('').reverse().join('') }))).toContain('sudoku_solution');
+    // формат: помилка розбору
+    expect(valid(questionSchema, sudokuQ({ givens: '12' }))).toBe(false);
+    expect(valid(questionSchema, sudokuQ({ solution: '7'.repeat(36) }))).toBe(false);
+    expect(valid(questionSchema, sudokuQ({ level: 'insane' }))).toBe(false);
+    expect(valid(questionSchema, sudokuQ({ seed: -1 }))).toBe(false);
+  });
+
+  it('accepts a crossword in both modes', () => {
+    expect(qIssues(crosswordQ())).toEqual([]);
+    expect(qIssues(keyQ())).toEqual([]);
+  });
+
+  it('refuses a broken crossword', () => {
+    expect(qIssues(crosswordQ({ layout: null }))).toContain('crossword_layout');
+    const english = entries.map((e, i) => (i === 0 ? { ...e, answer: 'apple' } : e));
+    expect(qIssues(crosswordQ({ entries: english }))).toContain('crossword_word');
+    const long = entries.map((e, i) => (i === 0 ? { ...e, answer: 'а'.repeat(13) } : e));
+    expect(qIssues(crosswordQ({ entries: long }))).toContain('crossword_word');
+    const twin = entries.map((e, i) => (i === 1 ? { ...e, answer: 'Калина' } : e));
+    expect(qIssues(crosswordQ({ entries: twin }))).toContain('crossword_duplicate');
+    expect(qIssues(crosswordQ({ mode: 'key', key: null }))).toContain('crossword_key');
+    expect(qIssues(crosswordQ({ mode: 'key', key: 'ab', layout: { ...laid(), keyCells: [0, 1] } }))).toContain('crossword_key');
+    expect(qIssues(crosswordQ({ mode: 'key', key: 'ск' }))).toContain('crossword_key');
+    expect(qIssues(crosswordQ({ key: 'лис' }))).toContain('crossword_key_mode');
+    expect(qIssues(crosswordQ({ layout: { ...laid(), keyCells: [0, 1, 2] } }))).toContain('crossword_key_mode');
+    const good = keyQ();
+    expect(qIssues({ ...good, layout: { ...good.layout, keyCells: [...good.layout.keyCells].reverse() } })).toContain('crossword_key_letters');
+    expect(qIssues({ ...good, layout: { ...good.layout, keyCells: [0, 1, 999] } })).toContain('crossword_key_letters');
+    // розкладка не збігається зі словами
+    const shifted = { ...laid(), words: laid().words.map((w, i) => (i === 0 ? { ...w, col: w.col + 1 } : w)) };
+    expect(qIssues(crosswordQ({ layout: shifted }))).toContain('crossword_layout');
+    expect(qIssues(crosswordQ({ layout: { ...laid(), words: laid().words.slice(1) } }))).toContain('crossword_layout');
+    // кількість слів і порожня підказка
+    expect(valid(questionSchema, crosswordQ({ entries: entries.slice(0, 3), layout: null }))).toBe(false);
+    const nine = Array.from({ length: 9 }, (_, i) => ({ id: `n${i}`, answer: 'слово', clue: 'х' }));
+    expect(valid(questionSchema, crosswordQ({ entries: nine, layout: null }))).toBe(false);
+    expect(valid(questionSchema, crosswordQ({ entries: entries.map((e, i) => (i === 0 ? { ...e, clue: '' } : e)) }))).toBe(false);
+  });
+
+  it('refuses video on a puzzle', () => {
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    expect(qIssues(sudokuQ({ video }))).toContain('puzzle_video');
+    expect(qIssues(crosswordQ({ video }))).toContain('puzzle_video');
+  });
+
+  it('puzzles play only in the puzzles round', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [sudokuQ({ id: 'sb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [sudokuQ({ id: 'sf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...sudokuQ({ id: 'sbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...sudokuQ({ id: 'sau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [sudokuQ({ id: 'sw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [sudokuQ({ id: 'ssv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [sudokuQ({ id: 'sl' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    for (const bad of [round('c', [sudokuQ({ id: 'sc' })]), round('c', [crosswordQ({ id: 'cc' })]), blitzRound, final, bets, auction, wipeout, survival, ladder]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('puzzle_place');
+    }
+    expect(issues(quizOf([board(sudokuQ())]))).toContain('puzzle_place');
+    expect(issues(quizOf([board(crosswordQ({ id: 'cb' }))]))).toContain('puzzle_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [sudokuQ({ id: 'st' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('puzzle_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [sudokuQ({ id: 'ss' })] })).toContain('spare_type');
+    expect(valid(duelQuestionSchema, sudokuQ())).toBe(false);
+    // а puzzles приймає лише головоломки
+    expect(issues(quizOf([puzzles([single])]))).toContain('puzzles_type');
+    expect(issues(quizOf([puzzles([sudokuQ(), { ...single, id: 'q2' }])]))).toContain('puzzles_type');
+    expect(issues(quizOf([puzzles([sudokuQ({ id: 'a' }), crosswordQ({ id: 'b' })])]))).toEqual([]);
+    // до 10 запитань
+    const ten = Array.from({ length: 10 }, (_, i) => sudokuQ({ id: `t${i}` }));
+    expect(issues(quizOf([puzzles(ten)]))).toEqual([]);
+    expect(issues(quizOf([puzzles([...ten, sudokuQ({ id: 't10' })])]))).not.toEqual([]);
+    expect(valid(roundSchema, puzzles([]))).toBe(false);
+  });
+
+  it('a puzzles round has no rules', () => {
+    const parsed = roundSchema.parse(puzzles([sudokuQ()]));
+    expect(rulesOf(parsed)).toBe(DEFAULT_RULES);
+    expect(roundQuestions(parsed)).toHaveLength(1);
+    expect(questionPrice(questionSchema.parse(sudokuQ({ points: 450 })))).toBe(450);
+    expect(questionPrice(questionSchema.parse(crosswordQ()))).toBe(300);
+    expect(questionsOf(quizSchema.parse(quizOf([puzzles([sudokuQ(), crosswordQ()])])))).toHaveLength(2);
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single, orderSpare])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('sudoku');
+    expect(JSON.stringify(parsed.data)).not.toContain('crossword');
+  });
+
+  it('the puzzle events are limited', () => {
+    const cells = (n: number) => Array.from({ length: n }, (_, i) => ({ i, v: '1' }));
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: cells(12) })).toBe(true);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: cells(13) })).toBe(false);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [] })).toBe(false);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [{ i: 143, v: 'я' }] })).toBe(true);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [{ i: 144, v: '1' }] })).toBe(false);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [{ i: 0, v: 'abc' }] })).toBe(false);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [{ i: 0, v: '1', x: 1 }] })).toBe(false);
+    expect(valid(puzzleFillSchema, { questionIndex: 0, cells: cells(1), extra: 1 })).toBe(false);
+    expect(valid(puzzleDoneSchema, { questionIndex: 2 })).toBe(true);
+    expect(valid(puzzleDoneSchema, { questionIndex: -1 })).toBe(false);
+    expect(valid(puzzleDoneSchema, { questionIndex: 0, extra: 1 })).toBe(false);
+    expect(PUZZLE_BATCHES_PER_SECOND).toBe(6);
+    expect(valid(answerSchema, { type: 'puzzle', kind: 'sudoku', grid: '0'.repeat(36), filled: 0, total: 36, solved: false })).toBe(false);
+  });
+
+  it('the round brief of puzzles counts the questions', () => {
+    const parsed = roundSchema.parse(puzzles([sudokuQ({ id: 'a' }), crosswordQ({ id: 'b' }), sudokuQ({ id: 'c' })]));
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, time: 180 + 240 + 180 });
+    expect(roundBrief(roundSchema.parse(round('r', [single]))).puzzles).toBeNull();
+    expect(emptyBrief('puzzles').puzzles).toBeNull();
   });
 });

@@ -183,6 +183,8 @@ describe('crossword', () => {
     expect(crosswordLayoutIssue({ ...layout, words: [...layout.words, layout.words[0]] }, ENTRIES, null)).toBe(
       'crossword_layout',
     );
+    // Порожня розкладка: помилка перевірки, а не виняток.
+    expect(crosswordLayoutIssue({ width: 1, height: 1, words: [], keyCells: [] }, [], null)).toBe('crossword_layout');
 
     const small = entriesOf(['мак', 'ми', 'ас', 'ни']);
     const base = (words: CrosswordLayout['words'], width = 3): CrosswordLayout => ({ width, height: 2, words, keyCells: [] });

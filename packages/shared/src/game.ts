@@ -52,6 +52,8 @@ export type BuffBlock =
   | 'off_moreless'
   /** «Малюнок»: бафів немає (28c). */
   | 'off_drawing'
+  /** «Головоломки»: бафів немає (28d). */
+  | 'off_puzzles'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -208,6 +210,8 @@ export type ErrorCode =
   | 'moreless_stale'
   /** «Малюнок» (28c): малює не ця людина; операція не до останнього штриха; малюнок завеликий; невірне слово; художник вгадує власне слово. */
   | 'drawing_not_drawer' | 'drawing_stale' | 'drawing_full' | 'drawing_miss' | 'drawing_own'
+  /** «Головоломки» (28d): пакет не для поточного запитання; сітку вже здано; клітинка поза сіткою чи недопустиме значення; задану клітинку судоку не змінити. */
+  | 'puzzle_stale' | 'puzzle_done' | 'puzzle_cell' | 'puzzle_given'
   | 'duel_used'
   | 'duel_busy'
   | 'duel_empty'
