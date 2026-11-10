@@ -7,7 +7,7 @@ import { surveyBoard } from './survey';
 import { actAnswer, actBuzz, actorOf, canMemberVote, pickDuelist, voterList, type TeamAct } from './team-act';
 import { cloudTally, hideCloudWord } from './votes';
 import { T0, T1, duelQuiz, revealOf } from './testing/duel';
-import { blitzRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, letterwords, single4, surveyCloud, text, timedlist, withId } from './testing/fixtures';
+import { blitzRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, letterwords, single4, surveyCloud, text, timedlist, withId, moreless } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
@@ -150,6 +150,16 @@ describe('team act: letter words (27d)', () => {
     for (const [member, team] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']] as const) {
       expect(actorOf(s, member, 'answer'), member).toEqual({ ok: true, id: team });
     }
+  });
+});
+
+describe('team act: more or less (28a)', () => {
+  it('the team answerer picks for the team, the others get not_captain', () => {
+    const s = opened(teamQuiz([classicRound('r1', [moreless])]));
+    expect(actorOf(s, 'm1', 'answer')).toEqual({ ok: true, id: 't1' });
+    expect(actorOf(s, 'm2', 'answer')).toEqual({ ok: false, error: 'not_captain' });
+    expect(actorOf(s, 'm3', 'answer')).toEqual({ ok: true, id: 't2' });
+    expect(actorOf(s, 'm4', 'answer')).toEqual({ ok: false, error: 'not_captain' });
   });
 });
 

@@ -173,6 +173,21 @@ export const letterwordsRandom = {
   points: 10,
 } satisfies Question;
 
+/** «Більше чи менше» (28a): три порівняння (a 100, b 100, a 200), разом 400 балів, 60 с; до типового списку makeQuiz не входить. */
+export const moreless = {
+  ...base,
+  id: 'q14',
+  type: 'moreless',
+  text: 'Більше чи менше',
+  timeLimit: 60,
+  points: 400,
+  pairs: [
+    { id: 'm1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a', points: 100 },
+    { id: 'm2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b', points: 100 },
+    { id: 'm3', prompt: 'Що глибше?', a: { text: 'Світязь', value: '58 м' }, b: { text: 'Синевир', value: '22 м' }, correct: 'a', points: 200 },
+  ],
+} satisfies Question;
+
 /** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
 export const sortQ = {
   ...base,
