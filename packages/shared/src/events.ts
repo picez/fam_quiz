@@ -4,6 +4,7 @@ import { draftValueSchema, type HostDrafts } from './drafts';
 import { APPEAL_REASONS } from './appeal';
 import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
+import { DRAWING_ERASER, DRAWING_SCALE, DRAWING_WIDTHS, type DrawOp, type DrawingEvent } from './drawing';
 import { LIFELINES, LIMITS, MORELESS_SIDES } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
@@ -69,6 +70,22 @@ export const letterWordSchema = z.object({ word: z.string().max(LIMITS.letterWor
 /** «Більше чи менше» (28a): скільки виборів на секунду приймає сервер від людини; index — номер порівняння, на яке відповідає телефон. */
 export const MORELESS_PICKS_PER_SECOND = 5;
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
+/** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
+export const DRAW_OPS_PER_SECOND = 25;
+export const DRAW_GUESSES_PER_SECOND = 2;
+export const DRAW_SYNC_PER_SECOND = 2;
+const drawCoords = z
+  .array(z.number().int().min(0).max(DRAWING_SCALE))
+  .min(2)
+  .max(LIMITS.drawBatch * 2)
+  .refine((p) => p.length % 2 === 0);
+export const drawOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('begin'), c: z.number().int().min(0).max(DRAWING_ERASER), w: z.number().int().min(0).max(DRAWING_WIDTHS.length - 1), p: drawCoords }).strict(),
+  z.object({ op: z.literal('more'), index: z.number().int().min(0).max(LIMITS.maxStrokes - 1), p: drawCoords }).strict(),
+  z.object({ op: z.literal('undo') }).strict(),
+  z.object({ op: z.literal('clear') }).strict(),
+]);
+export const drawGuessSchema = z.object({ text: z.string().max(LIMITS.drawGuess).refine(isStorable, UNSTORABLE) });
 /** Перевірка набору редактора словником (27d): POST /api/letterwords/check. */
 export const letterCheckSchema = z.object({ letters: z.string().max(40) });
 /** Перевірка шляху редактора словником (26c): POST /api/wordladder/check. */
@@ -200,6 +217,12 @@ export interface ClientToServerEvents {
   'player:letters': (payload: z.infer<typeof letterWordSchema>, ack: Ack) => void;
   /** «Більше чи менше» (28a): вибір гравця (відповідача команди) у порівнянні index; ack без правильності, moreless_stale — з done. */
   'player:moreless': (payload: z.infer<typeof moreLessPickSchema>, ack: Ack) => void;
+  /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
+  'player:draw': (payload: DrawOp, ack: Ack) => void;
+  /** «Малюнок» (28c): спроба вгадати слово; ack — лише { ok: true } чи drawing_miss, слово й відстань не повертаються. */
+  'player:draw-guess': (payload: z.infer<typeof drawGuessSchema>, ack: Ack) => void;
+  /** Будь-яка роль: прошу повний малюнок поточного запитання (подією drawing { kind: 'sync' }). */
+  'draw:sync': (ack: Ack) => void;
   /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
   'player:clue': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;
@@ -360,6 +383,8 @@ export interface ServerToClientEvents {
   awards: (step: { seq: number }) => void;
   /** Реакція (13a): усім ролям кімнати; стан гри той самий. */
   reaction: (reaction: Reaction) => void;
+  /** «Малюнок» (28c): штрих чи повний знімок малюнка; усім ролям кімнати, стан гри той самий. */
+  drawing: (event: DrawingEvent) => void;
   /** Нахил картки того, хто сортує (11d): лише там, де показ дозволено. */
   'sort:tilt': (tilt: SortTilt) => void;
   /** Живі вибори до «Надіслати» (12b): лише пультам з увімкненим «наживо», не частіше ніж раз на HOST_DRAFTS_MS. */

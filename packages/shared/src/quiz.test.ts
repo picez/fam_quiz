@@ -76,6 +76,8 @@ import {
   letterWordSchema,
   letterCheckSchema,
   moreLessPickSchema,
+  drawOpSchema,
+  drawGuessSchema,
   type Answer,
   type BoardRound,
   type Question,
@@ -2542,5 +2544,117 @@ describe('more or less question (28a)', () => {
     expect(valid(moreLessPickSchema, { index: 20, pick: 'a' })).toBe(false);
     expect(valid(moreLessPickSchema, { index: 0, pick: 'c' })).toBe(false);
     expect(valid(moreLessPickSchema, { index: 1.5, pick: 'a' })).toBe(false);
+  });
+});
+
+describe('drawing question (28c)', () => {
+  const drawingQ = (patch: object = {}) => ({ id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null,
+    timeLimit: 60, points: 100, accepted: ['соняшник', 'соняшник однорічний'], ...patch });
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object, patch: object = {}) => {
+    const b = board(q, patch);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('accepts a drawing question', () => {
+    expect(QUESTION_TYPES.indexOf('drawing')).toBe(QUESTION_TYPES.indexOf('moreless') + 1);
+    expect(LIMITS.defaultDrawingTime).toBe(60);
+    expect(qIssues(drawingQ())).toEqual([]);
+    expect(issues(quizOf([round('r', [drawingQ()])]))).toEqual([]);
+  });
+
+  it('refuses a drawing without a word', () => {
+    expect(valid(questionSchema, drawingQ({ accepted: [] }))).toBe(false);
+    expect(valid(questionSchema, drawingQ({ accepted: Array.from({ length: 11 }, (_, i) => `слово${i}`) }))).toBe(false);
+  });
+
+  it('refuses video, reveal and audio on a drawing', () => {
+    expect(qIssues(drawingQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('drawing_video');
+    expect(qIssues(drawingQ({ imageUrl: '/media/a.png', reveal: 'blur' }))).toContain('drawing_video');
+    expect(qIssues(drawingQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('drawing_video');
+    // підказка недосяжна (баф вимкнено), тож і не зберігається
+    expect(qIssues(drawingQ({ hint: 'Жовта квітка' }))).toContain('drawing_hint');
+  });
+
+  it('refuses a word or a spelling longer than the guess field', () => {
+    expect(LIMITS.drawGuess).toBe(60);
+    expect(qIssues(drawingQ({ accepted: ['я'.repeat(60)] }))).toEqual([]);
+    expect(qIssues(drawingQ({ accepted: ['я'.repeat(61)] }))).toContain('drawing_long');
+    expect(qIssues(drawingQ({ accepted: ['соняшник', 'я'.repeat(61)] }))).toContain('drawing_long');
+  });
+
+  it('drawing plays in classic rounds only', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [drawingQ({ id: 'db' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [drawingQ({ id: 'df' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...drawingQ({ id: 'dbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...drawingQ({ id: 'dau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [drawingQ({ id: 'dw2' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    for (const bad of [blitzRound, final, bets, auction]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('drawing_place');
+    }
+    expect(issues(quizOf([round('r', [single]), wipeout])).length).toBeGreaterThan(0);
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [drawingQ({ id: 'dsv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    expect(issues(quizOf([round('r', [single]), survival]))).toContain('drawing_place');
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [drawingQ({ id: 'dl' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    expect(issues(quizOf([round('r', [single]), ladder]))).toContain('drawing_place');
+    // «Правда про гравця» запитань не має: чуже поле questions відкидається, малюнок туди не потрапить
+    const truth = quizSchema.safeParse(quizOf([round('r', [single]), { id: 'tr', type: 'truth', title: '', points: 300, timeLimit: 30, questions: [drawingQ({ id: 'dt' })] }]));
+    expect(truth.success).toBe(true);
+    expect(JSON.stringify(truth.data?.rounds[1])).not.toContain('drawing');
+    for (const kind of ['normal', 'blitz']) {
+      expect(issues(withCell(drawingQ(), { kind }))).toContain('drawing_place');
+    }
+    expect(issues(withCell(drawingQ(), { kind: 'normal' }, { answerMode: 'voice' }))).toContain('drawing_place');
+    expect(issues(quizOf([board(drawingQ())]))).toContain('drawing_place');
+    expect(issues(quizOf([round('r', [drawingQ(), single])]))).toEqual([]);
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [drawingQ({ id: 'ds' })] })).toContain('spare_type');
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single, orderSpare])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('drawing');
+  });
+
+  it('the draw events are limited', () => {
+    const pts = (n: number) => Array.from({ length: n * 2 }, (_, i) => i % 1000);
+    expect(valid(drawOpSchema, { op: 'begin', c: 8, w: 2, p: pts(64) })).toBe(true);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: [0, 1000] })).toBe(true);
+    expect(valid(drawOpSchema, { op: 'more', index: 299, p: [1, 2] })).toBe(true);
+    expect(valid(drawOpSchema, { op: 'undo' })).toBe(true);
+    expect(valid(drawOpSchema, { op: 'clear' })).toBe(true);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: pts(65) })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: [1, 2, 3] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: [1001, 2] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: [0.5, 2] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 0, p: [] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 9, w: 0, p: [1, 2] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'begin', c: 0, w: 3, p: [1, 2] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'more', index: 300, p: [1, 2] })).toBe(false);
+    expect(valid(drawOpSchema, { op: 'undo', extra: 1 })).toBe(false);
+    expect(valid(drawGuessSchema, { text: 'я'.repeat(60) })).toBe(true);
+    expect(valid(drawGuessSchema, { text: 'я'.repeat(61) })).toBe(false);
+    expect(valid(answerSchema, { type: 'drawing', guess: 'соняшник', drew: null })).toBe(false);
   });
 });

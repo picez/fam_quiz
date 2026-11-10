@@ -272,6 +272,8 @@ export function Play() {
         stageUrl={stageUrl}
         stageOnline={game.stageOnline}
         reactions={game.reactions}
+        drawing={game.drawing}
+        requestSync={game.requestSync}
       />
     </>
   );

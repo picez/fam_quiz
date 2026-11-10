@@ -13,6 +13,7 @@ import {
   roundCard,
   roundFacts,
   roundShares,
+  wholeRowQuestion,
   type FactCard,
   type FactInput,
   type FactQuestion,
@@ -551,5 +552,13 @@ describe('carried points (12r)', () => {
     // Без перенесених балів «до» — з раундів від 0: перед раундом 2 усі по 0.
     expect(roundCard(plain, 'p', 2)?.place).toEqual({ before: 1, now: 1 });
     expect(roundCard(plain, 'p', 3)?.place).toEqual({ before: 2, now: 1 });
+  });
+});
+
+describe('drawing facts (28c)', () => {
+  it('a drawing question has no answer window', () => {
+    const draw = { id: 'dr', type: 'drawing', text: 'Намалюйте', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник'] } as unknown as Question;
+    expect(factLimitMs(draw, { type: 'classic' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(draw)).toBe(true);
   });
 });

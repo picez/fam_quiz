@@ -786,6 +786,28 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <LetterWordsEditor question={question} onChange={onChange} />;
     case 'moreless':
       return <MoreLessEditor question={question} onChange={onChange} />;
+    case 'drawing': {
+      // Як у тексті: ключ рядка — позиція. Довжина — як поле вгадування на телефоні.
+      const rows = question.accepted.map((text, index) => ({ id: String(index), text }));
+      return (
+        <>
+          <Rows
+            rows={rows}
+            min={1}
+            max={LIMITS.maxAccepted}
+            maxLength={LIMITS.drawGuess}
+            label="spellingN"
+            removeLabel="removeSpelling"
+            addLabel="addSpelling"
+            rowClass={() => 'is-correct'}
+            makeRow={() => ({ id: String(rows.length), text: '' })}
+            onChange={(next) => onChange({ ...question, accepted: next.map((row) => row.text) })}
+          />
+          <p className="meta">{t('drawingWordHint')}</p>
+          <p className="meta">{t('drawingHelp')}</p>
+        </>
+      );
+    }
     case 'wordcloud':
       return (
         <>
@@ -864,7 +886,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -885,7 +907,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }
           />
         )}
-        {showAudio && question.video === null && (
+        {/* У малюнку звуку немає: він видав би слово. */}
+        {showAudio && question.video === null && question.type !== 'drawing' && (
           <AudioField
             audio={question.audio}
             timeLimit={question.timeLimit}
@@ -898,7 +921,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless';
+              const noVideo = rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -914,8 +937,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           />
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
-        {/* Підказка — для бафів; у «Більше чи менше» бафів немає. */}
-        {showHint && question.type !== 'moreless' && (
+        {/* Підказка — для бафів; у «Більше чи менше» й «Малюнку» бафів немає. */}
+        {showHint && question.type !== 'moreless' && question.type !== 'drawing' && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea

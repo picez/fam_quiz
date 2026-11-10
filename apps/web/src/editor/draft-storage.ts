@@ -169,6 +169,13 @@ function reviveBluff(base: Extract<Question, { type: 'bluff' }>): Question {
   };
 }
 
+/** Малюнок з чернетки: написання — рядки (інакше одне порожнє слово); без відео, звуку, «перевертання» й підказки. */
+function reviveDrawing(base: Extract<Question, { type: 'drawing' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const accepted = Array.isArray(base.accepted) ? (base.accepted as unknown[]).map((item) => (typeof item === 'string' ? item : '')) : [];
+  return { ...rest, video: null, accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted) };
+}
+
 function revive(stored: Question): Question {
   // Підказка — лише рядок: зіпсоване значення зникає, а не ламає редактор.
   const { hint, audio, reveal, ...question } = stored;
@@ -235,6 +242,7 @@ function revive(stored: Question): Question {
   if (base.type === 'timedlist') return reviveTimedList(base);
   if (base.type === 'letterwords') return reviveLetterWords(base);
   if (base.type === 'moreless') return reviveMoreLess(base);
+  if (base.type === 'drawing') return reviveDrawing(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

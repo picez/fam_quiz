@@ -13,6 +13,8 @@ import { WordLadderBoard, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
+import { DrawingBoard, DrawingGuessers, DrawingLive, strokesOf } from './DrawingView';
+import type { DrawingModel } from '../live/drawing';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
@@ -95,6 +97,8 @@ interface Props {
   drafts?: HostDrafts | null;
   /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
   reactions?: Reaction[];
+  /** «Малюнок» (28c): модель штрихів з useGame. */
+  drawing?: DrawingModel | null;
 }
 
 const NO_REACTIONS: Reaction[] = [];
@@ -241,7 +245,7 @@ function HostScores({ view }: { view: HostView }) {
   );
 }
 
-export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS }: Props) {
+export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, stageOnline = true, audioCommand = null, tilts, watch = true, onWatch, drafts = null, reactions = NO_REACTIONS, drawing = null }: Props) {
   const [error, setError] = useState<string | null>(null);
   const { phase, correct, round } = view;
   const inRound = round !== null && IN_ROUND.includes(phase);
@@ -527,6 +531,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       ? t('answeredOf', { answered: view.answeredCount, total: view.wipeout.inCount })
       : view.survival !== null
         ? t('answeredOf', { answered: view.answeredCount, total: view.survival.aliveCount })
+        : view.drawing !== undefined
+          ? // «Малюнок» (28c): вгадали з тих, хто міг (без художника й без відключених невгадувачів).
+            t('answeredOf', { answered: view.drawing.guessed, total: view.drawing.could })
         : view.moreless !== undefined
           ? // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як на сцені (answeredCount рахує й тих, хто лише почав).
             t('answeredOf', { answered: view.moreless.rows.filter((row) => row.done >= row.total).length, total: view.playerCount })
@@ -1142,6 +1149,19 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           <h2>{t('type_moreless')}</h2>
           {view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} compact />}
           <MoreLessBoard info={view.moreless} reveal={phase === 'reveal'} />
+        </section>
+      )}
+
+      {/* Малюнок (28c): слово, хто малює, полотно наживо й імена тих, хто вгадав, — пульту завжди. Оцінювати нічого. */}
+      {view.drawing !== undefined && (
+        <section className="panel host-drawing">
+          <h2>{t('type_drawing')}</h2>
+          <p className="lead drawing-word-was" dir="auto">
+            {t('drawingWordWas', { word: view.drawing.word })}
+          </p>
+          <DrawingBoard info={view.drawing} />
+          <DrawingLive strokes={strokesOf(drawing, view.questionIndex)} className="is-host" />
+          {(view.drawing.guessers.length > 0 || phase === 'reveal') && <DrawingGuessers guessers={view.drawing.guessers} />}
         </section>
       )}
 

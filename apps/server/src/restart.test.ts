@@ -2,11 +2,12 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, drawing, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
 import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
 import { clientAddress, LOOKUPS_PER_MINUTE } from './socket';
+import type { SavedRoom } from './rooms/manager';
 import type { Db } from './db/client';
 import { game, liveRoom } from './db/schema';
 import { TEST_AUTH, startGame } from './testing/accounts';
@@ -395,6 +396,44 @@ describe('a server restart', () => {
     expect(await send(host, 'host:resume')).toEqual({ ok: true });
     expect(await send(olena, 'player:moreless', { index: 2, pick: 'a' })).toEqual({ ok: true });
     expect(second.ctx.manager.get(started.code)!.state.plays[0].answers[olenaJoin.playerId]).toMatchObject({ grade: 'partial', points: 300 });
+  }, 30_000);
+
+  it('a restored room keeps the drawing', async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeQuiz([drawing]));
+    const olyaJoin = await join(first.ctx, started.code, 'Оля');
+    await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olya = client(first.port, { code: started.code, role: 'player', token: olyaJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 1);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olya, inPhase('question'));
+    await first.ctx.store!.idle();
+    const saved = async () => ((await db.select().from(liveRoom).where(eq(liveRoom.code, started.code)))[0]?.data as SavedRoom | undefined)?.state.plays[0]?.drawing;
+    const room = first.ctx.manager.get(started.code)!;
+    const changes: string[] = [];
+    first.ctx.manager.onEvent((_room, event) => changes.push(event.type));
+    expect(await send(olya, 'player:draw', { op: 'begin', c: 5, w: 2, p: [10, 20, 30, 40] })).toEqual({ ok: true });
+    expect(await send(olya, 'player:draw', { op: 'more', index: 0, p: [50, 60] })).toEqual({ ok: true });
+    // Запис кімнати — і без жодного changed: малюнок іде легкою подією.
+    for (let i = 0; i < 100 && (await saved())?.rev !== 2; i += 1) await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(changes).toEqual(['drawing', 'drawing']);
+    const before = room.state.plays[0].drawing;
+    expect(await saved()).toEqual(before);
+    expect(before).toMatchObject({ drawerId: olyaJoin.playerId, rev: 2, strokes: [{ c: 5, w: 2, p: [10, 20, 30, 40, 50, 60] }] });
+
+    await first.ctx.shutdown();
+    host.last = olya.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question' && view.paused);
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].drawing).toEqual(before);
+    await until(olya, (view) => view.role === 'player' && view.phase === 'question');
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    expect(await send(olya, 'player:draw', { op: 'more', index: 0, p: [70, 80] })).toEqual({ ok: true });
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].drawing?.rev).toBe(3);
   }, 30_000);
 
   it('a restored room keeps the facts and the deck', async () => {

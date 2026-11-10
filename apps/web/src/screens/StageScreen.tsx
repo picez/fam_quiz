@@ -49,6 +49,8 @@ import { WordLadderBoard, WordLadderGoal, WordLadderPath } from './WordLadderVie
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
+import { DrawingBoard, DrawingLive, DrawingReveal, strokesOf } from './DrawingView';
+import type { DrawingModel } from '../live/drawing';
 import { TruthSkipped, TruthStage } from './TruthView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -79,6 +81,8 @@ interface Props {
   tilts?: Record<string, SortTilt>;
   /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
   reactions?: Reaction[];
+  /** «Малюнок» (28c): модель штрихів з useGame. */
+  drawing?: DrawingModel | null;
 }
 
 const NO_TILTS: Record<string, SortTilt> = {};
@@ -192,7 +196,7 @@ function FinalReveal({ final, question, presented }: { final: FinalInfo; questio
   );
 }
 
-function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick<Props, 'view' | 'offsetMs'> & { tilts: Record<string, SortTilt>; blink: boolean; blinking: ReadonlySet<string>; audioCommand: AudioCommand | null }) {
+function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawing }: Pick<Props, 'view' | 'offsetMs'> & { tilts: Record<string, SortTilt>; blink: boolean; blinking: ReadonlySet<string>; audioCommand: AudioCommand | null; drawing: DrawingModel | null }) {
   const { question, reveal, stats } = view;
   // Поки йде заставка запитання чи клітинки, запитання під шаром ще не почалося: aria-busy для читачів екрана.
   const splashNow = useSplash(view.splash, view.paused, offsetMs);
@@ -226,7 +230,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'moreless' ? t('morelessOnPhone') : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'moreless' ? t('morelessOnPhone') : question.type === 'drawing' ? null : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className={view.wipeout !== null ? 'stage-question has-wipeout-side' : 'stage-question'} aria-busy={busy || undefined}>
@@ -239,7 +243,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           </span>
         )}
         {/* Продане запитання «Аукціону» грає один переможець: «Відповіли 1 з 4» нічого не каже. */}
-        {view.board === null && !(view.auction !== undefined && !view.auction.open) && (
+        {/* Малюнок (28c): «Вгадали N з M» — під полотном, разом із тим, хто малює. */}
+        {view.board === null && !(view.auction !== undefined && !view.auction.open) && question.type !== 'drawing' && (
           <span>
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
@@ -469,6 +474,18 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           <MoreLessBoard info={view.moreless} reveal={view.phase === 'reveal'} />
         </section>
       )}
+      {/* Малюнок (28c): велике полотно; до відкриття — хто малює й скільки вгадали, на відкритті — слово, імена й бали. */}
+      {view.drawing !== undefined &&
+        (view.phase === 'reveal' ? (
+          <DrawingReveal info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} className="drawing-stage is-reveal" />
+        ) : (
+          <section className="drawing-stage">
+            <div className="drawing-fit">
+              <DrawingLive strokes={strokesOf(drawing, view.questionIndex)} />
+            </div>
+            <DrawingBoard info={view.drawing} />
+          </section>
+        ))}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
       {/* Рядок переможця бліцу завжди займає місце: його поява на locked не зсуває сцену. */}
       {view.sort !== null && view.round?.type === 'blitz' && (
@@ -521,7 +538,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
@@ -912,7 +929,7 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
   );
 }
 
-export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null, reactions = NO_REACTIONS }: Props) {
+export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, audioCommand = null, tilts = NO_TILTS, awardsSeq = null, reactions = NO_REACTIONS, drawing = null }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const { phase, standings } = view;
@@ -950,7 +967,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="stage" autopilot={view.autopilot} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder !== null && <LadderStage view={view} offsetMs={offsetMs} audioCommand={audioCommand} />}
       {(phase === 'question' || phase === 'locked' || phase === 'reveal') && truthStage && <TruthStage view={view} offsetMs={offsetMs} />}
-      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} />}
+      {(phase === 'question' || phase === 'locked' || phase === 'reveal') && view.ladder === null && !truthStage && <Question view={view} offsetMs={offsetMs} blink={blink} blinking={blinking} audioCommand={audioCommand} tilts={tilts} drawing={drawing} />}
       {/* Апеляція (12f) — шар position: fixed унизу по центру; .has-appeal тримає під ним запас унизу, щоб розкриття не ховалося. */}
       {appeal !== null && <AppealCard view={appeal} screenQuestion={view.question} size="stage" teams={view.teams !== null} offsetMs={offsetMs} />}
       {phase === 'duel' && view.duel !== null && <DuelStage view={view} offsetMs={offsetMs} />}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, wordladder } from '@quiz/engine/testing';
 import { hostView, lettersDue, seededRng, sortOf } from '@quiz/engine';
-import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
+import { AUCTION_BID_MS, AUCTION_OPEN_MS, DRAW_OPS_PER_SECOND, defaultTeams, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { toBetsWager } from '../testing/bets-game';
 import { nounsOf } from '../wordladder/nouns';
@@ -690,6 +690,106 @@ describe('letter words (27d)', () => {
     // Вибір наперед (попередній загубився): відмова каже, де сервер, — done, без правильності.
     expect(manager.moreLess(room, olena.playerId, 2, 'b')).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
     expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
+  });
+});
+
+describe('drawing (28c)', () => {
+  /** Оля малює (прийшла першою), Тарас і Іра вгадують; запитання «соняшник» відкрите. */
+  function drawingRoom(questions = [drawing, single]) {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(makeQuiz(questions));
+    manager.connect(room, HOST);
+    const olya = enter(manager, room, 'Оля');
+    const taras = enter(manager, room, 'Тарас');
+    const ira = enter(manager, room, 'Іра');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    return { scheduler, manager, room, olya, taras, ira, events };
+  }
+
+  it('strokes go out as a light event, not a state push', () => {
+    const { manager, room, olya, events } = drawingRoom();
+    expect(room.state.plays[0].drawing?.drawerId).toBe(olya.playerId);
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 1, w: 0, p: [10, 10] })).toEqual({ ok: true });
+    for (let i = 0; i < 3; i++) expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [20 + i, 30 + i] })).toEqual({ ok: true });
+    expect(events.filter((e) => e.type === 'changed')).toEqual([]);
+    const drawn = events.filter((e) => e.type === 'drawing');
+    expect(drawn.map((e) => e.type === 'drawing' && e.event.kind === 'ops' && e.event.rev)).toEqual([1, 2, 3, 4]);
+    expect(drawn[0]).toEqual({ type: 'drawing', event: { kind: 'ops', questionIndex: 0, rev: 1, op: { op: 'begin', c: 1, w: 0, p: [10, 10] } } });
+    expect(room.state.plays[0].drawing?.strokes).toEqual([{ c: 1, w: 0, p: [10, 10, 20, 30, 21, 31, 22, 32] }]);
+    // Порожній «крок назад» після «очистити» — ok без зміни стану й без події.
+    expect(manager.draw(room, olya.playerId, { op: 'clear' })).toEqual({ ok: true });
+    const before = room.state;
+    const count = events.length;
+    expect(manager.draw(room, olya.playerId, { op: 'undo' })).toEqual({ ok: true });
+    expect(room.state).toBe(before);
+    expect(events).toHaveLength(count);
+  });
+
+  it('a stale or full op changes nothing', () => {
+    const { manager, room, olya, events } = drawingRoom();
+    const full = Array.from({ length: 128 }, (_, i) => i);
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: full })).toEqual({ ok: true });
+    for (let i = 0; i < 5; i++) expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: full })).toEqual({ ok: true });
+    const before = room.state;
+    const count = events.length;
+    // 6 × 64 = 384 точки; ще 64 — понад maxStrokePoints (400).
+    expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: full })).toEqual({ ok: false, error: 'drawing_full' });
+    expect(manager.draw(room, olya.playerId, { op: 'more', index: 3, p: [1, 1] })).toEqual({ ok: false, error: 'drawing_stale' });
+    expect(room.state).toBe(before);
+    expect(events).toHaveLength(count);
+  });
+
+  it('draw ops are rate limited', () => {
+    const { scheduler, manager, room, olya, taras } = drawingRoom();
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });
+    for (let i = 1; i < DRAW_OPS_PER_SECOND; i++) expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [2, 2] })).toEqual({ ok: true });
+    expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [3, 3] })).toEqual({ ok: false, error: 'too_soon' });
+    // Вікно вгадувань окреме.
+    expect(manager.drawGuess(room, taras.playerId, 'ромашка')).toEqual({ ok: false, error: 'drawing_miss' });
+    scheduler.advance(1000);
+    expect(manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [3, 3] })).toEqual({ ok: true });
+  });
+
+  it('a guess ack tells only yes or no', () => {
+    const { manager, room, olya, taras, ira, events } = drawingRoom();
+    const miss = JSON.stringify(manager.drawGuess(room, taras.playerId, 'ромашка'));
+    expect(miss).toBe('{"ok":false,"error":"drawing_miss"}');
+    expect(JSON.stringify(manager.drawGuess(room, ira.playerId, 'парасолька'))).toBe(miss);
+    expect(events.filter((e) => e.type === 'changed')).toEqual([]);
+    expect(JSON.stringify(manager.drawGuess(room, ira.playerId, 'соняшнк'))).toBe('{"ok":true}');
+    expect(events.filter((e) => e.type === 'changed')).toHaveLength(1);
+    expect(room.state.plays[0].drawing?.guessed).toEqual([ira.playerId]);
+    expect(manager.drawGuess(room, olya.playerId, 'соняшник')).toEqual({ ok: false, error: 'drawing_own' });
+    // Тарас: дві спроби за секунду вже були б (одна тут), третя — too_soon.
+    expect(manager.drawGuess(room, taras.playerId, 'маяк')).toEqual({ ok: false, error: 'drawing_miss' });
+    expect(manager.drawGuess(room, taras.playerId, 'соняшник')).toEqual({ ok: false, error: 'too_soon' });
+  });
+
+  it('the snapshot gives the whole drawing', () => {
+    const { manager, room, olya } = drawingRoom();
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 2, w: 1, p: [5, 5, 6, 6] })).toEqual({ ok: true });
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 3, w: 2, p: [7, 7] })).toEqual({ ok: true });
+    expect(manager.draw(room, olya.playerId, { op: 'undo' })).toEqual({ ok: true });
+    expect(manager.drawSnapshot(room)).toEqual({ kind: 'sync', questionIndex: 0, rev: 3, strokes: [{ c: 2, w: 1, p: [5, 5, 6, 6] }] });
+    const other = drawingRoom([single, drawing]);
+    expect(other.manager.drawSnapshot(other.room)).toBeNull();
+  });
+
+  it('a kicked drawer stops drawing', () => {
+    const { manager, room, olya, taras } = drawingRoom();
+    expect(manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });
+    expect(manager.drawGuess(room, olya.playerId, 'маяк')).toEqual({ ok: false, error: 'drawing_own' });
+    expect(room.drawRate.has(olya.playerId)).toBe(true);
+    expect(room.drawGuessRate.has(olya.playerId)).toBe(true);
+    expect(manager.host(room, { type: 'kick', playerId: olya.playerId })).toEqual({ ok: true });
+    expect(room.drawRate.has(olya.playerId)).toBe(false);
+    expect(room.drawGuessRate.has(olya.playerId)).toBe(false);
+    expect(room.state.plays[0].drawing?.drawerId).toBeNull();
+    expect(manager.draw(room, taras.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: false, error: 'drawing_not_drawer' });
   });
 });
 

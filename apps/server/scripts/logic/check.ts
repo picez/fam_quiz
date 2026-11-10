@@ -73,6 +73,8 @@ const answersOf = (q: Question): string[] => {
     case 'text':
     case 'clues':
     case 'bluff':
+    // «Малюнок» (28c): слово й жодне його написання не стоять у тексті запитання.
+    case 'drawing':
       return q.accepted;
     case 'chain':
       return q.words.slice(1);
@@ -103,6 +105,11 @@ export function moreLessLeaks(q: Extract<Question, { type: 'moreless' }>): strin
     return [pair.a.value, pair.b.value].filter((value) => !skip(value) && where.includes(norm(value))).map((value) => `«${q.text.slice(0, 60)}» ${pair.id}: value «${value}» appears in the question`);
   });
 }
+/** Відповіді запитання (і написання), що стоять у його тексті, підказці чи підказках «Підказок». */
+export function answerLeaks(q: Question): string[] {
+  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : ''].join(' '));
+  return answersOf(q).filter((a) => !skip(a) && where.includes(norm(a))).map((a) => `${short(q)}: answer «${a}» appears in the question`);
+}
 // Задачі, де правильний варіант неминуче названо в умові (вибір серед названих людей, слів, деталей).
 const NAMED = [
   'Петро старший за Олену', 'Синя шестерня крутиться', 'Справа про торт', 'Підозрюваний: «У суботу, 31 квітня', 'Три скриньки підписані',
@@ -110,8 +117,7 @@ const NAMED = [
 ];
 for (const q of everything) {
   if (NAMED.some((p) => q.text.startsWith(p))) continue;
-  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : ''].join(' '));
-  for (const a of answersOf(q)) if (!skip(a) && where.includes(norm(a))) problems.push(`${short(q)}: answer «${a}» appears in the question`);
+  problems.push(...answerLeaks(q));
   if (q.type === 'moreless') problems.push(...moreLessLeaks(q));
 }
 for (const c of quiz.duels?.categories ?? []) for (const d of c.questions) for (const a of d.accepted) if (!skip(a) && norm(d.text).includes(norm(a))) problems.push(`duel «${d.text}»: answer in text`);

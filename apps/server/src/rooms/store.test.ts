@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { classicRound, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
+import { classicRound, drawing, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
 import { defaultTeams } from '@quiz/shared';
 import type { Db } from '../db/client';
 import { game, liveRoom, user } from '../db/schema';
@@ -176,6 +176,47 @@ describe('saving live rooms', () => {
     // перший запис ніс одного гравця; другий, після нього, — обох
     expect(insert.written).toEqual([1, 2]);
     expect(((await rowOf(w.db, room.code)).data as SavedRoom).state.players).toHaveLength(2);
+  });
+
+  it('strokes (28c) are written at most once every two seconds, a real change still within a second', async () => {
+    const w = await world();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const a = w.make('a', { saveDelayMs: 1000 });
+    const room = a.manager.create(makeQuiz([drawing]));
+    a.manager.connect(room, HOST);
+    const olya = a.manager.join(room.code, 'Оля');
+    const taras = a.manager.join(room.code, 'Тарас');
+    if (!olya.ok || !taras.ok) throw new Error('join');
+    for (const j of [olya, taras]) a.manager.connect(room, { role: 'player', playerId: j.playerId });
+    a.manager.host(room, { type: 'start' });
+    a.manager.host(room, { type: 'next' });
+    await vi.advanceTimersByTimeAsync(1000);
+    await a.store.idle();
+    const inserts = vi.spyOn(w.db, 'insert');
+    const writes = () => inserts.mock.calls.filter(([table]) => table === liveRoom).length;
+    const savedRev = async () => ((await rowOf(w.db, room.code)).data as SavedRoom).state.plays[0]?.drawing?.rev;
+
+    expect(a.manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(150);
+      expect(a.manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [2, i] })).toEqual({ ok: true });
+    }
+    // 1350 мс штрихів: жодного запису (вікно малюнка — 2 с).
+    expect(writes()).toBe(0);
+    await vi.advanceTimersByTimeAsync(650);
+    await a.store.idle();
+    expect(writes()).toBe(1);
+    expect(await savedRev()).toBe(10);
+
+    // Справжня зміна (вгадування) у вікні малюнка не чекає двох секунд.
+    expect(a.manager.draw(room, olya.playerId, { op: 'more', index: 0, p: [3, 3] })).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(a.manager.drawGuess(room, taras.playerId, 'соняшник')).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(1000);
+    await a.store.idle();
+    expect(writes()).toBe(2);
+    // Тарас вгадав — запитання закрилося; у записі вже закритий малюнок.
+    expect(((await rowOf(w.db, room.code)).data as SavedRoom).state.plays[0]?.drawing?.scored).toEqual({ guessed: 1, could: 1 });
   });
 
   it('a failing write is reported and does not break the game', async () => {

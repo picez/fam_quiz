@@ -34,15 +34,16 @@ import { truthGuessers } from './truth';
 import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
 import { duelistOf, memberOf, teamsOn } from './teams';
+import { drawingCould } from './drawing';
 
 /** Етапи, на яких іде відповідь (до розкриття): ведучий бачить, хто що відповів. */
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
 
 /** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'sort', 'wall', 'bluff'];
+const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sort', 'wall', 'bluff'];
 
 /** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'sort', 'wall', 'survey', 'bluff'];
+const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -153,6 +154,12 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
   if (question.type === 'moreless') {
     return { kind: 'moreless', done: moreLessOf(state, id).picks.length, total: question.pairs.length, right: rightOf(question, moreLessOf(state, id).picks) };
   }
+  if (question.type === 'drawing') {
+    const drawing = play.drawing;
+    if (drawing === undefined) return null;
+    // Рядок — сторона (гравець чи команда): художником вважається сторона художника.
+    return { kind: 'drawing', role: id === drawing.side ? 'drawer' : 'guesser', guessed: drawing.guessed.includes(id) };
+  }
   if (question.type === 'sort') {
     const progress = sortOf(state, id);
     const head = progress.queue[0];
@@ -202,6 +209,8 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
 function progressRow(state: GameState, play: Play, base: LiveRow, record: AnswerRecord | undefined): LiveRow {
   const bluff = play.bluff;
   if (play.question.type !== 'bluff' || bluff === undefined) {
+    // «Малюнок» (28c): відповів, хто вгадав; записи 0 балів при закритті відповіддю не є.
+    if (play.question.type === 'drawing') return play.drawing?.guessed.includes(base.id) === true && record !== undefined ? { ...base, answered: true, timeMs: record.timeMs } : base;
     if (record !== undefined) return { ...base, answered: true, timeMs: record.timeMs };
     // Список (27c): відповів, хто щось знайшов чи помилився, — як answeredCount у views.ts.
     if (play.question.type === 'timedlist') return Object.hasOwn(play.timedlist?.progress ?? {}, base.id) ? { ...base, answered: true } : base;
@@ -283,8 +292,9 @@ function asideOf(kind: LiveAside['kind'], rows: LiveRow[]): LiveAside {
   return { kind, answered: rows.filter((r) => r.answered).length, total: rows.length, rows };
 }
 
-function liveOf(kind: HostLive['kind'], rows: LiveRow[], aside: LiveAside | null): HostLive {
-  return { kind, answered: rows.filter((r) => r.answered).length, total: rows.length, rows, aside };
+/** total — скільки рядків чекають на відповідь; за замовчуванням усі. */
+function liveOf(kind: HostLive['kind'], rows: LiveRow[], aside: LiveAside | null, total = rows.length): HostLive {
+  return { kind, answered: rows.filter((r) => r.answered).length, total, rows, aside };
 }
 
 /** Командний бліц: той, хто натиснув (досі в команді й на зв'язку), інакше капітан. */
@@ -433,5 +443,7 @@ export function hostLive(state: GameState): HostLive | null {
     );
   }
   const rows = who.map((w) => withAway(state, answerRow(state, play, w, unscored)));
+  // «Малюнок» (28c): художник (його команда) не вгадує — лічильник той самий, що «могли» на сцені.
+  if (play.question.type === 'drawing') return liveOf('answers', rows, aside, drawingCould(state, play).length);
   return liveOf('answers', rows, aside);
 }

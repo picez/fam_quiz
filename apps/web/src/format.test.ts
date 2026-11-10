@@ -382,3 +382,13 @@ describe('quizSizeText (28b)', () => {
     expect(quizSizeText('Запитань: 0', 0, true)).toBe('Запитання — з фактів гравців');
   });
 });
+
+describe('drawing texts (28c)', () => {
+  const drawQ: Question = { ...base, type: 'drawing', points: 100, accepted: ['Соняшник', 'соняшнік'] };
+  it('writes the guess, the drawer share and the word as the right answer', () => {
+    expect(answerText({ type: 'drawing', guess: 'соняшнк', drew: null }, drawQ)).toBe('Вгадано: соняшнк');
+    expect(answerText({ type: 'drawing', guess: null, drew: { guessed: 2, could: 3 } }, drawQ)).toBe('Малюнок: вгадали 2 з 3');
+    expect(answerText({ type: 'drawing', guess: null, drew: null }, drawQ)).toBe('—');
+    expect(correctText(drawQ)).toBe('Соняшник');
+  });
+});

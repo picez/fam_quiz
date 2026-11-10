@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight } from '@quiz/shared';
+import { clueShare, isUnscored, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
@@ -38,6 +38,8 @@ import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
+import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
+import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
@@ -97,7 +99,12 @@ interface Props {
   stageOnline?: boolean;
   /** Живі реакції (13a): остання кожної людини, 4 с; малюються лише в REACTION_PHASES. */
   reactions?: Reaction[];
+  /** «Малюнок» (28c): модель штрихів з useGame і запит повного малюнка. */
+  drawing?: DrawingModel | null;
+  requestSync?: () => void;
 }
+
+const NO_SYNC = () => {};
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
 function survivalStateLine(own: PlayerView['me']['survival']): string | null {
@@ -278,7 +285,7 @@ function BluffResult({ view }: { view: PlayerView }) {
   );
 }
 
-function Result({ view }: { view: PlayerView }) {
+function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }) {
   if (view.question !== null && isUnscored(view.question)) return <VoteResult view={view} />;
   const { result } = view.me;
   // «Ва-банк»: хто вибув раніше, цього запитання не грав — вердикту йому не показуємо.
@@ -358,12 +365,15 @@ function Result({ view }: { view: PlayerView }) {
           <MoreLessBoard info={view.moreless} reveal me={view.me.id} />
         </>
       )}
+      {/* Малюнок (28c): слово, малюнок, хто вгадав і художник; рядок правильної відповіді нижче його лише повторив би.
+          Вгадавші й художник — сторони (у командах — команди), тож «своє» — за командою. */}
+      {view.phase === 'reveal' && view.drawing !== undefined && <DrawingReveal info={view.drawing} strokes={strokes} me={teamOf(view)?.id ?? view.me.id} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -653,7 +663,7 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS }: Props) {
+export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
@@ -1097,6 +1107,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               ) : (
                 <MoreLessPlay key={view.questionIndex} info={me.moreless} question={question} paused={locked} timeUp={buffTimeOver} send={send} />
               )
+            ) : question.type === 'drawing' ? (
+              // Малюнок (28c): слово бачить лише художник; товариші художника — хто малює, без поля; решта вгадують.
+              <DrawingPhone mine={me.drawing} info={view.drawing} model={drawing} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} requestSync={requestSync} />
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1248,6 +1261,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <TruthOwn team={team !== null} />
               <p className="lead">{t('waitReveal')}</p>
             </section>
+          ) : question?.type === 'drawing' ? (
+            <DrawingClosed mine={me.drawing} info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} />
           ) : isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
             <section className="sent">
@@ -1363,14 +1378,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : truthQ && view.truth !== undefined ? (
             <>
               <TruthReveal truth={view.truth} />
-              {!truthAuthor && <Result view={view} />}
+              {!truthAuthor && <Result view={view} strokes={strokesOf(drawing, view.questionIndex)} />}
             </>
           ) : isBluff ? (
             <BluffResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
-              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
@@ -1393,7 +1408,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               )}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && view.reveal.type !== 'letterwords' && view.reveal.type !== 'moreless' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && view.reveal.type !== 'letterwords' && view.reveal.type !== 'moreless' && view.reveal.type !== 'drawing' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>
@@ -1404,14 +1419,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   question !== null &&
                   !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={false} />}
               {queue}
-              <Result view={view} />
+              <Result view={view} strokes={strokesOf(drawing, view.questionIndex)} />
               {me.bets !== undefined && view.bets !== undefined && <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />}
             </>
           )}
           {/* Список (27c): «правильно» — лише знайти все, тож частка правильних тут нічого не каже. */}
           {/* Слова з літер (27d) — так само: «правильно» означає лише «хоч одне слово». */}
           {/* Більше чи менше (28a): «правильно» — лише весь ряд, частка нічого не каже; таблиця вже показує, скільки вгадали кожне. */}
-          {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && question?.type !== 'moreless' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && question?.type !== 'moreless' && question?.type !== 'drawing' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
           {me.appeal?.reasons.map((reason) => (
             <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
               {appealButtonText(reason, me.appeal?.left ?? 0)}

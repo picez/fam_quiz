@@ -129,6 +129,8 @@ export interface PlayRef {
   bluff?: { options: BluffOption[]; picks: Record<string, string> };
   /** «Слова з літер»: роздані літери (випадковий набір знімок вікторини не має) і найдовші можливі слова. */
   letterwords?: { letters: string[]; best: string[] };
+  /** «Малюнок» (28c): нік художника ('' — художника вилучили до закриття) і стиснені штрихи (packStrokes). */
+  drawing?: { drawer: string; strokes: string };
   /** «Ва-банк»: хто забрав банк після цього запитання (id учасників) і чи скінчився на ньому раунд. */
   wipeout?: { took: string[]; end?: true };
   /** «Мільйонер»: учасник, сходинка, підказки, рішення й підсумок (id учасника). */

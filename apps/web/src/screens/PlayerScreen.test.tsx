@@ -1746,6 +1746,77 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
   });
+
+  const drawQuestion = { ...publicQuestion, type: 'drawing' as const, text: 'Намалюйте рослину', timeLimit: 60, points: 100, choices: [] };
+  const drawInfo = { drawerId: 'p2', drawerName: 'Оля', side: 'p2', rev: 0, guessed: 0, could: 2, word: null, guessers: null, drawerPoints: null };
+  const noCanvas = () => vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+
+  it('28c: a guesser sees the live drawing and the field, but not the word', () => {
+    noCanvas();
+    const strokes = [{ c: 0, w: 1, p: [10, 10, 500, 500] }];
+    render(
+      <PlayerScreen
+        view={onQuestion({ question: drawQuestion, endsAt: Date.now() + 40_000, drawing: drawInfo, me: { ...me, drawing: { role: 'guesser', word: null, guessed: false, canDraw: false, canGuess: true, points: null } } })}
+        hostOnline
+        offsetMs={0}
+        send={vi.fn(async () => ({ ok: true as const }))}
+        drawing={{ questionIndex: 0, rev: 1, strokes, stale: false }}
+      />,
+    );
+    expect(document.querySelector('canvas')?.getAttribute('data-strokes')).toBe('1');
+    expect(screen.getByPlaceholderText('Що це?')).toBeTruthy();
+    expect(screen.getByText('Малює: Оля')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('соняшник');
+    expect(screen.queryByText('Ваше слово')).toBeNull();
+  });
+
+  it('28c: the drawer sees the word and the pad', () => {
+    noCanvas();
+    show(onQuestion({ question: drawQuestion, endsAt: Date.now() + 40_000, drawing: { ...drawInfo, drawerId: 'p1', drawerName: 'Олена', side: 'p1' }, me: { ...me, drawing: { role: 'drawer', word: 'соняшник', guessed: false, canDraw: true, canGuess: false, points: null } } }));
+    expect(screen.getByText('соняшник')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Крок назад' })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Що це?')).toBeNull();
+  });
+
+  it('28c: a teammate of the drawer sees who draws, no word and no field', () => {
+    noCanvas();
+    const current = teamPlayerView(
+      { phase: 'question', questionIndex: 0, question: drawQuestion, endsAt: Date.now() + 40_000, drawing: { ...drawInfo, drawerId: 'u3', drawerName: 'Петро', side: 'team-b' }, me: { ...baseMe, drawing: { role: 'teammate', word: null, guessed: false, canDraw: false, canGuess: false, points: null } } },
+      { canAct: false },
+    );
+    render(<PlayerScreen view={current} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(screen.getByText('Малює Петро з вашої команди — ви не вгадуєте')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Що це?')).toBeNull();
+    expect(screen.queryByText('Ваше слово')).toBeNull();
+    expect(document.querySelector('canvas')).toBeTruthy();
+  });
+
+  it('28c: the reveal shows the word and who guessed', () => {
+    noCanvas();
+    const reveal: Question = { id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник'] };
+    const result = { grade: 'correct' as const, points: 100, streakBonus: 0 } as PlayerView['me']['result'];
+    const revealed = { ...drawInfo, guessed: 1, word: 'соняшник', guessers: [{ id: 'p1', nickname: 'Олена', points: 100 }], drawerPoints: 50 };
+    show(view({ phase: 'reveal', questionIndex: 0, question: drawQuestion, reveal, drawing: revealed, me: { ...me, result, drawing: { role: 'guesser', word: null, guessed: true, canDraw: false, canGuess: false, points: 100 } } }));
+    expect(screen.getByText('Слово: соняшник')).toBeTruthy();
+    expect(screen.getByText('Олена', { selector: '.drawing-guessers .name' }).closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(screen.getByText('Художник: Оля')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
+  it('28c: in a team game the own team is marked among the guessers and as the drawer', () => {
+    noCanvas();
+    const reveal: Question = { id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник'] };
+    const guessed = { ...drawInfo, drawerId: 'u1', drawerName: 'Іра', side: 'team-a', guessed: 1, could: 1, word: 'соняшник', guessers: [{ id: 'team-b', nickname: 'Сині', points: 100 }], drawerPoints: 100 };
+    const me = { ...baseMe, drawing: { role: 'guesser' as const, word: null, guessed: true, canDraw: false, canGuess: false, points: 100 } };
+    const { unmount } = render(<PlayerScreen view={teamPlayerView({ phase: 'reveal', questionIndex: 0, question: drawQuestion, reveal, drawing: guessed, me })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(screen.getByText('Сині', { selector: '.drawing-guessers .name' }).closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(document.querySelector('.drawing-artist')?.classList.contains('is-mine')).toBe(false);
+    unmount();
+    // Малював Петро з «Синіх»: рядок художника — свій.
+    const drew = { ...guessed, drawerId: 'u3', drawerName: 'Петро', side: 'team-b', guessers: [{ id: 'team-a', nickname: 'Червоні', points: 100 }] };
+    render(<PlayerScreen view={teamPlayerView({ phase: 'reveal', questionIndex: 0, question: drawQuestion, reveal, drawing: drew, me: { ...me, drawing: { ...me.drawing, role: 'teammate', guessed: false } } })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.querySelector('.drawing-artist')?.classList.contains('is-mine')).toBe(true);
+  });
 });
 
 describe('PlayerScreen round facts', () => {

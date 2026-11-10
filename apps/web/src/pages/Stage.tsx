@@ -48,6 +48,7 @@ export function Stage() {
         awardsSeq={game.awardsSeq}
         tilts={game.tilts}
         reactions={game.reactions}
+        drawing={game.drawing}
       />
     </>
   );

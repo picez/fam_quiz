@@ -32,6 +32,7 @@ export function questionLines(question: Question): string[] {
       case 'poll':
         return question.options.map((option) => option.text);
       case 'text':
+      case 'drawing':
         return question.accepted;
       case 'order':
         return question.items.map((item) => item.text);

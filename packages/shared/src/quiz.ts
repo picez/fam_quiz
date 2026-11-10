@@ -12,6 +12,14 @@ export const LIMITS = {
   answerText: 200,
   /** «Правда про гравця» (28b): довжина факту про себе. */
   truthText: 200,
+  /** «Малюнок» (28c): типовий час (с) і ціна, штрихів у малюнку, точок в одному штриху й в усьому малюнку, точок в одній події, символів у полі вгадування. */
+  defaultDrawingTime: 60,
+  defaultDrawingPoints: 100,
+  maxStrokes: 300,
+  maxStrokePoints: 400,
+  maxDrawingPoints: 8000,
+  drawBatch: 64,
+  drawGuess: 60,
   minTime: 5,
   maxTime: 120,
   defaultTime: 30,
@@ -300,7 +308,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -547,6 +555,12 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('drawing'),
+      /** accepted[0] — слово, яке бачить художник; решта — прийнятні написання. */
+      accepted: spellings,
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -658,6 +672,14 @@ export const questionSchema = z
       if (total > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'moreless_points' });
       else if (q.points !== total) ctx.addIssue({ code: 'custom', message: 'moreless_sum' });
       if (q.pairs.some((p) => answerKey(p.a.text) === answerKey(p.b.text))) ctx.addIssue({ code: 'custom', message: 'moreless_same' });
+    }
+    if (q.type === 'drawing') {
+      // Без таймера малюнок не скінчиться; звук і «перевертання» видали б слово.
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'drawing_video' });
+      // Підказка недосяжна: баф підказки на малюнку вимкнено (off_drawing).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'drawing_hint' });
+      // Слово чи написання довше за поле вгадування вгадати неможливо: телефон обріже текст, сервер відкине.
+      if (q.accepted.some((s) => s.length > LIMITS.drawGuess)) ctx.addIssue({ code: 'custom', message: 'drawing_long' });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
@@ -1314,6 +1336,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'moreless' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'moreless');
       if (moreLessPlace) ctx.addIssue({ code: 'custom', message: 'moreless_place' });
+      // «Малюнок» (28c): лише класика; жодної клітинки поля.
+      const drawingPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'drawing')
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'drawing');
+      if (drawingPlace) ctx.addIssue({ code: 'custom', message: 'drawing_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

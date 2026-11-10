@@ -18,6 +18,7 @@ import {
   makeRoundsQuiz,
   match,
   moreless,
+  drawing,
   multi,
   numeric,
   order,
@@ -112,7 +113,7 @@ function recordFor(state: GameState, questionId: string, playerId: string) {
 
 const classicQuiz: Quiz = makeRoundsQuiz(
   [
-    classicRound('r1', [single, multi, bool, text, numeric, order, match, chain, sortQ, slider, clues, pin, wall3, withId(moreless, 'qm')]),
+    classicRound('r1', [single, multi, bool, text, numeric, order, match, chain, sortQ, slider, clues, pin, wall3, withId(moreless, 'qm'), withId(drawing, 'qd')]),
     classicRound('r2', [poll, cloud, survey, bluff, withVideo(withId(single, 'qv'))], { title: 'Друге коло' }),
   ],
   { leaderboard: 'each', newcomers: true },
@@ -225,8 +226,12 @@ describe('autopilot: scores and defaults', () => {
   it('classic: every scored question type is answered right from the phone', () => {
     const { state } = play(classicQuiz, answering);
     // 28a: новий тип — «Більше чи менше» (qm), бот проходить увесь ряд правильно.
-    const scored = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q14', 'q17', 'q19', 'qm', 'qv'];
+    // 28c: «Малюнок» (qd) — малює автор (перший), p2 вгадує слово.
+    const scored = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q14', 'q17', 'q19', 'qm', 'qd', 'qv'];
     for (const id of scored) expect([id, recordFor(state, id, 'p2')?.grade]).toEqual([id, 'correct']);
+    const drawn = state.plays.find((p) => p.question.id === 'qd')!;
+    expect(drawn.drawing).toMatchObject({ drawerId: 'a', side: 'a', rev: 1, scored: { guessed: 2, could: 2 } });
+    expect(recordFor(state, 'qd', 'a')).toMatchObject({ grade: 'correct', points: drawn.question.points });
   });
 
   it('teams «pick»: every member picked a team themselves', () => {

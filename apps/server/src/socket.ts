@@ -58,6 +58,9 @@ import {
   timedListWordSchema,
   letterWordSchema,
   moreLessPickSchema,
+  drawGuessSchema,
+  drawOpSchema,
+  DRAW_SYNC_PER_SECOND,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -258,6 +261,11 @@ export function attachSockets(
       members.filter((socket) => seesTilt(socket, room, event)).forEach((socket) => socket.emit('sort:tilt', event.tilt));
       return;
     }
+    if (event.type === 'drawing') {
+      // Малюнок (28c) бачать усі ролі кімнати: сцена, пульт, вгадувачі й сам художник (свої операції телефон пропускає). Слова подія не несе.
+      members.forEach((socket) => socket.emit('drawing', event.event));
+      return;
+    }
     if (event.type === 'audio') {
       // Звук знає лише сцена й пульт: телефони не отримують ні команди, ні джерела.
       members
@@ -312,6 +320,10 @@ export function attachSockets(
     }
     socket.data.watch = false;
     manager.connect(room, identity);
+    // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу —
+    // раніше за перший зріз: клієнт зі скинутою моделлю, побачивши в зрізі rev, інакше попросив би draw:sync удруге.
+    const sketch = manager.drawSnapshot(room);
+    if (sketch !== null) socket.emit('drawing', sketch);
     push(socket);
     // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде (пульт — лише з «наживо»).
     for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
@@ -373,6 +385,32 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = moreLessPickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.moreLess(room, identity.playerId, payload.data.index, payload.data.pick) : INVALID;
+    });
+
+    on('player:draw', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = drawOpSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.draw(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    // Ack лише «вгадано» чи відмова (drawing_miss однаковий для будь-якого хибного слова).
+    on('player:draw-guess', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = drawGuessSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.drawGuess(room, identity.playerId, payload.data.text) : INVALID;
+    });
+
+    // Будь-яка роль: клієнт бачить, що відстав (view.drawing.rev більший за свій), і просить повний малюнок. Вікно — на сокет.
+    let syncWindow = { from: -Infinity, count: 0 };
+    on('draw:sync', () => {
+      const now = Date.now();
+      if (now - syncWindow.from >= 1000) syncWindow = { from: now, count: 0 };
+      if (syncWindow.count >= DRAW_SYNC_PER_SECOND) return { ok: false, error: 'too_soon' };
+      syncWindow.count += 1;
+      const snap = manager.drawSnapshot(room);
+      if (snap === null) return { ok: false, error: 'type_mismatch' };
+      socket.emit('drawing', snap);
+      return { ok: true };
     });
 
     on('player:sort', (args) => {

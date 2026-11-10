@@ -3609,3 +3609,29 @@ describe('HostScreen: player truth (28b)', () => {
     expect(screen.queryByText(/Правильна відповідь: A\./)).toBeNull();
   });
 });
+
+describe('HostScreen drawing (28c)', () => {
+  const drawQ: Question = { id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник', 'соняшнік'] };
+  const info = { drawerId: 'p1', drawerName: 'Оля', side: 'p1', rev: 2, guessed: 1, could: 2, word: 'соняшник', guessers: [{ id: 'p2', nickname: 'Тарас', points: 100 }], drawerPoints: null };
+
+  it('the host sees the word, the drawing and the names of guessers live', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    render(
+      <HostScreen
+        view={view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 1, question: { ...publicOf(drawQ), timeLimit: 60, points: 100 }, correct: drawQ, endsAt: Date.now() + 40_000, drawing: info })}
+        code="123456"
+        stageUrl="http://quiz.test/stage/123456#s"
+        joinUrl="http://quiz.test/play/123456"
+        send={vi.fn(async () => ({ ok: true as const }))}
+        drawing={{ questionIndex: 0, rev: 2, strokes: [{ c: 0, w: 1, p: [1, 1, 9, 9] }], stale: false }}
+      />,
+    );
+    const panel = document.querySelector('.host-drawing') as HTMLElement;
+    expect(within(panel).getByText('Слово: соняшник')).toBeTruthy();
+    expect(within(panel).getByText('Малює: Оля')).toBeTruthy();
+    expect(within(panel).getByText('Тарас')).toBeTruthy();
+    expect(within(panel).getByText('Вгадали 1 з 2')).toBeTruthy();
+    expect(panel.querySelector('canvas')?.getAttribute('data-strokes')).toBe('1');
+    expect(screen.getByText('Правильна відповідь: соняшник')).toBeTruthy();
+  });
+});

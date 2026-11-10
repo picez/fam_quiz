@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo } from '@quiz/shared';
+import { awaySeconds, cloudKey, factPercent, isUnscored, pinDistance, surveyHitsOf, surveyOrder, undoAnswerKey, undoLedger, type GameAdjustment, type BluffInfo, type GameQuestionResult, type SurveyInfo, unpackStrokes } from '@quiz/shared';
 import { getGame } from '../api';
 import { answerText, choicesOf, correctText, formatDate, markText, num, pairTexts, roundLabel, secondsText, signed } from '../format';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
@@ -13,6 +13,7 @@ import { WallReveal } from '../screens/WallReveal';
 import { PollBars } from '../screens/PollBars';
 import { BluffBoard } from '../screens/BluffBoard';
 import { SurveyBoard } from '../screens/SurveyBoard';
+import { DrawingLive } from '../screens/DrawingView';
 import { ScoreTable } from '../screens/ScoreTable';
 import { FactCards } from '../screens/FactCards';
 import { historyAppealText } from '../appeal-text';
@@ -204,6 +205,18 @@ export function auctionLine(entry: { nickname: string; wager: number; points: nu
 /** «Правда про гравця»: хто написав факт і скільки балів отримав за тих, хто не вгадав. */
 export function truthLine(info: { author: string; points: number }): string {
   return t('truthHistoryAuthor', { nickname: info.author, points: signed(info.points) });
+}
+
+/** «Малюнок» (28c): малюнок зі стисненого запису й нік художника. */
+export function HistoryDrawing({ drawing }: { drawing: NonNullable<GameQuestionResult['drawing']> }) {
+  return (
+    <div className="history-drawing">
+      <p className="meta" dir="auto">
+        {t('drawingArtist', { name: drawing.drawer })}
+      </p>
+      <DrawingLive strokes={unpackStrokes(drawing.strokes)} className="is-history" />
+    </div>
+  );
 }
 
 /** «Слова з літер»: роздані літери великими й найдовші можливі слова (їх немає — лише набір). */
@@ -465,6 +478,7 @@ export function GameHistory() {
                             ))}
                           </ul>
                         )}
+                        {question.drawing !== undefined && <HistoryDrawing drawing={question.drawing} />}
                         {question.question.type === 'sort' && (
                           <p className="meta">{t('correctAnswer', { answer: correctText(question.question) })}</p>
                         )}

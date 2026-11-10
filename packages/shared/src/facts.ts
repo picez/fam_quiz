@@ -49,13 +49,13 @@ export interface FactQuestion {
   blitz: boolean;
   bluff: boolean;
   final: boolean;
-  /** Ряд чи список (timedlist, letterwords, moreless): «правильно» — лише за весь ряд, тож «Найважчим запитанням» не буває. */
+  /** Ряд чи список (timedlist, letterwords, moreless, drawing): «правильно» — лише за весь ряд, тож «Найважчим запитанням» не буває. */
   wholeRow: boolean;
 }
 
 /** Типи, де «правильно» — лише за весь ряд (FactQuestion.wholeRow). */
 export function wholeRowQuestion(question: Question): boolean {
-  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless';
+  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless' || question.type === 'drawing';
 }
 
 /** Рядок «учасник × спроба» (12d): як рядок answer без штрафів і голосів. */
@@ -195,6 +195,8 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   // «Слова з літер» (27d) рахують слова, а не швидкість.
   if (question.type === 'letterwords') return null;
   if (question.type === 'moreless') return null;
+  // «Малюнок» (28c): ціна без швидкості.
+  if (question.type === 'drawing') return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
   if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;

@@ -41,6 +41,9 @@ function started(row: LiveRow): boolean {
       return progress.words.length > 0;
     case 'moreless':
       return progress.done > 0;
+    case 'drawing':
+      // Художника видно завжди; вгадувача — коли вгадав (спроби нікому не показуються).
+      return progress.role === 'drawer' || progress.guessed;
     case 'sort':
       return progress.sorted > 0 || progress.misses > 0;
     case 'wall':
@@ -97,6 +100,10 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         break;
       case 'moreless':
         parts.push(t('morelessLive', { done: progress.done, total: progress.total, right: progress.right }));
+        break;
+      case 'drawing':
+        // Що вгадав вгадувач — уже у відповіді рядка.
+        if (progress.role === 'drawer') parts.push(t('drawingLive'));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));
@@ -269,8 +276,11 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const duel = live.kind === 'duel';
   const queue = live.kind === 'blitz' && view.blitz?.instant !== true;
   // Власний темп «Хто я?» (12c): поки йде запитання, кожен рядок стоїть у списку з «підказка N/M», тож «Чекаємо» порожнє;
-  // після кінця часу мовчуни знову в «Не відповіли».
-  const waiting = duel || queue ? [] : live.rows.filter((row) => !row.answered && (row.progress?.kind !== 'clues' || view.phase !== 'question'));
+  // після кінця часу мовчуни знову в «Не відповіли». Художник «Малюнка» (28c) не вгадує — його не чекають.
+  const waiting =
+    duel || queue
+      ? []
+      : live.rows.filter((row) => !row.answered && (row.progress?.kind !== 'clues' || view.phase !== 'question') && !(row.progress?.kind === 'drawing' && row.progress.role === 'drawer'));
   // Дуель: обидва дуелянти завжди, навіть без спроб.
   // Нахил першої картки (11d) теж показує рядок: ведучий бачить, куди її тягнуть, ще до першого ходу.
   // Живий вибір (12b) теж: рядок видно ще до відповіді й першого ходу.

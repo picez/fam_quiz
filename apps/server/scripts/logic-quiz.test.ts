@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, DEBUFF_KINDS, LIMITS, ROUND_TYPES, allSpares, questionsOf, quizSchema, roundTrials, type Question } from '@quiz/shared';
 import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
-import { moreLessLeaks, problems } from './logic/check';
+import { answerLeaks, moreLessLeaks, problems } from './logic/check';
 
 const quiz = logicQuiz((key) => `/uploads/${`k${key}`.padEnd(16, 'x')}.png`);
 const played: Question[] = [...questionsOf(quiz), ...quiz.rounds.flatMap(roundTrials)];
@@ -28,6 +28,14 @@ describe('the «Логіка й дедукція» quiz', () => {
       '«Порівняйте» p1: value «2061 м» appears in the question',
       '«Порівняйте» p4: value «22 м» appears in the question',
     ]);
+  });
+
+  it('a drawing (28c) whose word or spelling stands in the text is a leak', () => {
+    const q = (text: string) =>
+      ({ id: 'q', type: 'drawing', text, hint: null, imageUrl: null, video: null, audio: null, timeLimit: 60, points: 100, accepted: ['маяк', 'маячок'] }) as unknown as Question;
+    expect(answerLeaks(q('Що на малюнку?'))).toEqual([]);
+    expect(answerLeaks(q('Намалюйте маяк!'))).toEqual(['«Намалюйте маяк!»: answer «маяк» appears in the question']);
+    expect(answerLeaks(q('Що це, маячок?'))).toEqual(['«Що це, маячок?»: answer «маячок» appears in the question']);
   });
 
   it('passes the quiz schema within the limits', () => {

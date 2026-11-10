@@ -6,6 +6,11 @@ import { abandonRooms, parkInterrupted } from '../saved-games';
 import { isSavedRoom, type Room, type RoomManager } from './manager';
 
 export const SAVE_DELAY_MS = 1000;
+/**
+ * Малюнок (28c): штрихи йдуть кожні ~80 мс, а знімок кімнати з малюнком — до ~60 КБ; кімнату, що змінилася лише штрихами, пишемо
+ * не частіше ніж раз на стільки. Справжня зміна (changed) пишеться за saveDelayMs, як завжди; зупинка (flushAll) — одразу.
+ */
+export const DRAWING_SAVE_DELAY_MS = 2000;
 export const HEARTBEAT_MS = 5000;
 export const LEASE_MS = 20_000;
 export const MAX_AGE_MS = 24 * 60 * 60_000;
@@ -21,6 +26,8 @@ export interface RoomStoreOptions {
    */
   now?: () => number;
   saveDelayMs?: number;
+  /** Затримка запису кімнати, що змінилася лише штрихами (28c); типово більша з saveDelayMs і DRAWING_SAVE_DELAY_MS. */
+  drawingSaveDelayMs?: number;
   onError?: (error: unknown) => void;
   onWarning?: (message: string) => void;
 }
@@ -29,14 +36,14 @@ export type Located = 'here' | 'restarting' | 'none';
 
 /** Стан записів однієї кімнати. */
 interface Entry {
-  /** Відкладений запис; done знімає очікування idle(), якщо таймер зняли без запису. */
-  timer: { handle: NodeJS.Timeout; done: () => void } | null;
+  /** Відкладений запис; done знімає очікування idle(), якщо таймер зняли без запису; sketch — запис лише штрихів (довше вікно). */
+  timer: { handle: NodeJS.Timeout; done: () => void; sketch: boolean } | null;
   /** Ланцюжок дій з рядком кімнати: записи й видалення йдуть строго по черзі. */
   chain: Promise<void>;
   /** Скільки дій у ланцюжку ще не завершено. */
   busy: number;
-  /** Стан змінився під час запису: після нього потрібен ще один. */
-  dirty: boolean;
+  /** Стан змінився під час запису: після нього потрібен ще один ('sketch' — змінилися лише штрихи). */
+  dirty: false | 'sketch' | 'change';
 }
 
 /**
@@ -50,6 +57,7 @@ export class RoomStore {
   private readonly me: string;
   private readonly clock: (() => number) | null;
   private readonly saveDelayMs: number;
+  private readonly drawingSaveDelayMs: number;
   private readonly onError: (error: unknown) => void;
   private readonly onWarning: (message: string) => void;
   private readonly entries = new Map<Room, Entry>();
@@ -72,10 +80,13 @@ export class RoomStore {
     this.me = options.instanceId;
     this.clock = options.now ?? null;
     this.saveDelayMs = options.saveDelayMs ?? SAVE_DELAY_MS;
+    this.drawingSaveDelayMs = options.drawingSaveDelayMs ?? Math.max(this.saveDelayMs, DRAWING_SAVE_DELAY_MS);
     this.onError = options.onError ?? ((error) => console.error('Не вдалося зберегти кімнату:', error));
     this.onWarning = options.onWarning ?? ((message) => console.warn(message));
     manager.onEvent((room, event) => {
       if (event.type === 'changed') this.schedule(room);
+      // Штрихи (28c) змінюють room.state без changed: без цього малюнок не пережив би перезапуску.
+      else if (event.type === 'drawing') this.schedule(room, true);
       else if (event.type === 'closed') this.closed(room);
       else if (event.type === 'moved') this.forget(room);
     });
@@ -218,23 +229,32 @@ export class RoomStore {
     return this.manager.get(room.code) === room;
   }
 
-  /** Відкладений запис: перша зміна відкриває вікно saveDelayMs, наступні в ньому зливаються. */
-  private schedule(room: Room): void {
+  /**
+   * Відкладений запис: перша зміна відкриває вікно saveDelayMs, наступні в ньому зливаються. sketch — змінилися лише штрихи (28c):
+   * вікно drawingSaveDelayMs; справжня зміна посеред такого вікна відкриває звичайне від себе, тож не чекає довше, ніж без малюнка.
+   */
+  private schedule(room: Room, sketch = false): void {
     if (this.released || !this.alive(room)) return;
     const entry = this.entry(room);
-    if (entry.timer !== null) return;
+    if (entry.timer !== null) {
+      if (sketch || !entry.timer.sketch) return;
+      this.clearTimer(entry);
+    }
     if (entry.busy > 0) {
-      entry.dirty = true;
+      if (!sketch || entry.dirty === false) entry.dirty = sketch ? 'sketch' : 'change';
       return;
     }
     let done = () => {};
     this.track(new Promise<void>((resolve) => (done = resolve)));
-    const handle = setTimeout(() => {
-      entry.timer = null;
-      this.save(room).finally(done);
-    }, this.saveDelayMs);
+    const handle = setTimeout(
+      () => {
+        entry.timer = null;
+        this.save(room).finally(done);
+      },
+      sketch ? this.drawingSaveDelayMs : this.saveDelayMs,
+    );
     handle.unref();
-    entry.timer = { handle, done };
+    entry.timer = { handle, done, sketch };
   }
 
   /** Запис зі збереженням стану на мить запису; збій — журнал і повтор через RETRY_MS. */
@@ -254,9 +274,10 @@ export class RoomStore {
     const run = entry.chain.then(job).finally(() => {
       entry.busy -= 1;
       // Зміни, що прийшли під час запису (зокрема flushAll), пишуться окремим записом після нього.
-      if (entry.busy === 0 && entry.dirty) {
+      if (entry.busy === 0 && entry.dirty !== false) {
+        const sketch = entry.dirty === 'sketch';
         entry.dirty = false;
-        this.schedule(room);
+        this.schedule(room, sketch);
       }
     });
     entry.chain = run.catch(() => {});
