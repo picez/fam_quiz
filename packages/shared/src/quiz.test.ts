@@ -2768,6 +2768,24 @@ describe('puzzles round (28d)', () => {
     expect(qIssues(crosswordQ({ video }))).toContain('puzzle_video');
   });
 
+  it('refuses a hint, audio and a reveal on a puzzle, like a drawing', () => {
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 };
+    for (const q of [sudokuQ, crosswordQ]) {
+      expect(qIssues(q({ hint: 'Почніть з кута' }))).toContain('puzzle_hint');
+      expect(qIssues(q({ audio }))).toContain('puzzle_video');
+      expect(qIssues(q({ imageUrl: '/media/a.png', reveal: 'blur' }))).toContain('puzzle_video');
+    }
+  });
+
+  it('a puzzle timer goes to 600 s, other types stay within 120', () => {
+    expect(qIssues(sudokuQ({ timeLimit: 600 }))).toEqual([]);
+    expect(qIssues(crosswordQ({ timeLimit: 600 }))).toEqual([]);
+    expect(valid(questionSchema, sudokuQ({ timeLimit: 601 }))).toBe(false);
+    expect(valid(questionSchema, crosswordQ({ timeLimit: 601 }))).toBe(false);
+    expect(valid(questionSchema, { ...single, timeLimit: 120 })).toBe(true);
+    expect(valid(questionSchema, { ...single, timeLimit: 180 })).toBe(false);
+  });
+
   it('puzzles play only in the puzzles round', () => {
     const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
       rules: { ...DEFAULT_RULES, partial: null }, questions: [sudokuQ({ id: 'sb' })] };
@@ -2830,6 +2848,10 @@ describe('puzzles round (28d)', () => {
     expect(valid(puzzleFillSchema, { questionIndex: 0, cells: [{ i: 0, v: '1', x: 1 }] })).toBe(false);
     expect(valid(puzzleFillSchema, { questionIndex: 0, cells: cells(1), extra: 1 })).toBe(false);
     expect(valid(puzzleDoneSchema, { questionIndex: 2 })).toBe(true);
+    // Записів у plays буває більше, ніж запитань вікторини (факти «Правди про гравця», випробування): застаріле відсікає рушій.
+    expect(valid(puzzleDoneSchema, { questionIndex: 5000 })).toBe(true);
+    expect(valid(puzzleFillSchema, { questionIndex: 5000, cells: cells(1) })).toBe(true);
+    expect(valid(puzzleDoneSchema, { questionIndex: 1.5 })).toBe(false);
     expect(valid(puzzleDoneSchema, { questionIndex: -1 })).toBe(false);
     expect(valid(puzzleDoneSchema, { questionIndex: 0, extra: 1 })).toBe(false);
     expect(PUZZLE_BATCHES_PER_SECOND).toBe(6);

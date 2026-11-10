@@ -755,14 +755,17 @@ export const questionSchema = z
       // Слово чи написання довше за поле вгадування вгадати неможливо: телефон обріже текст, сервер відкине.
       if (q.accepted.some((s) => s.length > LIMITS.drawGuess)) ctx.addIssue({ code: 'custom', message: 'drawing_long' });
     }
+    if (q.type === 'sudoku' || q.type === 'crossword') {
+      // Без таймера головоломка не скінчиться; звук і «перевертання» тут нічого не дають (як у малюнка).
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_video' });
+      // Підказка недосяжна: бафи в раунді вимкнено (off_puzzles).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_hint' });
+    }
     if (q.type === 'sudoku') {
-      // Без таймера головоломка не скінчиться.
-      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'puzzle_video' });
       const issue = sudokuIssue(q.givens, q.solution);
       if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
     }
     if (q.type === 'crossword') {
-      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'puzzle_video' });
       const issue = crosswordIssue(q);
       if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
     }
