@@ -78,6 +78,8 @@ function bound(quiz: Quiz): number {
   const questions = quiz.rounds.flatMap((round): Question[] => {
     if (round.type === 'board') return round.categories.flatMap((c) => c.cells.map((cell) => cell.question));
     if (round.type === 'survival') return [...round.questions, ...round.trials];
+    // «Правда про гравця» (28b): запитання створює гра з фактів; у вікторині їх немає.
+    if (round.type === 'truth') return [];
     return round.questions;
   });
   const timers = questions.reduce((sum, q) => sum + q.timeLimit * 1000 + ('choiceTime' in q ? q.choiceTime * 1000 : 0), 0);

@@ -23,6 +23,7 @@ import { settleAudience } from './ladder';
 import { normalizeText } from './normalize';
 import { settleTrial, trialOpen } from './survival';
 import { settleDecision } from './wipeout';
+import { dropTruthFacts } from './truth';
 
 type TeamGame = GameState & { teams: TeamsState };
 
@@ -250,7 +251,8 @@ export function withoutTeam(state: GameState, teamId: string): GameState {
     return { ...play, buzzers };
   });
   return withTeams(
-    { ...state, plays },
+    // «Правда про гравця» (28b): люди команди до роздачі забирають свої факти.
+    { ...dropTruthFacts(state, gone), plays },
     {
       list: state.teams.list.filter((t) => t.id !== teamId),
       members: state.teams.members.filter((m) => m.teamId !== teamId),
@@ -279,7 +281,7 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   }
   const members = state.teams.members.filter((m) => m.id !== memberId);
   const left = withTeams(
-    { ...state, plays: withoutPeople(state.plays, [memberId]), awaiting: state.awaiting.filter((id) => id !== memberId) },
+    { ...dropTruthFacts(state, [memberId]), plays: withoutPeople(state.plays, [memberId]), awaiting: state.awaiting.filter((id) => id !== memberId) },
     {
       members,
       captains: withoutValues(state.teams.captains, [memberId]),

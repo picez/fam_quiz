@@ -34,6 +34,7 @@ import {
   present,
   recordOf,
   revealNow,
+  shuffles,
   withCurrentPlay,
   withRecord,
   type AnswerRecord,
@@ -397,7 +398,7 @@ function takeSpare(state: GameState, play: Play, playerId: string, buff: BuffPla
   const timed = isTimed(play.question) && state.endsAt !== null;
   const endsAt = state.endsAt ?? now;
   const limitMs = timed ? Math.max(endsAt - now, SWAP_MIN_MS) : null;
-  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, round.shuffleOptions, rng), startedAt: now, limitMs } };
+  const withSpare: BuffPlay = { ...buff, spare: { id: spare.id, presented: present(spare, shuffles(round), rng), startedAt: now, limitMs } };
   const taken = withCurrentPlay(
     { ...state, buffSeq: buff.seq, sparesUsed: [...state.sparesUsed, spare.id] },
     { ...play, buffs: { ...play.buffs, [playerId]: withSpare } },

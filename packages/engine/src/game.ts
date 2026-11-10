@@ -76,6 +76,7 @@ import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
+import { dropTruthFacts } from './truth';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
@@ -201,6 +202,8 @@ export interface Play {
   letterwords?: LetterWordsPlay;
   /** Лише в запитанні «Більше чи менше» (28a). */
   moreless?: MoreLessPlay;
+  /** Лише в запитанні раунду «Правда про гравця» (28b). */
+  truth?: TruthPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -538,6 +541,31 @@ export interface MoreLessPlay {
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
+/** «Правда про гравця» (28b): факти людей і колода авторів. */
+export interface TruthState {
+  /** Факти за id людини (соло — гравець, командна гра — учасник). Немає ключа — факту немає. */
+  facts: Record<string, TruthFact>;
+  /** Автори в порядку запитань, роздано на старті раунду (rng кімнати); немає ключа — ще не роздано (факти приймаються). */
+  deck?: string[];
+}
+
+/** Факт людини про себе: текст (пробіли зведено), чи сховав ведучий, мить останньої зміни тексту (час сервера). */
+export interface TruthFact {
+  text: string;
+  hidden: boolean;
+  at: number;
+}
+
+/** Запитання раунду truth (28b): чий факт, хто з учасників рушія не вгадує, хто вгадує. */
+export interface TruthPlay {
+  /** Автор факту (людина). */
+  authorId: string;
+  /** Учасник рушія автора на мить відкриття: соло — сам автор, командна гра — його команда. */
+  actorId: string;
+  /** Хто вгадує: присутні учасники рушія на відкритті, крім actorId (як timedlist.present у 27c). Знаменник частки автора. */
+  guessers: string[];
+}
+
 export interface FinalState {
   /** Межа ставки: max(0, рахунок) на вході в етап wager; бали від ведучого під час ставок її оновлюють. */
   limits: Record<string, number>;
@@ -744,6 +772,8 @@ export interface GameState {
   appeals?: Appeal[];
   /** Бонуси рівня гравців на цю гру (15a): id гравця → видача; ключ є, лише коли хтось має бонус. Без ключа — бонусів немає (і стан до 15a). */
   perks?: Record<string, PerkState>;
+  /** «Правда про гравця» (28b): ключ є лише у вікторині з раундом truth (createGame). */
+  truth?: TruthState;
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -861,6 +891,8 @@ export function createGame(quiz: Quiz, options: GameOptions = {}): GameState {
             duelists: {},
           },
         }),
+    // «Правда про гравця» (28b): факти приймаються з лобі.
+    ...(quiz.rounds.some((r) => r.type === 'truth') ? { truth: { facts: {} } } : {}),
   };
 }
 
@@ -1054,7 +1086,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
   const kicked = withTotals({
-    ...unpicked,
+    ...dropTruthFacts(unpicked, [playerId]),
     players: state.players.filter((p) => p.id !== playerId),
     plays,
     board,
@@ -1188,7 +1220,8 @@ export function comingQuestion(state: GameState): { question: Question; blitz: b
   const fresh = state.phase === 'intro' || state.phase === 'guide';
   const inRound = state.phase !== 'round_end' && (fresh || questionsLeft(state));
   const round = inRound ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
-  if (round === null || round.type === 'board') return null;
+  // «Правда про гравця» (28b): запитання створює роздача; до неї їх ще немає.
+  if (round === null || round.type === 'board' || round.type === 'truth') return null;
   const first = () => round.questions.find((q) => playable(state, q));
   const question = inRound ? (nextQuestion(state) ?? (fresh ? first() : undefined)) : first();
   return question === undefined ? null : { question, blitz: round.type === 'blitz' && question.type !== 'sort', ladder: round.type === 'ladder' };
@@ -1200,7 +1233,8 @@ export function comingQuestion(state: GameState): { question: Question; blitz: b
  */
 function nextQuestion(state: GameState): Question | undefined {
   const round = currentRound(state);
-  if (round === null || round.type === 'board') return undefined;
+  // «Правда про гравця» (28b): запитання з колоди фактів — задача 3 плану 28b; поки раунд порожній.
+  if (round === null || round.type === 'board' || round.type === 'truth') return undefined;
   // «Ва-банк»: коли в грі нікого не лишилося, решта драбини лишається незіграною.
   if (round.type === 'wipeout' && wipeoutIn(state).length === 0) return undefined;
   // «Вибування»: щойно після вибування живих ≤ N, решта запитань лишається незіграною.
@@ -1270,7 +1304,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       phase: 'question',
       questionIndex: state.plays.length,
       plays: [...state.plays, play],
-      presented: present(question, round.shuffleOptions, rng),
+      presented: present(question, shuffles(round), rng),
       startedAt: at,
       // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
       endsAt: isTimed(question) && !(round.type === 'ladder' && !round.timer) ? at + answerWindowMs(question) : null,
@@ -1280,6 +1314,11 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     now,
   );
   return fireDebuffs(startAnswerers(opened), at);
+}
+
+/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою. */
+export function shuffles(round: Round): boolean {
+  return round.type === 'truth' ? false : round.shuffleOptions;
 }
 
 /** Новий LadderPlay для запитання «Мільйонера», що відкривається. */
