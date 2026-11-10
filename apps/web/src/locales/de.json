@@ -3111,6 +3111,7 @@
   "truthFactLabel": "Dein wenig bekannter Fakt",
   "truthFactSave": "Speichern",
   "truthFactSaved": "Dein Fakt: „{text}“",
+  "truthFactWrite": "Einen Fakt für die Runde „Die Wahrheit über einen Spieler“ schreiben",
   "truthFactsCount": "Fakten: {count}",
   "truthHistoryAuthor": "Fakt geschrieben von: {nickname} · Autor {points}",
   "truthHistoryAuthorRow": "Autor des Fakts",

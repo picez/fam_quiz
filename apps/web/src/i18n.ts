@@ -2572,6 +2572,7 @@ const uk = {
   truthFactCount: '{count} / 200',
   truthFactHidden: 'Ведучий сховав ваш факт — напишіть інший.',
   truthFactsCount: 'Фактів: {count}',
+  truthFactWrite: 'Написати факт для раунду «Правда про гравця»',
   truthHostTitle: 'Факти гравців',
   truthHostHide: 'Сховати',
   truthHostShow: 'Показати',

@@ -3111,6 +3111,7 @@
   "truthFactLabel": "Your little-known fact",
   "truthFactSave": "Save",
   "truthFactSaved": "Your fact: “{text}”",
+  "truthFactWrite": "Write a fact for the «The Truth About a Player» round",
   "truthFactsCount": "Facts: {count}",
   "truthHistoryAuthor": "Fact written by: {nickname} · author {points}",
   "truthHistoryAuthorRow": "fact author",

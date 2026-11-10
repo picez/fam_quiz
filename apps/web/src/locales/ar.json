@@ -3275,6 +3275,7 @@
   "truthFactLabel": "معلومتك غير المعروفة",
   "truthFactSave": "حفظ",
   "truthFactSaved": "معلومتك: «{text}»",
+  "truthFactWrite": "اكتب معلومة لجولة «الحقيقة عن لاعب»",
   "truthFactsCount": "المعلومات: {count}",
   "truthHistoryAuthor": "كاتب المعلومة: {nickname} · الكاتب {points}",
   "truthHistoryAuthorRow": "كاتب المعلومة",

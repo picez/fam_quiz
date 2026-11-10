@@ -3152,6 +3152,7 @@
   "truthFactLabel": "Tu dato poco conocido",
   "truthFactSave": "Guardar",
   "truthFactSaved": "Tu dato: «{text}»",
+  "truthFactWrite": "Escribir un dato para la ronda «La verdad sobre un jugador»",
   "truthFactsCount": "Datos: {count}",
   "truthHistoryAuthor": "Dato escrito por: {nickname} · autor {points}",
   "truthHistoryAuthorRow": "autor del dato",

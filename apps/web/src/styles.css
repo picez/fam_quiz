@@ -18041,6 +18041,14 @@ button.letterwords-tile:focus-visible {
 }
 
 /* «Правда про гравця» (28b): факт у лобі, пульт фактів, імена на телефоні, сцена й розкриття. */
+/* Після старту гри — лише компактна кнопка, що розгортає форму. */
+.truth-late {
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: normal;
+  text-align: start;
+}
+
 .truth-form {
   display: flex;
   flex-direction: column;
