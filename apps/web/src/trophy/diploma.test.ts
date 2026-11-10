@@ -84,7 +84,7 @@ describe('renderDiploma', () => {
     expect(texts.some((entry) => entry.text.trim() === '')).toBe(false);
   });
 
-  it('light new materials get a darker frame that stands out on the paper; old frames stay as they were', async () => {
+  it('light new materials get a darker frame that stands out on the paper', async () => {
     const frameOf = async (material: 'pearl' | 'marble' | 'platinum' | 'gold' | 'silver' | 'diamond') => {
       const texts = fakeCanvas();
       await renderDiploma({ ...data, trophy: { kind: 'cup', material } });
@@ -96,8 +96,31 @@ describe('renderDiploma', () => {
       expect(frame, material).toMatch(/^#[0-9A-F]{6}$/);
       expect(contrast(frame, '#FFFBF0'), material).toBeGreaterThanOrEqual(3);
     }
-    // Старі — колір матеріалу без змін, навіть світлі.
-    for (const material of ['gold', 'silver', 'diamond'] as const) expect(await frameOf(material)).toBe(MATERIAL_LOOK[material].color);
+  });
+
+  it('silver, gold and diamond get a clearly visible darker frame of the same hue with a thin stripe of the material colour', async () => {
+    const hue = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+      const max = Math.max(r, g, b);
+      const d = max - Math.min(r, g, b);
+      const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    for (const material of ['silver', 'gold', 'diamond'] as const) {
+      const texts = fakeCanvas();
+      await renderDiploma({ ...data, trophy: { kind: 'cup', material } });
+      const [frame, stripe, inner] = texts.strokes;
+      const color = MATERIAL_LOOK[material].color;
+      expect(contrast(color, '#FFFBF0'), material).toBeLessThan(2);
+      expect(contrast(frame!, '#FFFBF0'), material).toBeGreaterThanOrEqual(3.5);
+      expect(Math.abs(hue(frame!) - hue(color)), material).toBeLessThanOrEqual(12);
+      expect(stripe, material).toBe(color);
+      expect(inner, material).toBe(frame);
+    }
+    // Бронза — як була: колір матеріалу, без смужки.
+    const texts = fakeCanvas();
+    await renderDiploma({ ...data, trophy: { kind: 'cup', material: 'bronze' } });
+    expect(texts.strokes).toEqual([MATERIAL_LOOK.bronze.color, MATERIAL_LOOK.bronze.color]);
   });
 
   it('the frame takes the material colour and the place stays readable on stone frames', async () => {
