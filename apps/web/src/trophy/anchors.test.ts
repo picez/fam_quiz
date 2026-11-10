@@ -291,12 +291,12 @@ describe('trophy anchors', () => {
   });
 
   it('crown gems clear the baked stones', () => {
-    // build-trophies.mjs, crown(): камінці r 0.03 (0.35, y 0.28) і кульки r 0.035 (0.325, y 0.69) на 5 променях.
+    // build-trophies.mjs, crown(): камінці r 0.03 (0.35, y 0.4) і кульки r 0.035 (0.325, y 0.81) на 5 променях (корона піднята на 0.12).
     const baked: { at: readonly [number, number, number]; r: number }[] = [];
     for (let i = 0; i < 5; i++) {
       const a = (2 * Math.PI * i) / 5;
-      baked.push({ at: [0.35 * Math.cos(a), 0.28, 0.35 * Math.sin(a)], r: 0.03 });
-      baked.push({ at: [0.325 * Math.cos(a), 0.69, 0.325 * Math.sin(a)], r: 0.035 });
+      baked.push({ at: [0.35 * Math.cos(a), 0.4, 0.35 * Math.sin(a)], r: 0.03 });
+      baked.push({ at: [0.325 * Math.cos(a), 0.81, 0.325 * Math.sin(a)], r: 0.035 });
     }
     const { gems, medallion, stickers } = TROPHY_ANCHORS.crown;
     const clear = (p: readonly number[], size: number): void => {
@@ -340,12 +340,22 @@ describe('trophy anchors', () => {
     onFace(stickers.right!.position);
   });
 
+  it('crown plaque is not hidden under the flare when seen from the start pitch (15° from above)', () => {
+    const { plaque, profile } = TROPHY_ANCHORS.crown;
+    const flareBottom = profile!.points[0]![1];
+    const flareRadius = Math.max(...profile!.points.map(([r]) => r));
+    const overhang = flareRadius - plaque!.position[2];
+    const plaqueTop = plaque!.position[1] + plaque!.height / 2;
+    expect(plaqueTop + overhang * Math.tan(Math.PI / 12)).toBeLessThanOrEqual(flareBottom - 0.02);
+    expect(plaque!.position[1] - plaque!.height / 2).toBeGreaterThanOrEqual(0.02);
+  });
+
   it('crown side stickers stay on the hoop and grail base stickers above the floor', () => {
-    // Обруч корони — y 0.18–0.42 (вище — зубці); основа грааля — від y = 0.
+    // Обруч корони — y 0.3–0.54 (вище — зубці); основа грааля — від y = 0.
     for (const place of ['left', 'right'] as const) {
       const { position, size } = TROPHY_ANCHORS.crown.stickers[place]!;
-      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0.18);
-      expect(position[1] + size / 2).toBeLessThanOrEqual(0.42);
+      expect(position[1] - size / 2).toBeGreaterThanOrEqual(0.3);
+      expect(position[1] + size / 2).toBeLessThanOrEqual(0.54);
     }
     for (const place of ['base-left', 'base-right'] as const) {
       const { position, size } = TROPHY_ANCHORS.grail.stickers[place]!;

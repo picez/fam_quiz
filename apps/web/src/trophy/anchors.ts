@@ -174,31 +174,32 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       right: spot([0.342, 0.42, 0], RIGHT, 0.06, 'edge-right'),
     },
   },
-  // Обруч r 0.34 на y 0.18–0.42 (п'ять камінців r 0.35 на y 0.28), розтруб 0.1–0.18 до r 0.36, постамент half 0.22 (грань 0.156).
+  // Обруч r 0.34 на y 0.3–0.54 (п'ять камінців r 0.35 на y 0.4), розтруб 0.22–0.3 до r 0.36; постамент plinth(0.3, 0.2)
+  // (грань 0.212, верх 0.23): корона піднята на 0.12, щоб розтруб не ховав табличку.
   crown: {
     profile: {
       points: [
-        [0.34, 0.1],
-        [0.36, 0.14],
-        [0.34, 0.18],
-        [0.34, 0.42],
+        [0.34, 0.22],
+        [0.36, 0.26],
+        [0.34, 0.3],
+        [0.34, 0.54],
       ],
       segments: 40,
     },
     surfaces: { hoop: 'revolved', ...PLINTH },
-    ring: { shape: 'profile', surface: 'hoop', y0: 0.18, y1: 0.42, tori: ['bottom', 'top'], tube: 0.01 },
-    band: { shape: 'profile', surface: 'hoop', y0: 0.115, y1: 0.165, tori: [], tube: 0 },
-    medallion: spot([0, 0.3, 0.345], FRONT, 0.14, 'hoop'),
-    gems: { center: [0, 0.37, 0], axis: 'y', radius: 0.345, size: 0.04, surface: 'hoop' },
-    plaque: { position: [0, 0.04, 0.158], tiltX: 0, width: 0.18, height: 0.05, surface: 'plinth-front' },
+    ring: { shape: 'profile', surface: 'hoop', y0: 0.3, y1: 0.54, tori: ['bottom', 'top'], tube: 0.01 },
+    band: { shape: 'profile', surface: 'hoop', y0: 0.235, y1: 0.285, tori: [], tube: 0 },
+    medallion: spot([0, 0.42, 0.345], FRONT, 0.14, 'hoop'),
+    gems: { center: [0, 0.49, 0], axis: 'y', radius: 0.345, size: 0.04, surface: 'hoop' },
+    plaque: { position: [0, 0.085, 0.214], tiltX: 0, width: 0.26, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      front: spot([0, 0.3, 0.345], FRONT, 0.12, 'hoop'),
-      back: spot([0, 0.3, -0.345], BACK, 0.12, 'hoop'),
-      // y 0.36: уся пляма (0.30–0.42) на обручі, нижче зубців.
-      left: spot([-0.342, 0.36, 0], LEFT, 0.12, 'hoop'),
-      right: spot([0.342, 0.36, 0], RIGHT, 0.12, 'hoop'),
-      'base-left': spot([-0.158, 0.04, 0], LEFT, 0.06, 'plinth-left'),
-      'base-right': spot([0.158, 0.04, 0], RIGHT, 0.06, 'plinth-right'),
+      front: spot([0, 0.42, 0.345], FRONT, 0.12, 'hoop'),
+      back: spot([0, 0.42, -0.345], BACK, 0.12, 'hoop'),
+      // y 0.48: уся пляма (0.42–0.54) на обручі, нижче зубців.
+      left: spot([-0.342, 0.48, 0], LEFT, 0.12, 'hoop'),
+      right: spot([0.342, 0.48, 0], RIGHT, 0.12, 'hoop'),
+      'base-left': spot([-0.214, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.214, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
   },
   // Зірка (outer 0.4, inner 0.17) на y 0.62, лицем до +Z: товщина 0.12 у центрі; постамент half 0.2 (грань 0.141) заввишки 0.18.
@@ -591,7 +592,8 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
   },
-  // Постамент plinth(0.22, 0.2) (грань 0.156); куля r 0.1 на y 0.45; крила-віяла від (±0.05, 0.5), лице пір'їн z −0.034…−0.058.
+  // Постамент plinth(0.22, 0.2) (грань 0.156); куля r 0.1 на y 0.45; крила — три ряди пір'їн віялом від (±0.05, 0.52),
+  // лице крила на y 0.68: z −0.05 біля кореня … −0.08 на x ±0.22.
   wings: {
     surfaces: { orb: 'revolved', 'wing-left': 'flat', 'wing-right': 'flat', ...PLINTH },
     band: { shape: 'face', plate: { position: [0, 0.17, 0.158], tiltX: 0, width: 0.27, height: 0.04, surface: 'plinth-front' } },
@@ -599,9 +601,10 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
     gems: { center: [0, 0.45, 0], axis: 'y', radius: 0.101, size: 0.04, surface: 'orb' },
     plaque: { position: [0, 0.09, 0.158], tiltX: 0, width: 0.2, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      // На віялі за 0.22 від кореня під кутом 0.6 від вертикалі: там пір'їни ще накривають одна одну.
-      left: spot([-0.174, 0.68, -0.045], FRONT, 0.1, 'wing-left'),
-      right: spot([0.174, 0.68, -0.045], FRONT, 0.1, 'wing-right'),
+      // На крилі за 0.2 від кореня під кутом 0.6 від вертикалі: там ряди пір'їн накривають одне одне; крило вигинається
+      // назад (z спадає на ~0.3 на кожну одиницю вбік), тож нормаль відхилена назовні.
+      left: spot([-0.174, 0.68, -0.066], unit(-0.3, 0, 1), 0.1, 'wing-left'),
+      right: spot([0.174, 0.68, -0.066], unit(0.3, 0, 1), 0.1, 'wing-right'),
       'base-left': spot([-0.158, 0.1, 0], LEFT, 0.12, 'plinth-left'),
       'base-right': spot([0.158, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },

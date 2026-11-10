@@ -16,8 +16,17 @@ const HEIGHT = 850;
 const DISPLAY = "'Unbounded Variable', system-ui, sans-serif";
 const BODY = "'Onest Variable', system-ui, sans-serif";
 const PAPER = '#FFFBF0';
-/** Рамки, що були до 25e: лишаються в кольорі матеріалу байт у байт, як на вже виданих дипломах. */
-const LEGACY_FRAMES: readonly TrophyMaterial[] = ['bronze', 'silver', 'gold', 'diamond'];
+/**
+ * Срібло, золото й діамант світлі й на кремовому папері ледь видні: рамка — темніший відтінок того самого кольору
+ * (контраст ≥ 3.5:1), а посередині широкої рамки — тонка смужка кольору матеріалу, як відблиск на металі.
+ */
+const FRAME_SHADE: Partial<Record<TrophyMaterial, string>> = {
+  silver: '#7B879B',
+  gold: '#AC7E16',
+  diamond: '#3F86B0',
+};
+/** Бронза до 25e: колір матеріалу без змін (і так контрастна). */
+const LEGACY_FRAMES: readonly TrophyMaterial[] = ['bronze'];
 
 /** Відносна яскравість sRGB-кольору #RRGGBB (WCAG). */
 function luminance(hex: string): number {
@@ -40,6 +49,8 @@ export function contrast(a: string, b: string): number {
  */
 export function diplomaFrame(material: TrophyMaterial): string {
   const color = MATERIAL_LOOK[material].color;
+  const fixed = FRAME_SHADE[material];
+  if (fixed !== undefined) return fixed;
   if (LEGACY_FRAMES.includes(material)) return color;
   const rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
   let shade = color;
@@ -133,6 +144,12 @@ export async function renderDiploma(data: DiplomaData): Promise<Blob> {
   context.strokeStyle = frame;
   context.lineWidth = 18;
   context.strokeRect(30, 30, WIDTH - 60, HEIGHT - 60);
+  if (FRAME_SHADE[material] !== undefined) {
+    context.strokeStyle = look.color;
+    context.lineWidth = 4;
+    context.strokeRect(30, 30, WIDTH - 60, HEIGHT - 60);
+    context.strokeStyle = frame;
+  }
   context.lineWidth = 4;
   context.strokeRect(62, 62, WIDTH - 124, HEIGHT - 124);
 

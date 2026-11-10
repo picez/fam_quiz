@@ -259,12 +259,22 @@ function medal() {
   return merge(disc, star, loop, strap(1), strap(-1));
 }
 
+/**
+ * Корона на постаменті plinth(0.3, 0.2) (верх 0.23, грань 0.212): власне корона — та сама, що була на низькому plinth(0.22, 0.08),
+ * лише піднята на CROWN_LIFT. Високий широкий постамент — щоб розтруб корони (r 0.36) не ховав табличку на грані.
+ */
+const CROWN_LIFT = 0.12;
+
 function crown() {
+  return merge(plinth(0.3, 0.2), translate(crownBody(), [0, CROWN_LIFT, 0]));
+}
+
+function crownBody() {
   const band = lathe(
     [[0.3, 0.1], [0.34, 0.1], [0.36, 0.14], [0.34, 0.18], [0.34, 0.42], [0.31, 0.42], [0.31, 0.1]],
     40,
   );
-  const parts = [plinth(0.22, 0.08), lathe([[0, 0.11], [0.31, 0.11]], 40), band];
+  const parts = [lathe([[0, 0.11], [0.31, 0.11]], 40), band];
   const points = 5;
   for (let i = 0; i < points; i++) {
     const angle = (i / points) * Math.PI * 2;
@@ -309,7 +319,7 @@ function statuette() {
 }
 
 // ── 25e: нові форми ─────────────────────────────────────────────────────────
-// Старі функції вище не міняти: від них залежать байти старих .glb.
+// Старі функції вище не міняти: від них залежать байти старих .glb (корону змінено свідомо — висока основа під табличку).
 
 /** Розтягує меш по осях; нормалі — оберненим масштабом (щоб сплюснута куля світилася як пласка). */
 function scaled(source, [sx, sy, sz]) {
@@ -683,22 +693,89 @@ function flame() {
   return merge(...parts);
 }
 
+/** Добуток матриць 3×3 (рядками): спершу b, потім a. */
+const mul = (a, b) => a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j]));
+
 /**
- * Крилата статуетка: plinth(0.22, 0.2) (верх 0.23), стрижень r 0.03 до 0.36, куля r 0.1 на y 0.45; два крила-віяла з 7
- * пласких пір'їн (box 0.06 × L × 0.012, L від 0.5 до 0.26) від кореня (±0.05, 0.5, -0.04), розкритих дугою, найвища до y 1.0.
+ * Пір'їна завдовжки L і завширшки w: основа в (0, 0), кінчик у (0, L), лицем до +Z, товщина depth. Обрис — пір'їна з
+ * заокругленим кінчиком; лице — віяло граней до середини стрижня, піднятої на ridge (світло лягає по-різному з боків),
+ * спина пласка.
  */
-function wings() {
-  const parts = [plinth(0.22, 0.2), rod([0, 0.22, 0], [0, 0.37, 0], 0.03, 12), translate(sphere(0.1, 24, 14), [0, 0.45, 0])];
-  for (const side of [1, -1]) {
-    for (let i = 0; i < 7; i++) {
-      const angle = 0.1 + i * 0.17;
-      const length = 0.5 - i * 0.04;
-      const root = [side * 0.05, 0.5, -0.04 - i * 0.004];
-      const center = [root[0] + side * Math.sin(angle) * (length / 2), root[1] + Math.cos(angle) * (length / 2), root[2]];
-      parts.push(transform(box(0.06, length, 0.012), rotZ(-side * angle), center));
+function feather(L, w, depth, ridge) {
+  const outline = [
+    [-0.22 * w, 0], [0.22 * w, 0], [0.5 * w, 0.45 * L], [0.44 * w, 0.8 * L], [0.18 * w, L],
+    [-0.18 * w, L], [-0.44 * w, 0.8 * L], [-0.5 * w, 0.45 * L],
+  ];
+  const half = depth / 2;
+  const out = mesh();
+  const face = (points) => {
+    const [a, b, c] = points;
+    const n = normalize([
+      (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]),
+      (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+      (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]),
+    ]);
+    const base = out.positions.length / 3;
+    for (const p of points) out.positions.push(...p), out.normals.push(...n);
+    for (let k = 1; k < points.length - 1; k++) out.indices.push(base, base + k, base + k + 1);
+  };
+  // Лице опукле: стрижень (0, 0.2L)–(0, 0.8L) піднятий на ridge, гладкі нормалі — на стрижні до глядача, на краях
+  // відхилені назовні, тож пір'їна блищить, як вигнута.
+  const front = out.positions.length / 3;
+  for (const [x, y] of outline) {
+    const d = normalize([x / w, (y / L - 0.5) * 0.6, 0]);
+    out.positions.push(x, y, half);
+    out.normals.push(...normalize([d[0] * 0.7, d[1] * 0.7, 1]));
+  }
+  out.positions.push(0, 0.2 * L, half + ridge, 0, 0.8 * L, half + ridge);
+  out.normals.push(0, 0, 1, 0, 0, 1);
+  const [s0, s1] = [front + 8, front + 9];
+  const f = (k) => front + k;
+  out.indices.push(f(0), f(1), s0, f(1), f(2), s0, s0, f(2), s1, f(2), f(3), s1, f(3), f(4), s1);
+  out.indices.push(f(4), f(5), s1, f(5), f(6), s1, f(6), f(7), s1, f(7), s0, s1, f(7), f(0), s0);
+  face(outline.map(([x, y]) => [x, y, -half]).reverse());
+  for (let i = 0; i < outline.length; i++) {
+    const [a, b] = [outline[i], outline[(i + 1) % outline.length]];
+    face([[a[0], a[1], -half], [b[0], b[1], -half], [b[0], b[1], half], [a[0], a[1], half]]);
+  }
+  return out;
+}
+
+/**
+ * Крило з боку side (1 — праворуч): три ряди широких пір'їн віялом від кореня (side·0.05, 0.5): позаду — 6 махових
+ * (L 0.52 → 0.3), посередині — 5 коротших (0.35 → 0.22), спереду — 4 кроючі (0.19 → 0.14); ряд ближчий до глядача
+ * виходить на 0.014 вперед, сусідні пір'їни ряду накривають одна одну. Кожна пір'їна відхилена назад (зовнішні
+ * сильніше — крило вигинається чашею) і ледь повернута навколо стрижня, тож ряди лягають лускою.
+ */
+function wing(side) {
+  // peak — частка ряду з найдовшою пір'їною: до неї пір'їни довшають (внутрішній край крила), далі коротшають.
+  const rows = [
+    { count: 7, from: 0.12, to: 1.36, inner: 0.4, long: 0.54, short: 0.28, peak: 0.25, width: 0.12, z: 0 },
+    { count: 6, from: 0.24, to: 1.3, inner: 0.27, long: 0.34, short: 0.2, peak: 0.25, width: 0.115, z: 0.014 },
+    { count: 5, from: 0.36, to: 1.22, inner: 0.17, long: 0.2, short: 0.13, peak: 0.25, width: 0.105, z: 0.028 },
+  ];
+  const parts = [];
+  for (const row of rows) {
+    for (let i = 0; i < row.count; i++) {
+      const t = i / (row.count - 1);
+      const angle = row.from + (row.to - row.from) * t;
+      const length =
+        t < row.peak
+          ? row.inner + (row.long - row.inner) * Math.sin(((t / row.peak) * Math.PI) / 2)
+          : row.long + (row.short - row.long) * ((t - row.peak) / (1 - row.peak)) ** 1.3;
+      const tilt = 0.06 + 0.3 * t * t;
+      const twist = side * 0.06;
+      const matrix = mul(rotZ(-side * angle), mul(rotX(-tilt), rotY(twist)));
+      parts.push(transform(feather(length, row.width, 0.012, 0.01), matrix, [side * 0.05, 0.52, -0.07 + row.z - i * 0.002]));
     }
   }
-  return merge(...parts);
+  return parts;
+}
+
+/** Крилата статуетка: plinth(0.22, 0.2) (верх 0.23), стрижень r 0.03 до 0.36, куля r 0.1 на y 0.45; два крила (wing), найвища точка ~1.0. */
+function wings() {
+  const parts = [plinth(0.22, 0.2), rod([0, 0.22, 0], [0, 0.37, 0], 0.03, 12), translate(sphere(0.1, 24, 14), [0, 0.45, 0])];
+  return merge(...parts, ...wing(1), ...wing(-1));
 }
 
 /**
