@@ -10,23 +10,53 @@ export type AccountState =
   | { status: 'unknown'; error: string }
   | { status: 'signed-in'; account: Account };
 
-/** Хто увійшов. Запитує сервер під час появи й щоразу, коли змінюється refresh; до відповіді лишає попередній стан. */
+/**
+ * Остання відповідь «увійшла як …»: нова сторінка стартує з неї й одразу вантажить свої дані, а /api/me перевіряє
+ * сесію паралельно (stale-while-revalidate). Без цього кожен перехід чекав /api/me, а вже потім — дані сторінки.
+ * Кешуємо лише «увійшла»: застаріле «не увійшла» відразу відправило б людину на /login.
+ */
+let known: AccountState | null = null;
+/** Один запит /api/me на всіх, хто питає водночас (меню, сторінка, usePrivateData). */
+let pending: Promise<AccountState> | null = null;
+
+function check(): Promise<AccountState> {
+  pending ??= me()
+    .then((result): AccountState => {
+      if (result.ok) {
+        const locale = isLocale(result.locale) ? result.locale : null;
+        // Мова з профілю перемагає мову пристрою; порожній профіль дістає поточну.
+        void syncAccountLocale(locale, result.id);
+        return { status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale } };
+      }
+      // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
+      if (result.error === 'unauthorized') return { status: 'anonymous' };
+      return { status: 'unknown', error: result.error };
+    })
+    .then((state) => {
+      if (state.status === 'signed-in') known = state;
+      else if (state.status === 'anonymous') known = null;
+      return state;
+    })
+    .finally(() => {
+      pending = null;
+    });
+  return pending;
+}
+
+/** Вхід, вихід чи зміна сесії: забуваємо, хто був на сторінці (і тести — між собою). */
+export function forgetAccount(): void {
+  known = null;
+  pending = null;
+}
+
+/** Хто увійшов. Запитує сервер під час появи й щоразу, коли змінюється refresh; до відповіді лишає попередній (чи відомий) стан. */
 export function useAccount(refresh?: unknown): AccountState {
-  const [state, setState] = useState<AccountState>({ status: 'loading' });
+  const [state, setState] = useState<AccountState>(() => known ?? { status: 'loading' });
 
   useEffect(() => {
     let current = true;
-    void me().then((result) => {
-      if (!current) return;
-      if (result.ok) {
-        const locale = isLocale(result.locale) ? result.locale : null;
-        setState({ status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale } });
-        // Мова з профілю перемагає мову пристрою; порожній профіль дістає поточну.
-        void syncAccountLocale(locale, result.id);
-      }
-      // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
-      else if (result.error === 'unauthorized') setState({ status: 'anonymous' });
-      else setState({ status: 'unknown', error: result.error });
+    void check().then((next) => {
+      if (current) setState((prev) => (sameState(prev, next) ? prev : next));
     });
     return () => {
       current = false;
@@ -34,4 +64,16 @@ export function useAccount(refresh?: unknown): AccountState {
   }, [refresh]);
 
   return state;
+}
+
+/** Та сама людина з тими самими полями — той самий стан: перевірка не перемальовує сторінку даремно. */
+function sameState(a: AccountState, b: AccountState): boolean {
+  if (a.status !== b.status) return false;
+  if (a.status === 'signed-in' && b.status === 'signed-in') {
+    const x = a.account;
+    const y = b.account;
+    return x.id === y.id && x.name === y.name && x.email === y.email && x.admin === y.admin && x.locale === y.locale;
+  }
+  if (a.status === 'unknown' && b.status === 'unknown') return a.error === b.error;
+  return true;
 }
