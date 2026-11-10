@@ -37,6 +37,10 @@ import {
   type CellMark,
   type ChainInfo,
   type PlayerWordLadder,
+  type PlayerTimedList,
+  type TimedListInfo,
+  type TimedListItemView,
+  type TimedListRow,
   type WordLadderInfo,
   type WordLadderRow,
   type DebuffKind,
@@ -154,6 +158,7 @@ import {
 import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
 import { blitzSeriesPoints } from './score';
 import { wordLadderOf } from './wordladder';
+import { listItemPoints, listPlayers, timedListOf } from './timedlist';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -272,6 +277,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     choices,
     right,
     orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
+    ...(question.type === 'timedlist' ? { timedlist: { total: question.items.length, minus: question.minus } } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -844,7 +850,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder';
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -935,7 +941,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist';
   return {
     ...info,
     question,
@@ -1040,7 +1046,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist';
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1169,6 +1175,66 @@ function playerWordLadder(state: GameState, playerId: string): PlayerWordLadder 
   const words = done?.words ?? wordLadderOf(state, playerId).words;
   const canAdd = state.phase === 'question' && !state.paused && record === undefined;
   return { words, steps: done?.steps ?? words.length, finished: done?.finished === true, canAdd, canBack: canAdd && words.length > 0 };
+}
+
+/** Поточне запитання-список з його грою; null поза запитанням або для інших типів. */
+function currentList(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'timedlist' ? { play, question: play.question } : null;
+}
+
+/**
+ * Поступ гравців на списку (27c). Сцена й гравці до reveal бачать лише кількості (found, wrong), ведучий — ще весь список
+ * і хто що знайшов; бали (і пунктів, і рядків) — лише на reveal, бо до закриття N ще може змінитися.
+ * Іншим написанням (accepted) тут місця немає.
+ */
+function timedListInfo(state: GameState, forHost: boolean): TimedListInfo | undefined {
+  const open = currentList(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  const players = listPlayers(state, play);
+  const rows: TimedListRow[] = players.map((id) => {
+    const { found, wrong } = timedListOf(state, id);
+    const record = recordOf(state, state.questionIndex, id);
+    return {
+      playerId: id,
+      nickname: state.players.find((p) => p.id === id)?.nickname ?? '',
+      found: found.length,
+      wrong,
+      points: revealed ? (record?.points ?? 0) : null,
+    };
+  });
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => b.found - a.found);
+  const byItem = listItemPoints(state, play);
+  const items: TimedListItemView[] | null =
+    forHost || revealed
+      ? question.items.map((item, i) => ({
+          index: i + 1,
+          text: item.text,
+          finders: byItem[item.id]?.finders ?? [],
+          points: revealed ? (byItem[item.id]?.points ?? 0) : null,
+        }))
+      : null;
+  return { total: question.items.length, minus: question.minus, players: players.length, rows, items };
+}
+
+/** Власні знахідки гравця (команди) на списку; поза списком і для глядача клітинки поля — undefined. */
+function playerTimedList(state: GameState, playerId: string): PlayerTimedList | undefined {
+  const open = currentList(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  if (play.board !== undefined && play.board.chooserId !== playerId) return undefined;
+  const progress = timedListOf(state, playerId);
+  const found = progress.found.flatMap((id) => {
+    const at = question.items.findIndex((item) => item.id === id);
+    return at < 0 ? [] : [{ index: at + 1, text: question.items[at].text }];
+  });
+  const done = progress.found.length === question.items.length;
+  const canType = state.phase === 'question' && !state.paused && recordOf(state, state.questionIndex, playerId) === undefined;
+  return { found, total: question.items.length, wrong: progress.wrong, canType, done };
 }
 
 /** Поточне запитання-сортування з його грою; null поза запитанням або для інших типів. */
@@ -1992,6 +2058,7 @@ function base(state: GameState, forHost: boolean) {
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
+    ...optional('timedlist', timedListInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -2245,6 +2312,12 @@ function answeredCount(state: GameState): number {
   const answers = currentAnswers(state);
   const recorded = Object.keys(answers).filter((id) => play === undefined || !isSilentRisk(play, answers[id]));
   const answered = [...new Set([...recorded, ...held])];
+  // Список (27c): відповів, хто щось знайшов чи помилився; на клітинці поля той, хто нічого не ввів, не має запису й не рахується.
+  const list = currentList(state);
+  if (list !== null) {
+    const moved = new Set([...Object.keys(list.play.timedlist?.progress ?? {}), ...answered]);
+    return state.players.filter((p) => moved.has(p.id)).length;
+  }
   const sort = currentSort(state);
   const ladder = currentLadder(state);
   if ((sort === null && ladder === null) || !stakedPlay(play)) return answered.length;
@@ -2590,6 +2663,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
       ...optional('wordladder', playerWordLadder(state, playerId)),
+      ...optional('timedlist', playerTimedList(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),
