@@ -15,6 +15,7 @@ import type { Send } from '../live/types';
 import { publicWindowMs, questionElapsedMs, revealStage, useRevealProgress } from '../reveal';
 import { AnswerInput } from './AnswerInput';
 import { BetForm, BetResult, BetsHeader } from './BetsView';
+import { AuctionHeader, AuctionResult, BidForm } from './AuctionView';
 import { BlitzCellNotes, Board, BoardLegend } from './Board';
 import { TurnSchedule } from './TurnSchedule';
 import { BoardIntro } from './Dice';
@@ -772,7 +773,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     ((phase === 'question' && question !== null && me.answer === null) || (phase === 'leaderboard' && me.survival?.canAnswerTrial === true));
   // «Ставки» (27a): хто пропускає запитання, нічого не відповідає й не радить.
   const betsSkipping = me.bets?.status === 'late' || me.bets?.status === 'low';
-  const draftOn = !betsSkipping && (teamDraftOn || soloDraft);
+  // «Аукціон» (27b): продане запитання грає лише переможець; решта дивиться без поля відповіді.
+  const auctionWatching = me.auction?.status === 'watching' && view.auction !== undefined;
+  const draftOn = !betsSkipping && !auctionWatching && (teamDraftOn || soloDraft);
   // Хід стіни, ланцюжка (і підказка) чи етап блефу міняє відбиток відповіді на сервері: «вже надіслано» скидається.
   const draftKey = [
     view.questionIndex,
@@ -933,6 +936,13 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
+      {phase === 'wager' && me.auction !== undefined && view.auction !== undefined && (
+        <>
+          <AuctionHeader auction={view.auction} offsetMs={offsetMs} />
+          {acting ? <BidForm key={view.auction.index} auction={view.auction} mine={me.auction} send={send} /> : <p className="lead">{t('teamCaptainWager')}</p>}
+        </>
+      )}
+
       {phase === 'board' && board !== null && (
         <>
           <p className="lead">
@@ -1025,16 +1035,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {/* Підказка й голоси залу — у блоці сталої висоти, що з'являється лише з власним бафом. */}
             {activeBuff !== null && <BuffPanel active={activeBuff} question={question} offsetMs={offsetMs} />}
             {/* У фіналі й «Ставках» гравець грає на ставку: ціни за слово немає. */}
-            {isSort && view.round?.type !== 'final' && view.round?.type !== 'bets' &&<p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
+            {isSort && view.round?.type !== 'final' && view.round?.type !== 'bets' && !(view.auction !== undefined && view.auction.leader !== null) &&<p className="meta sort-points">{countText('sortPointsPerWord', question.points, { points: question.points })}</p>}
             {me.ladder?.role === 'contestant' && answersForTeam && (
               <LadderLifelines view={view} offsetMs={offsetMs} onUse={(kind) => void decideGuard.run('player:lifeline', { kind })} />
             )}
             {me.ladder?.role === 'hall' && <LadderHall view={view} />}
             {survivalGhost && <p className="lead survival-ghost-banner">{t('survivalGhostBanner')}</p>}
             {view.wipeout !== null && (phase === 'question' || phase === 'locked') && <WipeoutStrip info={view.wipeout} highlightId={me.id} />}
+            {me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
             {betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
               <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
-            ) : teamWatching ? (
+            ) : auctionWatching ? null : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
@@ -1160,6 +1171,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
           {question?.clues != null && <CluesList clues={question.clues} offsetMs={offsetMs} />}
+          {auctionWatching && me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
           {/* У ланцюжку немає однієї правильної відповіді: гравець бачить свій результат і чекає на рейтинг. */}
           {isSort ? (
             // Сортування: власний підсумок і очікування розкриття; глядач на полі бачить прогрес того, хто сортував.
@@ -1237,6 +1249,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <FinalResult view={view} />
           ) : betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
             <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
+          ) : auctionWatching && me.auction !== undefined && view.auction !== undefined ? (
+            <>
+              {/* Дивився, як відповідає переможець: його бали й правильна відповідь, а не «Ви не відповіли». */}
+              <AuctionResult auction={view.auction} mine={me.auction} />
+              {view.reveal !== null && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'pin' && view.reveal.type !== 'sort' && (
+                <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>
+              )}
+            </>
           ) : isBluff ? (
             <BluffResult view={view} />
           ) : board !== null && !chooserIsMe && view.blitz === null ? (

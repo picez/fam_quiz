@@ -2653,3 +2653,31 @@ describe('StageScreen: bets (27a)', () => {
     expect(screen.getByText('Банк: 600 · Поставили: Олена, Тарас')).toBeTruthy();
   });
 });
+
+describe('StageScreen: auction (27b)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'auction', partial: false, description: '', brief: emptyBrief('auction'), times: null };
+  const auction = (over: object = {}) => ({
+    theme: 'Столиці', index: 0, total: 2, price: 200, mode: 'step' as const, step: 100, loss: 'bid' as const, teaser: 'Яке місто', bid: 300,
+    leader: { playerId: 'p1', nickname: 'Олена' }, next: 400, endsAt: Date.now() + 5000, remainingMs: null, totalMs: 5000, open: false, result: null, ...over,
+  });
+  const secret: Question = { id: 'q9', type: 'text', text: 'Яке місто є столицею Австралії', imageUrl: null, video: null, timeLimit: 25, points: 200, accepted: ['Канберра'] };
+  const open = { ...question, type: 'text' as const, text: secret.text, choices: [] };
+  const sold = { teaser: null, next: 0, endsAt: null, bid: 400 };
+
+  it('an auction round shows the teaser while bidding and the winner after reveal', () => {
+    const { unmount, container } = show(view({ phase: 'wager', round, questionIndex: 0, auction: auction() }));
+    expect(screen.getByText('Яке місто')).toBeTruthy();
+    expect(container.textContent).not.toContain('Австралії');
+    expect(container.textContent).toContain('Олена');
+    expect(container.textContent).toContain('300');
+    unmount();
+    const second = show(view({ phase: 'reveal', round, questionIndex: 0, question: open, reveal: secret, auction: auction({ ...sold, result: { grade: 'correct', points: 600 } }) }));
+    expect(second.container.textContent).toContain('+600');
+    expect(second.container.textContent).toContain('Австралії');
+  });
+
+  it('shows who bought the question while it is open', () => {
+    show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000, auction: auction(sold) }));
+    expect(screen.getByText('Продано: Олена за 400')).toBeTruthy();
+  });
+});
