@@ -13,6 +13,7 @@ import {
   roundRulesSchema,
   blitzRulesSchema,
   type AnswerMode,
+  type AuctionRound,
   type BetsRound,
   type BlitzRound,
   type BoardCategory,
@@ -71,7 +72,7 @@ export function questionTypesFor(roundType: Round['type']): readonly QuestionTyp
     return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
-  if (roundType === 'final' || roundType === 'bets') {
+  if (roundType === 'final' || roundType === 'bets' || roundType === 'auction') {
     return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
@@ -464,6 +465,11 @@ export function newBetsRound(): BetsRound {
   return { id: newId(), type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: LIMITS.defaultBetStart, betStep: LIMITS.defaultBetStep, betMax: null, questions: [newQuestion('single')] };
 }
 
+/** Новий раунд «Аукціон»: одне запитання без обрізу, торг фіксованим кроком, помилка коштує ставки; автоматична перевірка. */
+export function newAuctionRound(): AuctionRound {
+  return { id: newId(), type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: LIMITS.defaultBidStep, loss: 'bid', questions: [newQuestion('single')] };
+}
+
 /** Нове запитання драбини «Ва-банк»: «один варіант», ціна на сотню вища за попереднє (не більше максимуму); перше — 100. */
 export function newWipeoutQuestion(after: Question | undefined): Question {
   return newBoardQuestion(after);
@@ -707,7 +713,7 @@ export function cleaned(quiz: Quiz): Quiz {
       return { ...category, title: category.title.trim(), questions: questions.slice(0, end) };
     }),
   });
-  // Обріз ставок живе лише в раунді «Ставки»: перенесене чи старе запитання його не несе.
+  // Обріз ставок живе лише в раундах «Ставки» й «Аукціон»: перенесене чи старе запитання його не несе.
   const noCut = (question: Question): Question => {
     if (question.betsCut === undefined) return question;
     const { betsCut: _cut, ...rest } = question;
@@ -721,7 +727,7 @@ export function cleaned(quiz: Quiz): Quiz {
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(noCut(cleanedQuestion(question)))) };
-      if (round.type === 'bets') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
+      if (round.type === 'bets' || round.type === 'auction') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
       if (round.type === 'survival') {
         // Для «удачі» порожні питання на виживання — просто незаповнений шаблон: вони не потрібні.
         const trials = round.trial === 'luck' ? round.trials.filter((trial) => trial.text.trim() !== '') : round.trials;
@@ -774,7 +780,7 @@ const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
@@ -1030,6 +1036,9 @@ const betsNumbersBroken = (round: BetsRound) => !wholeBet(round.betStart, 1) || 
 /** Налаштування ставок не дають зберегти: числа чи мінімум останнього запитання над найбільшою ставкою. */
 const betsSettingsBroken = (round: BetsRound) => betsNumbersBroken(round) || betsRoundIssue(round, round.questions.length) !== null;
 
+/** Крок ставки «Аукціону» поза межами 1…maxBet. Схема вимагає крок і в режимі free, тому RoundSettings при перемиканні на free повертає некоректний крок до типового. */
+const auctionNumbersBroken = (round: AuctionRound) => !wholeBet(round.bidStep, 1);
+
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */
 export function firstProblem(quiz: Quiz): ProblemPlace | null {
   const rounds = cleaned(quiz).rounds;
@@ -1049,7 +1058,8 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
     }
     // Налаштування ставок (числа, найбільша ставка) зламані: вказуємо на раунд, а не на запитання.
     if (current.type === 'bets' && betsSettingsBroken(current)) return { round, question: 0, cell: null };
-    const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || (current.type === 'bets' && q.betsCut === undefined));
+    if (current.type === 'auction' && auctionNumbersBroken(current)) return { round, question: 0, cell: null };
+    const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || ((current.type === 'bets' || current.type === 'auction') && q.betsCut === undefined));
     if (question !== -1) return { round, question, cell: null };
   }
   return null;
@@ -1226,6 +1236,10 @@ export function problemsOf(quiz: Quiz): string[] {
         problems.push(where(t('problemBetsMax', { min: betMinimum(round, round.questions.length - 1), max: round.betMax ?? 0 })));
       }
       if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemBetsCut')));
+    }
+    if (round.type === 'auction') {
+      if (auctionNumbersBroken(round)) problems.push(where(t('problemRules')));
+      if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemAuctionCut')));
     }
     if (round.type === 'wipeout') {
       if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));

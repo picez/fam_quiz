@@ -7,7 +7,8 @@ import { rollDie } from '../board-dice';
 import { cellPlayed, chooserOf } from '../board-turns';
 import { guessWord, chainOf } from '../chain';
 import { answerDuel, declareDuel, duelCategoriesLeft, duelQuestionOf, duelWindowOpen, pickDuelCategory } from '../duel';
-import { betLimit, betsMinimumNow, betsPlaying } from '../bets';
+import { betLimit, betsMinimumNow, betsPlaying, wagerLimitOf } from '../bets';
+import { auctionLeader, auctionNextNow } from '../auction';
 import { placeWager } from '../final';
 import { currentRound, recordOf, submitAnswer, tick, type GameState, type Result, type Rng } from '../game';
 import { contestantOf, decideLadder, decisionPending, ladderPlayOf } from '../ladder';
@@ -86,7 +87,7 @@ export function drive(start: GameState, options: DriveOptions): { state: GameSta
     now = Math.max(now, at);
     if (deadline !== null && deadline === at) {
       tickedTo = Math.max(tickedTo, deadline);
-      apply(tick(state, tickedTo));
+      apply(tick(state, tickedTo, rng));
     } else if (pilot !== null && pilot === at) {
       apply(pilotStep(state, now, rng));
     }
@@ -168,8 +169,8 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
   const round = currentRound(state);
   if (round?.type === 'survival' && isGhost(state, playerId)) return state;
   if (round?.type === 'wipeout' && !wipeoutIn(state).includes(playerId)) return state;
-  // «Ставки»: хто не поставив, пропускає запитання.
-  if (round?.type === 'bets' && !(betsPlaying(state) ?? []).includes(playerId)) return state;
+  // «Ставки»: хто не поставив, пропускає запитання. «Аукціон»: продане — лише переможець, непродане — усі.
+  if ((round?.type === 'bets' || round?.type === 'auction') && betsPlaying(state) !== null && !(betsPlaying(state) ?? []).includes(playerId)) return state;
   if (play.board !== undefined && play.blitz === undefined && (play.board.chooserId !== playerId || play.board.answer !== null)) return state;
   const question = play.question;
   const what = `${playerId} on ${question.id}`;
@@ -302,6 +303,13 @@ export function answerAs(config: Answering = {}): People {
         return chooser === null || cell === null || !ids.includes(chooser) ? s : act(s, pickCell(s, chooser, cell, now, () => 0), `${chooser} picks a cell`);
       }
       case 'wager': {
+        // «Аукціон»: одна ставка за запитання — найменша наступна від першого, хто може її покрити й ще не лідер; торг закриває tick.
+        if (currentRound(s)?.type === 'auction') {
+          const nextBid = auctionNextNow(s);
+          if (nextBid === null || auctionLeader(s) !== null) return s;
+          const bidder = ids.find((id) => wagerLimitOf(s, id) >= nextBid);
+          return bidder === undefined ? s : act(s, placeWager(s, bidder, nextBid, now, () => 0), `${bidder} bids`);
+        }
         // «Ставки»: мінімум тим, хто може ставити; решта не ставить. Фінал — 0.
         const minimum = currentRound(s)?.type === 'bets' ? betsMinimumNow(s) : 0;
         for (const id of ids) {

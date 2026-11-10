@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { emptyBrief, type GuidePage } from '@quiz/shared';
 import { ROUND_ICONS, ROUND_NAMES, guidePageText, lowerFirst, roundHow, typeHow, typeIcon, TYPE_ICONS } from './guide-text';
 import { buffIcon, BUFF_ICONS } from './buff-meta';
-import { activateLocaleForTests, t } from './i18n';
+import { activateLocaleForTests, errorText, t } from './i18n';
 import { roundSummary } from './round-summary';
 
 describe('guide texts', () => {
@@ -70,6 +70,21 @@ describe('bets round texts', () => {
     expect(t(ROUND_NAMES.bets)).toBe('Ставки');
     expect(ROUND_ICONS.bets).toBe('🎲');
     expect(roundHow(emptyBrief('bets'))[0]).toContain('таємна ставка');
+  });
+});
+
+describe('auction round texts', () => {
+  it('has a name, an icon and a how-it-goes line', () => {
+    expect(t(ROUND_NAMES.auction)).toBe('Аукціон');
+    expect(ROUND_ICONS.auction).toBe('🔨');
+    expect(roundHow(emptyBrief('auction'))[0]).toContain('торг');
+  });
+
+  it('refusals of a bid have texts, and a bid after the clock says the bidding is closed', () => {
+    expect(errorText('bid_low')).toBe('Ставка має бути більшою за поточну.');
+    expect(errorText('bid_over')).toBe('Більше за свої бали поставити не можна.');
+    expect(errorText('time_over:bid')).toBe('Торг уже закрито.');
+    expect(errorText('time_over')).toBe('Час на відповідь вийшов.');
   });
 });
 

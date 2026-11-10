@@ -9,10 +9,13 @@ interface Props {
   /** Скільки перших слів видно під час ставок; undefined — ще не обрано. */
   cut: number | undefined;
   onChange: (cut: number) => void;
+  /** «Ставки» (типово) чи «Аукціон»: від раунду залежать підписи. */
+  phase?: 'bets' | 'auction';
 }
 
 /** Слова тексту кнопками: «Нічого», кожне слово («обрізати після»), «Увесь текст»; під ними — що видно під час ставок. */
-export function BetsCutField({ text, cut, onChange }: Props) {
+export function BetsCutField({ text, cut, onChange, phase = 'bets' }: Props) {
+  const auction = phase === 'auction';
   const words = betsWords(text);
   const count = words.length;
   const none = cut === 0;
@@ -21,8 +24,8 @@ export function BetsCutField({ text, cut, onChange }: Props) {
   const chip = (on: boolean) => (on ? 'chip is-on' : 'chip');
   return (
     <div className="bets-cut">
-      <span className="bets-cut-label">{t('betsCutLabel')}</span>
-      <div className="type-chips bets-cut-words" role="radiogroup" aria-label={t('betsCutLabel')}>
+      <span className="bets-cut-label">{t(auction ? 'auctionCutLabel' : 'betsCutLabel')}</span>
+      <div className="type-chips bets-cut-words" role="radiogroup" aria-label={t(auction ? 'auctionCutLabel' : 'betsCutLabel')}>
         <button type="button" role="radio" aria-checked={none} className={chip(none)} onClick={() => onChange(0)}>
           {t('betsCutNone')}
         </button>
@@ -38,8 +41,8 @@ export function BetsCutField({ text, cut, onChange }: Props) {
           {t('betsCutAll')}
         </button>
       </div>
-      {shown !== null && <p className="meta bets-cut-preview">{shown === '' ? t('betsCutPreviewNone') : t('betsCutPreview', { text: shown })}</p>}
-      <p className="meta bets-cut-hidden">{t('betsCutHidden')}</p>
+      {shown !== null && <p className="meta bets-cut-preview">{shown === '' ? t(auction ? 'auctionCutPreviewNone' : 'betsCutPreviewNone') : t(auction ? 'auctionCutPreview' : 'betsCutPreview', { text: shown })}</p>}
+      <p className="meta bets-cut-hidden">{t(auction ? 'auctionCutHidden' : 'betsCutHidden')}</p>
     </div>
   );
 }

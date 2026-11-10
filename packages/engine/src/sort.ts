@@ -1,7 +1,7 @@
 import { rulesOf, type ErrorCode, type Question, type SortWordMark } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { betsRefusal, wagerRound } from './bets';
+import { betsRefusal, stakedPlay } from './bets';
 import { autoLock, fail, lockNow, ok, recordOf, revealNow, withFinalPoints, type AnswerRecord, type GameState, type Play, type Result, type SortProgress } from './game';
 import { finalPoints } from './score';
 import { limitMsOf, timeOver } from './timing';
@@ -40,9 +40,9 @@ function withProgress(state: GameState, play: Play, playerId: string, progress: 
   return withPlay(state, { ...play, sort: { ...play.sort, [playerId]: progress } });
 }
 
-/** Чи зіграно запитання в раунді зі ставками (фінал чи «Ставки»). */
-function isFinal(state: GameState, play: Play): boolean {
-  return wagerRound(state.quiz.rounds[play.roundIndex]);
+/** Чи запитання зі ставками (фінал, «Ставки», продане запитання «Аукціону»). */
+function isFinal(_state: GameState, play: Play): boolean {
+  return stakedPlay(play);
 }
 
 /** Чи зіграно запитання в бліц-раунді: перемагає перший, хто відсортував усе. */

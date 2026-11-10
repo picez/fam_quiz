@@ -164,6 +164,8 @@ export const LIMITS = {
   maxBet: 100_000,
   defaultBetStart: 200,
   defaultBetStep: 100,
+  /** «Аукціон» (27b): типовий крок ставки. */
+  defaultBidStep: 50,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -247,7 +249,7 @@ const base = {
   audio: audioSchema.optional(),
   /** Режим картинки (10b): немає — звичайна. */
   reveal: z.enum(REVEAL_MODES).optional(),
-  /** Раунд «Ставки»: скільки перших слів тексту видно під час ставок; лише в такому раунді (і там обов'язково). */
+  /** Раунди «Ставки» й «Аукціон»: скільки перших слів тексту видно під час ставок; лише в такому раунді (і там обов'язково). */
   betsCut: z.number().int().min(0).max(LIMITS.questionText).optional(),
 };
 
@@ -895,6 +897,31 @@ export const betsRoundSchema = z.object({
 
 export type BetsRound = z.infer<typeof betsRoundSchema>;
 
+/** Режими торгу «Аукціону»: фіксований крок / будь-яка сума. */
+export const AUCTION_BID_MODES = ['step', 'free'] as const;
+export type AuctionBidMode = (typeof AUCTION_BID_MODES)[number];
+/** Що втрачає переможець торгу, який помилився: ставку / ставку й ціну запитання. */
+export const AUCTION_LOSSES = ['bid', 'bid_price'] as const;
+export type AuctionLoss = (typeof AUCTION_LOSSES)[number];
+
+/** «Аукціон»: відкритий торг перед кожним запитанням; відповідає лише переможець; без ставок — запитання для всіх. */
+export const auctionRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('auction'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  shuffleOptions: z.boolean(),
+  check: z.enum(['auto', 'manual']),
+  bidMode: z.enum(AUCTION_BID_MODES),
+  /** Крок ставки; діє лише в режимі step. */
+  bidStep: z.number().int().min(1).max(LIMITS.maxBet),
+  loss: z.enum(AUCTION_LOSSES),
+  questions: z.array(questionSchema).min(1).max(LIMITS.maxQuestions),
+});
+
+export type AuctionRound = z.infer<typeof auctionRoundSchema>;
+
 /** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
 export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
 
@@ -972,7 +999,7 @@ export const ladderRoundSchema = z.object({
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'wipeout', 'survival', 'ladder'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -981,6 +1008,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   boardRoundSchema,
   finalRoundSchema,
   betsRoundSchema,
+  auctionRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
   ladderRoundSchema,
@@ -993,9 +1021,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ставках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'bets' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -1132,13 +1160,15 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'bluff')
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'bluff');
       if (bluffPlace) ctx.addIssue({ code: 'custom', message: 'bluff_place' });
-      // Словесна драбина (26c): лише класика, фінал і «Ставки»; жодної клітинки поля.
-      if (round.type !== 'classic' && round.type !== 'final' && round.type !== 'bets' && roundQuestions(round).some((q) => q.type === 'wordladder')) {
+      // Словесна драбина (26c): лише класика, фінал, «Ставки» й «Аукціон»; жодної клітинки поля.
+      if (round.type !== 'classic' && round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && roundQuestions(round).some((q) => q.type === 'wordladder')) {
         ctx.addIssue({ code: 'custom', message: 'wordladder_place' });
       }
       // «Ставки»: мінімум останнього запитання не більший за найбільшу ставку; позначка обрізу в кожному запитанні.
       if (round.type === 'bets') {
         if (betsRoundIssue(round, round.questions.length) !== null) ctx.addIssue({ code: 'custom', message: 'bets_max' });
+        if (round.questions.some((q) => q.betsCut === undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_missing' });
+      } else if (round.type === 'auction') {
         if (round.questions.some((q) => q.betsCut === undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_missing' });
       } else if ([...roundQuestions(round), ...roundTrials(round)].some((q) => q.betsCut !== undefined)) {
         ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });

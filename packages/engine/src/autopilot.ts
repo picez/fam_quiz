@@ -303,6 +303,8 @@ function moveOf(state: GameState, from: number): Move | null {
     case 'intro':
       return introMove(state, from);
     case 'wager':
+      // «Аукціон» (27b): торг закриває годинник рушія (tick / nextDeadline), «Продано» не потрібне.
+      if (currentRound(state)?.type === 'auction') return null;
       return nextAt(from + AUTOPILOT_MS.wager);
     case 'question': {
       // Запитання з таймером закриває рушій (таймер чи «відповіли всі»); без таймера — автопілот через timeLimit від старту.

@@ -16970,3 +16970,88 @@ button.wall-tile:disabled {
   color: inherit;
   padding: 0 0.15em;
 }
+
+/* ---------- «Аукціон» (27b): телефон, сцена й пульт ---------- */
+
+/* Тема, ціна, початок тексту й найбільша ставка: довгі імена й тексти переносяться на 320 px. */
+.auction-head,
+.auction-top,
+.auction-line,
+.auction-who,
+.auction-strip,
+.auction-result,
+.auction-host-text {
+  overflow-wrap: anywhere;
+}
+
+.auction-top {
+  margin: 0.25rem 0;
+  color: var(--bank);
+  font-family: var(--display);
+}
+
+/* Підпис і годинник торгу в один рядок; на вузькому екрані підпис переходить вище. */
+.auction-clock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+
+/* Кнопка кроку на всю ширину: велика ціль для швидкого дотику. */
+.auction-raise {
+  width: 100%;
+  max-width: 100%;
+}
+
+.auction-form input {
+  max-width: 100%;
+}
+
+/* Місце під причину відмови тримається завжди: її поява не зсуває кнопку. */
+.auction-error {
+  min-height: 1.4em;
+  margin: 0.25rem 0 0;
+}
+
+.auction-strip {
+  margin: 0;
+}
+
+.stage .auction-strip {
+  font-size: clamp(1.1rem, 2vw, 2rem);
+}
+
+/* Сцена: велика ставка й автор. */
+.auction-stage-bid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25em 0.75em;
+  margin: 0.5rem 0;
+  color: var(--bank);
+  font-family: var(--display);
+}
+
+.auction-stage-amount {
+  font-size: clamp(2.5rem, 7vw, 6rem);
+  line-height: 1;
+}
+
+.auction-stage-leader,
+.auction-stage-none {
+  font-size: clamp(1.4rem, 3vw, 3rem);
+  overflow-wrap: anywhere;
+}
+
+/* Пульт: рядок лідера виділено. */
+.auction-limits li.is-leader .name {
+  color: var(--bank);
+  font-weight: 700;
+}
+
+.auction-host-text {
+  margin: 0 0 0.5rem;
+}

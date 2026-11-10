@@ -183,8 +183,8 @@ function factInputOf(
       board: ref?.cell !== undefined,
       blitz: round?.type === 'blitz' || cell?.cell.kind === 'blitz',
       bluff: question.type === 'bluff',
-      // Ставки (27a) — як фінал для цікавинок: без рядка розкриття, а мовчання не відповідь.
-      final: round?.type === 'final' || round?.type === 'bets',
+      // Ставки (27a) і продане запитання «Аукціону» (27b) — як фінал для цікавинок: без рядка розкриття, а мовчання не відповідь.
+      final: round?.type === 'final' || round?.type === 'bets' || (round?.type === 'auction' && soldAuction(answers.filter((a) => a.questionIndex === index))),
     });
   });
   const finals = new Set(questions.filter((q) => q.final).map((q) => q.index));
@@ -262,6 +262,14 @@ function responsesOf(
     const away = marks.find((a) => a.participantId === participantId)?.awayMs ?? null;
     return [{ nickname, answer: null, accepted: false, buff: null, spare: null, awayMs: away, appeal: own }];
   });
+}
+
+/**
+ * Запитання «Аукціону» (27b) продано: рядок переможця несе ставку (торг починається від 1, мовчання теж має рядок).
+ * У непроданому всі рядки — звичайні відповіді з wager: null.
+ */
+function soldAuction(rows: { wager: number | null }[]): boolean {
+  return rows.some((a) => a.wager !== null);
 }
 
 /** Запитання фіналу: ставка кожного учасника з рядками на нього (мовчання теж), за турнірною таблицею. */
@@ -644,9 +652,15 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         ...(round?.type === 'wipeout' && quiz !== null ? { wipeout: wipeoutResult(quiz, row.plays, index, answers, standings) } : {}),
         ...(round?.type === 'survival' && quiz !== null ? { survival: survivalResult(quiz, row.plays, index, standings) } : {}),
         ...(round?.type === 'ladder' && quiz !== null ? { ladder: ladderResult(quiz, row.plays, index, nicknames, given) } : {}),
-        // «Ставки» ведуть ставки тими ж записами, що й фінал, лише завжди «класичними» (ставка — плюс чи мінус).
-        final: round?.type === 'final' ? finalResult(round, given, standings) : round?.type === 'bets' ? finalResult({ wagerMode: 'classic' }, given, standings) : null,
+        // «Ставки» й продане запитання «Аукціону» ведуть ставки тими ж записами, що й фінал, лише завжди «класичними» (ставка — плюс чи мінус).
+        final:
+          round?.type === 'final'
+            ? finalResult(round, given, standings)
+            : round?.type === 'bets' || (round?.type === 'auction' && soldAuction(given))
+              ? finalResult({ wagerMode: 'classic' }, given, standings)
+              : null,
         bets: round?.type === 'bets',
+        auction: round?.type === 'auction',
       },
     ];
   });

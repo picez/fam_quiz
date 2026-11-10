@@ -2,8 +2,8 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { betsRound, makeQuiz, makeRoundsQuiz, single, text, withId, wordladder } from '@quiz/engine/testing';
-import type { AckResult, ClientToServerEvents, GameView, ServerToClientEvents, SocketAuth } from '@quiz/shared';
+import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, text, withId, wordladder } from '@quiz/engine/testing';
+import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
 import { clientAddress, LOOKUPS_PER_MINUTE } from './socket';
@@ -253,6 +253,43 @@ describe('a server restart', () => {
     await until(vira, (view) => view.phase === 'question' && !view.paused);
     expect(await send(vira, 'player:answer', correct)).toEqual({ ok: false, error: 'bet_skipped' });
     expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+  }, 30_000);
+
+  it('a restored auction room keeps the leader, the bid and the clock', async () => {
+    // Точний залишок і продаж годинника, що сплив до знімка, — у manager.restore.test.ts (фейковий годинник); тут — шлях через базу й сокети.
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeRoundsQuiz([auctionRound('a', [withId(single, 'a1')])]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('wager'));
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 800 })).toEqual({ ok: true });
+    expect(await send(host, 'host:adjust', { playerId: tarasJoin.playerId, points: 500 })).toEqual({ ok: true });
+    expect(await send(taras, 'player:wager', { amount: 100 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:wager', { amount: 200 })).toEqual({ ok: true });
+
+    await first.ctx.shutdown();
+    host.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'wager' && view.paused);
+    const restored = second.ctx.manager.get(started.code)!.state;
+    expect(restored.final?.wagers).toEqual({ [olenaJoin.playerId]: 200 });
+    expect(restored.remainingMs).toBeGreaterThan(0);
+    expect(restored.remainingMs).toBeLessThanOrEqual(AUCTION_BID_MS);
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    await until(taras, (view) => view.phase === 'wager' && !view.paused);
+    // Тарас перебиває після продовження; годинник продає йому.
+    expect(await send(taras, 'player:wager', { amount: 300 })).toEqual({ ok: true });
+    await until(olena, (view) => view.phase === 'question');
+    expect(second.ctx.manager.get(started.code)?.state.plays[0].final?.wagers).toEqual({ [tarasJoin.playerId]: 300 });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'bet_skipped' });
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

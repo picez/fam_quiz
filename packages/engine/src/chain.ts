@@ -1,7 +1,7 @@
 import { rulesOf, type ChainMask, type Question } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
-import { betsPlaying, betsRefusal, wagerRound } from './bets';
+import { betsPlaying, betsRefusal, stakedPlay } from './bets';
 import { presentPlayers } from './present';
 import { autoLock, fail, ok, recordOf, withFinalPoints, type AnswerRecord, type ChainProgress, type GameState, type Play, type Result } from './game';
 import { normalizeText } from './normalize';
@@ -75,9 +75,9 @@ function withProgress(state: GameState, play: Play, playerId: string, progress: 
   return withPlay(state, { ...play, chain: { ...play.chain, [playerId]: progress } });
 }
 
-/** Чи зіграно запитання в раунді зі ставками (фінал чи «Ставки»). */
-function isFinal(state: GameState, play: Play): boolean {
-  return wagerRound(state.quiz.rounds[play.roundIndex]);
+/** Чи запитання зі ставками (фінал, «Ставки», продане запитання «Аукціону»). */
+function isFinal(_state: GameState, play: Play): boolean {
+  return stakedPlay(play);
 }
 
 function wagerOf(play: Play, playerId: string): number {

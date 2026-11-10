@@ -3418,3 +3418,33 @@ describe('HostScreen: bets (27a)', () => {
     expect(send).toHaveBeenCalledWith('host:next', undefined);
   });
 });
+
+describe('HostScreen: auction (27b)', () => {
+  const auctionRound: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'auction', partial: false, description: '', brief: emptyBrief('auction'), times: null };
+  const question: Question = { id: 'q9', type: 'text', text: 'Яке місто є столицею Австралії', imageUrl: null, video: null, timeLimit: 25, points: 200, accepted: ['Канберра'] };
+  const hostAuction = {
+    theme: 'Столиці', index: 0, total: 2, price: 200, mode: 'step' as const, step: 100, loss: 'bid' as const, teaser: 'Яке місто', bid: 300,
+    leader: { playerId: 'p1', nickname: 'Олена' }, next: 400, endsAt: Date.now() + 5000, remainingMs: null, totalMs: 5000, open: false, result: null,
+    question,
+    limits: [
+      { playerId: 'p1', nickname: 'Олена', limit: 600, canBid: false },
+      { playerId: 'p2', nickname: 'Тарас', limit: 80, canBid: false },
+    ],
+    manual: false, pending: [],
+  };
+
+  it('the host sells the auction early', () => {
+    const send = show(view({ phase: 'wager', round: auctionRound, questionIndex: 0, auction: hostAuction }));
+    expect(screen.getByText('Гравці бачать: Яке місто')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Продано' })).toHaveLength(1);
+    fireEvent.click(button('Продано'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('the host console calls the bidding stage «Торг», not «Ставки»', () => {
+    show(view({ phase: 'wager', round: auctionRound, questionIndex: 0, auction: hostAuction }));
+    const meta = document.querySelector('.meta')?.textContent ?? '';
+    expect(meta.startsWith('Торг')).toBe(true);
+    expect(meta).not.toContain('Ставки');
+  });
+});

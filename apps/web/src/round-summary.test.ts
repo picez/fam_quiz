@@ -12,6 +12,15 @@ describe('roundSummary', () => {
     expect(roundSummary({ ...emptyBrief('bets'), bets: { ...bets, betStep: 0 } })[0]).toBe('Мінімальна ставка: 200, однакова весь раунд');
   });
 
+  it('auction: the bid rule, then what a mistake costs', () => {
+    const auction = { mode: 'step' as const, step: 50, loss: 'bid' as const, count: 4 };
+    expect(roundSummary({ ...emptyBrief('auction'), auction })).toEqual(['Ставки кроком +50', 'Помилка коштує ставки']);
+    expect(roundSummary({ ...emptyBrief('auction'), auction: { ...auction, mode: 'free', loss: 'bid_price' } })).toEqual([
+      'Ставка — будь-яка сума, більша за поточну',
+      'Помилка коштує ставки й ціни запитання',
+    ]);
+  });
+
   it('a default classic round: everyone answers, faster is more', () => {
     expect(roundSummary({ ...emptyBrief('classic'), speedBonus: true })).toEqual([
       'Відповідають усі: бали отримує кожен, хто відповів правильно.',

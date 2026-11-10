@@ -4348,3 +4348,59 @@ describe('PlayerScreen bets (27a)', () => {
     expect(screen.getByText('Ставка 200: +500 з банку')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen auction (27b)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Столиці', type: 'auction', partial: false, description: '', brief: emptyBrief('auction'), times: null };
+  const auction = {
+    theme: 'Столиці', index: 0, total: 3, price: 200, mode: 'step' as const, step: 100, loss: 'bid' as const, teaser: 'Яке місто', bid: 200,
+    leader: { playerId: 'p2', nickname: 'Тарас' }, next: 300, endsAt: Date.now() + 5000, remainingMs: null, totalMs: 5000, open: false, result: null,
+  };
+  const afterSale = { ...auction, teaser: null, next: 0, endsAt: null, bid: 400 };
+  const mine = (over: object = {}) => ({ ...me, score: 600, auction: { status: 'bidding' as const, limit: 600, next: 300, canBid: true, ...over } });
+
+  it('shows the bid form on the wager phase', () => {
+    show(view({ phase: 'wager', round, auction, me: mine() }));
+    expect(screen.getByText('Найбільша ставка: 200 — Тарас')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Поставити 300' })).toBeTruthy();
+  });
+
+  it('a team member who is not the captain only watches the bidding', () => {
+    show(teamPlayerView({ phase: 'wager', round, auction, me: { ...baseMe, score: 600, auction: mine().auction } }, { captain: false, canAct: false, answerer: false, answererId: 'u1' }));
+    expect(screen.queryByRole('button', { name: 'Поставити 300' })).toBeNull();
+    expect(screen.getByText(t('teamCaptainWager'))).toBeTruthy();
+    expect(screen.getByText('Найбільша ставка: 200 — Тарас')).toBeTruthy();
+  });
+
+  it('a watching player sees the question without an answer field', () => {
+    show(onQuestion({ round, auction: afterSale, me: mine({ status: 'watching', canBid: false, next: 0 }) }));
+    expect(screen.getByText('Відповідає Тарас — запитання куплено за 400')).toBeTruthy();
+    expect(screen.getByText('Столиця України?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+    // Варіанти — лише для читання: глядач стежить за відповіддю й без сцени.
+    expect(screen.getByText(/Київ/)).toBeTruthy();
+  });
+
+  it('a watching player still sees the options once answers are closed', () => {
+    show(view({ phase: 'locked', round, questionIndex: 0, question: publicQuestion, auction: afterSale, me: mine({ status: 'watching', canBid: false, next: 0 }) }));
+    expect(screen.getByText(/Київ/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+  });
+
+  it('an unsold question is answered by everyone', () => {
+    show(onQuestion({ round, auction: { ...afterSale, bid: 0, leader: null, open: true }, me: mine({ status: 'open', canBid: false, next: 0 }) }));
+    expect(screen.getByText('Ніхто не купив — відповідають усі')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('the winner answers', () => {
+    show(onQuestion({ round, auction: { ...afterSale, leader: { playerId: 'p1', nickname: 'Олена' } }, me: mine({ status: 'winner', canBid: false, next: 0 }) }));
+    expect(screen.getByText('Ви купили запитання за 400 — відповідайте!')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it("a watching player sees the winner's points on the reveal", () => {
+    show(view({ phase: 'reveal', round, questionIndex: 0, question: publicQuestion, reveal: fullQuestion, auction: { ...afterSale, result: { grade: 'correct', points: 600 } }, me: mine({ status: 'watching', canBid: false, next: 0 }) }));
+    expect(screen.getByText('Правильно: +600')).toBeTruthy();
+    expect(screen.queryByText(t('resultNone'))).toBeNull();
+  });
+});

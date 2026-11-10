@@ -9,6 +9,7 @@ import {
   moveItem,
   newBlitzRound,
   newBoardRound,
+  newAuctionRound,
   newBetsRound,
   newFinalRound,
   newWipeoutQuestion,
@@ -172,7 +173,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -475,7 +476,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
               types={questionTypesFor(round.type)}
               clouds={cloudSources(quiz, ri, Math.min(selected, questions.length - 1))}
               allowCloud={round.type === 'classic'}
-              betsCut={round.type === 'bets'}
+              betsCut={round.type === 'bets' ? true : round.type === 'auction' ? 'auction' : false}
               onChange={(next) => setQuestions(questions.map((question, index) => (index === selected ? next : question)))}
             />
             {round.type !== 'final' && (

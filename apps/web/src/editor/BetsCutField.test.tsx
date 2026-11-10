@@ -75,3 +75,17 @@ describe('BetsCutField', () => {
     expect(screen.getByRole('radiogroup', { name: t('betsCutLabel') })).toBeTruthy();
   });
 });
+
+describe('BetsCutField in an auction', () => {
+  it('speaks of bidding, not of bets', () => {
+    render(<BetsCutField text={TEXT} cut={2} onChange={() => {}} phase="auction" />);
+    expect(screen.getByRole('radiogroup', { name: 'Що видно під час торгу' })).toBeTruthy();
+    expect(screen.getByText('Під час торгу видно: «Яке місто»')).toBeTruthy();
+    expect(screen.getByText(t('auctionCutHidden'))).toBeTruthy();
+  });
+
+  it('shows the topic-only note for an empty cut', () => {
+    render(<BetsCutField text={TEXT} cut={0} onChange={() => {}} phase="auction" />);
+    expect(screen.getByText(t('auctionCutPreviewNone'))).toBeTruthy();
+  });
+});

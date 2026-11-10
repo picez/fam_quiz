@@ -4,6 +4,7 @@ import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
+import { HostAuctionPanel } from './AuctionView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -249,8 +250,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // «Ставки»: на етапі ставок головна кнопка відкриває запитання.
   const betsWager = view.bets !== undefined && phase === 'wager';
   const betsPanel = view.bets !== undefined && (phase === 'wager' || phase === 'question' || phase === 'locked' || phase === 'reveal');
+  // «Аукціон»: на торгу головна кнопка — «Продано» (та сама host:next).
+  const auctionWager = view.auction !== undefined && phase === 'wager';
+  const auctionPanel = view.auction !== undefined && (phase === 'wager' || phase === 'question' || phase === 'locked' || phase === 'reveal');
   const main = betsWager
     ? { label: 'betsOpen' as const, event: 'host:next' as const }
+    : auctionWager
+    ? { label: 'auctionSold' as const, event: 'host:next' as const }
     : duelStage === 'declared' && (phase === 'intro' || phase === 'reveal' || phase === 'leaderboard' || phase === 'round_end')
       ? { label: 'duelStart' as const, event: 'host:next' as const }
       : phase === 'duel'
@@ -569,7 +575,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       <p className="meta">
-        {t(`phase_${phase}`)}
+        {auctionWager ? t('phaseAuctionBidding') : t(`phase_${phase}`)}
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&
@@ -852,6 +858,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.bets !== undefined && betsPanel && (
         <HostBetsPanel bets={view.bets} send={send} openButton={false} presented={view.question?.choices} onError={setError} />
+      )}
+
+      {view.auction !== undefined && auctionPanel && (
+        <HostAuctionPanel auction={view.auction} send={send} sellButton={false} presented={view.question?.choices} offsetMs={offsetMs} onError={setError} />
       )}
 
       {phase === 'wager' && final !== null && (

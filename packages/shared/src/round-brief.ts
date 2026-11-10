@@ -1,4 +1,4 @@
-import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
+import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type AuctionBidMode, type AuctionLoss, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
 
 /** Налаштування раунду, від яких залежать бали; з цього клієнт складає пояснення для гравців. */
 export interface RoundBrief {
@@ -33,9 +33,11 @@ export interface RoundBrief {
   ladder: { pick: LadderPick; lifelines: LifelineKind[]; top: number; timer: boolean } | null;
   /** «Ставки»: початок, крок і найбільша ставка (null — усі свої бали), запитань; null поза ним. */
   bets: { betStart: number; betStep: number; betMax: number | null; count: number } | null;
+  /** «Аукціон»: режим торгу, крок, що втрачає переможець, запитань; null поза ним. */
+  auction: { mode: AuctionBidMode; step: number; loss: AuctionLoss; count: number } | null;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder і bets null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets і auction null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -55,6 +57,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     survival: null,
     ladder: null,
     bets: null,
+    auction: null,
   };
 }
 
@@ -63,6 +66,9 @@ export function roundBrief(round: Round): RoundBrief {
   if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
   if (round.type === 'bets') {
     return { ...base, bets: { betStart: round.betStart, betStep: round.betStep, betMax: round.betMax, count: round.questions.length } };
+  }
+  if (round.type === 'auction') {
+    return { ...base, auction: { mode: round.bidMode, step: round.bidStep, loss: round.loss, count: round.questions.length } };
   }
   if (round.type === 'wipeout') return base;
   if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };

@@ -42,7 +42,7 @@ interface Props {
   /** Рівно стільки варіантів у «одному варіанті» (кнопок додати й прибрати немає); типово кількість вільна. */
   fixedOptions?: number;
   /** Раунд «Ставки»: під текстом вибір, скільки слів видно під час ставок. */
-  betsCut?: boolean;
+  betsCut?: boolean | 'auction';
 }
 
 interface Row {
@@ -904,7 +904,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onChange={(event) => onChange({ ...question, text: event.target.value })}
           />
         </label>
-        {betsCut && <BetsCutField text={question.text} cut={question.betsCut} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
+        {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {showHint && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>

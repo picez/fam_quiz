@@ -256,6 +256,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
   }
   // Апеляція (12f): кінець голосування залу.
   if (state.phase === 'reveal') return appealDeadline(state, now);
+  // «Аукціон» (27b): кінець торгу (поза раундом auction endsAt на wager завжди null).
+  if (state.phase === 'wager') return state.paused || state.endsAt === null || state.endsAt <= now ? null : state.endsAt;
   // Під час утримання годинник стоїть: tick нічого не змінить, доки ведучий не вирішить.
   if (state.phase !== 'question' || state.paused || state.heldAt !== null) return null;
   const away = state.board?.awaySince ?? null;

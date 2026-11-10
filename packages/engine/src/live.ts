@@ -15,7 +15,7 @@ import {
 // views.ts імпортує цей файл; цей файл views.ts не імпортує (без циклу). away.ts імпортує hostLive: цикл лише між функціями.
 import { answererOf } from './answerer';
 import { awayPeople } from './away';
-import { betsPlaying, wagerRound } from './bets';
+import { betsPlaying, stakedPlay, wagerRound } from './bets';
 import { blitzRulesOf, isInstant } from './blitz';
 import { bluffShownText } from './bluff';
 import { verdictOf } from './check';
@@ -48,7 +48,8 @@ export function spareOf(state: GameState, id: string | undefined): Question | nu
 /** Номер підказки «Хто я?», на якій дано відповідь; null — не «Хто я?», бліц і фінал. (Переїхало з views.ts.) */
 export function responseClue(state: GameState, playerId: string, timeMs: number): number | null {
   const play = state.plays[state.questionIndex];
-  if (play === undefined || play.blitz !== undefined || wagerRound(currentRound(state))) return null;
+  // Запитання зі ставками (зокрема продане «Аукціону») — без підказок; непродане «Аукціону» — як класика.
+  if (play === undefined || play.blitz !== undefined || stakedPlay(play)) return null;
   return cluesAnswered(play, questionFor(state, play, playerId), timeMs, playerId);
 }
 
@@ -190,7 +191,7 @@ function progressRow(state: GameState, play: Play, base: LiveRow, record: Answer
   if (play.question.type !== 'bluff' || bluff === undefined) {
     if (record !== undefined) return { ...base, answered: true, timeMs: record.timeMs };
     // Фінал (і «Ставки») сортування: відповів, хто зробив хоч один хід, — як answeredCount у views.ts.
-    const finalSort = play.question.type === 'sort' && wagerRound(state.quiz.rounds[play.roundIndex]);
+    const finalSort = play.question.type === 'sort' && stakedPlay(play);
     return finalSort && Object.hasOwn(play.sort ?? {}, base.id) ? { ...base, answered: true } : base;
   }
   if (state.phase === 'question' && bluff.stage === 'lies') return { ...base, answered: Object.hasOwn(bluff.lies, base.id) };
@@ -209,7 +210,7 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
   const board = play.board !== undefined && play.board.chooserId === id ? play.board : undefined;
   const voice = record === undefined && board !== undefined && board.answerMode === 'voice';
   const round = state.quiz.rounds[play.roundIndex];
-  const manualFinal = wagerRound(round) && round.check === 'manual';
+  const manualFinal = stakedPlay(play) && wagerRound(round) && round.check === 'manual';
   const base: LiveRow = {
     ...emptyRow(who, actingNickname(state, who)),
     buff: buff?.kind ?? null,
@@ -379,8 +380,9 @@ export function hostLive(state: GameState): HostLive | null {
     who = voterList(state).map(({ id, nickname }) => ({ id, nickname, connected: memberOf(state, id)?.connected ?? false, team: false }));
   } else if (round?.type === 'wipeout') {
     who = answerersOf(state, wipeoutIn(state));
-  } else if (round?.type === 'bets') {
+  } else if (round?.type === 'bets' || (round?.type === 'auction' && betsPlaying(state) !== null)) {
     // «Ставки»: відповідають лише ті, хто грає запитання; хто пропускає — не під наглядом і не в лічильнику.
+    // «Аукціон»: продане запитання — лише переможець торгу; непродане — усі (гілка нижче).
     const playing = betsPlaying(state) ?? [];
     who = answerersOf(
       state,

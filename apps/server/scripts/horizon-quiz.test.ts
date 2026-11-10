@@ -46,7 +46,7 @@ describe('the «Горизонт» quiz', () => {
 
   it('has every round type, two classic rounds, a warm-up and the new rounds right before the final', () => {
     const types = horizonQuiz.rounds.map((r) => r.type);
-    for (const type of ROUND_TYPES.filter((round) => round !== 'bets')) expect(types).toContain(type);
+    for (const type of ROUND_TYPES.filter((round) => round !== 'bets' && round !== 'auction')) expect(types).toContain(type);
     expect(types.filter((t) => t === 'classic').length).toBeGreaterThanOrEqual(2);
     expect(types.slice(-4)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
     expect(types.length).toBeLessThanOrEqual(LIMITS.maxRounds);

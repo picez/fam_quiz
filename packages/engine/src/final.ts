@@ -1,3 +1,4 @@
+import { placeBid } from './auction';
 import { presentPlayers } from './present';
 import { betsMinimumNow, openBetsQuestion, wagerLimitOf } from './bets';
 import { currentRound, fail, ok, openFinalQuestion, type GameState, type Result, type Rng } from './game';
@@ -8,12 +9,14 @@ import { currentRound, fail, ok, openFinalQuestion, type GameState, type Result,
  * Звичайна ставка знімає ва-банк. Коли поставили всі підключені гравці (і хоч один підключений), запитання відкривається.
  * «Ставки» (27a): ставка від мінімуму запитання до межі; межа нижче мінімуму — bet_skipped, поза межами — bet_range;
  * запитання відкривається, коли поставили всі присутні, хто може ставити (і такий хоч один).
+ * «Аукціон» (27b): ставка в торгу — placeBid; allIn ігнорується, торг закриває годинник чи ведучий.
  */
 export function placeWager(state: GameState, playerId: string, amount: number, now: number, rng: Rng, allIn = false): Result {
   if (state.phase !== 'wager' || state.final === null) return fail('wrong_phase');
   if (state.paused) return fail('paused');
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (currentRound(state)?.type === 'bets') return placeBet(state, playerId, amount, now, rng, allIn);
+  if (currentRound(state)?.type === 'auction') return placeBid(state, playerId, amount, now);
   const limit = wagerLimitOf(state, playerId);
   const amountToPlace = allIn ? limit : amount;
   if (!Number.isInteger(amountToPlace) || amountToPlace < 0 || amountToPlace > limit) return fail('wager_invalid');

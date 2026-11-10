@@ -2,7 +2,7 @@ import { LIMITS, type AdjustmentNotice, type AdjustmentSource } from '@quiz/shar
 // game.ts викликає цей файл, а цей файл — game.ts (так само undo.ts); обидва звертаються одне до одного лише під час виклику.
 import { undoNotice } from './undo';
 import { betLimit, betsMinimumNow } from './bets';
-import { fail, ok, withTotals, type GameState, type Result, type ScoreAdjustment } from './game';
+import { currentRound, fail, ok, withTotals, type GameState, type Result, type ScoreAdjustment } from './game';
 
 /**
  * Коригування рахунку гравця поза відповідями (бали від ведучого, пізніше — дуелі).
@@ -50,6 +50,7 @@ export function addAdjustment(
  * межа стає max(0, рахунок), а вже зроблена ставка понад неї зменшується до межі.
  * Ставка ва-банк дорівнює новій межі (і вгору, і вниз); межа 0 знімає ва-банк.
  * «Ставки» (27a): межа ще не більша за betMax; якщо вона впала нижче мінімуму запитання, ставку знято.
+ * «Аукціон» (27b): у final.wagers лише ставка лідера — вона йде за межею вниз, а межа 0 знімає лідера.
  */
 function followWagerLimit(state: GameState, playerId: string): GameState {
   if (state.phase !== 'wager' || state.final === null) return state;
@@ -57,6 +58,11 @@ function followWagerLimit(state: GameState, playerId: string): GameState {
   const limits = { ...state.final.limits, [playerId]: limit };
   const placed = state.final.wagers;
   const has = Object.hasOwn(placed, playerId);
+  // «Аукціон» (27b): ставка лідера понад нову межу зменшується до межі, межа 0 знімає лідера; годинник не чіпаємо.
+  if (currentRound(state)?.type === 'auction') {
+    if (!has || placed[playerId] <= limit) return { ...state, final: { ...state.final, limits } };
+    return { ...state, final: { ...state.final, limits, wagers: limit === 0 ? {} : { [playerId]: limit } } };
+  }
   // «Ставки»: межа нижче мінімуму — ставку знято, гравець пропускає запитання.
   const minimum = betsMinimumNow(state);
   if (has && minimum !== null && limit < minimum) {

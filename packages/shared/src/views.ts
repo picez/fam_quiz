@@ -4,7 +4,7 @@ import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
-import type { AnswerMode, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
+import type { AnswerMode, AuctionBidMode, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
@@ -799,6 +799,54 @@ export interface PlayerBets {
   canBet: boolean;
 }
 
+/** «Аукціон» (27b): для всіх ролей до продажу — лише початок тексту; ставка й лідер відкриті. */
+export interface AuctionInfo {
+  /** Тема — назва раунду (може бути порожньою). */
+  theme: string;
+  /** Номер запитання від 0 і скільки їх у раунді (на intro і leaderboard — наступного запитання). */
+  index: number;
+  total: number;
+  /** Ціна запитання k. */
+  price: number;
+  mode: AuctionBidMode;
+  step: number;
+  loss: AuctionLoss;
+  /** Лише на wager: видимий початок тексту ('' — нічого); інакше null. */
+  teaser: string | null;
+  /** wager — поточна найбільша ставка (0 — немає); question…reveal — за скільки продано (0 — не продано). */
+  bid: number;
+  /** wager — лідер; question…reveal — переможець; null — немає. */
+  leader: { playerId: string; nickname: string } | null;
+  /** Лише wager: найменша допустима наступна ставка; інакше 0. */
+  next: number;
+  /** Годинник торгу (лише wager); total — AUCTION_BID_MS, якщо є ставка, інакше AUCTION_OPEN_MS. */
+  endsAt: number | null;
+  remainingMs: number | null;
+  totalMs: number;
+  /** question…reveal: торг закрито без ставок — відповідають усі. */
+  open: boolean;
+  /** Лише reveal проданого: оцінка й бали переможця; інакше null. */
+  result: { grade: Grade; points: number } | null;
+}
+
+export interface HostAuction extends AuctionInfo {
+  /** Повне запитання k — і на wager. */
+  question: Question;
+  limits: { playerId: string; nickname: string; limit: number; canBid: boolean }[];
+  manual: boolean;
+  /** Відповіді, що чекають на ручну оцінку переможця. */
+  pending: { playerId: string; nickname: string; answer: Answer }[];
+}
+
+/** Власний стан в «Аукціоні»: на торгу bidding | leading | short (межа менша за next, але більша за 0) | none (0 балів); далі winner | watching | open. */
+export interface PlayerAuction {
+  status: 'bidding' | 'leading' | 'short' | 'none' | 'winner' | 'watching' | 'open';
+  limit: number;
+  next: number;
+  /** wager, не пауза, status bidding. */
+  canBid: boolean;
+}
+
 /** Останнє коригування від ведучого чи його скасування, для короткого сповіщення. */
 export interface AdjustmentNotice {
   seq: number;
@@ -1242,6 +1290,8 @@ interface BaseView {
   final: FinalInfo | null;
   /** «Ставки» (27a): від intro до leaderboard раунду bets; поза ним ключа немає. */
   bets?: BetsInfo;
+  /** «Аукціон» (27b): від intro до leaderboard раунду auction; поза ним ключа немає. */
+  auction?: AuctionInfo;
   /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
@@ -1446,6 +1496,8 @@ export interface PlayerView extends BaseView {
     final: { wager: number | null; limit: number; allIn: boolean } | null;
     /** «Ставки» (27a): власна ставка й статус; поза раундом bets (intro…leaderboard) ключа немає. */
     bets?: PlayerBets;
+    /** «Аукціон» (27b): власний статус торгу; поза раундом auction (intro…leaderboard) ключа немає. */
+    auction?: PlayerAuction;
     /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
     wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
     /** Власний стан у «Вибуванні»; null поза раундом. */
@@ -1655,6 +1707,8 @@ export interface HostView extends BaseView {
   final: HostFinal | null;
   /** Як у BaseView, але з повним запитанням, ставками й межами всіх. */
   bets?: HostBets;
+  /** Як у BaseView, але з повним запитанням і межами всіх. */
+  auction?: HostAuction;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
   /** Як у BaseView, але і у фіналі. */

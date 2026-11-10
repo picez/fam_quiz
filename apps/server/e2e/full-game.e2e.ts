@@ -23208,3 +23208,374 @@ async function betsGame27a() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 27b: an auction round — outbidding with a resetting clock, the host selling early, the winner right and wrong in both loss modes, nobody bidding and the score cap', async () => {
+  try {
+    await auctionGame27b();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+const es27b = es as Record<string, string>;
+
+/** Чекає моменту at (Date.now()). */
+async function until27b(at: number) {
+  const left = at - Date.now();
+  if (left > 0) await sleep(left);
+}
+
+/** Режим «фіксований крок»: одна кнопка «Поставити {amount}». */
+async function raise27b(page: Page, amount: number) {
+  await click(page, `Поставити ${amount}`);
+}
+
+/** Режим «будь-яка сума»: поле й «Поставити». Без refusal — чекає «Ваша ставка найбільша»; з refusal — рядок помилки. */
+async function bid27b(page: Page, amount: number, { refusal, dict }: { refusal?: string; dict?: Record<string, string> } = {}) {
+  await page.getByLabel(dict?.auctionBidLabel ?? 'Ставка', exact).fill(String(amount));
+  await click(page, dict?.auctionBidPlace ?? 'Поставити');
+  if (refusal === undefined) await page.locator('.auction-line').getByText('Ваша ставка найбільша', exact).waitFor();
+  else await expect.poll(() => page.locator('.auction-error').textContent(), POLL).toBe(refusal);
+}
+
+/** Список у редакторі за підписом: назва select-а з обгорткою label містить і вибраний варіант, тож getByLabel його не знаходить. */
+async function select27b(page: Page, label: string, value: string) {
+  await page.locator('label.field', { has: page.locator('span', { hasText: new RegExp(`^${label}$`) }) }).locator('select').selectOption(value);
+}
+
+async function auctionGame27b() {
+  // ── Редактор: класика без швидкості й два раунди «Аукціон» — крок +100 «лише ставку» і будь-яка сума «ставку й ціну». ──
+  const host = await open('host27b', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host27b@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Аукціон 27b');
+  await host.locator('details.rules').first().locator('summary').click();
+  await select27b(host, 'Показувати рейтинг', 'end');
+  await openRoundSettings(host);
+  await field(host, 'Бали за швидкість: швидша правильна відповідь дає більше').setChecked(false);
+  await questionText(host).fill('Яка планета найбільша?');
+  await field(host, 'Варіант 1').fill('Сатурн');
+  await field(host, 'Варіант 2').fill('Юпітер');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Бали').fill('500');
+  await click(host, 'Додати запитання');
+  await click(host, 'текст');
+  await questionText(host).fill('Столиця Франції?');
+  await field(host, 'Написання 1').fill('Париж');
+  await field(host, 'Бали').fill('300');
+
+  // Раунд А: крок +100, помилка — лише ставка.
+  await click(host, '+ Раунд');
+  await click(host, 'Аукціон');
+  await openRoundSettings(host);
+  await field(host, 'Назва раунду').fill('Молоток');
+  await select27b(host, 'Як ставлять', 'step');
+  await field(host, 'Крок ставки').fill('100');
+  await select27b(host, 'Що втрачає той, хто помилився', 'bid');
+  // А1: один варіант, видно «Яке місто».
+  await questionText(host).fill('Яке місто є столицею Австралії?');
+  await field(host, 'Варіант 1').fill('Сідней');
+  await field(host, 'Варіант 2').fill('Канберра');
+  await host.keyboard.press('Enter');
+  await host.keyboard.type('Мельбурн');
+  await host.keyboard.press('Enter');
+  await host.keyboard.type('Перт');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Бали').fill('200');
+  await host.getByRole('radio', { name: 'місто', ...exact }).click();
+  await host.getByText('Під час торгу видно: «Яке місто»', exact).waitFor();
+  // А2: так/ні, правильна «ні», нічого не видно.
+  await click(host, 'Додати запитання');
+  await click(host, 'так чи ні');
+  await questionText(host).fill('Чи є кит рибою?');
+  await click(host, 'Правильна відповідь: Ні');
+  await field(host, 'Бали').fill('300');
+  await host.getByRole('radio', { name: 'Нічого', ...exact }).click();
+  await host.getByText('Під час торгу видно лише тему раунду, номер і ціну запитання', exact).waitFor();
+  // А3: число, видно весь текст.
+  await click(host, 'Додати запитання');
+  await click(host, 'число');
+  await questionText(host).fill('Скільки ніг у павука?');
+  await field(host, 'Правильне число').fill('8');
+  await field(host, 'Бали').fill('200');
+  await host.getByRole('radio', { name: 'Увесь текст', ...exact }).click();
+
+  // Раунд Б: будь-яка сума, помилка — ставка й ціна.
+  await click(host, '+ Раунд');
+  await click(host, 'Аукціон');
+  await openRoundSettings(host);
+  await field(host, 'Назва раунду').fill('Вільний торг');
+  await select27b(host, 'Як ставлять', 'free');
+  expect(await field(host, 'Крок ставки').count(), 'the step field in the free mode').toBe(0);
+  await select27b(host, 'Що втрачає той, хто помилився', 'bid_price');
+  // Б1: текст, видно «Столиця».
+  await click(host, 'текст');
+  await questionText(host).fill('Столиця Японії?');
+  await field(host, 'Написання 1').fill('Токіо');
+  await field(host, 'Бали').fill('300');
+  await host.getByRole('radio', { name: 'Столиця', ...exact }).click();
+  // Б2: один варіант, обріз ще не вибрано.
+  await click(host, 'Додати запитання');
+  await questionText(host).fill('Який океан найбільший?');
+  await field(host, 'Варіант 1').fill('Атлантичний');
+  await field(host, 'Варіант 2').fill('Тихий');
+  await host.keyboard.press('Enter');
+  await host.keyboard.type('Індійський');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Бали').fill('400');
+
+  // Без обрізу збереження називає проблему.
+  const problem = 'Позначте, яку частину тексту видно під час торгу';
+  await click(host, 'Зберегти');
+  await host.getByText(problem).first().waitFor();
+  await shot(host, 'auction27b-editor');
+  await host.getByRole('radio', { name: 'океан', ...exact }).click();
+  await host.getByText('Під час торгу видно: «Який океан»', exact).waitFor();
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Аукціон 27b' }).waitFor();
+  expect(await host.getByText(problem).count(), 'the cut problem after choosing a cut').toBe(0);
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Аукціон 27b')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as {
+    settings: { leaderboard: string };
+    rounds: { type: string; questions: { betsCut: number; points: number }[] }[];
+  };
+  expect(stored.settings.leaderboard).toBe('end');
+  expect(stored.rounds[1]).toMatchObject({ type: 'auction', title: 'Молоток', bidMode: 'step', bidStep: 100, loss: 'bid' });
+  expect(stored.rounds[1]!.questions.map((question) => [question.betsCut, question.points])).toEqual([[2, 200], [0, 300], [LIMITS.questionText, 200]]);
+  expect(stored.rounds[2]).toMatchObject({ type: 'auction', title: 'Вільний торг', bidMode: 'free', loss: 'bid_price' });
+  expect(stored.rounds[2]!.questions.map((question) => [question.betsCut, question.points])).toEqual([[1, 300], [2, 400]]);
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Іра 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage27b', 1600, 900);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya27b', 375, 812);
+  const taras = await open('taras27b', 360, 740);
+  const ira = await open('ira27b', 360, 740);
+  const jose = await open('jose27b', 320, 640, { locale: 'es-ES' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(ira, code, 'Іра', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, ira, jose];
+  const scores = async (wanted: [string, string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // Класика: Оля правильно на обидва (800), Тарас — на перше (500), Іра — на друге (300), Хосе — ні на що (0).
+  await olya.getByRole('button', { name: /Юпітер/ }).click();
+  await taras.getByRole('button', { name: /Юпітер/ }).click();
+  await ira.getByRole('button', { name: /Сатурн/ }).click();
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await step27a(host, 'Далі');
+  await field(olya, 'Ваша відповідь').waitFor();
+  await field(olya, 'Ваша відповідь').fill('Париж');
+  await click(olya, 'Відповісти');
+  await field(taras, 'Ваша відповідь').fill('Рим');
+  await click(taras, 'Відповісти');
+  await field(ira, 'Ваша відповідь').fill('Париж');
+  await click(ira, 'Відповісти');
+  await step27a(host, 'Закрити запитання');
+  await step27a(host, 'Показати відповідь');
+  await scores(['800', '500', '300', '0']);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+
+  // ── А1 (крок +100, ціна 200): видно лише «Яке місто», торг із перебиванням. ──
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await stage.locator('.bets-stage-teaser').getByText('Яке місто', exact).waitFor();
+  await olya.locator('.bets-teaser-text').getByText('Яке місто', exact).waitFor();
+  await stage.getByText('Ціна запитання: 200', exact).waitFor();
+  await olya.getByText('Ціна запитання: 200', exact).waitFor();
+  for (const [name, page] of [['stage', stage], ['Оля', olya]] as const) {
+    const html = await page.content();
+    expect(html, `${name}: the full text during bidding`).not.toContain('Австралії');
+    expect(html, `${name}: an option during bidding`).not.toContain('Канберра');
+  }
+  await stage.locator('.auction-clock').waitFor();
+  await olya.locator('.auction-clock').waitFor();
+  // Хосе (0 балів, es): лише пояснення, без кнопки.
+  await jose.locator('.auction-line').getByText(es27b.auctionNone!, exact).waitFor();
+  expect(await jose.locator('.auction-raise').count(), 'a bid button for a player without points').toBe(0);
+  await expectNoSideScroll(jose, 'auction27b-phone-none-es-320');
+  // Кнопка кроку не вилазить на 360 і 320 px.
+  await ira.getByRole('button', { name: 'Поставити 100', ...exact }).waitFor();
+  await expectNoSideScroll(ira, 'auction27b-phone-step-360');
+  await ira.setViewportSize({ width: 320, height: 640 });
+  await expectNoSideScroll(ira, 'auction27b-phone-step-320');
+  await ira.setViewportSize({ width: 360, height: 740 });
+  await shot(olya, 'auction27b-phone-step');
+  // Тарас 100, Оля 200, Тарас 300.
+  await raise27b(taras, 100);
+  await olya.getByRole('button', { name: 'Поставити 200', ...exact }).waitFor();
+  await raise27b(olya, 200);
+  await taras.getByRole('button', { name: 'Поставити 300', ...exact }).waitFor();
+  const tarasAt = Date.now();
+  await raise27b(taras, 300);
+  await taras.locator('.auction-line').getByText('Ваша ставка найбільша', exact).waitFor();
+  expect(await taras.locator('.auction-raise').count(), 'a bid button for the leader').toBe(0);
+  await olya.getByText('Найбільша ставка: 300 — Тарас', exact).waitFor();
+  // Іра (300 балів) не переб'є 300: пояснення без кнопки.
+  await ira.locator('.auction-line').getByText('Більше за ваші бали (300) поставити не можна', exact).waitFor();
+  await shot(taras, 'auction27b-phone-leading');
+  await shot(stage, 'auction27b-stage-bidding');
+  // Пульт на торгу: повне запитання й межі всіх.
+  const panel = host.locator('.auction-host');
+  await panel.waitFor();
+  const panelText = await panel.innerText();
+  expect(panelText).toContain('Яке місто є столицею Австралії?');
+  for (const limit of ['бали 800', 'бали 500', 'бали 300', 'бали 0']) expect(panelText).toContain(limit);
+  expect(panelText).toContain('не може перебити');
+  await shot(host, 'auction27b-host-bidding');
+  // Через ~3 с Оля — 400: годинник починається знову.
+  expect(Date.now() - tarasAt, 'the checks between the bids took too long').toBeLessThan(3000);
+  await until27b(tarasAt + 3000);
+  const olyaAt = Date.now();
+  await raise27b(olya, 400);
+  await stage.locator('.auction-stage-amount').getByText('400', exact).waitFor();
+  await stage.locator('.auction-stage-leader').getByText('Оля', exact).waitFor();
+  await taras.getByText('Найбільша ставка: 400 — Оля', exact).waitFor();
+  // Через 3 с після ставки Олі (понад 5 с від ставки Тараса) торг ще йде.
+  await until27b(olyaAt + 3000);
+  expect(Date.now() - tarasAt).toBeGreaterThan(5500);
+  expect(await stage.locator('.auction-stage').count(), 'bidding on the stage 3 s after the last bid').toBe(1);
+  expect(await olya.getByRole('button', { name: /Канберра/ }).count(), 'the question opened 3 s after the last bid').toBe(0);
+  // Годинник продає сам.
+  await olya.getByRole('button', { name: /Канберра/ }).waitFor({ timeout: 8000 });
+  const closedAfter = Date.now() - olyaAt;
+  expect(closedAfter, 'the clock sold before 5 s').toBeGreaterThan(4500);
+  expect(closedAfter, 'the clock sold after 7 s').toBeLessThanOrEqual(7000);
+  for (const page of [taras, ira]) {
+    await page.locator('.auction-who').getByText('Відповідає Оля — запитання куплено за 400', exact).waitFor();
+    expect(await page.getByRole('button', { name: /Канберра/ }).count(), 'answer buttons for a watcher').toBe(0);
+  }
+  await stage.locator('.auction-strip').getByText('Продано: Оля за 400', exact).waitFor();
+  await stage.getByText('Яке місто є столицею Австралії?', exact).waitFor();
+  await shot(taras, 'auction27b-phone-watching');
+  await olya.getByRole('button', { name: /Канберра/ }).click();
+  // Відповів єдиний, хто грає: запитання закрилося само.
+  await step27a(host, 'Показати відповідь');
+  const row = stage.locator('.auction-results li');
+  await row.waitFor();
+  expect({
+    name: await row.locator('.name').textContent(),
+    stake: await row.locator('.wager-stake').textContent(),
+    delta: await row.locator('.wager-delta').textContent(),
+  }).toEqual({ name: 'Оля', stake: 'ставка 400', delta: '+600' });
+  // Кадри розкриття — після появи підсвітки правильного варіанта й картки результату.
+  if (process.env.E2E_SHOTS === '1') await sleep(1500);
+  await shot(stage, 'auction27b-stage-reveal');
+  // Переможець бачить звичайну картку результату з балами, решта — рядок «Правильно: +600».
+  await olya.locator('.result').getByText('+600', exact).waitFor();
+  await taras.locator('.auction-points').getByText('Правильно: +600', exact).waitFor();
+  await shot(olya, 'auction27b-phone-winner');
+  await scores(['1400', '500', '300', '0']);
+
+  // ── А2 (ціна 300): нічого не видно, ведучий продає одразу після ставки. ──
+  await step27a(host, 'Далі');
+  await stage.getByText('Ціна запитання: 300', exact).waitFor();
+  expect(await bodyText(stage), 'the question text during bidding').not.toContain('кит');
+  expect(await stage.locator('.bets-stage-teaser').count(), 'a teaser with a zero cut').toBe(0);
+  await taras.getByRole('button', { name: 'Поставити 100', ...exact }).waitFor();
+  const soldFrom = Date.now();
+  await raise27b(taras, 100);
+  await taras.locator('.auction-line').getByText('Ваша ставка найбільша', exact).waitFor();
+  await step27a(host, 'Продано');
+  await taras.getByRole('button', { name: 'Так', ...exact }).waitFor();
+  expect(Date.now() - soldFrom, 'the host sold before the clock').toBeLessThan(5000);
+  await taras.locator('.auction-who').getByText('Ви купили запитання за 100 — відповідайте!', exact).waitFor();
+  expect(await olya.getByRole('button', { name: 'Так', ...exact }).count(), 'yes/no for a watcher').toBe(0);
+  await click(taras, 'Так');
+  await step27a(host, 'Показати відповідь');
+  await taras.locator('.result').getByText('−100', exact).waitFor();
+  await olya.locator('.auction-points').getByText('Помилка: −100', exact).waitFor();
+  await scores(['1400', '400', '300', '0']);
+
+  // ── А3 (ціна 200): видно весь текст, ніхто не ставить, відповідають усі. ──
+  await step27a(host, 'Далі');
+  await stage.locator('.bets-stage-teaser').getByText('Скільки ніг у павука?', exact).waitFor();
+  await olya.locator('.bets-teaser-text').getByText('Скільки ніг у павука?', exact).waitFor();
+  expect(await field(olya, 'Ваша відповідь').count(), 'an answer field during bidding').toBe(0);
+  await step27a(host, 'Продано');
+  await stage.locator('.auction-strip').getByText('Ніхто не купив — відповідають усі', exact).waitFor();
+  for (const page of [olya, taras, ira]) await page.locator('.auction-who').getByText('Ніхто не купив — відповідають усі', exact).waitFor();
+  await jose.locator('.auction-who').getByText(es27b.auctionOpenAll!, exact).waitFor();
+  await shot(stage, 'auction27b-stage-open');
+  for (const [page, value] of [[olya, '8'], [taras, '8'], [ira, '6']] as const) {
+    await field(page, 'Ваша відповідь').fill(value);
+    await click(page, 'Відповісти');
+  }
+  await field(jose, es27b.yourAnswer!).fill('8');
+  await click(jose, es27b.submit!);
+  await step27a(host, 'Показати відповідь');
+  await scores(['1600', '600', '300', '200']);
+
+  // ── Б1 (будь-яка сума, ціна 300, помилка — ставка й ціна): межа ставки балами. ──
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await stage.locator('.bets-stage-teaser').getByText('Столиця', exact).waitFor();
+  for (const [name, page] of [['stage', stage], ['Іра', ira]] as const) {
+    expect(await page.content(), `${name}: the hidden word during bidding`).not.toContain('Японії');
+  }
+  await ira.getByText('Від 1 до 300', exact).waitFor();
+  await bid27b(ira, 500, { refusal: 'Більше за свої бали поставити не можна.' });
+  await shot(ira, 'auction27b-phone-free-over');
+  await expectNoSideScroll(taras, 'auction27b-phone-free-360');
+  await bid27b(ira, 150);
+  const iraAt = Date.now();
+  // Хосе (200 балів, es): 100 — уже перебили, 300 — більше за бали.
+  await jose.getByText('De 151 a 200', exact).waitFor();
+  await bid27b(jose, 100, { refusal: es27b.err_bid_low!, dict: es27b });
+  await bid27b(jose, 300, { refusal: es27b.err_bid_over!, dict: es27b });
+  await expectNoSideScroll(jose, 'auction27b-phone-free-es-320');
+  expect(Date.now() - iraAt, 'the checks between the bids took too long').toBeLessThan(4000);
+  await bid27b(taras, 250);
+  await bid27b(ira, 300);
+  // Годинник продає Ірі.
+  await ira.locator('.auction-who').getByText('Ви купили запитання за 300 — відповідайте!', exact).waitFor({ timeout: 8000 });
+  await field(ira, 'Ваша відповідь').fill('Кіото');
+  await click(ira, 'Відповісти');
+  await step27a(host, 'Показати відповідь');
+  await ira.locator('.result').getByText('−600', exact).waitFor();
+  await taras.locator('.auction-points').getByText('Помилка: −600', exact).waitFor();
+  await scores(['1600', '600', '−300', '200']);
+
+  // ── Б2 (ціна 400): Оля 1000, ведучий продає, правильно. ──
+  await step27a(host, 'Далі');
+  await stage.locator('.bets-stage-teaser').getByText('Який океан', exact).waitFor();
+  await bid27b(olya, 1000);
+  await step27a(host, 'Продано');
+  await olya.getByRole('button', { name: /Тихий/ }).click();
+  await step27a(host, 'Показати відповідь');
+  await olya.locator('.result').getByText('+1400', exact).waitFor();
+  await ira.locator('.auction-points').getByText('Правильно: +1400', exact).waitFor();
+  await scores(['3000', '600', '−300', '200']);
+
+  // ── Історія гри: покупець і непродане запитання. ──
+  await step27a(host, 'Далі');
+  await stage.getByRole('heading', { name: 'Переможці' }).waitFor();
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Аукціон 27b/ }).click();
+  const sold = host.locator('.rows.stacked > li', { hasText: 'Яке місто є столицею Австралії?' });
+  const toggle = sold.getByText(/Відповіді \(\d+\)/);
+  if ((await toggle.count()) > 0) await toggle.click();
+  await sold.getByText('Оля — куплено за 400: +600').waitFor();
+  await host.locator('.rows.stacked > li', { hasText: 'Скільки ніг у павука?' }).getByText('Ніхто не купив — відповідали всі', exact).waitFor();
+
+  expect(problems).toEqual([]);
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { blitzRound, classicRound, clues, makeQuiz, makeRoundsQuiz, single, text } from '@quiz/engine/testing';
-import { defaultTeams, SPLASH_MS, type Round } from '@quiz/shared';
+import { auctionRound, blitzRound, classicRound, clues, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
+import { AUCTION_BID_MS, defaultTeams, SPLASH_MS, type Round } from '@quiz/shared';
+import { toBetsWager } from '../testing/bets-game';
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { AUTOPILOT_EMPTY_MS, HOST_ABSENCE_MS, RoomManager, isSavedRoom, type Identity, type Room, type RoomEvent } from './manager';
@@ -506,5 +507,74 @@ describe('own-pace clues across a restart (12c)', () => {
     const back = next.restore(saved) as Room;
     next.connect(back, identity);
     expect(next.view(back, identity)?.question?.clues?.shown).toHaveLength(3);
+  });
+});
+
+describe('auction (27b)', () => {
+  /** Ведучий, Олена (800) і Тарас (500) на торгу раунду «Аукціон»: Тарас поставив 100, Олена перебила — 200. */
+  function bidding() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0);
+    const room = manager.create(makeRoundsQuiz([classicRound('r1', [single]), auctionRound('a', [withId(single, 'a1')], { shuffleOptions: true })]), 'u1', 'q1');
+    manager.connect(room, HOST);
+    const olena = manager.join(room.code, 'Олена');
+    const taras = manager.join(room.code, 'Тарас');
+    if (!olena.ok || !taras.ok) throw new Error('join');
+    for (const j of [olena, taras]) manager.connect(room, { role: 'player', playerId: j.playerId });
+    manager.host(room, { type: 'start' });
+    manager.host(room, { type: 'next' });
+    toBetsWager(manager, room, { [olena.playerId]: 800, [taras.playerId]: 500 });
+    expect(manager.wager(room, taras.playerId, 100)).toEqual({ ok: true });
+    expect(manager.wager(room, olena.playerId, 200)).toEqual({ ok: true });
+    return { scheduler, manager, room, olena, taras };
+  }
+
+  it('a restored auction room keeps the leader, the bid and the clock', () => {
+    const { scheduler, manager, room, olena, taras } = bidding();
+    scheduler.advance(AUCTION_BID_MS - 3_000);
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+
+    scheduler.advance(60_000);
+    const next = new RoomManager(scheduler, () => 0);
+    const back = next.restore(saved) as Room;
+    expect(back.state.phase).toBe('wager');
+    expect(back.state.final?.wagers).toEqual({ [olena.playerId]: 200 });
+    expect(back.state.paused).toBe(true);
+    expect(back.state.remainingMs).toBe(3_000);
+    expect(scheduler.pending()).toEqual([HOST_ABSENCE_MS]);
+
+    next.connect(back, HOST);
+    for (const j of [olena, taras]) next.connect(back, { role: 'player', playerId: j.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([3_000]);
+    // Ставка Тараса після продовження — знову 5 с від неї.
+    expect(next.wager(back, taras.playerId, 300)).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([AUCTION_BID_MS]);
+    scheduler.advance(AUCTION_BID_MS);
+    expect(back.state.phase).toBe('question');
+    expect(back.state.plays.at(-1)?.final?.wagers).toEqual({ [taras.playerId]: 300 });
+  });
+
+  it('a restored auction room whose clock ran out before the snapshot opens the question for the winner', () => {
+    const { scheduler, manager, room, olena, taras } = bidding();
+    // Старий процес зупинився до таймера: годинник торгу сплив, а запитання ще не відкрито.
+    manager.freeze();
+    scheduler.advance(AUCTION_BID_MS + 1_000);
+    const saved = viaJson(manager.snapshot(room));
+    expect(saved.state.phase).toBe('wager');
+
+    const next = new RoomManager(scheduler, () => 0);
+    const back = next.restore(saved) as Room;
+    expect(back.state.phase).toBe('question');
+    expect(back.state.paused).toBe(true);
+    expect(back.state.plays.at(-1)?.final?.wagers).toEqual({ [olena.playerId]: 200 });
+    // Продаж при підйомі тягне rng кімнати, як і таймер.
+    expect(back.state.presented).toEqual(['b', 'c', 'a']);
+    next.connect(back, HOST);
+    for (const j of [olena, taras]) next.connect(back, { role: 'player', playerId: j.playerId });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.answer(back, taras.playerId, correct)).toEqual({ ok: false, error: 'bet_skipped' });
+    expect(next.answer(back, olena.playerId, correct)).toEqual({ ok: true });
   });
 });
