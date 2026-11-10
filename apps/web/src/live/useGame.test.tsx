@@ -2,7 +2,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameView } from '@quiz/shared';
-import { RETRY_MS, useGame } from './useGame';
+import { DRAW_SNAPSHOT_WAIT_MS, DRAW_SYNC_RETRY_MS, RETRY_MS, useGame } from './useGame';
 
 const { sockets, FakeSocket } = vi.hoisted(() => {
   /** Підставний сокет: тест сам вирішує, які події прийшли із сервера. */
@@ -272,6 +272,40 @@ describe('useGame drawing (28c)', () => {
     act(() => ack({ ok: true }));
     act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 5, strokes: [] }));
     expect(result.current.drawing).toMatchObject({ rev: 5, strokes: [] });
+  });
+
+  it('the snapshot that comes before the first view is not awaited again', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    // Сервер шле знімок раніше за перший зріз.
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 3, strokes: [{ c: 1, w: 0, p: [1, 1] }] }));
+    act(() => socket.fire('state', drawingView(2, 3), meta()));
+    expect(result.current.drawing).toMatchObject({ questionIndex: 2, rev: 3 });
+    expect(syncCalls(socket)).toHaveLength(0);
+    // Зріз випередив модель — запит одразу, без очікування знімка.
+    act(() => socket.fire('state', drawingView(2, 4), meta()));
+    expect(syncCalls(socket)).toHaveLength(1);
+  });
+
+  it('without a snapshot the client asks itself after DRAW_SNAPSHOT_WAIT_MS, and retries a too_soon after DRAW_SYNC_RETRY_MS', () => {
+    renderHook(() => useGame(auth));
+    const socket = spy(sockets[0]);
+    act(() => socket.fire('state', drawingView(2, 3), meta()));
+    act(() => vi.advanceTimersByTime(DRAW_SNAPSHOT_WAIT_MS - 1));
+    expect(syncCalls(socket)).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(1));
+    expect(syncCalls(socket)).toHaveLength(1);
+    const ack = syncCalls(socket)[0]![1] as (result: { ok: false; error: string }) => void;
+    act(() => ack({ ok: false, error: 'too_soon' }));
+    act(() => vi.advanceTimersByTime(DRAW_SYNC_RETRY_MS - 1));
+    expect(syncCalls(socket)).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1));
+    expect(syncCalls(socket)).toHaveLength(2);
+    // Знімок прийшов — більше не просить.
+    act(() => (syncCalls(socket)[1]![1] as (result: { ok: true }) => void)({ ok: true }));
+    act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 3, strokes: [] }));
+    act(() => vi.advanceTimersByTime(DRAW_SNAPSHOT_WAIT_MS * 2));
+    expect(syncCalls(socket)).toHaveLength(2);
   });
 
   it('an op past a gap asks for a sync', () => {

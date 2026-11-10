@@ -157,6 +157,48 @@ describe('DrawingPad (28c)', () => {
     expect(send).toHaveBeenCalledTimes(calls);
   });
 
+  it('an ack before the model keeps the own canvas, the model that caught up replaces it', async () => {
+    vi.useFakeTimers();
+    const { send, answer } = deferred();
+    const pad = (m: DrawingModel) => <DrawingPad info={drawer} model={m} paused={false} timeUp={false} send={send} requestSync={vi.fn()} />;
+    const { rerender } = render(pad(model()));
+    const canvas = () => document.querySelector('canvas')!;
+    // Крапка: лише begin.
+    fireEvent.pointerDown(surface(), { pointerId: 1, button: 0, clientX: 40, clientY: 30 });
+    fireEvent.pointerUp(surface(), { pointerId: 1 });
+    expect(send).toHaveBeenCalledTimes(1);
+    // Ack прийшов раніше, ніж useGame перемалював модель: модель rev 0 ще без крапки — полотно не відкочується.
+    await answer({ ok: true });
+    expect(canvas().getAttribute('data-strokes')).toBe('1');
+    expect(canvas().getAttribute('data-points')).toBe('1');
+    // Наступний штрих бере правильний індекс.
+    fireEvent.pointerDown(surface(), { pointerId: 2, button: 0, clientX: 200, clientY: 150 });
+    fireEvent.pointerUp(surface(), { pointerId: 2 });
+    expect(send.mock.calls[1]![1]).toMatchObject({ op: 'begin', p: [500, 500] });
+    await answer({ ok: true });
+    expect(canvas().getAttribute('data-strokes')).toBe('2');
+    // Модель на rev 1 ще позаду (очікуємо 2) — теж не береться.
+    rerender(pad(model([{ c: 0, w: 1, p: [100, 100] }], 1)));
+    expect(canvas().getAttribute('data-strokes')).toBe('2');
+    // Модель наздогнала — полотно таке, як у сервера.
+    rerender(pad(model([{ c: 0, w: 1, p: [100, 100] }, { c: 4, w: 2, p: [7, 7, 9, 9] }], 2)));
+    expect(canvas().getAttribute('data-strokes')).toBe('2');
+    expect(canvas().getAttribute('data-points')).toBe('3');
+    // Далі — від rev 2: ще один ok-ack, і модель rev 3 береться.
+    fireEvent.click(screen.getByRole('button', { name: 'Крок назад' }));
+    await answer({ ok: true });
+    rerender(pad(model([{ c: 5, w: 0, p: [3, 3] }], 3)));
+    expect(canvas().getAttribute('data-points')).toBe('1');
+  });
+
+  it('undo and clear of an empty drawing send nothing', () => {
+    const send = vi.fn<Send>(async () => ({ ok: true as const }));
+    render(<DrawingPad info={drawer} model={model()} paused={false} timeUp={false} send={send} requestSync={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Крок назад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Очистити' }));
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('the time over stops the pen too', () => {
     const send = vi.fn<Send>(async () => ({ ok: true as const }));
     render(<DrawingPad info={drawer} model={model()} paused={false} timeUp send={send} requestSync={vi.fn()} />);

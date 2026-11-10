@@ -1802,6 +1802,21 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Художник: Оля')).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
+
+  it('28c: in a team game the own team is marked among the guessers and as the drawer', () => {
+    noCanvas();
+    const reveal: Question = { id: 'dr', type: 'drawing', text: 'Намалюйте рослину', imageUrl: null, video: null, timeLimit: 60, points: 100, accepted: ['соняшник'] };
+    const guessed = { ...drawInfo, drawerId: 'u1', drawerName: 'Іра', side: 'team-a', guessed: 1, could: 1, word: 'соняшник', guessers: [{ id: 'team-b', nickname: 'Сині', points: 100 }], drawerPoints: 100 };
+    const me = { ...baseMe, drawing: { role: 'guesser' as const, word: null, guessed: true, canDraw: false, canGuess: false, points: 100 } };
+    const { unmount } = render(<PlayerScreen view={teamPlayerView({ phase: 'reveal', questionIndex: 0, question: drawQuestion, reveal, drawing: guessed, me })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(screen.getByText('Сині', { selector: '.drawing-guessers .name' }).closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(document.querySelector('.drawing-artist')?.classList.contains('is-mine')).toBe(false);
+    unmount();
+    // Малював Петро з «Синіх»: рядок художника — свій.
+    const drew = { ...guessed, drawerId: 'u3', drawerName: 'Петро', side: 'team-b', guessers: [{ id: 'team-a', nickname: 'Червоні', points: 100 }] };
+    render(<PlayerScreen view={teamPlayerView({ phase: 'reveal', questionIndex: 0, question: drawQuestion, reveal, drawing: drew, me: { ...me, drawing: { ...me.drawing, role: 'teammate', guessed: false } } })} hostOnline offsetMs={0} send={vi.fn(async () => ({ ok: true as const }))} />);
+    expect(document.querySelector('.drawing-artist')?.classList.contains('is-mine')).toBe(true);
+  });
 });
 
 describe('PlayerScreen round facts', () => {

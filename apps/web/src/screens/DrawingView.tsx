@@ -49,9 +49,11 @@ function takeBatch(queue: Outgoing[]): DrawOp | null {
  *
  * Локальна модель: власні операції застосовуються одразу; пакет іде кожні DRAW_FLUSH_MS, у польоті — щонайбільше один
  * (begin першої точки — одразу при дотику). Модель сервера (useGame застосовує до неї й власні операції) береться,
- * лише коли художник нічого не робить: перо підняте, черга порожня, ack усіх пакетів прийшов. Сервер розсилає подію
- * раніше, ніж відповідає ack (одне з'єднання, порядок зберігається), тож тоді вона вже наздогнала — без подвоєння штрихів.
- * Будь-яка відмова ack → черга й перо скидаються, requestSync; полотно знову стає серверним.
+ * лише коли художник нічого не робить (перо підняте, черга порожня, ack усіх пакетів прийшов) і коли вона наздогнала
+ * власні операції: rev моделі ≥ rev, від якого почали, + кількість ok-ack. Сервер розсилає подію раніше за ack, але useGame
+ * лише планує рендер, тож ack буває раніше за нову модель — тоді полотно чекає, а не відкочується на кадр.
+ * Будь-яка відмова ack → черга й перо скидаються, requestSync; полотно знову стає серверним, щойно модель наздожене.
+ * «Крок назад» і «Очистити» порожнього малюнка не йдуть: сервер відповів би ok без rev, і лічильник розійшовся б.
  */
 export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: { info: PlayerDrawing; model: DrawingModel | null; paused: boolean; timeUp: boolean; send: Send; requestSync: () => void }) {
   const [strokes, setStrokes] = useState<Stroke[]>(() => model?.strokes ?? NO_STROKES);
@@ -67,6 +69,8 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
   const pen = useRef<Pen | null>(null);
   const modelNow = useRef(model);
   modelNow.current = model;
+  /** Rev, який модель сервера має наздогнати: rev узятої моделі + ok-ack операцій після неї. */
+  const expected = useRef(model?.rev ?? 0);
   const off = paused || timeUp || !info.canDraw;
   const offNow = useRef(off);
   offNow.current = off;
@@ -84,6 +88,8 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
   const follow = useCallback(() => {
     const server = modelNow.current;
     if (server === null || server.stale || pointer.current !== null || queue.current.length > 0 || inFlight.current) return;
+    if (server.rev < expected.current) return;
+    expected.current = server.rev;
     if (!sameStrokes(local.current, server.strokes)) {
       local.current = server.strokes;
       setStrokes(server.strokes);
@@ -117,6 +123,7 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
       (result) => {
         inFlight.current = false;
         if (result.ok) {
+          expected.current += 1;
           markIdle();
           return;
         }
@@ -221,7 +228,7 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
   };
 
   const command = (op: DrawOp) => {
-    if (offNow.current || pointer.current !== null) return;
+    if (offNow.current || pointer.current !== null || local.current.length === 0) return;
     show(applyDrawOp(local.current, op));
     queue.current.push({ op, index: -1 });
     setStatus('');

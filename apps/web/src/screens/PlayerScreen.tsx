@@ -365,8 +365,9 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
           <MoreLessBoard info={view.moreless} reveal me={view.me.id} />
         </>
       )}
-      {/* Малюнок (28c): слово, малюнок, хто вгадав і художник; рядок правильної відповіді нижче його лише повторив би. */}
-      {view.phase === 'reveal' && view.drawing !== undefined && <DrawingReveal info={view.drawing} strokes={strokes} me={view.me.id} />}
+      {/* Малюнок (28c): слово, малюнок, хто вгадав і художник; рядок правильної відповіді нижче його лише повторив би.
+          Вгадавші й художник — сторони (у командах — команди), тож «своє» — за командою. */}
+      {view.phase === 'reveal' && view.drawing !== undefined && <DrawingReveal info={view.drawing} strokes={strokes} me={teamOf(view)?.id ?? view.me.id} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}

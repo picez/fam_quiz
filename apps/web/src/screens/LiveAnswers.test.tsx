@@ -186,6 +186,9 @@ describe('LiveAnswers', () => {
     expect(rows).toHaveLength(2);
     expect(rows.find((text) => text.includes('Оля'))).toContain(t('drawingLive'));
     expect(rows.find((text) => text.includes('Богдан'))).toContain('Вгадано: маяк');
+    // художник не вгадує — у «Чекаємо» лише Віра
+    const waiting = [...document.querySelectorAll('.live-waiting li')].map((li) => li.textContent ?? '');
+    expect(waiting).toEqual(['Віра']);
   });
 
   it('writes the slider distance', () => {

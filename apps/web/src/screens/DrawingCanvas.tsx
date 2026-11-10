@@ -24,6 +24,14 @@ interface Painted {
 
 const colorOf = (c: number) => DRAWING_COLORS[c] ?? DRAWING_BACKGROUND;
 
+/** Штрих next починається так само, як намальований was: колір, товщина й перші points точок. */
+function sameStart(next: Stroke, was: Stroke, points: number): boolean {
+  if (next === was) return true;
+  if (next.c !== was.c || next.w !== was.w || next.p.length < points * 2) return false;
+  for (let i = 0; i < points * 2; i += 1) if (next.p[i] !== was.p[i]) return false;
+  return true;
+}
+
 /** Малює штрих від точки from (номер точки, не числа); з першої точки — і крапку, щоб штрих з однієї точки був видимий. */
 function paint(ctx: CanvasRenderingContext2D, stroke: Stroke, from: number, width: number, height: number) {
   const count = stroke.p.length / 2;
@@ -83,14 +91,15 @@ export function DrawingCanvas({ strokes, live = null, className, label }: Props)
     if (canvas === null || ctx === null) return;
     const was = painted.current;
     const last = all.length - 1;
-    // Дорисувати можна, лише коли старе не змінилося: штрихів не менше, а в останньому намальованому точок не менше.
+    // Дорисувати можна, лише коли старе не змінилося: штрихів не менше, а останній намальований — той самий штрих,
+    // що лише виріс (колір, товщина й уже намальовані точки ті самі); інакше, наприклад крок назад і новий штрих
+    // в одному рендері, старі пікселі лишилися б.
     const grows =
       was !== null &&
       was.width === width &&
       was.height === height &&
       all.length >= was.strokes &&
-      was.list.every((stroke, i) => (i < was.strokes - 1 ? all[i] === stroke : all[i]!.c === stroke.c && all[i]!.w === stroke.w)) &&
-      (was.strokes === 0 || all[was.strokes - 1]!.p.length / 2 >= was.lastPoints);
+      was.list.every((stroke, i) => (i < was.strokes - 1 ? all[i] === stroke : sameStart(all[i]!, stroke, was.lastPoints)));
     if (!grows) {
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = DRAWING_BACKGROUND;

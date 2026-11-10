@@ -76,11 +76,13 @@ export function useGame(auth: SocketAuth | null) {
     // Запитання, на якому зібрано нахили: нове запитання їх скидає.
     let tiltsAt: number | null = null;
     // Малюнок (28c). fresh — ще не було зрізу після (пере)підключення; snapshotDue — сервер от-от надішле знімок
-    // (він шле його слідом за першим зрізом), тож самому не просити; syncing — запит уже в польоті.
+    // (сервер шле його раніше за перший зріз; старий сервер — слідом), тож самому не просити; snapshotIn — знімок
+    // цього підключення вже прийшов (раніше за зріз), чекати нічого; syncing — запит уже в польоті.
     let model: DrawingModel | null = null;
     let lastView: GameView | null = null;
     let fresh = true;
     let snapshotDue = false;
+    let snapshotIn = false;
     let syncing = false;
     let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
     let syncRetry: ReturnType<typeof setTimeout> | null = null;
@@ -111,8 +113,8 @@ export function useGame(auth: SocketAuth | null) {
       lastView = next;
       if (fresh) {
         fresh = false;
-        // На «Малюнку» сервер шле знімок одразу після цього зрізу: чекаємо його, а не просимо вдруге.
-        snapshotDue = next.drawing !== undefined;
+        // На «Малюнку» сервер шле знімок разом із першим зрізом: якщо його ще немає — чекаємо, а не просимо вдруге.
+        snapshotDue = next.drawing !== undefined && !snapshotIn;
         if (snapshotDue)
           snapshotTimer = setTimeout(() => {
             snapshotTimer = null;
@@ -151,6 +153,7 @@ export function useGame(auth: SocketAuth | null) {
     });
     socket.on('drawing', (event) => {
       if (event.kind === 'sync') {
+        if (fresh) snapshotIn = true;
         snapshotDue = false;
         if (snapshotTimer !== null) clearTimeout(snapshotTimer);
         snapshotTimer = null;
@@ -191,6 +194,7 @@ export function useGame(auth: SocketAuth | null) {
       setModel(null);
       fresh = true;
       snapshotDue = false;
+      snapshotIn = false;
       syncing = false;
       if (gone) return;
       if (reason === 'io server disconnect') {

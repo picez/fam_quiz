@@ -64,6 +64,17 @@ describe('DrawingCanvas (28c)', () => {
     expect(container.querySelector('canvas')!.dataset.strokes).toBe('1');
   });
 
+  it('redraws when the last stroke was replaced by another of the same color, width and length', () => {
+    const { rerender } = render(<DrawingCanvas strokes={[line(0, 0, 0, 10, 10)]} label="Малюнок" />);
+    expect(ctx.clearRect).toHaveBeenCalledTimes(1);
+    // Крок назад і новий штрих в одному рендері (чи sync з одним штрихом): старі пікселі мусять зникнути.
+    rerender(<DrawingCanvas strokes={[line(0, 500, 500, 600, 600, 700, 700)]} label="Малюнок" />);
+    expect(ctx.clearRect).toHaveBeenCalledTimes(2);
+    // Той самий штрих, що лише виріс, — дорисовується.
+    rerender(<DrawingCanvas strokes={[line(0, 500, 500, 600, 600, 700, 700, 800, 800)]} label="Малюнок" />);
+    expect(ctx.clearRect).toHaveBeenCalledTimes(2);
+  });
+
   it('draws the live stroke on top and paints the eraser with the background', () => {
     const { container } = render(<DrawingCanvas strokes={[line(0, 0, 0, 10, 10)]} live={line(DRAWING_ERASER, 5, 5, 9, 9)} label="Малюнок" />);
     expect(container.querySelector('canvas')!.dataset.strokes).toBe('2');
