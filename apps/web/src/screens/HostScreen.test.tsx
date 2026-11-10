@@ -3440,4 +3440,11 @@ describe('HostScreen: auction (27b)', () => {
     fireEvent.click(button('Продано'));
     expect(send).toHaveBeenCalledWith('host:next', undefined);
   });
+
+  it('the host console calls the bidding stage «Торг», not «Ставки»', () => {
+    show(view({ phase: 'wager', round: auctionRound, questionIndex: 0, auction: hostAuction }));
+    const meta = document.querySelector('.meta')?.textContent ?? '';
+    expect(meta.startsWith('Торг')).toBe(true);
+    expect(meta).not.toContain('Ставки');
+  });
 });

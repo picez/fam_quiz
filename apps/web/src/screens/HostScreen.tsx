@@ -575,7 +575,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       <p className="meta">
-        {t(`phase_${phase}`)}
+        {auctionWager ? t('phaseAuctionBidding') : t(`phase_${phase}`)}
         {round !== null && round.total > 1 && (phase === 'intro' || phase === 'round_end') && `, ${t('roundOf', { index: round.index + 1, total: round.total })}`}
         {view.questionIndex >= 0 && phase !== 'intro' && phase !== 'round_end' && phase !== 'board' && phase !== 'duel' && `, ${questionLabel(round, view.questionIndex, view.total)}`}
         {phase === 'question' && board === null &&

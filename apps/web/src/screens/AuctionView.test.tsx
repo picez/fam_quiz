@@ -125,7 +125,7 @@ describe('AuctionResult', () => {
     const { rerender } = render(<AuctionResult auction={sold()} mine={mineOf({ status: 'winner', canBid: false })} />);
     expect(screen.getByText('Ви купили запитання за 400 — відповідайте!')).toBeTruthy();
     rerender(<AuctionResult auction={sold()} mine={mineOf({ status: 'watching', canBid: false })} />);
-    expect(screen.getByText('Відповідає Олена — купив за 400')).toBeTruthy();
+    expect(screen.getByText('Відповідає Олена — запитання куплено за 400')).toBeTruthy();
     rerender(<AuctionResult auction={sold({ bid: 0, leader: null, open: true })} mine={mineOf({ status: 'open', canBid: false })} />);
     expect(screen.getByText('Ніхто не купив — відповідають усі')).toBeTruthy();
   });

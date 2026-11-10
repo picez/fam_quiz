@@ -2680,4 +2680,12 @@ describe('StageScreen: auction (27b)', () => {
     show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000, auction: auction(sold) }));
     expect(screen.getByText('Продано: Олена за 400')).toBeTruthy();
   });
+
+  it('a sold question shows no answered counter, an unsold one does', () => {
+    const { container, unmount } = show(view({ phase: 'locked', round, questionIndex: 0, question: open, answeredCount: 1, playerCount: 4, auction: auction(sold) }));
+    expect(container.textContent).not.toContain('Відповіли');
+    unmount();
+    const unsold = show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000, answeredCount: 1, playerCount: 4, auction: auction({ ...sold, bid: 0, leader: null, open: true }) }));
+    expect(unsold.container.textContent).toContain('Відповіли 1 з 4');
+  });
 });

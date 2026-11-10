@@ -86,7 +86,7 @@ describe('auction views (27b)', () => {
   });
 
   it('a sort question is priced per word times words', () => {
-    const sorting = withPoints(withId(sortQ, 's1'), 10);
+    const sorting = { ...sortQ, id: 's1', points: 10 };
     expect(stageView(toBidding({}, [sorting])).auction?.price).toBe(40);
   });
 

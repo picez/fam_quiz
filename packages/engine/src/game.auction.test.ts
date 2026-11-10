@@ -225,7 +225,7 @@ describe('the auction round (27b)', () => {
   });
 
   it('a sold sort question is priced per word times words', () => {
-    const sorting = withPoints(withId(sortQ, 's1'), 10);
+    const sorting = { ...sortQ, id: 's1', points: 10 };
     const sold = sell(bid(toBidding({ bidMode: 'free' }, {}, [sorting]), [['p1', 100]]));
     let s = sold;
     for (let i = 0; i < sorting.words.length; i++) {

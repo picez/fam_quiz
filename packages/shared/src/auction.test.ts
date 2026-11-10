@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Question } from './quiz';
 import { auctionBidFits, auctionNextBid, auctionPoints, auctionPrice } from './auction';
 
 const step50 = { bidMode: 'step', bidStep: 50 } as const;
@@ -30,7 +31,10 @@ describe('auction rules (27b)', () => {
   });
 
   it('the price of a sort question is per word times words', () => {
-    expect(auctionPrice({ type: 'single', points: 200 })).toBe(200);
-    expect(auctionPrice({ type: 'sort', points: 10, words: [{}, {}, {}] })).toBe(30);
+    const base = { id: 'q', text: 'Т', imageUrl: null, video: null, timeLimit: 30, points: 10 };
+    const single: Question = { ...base, type: 'single', points: 200, options: [{ id: 'a', text: 'А' }, { id: 'b', text: 'Б' }], correctId: 'a' };
+    const sort: Question = { ...base, type: 'sort', lockSeconds: 3, categories: [{ id: 'c', text: 'К' }], words: ['a', 'b', 'c'].map((id) => ({ id, text: id, categoryId: 'c' })) };
+    expect(auctionPrice(single)).toBe(200);
+    expect(auctionPrice(sort)).toBe(30);
   });
 });

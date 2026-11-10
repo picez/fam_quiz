@@ -23459,7 +23459,7 @@ async function auctionGame27b() {
   expect(closedAfter, 'the clock sold before 5 s').toBeGreaterThan(4500);
   expect(closedAfter, 'the clock sold after 7 s').toBeLessThanOrEqual(7000);
   for (const page of [taras, ira]) {
-    await page.locator('.auction-who').getByText('Відповідає Оля — купив за 400', exact).waitFor();
+    await page.locator('.auction-who').getByText('Відповідає Оля — запитання куплено за 400', exact).waitFor();
     expect(await page.getByRole('button', { name: /Канберра/ }).count(), 'answer buttons for a watcher').toBe(0);
   }
   await stage.locator('.auction-strip').getByText('Продано: Оля за 400', exact).waitFor();
@@ -23574,7 +23574,7 @@ async function auctionGame27b() {
   const sold = host.locator('.rows.stacked > li', { hasText: 'Яке місто є столицею Австралії?' });
   const toggle = sold.getByText(/Відповіді \(\d+\)/);
   if ((await toggle.count()) > 0) await toggle.click();
-  await sold.getByText('Оля купив за 400: +600').waitFor();
+  await sold.getByText('Оля — куплено за 400: +600').waitFor();
   await host.locator('.rows.stacked > li', { hasText: 'Скільки ніг у павука?' }).getByText('Ніхто не купив — відповідали всі', exact).waitFor();
 
   expect(problems).toEqual([]);

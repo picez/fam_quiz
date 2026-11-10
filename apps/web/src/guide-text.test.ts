@@ -81,7 +81,7 @@ describe('auction round texts', () => {
   });
 
   it('refusals of a bid have texts, and a bid after the clock says the bidding is closed', () => {
-    expect(errorText('bid_low')).toBe('Вас уже перебили — ставка має бути більшою за поточну.');
+    expect(errorText('bid_low')).toBe('Ставка має бути більшою за поточну.');
     expect(errorText('bid_over')).toBe('Більше за свої бали поставити не можна.');
     expect(errorText('time_over:bid')).toBe('Торг уже закрито.');
     expect(errorText('time_over')).toBe('Час на відповідь вийшов.');

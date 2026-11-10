@@ -1045,7 +1045,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             {me.auction !== undefined && view.auction !== undefined && <AuctionResult auction={view.auction} mine={me.auction} />}
             {betsSkipping && me.bets !== undefined && view.bets !== undefined ? (
               <BetResult bets={view.bets} mine={me.bets} playerId={me.id} />
-            ) : auctionWatching ? null : teamWatching ? (
+            ) : auctionWatching ? (
+              // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
+              <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
+            ) : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
@@ -1232,7 +1235,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <>
               {/* Поле й бліц: варіанти з помаранчевою відповіддю чи позначкою ведучого лишаються до розкриття. */}
               {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
-              {question !== null && (spotlight !== null || board !== null || view.blitz !== null) && (
+              {question !== null && (spotlight !== null || board !== null || view.blitz !== null || auctionWatching) && (
                 <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={null} blink={blink} voice={voice} />
               )}
               <p className="lead">{t('waitReveal')}</p>

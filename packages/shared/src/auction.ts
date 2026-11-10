@@ -1,4 +1,4 @@
-import type { AuctionRound } from './quiz';
+import type { AuctionRound, Question } from './quiz';
 
 /** Торг відкрито: скільки мілісекунд до першої ставки (на вході в торг). */
 export const AUCTION_OPEN_MS = 15_000;
@@ -26,6 +26,6 @@ export function auctionPoints(round: Pick<AuctionRound, 'loss'>, price: number, 
 }
 
 /** Ціна запитання в «Аукціоні»: у сортуванні points — ціна за слово, тож ціна — points × кількість слів; інакше points. */
-export function auctionPrice(question: { type: string; points: number; words?: readonly unknown[] }): number {
-  return question.type === 'sort' ? question.points * (question.words?.length ?? 0) : question.points;
+export function auctionPrice(question: Question): number {
+  return question.type === 'sort' ? question.points * question.words.length : question.points;
 }

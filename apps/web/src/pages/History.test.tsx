@@ -382,7 +382,7 @@ describe('GameHistory: answers', () => {
     open('/history/g1');
     expect((await screen.findAllByText('Ніхто не купив — відповідали всі')).length).toBe(2);
     expect(screen.getAllByText(/^Відповіді \(\d\)$/)).toHaveLength(2);
-    expect(screen.queryByText(/купив за/)).toBeNull();
+    expect(screen.queryByText(/куплено за/)).toBeNull();
   });
 
   it('history answers show the buff they were given with', async () => {

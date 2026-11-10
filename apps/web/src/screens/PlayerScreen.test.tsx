@@ -4373,8 +4373,16 @@ describe('PlayerScreen auction (27b)', () => {
 
   it('a watching player sees the question without an answer field', () => {
     show(onQuestion({ round, auction: afterSale, me: mine({ status: 'watching', canBid: false, next: 0 }) }));
-    expect(screen.getByText('Відповідає Тарас — купив за 400')).toBeTruthy();
+    expect(screen.getByText('Відповідає Тарас — запитання куплено за 400')).toBeTruthy();
     expect(screen.getByText('Столиця України?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
+    // Варіанти — лише для читання: глядач стежить за відповіддю й без сцени.
+    expect(screen.getByText(/Київ/)).toBeTruthy();
+  });
+
+  it('a watching player still sees the options once answers are closed', () => {
+    show(view({ phase: 'locked', round, questionIndex: 0, question: publicQuestion, auction: afterSale, me: mine({ status: 'watching', canBid: false, next: 0 }) }));
+    expect(screen.getByText(/Київ/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Київ/ })).toBeNull();
   });
 

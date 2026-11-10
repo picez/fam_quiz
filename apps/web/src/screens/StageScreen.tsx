@@ -230,7 +230,8 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
             <AwayLabel text={stageAwayText(view.away)} />
           </span>
         )}
-        {view.board === null && (
+        {/* Продане запитання «Аукціону» грає один переможець: «Відповіли 1 з 4» нічого не каже. */}
+        {view.board === null && !(view.auction !== undefined && !view.auction.open) && (
           <span>
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
