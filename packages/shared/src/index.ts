@@ -5,6 +5,7 @@ export * from './ladder';
 export * from './bets';
 export * from './auction';
 export * from './wordladder';
+export * from './letterwords';
 export * from './round-brief';
 export * from './upgrade';
 export * from './answer';

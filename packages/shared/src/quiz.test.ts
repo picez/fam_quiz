@@ -73,6 +73,8 @@ import {
   wordLadderCheckSchema,
   wordLadderWordSchema,
   timedListWordSchema,
+  letterWordSchema,
+  letterCheckSchema,
   type Answer,
   type BoardRound,
   type Question,
@@ -2314,5 +2316,88 @@ describe('timed list question (27c)', () => {
 
   it('questionPrice of a timed list is the price of every item', () => {
     expect(questionPrice(questionSchema.parse(listQ()))).toBe(500);
+  });
+});
+
+describe('letter words question (27d)', () => {
+  const lettersQ = (patch: object = {}) => ({ id: 'lw', type: 'letterwords', text: 'Складіть слова', imageUrl: null, video: null,
+    timeLimit: 90, points: 20, set: { kind: 'fixed', letters: 'морквасті' }, goal: 'most', per: 'word', ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+
+  it('accepts a letters question with a fixed or a random set', () => {
+    expect(QUESTION_TYPES.indexOf('letterwords')).toBe(QUESTION_TYPES.indexOf('timedlist') + 1);
+    expect(qIssues(lettersQ())).toEqual([]);
+    expect(qIssues(lettersQ({ set: { kind: 'random', count: 9 } }))).toEqual([]);
+    expect(qIssues(lettersQ({ goal: 'longest', per: 'letter' }))).toEqual([]);
+    expect(issues(quizOf([round('r', [lettersQ()])]))).toEqual([]);
+  });
+
+  it('refuses bad letters, a longest goal per word, a video and too many points', () => {
+    expect(qIssues(lettersQ({ set: { kind: 'fixed', letters: 'abc' } }))).toContain('letterwords_letters');
+    expect(qIssues(lettersQ({ set: { kind: 'fixed', letters: 'кіт' } }))).toContain('letterwords_letters');
+    expect(qIssues(lettersQ({ goal: 'longest', per: 'word' }))).toContain('letterwords_per');
+    expect(qIssues(lettersQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('letterwords_video');
+    expect(qIssues(lettersQ({ points: 1000, per: 'letter' }))).toContain('letterwords_points');
+    expect(valid(questionSchema, lettersQ({ set: { kind: 'random', count: 3 } }))).toBe(false);
+    expect(valid(questionSchema, lettersQ({ set: { kind: 'random', count: 13 } }))).toBe(false);
+  });
+
+  it('letters questions play in classic rounds and normal phone cells only', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [lettersQ({ id: 'lb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [lettersQ({ id: 'lf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...lettersQ({ id: 'lbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...lettersQ({ id: 'lau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [lettersQ({ id: 'lw2' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    expect(issues(quizOf([round('r', [lettersQ()])]))).toEqual([]);
+    expect(issues(quizOf([board(lettersQ())]))).toEqual([]);
+    for (const bad of [blitzRound, final, bets, auction, wipeout]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('letterwords_place');
+    }
+    expect(issues(withCell(lettersQ(), { kind: 'blitz' }))).toContain('letterwords_place');
+    expect(issues(withCell(lettersQ(), { answerMode: 'voice' }))).toContain('letterwords_place');
+    expect(issues(quizOf([board(lettersQ(), { answerMode: 'voice' })]))).toContain('letterwords_place');
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single, orderSpare])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('letterwords');
+  });
+
+  it('answerSchema never accepts a letters summary; the event is limited', () => {
+    expect(valid(answerSchema, { type: 'letterwords', words: ['морква'], longest: 6 })).toBe(false);
+    expect(valid(letterWordSchema, { word: 'морква' })).toBe(true);
+    expect(valid(letterWordSchema, { word: 'я'.repeat(31) })).toBe(false);
+    expect(valid(letterWordSchema, {})).toBe(false);
+    expect(valid(letterCheckSchema, { letters: 'морквасті' })).toBe(true);
+    expect(valid(letterCheckSchema, { letters: 'я'.repeat(41) })).toBe(false);
+  });
+
+  it('questionPrice of letters is a guide for the board', () => {
+    expect(questionPrice(questionSchema.parse(lettersQ({ goal: 'longest', per: 'letter', points: 10 })))).toBe(70);
+    expect(questionPrice(questionSchema.parse(lettersQ()))).toBe(200);
+    expect(questionPrice(questionSchema.parse(lettersQ({ per: 'letter', points: 10 })))).toBe(400);
   });
 });

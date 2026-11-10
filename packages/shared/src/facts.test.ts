@@ -437,6 +437,11 @@ describe('in-game facts (12d)', () => {
     expect(factLimitMs(list, { type: 'classic' } as Round, false)).toBeNull();
   });
 
+  it('a letters question has no answer window', () => {
+    const letters = { id: 'lw', type: 'letterwords', text: 'Слова', imageUrl: null, video: null, timeLimit: 90, points: 20, set: { kind: 'random', count: 9 }, goal: 'most', per: 'word' } as unknown as Question;
+    expect(factLimitMs(letters, { type: 'classic' } as Round, false)).toBeNull();
+  });
+
   it('bluffFact reads a bluff payload and ignores the rest', () => {
     const bluff: Answer = { type: 'bluff', lie: 'Мадрид', pick: 'Барселона', truth: true, fooled: 2 };
     expect(bluffFact(bluff)).toEqual({ pick: true, truth: true, fooled: 2 });

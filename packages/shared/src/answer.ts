@@ -98,7 +98,14 @@ export interface TimedListAnswer {
   wrong: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer;
+/** Підсумок «Слів з літер» гравця (команди); складає рушій, з телефона не приходить. words — ключі в порядку знахідок, longest — літер у найдовшому. */
+export interface LetterWordsAnswer {
+  type: 'letterwords';
+  words: string[];
+  longest: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {
