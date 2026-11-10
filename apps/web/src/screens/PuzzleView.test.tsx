@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { generateSudoku, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleBoardView, type PuzzleInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
 import { PUZZLE_FLUSH_MS } from '../live/usePuzzleBoard';
-import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid } from './PuzzleView';
+import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid, puzzlePageSize } from './PuzzleView';
 
 const base: Omit<PublicQuestion, 'type' | 'puzzle'> = {
   text: 'Розв’яжіть',
@@ -51,6 +51,7 @@ const crossword: PublicQuestion = { ...base, type: 'crossword', timeLimit: 240, 
 const mineOf = (size: number, over: Partial<PlayerPuzzle> = {}): PlayerPuzzle => ({
   cells: new Array<string>(size).fill(''),
   mask: '0'.repeat(size),
+  members: [],
   done: false,
   canEdit: true,
   seq: 0,
@@ -165,9 +166,16 @@ describe('SudokuPlay', () => {
     const cells = new Array<string>(36).fill('');
     cells[emptyAt] = '2';
     const mask = givens.split('').map((ch, i) => (ch !== '0' ? 'g' : i === emptyAt ? '2' : '0')).join('');
-    render(<SudokuPlay info={mineOf(36, { cells, mask })} question={sudoku} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} members={['Олена', 'Тарас']} />);
-    expect(sudokuCell(emptyAt).classList.contains('by-2')).toBe(true);
-    expect(screen.getByText('Тарас').closest('li')?.querySelector('.by-2')).not.toBeNull();
+    const members = [{ id: 'u1', nickname: 'Олена', tone: 1 }, { id: 'u3', nickname: 'Тарас', tone: 3 }];
+    const gone = empties.find((i) => i !== emptyAt)!;
+    cells[gone] = '4';
+    const marked = [...mask].map((ch, i) => (i === gone ? 'x' : i === emptyAt ? '3' : ch)).join('');
+    render(<SudokuPlay info={mineOf(36, { cells, mask: marked, members })} question={sudoku} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    // Колір — tone учасника з сервера (місце в команді на відкритті), а не позиція в легенді.
+    expect(sudokuCell(emptyAt).classList.contains('by-3')).toBe(true);
+    expect(screen.getByText('Тарас').closest('li')?.querySelector('.by-3')).not.toBeNull();
+    // Учасника вже немає: окрема позначка, не колір 9-го.
+    expect(sudokuCell(gone).classList.contains('by-x')).toBe(true);
   });
 });
 
@@ -202,6 +210,32 @@ describe('CrosswordPlay', () => {
     expect(crosswordCell(1).textContent).toContain('и');
     fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
     expect(crosswordCell(1).textContent).not.toContain('и');
+  });
+
+  it('a keyboard composition writes each letter once, at its end; a replaced placeholder writes, not erases', () => {
+    vi.useFakeTimers();
+    const { send } = deferred();
+    render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={send} />);
+    fireEvent.click(crosswordCell(0));
+    // Клавіатура з передбаченням тримає композицію: проміжні значення поля нічого не пишуть.
+    fireEvent.compositionStart(input());
+    fireEvent.change(input(), { target: { value: '​л' } });
+    fireEvent.change(input(), { target: { value: '​ли' } });
+    expect(crosswordCell(0).textContent).not.toContain('л');
+    fireEvent.compositionEnd(input(), { data: 'ли' });
+    expect(crosswordCell(0).textContent).toContain('л');
+    expect(crosswordCell(1).textContent).toContain('и');
+    expect(crosswordCell(2).getAttribute('aria-pressed')).toBe('true');
+    // Після композиції поле знову — лише заглушка: подія input, що йде слідом, нічого не дописує.
+    expect(input().value).toBe('​');
+    fireEvent.change(input(), { target: { value: '​' } });
+    expect(crosswordCell(2).textContent).not.toContain('и');
+    // Клавіатура замінила заглушку літерою: це вписування, а не стирання.
+    fireEvent.change(input(), { target: { value: 'с' } });
+    expect(crosswordCell(2).textContent).toContain('с');
+    expect(crosswordCell(1).textContent).toContain('и');
+    wait(PUZZLE_FLUSH_MS);
+    expect(send).toHaveBeenCalledWith('player:puzzle', { questionIndex: 0, cells: [{ i: 0, v: 'л' }, { i: 1, v: 'и' }, { i: 2, v: 'с' }] });
   });
 
   it('a second tap on a crossing turns the direction', () => {
@@ -284,6 +318,8 @@ const boardOf = (over: Partial<PuzzleBoardView> = {}): PuzzleBoardView => ({
   playerId: 'p1',
   nickname: 'Олена',
   mask: givens.split('').map((ch) => (ch === '0' ? '0' : 'g')).join(''),
+  tone: 1,
+  members: [],
   filled: 0,
   total: empties.length,
   done: false,
@@ -321,9 +357,9 @@ describe('PuzzleBoards', () => {
 
   it('a team grid colours each cell by its filler and names the members', () => {
     const mask = givens.split('').map((ch, i) => (ch !== '0' ? 'g' : i === empties[0] ? '1' : i === empties[1] ? '2' : '0')).join('');
-    const info: PuzzleInfo = { kind: 'sudoku', boards: [boardOf({ playerId: 'team-b', nickname: 'Сині', mask, filled: 2 })], solution: null };
-    const teams = [{ id: 'team-b', name: 'Сині', color: 1, captainId: 'u2', answererId: 'u2', members: [{ id: 'u2', nickname: 'Оля', connected: true }, { id: 'u3', nickname: 'Петро', connected: true }] }];
-    render(<PuzzleBoards info={info} puzzle={sudoku.puzzle!} reveal={false} teams={teams} />);
+    const members = [{ id: 'u2', nickname: 'Оля', tone: 1 }, { id: 'u3', nickname: 'Петро', tone: 2 }];
+    const info: PuzzleInfo = { kind: 'sudoku', boards: [boardOf({ playerId: 'team-b', nickname: 'Сині', mask, filled: 2, tone: 0, members })], solution: null };
+    render(<PuzzleBoards info={info} puzzle={sudoku.puzzle!} reveal={false} />);
     const cells = document.querySelectorAll('.puzzle-thumb-cell');
     expect(cells[empties[0]].classList.contains('by-1')).toBe(true);
     expect(cells[empties[1]].classList.contains('by-2')).toBe(true);
@@ -343,11 +379,28 @@ describe('PuzzleBoards', () => {
     vi.useFakeTimers();
     const boards = Array.from({ length: 45 }, (_, n) => boardOf({ playerId: `p${n}`, nickname: `Гравець ${n + 1}` }));
     render(<PuzzleBoards info={{ kind: 'sudoku', boards, solution: null }} puzzle={sudoku.puzzle!} reveal={false} />);
-    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(40);
+    // Сторінки рівні: 45 = 23 + 22, а не 40 + 5.
+    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(23);
     expect(screen.getByText('Гравець 1')).toBeTruthy();
     act(() => vi.advanceTimersByTime(PUZZLE_PAGE_MS));
-    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(5);
+    expect(document.querySelectorAll('.puzzle-thumb')).toHaveLength(22);
     expect(screen.getByText('Гравець 45')).toBeTruthy();
+    expect(puzzlePageSize(40, false)).toBe(40);
+    expect(puzzlePageSize(41, false)).toBe(21);
+    expect(puzzlePageSize(81, false)).toBe(27);
+    expect(puzzlePageSize(24, true)).toBe(24);
+    expect(puzzlePageSize(25, true)).toBe(13);
+  });
+
+  it('a solo colour comes from the board, the same on every page', () => {
+    vi.useFakeTimers();
+    const boards = Array.from({ length: 42 }, (_, n) => boardOf({ playerId: `p${n}`, nickname: `Гравець ${n + 1}`, tone: (n % 9) + 1 }));
+    render(<PuzzleBoards info={{ kind: 'sudoku', boards, solution: null }} puzzle={sudoku.puzzle!} reveal={false} />);
+    const toneOf = (name: string) => [...(screen.getByText(name).closest('li')?.classList ?? [])].find((c) => c.startsWith('by-'));
+    expect(toneOf('Гравець 1')).toBe('by-1');
+    act(() => vi.advanceTimersByTime(PUZZLE_PAGE_MS));
+    expect(toneOf('Гравець 22')).toBe(`by-${(21 % 9) + 1}`);
+    expect(toneOf('Гравець 42')).toBe(`by-${(41 % 9) + 1}`);
   });
 
   it('the host sees the values live', () => {
@@ -408,5 +461,24 @@ describe('puzzle styles', () => {
     expect(section).toMatch(/\.sudoku-grid \{[^}]*grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
     expect(section).toMatch(/\.crossword-grid \{[^}]*grid-template-columns:\s*repeat\(var\(--cols\),\s*minmax\(0,\s*1fr\)\)/);
     expect(section).toMatch(/\.crossword-input \{[^}]*font-size:\s*1rem/);
+  });
+
+  it('a 12-column crossword keeps 24 px cells at 320 px: the board takes the side padding', () => {
+    // 320 px − по 4 px від краю = 312 px; 12 стовпців з проміжком 1 px — (312 − 11) / 12 ≈ 25 px (у полях сторінки було б ≈ 22 px).
+    const narrow = section.match(/@media \(max-width: 480px\)[^{]*\{\s*\.crossword-board \{([^}]*)\}/);
+    expect(narrow).not.toBeNull();
+    expect(narrow![1]).toMatch(/width:\s*calc\(100% \+ 2 \* var\(--app-pad\) - 0\.5rem\)/);
+    expect(narrow![1]).toMatch(/margin-inline:\s*calc\(0\.25rem - var\(--app-pad\)\)/);
+    const cell = (320 - 8 - 11) / 12;
+    expect(cell).toBeGreaterThanOrEqual(24);
+  });
+
+  it('the timer total stays on one line (/120 s on a 360 px phone)', () => {
+    expect(css).toMatch(/\.timer-total,\n\.timer-label::after \{[^}]*white-space:\s*nowrap/);
+  });
+
+  it('own sudoku digits are not in the accent red', () => {
+    expect(section).toMatch(/\.sudoku-cell \{[^}]*color:\s*var\(--by, var\(--puzzle-ink\)\)/);
+    expect(section).not.toMatch(/\.sudoku-cell \{[^}]*color:\s*var\(--by, var\(--amber\)\)/);
   });
 });

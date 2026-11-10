@@ -696,8 +696,6 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // «Слова з літер» (27d) — так само.
   const debuffHere = answersForTeam || ((question?.type === 'timedlist' || question?.type === 'letterwords') && acting);
   const debuff = debuffHere ? me.debuff : null;
-  // «Головоломки» (28d): учасники команди в її порядку — кольори «хто вписав» на спільній сітці.
-  const puzzleMembers = team !== null ? teamOf(view)?.members.map((member) => member.nickname) : undefined;
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
   // «Вибування»: привид відповідає «для себе».
@@ -759,6 +757,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Бафи: власний кінець (з додатковим часом — особистий) гасить ряд; спільний кінець показує, на кого чекає розкриття.
   const myClock = me.overtime !== null ? { endsAt: me.overtime.deadline, remainingMs: me.overtime.remainingMs } : null;
   const buffTimeOver = useTimeOver(myClock?.endsAt ?? view.endsAt, myClock !== null ? myClock.remainingMs : view.remainingMs, offsetMs);
+  // «Головоломки» (28d): кінець часу за годинником телефона — правки в останнє вікно пакета йдуть одразу.
+  const puzzleEnd = myClock?.endsAt ?? view.endsAt;
+  const puzzleDeadline = puzzleEnd === null ? null : puzzleEnd - offsetMs;
   // «Більше чи менше» на locked: «Час вийшов» лише коли справді сплив час, інакше — «Запитання закрито».
   const ranOut = useTimeRanOut(view.questionIndex, phase, myClock?.endsAt ?? view.endsAt, offsetMs);
   // Аркуш — лише поки сама кнопка «Підглянути» готова (peekable може бути непорожнім і при заблокованому бафі) і час не вийшов.
@@ -1119,7 +1120,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Головоломки (28d): у команді одна спільна сітка, вписує будь-хто; кольори — хто з учасників що вписав.
               me.puzzle !== undefined && (
                 <>
-                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} members={puzzleMembers} />
+                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} />
                   {/* Чужі сітки на телефоні не показуються (місце): лише скільки вже натиснули «Готово». */}
                   {view.puzzle !== undefined && (
                     <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
@@ -1336,7 +1337,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
             <section className="sent">
               <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
-              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} members={puzzleMembers} />
+              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">

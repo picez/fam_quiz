@@ -1565,8 +1565,8 @@ describe('HostScreen puzzles (28d)', () => {
   const info: PuzzleInfo = {
     kind: 'sudoku',
     boards: [
-      { playerId: 'p1', nickname: 'Олена', mask, filled: 2, total: empties.length, done: true, last: empties[1], cells, solved: null, points: null },
-      { playerId: 'p2', nickname: 'Тарас', mask: givens.split('').map((ch) => (ch !== '0' ? 'g' : '0')).join(''), filled: 0, total: empties.length, done: false, last: null, cells: new Array<string>(36).fill(''), solved: null, points: null },
+      { playerId: 'p1', nickname: 'Олена', mask, tone: 1, members: [], filled: 2, total: empties.length, done: true, last: empties[1], cells, solved: null, points: null },
+      { playerId: 'p2', nickname: 'Тарас', mask: givens.split('').map((ch) => (ch !== '0' ? 'g' : '0')).join(''), tone: 2, members: [], filled: 0, total: empties.length, done: false, last: null, cells: new Array<string>(36).fill(''), solved: null, points: null },
     ],
     solution: values,
   };
@@ -1592,6 +1592,23 @@ describe('HostScreen puzzles (28d)', () => {
     const thumb = document.querySelectorAll('.host-puzzle .puzzle-thumb')[0];
     expect(thumb.querySelectorAll('.puzzle-thumb-cell')[empties[0]].textContent).toBe(values[empties[0]]);
     expect(document.querySelector('.host-puzzle .puzzle-solution')).not.toBeNull();
+  });
+
+  it('a crossword shows its answer like a sudoku: in the solution panel, not as a «correct answer» line', () => {
+    const crossQ = {
+      id: 'c1', type: 'crossword' as const, text: 'Кросворд', imageUrl: null, video: null, timeLimit: 240, points: 300, mode: 'full' as const, key: null,
+      entries: [{ id: 'a', answer: 'лис', clue: 'Руда хитрунка' }, { id: 'b', answer: 'липа', clue: 'Дерево' }],
+      layout: { width: 3, height: 4, words: [{ id: 'a', row: 0, col: 0, dir: 'across' as const }, { id: 'b', row: 0, col: 0, dir: 'down' as const }], keyCells: [] },
+    } satisfies Question;
+    const letters = ['л', 'и', 'с', 'и', '', '', 'п', '', '', 'а', '', ''];
+    const puzzle = {
+      kind: 'crossword' as const, mode: 'full' as const, width: 3, height: 4, mask: '111100100100', keyCells: [],
+      words: [{ number: 1, row: 0, col: 0, dir: 'across' as const, length: 3, clue: 'Руда хитрунка' }, { number: 1, row: 0, col: 0, dir: 'down' as const, length: 4, clue: 'Дерево' }],
+    };
+    const crossInfo: PuzzleInfo = { kind: 'crossword', boards: [{ playerId: 'p1', nickname: 'Олена', mask: '000000000000'.split('').map((_, i) => (letters[i] === '' ? '#' : '0')).join(''), tone: 1, members: [], filled: 0, total: 6, done: false, last: null, cells: new Array<string>(12).fill(''), solved: null, points: null }], solution: letters };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 1, answeredCount: 0, question: { ...publicOf(single), type: 'crossword', choices: [], puzzle }, correct: crossQ, endsAt: Date.now() + 60_000, puzzle: crossInfo }));
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(document.querySelector('.host-puzzle .puzzle-solution .puzzle-words')?.textContent).toContain('ЛИС');
   });
 });
 

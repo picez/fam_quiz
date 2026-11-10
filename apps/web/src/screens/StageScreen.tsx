@@ -499,7 +499,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
               <PuzzleSolution puzzle={question.puzzle} solution={view.puzzle.solution} />
             </div>
           )}
-          <PuzzleBoards info={view.puzzle} puzzle={question.puzzle} reveal={view.phase === 'reveal'} teams={view.teams?.teams ?? null} />
+          <PuzzleBoards info={view.puzzle} puzzle={question.puzzle} reveal={view.phase === 'reveal'} />
         </section>
       )}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}

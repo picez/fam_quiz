@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { crosswordCells, crosswordLetter, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type Question, type TeamView } from '@quiz/shared';
+import { useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { crosswordCells, crosswordLetter, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
@@ -26,8 +26,8 @@ export interface PuzzlePlayProps {
   /** Запитання закрив сервер (locked): сітка лише для перегляду, рядок стану — у батька. */
   closed?: boolean;
   send: Send;
-  /** Командна гра: нікнейми учасників у порядку команди — кольори «хто вписав» (маска '1'…'9'). */
-  members?: string[];
+  /** Кінець часу за годинником телефона (endsAt мінус зсув сервера): правки в останнє вікно пакета йдуть одразу. */
+  deadline?: number | null;
 }
 
 /** Поле, де клавіші належать самому полю. */
@@ -35,10 +35,11 @@ function typing(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
 }
 
-/** Клас кольору учасника, що вписав клітинку (лише в команді). */
-function byClass(mask: string, i: number, members: string[] | undefined): string {
+/** Клас кольору учасника, що вписав клітинку (лише в команді з кількох): '1'…'9' — tone учасника, 'x' — його вже немає в команді. */
+function byClass(mask: string, i: number, members: readonly PuzzleTone[]): string {
   const ch = mask[i] ?? '0';
-  return members !== undefined && members.length > 1 && ch >= '1' && ch <= '9' ? ` by-${ch}` : '';
+  if (members.length < 2) return '';
+  return (ch >= '1' && ch <= '9') || ch === 'x' ? ` by-${ch}` : '';
 }
 
 function cellLabel(row: number, col: number, value: string): string {
@@ -46,15 +47,15 @@ function cellLabel(row: number, col: number, value: string): string {
   return value === '' ? where : `${where}: ${value}`;
 }
 
-/** Хто з команди якого кольору. */
-function Legend({ members }: { members: string[] | undefined }) {
-  if (members === undefined || members.length < 2) return null;
+/** Хто з команди якого кольору (tone з сервера: місце в команді на відкритті, тож вилучення нікого не перефарбовує). */
+function Legend({ members }: { members: readonly PuzzleTone[] }) {
+  if (members.length < 2) return null;
   return (
     <ul className="puzzle-legend">
-      {members.map((name, n) => (
-        <li key={n}>
-          <span className={`puzzle-swatch by-${Math.min(n + 1, 9)}`} aria-hidden="true" />
-          <span dir="auto">{name}</span>
+      {members.map((member) => (
+        <li key={member.id}>
+          <span className={`puzzle-swatch by-${member.tone}`} aria-hidden="true" />
+          <span dir="auto">{member.nickname}</span>
         </li>
       ))}
     </ul>
@@ -116,7 +117,7 @@ function StatusLine({ board, info, timeUp, closed }: { board: PuzzleBoardModel; 
     ? ''
     : info.done
       ? t('puzzleWaiting')
-      : timeUp
+      : timeUp || board.status === 'time_over'
         ? t('puzzleTimeUp')
         : board.status === 'offline'
           ? t('puzzleOffline')
@@ -145,11 +146,11 @@ function filledCount(info: PlayerPuzzle, cells: string[]): { filled: number; tot
  * Тап вибирає клітинку й підсвічує її рядок, стовпець і блок; цифри — власна клавіатура 1–6 і «Стерти» (системна не відкривається),
  * фізична клавіатура теж (1–6, Backspace/Delete, стрілки). Пауза, кінець часу чи «Готово» — сітка й клавіатура вимкнені.
  */
-export function SudokuPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, members }: PuzzlePlayProps) {
-  const board = usePuzzleBoard(info, questionIndex, send);
+export function SudokuPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
+  const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<number | null>(null);
   const givens = question.puzzle?.kind === 'sudoku' ? question.puzzle.givens : '0'.repeat(SUDOKU_SIDE * SUDOKU_SIDE);
-  const off = paused || timeUp || closed || !info.canEdit || info.done;
+  const off = paused || timeUp || board.status === 'time_over' || closed || !info.canEdit || info.done;
   const given = (i: number) => (givens[i] ?? '0') !== '0';
   const selected = off ? null : sel;
 
@@ -228,7 +229,7 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
             <button
               key={i}
               type="button"
-              className={`sudoku-cell${edges}${state}${byClass(info.mask, i, members)}`}
+              className={`sudoku-cell${edges}${state}${byClass(info.mask, i, info.members)}`}
               aria-label={cellLabel(row, col, value)}
               aria-pressed={selected === i}
               aria-disabled={off}
@@ -241,7 +242,7 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
           );
         })}
       </div>
-      <Legend members={members} />
+      <Legend members={info.members} />
       {!info.done && !closed && (
         <div className="puzzle-keypad" role="group" aria-label={t('puzzleKeypad')}>
           {DIGITS.map((digit) => (
@@ -285,13 +286,14 @@ const ARROW: Record<Dir, string> = { across: '→', down: '↓' };
  * crosswordLetter (апостроф, латиниця, цифри — повз), курсор іде на наступну клітинку слова, а з кінця — на наступне незаповнене
  * слово. Backspace стирає й відступає.
  */
-export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, members }: PuzzlePlayProps) {
-  const board = usePuzzleBoard(info, questionIndex, send);
+export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
+  const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<{ cell: number; dir: Dir } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const composing = useRef(false);
   const puzzle = question.puzzle?.kind === 'crossword' ? question.puzzle : null;
   const words = puzzle === null ? [] : wordsOf(puzzle);
-  const off = paused || timeUp || closed || !info.canEdit || info.done;
+  const off = paused || timeUp || board.status === 'time_over' || closed || !info.canEdit || info.done;
   const selected = off ? null : sel;
 
   // Сітка вимкнулась — фокус з поля геть: системна клавіатура ховається.
@@ -372,10 +374,33 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
     setSel({ cell: back, dir: sel.dir });
   };
 
+  /** Поле знову містить лише заглушку: наступний символ і Backspace знову видно як зміну. */
+  const reset = (el: HTMLInputElement) => {
+    el.value = SENTINEL;
+    if (document.activeElement === el) el.setSelectionRange(SENTINEL.length, SENTINEL.length);
+  };
+
+  // Композиція (IME, клавіатури з передбаченням): проміжні значення поля нічого не пишуть — літери йдуть один раз, на її кінці.
+  const onCompositionStart = () => {
+    composing.current = true;
+  };
+  const onCompositionEnd = (event: CompositionEvent<HTMLInputElement>) => {
+    composing.current = false;
+    const text = event.data ?? '';
+    write(text !== '' ? text : event.currentTarget.value.split(SENTINEL).join(''));
+    reset(event.currentTarget);
+  };
+
   const onChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (composing.current || (event.nativeEvent as InputEvent).isComposing === true) return;
     const value = event.target.value;
-    if (!value.includes(SENTINEL)) erase();
-    else write(value.split(SENTINEL).join(''));
+    // Стирання — лише коли поле порожнє (заглушку стерли); заглушку, замінену літерою, вписуємо.
+    if (value === '') erase();
+    else {
+      const text = value.split(SENTINEL).join('');
+      if (text !== '') write(text);
+    }
+    reset(event.target);
   };
 
   const step = (dr: number, dc: number, dir: Dir) => {
@@ -438,7 +463,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
               <button
                 key={i}
                 type="button"
-                className={`crossword-play-cell${state}${byClass(info.mask, i, members)}`}
+                className={`crossword-play-cell${state}${byClass(info.mask, i, info.members)}`}
                 aria-label={cellLabel(Math.floor(i / width), i % width, value)}
                 aria-pressed={selected?.cell === i}
                 aria-disabled={off}
@@ -456,8 +481,10 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
           ref={input}
           className="crossword-input"
           aria-label={t('crosswordInput')}
-          value={SENTINEL}
+          defaultValue={SENTINEL}
           onChange={onChange}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
           onKeyDown={onKeyDown}
           disabled={off}
           autoCapitalize="none"
@@ -483,7 +510,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
           ))}
         </div>
       )}
-      <Legend members={members} />
+      <Legend members={info.members} />
       {!info.done && !closed && (
         <div className="puzzle-tools">
           <button type="button" className="btn puzzle-erase" aria-disabled={off || selected === null} onClick={() => {
@@ -590,18 +617,18 @@ export const PUZZLE_PAGE_SIZE = 40;
 export const PUZZLE_REVEAL_PAGE_SIZE = 24;
 export const PUZZLE_PAGE_MS = 8000;
 
-/** Щільні мініатюри (підпис в один рядок): понад стільки дошок на сторінці; на розкритті — удвічі менше. */
+/** Щільні мініатюри (дрібніший підпис): понад стільки дошок на сторінці; на розкритті — удвічі менше. */
 export const PUZZLE_DENSE = 24;
 
 /**
  * Стовпці й рядки мініатюр для n дошок: найбільша сітка, що вміщається на сцені 1600×900 (до розкриття — уся ширина під
- * заголовком, ≈ 1440×610; на розкритті — праворуч від розв'язку, ≈ 930×680). Від сітки віднімаються підпис (два рядки ≈ 50 px,
- * щільний — один ≈ 28 px), поля й проміжок. Сама розкладка тягнеться за екраном (CSS), тут — лише стовпці й рядки.
+ * заголовком, ≈ 1440×610; на розкритті — праворуч від розв'язку, ≈ 930×680). Від сітки віднімаються підпис (ім'я й поступ —
+ * два рядки ≈ 54 px, щільний — дрібнішим шрифтом ≈ 44 px), поля й проміжок. Сама розкладка тягнеться за екраном (CSS), тут — лише стовпці й рядки.
  */
 export function puzzleGrid(n: number, reveal: boolean): { cols: number; rows: number; dense: boolean } {
   const dense = n > (reveal ? PUZZLE_DENSE / 2 : PUZZLE_DENSE);
   const [w, h] = reveal ? [930, 680] : [1440, 610];
-  const caption = dense ? 28 : 50;
+  const caption = dense ? 44 : 54;
   let best = { cols: 1, rows: Math.max(1, n), size: -Infinity };
   for (let cols = 1; cols <= Math.max(1, n); cols += 1) {
     const rows = Math.max(1, Math.ceil(n / cols));
@@ -642,32 +669,40 @@ interface ThumbProps {
   puzzle: PublicPuzzle;
   solution: readonly string[] | null;
   reveal: boolean;
-  /** Командна гра: учасники команди в порядку маски ('1'…'9'); соло — undefined. */
-  members: string[] | undefined;
-  /** Соло: колір гравця (клас by-N). */
-  tone: string;
 }
 
 /**
- * Мініатюра однієї дошки. Клітинка — колір того, хто вписав (соло — колір гравця, команда — учасника); задані цифри судоку — сірі,
- * блоки кросворду — темні. Значення — лише коли вони є в дошці (пульт завжди, сцена — на розкритті); на розкритті хибні вписані
- * клітинки червоні. Остання вписана клітинка коротко спалахує.
+ * Мініатюра однієї дошки. Клітинка — колір того, хто вписав (соло — колір гравця за його id, команда — учасника з board.members;
+ * 'x' — учасника вже немає); задані цифри судоку — сірі, блоки кросворду — темні. Значення — лише коли вони є в дошці (пульт завжди,
+ * сцена — на розкритті); на розкритті хибні вписані клітинки — у червоній рамці. Картка не розтягується: сітка й підписи компактно
+ * посередині своєї комірки. «Готово» — нейтральна позначка (зелена лише в розв'язаній сітці); на розкритті сітка без «Готово» —
+ * пунктирна й притлумлена. Остання вписана клітинка коротко спалахує.
  */
-function Thumb({ board, puzzle, solution, reveal, members, tone }: ThumbProps) {
+function Thumb({ board, puzzle, solution, reveal }: ThumbProps) {
   const { w, h } = sizeOf(puzzle);
-  const team = members !== undefined;
+  const team = board.members.length > 0;
   const keys = puzzle.kind === 'crossword' ? new Set(puzzle.keyCells) : null;
   const scored = scoredSet(puzzle);
-  const classes = ['puzzle-thumb', team ? '' : tone, board.done ? 'is-done' : '', board.solved === true ? 'is-solved' : '', board.solved === false ? 'is-unsolved' : ''].filter(Boolean).join(' ');
+  const classes = [
+    'puzzle-thumb',
+    team ? '' : `by-${board.tone}`,
+    team && board.members.length > 1 ? 'has-members' : '',
+    board.done ? 'is-done' : '',
+    reveal ? 'is-reveal' : '',
+    board.solved === true ? 'is-solved' : '',
+    board.solved === false ? 'is-unsolved' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <li className={classes}>
-      <div className="puzzle-thumb-fit">
+    <li className={classes} style={{ '--gw': w, '--gh': h } as CSSProperties}>
+      <div className="puzzle-thumb-card">
         <div className={`puzzle-mini is-${puzzle.kind}`} style={{ '--cols': w, '--rows': h } as CSSProperties} dir="ltr" aria-hidden="true">
           {Array.from({ length: w * h }, (_, i) => {
             const m = board.mask[i] ?? '0';
             const block = m === '#';
             const given = m === 'g';
-            const filled = m >= '1' && m <= '9';
+            const filled = (m >= '1' && m <= '9') || m === 'x';
             const value = board.cells === null || block ? '' : given ? (puzzle.kind === 'sudoku' ? (puzzle.givens[i] ?? '') : '') : (board.cells[i] ?? '');
             const wrong = reveal && solution !== null && filled && value !== '' && (scored === null || scored.has(i)) && value !== solution[i];
             const cls = [
@@ -689,42 +724,49 @@ function Thumb({ board, puzzle, solution, reveal, members, tone }: ThumbProps) {
             );
           })}
         </div>
-      </div>
-      <p className="puzzle-thumb-name" dir="auto" title={board.nickname}>
-        {board.nickname}
-      </p>
-      <p className="puzzle-thumb-caption">
-        <span className="puzzle-thumb-count">
-          {board.filled} / {board.total}
-        </span>
-        {board.done && (
-          <span className="puzzle-thumb-done" role="img" aria-label={t('puzzleDone')} title={t('puzzleDone')}>
-            ✓
-          </span>
-        )}
-        {board.points !== null && board.points > 0 && <span className="score">{signed(board.points)}</span>}
-      </p>
-      {team && members.length > 1 && (
-        <p className="puzzle-thumb-members">
-          {members.map((name, n) => (
-            <span key={n} className={`by-${Math.min(n + 1, 9)}`} dir="auto">
-              {name}
-            </span>
-          ))}
+        <p className="puzzle-thumb-name" dir="auto" title={board.nickname}>
+          {board.nickname}
         </p>
-      )}
+        <p className="puzzle-thumb-caption">
+          <span className="puzzle-thumb-count">
+            {board.filled} / {board.total}
+          </span>
+          {board.done && (
+            <span className="puzzle-thumb-done" role="img" aria-label={t('puzzleDone')} title={t('puzzleDone')}>
+              ✓
+            </span>
+          )}
+          {board.points !== null && board.points > 0 && <span className="score">{signed(board.points)}</span>}
+        </p>
+        {team && board.members.length > 1 && (
+          <p className="puzzle-thumb-members">
+            {board.members.map((member) => (
+              <span key={member.id} className={`by-${member.tone}`} dir="auto" title={member.nickname}>
+                {member.nickname}
+              </span>
+            ))}
+          </p>
+        )}
+      </div>
     </li>
   );
+}
+
+/** Розмір сторінки мініатюр для n дошок: сторінки рівні (45 → 23 + 22), а не повна й майже порожня. */
+export function puzzlePageSize(n: number, reveal: boolean): number {
+  const most = reveal ? PUZZLE_REVEAL_PAGE_SIZE : PUZZLE_PAGE_SIZE;
+  if (n <= most) return Math.max(1, n);
+  return Math.ceil(n / Math.ceil(n / most));
 }
 
 /**
  * Мініатюри сіток усіх гравців (команд). Сцена й інші бачать лише маски (без значень, cells === null); пульт — значення наживо.
  * На сцені мініатюри займають усю решту екрана: стовпці й рядки — за кількістю дошок (puzzleGrid), понад 40 (на розкритті понад 24) —
- * сторінки по черзі.
+ * рівні сторінки по черзі. Кольори й учасників несе сама дошка (tone, members), тож вони не залежать від сторінки чи порядку.
  * Пульт (host) — звичайна сітка мініатюр без сторінок.
  */
-export function PuzzleBoards({ info, puzzle, reveal, host = false, teams = null }: { info: PuzzleInfo; puzzle: PublicPuzzle; reveal: boolean; host?: boolean; teams?: TeamView[] | null }) {
-  const size = reveal ? PUZZLE_REVEAL_PAGE_SIZE : PUZZLE_PAGE_SIZE;
+export function PuzzleBoards({ info, puzzle, reveal, host = false }: { info: PuzzleInfo; puzzle: PublicPuzzle; reveal: boolean; host?: boolean }) {
+  const size = puzzlePageSize(info.boards.length, reveal);
   const page = usePage(info.boards.length, size, !host);
   const from = host ? 0 : page * size;
   const shown = host ? info.boards : info.boards.slice(from, from + size);
@@ -732,16 +774,8 @@ export function PuzzleBoards({ info, puzzle, reveal, host = false, teams = null 
   return (
     <div className={host ? 'puzzle-boards-fit is-host' : grid.dense ? 'puzzle-boards-fit is-dense' : 'puzzle-boards-fit'}>
       <ul className="puzzle-boards" style={host ? undefined : ({ '--cols': grid.cols, '--rows': grid.rows } as CSSProperties)}>
-        {shown.map((board, n) => (
-          <Thumb
-            key={board.playerId}
-            board={board}
-            puzzle={puzzle}
-            solution={info.solution}
-            reveal={reveal}
-            members={teams === null ? undefined : teams.find((team) => team.id === board.playerId)?.members.map((member) => member.nickname)}
-            tone={`by-${((from + n) % 9) + 1}`}
-          />
+        {shown.map((board) => (
+          <Thumb key={board.playerId} board={board} puzzle={puzzle} solution={info.solution} reveal={reveal} />
         ))}
       </ul>
     </div>

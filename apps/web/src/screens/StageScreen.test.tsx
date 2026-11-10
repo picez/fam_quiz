@@ -1042,7 +1042,7 @@ describe('StageScreen final', () => {
     const sudokuFull: Question = { id: 's1', type: 'sudoku', text: 'Розв’яжіть судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'easy', seed: 7, givens, solution };
     const maskOf = (filled: number[]) => givens.split('').map((ch, i) => (ch !== '0' ? 'g' : filled.includes(i) ? '1' : '0')).join('');
     const board = (playerId: string, nickname: string, filled: number[], over: Partial<PuzzleBoardView> = {}): PuzzleBoardView => ({
-      playerId, nickname, mask: maskOf(filled), filled: filled.length, total: empties.length, done: false, last: null, cells: null, solved: null, points: null, ...over,
+      playerId, nickname, mask: maskOf(filled), tone: 1, members: [], filled: filled.length, total: empties.length, done: false, last: null, cells: null, solved: null, points: null, ...over,
     });
 
     it('the stage draws masks without values', () => {
@@ -1101,7 +1101,7 @@ describe('StageScreen final', () => {
       const mask = letters.map((v) => (v === '' ? '#' : '1')).join('');
       const info: PuzzleInfo = {
         kind: 'crossword',
-        boards: [{ playerId: 'p1', nickname: 'Олена', mask, filled: 6, total: 6, done: true, last: 9, cells: letters, solved: true, points: 300 }],
+        boards: [{ playerId: 'p1', nickname: 'Олена', mask, tone: 1, members: [], filled: 6, total: 6, done: true, last: 9, cells: letters, solved: true, points: 300 }],
         solution: letters,
       };
       show(view({ phase: 'reveal', questionIndex: 0, question: crossQ, reveal: full, playerCount: 1, answeredCount: 1, puzzle: info }));

@@ -22,7 +22,8 @@ export interface PuzzleBoardModel {
   set(i: number, v: string): void;
   /** Дошле чергу й тисне «Готово»; ack — як від сервера. */
   done(): Promise<SendResult>;
-  status: '' | 'sending' | 'offline';
+  /** time_over — сервер уже закрив сітку за часом: телефон каже «Час вийшов», не чекаючи зрізу. */
+  status: '' | 'sending' | 'offline' | 'time_over';
   /** Текст відмови, що відкинула пакет (не частота й не обрив); null — немає. */
   error: string | null;
 }
@@ -46,9 +47,11 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * більше одного, решта чекає ack. Остання правка клітинки перемагає: і в черзі, і над поверненим з відмови пакетом.
  * Після ack значення пакета лишаються накладкою, доки не прийде зріз, новіший за той, що був на мить ack (seq більший):
  * тож запізнілий зріз не відкочує своїх значень, а пізніша правка товариша в тій самій клітинці показується.
- * too_soon, обрив і пауза — пакет назад у чергу; puzzle_stale, puzzle_done, time_over — черга й накладка зникають мовчки.
+ * too_soon, обрив і пауза — пакет назад у чергу; puzzle_stale, puzzle_done, time_over — черга й накладка зникають мовчки
+ * (time_over ще й одразу дає статус «Час вийшов»). Будь-яка відповідь сервера, крім обриву, знімає «немає зв'язку».
+ * deadline — кінець часу за годинником телефона: правка, коли до нього лишилося не більше за вікно пакета, іде одразу.
  */
-export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: Send): PuzzleBoardModel {
+export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: Send, deadline: number | null = null): PuzzleBoardModel {
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const [error, setError] = useState<string | null>(null);
   const infoNow = useRef(info);
@@ -63,6 +66,9 @@ export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const alive = useRef(true);
   const offline = useRef(false);
+  const expired = useRef(false);
+  const deadlineNow = useRef(deadline);
+  deadlineNow.current = deadline;
   /** «Готово» натиснуто: нових правок не приймаємо. */
   const finishing = useRef(false);
 
@@ -90,8 +96,16 @@ export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: 
     return now.cells[i] ?? '';
   };
 
+  /** До кінця часу не більше за вікно пакета: чекати — значить загубити правку. */
+  const nearEnd = () => deadlineNow.current !== null && deadlineNow.current - Date.now() <= PUZZLE_FLUSH_MS;
+
   const schedule = (delay = PUZZLE_FLUSH_MS) => {
-    if (!alive.current || timer.current !== null || flight.current !== null || queue.current.size === 0) return;
+    if (!alive.current || flight.current !== null || queue.current.size === 0) return;
+    if (delay === PUZZLE_FLUSH_MS && nearEnd()) {
+      void flush();
+      return;
+    }
+    if (timer.current !== null) return;
     timer.current = setTimeout(() => {
       timer.current = null;
       void flush();
@@ -102,18 +116,19 @@ export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: 
     if (!alive.current) return;
     flight.current = null;
     flightDone.current = null;
+    // Відповів сервер (будь-що, крім обриву) — зв'язок є.
+    offline.current = !result.ok && result.error === 'offline';
     if (result.ok) {
-      offline.current = false;
       const seq = infoNow.current.seq;
       for (const [i, v] of batch) if (!queue.current.has(i)) acked.current.set(i, { v, after: seq });
       schedule();
     } else if (CLEARS.has(result.error)) {
       queue.current.clear();
       acked.current.clear();
+      if (result.error === 'time_over') expired.current = true;
     } else if (REQUEUES.has(result.error)) {
       // Новіші правки тих самих клітинок уже в черзі — вони перемагають.
       for (const [i, v] of batch) if (!queue.current.has(i)) queue.current.set(i, v);
-      if (result.error === 'offline') offline.current = true;
       schedule(result.error === 'too_soon' ? PUZZLE_FLUSH_MS : PUZZLE_RETRY_MS);
     } else {
       setError(errorText(result.error));
@@ -181,5 +196,5 @@ export function usePuzzleBoard(info: PlayerPuzzle, questionIndex: number, send: 
 
   const cells = info.cells.map((_, i) => valueAt(i, info));
   const busy = flight.current !== null || queue.current.size > 0;
-  return { cells, set, done, status: offline.current ? 'offline' : busy ? 'sending' : '', error };
+  return { cells, set, done, status: expired.current ? 'time_over' : offline.current ? 'offline' : busy ? 'sending' : '', error };
 }

@@ -8,6 +8,7 @@ import { PUZZLE_ACK_MS, PUZZLE_FLUSH_MS, PUZZLE_RETRY_MS, usePuzzleBoard } from 
 const infoOf = (over: Partial<PlayerPuzzle> = {}): PlayerPuzzle => ({
   cells: new Array<string>(36).fill(''),
   mask: '0'.repeat(36),
+  members: [],
   done: false,
   canEdit: true,
   seq: 0,
@@ -136,6 +137,36 @@ describe('usePuzzleBoard', () => {
     await act(async () => vi.advanceTimersByTimeAsync(PUZZLE_RETRY_MS));
     expect(send).toHaveBeenCalledTimes(2);
     expect(send).toHaveBeenLastCalledWith('player:puzzle', { questionIndex: 3, cells: [{ i: 0, v: '1' }] });
+  });
+
+  it('any server reply after a lost ack ends offline: the refusal shows, not the connection line', async () => {
+    vi.useFakeTimers();
+    const { send, answer } = deferred();
+    const hook = mount(send);
+    act(() => hook.result.current.set(0, '1'));
+    wait(PUZZLE_FLUSH_MS);
+    await act(async () => vi.advanceTimersByTimeAsync(PUZZLE_ACK_MS));
+    expect(hook.result.current.status).toBe('offline');
+    await act(async () => vi.advanceTimersByTimeAsync(PUZZLE_RETRY_MS));
+    expect(send).toHaveBeenCalledTimes(2);
+    await answer({ ok: false, error: 'puzzle_cell' });
+    expect(hook.result.current.status).toBe('');
+    expect(hook.result.current.error).not.toBeNull();
+  });
+
+  it('an edit in the last flush window goes at once, and a late one shows the time is up', async () => {
+    vi.useFakeTimers();
+    const { send, answer } = deferred();
+    const hook = renderHook(({ info: now }) => usePuzzleBoard(now, 3, send, Date.now() + 200), { initialProps: { info: infoOf() } });
+    act(() => hook.result.current.set(0, '1'));
+    // До кінця менше за вікно пакета: чекати 250 мс — значить загубити правку.
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith('player:puzzle', { questionIndex: 3, cells: [{ i: 0, v: '1' }] });
+    act(() => hook.result.current.set(1, '2'));
+    await answer({ ok: true });
+    expect(send).toHaveBeenCalledTimes(2);
+    await answer({ ok: false, error: 'time_over' });
+    expect(hook.result.current.status).toBe('time_over');
   });
 
   it('stale clears the queue', async () => {

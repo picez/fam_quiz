@@ -798,8 +798,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               />
             </div>
           )}
-          {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
+          {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. Головоломки (28d) — у панелі розв'язку, однаково для судоку й кросворду. */}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && correct.type !== 'sudoku' && correct.type !== 'crossword' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}
@@ -1162,7 +1162,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel host-puzzle">
           <h2>{t(view.puzzle.kind === 'sudoku' ? 'type_sudoku' : 'type_crossword')}</h2>
           <div className="host-puzzle-body">
-            <PuzzleBoards info={view.puzzle} puzzle={view.question.puzzle} reveal={phase === 'reveal'} teams={view.teams?.teams ?? null} host />
+            <PuzzleBoards info={view.puzzle} puzzle={view.question.puzzle} reveal={phase === 'reveal'} host />
             {view.puzzle.solution !== null && <PuzzleSolution puzzle={view.question.puzzle} solution={view.puzzle.solution} />}
           </div>
         </section>

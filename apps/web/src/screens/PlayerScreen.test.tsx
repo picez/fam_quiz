@@ -1749,7 +1749,7 @@ describe('PlayerScreen final', () => {
 
   const sudokuGivens = '1'.padEnd(36, '0');
   const sudokuQuestion = { ...publicQuestion, type: 'sudoku' as const, text: 'Розв’яжіть судоку', choices: [], puzzle: { kind: 'sudoku' as const, givens: sudokuGivens } };
-  const myGrid = { cells: new Array<string>(36).fill(''), mask: 'g'.padEnd(36, '0'), done: false, canEdit: true, seq: 0, result: null };
+  const myGrid = { cells: new Array<string>(36).fill(''), mask: 'g'.padEnd(36, '0'), members: [], done: false, canEdit: true, seq: 0, result: null };
 
   it('28d: a sudoku question shows the grid, the keypad and done', () => {
     show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, me: { ...me, puzzle: myGrid } }));
@@ -1759,7 +1759,7 @@ describe('PlayerScreen final', () => {
   });
 
   it('28d: a phone sees only how many are done, never rival grids', () => {
-    const board = (playerId: string, done: boolean) => ({ playerId, nickname: playerId, mask: 'g'.padEnd(36, '1'), filled: 35, total: 35, done, last: null, cells: null, solved: null, points: null });
+    const board = (playerId: string, done: boolean) => ({ playerId, nickname: playerId, mask: 'g'.padEnd(36, '1'), tone: 1, members: [], filled: 35, total: 35, done, last: null, cells: null, solved: null, points: null });
     const puzzle = { kind: 'sudoku' as const, boards: [board('p1', false), board('p2', true)], solution: null };
     show(onQuestion({ question: sudokuQuestion, endsAt: Date.now() + 60_000, playerCount: 2, puzzle, me: { ...me, puzzle: myGrid } }));
     expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
