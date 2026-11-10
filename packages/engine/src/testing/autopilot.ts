@@ -175,6 +175,8 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
   // «Ставки»: хто не поставив, пропускає запитання. «Аукціон»: продане — лише переможець, непродане — усі.
   if ((round?.type === 'bets' || round?.type === 'auction') && betsPlaying(state) !== null && !(betsPlaying(state) ?? []).includes(playerId)) return state;
   if (play.board !== undefined && play.blitz === undefined && (play.board.chooserId !== playerId || play.board.answer !== null)) return state;
+  // «Правда про гравця» (28b): свій факт автор не вгадує.
+  if (play.truth?.actorId === playerId) return state;
   const question = play.question;
   const what = `${playerId} on ${question.id}`;
   switch (question.type) {

@@ -82,7 +82,7 @@ import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore'
 import { openClue } from './clues';
 import { sortMarks, sortOf, sortWord } from './sort';
 import type { Splash } from './splash';
-import { writeLie } from './bluff';
+import { seededRng, writeLie } from './bluff';
 import { T0, buffQuiz, toBuffCell, toBuffQuestion, toOthersQuestion } from './testing/buffs';
 import { toDuelQuestion } from './testing/duel';
 import {
@@ -372,7 +372,7 @@ const STATE_SHAPE: Record<string, string> = {
   MoreLessProgress: keysOf<MoreLessProgress>()(['picks'], true),
   TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
   TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at'], true),
-  TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers'], true),
+  TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1221,7 +1221,7 @@ const KEYS: Record<number, Record<string, string>> = {
     MoreLessProgress: 'picks',
     TruthState: 'deck,facts',
     TruthFact: 'at,hidden,text',
-    TruthPlay: 'actorId,authorId,guessers',
+    TruthPlay: 'actorId,authorId,guessers,right',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1474,6 +1474,9 @@ function representative(): GameState[] {
   const moreClosed = must(lock(morePicked, T0 + 2000));
   // 28b: «Правда про гравця» — у лобі два факти, один сховано: GameState.truth, TruthState, TruthFact.
   const truthLobby = truthFacts();
+  // 28b: відкрите запитання (Play.truth, колода) і закрите (заморожені guessers і right, запис автора).
+  const truthOpen = truthAsked();
+  const truthClosed = must(lock(truthOpen, T0 + 2000));
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1515,6 +1518,8 @@ function representative(): GameState[] {
     morePicked,
     moreClosed,
     truthLobby,
+    truthOpen,
+    truthClosed,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1523,6 +1528,15 @@ function representative(): GameState[] {
     perked(),
     hintPerked(),
   ];
+}
+
+/** 28b: перше запитання «Правди про гравця» (Оля, Петро, Іра; факти Олі й Петра; seededRng(7)), один вгадувач уже відповів правильно. */
+function truthAsked(): GameState {
+  let lobby = lobbyWith(makeRoundsQuiz([truthRound('r1'), classicRound('r2', [single])]), 'Оля', 'Петро', 'Іра');
+  lobby = must(submitTruth(must(submitTruth(lobby, 'p1', 'Я стрибала з парашутом', T0)), 'p2', 'Я знаю шість мов', T0));
+  const open = must(next(must(start(lobby)), T0, seededRng(7)));
+  const author = open.plays[0].truth?.authorId ?? '';
+  return must(submitAnswer(open, 'p3', { type: 'single', optionId: author }, T0 + 1000));
 }
 
 /** 28b: лобі «Правди про гравця» — Оля й Петро написали факти, факт Петра ведучий сховав. */
@@ -1794,6 +1808,33 @@ describe('the saved state', () => {
     // старий знімок без поля відновлюється без нього
     const { truth: _truth, ...plain } = lobby;
     expect('truth' in roundTrip(suspend(roundTrip(plain), T0 + 1000))).toBe(false);
+  });
+
+  it('a suspended truth question keeps the deck, the author and the records', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = truthAsked();
+    const author = open.plays[0].truth?.authorId ?? '';
+    const other = author === 'p1' ? 'p2' : 'p1';
+    const back = roundTrip(suspend(roundTrip(open), T0 + 1500));
+    expect(back.truth).toEqual(open.truth);
+    expect(back.plays[0].truth).toEqual({ authorId: author, actorId: author, guessers: [other, 'p3'] });
+    expect(back.plays[0].question).toEqual(open.plays[0].question);
+    expect(back.plays[0].answers).toEqual(open.plays[0].answers);
+    // гра йде далі: другий вгадувач помиляється — частка автора та сама, що й без перезапуску
+    const resumed = must(resume(back, T0 + 1500 + HOUR));
+    expect(submitAnswer(resumed, author, { type: 'single', optionId: other }, T0 + 2000 + HOUR)).toEqual({ ok: false, error: 'truth_own' });
+    // останній вгадувач відповів — запитання закривається само
+    const closed = must(submitAnswer(resumed, other, { type: 'single', optionId: 'p3' }, T0 + 2000 + HOUR));
+    const direct = must(submitAnswer(open, other, { type: 'single', optionId: 'p3' }, T0 + 1500));
+    expect([closed.phase, direct.phase]).toEqual(['locked', 'locked']);
+    expect(closed.plays[0].answers[author]).toEqual(direct.plays[0].answers[author]);
+    expect(closed.plays[0].answers[author]?.points).toBe(150);
+    // після закриття: перезапуск зберігає заморожені guessers і right, частка та сама
+    const again = roundTrip(suspend(roundTrip(closed), T0 + 4000 + HOUR));
+    expect(again.plays[0].truth).toEqual({ authorId: author, actorId: author, guessers: [other, 'p3'], right: ['p3'] });
+    const revealed = must(next(must(resume(again, T0 + 5000 + HOUR)), T0 + 6000 + HOUR));
+    expect(revealed.plays[0].answers[author]?.points).toBe(150);
+    expect(revealed.players.find((p) => p.id === author)?.score).toBe(150);
   });
 
   it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
@@ -2077,7 +2118,6 @@ describe('the saved state', () => {
     }
     // кожен вкладений тип справді трапився (крім ланцюжка, що потребує окремого раунду; кубики — з лобі команд)
     const missing = Object.keys(STATE_SHAPE).filter((name) => (seen[name]?.length ?? 0) === 0);
-    // 28b: TruthPlay з'являється, коли рушій відкриває запитання truth (задача 3 плану 28b) — тоді прибрати звідси.
-    expect(missing.sort()).toEqual(['ChainProgress', 'TruthPlay']);
+    expect(missing.sort()).toEqual(['ChainProgress']);
   });
 });

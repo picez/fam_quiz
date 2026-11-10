@@ -7,6 +7,7 @@ import { acceptAnswer, lock, next, override, pause, removePlayer, start, submitA
 import { FIRST_BUFFS, T0, buffQuiz, toBuffCell, toBuffQuestion } from './testing/buffs';
 import { placeWager } from './final';
 import { shopBlock } from './debuffs';
+import { submitTruth } from './truth';
 import {
   auctionRound,
   betsRound,
@@ -25,6 +26,7 @@ import {
   sortQ,
   text,
   timedlist,
+  truthRound,
   letterwords,
   moreless,
   withId,
@@ -212,6 +214,18 @@ describe('buffs', () => {
     expect(buffBlock(open, 'p1', 'double')).toBe('off_bets');
     expect(shopBlock(open, 'p1')).toBe('phase');
     expect(placeWager(open, 'p1', 200, T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+  });
+
+  it('a truth round has no buffs, no debuffs and no debuff shop (28b)', () => {
+    const quiz = makeRoundsQuiz([truthRound('t1')], { buffs, debuffs: ['fog'] });
+    const intro = must(start(must(submitTruth(lobbyWith(quiz, 'Оля', 'Петро'), 'p1', 'Я бачила кита', T0))));
+    expect(shopBlock(intro, 'p2')).toBe('phase');
+    expect(setDebuff(intro, 'p2', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
+    const open = must(next(intro, T0, rng0));
+    expect(open.phase).toBe('question');
+    expect(takeBuff(open, 'p2', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(open, 'p2', 'double')).toBe('off_truth');
+    expect(shopBlock(open, 'p2')).toBe('phase');
   });
 
   it('buffs work only where the player answers from the phone', () => {

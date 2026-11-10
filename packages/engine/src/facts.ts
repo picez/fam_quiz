@@ -70,6 +70,8 @@ export function factInput(state: GameState): FactInput {
       }
       // Мовчання у фіналі — штраф, а не відповідь.
       if (play.final !== undefined && record.answer === null) continue;
+      // «Правда про гравця» (28b): бали автора факту — не відповідь.
+      if (play.truth !== undefined && record.answer === null) continue;
       // Мовчання з «Ризиком» (12h) — теж штраф: історія пише його рядком штрафу.
       if (isSilentRisk(play, record)) continue;
       rows.push({

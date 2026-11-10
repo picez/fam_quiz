@@ -52,8 +52,11 @@ export function queueNext(state: GameState, teamId: string): string | null {
   return captain;
 }
 
-/** Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан. */
-const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question);
+/**
+ * Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан.
+ * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
+ */
+const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined;
 
 /**
  * Хто відповідає на поточному запитанні: вибір, чинний на мить відкриття (current), інакше вибір, черга, капітан;
@@ -89,7 +92,7 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
 /** Наступне запитання — бліц, опитування чи «хмара» (comingQuestion): відповідача немає, вибір капітана відкладено. */
 export function freeForAllNext(state: GameState): boolean {
   const coming = comingQuestion(state);
-  return coming !== null && (coming.blitz || isUnscored(coming.question));
+  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question));
 }
 
 /**
