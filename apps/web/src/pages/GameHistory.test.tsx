@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auctionLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+import { auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {
@@ -192,6 +192,13 @@ describe('auctionLine', () => {
   it('names the buyer, the price paid and the points', () => {
     expect(auctionLine({ nickname: 'Оля', wager: 400, points: 600 })).toBe('Оля — куплено за 400: +600');
     expect(auctionLine({ nickname: 'Оля', wager: 400, points: -400 })).toBe('Оля — куплено за 400: −400');
+  });
+});
+
+describe('truthLine', () => {
+  it('names the author of the fact and the author share', () => {
+    expect(truthLine({ author: 'Олена', points: 200 })).toBe('Факт написав(ла): Олена · автор +200');
+    expect(truthLine({ author: 'Олена', points: 0 })).toBe('Факт написав(ла): Олена · автор 0');
   });
 });
 

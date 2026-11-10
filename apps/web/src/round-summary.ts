@@ -27,6 +27,10 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(mode === 'step' ? t('summaryAuctionStep', { step }) : t('summaryAuctionFree'), t(loss === 'bid' ? 'summaryAuctionLossBid' : 'summaryAuctionLossPrice'));
     return lines;
   }
+  if (brief.type === 'truth' && brief.truth !== null) {
+    lines.push(t('summaryTruth', { points: brief.truth.points }));
+    return lines;
+  }
   if (brief.type === 'bets' && brief.bets !== null) {
     const { betStart, betStep, betMax } = brief.bets;
     const minimum = betStep === 0 ? t('summaryBetsMinimumFlat', { start: betStart }) : t('summaryBetsMinimum', { start: betStart, step: betStep });

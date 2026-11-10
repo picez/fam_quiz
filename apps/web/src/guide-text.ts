@@ -19,7 +19,7 @@ export interface GuideText {
   items: GuideItem[];
 }
 
-export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦', ladder: '🪜', bets: '🎲', auction: '🔨' };
+export const ROUND_ICONS: Record<RoundBrief['type'], string> = { classic: '❓', blitz: '⚡', board: '▦', final: '🏆', wipeout: '💰', survival: '🪦', ladder: '🪜', bets: '🎲', auction: '🔨', truth: '🕵️' };
 
 export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   classic: 'roundTypeClassic',
@@ -31,6 +31,7 @@ export const ROUND_NAMES: Record<RoundBrief['type'], TextKey> = {
   ladder: 'roundTypeLadder',
   bets: 'roundTypeBets',
   auction: 'roundTypeAuction',
+  truth: 'roundTypeTruth',
 };
 
 /** Значки типів; «Аа» — літери мови інтерфейсу (гетер читає словник щоразу). */
@@ -87,6 +88,8 @@ export function roundHow(brief: RoundBrief, autopilot = false): string[] {
       return [t('roundHow_bets')];
     case 'auction':
       return [t('roundHow_auction')];
+    case 'truth':
+      return [t('roundHow_truth')];
   }
 }
 
