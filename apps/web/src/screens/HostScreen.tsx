@@ -11,6 +11,7 @@ import { ChainBoard } from './ChainView';
 import { WordLadderBoard, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
+import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
@@ -1113,6 +1114,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* Більше чи менше (28a): значення, правильні варіанти й вибори кожного наживо — завжди, і з «Відповідями наживо» теж
+          (у рядках панелі лише «3 / 8 · правильно 2»). Бали — на розкритті. Оцінювати нічого. */}
+      {view.moreless !== undefined && (
+        <section className="panel host-moreless">
+          <h2>{t('type_moreless')}</h2>
+          {view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} compact />}
+          <MoreLessBoard info={view.moreless} reveal={phase === 'reveal'} />
+        </section>
+      )}
+
       {view.sort !== null && !liveHides && (
         <section className="panel">
           <h2>{t('sortTitle')}</h2>
@@ -1172,7 +1183,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.moreless !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

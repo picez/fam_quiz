@@ -48,6 +48,7 @@ import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { WordLadderBoard, WordLadderGoal, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
+import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -220,7 +221,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'moreless' ? t('morelessOnPhone') : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className={view.wipeout !== null ? 'stage-question has-wipeout-side' : 'stage-question'} aria-busy={busy || undefined}>
@@ -244,6 +245,9 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
               ? t('listFoundOf', { found: Math.max(0, ...view.timedlist.rows.map((row) => row.found)), total: view.timedlist.total })
               : question.type === 'wordladder' && view.wordladder !== undefined
               ? t('wordLadderFinishedOf', { finished: view.wordladder.rows.filter((row) => row.finished).length, total: view.playerCount })
+              : question.type === 'moreless' && view.moreless !== undefined
+              ? // Більше чи менше: «відповіли» — ті, хто пройшов увесь ряд (записи на locked мають і ті, хто не встиг).
+                t('answeredOf', { answered: view.moreless.rows.filter((row) => row.done >= row.total).length, total: view.playerCount })
               : question.type === 'wall'
               ? t('wallFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : question.type === 'poll'
@@ -453,6 +457,13 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
           )}
         </section>
       )}
+      {/* Більше чи менше (28a): до розкриття — лише скільки пройшов кожен; на розкритті — таблиця порівнянь і рядки з балами. */}
+      {view.moreless !== undefined && !finalReveal && (
+        <section className={view.phase === 'reveal' ? 'moreless-stage is-reveal' : 'moreless-stage'}>
+          {view.phase === 'reveal' && view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} />}
+          <MoreLessBoard info={view.moreless} reveal={view.phase === 'reveal'} />
+        </section>
+      )}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
       {/* Рядок переможця бліцу завжди займає місце: його поява на locked не зсуває сцену. */}
       {view.sort !== null && view.round?.type === 'blitz' && (
@@ -505,7 +516,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts }: Pick
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}

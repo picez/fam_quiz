@@ -37,6 +37,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
+import { MoreLessBoard, MoreLessPlay, MoreLessReveal } from './MoreLessView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -349,10 +350,17 @@ function Result({ view }: { view: PlayerView }) {
           <LetterWordsBest info={view.letterwords} />
         </>
       )}
+      {/* Більше чи менше (28a): таблиця зі своїми позначками й рядки з власним підсвіченим. */}
+      {view.phase === 'reveal' && view.moreless !== undefined && (
+        <>
+          {view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} marks={view.me.moreless?.marks ?? null} compact />}
+          <MoreLessBoard info={view.moreless} reveal me={view.me.id} />
+        </>
+      )}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1060,6 +1068,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : auctionWatching ? (
               // Глядач проданого запитання: варіанти лише для читання, як на locked, — стежить за відповіддю й без сцени.
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
+            ) : question.type === 'moreless' ? (
+              // Більше чи менше (28a): вибирає той, хто відповідає (у команді — відповідач), решта команди бачить поступ;
+              // глядач клітинки поля — лише рядок того, хто вибрав. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
+              me.moreless === undefined ? (
+                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+              ) : team !== null && !team.canAct ? (
+                <p className="lead moreless-team-watch">{t('morelessTeamWatch', { name: memberName(view, team.answererId), done: me.moreless.done, total: me.moreless.total })}</p>
+              ) : (
+                <MoreLessPlay key={view.questionIndex} info={me.moreless} question={question} paused={locked} timeUp={buffTimeOver} send={send} />
+              )
             ) : teamWatching ? (
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : wipeoutWatching ? (
@@ -1254,6 +1272,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {/* Бали залежать від слів, а найдовші можливі слова сцена покаже на розкритті. */}
               <p className="lead">{t('chainWaitResults')}</p>
             </section>
+          ) : question?.type === 'moreless' ? (
+            <section className="sent">
+              {me.moreless !== undefined ? (
+                <h2>{me.moreless.done >= me.moreless.total ? t('morelessDone') : t('morelessLate', { done: me.moreless.done, total: me.moreless.total })}</h2>
+              ) : (
+                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+              )}
+            </section>
           ) : me.wordladder !== undefined && question !== null ? (
             <section className="sent">
               <WordLadderOutcome ladder={me.wordladder} question={question} />
@@ -1310,7 +1336,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
-              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && question.type !== 'letterwords' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
@@ -1325,9 +1351,15 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   <LetterWordsBest info={view.letterwords} />
                 </>
               )}
+              {view.moreless !== undefined && (
+                <>
+                  {view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} compact />}
+                  <MoreLessBoard info={view.moreless} reveal />
+                </>
+              )}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && view.reveal.type !== 'letterwords' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && view.reveal.type !== 'letterwords' && view.reveal.type !== 'moreless' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>
@@ -1344,7 +1376,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           )}
           {/* Список (27c): «правильно» — лише знайти все, тож частка правильних тут нічого не каже. */}
           {/* Слова з літер (27d) — так само: «правильно» означає лише «хоч одне слово». */}
-          {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {/* Більше чи менше (28a): «правильно» — лише весь ряд, частка нічого не каже; таблиця вже показує, скільки вгадали кожне. */}
+          {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && question?.type !== 'moreless' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
           {me.appeal?.reasons.map((reason) => (
             <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
               {appealButtonText(reason, me.appeal?.left ?? 0)}
