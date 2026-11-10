@@ -1,0 +1,150 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { LIMITS, allSpares, fitsLetters, ladderKey, letterSet, questionPrice, questionsOf, quizSchema, roundTrials, type Question, type Quiz } from '@quiz/shared';
+import { loadNouns } from '../src/wordladder/nouns';
+import { MIN_TIMER, MIX_THEMES, mixQuiz, mixThemeOf, type MixTheme } from './mix-quiz';
+
+const quiz = mixQuiz();
+const themes = Object.keys(MIX_THEMES) as MixTheme[];
+
+const key = (text: string) => text.trim().toLocaleLowerCase('uk');
+const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
+const everything = [...played(quiz), ...allSpares(quiz)];
+const ofType = <T extends Question['type']>(type: T) => played(quiz).filter((q): q is Extract<Question, { type: T }> => q.type === type);
+
+const BANNED = [
+  'росі', 'росс', 'русск', 'москв', 'ссср', 'срср', 'урср', 'радянськ', 'совєт', 'совет', 'кремл', 'путін', 'ленін', 'сталін',
+  'більшовик', 'комуніст', 'колгосп', 'толст', 'достоєвськ', 'чехов', 'пушкін', 'лермонтов', 'тургенєв', 'булгаков', 'гогол',
+  'сибір', 'байкал', 'волга', 'урал', 'гагарін', 'терешков', 'корольов', 'чорнобил', 'голодомор', 'чикатил', 'дятлов', 'тунгус',
+  'менделєєв', 'пажитнов', 'тетріс', 'чайковськ', 'павлов', 'каспаров', 'калінінград',
+  'russia', 'moscow', 'soviet', 'ussr', 'kremlin', 'tetris',
+];
+
+describe('the «Сім доріг» mixed quiz', () => {
+  it('passes the quiz schema within the limits and is medium-sized', () => {
+    const result = quizSchema.safeParse(quiz);
+    expect(result.success ? [] : result.error.issues).toEqual([]);
+    expect(quiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
+    expect(played(quiz).length).toBeGreaterThanOrEqual(90);
+    expect(played(quiz).length).toBeLessThanOrEqual(120);
+  });
+
+  it('uses the new rounds and question types, and no polls, word clouds or puzzles', () => {
+    const rounds = new Set<string>(quiz.rounds.map((r) => r.type));
+    for (const type of ['bets', 'auction', 'truth', 'classic', 'blitz', 'board', 'survival', 'final']) expect(rounds).toContain(type);
+    const types = new Set<string>(played(quiz).map((q) => q.type));
+    for (const type of ['timedlist', 'letterwords', 'moreless', 'drawing', 'wordladder']) expect(types).toContain(type);
+    for (const type of ['poll', 'wordcloud', 'survey']) expect(types).not.toContain(type);
+    expect(rounds).not.toContain('puzzles');
+    // Кожен новий тип звучить не раз.
+    for (const type of ['timedlist', 'letterwords', 'moreless', 'drawing', 'wordladder'] as const) expect(ofType(type).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('gives every question, spare, blitz window and duel at least 25 seconds', () => {
+    expect(everything.filter((q) => q.timeLimit < MIN_TIMER).map((q) => q.id)).toEqual([]);
+    for (const q of everything) if (q.type === 'bluff') expect(q.choiceTime).toBeGreaterThanOrEqual(MIN_TIMER);
+    for (const r of quiz.rounds) {
+      if (r.type === 'blitz') expect(r.answerWindow ?? MIN_TIMER).toBeGreaterThanOrEqual(MIN_TIMER);
+      if (r.type === 'truth') expect(r.timeLimit).toBeGreaterThanOrEqual(MIN_TIMER);
+    }
+    expect(quiz.duels?.timeLimit).toBeGreaterThanOrEqual(MIN_TIMER);
+  });
+
+  it('builds every word ladder from dictionary nouns', () => {
+    const nouns = loadNouns();
+    for (const l of ofType('wordladder')) {
+      const missing = l.path.filter((w) => {
+        const k = ladderKey(w);
+        return k === null || !nouns.isNoun(k);
+      });
+      expect(missing).toEqual([]);
+      expect(l.path.length - 1).toBeLessThanOrEqual(l.maxSteps);
+    }
+  });
+
+  it('gives every letter set enough dictionary words: many for «most», a seven-letter one for «longest»', () => {
+    const nouns = [...loadNouns().keys()];
+    for (const q of ofType('letterwords')) {
+      expect(q.set.kind).toBe('fixed');
+      const set = q.set.kind === 'fixed' ? letterSet(q.set.letters) : null;
+      expect(set).not.toBeNull();
+      const fit = nouns.filter((w) => fitsLetters(w, set ?? []));
+      if (q.goal === 'most') expect(fit.length).toBeGreaterThanOrEqual(30);
+      else expect(fit.some((w) => w.replaceAll("'", '').length === 7)).toBe(true);
+    }
+  });
+
+  it('gives every theme at least eight questions', () => {
+    const counts = new Map<MixTheme, number>();
+    for (const q of played(quiz)) {
+      const theme = mixThemeOf(q.id);
+      if (theme) counts.set(theme, (counts.get(theme) ?? 0) + 1);
+    }
+    expect(played(quiz).filter((q) => mixThemeOf(q.id) === null).map((q) => q.id)).toEqual([]);
+    expect(themes.filter((theme) => (counts.get(theme) ?? 0) < 8)).toEqual([]);
+  });
+
+  it('has a fair mix of true and false in yes/no questions', () => {
+    const bools = everything.filter((q): q is Extract<Question, { type: 'boolean' }> => q.type === 'boolean');
+    const trueCount = bools.filter((q) => q.correct).length;
+    expect(trueCount).toBeGreaterThanOrEqual(Math.ceil(bools.length * 0.35));
+    expect(trueCount).toBeLessThanOrEqual(Math.floor(bools.length * 0.65));
+  });
+
+  it('marks the board with random ×2/×3 and prices that grow from 100 to 500', () => {
+    for (const r of quiz.rounds) {
+      if (r.type !== 'board') continue;
+      const marked = r.categories.map((c) => c.cells.findIndex((x) => x.mark !== 'none'));
+      expect(new Set(marked).size).toBeGreaterThan(1);
+      for (const c of r.categories) {
+        expect(c.cells.filter((x) => x.mark !== 'none')).toHaveLength(1);
+        expect(c.cells.map((x) => questionPrice(x.question))).toEqual([100, 200, 300, 400, 500]);
+      }
+    }
+  });
+
+  it('leaks no answer into its question and no more-or-less value into its pair', () => {
+    const norm = (s: string) => s.toLocaleLowerCase('uk').replace(/[«»"’'ʼ.,!?]/g, '');
+    const leaks: string[] = [];
+    // Задачі, де правильний варіант неминуче названо в умові (вибір серед названих підозрюваних).
+    const named = ['Ключ від сейфа взяв один із трьох'];
+    for (const q of everything) {
+      if (named.some((p) => q.text.startsWith(p))) continue;
+      const where = norm(`${q.text} ${q.hint ?? ''} ${q.type === 'clues' ? q.clues.join(' ') : ''}`);
+      const answers =
+        q.type === 'single'
+          ? [q.options.find((o) => o.id === q.correctId)?.text ?? '']
+          : q.type === 'text' || q.type === 'clues' || q.type === 'drawing'
+            ? q.accepted
+            : q.type === 'timedlist'
+              ? q.items.flatMap((i) => [i.text, ...i.accepted])
+              : q.type === 'wordladder'
+                ? q.path.slice(1, -1)
+                : [];
+      for (const a of answers) if (norm(a).length >= 3 && !/^\d+$/.test(norm(a)) && where.includes(norm(a))) leaks.push(`${q.id}: ${a}`);
+      if (q.type === 'moreless')
+        for (const p of q.pairs) for (const v of [p.a.value, p.b.value]) if (norm(`${q.text} ${p.prompt} ${p.a.text} ${p.b.text}`).includes(norm(v))) leaks.push(`${q.id} ${p.id}: ${v}`);
+    }
+    for (const c of quiz.duels?.categories ?? []) for (const d of c.questions) for (const a of d.accepted) if (norm(d.text).includes(norm(a))) leaks.push(`duel ${d.text}: ${a}`);
+    expect(leaks).toEqual([]);
+  });
+
+  it('has no duplicate question texts, here or in other seed quizzes', () => {
+    const texts = everything.map((q) => key(q.text));
+    expect(texts.filter((text, i) => texts.indexOf(text) !== i)).toEqual([]);
+    const dir = import.meta.dirname;
+    const others = readdirSync(dir)
+      .filter((f) => f.endsWith('-quiz.ts') && f !== 'mix-quiz.ts')
+      .map((f) => readFileSync(join(dir, f), 'utf8'))
+      .concat(readdirSync(join(dir, 'evening')).map((f) => readFileSync(join(dir, 'evening', f), 'utf8')))
+      .join('\n');
+    const duels = (quiz.duels?.categories ?? []).flatMap((c) => c.questions.map((d) => d.text));
+    expect([...everything.map((q) => q.text), ...duels].filter((text) => others.includes(text))).toEqual([]);
+  });
+
+  it('contains nothing related to russia or the Soviet period', () => {
+    const text = JSON.stringify(quiz);
+    expect(BANNED.filter((term) => new RegExp(`(?<!\\p{L})${term}`, 'iu').test(text))).toEqual([]);
+  });
+});
