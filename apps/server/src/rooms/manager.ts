@@ -1562,15 +1562,18 @@ export class RoomManager {
     return this.apply(room, letterWord(room.state, who.id, word, now, (key) => this.nouns.isNoun(key)));
   }
 
-  /** Вибір у «Більше чи менше» (28a): у командній грі — відповідач команди. Ack без правильності. Понад MORELESS_PICKS_PER_SECOND — too_soon. */
+  /** Вибір у «Більше чи менше» (28a): у командній грі — відповідач команди. Ack без правильності; moreless_stale — з index = done. Понад MORELESS_PICKS_PER_SECOND — too_soon. */
   moreLess(room: Room, playerId: string, index: number, pick: MoreLessSide): AckResult {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     const now = this.now();
     if (!this.pickAllowed(room, playerId, now)) return { ok: false, error: 'too_soon' };
-    // apply дає лише { ok: true } чи помилку: ні правильності, ні номера, ні поступу — ack однаковий для правильного й неправильного вибору.
-    return this.apply(room, moreLessPick(room.state, who.id, index, pick, now));
+    // apply дає лише { ok: true } чи помилку: ні правильності, ні поступу — ack однаковий для правильного й неправильного вибору.
+    const result = this.apply(room, moreLessPick(room.state, who.id, index, pick, now));
+    // moreless_stale несе done — місце сервера (не секрет, як list_repeat): телефон, що загубив вибір, вертається на нього.
+    if (!result.ok && result.error === 'moreless_stale') return { ...result, index: moreLessOf(room.state, who.id).picks.length };
+    return result;
   }
 
   /** Понад MORELESS_PICKS_PER_SECOND виборів на секунду від людини (28a) — ні. Вікно своє, як у wordAllowed, але окреме. */

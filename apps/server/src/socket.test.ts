@@ -665,7 +665,7 @@ describe('host presence', () => {
     await until(olena, inPhase('question'));
 
     expect(await send(olena, 'player:moreless', { index: 0, pick: 'a' })).toEqual({ ok: true });
-    expect(await send(olena, 'player:moreless', { index: 0, pick: 'b' })).toEqual({ ok: false, error: 'moreless_stale' });
+    expect(await send(olena, 'player:moreless', { index: 0, pick: 'b' })).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
     const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless?.done === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.moreless?.picks).toEqual(['a']);

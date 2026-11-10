@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MoreLessInfo, MoreLessPairView, PlayerMoreLess, PublicQuestion } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
-import { MORELESS_TAP_GAP_MS, MoreLessBoard, MoreLessPlay, MoreLessReveal } from './MoreLessView';
+import { MORELESS_RESYNC_MS, MORELESS_TAP_GAP_MS, MoreLessBoard, MoreLessPlay, MoreLessReveal } from './MoreLessView';
 
 const question: PublicQuestion = {
   type: 'moreless',
@@ -61,6 +61,10 @@ describe('MoreLessPlay', () => {
     const { send } = deferred();
     render(<MoreLessPlay info={mineOf()} question={question} paused={false} timeUp={false} send={send} />);
     expect(screen.getByText('1 / 3')).toBeTruthy();
+    // ar: абзац лічильника — у напрямку сторінки (без dir), числа — ltr у bdi.
+    expect(screen.getByText('1 / 3').tagName).toBe('BDI');
+    expect(screen.getByText('1 / 3').getAttribute('dir')).toBe('ltr');
+    expect(screen.getByText('1 / 3').closest('p')?.hasAttribute('dir')).toBe(false);
     expect(screen.getByText('Що вище?')).toBeTruthy();
     expect(screen.queryByText('Дунай')).toBeNull();
     tap(/Говерла/);
@@ -101,6 +105,91 @@ describe('MoreLessPlay', () => {
     // Клавіатура (Enter на кнопці) дає click з detail 0 — рахується.
     fireEvent.click(option(/Говерла/), { detail: 0 });
     expect(send).toHaveBeenCalledWith('player:moreless', { index: 0, pick: 'a' });
+  });
+
+  it('a press and a pointercancel send nothing', () => {
+    vi.useFakeTimers();
+    const { send } = deferred();
+    render(<MoreLessPlay info={mineOf()} question={question} paused={false} timeUp={false} send={send} />);
+    const button = option(/Говерла/);
+    // Палець узявся за сторінку на кнопці: прокрутка дає pointercancel і без click.
+    fireEvent.pointerDown(button, { button: 0, pointerType: 'touch' });
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.pointerCancel(button, { pointerType: 'touch' });
+    expect(send).not.toHaveBeenCalled();
+    // Позначку знято: click опісля (не того дотику) теж нічого не шле.
+    fireEvent.click(button, { detail: 1 });
+    expect(send).not.toHaveBeenCalled();
+    // Миша з натиснутою кнопкою вийшла з неї — так само.
+    fireEvent.pointerDown(button, { button: 0, pointerType: 'mouse' });
+    fireEvent.pointerLeave(button, { pointerType: 'mouse', buttons: 1 });
+    fireEvent.click(button, { detail: 1 });
+    expect(send).not.toHaveBeenCalled();
+    // Дотик, що почався на іншій кнопці, — теж ні.
+    fireEvent.pointerDown(option(/Ейфелева вежа/), { button: 0, pointerType: 'touch' });
+    fireEvent.click(button, { detail: 1 });
+    expect(send).not.toHaveBeenCalled();
+    // Звичайний дотик: pointerleave після pointerup (buttons 0) не заважає.
+    fireEvent.pointerDown(button, { button: 0, pointerType: 'touch' });
+    fireEvent.pointerLeave(button, { pointerType: 'touch', buttons: 0 });
+    fireEvent.click(button, { detail: 1 });
+    expect(send).toHaveBeenCalledWith('player:moreless', { index: 0, pick: 'a' });
+  });
+
+  it('a stale refusal from behind returns the phone to the server place', async () => {
+    vi.useFakeTimers();
+    const { send, answer } = deferred();
+    render(<MoreLessPlay info={mineOf()} question={question} paused={false} timeUp={false} send={send} />);
+    tap(/Говерла/);
+    wait(MORELESS_TAP_GAP_MS);
+    tap(/Дунай/);
+    wait(MORELESS_TAP_GAP_MS);
+    tap(/Світязь/);
+    expect(screen.getByText('Готово! Чекаємо на відкриття')).toBeTruthy();
+    // Вибір 0 загубився: сервер відхиляє 2 як stale і каже, що має 1 — телефон мовчки вертається на порівняння 2.
+    await answer({ ok: false, error: 'moreless_stale', index: 1 }, 2);
+    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toBe('');
+    wait(MORELESS_TAP_GAP_MS);
+    tap(/Рейн/);
+    expect(send).toHaveBeenLastCalledWith('player:moreless', { index: 1, pick: 'a' });
+    // Stale з місцем попереду (подвійний натиск) — мовчки, без руху.
+    await answer({ ok: false, error: 'moreless_stale', index: 1 }, 0);
+    expect(screen.getByText('3 / 3')).toBeTruthy();
+  });
+
+  it('a lost last pick does not end in done', () => {
+    vi.useFakeTimers();
+    const { send } = deferred();
+    const { rerender } = render(<MoreLessPlay info={mineOf()} question={question} paused={false} timeUp={false} send={send} />);
+    tap(/Говерла/);
+    wait(MORELESS_TAP_GAP_MS);
+    rerender(<MoreLessPlay info={mineOf({ done: 1, picks: ['a'] })} question={question} paused={false} timeUp={false} send={send} />);
+    tap(/Дунай/);
+    wait(MORELESS_TAP_GAP_MS);
+    rerender(<MoreLessPlay info={mineOf({ done: 2, picks: ['a', 'b'] })} question={question} paused={false} timeUp={false} send={send} />);
+    tap(/Світязь/);
+    expect(screen.getByText('Готово! Чекаємо на відкриття')).toBeTruthy();
+    // Ack останнього не прийшов, а зріз так і лишився на 2: телефон вертається на порівняння 3.
+    wait(MORELESS_RESYNC_MS);
+    expect(screen.getByText('3 / 3')).toBeTruthy();
+    tap(/Синевир/);
+    expect(send).toHaveBeenLastCalledWith('player:moreless', { index: 2, pick: 'b' });
+  });
+
+  it('a refusal ahead of an unanswered pick frees the server place', async () => {
+    vi.useFakeTimers();
+    const { send, answer } = deferred();
+    render(<MoreLessPlay info={mineOf()} question={question} paused={false} timeUp={false} send={send} />);
+    tap(/Говерла/);
+    wait(MORELESS_TAP_GAP_MS);
+    tap(/Дунай/);
+    // Відмова для 1, коли info.done = 0, а ack для 0 ще не прийшов: телефон на порівнянні 1, і воно живе.
+    await answer({ ok: false, error: 'paused' }, 1);
+    expect(screen.getByText('1 / 3')).toBeTruthy();
+    wait(MORELESS_TAP_GAP_MS);
+    tap(/Говерла/);
+    expect(send).toHaveBeenLastCalledWith('player:moreless', { index: 0, pick: 'a' });
   });
 
   it('a late reply does not move the phone back', async () => {
@@ -222,7 +311,7 @@ describe('MoreLessReveal', () => {
     const { rerender } = render(<MoreLessReveal pairs={pairs} marks={['right', 'wrong', 'late']} compact />);
     expect(screen.getByText('правильно')).toBeTruthy();
     expect(screen.getByText('помилка')).toBeTruthy();
-    expect(screen.getByText('не встиг')).toBeTruthy();
+    expect(screen.getByText('без відповіді')).toBeTruthy();
     const many = Array.from({ length: 20 }, (_, i) => ({ ...pairs[i % 3], id: `x${i}` }));
     rerender(<MoreLessReveal pairs={many} />);
     expect(document.querySelectorAll('.moreless-reveal > li')).toHaveLength(20);

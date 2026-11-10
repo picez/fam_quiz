@@ -10,10 +10,33 @@ import type { Send } from '../live/types';
  */
 export const MORELESS_TAP_GAP_MS = 350;
 
-/** Відмови, про які телефон мовчить: другий натиск на вже пройдене порівняння (сервер уже має цей вибір). */
-const QUIET = new Set(['moreless_stale']);
+/**
+ * Телефон попереду сервера (local > info.done) і зріз так довго не наздоганяє — вибір загубився (обрив без ack).
+ * Тоді телефон вертається на місце сервера: загублений останній вибір не дає «Готово» з недовідправленим рядом.
+ */
+export const MORELESS_RESYNC_MS = 4000;
 
 const SIDES: MoreLessSide[] = ['a', 'b'];
+
+/** Закриття не раніше як за стільки до кінця часу — «час вийшов»; раніше — закрив ведучий. */
+const RAN_OUT_SLACK_MS = 1000;
+
+/**
+ * На locked: чи справді сплив час, а не ведучий закрив запитання раніше. Пам'ятає останній кінець часу запитання (на паузі — жодного)
+ * і порівнює з миттю, коли телефон побачив закриття. Телефон, що відкрився вже на locked, кінця не знає — «закрито».
+ */
+export function useTimeRanOut(questionIndex: number, phase: string, endsAt: number | null, offsetMs: number): boolean {
+  const last = useRef<{ question: number; endsAt: number | null } | null>(null);
+  const closed = useRef<{ question: number; ranOut: boolean } | null>(null);
+  if (phase === 'question') {
+    closed.current = null;
+    last.current = { question: questionIndex, endsAt };
+  } else if (phase === 'locked' && closed.current?.question !== questionIndex) {
+    const end = last.current?.question === questionIndex ? last.current.endsAt : null;
+    closed.current = { question: questionIndex, ranOut: end !== null && Date.now() + offsetMs >= end - RAN_OUT_SLACK_MS };
+  }
+  return phase === 'locked' && closed.current?.question === questionIndex && closed.current.ranOut;
+}
 
 /** Клавіші вибору: 1/← — перший варіант, 2/→ — другий. */
 function keySide(key: string): MoreLessSide | null {
@@ -30,9 +53,10 @@ function typing(target: EventTarget | null): boolean {
 /**
  * Телефон: одне порівняння за раз — запитання, лічильник «3 / 8» і дві кнопки на всю ширину.
  * Натиск одразу показує наступне порівняння (оптимістично): місце — max(своє, info.done). Правильності до відкриття немає.
- * Подвійний дотик відповідає лише раз: натиск рахується з pointerdown (чи клавіші), click того самого дотику — ні,
- * а після переходу кнопки гаснуть на MORELESS_TAP_GAP_MS. moreless_stale мовчить; інші відмови показують текст
- * і повертають телефон на місце сервера.
+ * Вибір — click тієї самої кнопки, де почався дотик (pointerdown лише позначає її, і то не в паузі), чи клавіша; прокрутка
+ * (pointercancel) чи вихід пальця з кнопки позначку знімають. Після переходу кнопки гаснуть на MORELESS_TAP_GAP_MS, тож
+ * другий дотик подвійного натиску нічого не позначає. moreless_stale мовчить; якщо сервер позаду (index < свого), телефон
+ * мовчки вертається на його місце. Інші відмови показують текст і повертають телефон на місце сервера.
  */
 export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: PlayerMoreLess; question: PublicQuestion; paused: boolean; timeUp: boolean; send: Send }) {
   const pairs = question.moreless?.pairs ?? [];
@@ -48,7 +72,7 @@ export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: P
   doneNow.current = info.done;
   /** Порівняння, на які вже пішов запит: один запит на порівняння. */
   const sent = useRef(new Set<number>());
-  /** Кнопка, у якій почався дотик: click того самого дотику вже не рахується. */
+  /** Кнопка, у якій почався дотик поза паузою: click лише цієї кнопки рахується. */
   const pressed = useRef<MoreLessSide | null>(null);
   const gapNow = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,19 +120,36 @@ export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: P
     slideTimer.current = setTimeout(() => setSlide(false), 200);
     void send('player:moreless', { index: at, pick }).then(
       (result) => {
-        if (result.ok || QUIET.has(result.error)) return;
+        if (result.ok) return;
+        if (result.error === 'moreless_stale') {
+          // Сервер позаду — попередній вибір загубився: назад на його місце. Інакше (подвійний натиск, пізня відповідь) — мовчки.
+          if (result.index !== undefined && result.index < at) back(result.index);
+          return;
+        }
         refuse(at, errorText(result.error));
       },
       () => refuse(at, t('err_unknown')),
     );
   };
 
-  /** Відмова: текст і назад на місце сервера; порівняння від відхиленого знову можна вибрати. */
+  /** Назад на порівняння target: його й наступні знову можна вибрати. */
+  const back = (target: number) => {
+    for (const i of [...sent.current]) if (i >= target) sent.current.delete(i);
+    setLocal(target);
+  };
+
+  /** Відмова: текст і назад на місце сервера (не далі за відхилене). */
   const refuse = (at: number, text: string) => {
     setStatus(text);
-    for (const i of [...sent.current]) if (i >= at) sent.current.delete(i);
-    setLocal(Math.min(at, doneNow.current));
+    back(Math.min(at, doneNow.current));
   };
+
+  // Телефон попереду, а зріз не наздоганяє: вибір загубився — назад на місце сервера.
+  useEffect(() => {
+    if (local <= info.done) return;
+    const id = setTimeout(() => back(doneNow.current), MORELESS_RESYNC_MS);
+    return () => clearTimeout(id);
+  }, [local, info.done]);
 
   // Клавіші 1/2 і стрілки — і коли фокус не на кнопці (але не в полі введення).
   useEffect(() => {
@@ -127,16 +168,21 @@ export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: P
   const text = (side: MoreLessSide) => (pair === undefined ? '' : side === 'a' ? pair.a : pair.b);
 
   const onPointerDown = (side: MoreLessSide) => (event: ReactPointerEvent<HTMLButtonElement>) => {
-    // Лише основна кнопка миші; у дотику й пера button — 0.
-    if (event.button > 0) return;
-    pressed.current = side;
-    choose(side);
+    // Лише основна кнопка миші; у дотику й пера button — 0. У паузі між порівняннями дотик нічого не позначає.
+    pressed.current = event.button > 0 || gapNow.current || offNow.current ? null : side;
+  };
+  const onPointerCancel = () => {
+    pressed.current = null;
+  };
+  // Палець чи миша з натиснутою кнопкою вийшли з кнопки. Дотик дає pointerleave і після pointerup (buttons 0) — це не вихід.
+  const onPointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.buttons !== 0) pressed.current = null;
   };
   const onClick = (side: MoreLessSide) => (event: ReactMouseEvent<HTMLButtonElement>) => {
-    // click після власного pointerdown — той самий дотик, він уже врахований; detail 0 — Enter чи пробіл на кнопці.
-    const own = pressed.current !== null;
+    // detail 0 — Enter чи пробіл на кнопці; інакше — лише click дотику, що почався на цій кнопці.
+    const own = pressed.current === side;
     pressed.current = null;
-    if (own || event.detail !== 0) return;
+    if (!own && event.detail !== 0) return;
     choose(side);
   };
   if (question.moreless === undefined) return null;
@@ -147,8 +193,9 @@ export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: P
         <p className="lead moreless-done">{t('morelessDone')}</p>
       ) : (
         <div key={index} className={slide ? 'moreless-card is-slide' : 'moreless-card'}>
-          <p className="meta moreless-counter" dir="ltr">
-            {t('morelessCounter', { n: index + 1, total })}
+          {/* Абзац — у напрямку мови (в ar праворуч), а самі числа «1 / 3» — зліва направо. */}
+          <p className="meta moreless-counter">
+            <bdi dir="ltr">{t('morelessCounter', { n: index + 1, total })}</bdi>
           </p>
           <h2 className="moreless-prompt" dir="auto">
             {pair?.prompt}
@@ -164,6 +211,8 @@ export function MoreLessPlay({ info, question, paused, timeUp, send }: { info: P
                 aria-label={t('morelessPick', { option: text(side) })}
                 aria-disabled={off || gap}
                 onPointerDown={onPointerDown(side)}
+                onPointerCancel={onPointerCancel}
+                onPointerLeave={onPointerLeave}
                 onClick={onClick(side)}
               >
                 {text(side)}

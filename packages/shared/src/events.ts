@@ -19,7 +19,7 @@ export type Role = 'host' | 'stage' | 'player';
 
 export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found' | 'restarting';
 
-/** index — лише з list_repeat (27c): номер уже знайденого пункту (від 1). */
+/** index — з list_repeat (27c): номер уже знайденого пункту (від 1); з moreless_stale (28a): скільки порівнянь сервер уже має (done). */
 export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode; index?: number };
 export type Ack = (result: AckResult) => void;
 
@@ -194,6 +194,7 @@ export interface ClientToServerEvents {
   'player:list': (payload: z.infer<typeof timedListWordSchema>, ack: Ack) => void;
   /** «Слова з літер» (27d): слово гравця (команди). */
   'player:letters': (payload: z.infer<typeof letterWordSchema>, ack: Ack) => void;
+  /** «Більше чи менше» (28a): вибір гравця (відповідача команди) у порівнянні index; ack без правильності, moreless_stale — з done. */
   'player:moreless': (payload: z.infer<typeof moreLessPickSchema>, ack: Ack) => void;
   /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
   'player:clue': (ack: Ack) => void;

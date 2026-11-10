@@ -775,6 +775,8 @@ export function wallShare(found: number, groups: number): number {
 export type TimedListItem = Extract<Question, { type: 'timedlist' }>['items'][number];
 
 export type SurveyRow = Extract<Question, { type: 'survey' }>['rows'][number];
+/** Порівняння «Більше чи менше» (28a): запитання, два варіанти зі значеннями, правильна сторона й бали. */
+export type MoreLessPair = Extract<Question, { type: 'moreless' }>['pairs'][number];
 
 /** Рядки за місцем на табло: популярність спаданням, за рівності — порядок дошки. */
 export function surveyOrder<T extends { popularity: number }>(rows: readonly T[]): T[] {

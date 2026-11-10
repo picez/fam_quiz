@@ -643,7 +643,7 @@ describe('letter words (27d)', () => {
     expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
     // Другий натиск того самого порівняння — stale, стан той самий.
     const before = room.state;
-    expect(manager.moreLess(room, olena.playerId, 0, 'b')).toEqual({ ok: false, error: 'moreless_stale' });
+    expect(manager.moreLess(room, olena.playerId, 0, 'b')).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
     expect(room.state).toBe(before);
     expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
     expect(manager.moreLess(room, olena.playerId, 2, 'a')).toEqual({ ok: true });
@@ -681,12 +681,14 @@ describe('letter words (27d)', () => {
     expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: true });
-    for (let i = 1; i < MORELESS_PICKS_PER_SECOND; i++) expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: false, error: 'moreless_stale' });
+    for (let i = 1; i < MORELESS_PICKS_PER_SECOND; i++) expect(manager.moreLess(room, olena.playerId, 0, 'a')).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
     expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: false, error: 'too_soon' });
     expect(manager.moreLess(room, taras.playerId, 0, 'a')).toEqual({ ok: true });
     // Окреме вікно: вибори не з'їдають вікно слів (список і слова з літер), тож тут — відмова рушія, а не too_soon.
     expect(manager.timedList(room, olena.playerId, 'Марс', true)).toEqual({ ok: false, error: 'type_mismatch' });
     scheduler.advance(1000);
+    // Вибір наперед (попередній загубився): відмова каже, де сервер, — done, без правильності.
+    expect(manager.moreLess(room, olena.playerId, 2, 'b')).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
     expect(manager.moreLess(room, olena.playerId, 1, 'b')).toEqual({ ok: true });
   });
 });
