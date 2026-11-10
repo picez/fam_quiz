@@ -43,9 +43,35 @@ function takeBatch(queue: Outgoing[]): DrawOp | null {
   return { ...head.op, p };
 }
 
+/** Значки інструментів (назва — в aria-label кнопки): гумка, «Крок назад», «Очистити». «Крок назад» дзеркалиться в rtl. */
+function ToolIcon({ kind }: { kind: 'eraser' | 'undo' | 'clear' }) {
+  return (
+    <svg className={`drawing-icon is-${kind}`} viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {kind === 'eraser' && (
+        <>
+          <path d="M8.5 20.5 3.6 15.6a2 2 0 0 1 0-2.8l8.8-8.8a2 2 0 0 1 2.8 0l5 5a2 2 0 0 1 0 2.8l-8.7 8.7" />
+          <path d="M8.5 20.5H21M7.5 9.5l7 7" />
+        </>
+      )}
+      {kind === 'undo' && (
+        <>
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        </>
+      )}
+      {kind === 'clear' && (
+        <>
+          <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+          <path d="M10 10v7M14 10v7" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 /**
- * Художник (28c): слово великим, полотно на всю ширину (touch-action: none, pointer-події з setPointerCapture),
- * 8 кольорів, 3 товщини, гумка, «Крок назад», «Очистити».
+ * Художник (28c): слово великим, полотно на всю ширину (touch-action: none, pointer-події з setPointerCapture);
+ * два ряди інструментів: 8 кольорів; гумка, 3 товщини, «Крок назад», «Очистити» (значками з назвою в aria-label).
  *
  * Локальна модель: власні операції застосовуються одразу; пакет іде кожні DRAW_FLUSH_MS, у польоті — щонайбільше один
  * (begin першої точки — одразу при дотику). Модель сервера (useGame застосовує до неї й власні операції) береться,
@@ -269,11 +295,11 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
               onClick={() => setColor(i)}
             />
           ))}
-          <button type="button" className="drawing-tool drawing-eraser" aria-pressed={eraser} disabled={off} onClick={() => setColor(DRAWING_ERASER)}>
-            {t('drawingEraser')}
-          </button>
         </div>
         <div className="drawing-widths" role="group">
+          <button type="button" className="drawing-tool drawing-eraser" aria-label={t('drawingEraser')} title={t('drawingEraser')} aria-pressed={eraser} disabled={off} onClick={() => setColor(DRAWING_ERASER)}>
+            <ToolIcon kind="eraser" />
+          </button>
           {DRAWING_WIDTHS.map((value, i) => (
             <button
               key={value}
@@ -288,11 +314,11 @@ export function DrawingPad({ info, model, paused, timeUp, send, requestSync }: {
               <span className="drawing-dot" style={{ width: `${4 + i * 6}px`, height: `${4 + i * 6}px` }} />
             </button>
           ))}
-          <button type="button" className="drawing-tool" disabled={off} onClick={() => command({ op: 'undo' })}>
-            {t('drawingUndo')}
+          <button type="button" className="drawing-tool" aria-label={t('drawingUndo')} title={t('drawingUndo')} disabled={off} onClick={() => command({ op: 'undo' })}>
+            <ToolIcon kind="undo" />
           </button>
-          <button type="button" className="drawing-tool" disabled={off} onClick={() => command({ op: 'clear' })}>
-            {t('drawingClear')}
+          <button type="button" className="drawing-tool" aria-label={t('drawingClear')} title={t('drawingClear')} disabled={off} onClick={() => command({ op: 'clear' })}>
+            <ToolIcon kind="clear" />
           </button>
         </div>
       </div>
@@ -447,7 +473,10 @@ export function DrawingGuessers({ guessers, me, points = true }: { guessers: Non
   );
 }
 
-/** Відкриття (28c): слово, малюнок, хто вгадав (з балами) і художник із його часткою. */
+/**
+ * Відкриття (28c): слово над малюнком; художник із його часткою — першим рядком того самого вигляду, що й рядки тих,
+ * хто вгадав (з балами). Полотно — в обгортці .drawing-fit: на сцені вона бере всю решту висоти.
+ */
 export function DrawingReveal({ info, strokes, me, className }: { info: DrawingInfo; strokes: Stroke[]; me?: string; className?: string }) {
   return (
     <section className={className === undefined ? 'drawing-reveal' : `drawing-reveal ${className}`}>
@@ -456,19 +485,25 @@ export function DrawingReveal({ info, strokes, me, className }: { info: DrawingI
           {t('drawingWordWas', { word: info.word })}
         </h2>
       )}
-      <div className="drawing-frame">
-        <DrawingCanvas strokes={strokes} label={t('drawingCanvasLabel')} />
+      <div className="drawing-fit">
+        <div className="drawing-frame">
+          <DrawingCanvas strokes={strokes} label={t('drawingCanvasLabel')} />
+        </div>
       </div>
       <div className="drawing-reveal-rows">
         {info.drawerName !== null && (
-          <p className={me !== undefined && me === info.side ? 'drawing-artist is-mine' : 'drawing-artist'}>
-            <span dir="auto">{t('drawingArtist', { name: info.drawerName })}</span>
-            {info.drawerPoints !== null && (
-              <span className="score" dir="ltr">
-                {signed(info.drawerPoints)}
+          <ul className="rows drawing-artist-row">
+            <li className={me !== undefined && me === info.side ? 'drawing-artist is-mine' : 'drawing-artist'}>
+              <span className="name" dir="auto">
+                {t('drawingArtist', { name: info.drawerName })}
               </span>
-            )}
-          </p>
+              {info.drawerPoints !== null && (
+                <span className="score" dir="ltr">
+                  {signed(info.drawerPoints)}
+                </span>
+              )}
+            </li>
+          </ul>
         )}
         <DrawingGuessers guessers={info.guessers ?? []} me={me} />
       </div>

@@ -480,7 +480,9 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           <DrawingReveal info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} className="drawing-stage is-reveal" />
         ) : (
           <section className="drawing-stage">
-            <DrawingLive strokes={strokesOf(drawing, view.questionIndex)} />
+            <div className="drawing-fit">
+              <DrawingLive strokes={strokesOf(drawing, view.questionIndex)} />
+            </div>
             <DrawingBoard info={view.drawing} />
           </section>
         ))}

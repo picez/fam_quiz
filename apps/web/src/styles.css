@@ -18287,6 +18287,16 @@ button.letterwords-tile:focus-visible {
   min-width: min(100%, 16rem);
 }
 
+/* Вузький телефон стоячи: полотно художника й вгадувача виходить на бічні поля сторінки (по 4 px від краю). */
+@media (max-width: 480px) and (orientation: portrait) {
+  .drawing-pad .drawing-frame,
+  .drawing-watch .drawing-frame {
+    width: calc(100% + 2 * var(--app-pad) - 0.5rem);
+    max-width: none;
+    margin-inline: calc(0.25rem - var(--app-pad));
+  }
+}
+
 .drawing-word {
   display: flex;
   flex-wrap: wrap;
@@ -18312,7 +18322,8 @@ button.letterwords-tile:focus-visible {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Два ряди: кольори з гумкою, товщини з кроком назад і очищенням; на 320 px кожен ряд сам переноситься. */
+/* Рівно два ряди на будь-якій ширині (320 px теж): 8 кольорів; гумка, 3 товщини, «Крок назад» і «Очистити» значками.
+   Кнопки стискаються під ширину ряду (не менше ≈ 32 px на 320 px), а ряд не переноситься. */
 .drawing-tools {
   display: grid;
   gap: 0.5rem;
@@ -18320,11 +18331,28 @@ button.letterwords-tile:focus-visible {
 
 .drawing-colors,
 .drawing-widths {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   justify-content: center;
   align-items: center;
   gap: 0.375rem;
+}
+
+.drawing-colors {
+  grid-template-columns: repeat(8, minmax(0, 2.25rem));
+}
+
+.drawing-widths {
+  grid-template-columns: repeat(6, minmax(0, 3rem));
+}
+
+@media (max-width: 359px) {
+  .drawing-colors {
+    gap: 0.1875rem;
+  }
+
+  .drawing-widths {
+    gap: 0.25rem;
+  }
 }
 
 .drawing-color,
@@ -18342,28 +18370,35 @@ button.letterwords-tile:focus-visible {
 }
 
 .drawing-color {
-  width: 2rem;
-  height: 2rem;
-  min-height: 2rem;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1;
   padding: 0;
   border-radius: 50%;
 }
 
-.drawing-width {
+.drawing-width,
+.drawing-tool {
   display: inline-grid;
   place-items: center;
-  width: 2.5rem;
+  width: 100%;
+  height: 2.5rem;
   padding: 0;
+}
+
+.drawing-icon {
+  display: block;
+}
+
+.drawing-icon.is-undo:dir(rtl) {
+  transform: scaleX(-1);
 }
 
 .drawing-dot {
   display: block;
   border-radius: 50%;
   background: currentColor;
-}
-
-.drawing-tool {
-  padding: 0.25rem 0.75rem;
 }
 
 .drawing-color[aria-pressed='true'],
@@ -18472,11 +18507,11 @@ button.letterwords-tile:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.drawing-artist {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin: 0;
+/* Художник — рядок того самого вигляду, що й рядки тих, хто вгадав (.rows), одразу над ними. */
+.drawing-reveal-rows {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .drawing-artist.is-mine,
@@ -18488,40 +18523,88 @@ button.letterwords-tile:focus-visible {
   margin: 0;
 }
 
-/* Сцена 1600×900: полотно якомога більше, але цілком на екрані; під ним — хто малює й скільки вгадали. */
-.drawing-stage {
-  display: grid;
-  justify-items: center;
-  gap: 0.75rem;
-  min-width: 0;
+/* Сцена — рівно на екран: шапка запитання бере свою висоту (назва у 2 рядки теж), полотно 4:3 — всю решту висоти й ширини
+   (обгортка .drawing-fit — контейнер розміру), під ним — хто малює й скільки вгадали. */
+.app.stage:has(.drawing-stage) {
+  height: 100dvh;
+  overflow: hidden;
 }
 
-/* Над полотном — шапка запитання (≈ 21rem на 1600×900), під ним — рядок «Малює · Вгадали», поля сцени й смуга реакцій (≈ 8rem). */
-.drawing-stage .drawing-frame {
-  width: min(100%, calc((100vh - 29rem) * 4 / 3));
+.stage-question:has(.drawing-stage) {
+  min-height: 0;
+  gap: 2vh;
+}
+
+.stage-question:has(.drawing-stage) .stage-main {
+  flex: 0 0 auto;
+}
+
+.stage-question:has(.drawing-stage) .question {
+  font-size: clamp(1.5rem, 3.4vw, 3.5rem);
+}
+
+.stage-question:has(.drawing-stage) .stage-clock .flap {
+  font-size: clamp(2rem, 9vh, 5rem);
+}
+
+.drawing-stage {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.drawing-stage .drawing-fit {
+  display: flex;
+  flex: 1 1 0;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.drawing-stage .drawing-fit > .drawing-frame {
+  flex: none;
+  width: min(100cqw, calc(100cqh * 4 / 3));
 }
 
 .drawing-stage .drawing-board {
   font-size: 1.5rem;
 }
 
-/* Відкриття на сцені: малюнок ліворуч, слово й імена праворуч (у ar — дзеркально). */
+/* Відкриття на сцені: слово над малюнком ліворуч; праворуч, від верху полотна, — художник і ті, хто вгадав (у ar — дзеркально). */
 .drawing-stage.is-reveal {
-  grid-template-columns: auto minmax(16rem, 1fr);
-  align-items: start;
-  justify-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'word .'
+    'art rows';
+  column-gap: 2.5vw;
+  row-gap: 1.5vh;
+  align-items: stretch;
 }
 
 .drawing-stage.is-reveal .drawing-word-was {
-  grid-column: 1 / -1;
+  grid-area: word;
   font-size: 2.25rem;
 }
 
-.drawing-stage.is-reveal .drawing-frame {
-  width: min(60vw, calc((100vh - 23rem) * 4 / 3));
+.drawing-stage.is-reveal .drawing-fit {
+  grid-area: art;
+  align-items: flex-start;
 }
 
 .drawing-stage.is-reveal .drawing-reveal-rows {
+  grid-area: rows;
+  align-self: start;
+  max-height: 100%;
+  overflow: hidden;
   font-size: 1.375rem;
 }
 
