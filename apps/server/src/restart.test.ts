@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, text, withId, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
 import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -290,6 +290,45 @@ describe('a server restart', () => {
     await until(olena, (view) => view.phase === 'question');
     expect(second.ctx.manager.get(started.code)?.state.plays[0].final?.wagers).toEqual({ [tarasJoin.playerId]: 300 });
     expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'bet_skipped' });
+  }, 30_000);
+
+  it("a restored room keeps every player's list finds", async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeQuiz([timedlist]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:list', { word: 'Юпітер', enter: false })).toEqual({ ok: true });
+    expect(await send(olena, 'player:list', { word: 'Марс', enter: false })).toEqual({ ok: true });
+    expect(await send(taras, 'player:list', { word: 'Плутон', enter: true })).toEqual({ ok: false, error: 'list_miss' });
+    expect(await send(taras, 'player:list', { word: 'Земля', enter: true })).toEqual({ ok: true });
+    const before = first.ctx.manager.get(started.code)!.state.plays[0].timedlist;
+    expect(before?.present).toEqual([olenaJoin.playerId, tarasJoin.playerId]);
+    expect(before?.progress).toEqual({
+      [olenaJoin.playerId]: { found: ['l5', 'l4'], wrong: 0 },
+      [tarasJoin.playerId]: { found: ['l3'], wrong: 1 },
+    });
+
+    await first.ctx.shutdown();
+    host.last = olena.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question' && view.paused);
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].timedlist).toEqual(before);
+    // Телефон після повторного входу бачить свої клітинки.
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.timedlist !== undefined);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.me.timedlist?.found).toEqual([
+      { index: 5, text: 'Юпітер' },
+      { index: 4, text: 'Марс' },
+    ]);
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

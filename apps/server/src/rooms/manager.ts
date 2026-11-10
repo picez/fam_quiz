@@ -105,6 +105,8 @@ import {
   chainOf,
   wallOf,
   wordLadderOf,
+  listEntry,
+  timedListOf,
   ladderWord,
   ladderBack,
   recordOf,
@@ -512,7 +514,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни й драбини, вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини й списку, вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -526,6 +528,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'chain' ? chainOf(state, id) : null,
     play?.question.type === 'wall' ? wallOf(state, id) : null,
     play?.question.type === 'wordladder' ? wordLadderOf(state, id) : null,
+    play?.question.type === 'timedlist' ? timedListOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -1511,6 +1514,23 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answerer');
     if (!who.ok) return who;
     return this.apply(room, ladderBack(room.state, who.id, this.now()));
+  }
+
+  /**
+   * Слово списку (27c): у командній грі — будь-який учасник за команду. found → ok; repeat → list_repeat;
+   * miss → list_miss (стан з мінусом уже збережено й розіслано).
+   */
+  timedList(room: Room, playerId: string, word: string, enter: boolean): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const result = listEntry(room.state, who.id, word, enter, this.now());
+    if (!result.ok) return { ok: false, error: result.error };
+    // Стан той самий (повтор, живий промах) — нічого не розсилаємо.
+    if (result.state !== room.state) this.commit(room, result.state);
+    if (result.hit === 'repeat') return { ok: false, error: 'list_repeat' };
+    if (result.hit === 'miss') return { ok: false, error: 'list_miss' };
+    return { ok: true };
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {

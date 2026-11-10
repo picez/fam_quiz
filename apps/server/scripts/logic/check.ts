@@ -79,6 +79,9 @@ const answersOf = (q: Question): string[] => {
     // Старт і ціль стоять у тексті самі собою; шлях ведучого (проміжні слова) — ні. Сам шлях перевіряє схема (ladderPathIssue).
     case 'wordladder':
       return q.path.slice(1, -1);
+    // Список (27c): жоден пункт і жодне його написання не стоять у тексті завдання.
+    case 'timedlist':
+      return q.items.flatMap((item) => [item.text, ...item.accepted]);
     default:
       return [];
   }

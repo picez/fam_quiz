@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, timedlist, wordladder } from '@quiz/engine/testing';
 import { hostView, sortOf } from '@quiz/engine';
 import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -464,6 +464,36 @@ describe('word ladder', () => {
     expect(events.at(-1)).toEqual({ type: 'changed' });
     expect(manager.wordLadderWord(room, 'nobody', 'пора')).toMatchObject({ ok: false });
     expect(manager.wordLadderBack(room, 'nobody')).toMatchObject({ ok: false });
+  });
+
+  it('a list miss on enter is kept and still answered as a miss', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const room = manager.create(makeQuiz([timedlist]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    const mine = () => {
+      const view = manager.view(room, olena.identity);
+      return view?.role === 'player' ? view.me.timedlist : undefined;
+    };
+
+    expect(manager.timedList(room, olena.playerId, 'Юпітер', false)).toEqual({ ok: true });
+    expect(manager.timedList(room, olena.playerId, 'юпітер', true)).toEqual({ ok: false, error: 'list_repeat' });
+    // Живе введення без Enter мінуса не дає і стану не змінює.
+    let changes = events.length;
+    expect(manager.timedList(room, olena.playerId, 'Плутон', false)).toEqual({ ok: false, error: 'list_miss' });
+    expect(events.length).toBe(changes);
+    expect(mine()?.wrong).toBe(0);
+    // Промах з Enter: мінус збережено й розіслано, а ack однаково — промах.
+    changes = events.length;
+    expect(manager.timedList(room, olena.playerId, 'Плутон', true)).toEqual({ ok: false, error: 'list_miss' });
+    expect(events.length).toBeGreaterThan(changes);
+    expect(mine()?.wrong).toBe(1);
+    expect(mine()?.found).toEqual([{ index: 5, text: 'Юпітер' }]);
+    expect(manager.timedList(room, 'nobody', 'Марс', true)).toMatchObject({ ok: false });
   });
 });
 
@@ -1597,6 +1627,26 @@ describe('teams (10j)', () => {
     expect(manager.tilt(room, olena.playerId, { wordId: head, categoryId: 'c1', amount: 0.5 })).toEqual({ ok: true });
     expect(events).toEqual([{ type: 'tilt', tilt: { sorterId: red, wordId: head, toward: 'c1', amount: 0.5, seq: 0 }, by: olena.playerId, audience: 'team' }]);
     expect(manager.tilt(room, taras.playerId, { wordId: head, categoryId: 'c2', amount: 0.5 })).toEqual({ ok: false, error: 'not_captain' });
+  });
+
+  it('any team member enters list words', () => {
+    const { manager, room, olena, taras, ira } = teamPlaying([classicRound('r1', [timedlist])]);
+    // Тарас — не капітан, а пункт однаково лягає в спільний список червоних.
+    expect(manager.timedList(room, olena.playerId, 'Марс', false)).toEqual({ ok: true });
+    expect(manager.timedList(room, taras.playerId, 'Венера', false)).toEqual({ ok: true });
+    expect(manager.timedList(room, taras.playerId, 'марс', true)).toEqual({ ok: false, error: 'list_repeat' });
+    const found = (identity: Identity) => {
+      const view = manager.view(room, identity);
+      return view?.role === 'player' ? view.me.timedlist?.found : undefined;
+    };
+    const both = [
+      { index: 4, text: 'Марс' },
+      { index: 2, text: 'Венера' },
+    ];
+    expect(found(olena.identity)).toEqual(both);
+    expect(found(taras.identity)).toEqual(both);
+    expect(found(ira.identity)).toEqual([]);
+    expect(JSON.stringify(manager.view(room, ira.identity))).not.toContain('Венера');
   });
 });
 
