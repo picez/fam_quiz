@@ -1508,33 +1508,31 @@ function drawerName(state: GameState, id: string): string | null {
  * (пульту завжди); бали — з записів сторін. Лічильники після закриття беруться із заморожених scored.
  */
 function drawingInfo(state: GameState, forHost: boolean): DrawingInfo | undefined {
+  const full = hostDrawing(state);
+  if (full === undefined || forHost || state.phase === 'reveal') return full;
+  return { ...full, word: null, guessers: null };
+}
+
+/** Малюнок для пульта — з усім (слово й імена вгадавших); drawerPoints — лише на reveal. */
+function hostDrawing(state: GameState): HostDrawing | undefined {
   const drawing = drawingOf(state);
   const play = state.plays[state.questionIndex];
   if (drawing === null || play === undefined || play.question.type !== 'drawing') return undefined;
-  const revealed = state.phase === 'reveal';
-  const open = revealed || forHost;
   // Закритий малюнок може тримати id вилученого (вилучення після закриття): таких сторін уже немає — пропускаємо.
   const guessers = drawing.guessed
     .filter((id) => state.players.some((p) => p.id === id))
     .map((id) => ({ id, nickname: sideName(state, id), points: recordOf(state, state.questionIndex, id)?.points ?? 0 }));
-  const info: DrawingInfo = {
+  return {
     drawerId: drawing.drawerId,
     drawerName: drawing.drawerId === null ? null : drawerName(state, drawing.drawerId),
     side: drawing.side,
     rev: drawing.rev,
     guessed: drawing.scored?.guessed ?? drawing.guessed.length,
     could: drawing.scored?.could ?? drawingCould(state, play).length,
-    word: open ? play.question.accepted[0] : null,
-    guessers: open ? guessers : null,
-    drawerPoints: revealed && drawing.side !== null ? (recordOf(state, state.questionIndex, drawing.side)?.points ?? 0) : null,
+    word: play.question.accepted[0],
+    guessers,
+    drawerPoints: state.phase === 'reveal' && drawing.side !== null ? (recordOf(state, state.questionIndex, drawing.side)?.points ?? 0) : null,
   };
-  return info;
-}
-
-/** Малюнок для пульта: слово й імена завжди (drawingInfo з forHost їх уже містить). */
-function hostDrawing(state: GameState): HostDrawing | undefined {
-  const info = drawingInfo(state, true);
-  return info === undefined ? undefined : { ...info, word: info.word ?? '', guessers: info.guessers ?? [] };
 }
 
 /** Власний бік гравця (или команди) в малюнку; слово — лише художникові (людині drawerId), не товаришам. */

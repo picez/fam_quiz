@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DrawOp } from '@quiz/shared';
 import { drawGuess, drawStroke } from './drawing';
-import { lock, next, pause, removePlayer, resume, type GameState } from './game';
+import { lock, next, pause, removePlayer, resume, setConnected, type GameState } from './game';
 import { hostLive } from './live';
 import { classicRound, drawing, makeQuiz, single } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
@@ -152,5 +152,32 @@ describe('drawing live rows', () => {
     expect(rows.find((r) => r.id === 'p2')).toMatchObject({ answered: true, answer: null, verdict: null, progress: { kind: 'drawing', role: 'guesser', guessed: true } });
     expect(rows.find((r) => r.id === 'p3')).toMatchObject({ answered: false, progress: { kind: 'drawing', role: 'guesser', guessed: false } });
     expect(JSON.stringify(live)).not.toContain('соняшник');
+    // лічильник пульта — без художника, як «могли» на сцені
+    expect(live).toMatchObject({ answered: 1, total: 3 });
+    expect(live?.total).toBe(stageView(s).drawing?.could);
+    const away = must(setConnected(s, 'p4', false, 1600));
+    expect(hostLive(away)).toMatchObject({ answered: 1, total: 2 });
+    expect(stageView(away).drawing?.could).toBe(2);
+  });
+
+  it('a team drawing: names on the reveal, the drawer by name, rows by teams', () => {
+    // m1 Оля з t1 малює, m3 Петро з t2 («Сині») вгадує
+    let s = guess(draws(teams(), 'm1'), 'm3');
+    const live = hostLive(s);
+    expect(live?.rows.map((r) => r.id)).toEqual(['t1', 't2']);
+    expect(live?.rows.find((r) => r.id === 't1')).toMatchObject({ answered: false, progress: { kind: 'drawing', role: 'drawer' } });
+    expect(live?.rows.find((r) => r.id === 't2')).toMatchObject({ answered: true, progress: { kind: 'drawing', role: 'guesser', guessed: true } });
+    // команда художника не в лічильнику
+    expect(live).toMatchObject({ answered: 1, total: 1 });
+    expect(stageView(s).drawing).toMatchObject({ drawerId: 'm1', drawerName: 'Оля', side: 't1', guessed: 1, could: 1, guessers: null, word: null });
+    expect(hostView(s).drawing).toMatchObject({ drawerName: 'Оля', guessers: [{ id: 't2', nickname: 'Сині', points: 100 }] });
+    expect(s.phase).toBe('locked');
+    s = must(next(s, 5000));
+    expect(s.phase).toBe('reveal');
+    for (const v of [stageView(s).drawing, view(s, 'm4').drawing, view(s, 'm2').drawing]) {
+      expect(v).toMatchObject({ drawerName: 'Оля', side: 't1', word: 'соняшник', guessers: [{ id: 't2', nickname: 'Сині', points: 100 }], drawerPoints: 100 });
+    }
+    expect(view(s, 'm4').me.drawing).toMatchObject({ role: 'guesser', guessed: true, points: 100 });
+    expect(view(s, 'm2').me.drawing).toMatchObject({ role: 'teammate', guessed: false, points: 100 });
   });
 });

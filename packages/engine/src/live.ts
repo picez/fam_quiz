@@ -34,6 +34,7 @@ import { truthGuessers } from './truth';
 import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
 import { duelistOf, memberOf, teamsOn } from './teams';
+import { drawingCould } from './drawing';
 
 /** Етапи, на яких іде відповідь (до розкриття): ведучий бачить, хто що відповів. */
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
@@ -291,8 +292,9 @@ function asideOf(kind: LiveAside['kind'], rows: LiveRow[]): LiveAside {
   return { kind, answered: rows.filter((r) => r.answered).length, total: rows.length, rows };
 }
 
-function liveOf(kind: HostLive['kind'], rows: LiveRow[], aside: LiveAside | null): HostLive {
-  return { kind, answered: rows.filter((r) => r.answered).length, total: rows.length, rows, aside };
+/** total — скільки рядків чекають на відповідь; за замовчуванням усі. */
+function liveOf(kind: HostLive['kind'], rows: LiveRow[], aside: LiveAside | null, total = rows.length): HostLive {
+  return { kind, answered: rows.filter((r) => r.answered).length, total, rows, aside };
 }
 
 /** Командний бліц: той, хто натиснув (досі в команді й на зв'язку), інакше капітан. */
@@ -441,5 +443,7 @@ export function hostLive(state: GameState): HostLive | null {
     );
   }
   const rows = who.map((w) => withAway(state, answerRow(state, play, w, unscored)));
+  // «Малюнок» (28c): художник (його команда) не вгадує — лічильник той самий, що «могли» на сцені.
+  if (play.question.type === 'drawing') return liveOf('answers', rows, aside, drawingCould(state, play).length);
   return liveOf('answers', rows, aside);
 }
