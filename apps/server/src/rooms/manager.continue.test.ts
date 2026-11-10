@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classicRound, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
-import { defaultTeams, type Quiz } from '@quiz/shared';
+import { classicRound, makeQuiz, makeRoundsQuiz, single, text, truthRound, withId } from '@quiz/engine/testing';
+import { defaultTeams, type HostView, type PlayerView, type Quiz, type StageView } from '@quiz/shared';
 import { startTeamGame } from '../testing/team-game';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import type { SavedGameData } from './continuation';
@@ -375,6 +375,35 @@ describe('a restart from the round (12r path, 13b)', () => {
     expect(room.state.roundIndex).toBe(1);
     expect(room.state.players[0].score).toBe(2000);
     expect(room.state.adjustments.filter((a) => a.source === 'carry').map((a) => [a.playerId, a.points])).toEqual([[olya, 2000]]);
+  });
+
+  it('a lobby that starts past the truth round does not ask for facts (28b)', () => {
+    const withTruth = (): Quiz => makeRoundsQuiz([classicRound('r0', [single]), truthRound('r1'), classicRound('r2', [withId(single, 'q3')])]);
+    const restart = (roundIndex: number) => {
+      const w = world();
+      const result = w.manager.restartSaved({
+        gameId: GAME,
+        quiz: withTruth(),
+        quizId: null,
+        hostUserId: 'u1',
+        autopilot: false,
+        roundIndex,
+        participants: [{ id: 'old-olya', nickname: 'Оля', userId: null, score: 100, isTeam: false, teamId: null }],
+      });
+      if (!result.ok) throw new Error(result.error);
+      return { w, room: result.room, olya: result.room.state.players[0].id };
+    };
+    const past = restart(2);
+    const player = past.w.manager.view(past.room, { role: 'player', playerId: past.olya }) as PlayerView;
+    expect(player.me.truth?.canWrite).toBe(false);
+    expect(player.truth?.open).toBe(false);
+    expect((past.w.manager.view(past.room, HOST) as HostView).truth?.open).toBe(false);
+    expect((past.w.manager.view(past.room, { role: 'stage', playerId: null }) as StageView).truth?.open).toBe(false);
+    expect(past.w.manager.truth(past.room, past.olya, 'Я стрибала з парашутом')).toEqual({ ok: false, error: 'truth_closed' });
+    // старт з раунду truth — факти потрібні
+    const at = restart(1);
+    expect((at.w.manager.view(at.room, { role: 'player', playerId: at.olya }) as PlayerView).me.truth?.canWrite).toBe(true);
+    expect(at.w.manager.truth(at.room, at.olya, 'Я стрибала з парашутом')).toEqual({ ok: true });
   });
 
   it('a carry key of a player removed in the lobby is dropped before the start', () => {

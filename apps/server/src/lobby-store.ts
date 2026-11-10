@@ -1,4 +1,4 @@
-import { LIMITS, LOBBY_LIST_LIMIT, roundQuestions, type LobbyRow } from '@quiz/shared';
+import { hasTruthRound, LIMITS, LOBBY_LIST_LIMIT, roundQuestions, type LobbyRow } from '@quiz/shared';
 import { slotsOf } from '@quiz/engine';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from './db/client';
@@ -71,6 +71,7 @@ export async function lobbyRows(db: Db, rooms: Room[], viewerId: string | null):
       maxPlayers: LIMITS.maxPlayers,
       rounds: room.state.quiz.rounds.length,
       questions: room.state.quiz.rounds.reduce((sum, round) => sum + roundQuestions(round).length, 0),
+      truth: hasTruthRound(room.state.quiz),
       locked: room.lobby.password !== null,
       late: joinableOf(room) === 'late',
       friends: slots.filter((slot) => mine.has(room.playerUsers.get(slot.id) ?? '')).map((slot) => slot.nickname),

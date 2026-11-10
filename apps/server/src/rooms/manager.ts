@@ -442,6 +442,23 @@ export function isSavedRoom(raw: unknown): raw is SavedRoom {
 }
 
 /** Продовження з рядка бази (13b): bound — масив рядків, replaces — рядок чи null, carry — об'єкт з числом roundIndex і points чи null; інакше null. */
+/**
+ * «Правда про гравця» (28b): лобі продовження 12r, що стартує після раунду truth, — факти вже не знадобляться
+ * (рушій про перенесення не знає до старту), тож форми факту немає, а player:truth відмовляє truth_closed.
+ */
+function truthPassed(room: Room): boolean {
+  const carry = room.continued?.carry ?? null;
+  if (carry === null || room.state.phase !== 'lobby') return false;
+  const index = room.state.quiz.rounds.findIndex((r) => r.type === 'truth');
+  return index !== -1 && index < carry.roundIndex;
+}
+
+/** Зріз із закритими фактами: open false, своєму телефону — canWrite false. */
+function closedTruth<V extends { truth?: { open: boolean }; me?: { truth?: { canWrite: boolean } } }>(view: V): V {
+  const me = view.me?.truth === undefined ? {} : { me: { ...view.me, truth: { ...view.me.truth, canWrite: false } } };
+  return { ...view, ...(view.truth === undefined ? {} : { truth: { ...view.truth, open: false } }), ...me };
+}
+
 function continuedOf(raw: unknown): Continued | null {
   if (!isObject(raw) || !Array.isArray(raw.bound)) return null;
   const bound = raw.bound.filter((id): id is string => typeof id === 'string');
@@ -1308,11 +1325,16 @@ export class RoomManager {
 
   private baseView(room: Room, identity: Identity): GameView | null {
     const continued = room.continued;
-    if (identity.role === 'host') return continued === null ? hostView(room.state) : { ...hostView(room.state), continued: this.continuedView(room, continued) };
-    if (identity.role === 'stage') return stageView(room.state);
+    const passed = truthPassed(room);
+    if (identity.role === 'host') {
+      const host = passed ? closedTruth(hostView(room.state)) : hostView(room.state);
+      return continued === null ? host : { ...host, continued: this.continuedView(room, continued) };
+    }
+    if (identity.role === 'stage') return passed ? closedTruth(stageView(room.state)) : stageView(room.state);
     if (identity.playerId === null) return null;
-    const raw = playerView(room.state, identity.playerId);
-    if (raw === null) return null;
+    const own = playerView(room.state, identity.playerId);
+    if (own === null) return null;
+    const raw = passed ? closedTruth(own) : own;
     // Автор продовження бачить місця у своєму меню (13b).
     const view = continued === null || raw.author === null ? raw : { ...raw, author: { ...raw.author, continued: this.continuedView(room, continued) } };
     const team = view.team;
@@ -1491,6 +1513,7 @@ export class RoomManager {
    */
   truth(room: Room, playerId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
+    if (truthPassed(room)) return { ok: false, error: 'truth_closed' };
     const now = this.now();
     const rate = room.truthRate.get(playerId);
     if (rate === undefined || now - rate.from >= 1000) room.truthRate.set(playerId, { from: now, count: 1 });

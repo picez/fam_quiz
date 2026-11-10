@@ -501,6 +501,9 @@ export function resumeRound(quiz: Quiz | null, plays: PlayRef[], questionsPlayed
   if (quiz === null) return last;
   const round = quiz.rounds[last];
   if (round === undefined) return Math.min(last, quiz.rounds.length - 1);
+  // «Правда про гравця» (28b): запитань у вікторині немає, вони — з фактів лобі старої гри, а факти в нову гру не переходять.
+  // Тож раунд truth хоч з одним зіграним запитанням — завершений: продовження йде з наступного раунду.
+  if (round.type === 'truth') return Math.min(last + 1, quiz.rounds.length - 1);
   const done = refs.filter((ref) => ref.roundIndex === last).length >= roundQuestions(round).length;
   return Math.min(done ? last + 1 : last, quiz.rounds.length - 1);
 }
