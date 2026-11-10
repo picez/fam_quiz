@@ -51,6 +51,20 @@ import {
   ladderPathIssue,
   letterSet,
   questionPrice,
+  PUZZLE_TYPES,
+  isPuzzle,
+  generateSudoku,
+  countSudoku,
+  isSudokuGrid,
+  sudokuConflicts,
+  EMPTY_SUDOKU,
+  crosswordLetters,
+  crosswordKeyLetters,
+  crosswordIssue,
+  layoutCrossword,
+  pickKeyCells,
+  type CrosswordLayout,
+  type PuzzlesRound,
   type LadderPathIssue,
   type QuestionType,
 } from '@quiz/shared';
@@ -72,10 +86,12 @@ export { QUESTION_TYPES, type QuestionType };
  * «Список на час» — так само: класика й поле, не бліц, не фінал, не ставки й не аукціон.
  * «Слова з літер» і «Більше чи менше» — так само, як «Список на час».
  * «Малюнок» — лише класика (на полі, у бліці, фіналі, ставках, аукціоні й решті раундів його немає).
+ * «Головоломки» — лише судоку й кросворд, а їх немає більше ніде.
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
-  if (roundType !== 'classic') return questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing');
-  return QUESTION_TYPES;
+  if (roundType === 'puzzles') return PUZZLE_TYPES;
+  const types = roundType === 'classic' ? QUESTION_TYPES : questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing');
+  return types.filter((type) => !(PUZZLE_TYPES as readonly string[]).includes(type));
 }
 
 /** Типи поза класикою (до відсіву «Малюнка»). */
@@ -120,6 +136,82 @@ const NEW_MORELESS_PAIRS = 3;
 /** Порожнє порівняння «Більше чи менше»: лівий варіант правильний, бали задано. */
 export function blankMoreLessPair(points: number, prompt = ''): MoreLessPair {
   return { id: newId(), prompt, a: { text: '', value: '' }, b: { text: '', value: '' }, correct: 'a', points };
+}
+
+/** Випадковий seed генератора судоку (ціле 0…2³² − 1). */
+export function randomSudokuSeed(): number {
+  return crypto.getRandomValues(new Uint32Array(1))[0]!;
+}
+
+type Sudoku = Extract<Question, { type: 'sudoku' }>;
+type Crossword = Extract<Question, { type: 'crossword' }>;
+
+/** Нове порожнє слово кросворду. */
+export const blankCrosswordEntry = () => ({ id: newId(), answer: '', clue: '' });
+
+/** Що не так зі словами й ключем кросворду (для попереджень редактора). */
+export type CrosswordWarning =
+  | { kind: 'empty' }
+  | { kind: 'word'; words: string[] }
+  | { kind: 'duplicate'; words: string[] }
+  | { kind: 'unplaced'; words: string[] }
+  | { kind: 'key' }
+  | { kind: 'missing'; letters: string[] };
+
+export interface CrosswordBuild {
+  /** Розкладка, що зберігається в запитанні (з ключовими клітинками); null — скласти не вдалося. */
+  layout: CrosswordLayout | null;
+  /** Сітка зі слів без ключа — для прев'ю; null — слова не складаються. */
+  grid: CrosswordLayout | null;
+  warning: CrosswordWarning | null;
+}
+
+/**
+ * Складає кросворд зі слів, режиму й ключа (той самий детермінований компонувальник, що перевіряє схема).
+ * Порожні слова — ще не готово; не українські, повтори й слова без перетину — попередження з назвами слів;
+ * у режимі ключа без придатного ключа сітка зберігається без ключових клітинок (про ключ скаже перевірка), а коли бракує літер — не зберігається.
+ */
+export function buildCrossword(question: Pick<Crossword, 'mode' | 'entries' | 'key'>): CrosswordBuild {
+  const { entries } = question;
+  const none = (warning: CrosswordWarning): CrosswordBuild => ({ layout: null, grid: null, warning });
+  const filled = entries.filter((entry) => entry.answer.trim() !== '');
+  const bad = filled.filter((entry) => crosswordLetters(entry.answer) === null);
+  // Непридатне вже вписане слово важить більше за ще не вписане.
+  if (bad.length > 0) return none({ kind: 'word', words: bad.map((entry) => entry.answer.trim()) });
+  if (filled.length < entries.length) return none({ kind: 'empty' });
+  const keys = entries.map((entry) => crosswordLetters(entry.answer)!.join(''));
+  const twins = entries.filter((_, i) => keys.indexOf(keys[i]!) !== i);
+  if (twins.length > 0) return none({ kind: 'duplicate', words: twins.map((entry) => entry.answer.trim()) });
+  const laid = layoutCrossword(entries);
+  if (!laid.ok) {
+    const ids = new Set(laid.ids);
+    return none({ kind: laid.reason === 'word' ? 'word' : 'unplaced', words: entries.filter((entry) => ids.has(entry.id)).map((entry) => entry.answer.trim()) });
+  }
+  const grid = laid.layout;
+  if (question.mode === 'full') return { layout: grid, grid, warning: null };
+  if (question.key === null || crosswordKeyLetters(question.key) === null) return { layout: grid, grid, warning: { kind: 'key' } };
+  const picked = pickKeyCells(grid, entries, question.key);
+  if (!Array.isArray(picked)) return { layout: null, grid, warning: { kind: 'missing', letters: picked.missing } };
+  return { layout: { ...grid, keyCells: picked }, grid, warning: null };
+}
+
+/** Кросворд з розкладкою, перескладеною зі слів, режиму й ключа. */
+export function withCrosswordLayout(question: Crossword): Crossword {
+  return { ...question, layout: buildCrossword(question).layout };
+}
+
+/** Стан цифр ведучого: повтори (клітинки), кількість розв'язків до двох і розв'язок, якщо він єдиний. */
+export function sudokuCheck(givens: string): { conflicts: number[]; count: number; solution: string | null } {
+  if (!isSudokuGrid(givens)) return { conflicts: [], count: 0, solution: null };
+  const conflicts = sudokuConflicts(givens);
+  if (conflicts.length > 0) return { conflicts, count: 0, solution: null };
+  const found = countSudoku(givens, 2);
+  return { conflicts, count: found.count, solution: found.count === 1 ? found.solution : null };
+}
+
+/** Судоку з цифрами ведучого: розв'язок записується, лише коли він єдиний. */
+export function withSudokuGivens(question: Sudoku, givens: string): Sudoku {
+  return { ...question, level: 'custom', seed: null, givens, solution: sudokuCheck(givens).solution ?? EMPTY_SUDOKU };
 }
 
 function build(common: Common, type: QuestionType): Question {
@@ -209,6 +301,28 @@ function build(common: Common, type: QuestionType): Question {
       // Без відео, звуку й «перевертання»: видали б слово, а без таймера малюнок не скінчиться. Підказки немає: бафів теж.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return { ...rest, video: null, type, timeLimit: LIMITS.defaultDrawingTime, points: LIMITS.defaultDrawingPoints, accepted: [''] };
+    }
+    case 'sudoku': {
+      // Головоломка: без відео (без таймера не скінчиться), звуку, «перевертання» й підказки (бафів немає). Сітка — середня, згенерована.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      const seed = randomSudokuSeed();
+      return { ...rest, text: rest.text === '' ? t('sudokuDefaultText') : rest.text, video: null, type, timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, level: 'medium', seed, ...generateSudoku(seed, 'medium') };
+    }
+    case 'crossword': {
+      // Як судоку; чотири порожні слова, розкладки ще немає.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      return {
+        ...rest,
+        text: rest.text === '' ? t('crosswordDefaultText') : rest.text,
+        video: null,
+        type,
+        timeLimit: LIMITS.defaultCrosswordTime,
+        points: LIMITS.defaultPuzzlePoints,
+        mode: 'full',
+        entries: Array.from({ length: LIMITS.minCrosswordWords }, blankCrosswordEntry),
+        key: null,
+        layout: null,
+      };
     }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -374,6 +488,9 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, set: { ...question.set } };
     case 'moreless':
       return { ...question, id, pairs: question.pairs.map((pair) => ({ ...pair, id: newId(), a: { ...pair.a }, b: { ...pair.b } })) };
+    case 'crossword':
+      // Нові id слів: розкладка, що на них посилається, перескладається.
+      return withCrosswordLayout({ ...question, id, entries: question.entries.map((entry) => ({ ...entry, id: newId() })) });
     case 'poll':
       return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
@@ -538,6 +655,11 @@ export function newBetsRound(): BetsRound {
 /** Новий раунд «Аукціон»: одне запитання без обрізу, торг фіксованим кроком, помилка коштує ставки; автоматична перевірка. */
 export function newAuctionRound(): AuctionRound {
   return { id: newId(), type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: LIMITS.defaultBidStep, loss: 'bid', questions: [newQuestion('single')] };
+}
+
+/** Нові «Головоломки»: одне згенероване судоку середньої складності; правил, перемішування й швидкості немає. */
+export function newPuzzlesRound(): PuzzlesRound {
+  return { id: newId(), type: 'puzzles', title: '', questions: [newQuestion('sudoku')] };
 }
 
 /** Новий «Правда про гравця»: без запитань (їх створює гра з фактів), ціна й таймер типові (30 с). */
@@ -743,6 +865,17 @@ const cleanBody = (question: Question): Question => {
       const [word = '', ...others] = question.accepted.map((s) => s.trim());
       return { ...rest, text, accepted: [word, ...others.filter((s) => s !== '')] };
     }
+    case 'sudoku': {
+      // Розв'язок — похідний від цифр: єдиний розв'язок пишеться заново (той самий для згенерованої сітки). Підказки немає.
+      const { hint: _hint, ...rest } = question;
+      return { ...rest, text, solution: sudokuCheck(question.givens).solution ?? question.solution };
+    }
+    case 'crossword': {
+      // Слова й підказки без пробілів по краях, ключ лише в режимі ключа; розкладка перескладається з почищеного. Підказки для бафів немає.
+      const { hint: _hint, ...rest } = question;
+      const entries = question.entries.map((entry) => ({ ...entry, answer: entry.answer.trim(), clue: entry.clue.trim() }));
+      return withCrosswordLayout({ ...rest, text, entries, key: question.mode === 'key' ? (question.key ?? '').trim() : null });
+    }
     case 'bluff': {
       // Правда — перше написання: порожня лишається, щоб про неї сказала перевірка; порожні додаткові написання відкидаються.
       const [truth = '', ...others] = question.accepted.map((s) => s.trim());
@@ -880,19 +1013,23 @@ interface Place {
   moreless: boolean;
   /** Малюнок: лише класика, жодної клітинки поля (правило drawing_place схеми). */
   drawing: boolean;
+  /** Судоку й кросворд: лише раунд «Головоломки» (правило puzzle_place схеми). */
+  puzzle: boolean;
+  /** Раунд «Головоломки»: інших типів тут немає (правило puzzles_type схеми). */
+  onlyPuzzles: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -953,17 +1090,33 @@ const LADDER_PROBLEMS: Record<LadderPathIssue, TextKey> = {
 };
 const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
+/** Найбільший час запитання: головоломкам — власна межа (типові 180 і 240 с понад загальні 120). */
+export const maxTimeOf = (question: Pick<Question, 'type'>) => (isPuzzle(question) ? LIMITS.maxPuzzleTime : LIMITS.maxTime);
+
+/** Вада збереженого кросворду, яку не впіймали перевірки вище (скажімо, з імпорту) → текст проблеми. */
+const CROSSWORD_PROBLEMS = {
+  crossword_word: 'problemCrosswordWord',
+  crossword_duplicate: 'problemCrosswordDuplicate',
+  crossword_layout: 'problemCrosswordLayout',
+  crossword_key: 'problemCrosswordKey',
+  crossword_key_mode: 'problemCrosswordKey',
+  crossword_key_letters: 'problemCrosswordKeyLetters',
+} as const satisfies Record<string, TextKey>;
+
 function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null {
   if (question.text === '') return 'problemNoText';
+  // Місце головоломок — раніше за їхні поля: судоку поза «Головоломками» не виправити цифрами.
+  if (isPuzzle(question) && !place.puzzle) return 'problemPuzzlePlace';
+  if (!isPuzzle(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
   const inLimits =
     Number.isInteger(timeLimit) &&
     timeLimit >= LIMITS.minTime &&
-    timeLimit <= LIMITS.maxTime &&
+    timeLimit <= maxTimeOf(question) &&
     // У «Більше чи менше» ціна — сума балів порівнянь: вона й межа за неї мають власні тексти нижче.
     (question.type === 'moreless' || (Number.isInteger(points) && points >= 0 && points <= LIMITS.maxPoints));
   // У «Словах з літер» поле балів зветься «Сума» (за одиницю).
-  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : 'problemLimits';
+  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : isPuzzle(question) ? 'problemPuzzleLimits' : 'problemLimits';
 
   switch (question.type) {
     case 'single':
@@ -1104,6 +1257,30 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (pairs.some((pair) => answerKey(pair.a.text) === answerKey(pair.b.text))) return 'problemMoreLessSame';
       if (pairs.some((pair) => !Number.isInteger(pair.points) || pair.points < 1 || pair.points > LIMITS.maxPoints)) return 'problemMoreLessPairPoints';
       if (pairs.reduce((sum, pair) => sum + pair.points, 0) > LIMITS.maxPoints) return 'problemMoreLessPoints';
+      break;
+    }
+    case 'sudoku': {
+      if (!isSudokuGrid(question.givens)) return 'problemSudokuGrid';
+      const check = sudokuCheck(question.givens);
+      if (check.conflicts.length > 0) return 'problemSudokuConflict';
+      if (check.count === 0) return 'problemSudokuNone';
+      if (check.count > 1) return 'problemSudokuMany';
+      if (check.solution !== question.solution) return 'problemSudokuGrid';
+      break;
+    }
+    case 'crossword': {
+      const { entries } = question;
+      if (entries.length < LIMITS.minCrosswordWords || entries.length > LIMITS.maxCrosswordWords) return 'problemCrosswordCount';
+      if (entries.some((entry) => entry.answer === '')) return 'problemCrosswordWords';
+      if (entries.some((entry) => entry.clue === '')) return 'problemCrosswordClue';
+      const warning = buildCrossword(question).warning;
+      if (warning?.kind === 'word') return 'problemCrosswordWord';
+      if (warning?.kind === 'duplicate') return 'problemCrosswordDuplicate';
+      if (warning?.kind === 'unplaced') return 'problemCrosswordLayout';
+      if (warning?.kind === 'key') return 'problemCrosswordKey';
+      if (warning?.kind === 'missing') return 'problemCrosswordKeyLetters';
+      const issue = crosswordIssue(question);
+      if (issue !== null) return CROSSWORD_PROBLEMS[issue];
       break;
     }
     case 'drawing':
@@ -1293,13 +1470,27 @@ const bluffSpareText = (question: Extract<Question, { type: 'bluff' }>, key: Tex
   return key === 'problemBluffSpareTruth' ? spares.truth : key === 'problemBluffSpareDuplicate' ? spares.twin : '';
 };
 
+/** Літери ключа, яких бракує в словах кросворду ([] — вистачає або ключ ще не придатний). */
+const crosswordMissing = (question: Crossword): string[] => {
+  const warning = buildCrossword(question).warning;
+  return warning?.kind === 'missing' ? warning.letters : [];
+};
+
 /** Текст проблеми запитання; числа меж підставляються з LIMITS, а для підказок ще й з самого запитання. */
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
+    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
     max:
-      key === 'problemBluffTruthLong'
+      key === 'problemCrosswordWord'
+        ? LIMITS.maxCrosswordWord
+        : key === 'problemCrosswordKey'
+        ? LIMITS.maxCrosswordKey
+        : key === 'problemCrosswordCount'
+        ? LIMITS.maxCrosswordWords
+        : key === 'problemPuzzleLimits'
+        ? LIMITS.maxPuzzleTime
+        : key === 'problemBluffTruthLong'
         ? LIMITS.bluffLie
         : key === 'problemBluffChoiceTime'
           ? LIMITS.maxTime
@@ -1314,6 +1505,9 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
                 : key === 'problemListPoints' || key === 'problemListMinus' || key === 'problemLettersPoints' || key === 'problemMoreLessPairPoints' || key === 'problemMoreLessPoints'
                   ? LIMITS.maxPoints
                   : LIMITS.maxAudioSeconds,
+    points: LIMITS.maxPoints,
+    // Літери, яких бракує для ключа кросворду.
+    letters: question?.type === 'crossword' ? crosswordMissing(question).join(', ') : '',
     // Номер першого пункту списку без назви.
     item: question?.type === 'timedlist' ? question.items.findIndex((entry) => entry.text === '') + 1 : 0,
     clueMin: LIMITS.minClueSeconds,
@@ -1511,6 +1705,8 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('survival_trials')) problems.push(t('problemSurvivalTrials'));
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
+      if (messages.includes('puzzle_place')) problems.push(t('problemPuzzlePlace', { index: 1 }));
+      if (messages.includes('puzzles_type')) problems.push(t('problemPuzzlesType', { index: 1 }));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
       if (messages.includes('spares_empty')) problems.push(t('problemSparesEmpty'));

@@ -18616,3 +18616,199 @@ button.letterwords-tile:focus-visible {
   max-width: 22rem;
   margin-inline: 0;
 }
+
+/* Головоломки: редактор судоку (28d). Сітка 6×6 з товстими межами блоків 2×3; на 320 px клітинка ≥ 2.5rem. */
+.sudoku-editor,
+.crossword-editor {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.sudoku-editor-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.sudoku-editor-choice > [role='radiogroup'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.sudoku-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  width: min(100%, 20rem);
+  border: 2px solid var(--paper);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+}
+
+.sudoku-editor-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 0;
+  border-inline-end: 1px solid var(--line);
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sudoku-editor-cell:nth-child(6n) {
+  border-inline-end: 0;
+}
+
+.sudoku-editor-cell.is-box-end {
+  border-inline-end: 2px solid var(--paper);
+}
+
+.sudoku-editor-cell.is-box-bottom {
+  border-block-end: 2px solid var(--paper);
+}
+
+.sudoku-editor-cell.is-given {
+  background: var(--track);
+}
+
+input.sudoku-editor-cell:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+
+.sudoku-editor-cell.is-conflict {
+  background: color-mix(in srgb, var(--wrong) 30%, var(--surface));
+  color: var(--wrong);
+}
+
+.sudoku-editor-status.is-ok {
+  color: var(--correct);
+}
+
+/* Головоломки: редактор кросворду (28d). Слово й підказка поруч, на вузькому екрані одне під одним. */
+.crossword-editor-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'n answer tools'
+    'n clue clue';
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.crossword-editor-row > .letter {
+  grid-area: n;
+}
+
+.crossword-editor-answer {
+  grid-area: answer;
+}
+
+.crossword-editor-clue {
+  grid-area: clue;
+}
+
+.crossword-editor-tools {
+  grid-area: tools;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.crossword-editor-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+.crossword-editor-mode > .meta {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.crossword-editor-warning:empty {
+  display: none;
+}
+
+.crossword-editor-preview {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* До 12 стовпців на 320 px: клітинка тягнеться за шириною, не вужча за 1.25rem. */
+.crossword-editor-grid {
+  width: min(100%, 30rem);
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.crossword-cell {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.crossword-cell.is-block {
+  border-color: transparent;
+  background: transparent;
+}
+
+.crossword-cell.is-letter {
+  background: var(--surface);
+  border-color: var(--dim);
+}
+
+.crossword-cell.is-key {
+  outline: 3px double var(--amber);
+  outline-offset: -4px;
+}
+
+.crossword-number,
+.crossword-key-n {
+  position: absolute;
+  inset-block-start: 0.05rem;
+  font-size: 0.55rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--dim);
+}
+
+.crossword-number {
+  inset-inline-start: 0.1rem;
+}
+
+.crossword-key-n {
+  inset-inline-end: 0.1rem;
+  color: var(--amber);
+}
+
+.crossword-editor-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+
+.crossword-editor-clues {
+  margin: 0;
+  padding-inline-start: 1.5rem;
+}

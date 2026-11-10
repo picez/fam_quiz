@@ -31,6 +31,10 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(t('summaryTruth', { points: brief.truth.points }));
     return lines;
   }
+  if (brief.type === 'puzzles' && brief.puzzles !== null) {
+    lines.push(t('summaryPuzzles'), t('summaryPuzzlesCount', { sudoku: brief.puzzles.sudoku, crossword: brief.puzzles.crossword }));
+    return lines;
+  }
   if (brief.type === 'bets' && brief.bets !== null) {
     const { betStart, betStep, betMax } = brief.bets;
     const minimum = betStep === 0 ? t('summaryBetsMinimumFlat', { start: betStart }) : t('summaryBetsMinimum', { start: betStart, step: betStep });

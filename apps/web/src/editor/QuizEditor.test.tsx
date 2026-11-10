@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Вибування' | 'Мільйонер') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Головоломки' | 'Вибування' | 'Мільйонер') => {
   click('+ Раунд');
   click(type);
 };
@@ -3046,6 +3046,33 @@ describe('QuizEditor: truth round (28b)', () => {
     fill(t('truthTimeLabel'), '30');
     click('Зберегти');
     await waitFor(() => expect(onSave).toHaveBeenCalled());
+  });
+});
+
+describe('QuizEditor: puzzles round (28d)', () => {
+  const settingsBlock = () => screen.getAllByText('Налаштування раунду')[0];
+
+  it('a new puzzles round holds a generated sudoku, takes only puzzles and saves with the 180 s default', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Головоломки');
+    // Типи — лише судоку й кросворд; ні підказки для бафів, ні відео.
+    expect(screen.getAllByRole('button', { pressed: true }).map((chip) => chip.textContent)).toContain(t('typeShort_sudoku'));
+    expect(screen.getByRole('button', { name: t('typeShort_crossword') })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'так чи ні' })).toBeNull();
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    expect(screen.getByText(t('sudokuGivenCount', { count: 16, total: 36 }))).toBeTruthy();
+    fireEvent.click(settingsBlock());
+    expect(screen.getByText(t('puzzlesSettingsNote'))).toBeTruthy();
+    expect(screen.queryByLabelText(t('shuffleOptions'))).toBeNull();
+    expect(screen.queryByLabelText(t('speedBonus'))).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(roundQuestions(quiz.rounds[1])).toEqual([expect.objectContaining({ type: 'sudoku', level: 'medium', timeLimit: LIMITS.defaultSudokuTime })]);
   });
 });
 

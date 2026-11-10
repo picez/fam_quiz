@@ -1,4 +1,4 @@
-import { LIMITS, REVEAL_TYPES, type CluePace, type Question, type RevealMode } from '@quiz/shared';
+import { LIMITS, REVEAL_TYPES, isPuzzle, type CluePace, type Question, type RevealMode } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { LETTERS, sliderValueText } from '../format';
 import { HelpButton } from '../help/HelpButton';
@@ -13,10 +13,12 @@ import { BluffEditor } from './BluffEditor';
 import { SurveyEditor } from './SurveyEditor';
 import { LetterWordsEditor } from './LetterWordsEditor';
 import { MoreLessEditor } from './MoreLessEditor';
+import { CrosswordEditor } from './CrosswordEditor';
+import { SudokuEditor } from './SudokuEditor';
 import { TimedListEditor } from './TimedListEditor';
 import { WallEditor } from './WallEditor';
 import { WordLadderEditor } from './WordLadderEditor';
-import { changeType, moveItem, type QuestionType } from './draft';
+import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
 interface Props {
@@ -808,6 +810,10 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
         </>
       );
     }
+    case 'sudoku':
+      return <SudokuEditor question={question} onChange={onChange} />;
+    case 'crossword':
+      return <CrosswordEditor question={question} onChange={onChange} />;
     case 'wordcloud':
       return (
         <>
@@ -818,9 +824,10 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
   }
 }
 
-/** Чи час у межах: поки ні, поле часу видно й для запитання з відео, щоб автор міг його виправити. */
-function timeInLimits(timeLimit: number): boolean {
-  return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= LIMITS.maxTime;
+/** Чи час у межах (у головоломок — власна межа); поки ні, поле часу видно й для запитання з відео, щоб автор міг його виправити. */
+function timeInLimits(question: Question): boolean {
+  const { timeLimit } = question;
+  return Number.isInteger(timeLimit) && timeLimit >= LIMITS.minTime && timeLimit <= maxTimeOf(question);
 }
 
 /** Режим картинки, що проявляється; undefined («Звичайна») прибирає ключ. */
@@ -886,7 +893,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && !isPuzzle(question) && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -907,8 +914,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             }
           />
         )}
-        {/* У малюнку звуку немає: він видав би слово. */}
-        {showAudio && question.video === null && question.type !== 'drawing' && (
+        {/* У малюнку звуку немає: він видав би слово. У головоломках теж: сітці він ні до чого. */}
+        {showAudio && question.video === null && question.type !== 'drawing' && !isPuzzle(question) && (
           <AudioField
             audio={question.audio}
             timeLimit={question.timeLimit}
@@ -937,8 +944,8 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           />
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
-        {/* Підказка — для бафів; у «Більше чи менше» й «Малюнку» бафів немає. */}
-        {showHint && question.type !== 'moreless' && question.type !== 'drawing' && (
+        {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
+        {showHint && question.type !== 'moreless' && question.type !== 'drawing' && !isPuzzle(question) && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea
@@ -959,7 +966,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
 
       {(showTime || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote)) && (
         <div className="pair">
-          {!showTime ? null : question.video === null || !timeInLimits(question.timeLimit) ? (
+          {!showTime ? null : question.video === null || !timeInLimits(question) ? (
             <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
           ) : (
             <p className="meta">{t('noTimerHint')}</p>

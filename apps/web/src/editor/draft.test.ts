@@ -2,9 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { newId } from './new-id';
-import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -52,6 +52,8 @@ function filled(question: Question): Question {
       return { ...question, text, items: question.items.map((item, i) => ({ ...item, text: `Пункт ${i + 1}` })) };
     case 'drawing':
       return { ...question, text, accepted: ['Соняшник'] };
+    case 'crossword':
+      return { ...question, text, entries: question.entries.map((e, i) => ({ ...e, answer: ['калина', 'лелека', 'вишня', 'сонях'][i] ?? '', clue: `Підказка ${i + 1}` })) };
     case 'moreless':
       return { ...question, text, pairs: question.pairs.map((p, i) => ({ ...p, prompt: `Що більше ${i + 1}?`, a: { text: `Лівий ${i + 1}`, value: `${i + 10}` }, b: { text: `Правий ${i + 1}`, value: `${i + 20}` } })) };
     case 'sort':
@@ -74,7 +76,9 @@ const quizWith = (...questions: Question[]): Quiz => {
 describe('newQuestion', () => {
   it('creates a question of every type that becomes valid once its texts are filled in', () => {
     for (const type of QUESTION_TYPES) {
-      const quiz = quizWith(filled(newQuestion(type)));
+      // 28d: судоку й кросворд живуть лише в раунді «Головоломки».
+      const question = filled(newQuestion(type));
+      const quiz = isPuzzle(question) ? { ...quizWith(), rounds: [{ ...newPuzzlesRound(), questions: [question] }] } : quizWith(question);
       expect(problemsOf(quiz), type).toEqual([]);
       expect(quizSchema.safeParse(cleaned(quiz)).success, type).toBe(true);
     }
@@ -202,7 +206,8 @@ describe('survey in the editor (10e)', () => {
 
 describe('wall, poll and word cloud in the editor (10d)', () => {
   it('questionTypesFor: the wall is in classic and on the board; polls and clouds are classic only', () => {
-    expect(questionTypesFor('classic')).toEqual(QUESTION_TYPES);
+    // 28d: класика — усі типи, крім головоломок (вони лише в «Головоломках»).
+    expect(questionTypesFor('classic')).toEqual(QUESTION_TYPES.filter((type) => type !== 'sudoku' && type !== 'crossword'));
     expect(questionTypesFor('board')).toContain('wall');
     expect(questionTypesFor('board')).not.toContain('poll');
     expect(questionTypesFor('board')).not.toContain('wordcloud');
@@ -379,7 +384,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -487,8 +492,11 @@ describe('duplicateQuestion', () => {
       const source = filled(newQuestion(type));
       const copy = duplicateQuestion(source);
       expect(copy.id, type).not.toBe(source.id);
-      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, rows: undefined, words: undefined, correctId: undefined, correctIds: undefined }, type).toEqual({
+      // 28d: у кросворді нові id слів, тож розкладка перескладається (її перевіряє окремий тест).
+      expect({ ...copy, id: '', options: undefined, items: undefined, pairs: undefined, categories: undefined, groups: undefined, rows: undefined, words: undefined, correctId: undefined, correctIds: undefined, entries: undefined, layout: undefined }, type).toEqual({
         ...source,
+        entries: undefined,
+        layout: undefined,
         id: '',
         options: undefined,
         items: undefined,
@@ -2894,5 +2902,126 @@ describe('truth round (28b)', () => {
     expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
     saveDraft('truth-x', quiz);
     expect(loadDraft('truth-x')?.rounds[0]).toMatchObject({ type: 'truth', points: LIMITS.defaultPoints, timeLimit: 30 });
+  });
+});
+
+describe('puzzles in the editor (28d)', () => {
+  type Sudoku = Extract<Question, { type: 'sudoku' }>;
+  type Crossword = Extract<Question, { type: 'crossword' }>;
+  const WORDS = [
+    ['калина', 'Червона ягода, символ України'],
+    ['лелека', 'Птах, що приносить весну'],
+    ['вишня', 'Дерево в садку біля хати'],
+    ['сонях', 'Жовта квітка, що дивиться на сонце'],
+  ];
+  const crossword = (patch: Partial<Crossword> = {}): Crossword => {
+    const base = newQuestion('crossword') as Crossword;
+    return { ...base, entries: base.entries.map((e, i) => ({ ...e, answer: WORDS[i]![0]!, clue: WORDS[i]![1]! })), ...patch };
+  };
+  const words = (q: Crossword, list: string[]): Crossword => ({ ...q, entries: q.entries.map((e, i) => ({ ...e, answer: list[i] ?? e.answer })) });
+  const puzzlesQuiz = (...questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newPuzzlesRound(), questions }] });
+  const custom = (givens: string): Sudoku => ({ ...(newQuestion('sudoku') as Sudoku), level: 'custom', seed: null, givens, solution: EMPTY_SUDOKU });
+
+  it('puzzles take only sudoku and crossword', () => {
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword']);
+    for (const round of ROUND_TYPES.filter((type) => type !== 'puzzles')) {
+      expect(questionTypesFor(round), round).not.toContain('sudoku');
+      expect(questionTypesFor(round), round).not.toContain('crossword');
+    }
+    const round = newPuzzlesRound();
+    expect(round).toMatchObject({ type: 'puzzles', title: '' });
+    expect(round.questions.map((q) => q.type)).toEqual(['sudoku']);
+    expect('rules' in round || 'shuffleOptions' in round || 'speedBonus' in round).toBe(false);
+  });
+
+  it('a new sudoku is generated and valid', () => {
+    const q = newQuestion('sudoku') as Sudoku;
+    expect(q).toMatchObject({ type: 'sudoku', level: 'medium', timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, video: null });
+    expect(Number.isInteger(q.seed)).toBe(true);
+    expect(q).toMatchObject(generateSudoku(q.seed!, 'medium'));
+    expect('hint' in q || 'audio' in q || 'reveal' in q).toBe(false);
+    expect(questionSchema.safeParse(q).success).toBe(true);
+    expect(problemsOf(puzzlesQuiz(q))).toEqual([]);
+  });
+
+  it('a new crossword waits for words', () => {
+    const q = newQuestion('crossword') as Crossword;
+    expect(q).toMatchObject({ type: 'crossword', mode: 'full', key: null, layout: null, timeLimit: LIMITS.defaultCrosswordTime, points: LIMITS.defaultPuzzlePoints, video: null });
+    expect(q.entries).toHaveLength(LIMITS.minCrosswordWords);
+    expect(q.entries.every((e) => e.answer === '' && e.clue === '')).toBe(true);
+    expect(problemsOf(puzzlesQuiz(q))).toEqual([t('problemCrosswordWords', { index: 1 })]);
+    // Підказки теж обов'язкові: окремий текст.
+    expect(problemsOf(puzzlesQuiz({ ...crossword(), entries: crossword().entries.map((e, i) => (i === 2 ? { ...e, clue: ' ' } : e)) }))).toEqual([t('problemCrosswordClue', { index: 1 })]);
+  });
+
+  it('puzzle timers go up to the puzzle maximum, the 180 and 240 s defaults included', () => {
+    expect(problemsOf(puzzlesQuiz(newQuestion('sudoku'), crossword()))).toEqual([]);
+    expect(problemsOf(puzzlesQuiz({ ...newQuestion('sudoku'), timeLimit: LIMITS.maxPuzzleTime }))).toEqual([]);
+    expect(problemsOf(puzzlesQuiz({ ...newQuestion('sudoku'), timeLimit: LIMITS.maxPuzzleTime + 1 }))).toEqual([
+      t('problemPuzzleLimits', { index: 1, min: LIMITS.minTime, max: LIMITS.maxPuzzleTime, points: LIMITS.maxPoints }),
+    ]);
+    // В інших типах межа та сама, що й раніше.
+    expect(problemsOf(quizWith({ ...filled(newQuestion('single')), timeLimit: 180 }))).toEqual([t('problemLimits', { index: 1 })]);
+  });
+
+  it('cleaning relays the crossword', () => {
+    const spaced = crossword({ entries: crossword().entries.map((e) => ({ ...e, answer: `  ${e.answer} `, clue: ` ${e.clue}  ` })) });
+    const out = cleanedQuestion(spaced) as Crossword;
+    expect(out.entries.map((e) => e.answer)).toEqual(WORDS.map((w) => w[0]));
+    expect(out.entries.map((e) => e.clue)).toEqual(WORDS.map((w) => w[1]));
+    const expected = layoutCrossword(out.entries);
+    expect(expected.ok).toBe(true);
+    if (expected.ok) expect(out.layout).toEqual(expected.layout);
+    expect(questionSchema.safeParse(out).success).toBe(true);
+
+    const keyed = cleanedQuestion(crossword({ mode: 'key', key: ' калина ' })) as Crossword;
+    expect(keyed.key).toBe('калина');
+    const grid = layoutCrossword(keyed.entries);
+    expect(grid.ok).toBe(true);
+    if (grid.ok) expect(keyed.layout).toEqual({ ...grid.layout, keyCells: pickKeyCells(grid.layout, keyed.entries, 'калина') });
+    expect(quizSchema.safeParse(cleaned(puzzlesQuiz(keyed))).success).toBe(true);
+    // Старий ключ у режимі «увесь кросворд» не зберігається.
+    expect((cleanedQuestion(crossword({ mode: 'full', key: 'калина' })) as Crossword).key).toBeNull();
+  });
+
+  it('duplicating a crossword keeps a valid layout', () => {
+    const source = cleanedQuestion(crossword({ mode: 'key', key: 'калина' })) as Crossword;
+    const copy = duplicateQuestion(source) as Crossword;
+    expect(copy.id).not.toBe(source.id);
+    expect(copy.entries.map((e) => e.answer)).toEqual(source.entries.map((e) => e.answer));
+    expect(copy.entries.some((e) => source.entries.some((s) => s.id === e.id))).toBe(false);
+    expect(copy.layout?.words.map((w) => w.id).sort()).toEqual(copy.entries.map((e) => e.id).sort());
+    expect(copy.layout?.keyCells).toEqual(source.layout?.keyCells);
+    expect(questionSchema.safeParse(copy).success).toBe(true);
+  });
+
+  it('puzzle problems point at the question', () => {
+    const one = (q: Question) => problemsOf(puzzlesQuiz(q));
+    expect(one(custom('1'.padEnd(36, '0')))).toEqual([t('problemSudokuMany', { index: 1 })]);
+    // Без повторів, але в клітинку (0, 5) не стане жодна цифра: 6 уже в її стовпці.
+    expect(one(custom('123450000006'.padEnd(36, '0')))).toEqual([t('problemSudokuNone', { index: 1 })]);
+    expect(one(custom('11'.padEnd(36, '0')))).toEqual([t('problemSudokuConflict', { index: 1 })]);
+    expect(one(words(crossword(), ['калина', 'лелека', 'вишня', 'дуб']))).toEqual([t('problemCrosswordLayout', { index: 1 })]);
+    expect(one(words(crossword(), ['калина', 'лелека', 'tree', 'сонях']))).toEqual([
+      t('problemCrosswordWord', { index: 1, min: LIMITS.minCrosswordWord, max: LIMITS.maxCrosswordWord }),
+    ]);
+    expect(one(words(crossword(), ['калина', 'лелека', 'Калина', 'сонях']))).toEqual([t('problemCrosswordDuplicate', { index: 1 })]);
+    expect(one(crossword({ mode: 'key', key: '' }))).toEqual([t('problemCrosswordKey', { index: 1, min: LIMITS.minCrosswordKey, max: LIMITS.maxCrosswordKey })]);
+    expect(one(crossword({ mode: 'key', key: 'фото' }))).toEqual([t('problemCrosswordKeyLetters', { index: 1, letters: 'ф, т, о' })]);
+    expect(problemsOf(quizWith(newQuestion('sudoku')))).toEqual([t('problemPuzzlePlace', { index: 1 })]);
+    expect(one(filled(newQuestion('single')))).toEqual([t('problemPuzzlesType', { index: 1 })]);
+  });
+
+  it('a puzzles draft keeps its grids and words; junk revives to something the editor can show', () => {
+    const quiz = puzzlesQuiz(newQuestion('sudoku'), cleanedQuestion(crossword({ mode: 'key', key: 'калина' })));
+    saveDraft('puzzles', quiz);
+    expect(loadDraft('puzzles')).toEqual(quiz);
+    const bad = { ...crossword(), entries: 5, mode: 'x', layout: 'no', hint: 'x' };
+    sessionStorage.setItem('quiz:draft:puzzles-bad', JSON.stringify(puzzlesQuiz({ ...newQuestion('sudoku'), givens: 7, level: 'x' } as unknown as Question, bad as unknown as Question)));
+    const [sudoku, revived] = roundQuestions(loadDraft('puzzles-bad')!.rounds[0]!) as [Sudoku, Crossword];
+    expect(sudoku).toMatchObject({ level: 'custom', seed: null, givens: EMPTY_SUDOKU, solution: EMPTY_SUDOKU });
+    expect(revived).toMatchObject({ mode: 'full', key: null, layout: null });
+    expect(revived.entries).toHaveLength(LIMITS.minCrosswordWords);
+    expect('hint' in revived).toBe(false);
   });
 });

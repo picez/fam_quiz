@@ -41,14 +41,17 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   const countId = useId();
   const fieldId = useId();
   const descriptionLength = (round.description ?? '').length;
-  const [seconds, setSeconds] = useState<number>(LIMITS.defaultTime);
-  const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= LIMITS.maxTime;
+  // У «Головоломках» час довший: типовий — як у судоку, межа — головоломкова.
+  const puzzles = round.type === 'puzzles';
+  const maxSeconds = puzzles ? LIMITS.maxPuzzleTime : LIMITS.maxTime;
+  const [seconds, setSeconds] = useState<number>(puzzles ? LIMITS.defaultSudokuTime : LIMITS.defaultTime);
+  const secondsValid = Number.isInteger(seconds) && seconds >= LIMITS.minTime && seconds <= maxSeconds;
   const rules = rulesOf(round);
   const { streak } = rules;
   // У бліці часткових балів немає, тому «частково» змінює лише класичний раунд і поле.
   const setRules = (patch: Partial<Omit<RoundRules, 'partial'>>) => {
-    // У фіналі, «Ва-банк» і «Мільйонері» правил немає: їхніх елементів керування там не показано.
-    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'wipeout' || round.type === 'ladder') return;
+    // У фіналі, «Ва-банк», «Мільйонері» й «Головоломках» правил немає: їхніх елементів керування там не показано.
+    if (round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'ladder') return;
     onChange(round.type === 'blitz' ? { ...round, rules: { ...round.rules, ...patch } } : { ...round, rules: { ...round.rules, ...patch } });
   };
   /** Правила бліцу з серіями; плюсова серія замінює стару «Серії», мінусова тримає штраф увімкненим. */
@@ -105,7 +108,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
             type="number"
             inputMode="numeric"
             min={LIMITS.minTime}
-            max={LIMITS.maxTime}
+            max={maxSeconds}
             value={Number.isNaN(seconds) ? '' : seconds}
             onChange={(event) => setSeconds(toNumber(event.target.value))}
           />
@@ -124,7 +127,13 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <HelpButton id="setting.speedBonus" />
         </div>
       )}
-      {round.type !== 'truth' && (
+      {round.type === 'puzzles' && (
+        <p className="meta with-help">
+          <span>{t('puzzlesSettingsNote')}</span>
+          <HelpButton id="round.puzzles" />
+        </p>
+      )}
+      {round.type !== 'truth' && round.type !== 'puzzles' && (
         <label className="check">
           <input
             type="checkbox"
@@ -478,7 +487,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           />
         </fieldset>
       )}
-      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'truth' && round.type !== 'wipeout' && round.type !== 'ladder' && (
+      {round.type !== 'final' && round.type !== 'bets' && round.type !== 'auction' && round.type !== 'truth' && round.type !== 'puzzles' && round.type !== 'wipeout' && round.type !== 'ladder' && (
         <>
       <div className="with-help">
         <label className="check">

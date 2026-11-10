@@ -1,4 +1,4 @@
-import { APPEAL_MS, APPEALS_PER_GAME, AUDIO_LIMITS, AUTOPILOT_MS, AWAY_MS, DEFAULT_ANSWER_WINDOW, LIMITS, PACE_MS, REVEAL_MIN_SHARE, type Locale } from '@quiz/shared';
+import { APPEAL_MS, APPEALS_PER_GAME, AUDIO_LIMITS, AUTOPILOT_MS, AWAY_MS, DEFAULT_ANSWER_WINDOW, LIMITS, PACE_MS, REVEAL_MIN_SHARE, SUDOKU_GIVENS, type Locale } from '@quiz/shared';
 import { currentLocale } from '../locales/current';
 import { decimalText } from '../locales/grammar';
 
@@ -13,6 +13,8 @@ const LIMIT_KEYS = [
   'defaultDebuffPrice',
   'defaultSurveyAnswers',
   'defaultWallMistakes',
+  'defaultCrosswordTime',
+  'defaultSudokuTime',
   'drawGuess',
   'ladderOptions',
   'maxAccepted',
@@ -24,6 +26,10 @@ const LIMIT_KEYS = [
   'maxCategorySpares',
   'maxChainWords',
   'maxCloudWords',
+  'maxCrosswordKey',
+  'maxCrosswordSide',
+  'maxCrosswordWord',
+  'maxCrosswordWords',
   'maxClueSeconds',
   'maxClues',
   'maxDebuffPrice',
@@ -33,6 +39,8 @@ const LIMIT_KEYS = [
   'maxLetterSet',
   'maxListItems',
   'maxMoreLessPairs',
+  'maxPuzzleTime',
+  'maxPuzzles',
   'maxOptions',
   'maxOrderItems',
   'maxPairs',
@@ -59,6 +67,9 @@ const LIMIT_KEYS = [
   'minChainWords',
   'minClueSeconds',
   'minClues',
+  'minCrosswordKey',
+  'minCrosswordWord',
+  'minCrosswordWords',
   'minDebuffPrice',
   'minLadderQuestions',
   'minLetterSet',
@@ -117,6 +128,10 @@ export function helpVars(locale?: Locale): Record<string, string> {
   vars.defaultAnswerWindow = String(DEFAULT_ANSWER_WINDOW);
   vars.maxBoardCells = String(LIMITS.maxCategories * LIMITS.maxCategoryQuestions);
   vars.revealMinShare = String(Math.round(REVEAL_MIN_SHARE * 100));
+  // «Головоломки» (28d): скільки цифр задає генератор судоку за складністю.
+  vars.sudokuEasy = String(SUDOKU_GIVENS.easy);
+  vars.sudokuMedium = String(SUDOKU_GIVENS.medium);
+  vars.sudokuHard = String(SUDOKU_GIVENS.hard);
   cache.set(key, vars);
   return vars;
 }
