@@ -4,7 +4,7 @@ import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type 
 import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
+import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -332,6 +332,15 @@ describe('host history: broken snapshot', () => {
     expect(detail?.standings.map((s) => [s.nickname, s.rounds, s.breakdown])).toEqual([
       ['Тарас', [1000, -300], { parts: [{ source: 'answers', plus: 1000, minus: -300 }], plus: 1000, minus: -300 }],
     ]);
+  });
+});
+
+describe('gameQuestionCount (28b)', () => {
+  it('adds the generated truth questions of the record to the snapshot count', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]);
+    const truth = (k: number) => ({ roundIndex: 1, questionId: `truth-${k}`, truth: { question: { ...single, id: `truth-${k}` }, author: 'p1', authorName: 'Оля', actor: 'p1' } });
+    expect(gameQuestionCount({ quizSnapshot: quiz, plays: [] })).toBe(1);
+    expect(gameQuestionCount({ quizSnapshot: quiz, plays: [{ roundIndex: 0, questionId: single.id }, truth(0), truth(1)] as never })).toBe(3);
   });
 });
 

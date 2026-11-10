@@ -64,6 +64,14 @@ export function snapshotOf(raw: unknown): Quiz | null {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * Скільки запитань у грі: зі знімка вікторини й запитання раунду «Правда про гравця» (28b), яких у знімку немає —
+ * гра створює їх сама, тож вони є лише в журналі (PlayRef.truth).
+ */
+export function gameQuestionCount(row: { quizSnapshot: unknown; plays: PlayRef[] }): number {
+  return questionCountOf(row.quizSnapshot) + row.plays.filter((ref) => ref.truth !== undefined).length;
+}
+
 /** Кількість запитань у знімку без повної валідації: зіпсований знімок рахуємо за сирою структурою. */
 export function questionCountOf(raw: unknown): number {
   const quiz = snapshotOf(raw);
@@ -476,7 +484,7 @@ export async function hostGames(db: Db, hostId: string): Promise<GameSummary[]> 
     finishedAt: row.finishedAt?.toISOString() ?? null,
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     teams: teamGames.has(row.id),
     autopilot: row.autopilot,
   }));
@@ -525,7 +533,7 @@ export async function resumeOptions(db: Db, hostId: string, quizId: string, excl
     startedAt: row.startedAt.toISOString(),
     status: row.status,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     autopilot: row.autopilot,
     roundIndex: resumeRound(snapshotOf(row.quizSnapshot), row.plays, row.questionsPlayed),
     scores: (byGame.get(row.id) ?? [])
@@ -691,7 +699,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     autopilot: row.autopilot,
     rounds: (quiz?.rounds ?? []).map((round) => ({ title: round.title, type: round.type })),
     standings,

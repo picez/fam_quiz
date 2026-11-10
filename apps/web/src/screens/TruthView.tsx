@@ -210,7 +210,8 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
     <div className="stage-question truth-stage">
       <header className="bar">
         <span>{t('truthOf', { index: truth.index + 1, total: truth.count })}</span>
-        <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>
+        {/* На reveal playerCount — усі гравці (для «Місце N з M»), а не ті, хто вгадує: лічильник лише поки запитання йде. */}
+        {view.phase !== 'reveal' && <span>{t('answeredOf', { answered: view.answeredCount, total: view.playerCount })}</span>}
       </header>
       {/* Командна гра не в режимі captain: хто відповідає за кожну команду — за всі однаково (капітан), команда автора не випадає. */}
       <StageAnswerers view={view} />

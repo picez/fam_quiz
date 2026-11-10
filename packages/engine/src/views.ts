@@ -2269,8 +2269,8 @@ function base(state: GameState, forHost: boolean) {
     paused: state.paused,
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
-    // Пропущені «100 до 1» (хмара без слів) у лічильник не входять.
-    total: round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
+    // Пропущені «100 до 1» (хмара без слів) у лічильник не входять. «Правда про гравця» (28b): запитань у вікторині немає — колода.
+    total: round?.type === 'truth' ? (state.truth?.deck?.length ?? 0) : round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
     question: shownPublic(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,

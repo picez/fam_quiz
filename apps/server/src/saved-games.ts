@@ -8,7 +8,7 @@ import type { Db } from './db/client';
 import { game, liveRoom, participant, savedGame } from './db/schema';
 import { gateStatus, type LobbyGate } from './lobby-access';
 import { releasePrizes, releaseUnsaved, reservedFor } from './prizes';
-import { playerCounts, questionCountOf, resumeRound, snapshotOf, teamGameIds } from './history';
+import { gameQuestionCount, playerCounts, resumeRound, snapshotOf, teamGameIds } from './history';
 import { markAborted, saveSavedGame, trimToCheckpoint } from './recorder';
 import { isSavedGameData, SAVED_GAME_VERSION, type RestartParticipant, type SavedGameData } from './rooms/continuation';
 import { isSavedRoom, type RoomManager, type SavedRoom } from './rooms/manager';
@@ -183,7 +183,7 @@ export async function savedSummaries(db: Db, hostId: string, open: Map<string, s
     finishedAt: null,
     playerCount: players.get(row.id) ?? 0,
     questionsPlayed: row.questionsPlayed,
-    questionCount: questionCountOf(row.quizSnapshot),
+    questionCount: gameQuestionCount(row),
     teams: teamGames.has(row.id),
     autopilot: row.autopilot,
     saved: {

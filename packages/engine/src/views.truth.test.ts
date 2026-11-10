@@ -172,6 +172,15 @@ describe('player truth views (28b)', () => {
     expect(stageView(opened()).truth?.skipped).toBe(false);
   });
 
+  it('the question counter of a truth round is the deck', () => {
+    const s = opened();
+    expect(s.truth?.deck?.length).toBe(3);
+    expect(stageView(s).total).toBe(3);
+    expect(playerView(s, 'p4')?.total).toBe(3);
+    // До роздачі колоди немає — 0, а не запитання вікторини.
+    expect(stageView(must(start(lobby()))).total).toBe(0);
+  });
+
   it('a skipped last round says so on the finished game, an early end before the deal does not', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]);
     const s0 = must(start(lobbyWith(quiz, 'Олена', 'Тарас')));

@@ -211,6 +211,13 @@ describe('TruthStage', () => {
     expect(container.textContent).not.toContain('✓');
     expect(container.textContent).not.toMatch(/\bA\b/);
   });
+
+  it('the reveal drops the answered counter: playerCount there counts everyone', () => {
+    const reveal: TruthInfo['reveal'] = { author: { id: 'p1', nickname: 'Олена' }, points: 300, picks: [] };
+    render(<TruthStage view={stage({ phase: 'reveal', playerCount: 3, truth: info({ open: false, count: 3, index: 0, reveal }) })} offsetMs={0} />);
+    expect(screen.getByText('Факт 1 з 3')).toBeTruthy();
+    expect(screen.queryByText(/Відповіли/)).toBeNull();
+  });
 });
 
 describe('TruthReveal', () => {

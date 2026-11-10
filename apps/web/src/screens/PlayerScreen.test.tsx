@@ -3629,6 +3629,15 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     expect(document.querySelector('.team-answerer-banner')?.textContent).toBe('Ти відповідаєш за команду');
   });
 
+  it('no banner for the captain of the author’s team on a player truth question (28b)', () => {
+    const round: RoundInfo = { index: 0, total: 1, title: '', type: 'truth', partial: false, description: '', brief: emptyBrief('truth'), times: null };
+    const truth = { open: false, count: 2, index: 0, reveal: null, skipped: false };
+    const mine = { fact: 'Факт', hidden: false, canWrite: false, own: true };
+    show(asQuestion({ answererMode: 'chosen' }, { round, truth, me: { ...baseMe, truth: mine } }));
+    expect(screen.getByText(t('truthOwnTeam'))).toBeTruthy();
+    expect(document.querySelector('.team-answerer-banner')).toBeNull();
+  });
+
   it('no banner in a blitz or on a poll, even for the one who answers', () => {
     const round: RoundInfo = { index: 0, total: 1, title: '', type: 'blitz', partial: false, description: '', brief: emptyBrief('blitz'), times: null };
     const blitzMe = { ...baseMe, blitz: { position: 1, attemptsUsed: 0, attemptsLeft: null, canBuzz: false, deadline: null, canAnswer: true, grade: null, series: null } };

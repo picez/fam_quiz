@@ -1031,7 +1031,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           )}
           {team !== null && !debuffHere && me.debuff !== null && <DebuffStrip debuff={me.debuff} answerer={team.answererId !== team.captainId} />}
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
-          {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
+          {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && !truthOwn && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
             <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
             <AwayNote away={view.away} />
