@@ -1,4 +1,4 @@
-import { answererModeOf, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
+import { answererModeOf, isPuzzle, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
 // game.ts (openQuestion) імпортуватиме цей файл, а цей файл — його; звертання лише під час виклику функцій.
 import { comingQuestion, comingRound, currentRound, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
 import { trialOpen } from './survival';
@@ -56,7 +56,8 @@ export function queueNext(state: GameState, teamId: string): string | null {
  * Бліц, опитування й хмара: відповідача немає (натиснувший чи кожен сам), лишається капітан.
  * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
  */
-const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined;
+/** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). */
+const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question);
 
 /**
  * Хто відповідає на поточному запитанні: вибір, чинний на мить відкриття (current), інакше вибір, черга, капітан;
@@ -86,17 +87,19 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
   const play = state.plays[index];
   if (play === undefined) return null;
   if (play.blitz !== undefined) return play.buzzers?.[teamId] ?? null;
+  // Головоломку (28d) вписує вся команда: номінального відповідача не приписуємо.
+  if (isPuzzle(play.question)) return null;
   return index === state.questionIndex ? answererOf(state, teamId) : null;
 }
 
 /**
  * Наступне запитання — бліц, опитування чи «хмара» (comingQuestion): відповідача немає, вибір капітана відкладено.
- * «Правда про гравця» (28b) — теж; до роздачі її запитань ще немає, тож дивимось на раунд (comingRound).
+ * «Правда про гравця» (28b) — теж; до роздачі її запитань ще немає, тож дивимось на раунд (comingRound). Головоломки (28d) — вся команда.
  */
 export function freeForAllNext(state: GameState): boolean {
   if (comingRound(state)?.type === 'truth') return true;
   const coming = comingQuestion(state);
-  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question));
+  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question) || isPuzzle(coming.question));
 }
 
 /**
