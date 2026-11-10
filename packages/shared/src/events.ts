@@ -154,6 +154,10 @@ export const duelAnswerSchema = z.object({
   text: z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE),
 });
 /** Командна гра (10j): учасник вибирає команду в лобі. */
+/** «Правда про гравця» (28b): факт про себе; рушій зводить пробіли й міряє довжину (порожній прибирає). */
+export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText * 2).refine(isStorable, UNSTORABLE) });
+/** Ведучий ховає чи повертає факт гравця (28b). */
+export const truthHideSchema = z.object({ playerId, hidden: z.boolean() });
 export const teamPickSchema = z.object({ teamId: playerId });
 /** Капітан вибирає дуелянта команди. */
 export const duelistSchema = z.object({ memberId: playerId });
@@ -235,6 +239,8 @@ export interface ClientToServerEvents {
   'player:duel-category': (payload: z.infer<typeof duelPickSchema>, ack: Ack) => void;
   'player:duel-answer': (payload: z.infer<typeof duelAnswerSchema>, ack: Ack) => void;
   /** Командна гра: вибір команди в лобі (спосіб «гравці обирають самі»). */
+  /** «Правда про гравця»: написати чи змінити свій факт ('' — прибрати). */
+  'player:truth': (payload: z.infer<typeof truthFactSchema>, ack: Ack) => void;
   'player:team': (payload: z.infer<typeof teamPickSchema>, ack: Ack) => void;
   /** Командна гра: кидок кубика формування в лобі. */
   'player:team-roll': (ack: Ack) => void;
@@ -314,6 +320,8 @@ export interface ClientToServerEvents {
   /** Командна гра: спосіб формування команд у лобі. */
   'host:team-form': (payload: z.infer<typeof teamFormSchema>, ack: Ack) => void;
   /** Командна гра: перемістити учасника в команду або без команди. */
+  /** «Правда про гравця»: сховати чи повернути факт гравця. */
+  'host:truth-hide': (payload: z.infer<typeof truthHideSchema>, ack: Ack) => void;
   'host:team-assign': (payload: z.infer<typeof teamAssignSchema>, ack: Ack) => void;
   /** Командна гра: розподілити випадково. */
   'host:team-deal': (ack: Ack) => void;

@@ -436,6 +436,8 @@ describe('in-game facts (12d)', () => {
     expect(factLimitMs(single, { type: 'bets' } as Round, false)).toBeNull();
     // 27b: в аукціоні швидкості немає ні в проданому, ні в непроданому запитанні.
     expect(factLimitMs(single, { type: 'auction' } as Round, false)).toBeNull();
+    // 28b: у «Правді про гравця» швидкості немає.
+    expect(factLimitMs(single, { type: 'truth' } as Round, false)).toBeNull();
     const audio = { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5, duration: 30 };
     expect(factLimitMs({ ...single, audio } as Question, classic, false)).toBe(50000);
   });

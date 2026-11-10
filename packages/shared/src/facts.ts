@@ -196,7 +196,7 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   if (question.type === 'letterwords') return null;
   if (question.type === 'moreless') return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
-  if (round?.type === 'bets' || round?.type === 'auction') return null;
+  if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;
   return answerWindowMs(question);
 }

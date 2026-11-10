@@ -2235,6 +2235,48 @@ describe('auction round (27b)', () => {
   });
 });
 
+describe('truth round (28b)', () => {
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const truthRound = (patch: object = {}, id = 'tr') => ({ id, type: 'truth', title: '', points: 300, timeLimit: 30, ...patch });
+
+  it('accepts a truth round', () => {
+    expect(issues(quizOf([truthRound()]))).toEqual([]);
+    expect(issues(quizOf([round('r', [single]), truthRound({ description: 'Хто є хто' })]))).toEqual([]);
+  });
+
+  it('refuses a second truth round', () => {
+    expect(issues(quizOf([truthRound({}, 'a'), truthRound({}, 'b')]))).toContain('truth_once');
+  });
+
+  it('refuses broken price or timer', () => {
+    for (const patch of [{ points: -1 }, { timeLimit: 4 }, { timeLimit: 2.5 }, { points: 2.5 }]) {
+      expect(issues(quizOf([truthRound(patch)]))).not.toEqual([]);
+    }
+  });
+
+  it('a truth round has no questions and plays by the default rules', () => {
+    const parsed = quizSchema.parse(quizOf([truthRound()]));
+    expect(roundQuestions(parsed.rounds[0]!)).toEqual([]);
+    expect(rulesOf(parsed.rounds[0]!)).toBe(DEFAULT_RULES);
+    expect(ROUND_TYPES.indexOf('truth')).toBe(ROUND_TYPES.indexOf('auction') + 1);
+  });
+
+  it('old quizzes still parse', () => {
+    expect(quizSchema.safeParse(quizOf([round('r', [single])])).success).toBe(true);
+  });
+
+  it('roundBrief(truth) carries the price and the timer; others have none', () => {
+    expect(emptyBrief('truth').truth).toBeNull();
+    const parsed = quizSchema.parse(quizOf([truthRound(), round('r', [{ ...single, id: 'other' }])]));
+    expect(roundBrief(parsed.rounds[0]!)).toEqual({ ...emptyBrief('truth'), truth: { points: 300, time: 30 } });
+    expect(roundBrief(parsed.rounds[1]!).truth).toBeNull();
+  });
+});
+
 describe('timed list question (27c)', () => {
   const item = (id: string, text: string, accepted: string[] = []) => ({ id, text, accepted });
   const listQ = (patch: object = {}) => ({ id: 'tl', type: 'timedlist', text: 'Назвіть планети Сонячної системи', imageUrl: null, video: null,

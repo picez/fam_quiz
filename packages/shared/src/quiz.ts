@@ -14,6 +14,8 @@ export const LIMITS = {
   maxTime: 120,
   defaultTime: 30,
   maxPoints: 2000,
+  /** «Правда про гравця» (28b): довжина факту про себе. */
+  truthText: 200,
   defaultPoints: 1000,
   minOptions: 2,
   maxOptions: 6,
@@ -1046,6 +1048,19 @@ export const auctionRoundSchema = z.object({
 
 export type AuctionRound = z.infer<typeof auctionRoundSchema>;
 
+/** «Правда про гравця»: запитання створює гра на старті раунду з фактів гравців; ціна й таймер — спільні. */
+export const truthRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('truth'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  points: z.number().int().min(0).max(LIMITS.maxPoints),
+  timeLimit: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+});
+
+export type TruthRound = z.infer<typeof truthRoundSchema>;
+
 /** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
 export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
 
@@ -1123,7 +1138,7 @@ export const ladderRoundSchema = z.object({
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'ladder'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -1133,6 +1148,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   finalRoundSchema,
   betsRoundSchema,
   auctionRoundSchema,
+  truthRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
   ladderRoundSchema,
@@ -1145,9 +1161,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -1234,6 +1250,8 @@ export const quizSchema = z
     if (questions.length > LIMITS.maxQuizQuestions) ctx.addIssue({ code: 'custom', message: 'too_many_questions' });
     if (hasDuplicates(questions.map((q) => q.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_question_ids' });
     if (hasDuplicates(quiz.rounds.map((r) => r.id))) ctx.addIssue({ code: 'custom', message: 'duplicate_round_ids' });
+    // «Правда про гравця» (28b): факт пишеться один на гру, тож раунд лише один.
+    if (quiz.rounds.filter((r) => r.type === 'truth').length > 1) ctx.addIssue({ code: 'custom', message: 'truth_once' });
     for (const round of quiz.rounds) {
       if ((round.type === 'blitz' || round.type === 'board') && roundQuestions(round).some((q) => q.type === 'chain')) {
         ctx.addIssue({ code: 'custom', message: 'chain_round' });
@@ -1417,6 +1435,7 @@ export function questionsOf(quiz: Quiz): Question[] {
 
 /** Усі запитання раунду: у полі — по категоріях, у порядку клітинок. */
 export function roundQuestions(round: Round): Question[] {
+  if (round.type === 'truth') return [];
   return round.type === 'board' ? boardCells(round).map(({ cell }) => cell.question) : round.questions;
 }
 
@@ -1514,6 +1533,7 @@ export function withUniqueQuestionIds(quiz: Quiz, makeId: () => string): Quiz {
         })),
       };
     }
+    if (round.type === 'truth') return round;
     const questions = fixAll(round.questions);
     return (round.type === 'survival' ? { ...round, questions, trials: fixAll(round.trials) } : { ...round, questions }) as Round;
   });
