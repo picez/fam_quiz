@@ -44,7 +44,7 @@ export function puzzleTotal(question: PuzzleQuestion): number {
 }
 
 /** Клітинки, від яких залежить оцінка: кросворд з ключем — keyCells, інакше всі для вписування. */
-function scoredCells(question: PuzzleQuestion, solution: readonly string[]): number[] {
+export function scoredCells(question: PuzzleQuestion, solution: readonly string[]): number[] {
   if (question.type === 'crossword' && question.mode === 'key') return question.layout?.keyCells ?? [];
   return solution.flatMap((v, i) => (v === '' ? [] : [i]));
 }

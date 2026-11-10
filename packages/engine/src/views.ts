@@ -1,6 +1,7 @@
 import {
   allowedBuffs,
   isPuzzle,
+  crosswordNumbers,
   AUCTION_BID_MS,
   AUCTION_OPEN_MS,
   auctionPrice,
@@ -52,6 +53,10 @@ import {
   type MoreLessRow,
   type PlayerMoreLess,
   type PublicMoreLess,
+  type PublicPuzzle,
+  type PuzzleBoardView,
+  type PuzzleInfo,
+  type PlayerPuzzle,
   type LetterWordsRow,
   type PublicLetterWords,
   type TimedListInfo,
@@ -180,6 +185,7 @@ import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
+import { puzzleSize, puzzleSolution, puzzleSolved, puzzleTotal, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
@@ -301,6 +307,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'timedlist' ? { timedlist: { total: question.items.length, minus: question.minus } } : {}),
     ...(question.type === 'letterwords' ? { letterwords: publicLetters(question, letters) } : {}),
     ...(question.type === 'moreless' ? { moreless: publicMoreLess(question) } : {}),
+    ...(question.type === 'sudoku' || question.type === 'crossword' ? { puzzle: publicPuzzle(question) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -339,6 +346,22 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
 }
 
 /** Тексти варіантів «Більше чи менше» без значень і без правильної сторони. */
+/** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
+function publicPuzzle(question: Extract<Question, { type: 'sudoku' | 'crossword' }>): PublicPuzzle {
+  if (question.type === 'sudoku') return { kind: 'sudoku', givens: question.givens };
+  const { layout } = question;
+  if (layout === null) return { kind: 'crossword', mode: question.mode, width: 0, height: 0, mask: '', words: [], keyCells: [] };
+  const mask = puzzleSolution(question).map((v) => (v === '' ? '0' : '1')).join('');
+  const numbers = crosswordNumbers(layout, question.entries);
+  const words = layout.words.flatMap((placed) => {
+    const info = numbers.find((n) => n.id === placed.id);
+    const entry = question.entries.find((e) => e.id === placed.id);
+    return info === undefined || entry === undefined ? [] : [{ number: info.number, row: placed.row, col: placed.col, dir: placed.dir, length: info.length, clue: entry.clue }];
+  });
+  words.sort((a, b) => a.number - b.number || (a.dir === b.dir ? 0 : a.dir === 'across' ? -1 : 1));
+  return { kind: 'crossword', mode: question.mode, width: layout.width, height: layout.height, mask, words, keyCells: question.mode === 'key' ? layout.keyCells : [] };
+}
+
 function publicMoreLess(question: Extract<Question, { type: 'moreless' }>): PublicMoreLess {
   return { pairs: question.pairs.map((pair) => ({ id: pair.id, prompt: pair.prompt, a: pair.a.text, b: pair.b.text, points: pair.points })) };
 }
@@ -1495,6 +1518,89 @@ function playerMoreLess(state: GameState, playerId: string): PlayerMoreLess | un
   };
 }
 
+/** Поточна головоломка з її грою; null поза запитанням або для інших типів. */
+function currentPuzzle(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.puzzle === undefined || (play.question.type !== 'sudoku' && play.question.type !== 'crossword')) return null;
+  return { play: { ...play, puzzle: play.puzzle }, question: play.question };
+}
+
+/**
+ * Маска дошки: '#' блок, 'g' задана (судоку), '0' порожньо, '1'...'9' - хто вписав (соло завжди '1'; у команді номер учасника в команді,
+ * з 9-го '9'; вилучений учасник чи невідомий автор - '9'). Значень немає.
+ */
+function puzzleMask(state: GameState, question: Extract<Question, { type: 'sudoku' | 'crossword' }>, solution: readonly string[], boardOwner: string, cells: readonly string[], by: readonly string[] | undefined): string {
+  const members = teamsOn(state) ? teamMembers(state, boardOwner).map((m) => m.id) : [];
+  return solution
+    .map((want, i) => {
+      if (question.type === 'sudoku' && question.givens[i] !== '0') return 'g';
+      if (want === '') return '#';
+      if ((cells[i] ?? '') === '') return '0';
+      if (members.length === 0) return '1';
+      const at = members.indexOf(by?.[i] ?? '');
+      return String(at < 0 ? 9 : Math.min(at + 1, 9));
+    })
+    .join('');
+}
+
+const filledOf = (solution: readonly string[], cells: readonly string[]) => solution.filter((v, i) => v !== '' && (cells[i] ?? '') !== '').length;
+
+/**
+ * Дошки «Головоломок» (28d). Сцена й гравці до reveal бачать лише маски (які клітинки й ким), без значень; значення кожної дошки,
+ * solved і points - на reveal; розв'язок - на reveal. Ведучий значення й розв'язок бачить завжди (solved і points - на reveal).
+ * Рядки на reveal - за балами, далі за заповненням; до того - у порядку гравців.
+ */
+function puzzleInfo(state: GameState, forHost: boolean): PuzzleInfo | undefined {
+  const open = currentPuzzle(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  const solution = puzzleSolution(question);
+  const rows: PuzzleBoardView[] = state.players.map((player) => {
+    const board = play.puzzle.boards[player.id];
+    const cells = board?.cells ?? new Array<string>(solution.length).fill('');
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      mask: puzzleMask(state, question, solution, player.id, cells, board?.by),
+      filled: filledOf(solution, cells),
+      total: puzzleTotal(question),
+      done: board?.done === true,
+      last: board?.last ?? null,
+      cells: forHost || revealed ? cells : null,
+      solved: revealed ? puzzleSolved(question, cells) : null,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+    };
+  });
+  if (revealed) rows.sort((a, b) => (b.points ?? 0) - (a.points ?? 0) || b.filled - a.filled);
+  return { kind: question.type, boards: rows, solution: forHost || revealed ? solution : null };
+}
+
+/** Власна сітка гравця (команди): значення бачить він і товариші; правильність (result) - лише на reveal. */
+function playerPuzzle(state: GameState, playerId: string): PlayerPuzzle | undefined {
+  const open = currentPuzzle(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const solution = puzzleSolution(question);
+  const board = play.puzzle.boards[playerId];
+  const cells = board?.cells ?? new Array<string>(puzzleSize(question)).fill('');
+  const record = recordOf(state, state.questionIndex, playerId);
+  const done = board?.done === true || record !== undefined;
+  const scored = new Set(scoredCells(question, solution));
+  return {
+    cells,
+    mask: puzzleMask(state, question, solution, playerId, cells, board?.by),
+    done,
+    canEdit: state.phase === 'question' && !state.paused && !done,
+    seq: board?.seq ?? 0,
+    result:
+      state.phase === 'reveal'
+        ? { solved: puzzleSolved(question, cells), wrong: solution.flatMap((v, i) => (scored.has(i) && cells[i] !== v ? [i] : [])), points: record?.points ?? 0 }
+        : null,
+  };
+}
+
 /** Ім'я сторони малюнка: гравець чи команда. */
 function sideName(state: GameState, id: string): string {
   return state.players.find((p) => p.id === id)?.nickname ?? '';
@@ -2390,6 +2496,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('timedlist', timedListInfo(state, forHost)),
     ...optional('letterwords', lettersInfo(state, forHost)),
     ...optional('moreless', moreLessInfo(state, forHost)),
+    ...optional('puzzle', puzzleInfo(state, forHost)),
     ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
@@ -3018,6 +3125,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('timedlist', playerTimedList(state, playerId)),
       ...optional('letterwords', playerLetterWords(state, playerId)),
       ...optional('moreless', playerMoreLess(state, playerId)),
+      ...optional('puzzle', playerPuzzle(state, playerId)),
       ...optional('drawing', playerDrawing(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
