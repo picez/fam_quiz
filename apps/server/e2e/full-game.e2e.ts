@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, single, survivalRound, text as textQ, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, levelOf, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -256,7 +256,7 @@ async function open(
   name: string,
   width: number,
   height: number,
-  options: { reducedMotion?: 'reduce'; timezoneId?: string; permissions?: string[]; userAgent?: string; locale?: string } = {},
+  options: { reducedMotion?: 'reduce'; timezoneId?: string; permissions?: string[]; userAgent?: string; locale?: string; hasTouch?: boolean; isMobile?: boolean; deviceScaleFactor?: number } = {},
 ): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
@@ -25478,6 +25478,519 @@ async function truthTeams28b() {
   }
   // Два факти Червоних без вгадування — 600 Червоним; факти Синіх: один вгадали Червоні (+300), другий ні (+300 Синім).
   expect(score).toEqual({ Червоні: 900, Сині: 300 });
+  await toWinners27c(host, stage);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 28c: drawing — turns, mouse and touch, a typo forgiven, the drawer\'s share, a team, reconnect and restart keep the drawing, no word on the stage', async () => {
+  try {
+    await drawingEditor28c();
+    await drawingGame28c();
+    await drawingTeams28c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Запитання «Малюнок» для API. */
+function drawing28c(id: string, text: string, accepted: string[], timeLimit: number, points = 100) {
+  return { id, text, imageUrl: null, video: null, timeLimit, points, type: 'drawing' as const, accepted };
+}
+
+/** Поверхня малювання художника. */
+const surface28c = (page: Page) => page.locator('.drawing-pad .drawing-surface');
+
+/** Художник нічого не має в дорозі: перо підняте, усі пакети підтверджено. */
+async function idle28c(page: Page) {
+  await expect.poll(() => surface28c(page).getAttribute('data-idle'), POLL).toBe('true');
+}
+
+/** Точка шляху (частки 0..1 полотна) у пікселях вікна. */
+async function surfaceAt28c(page: Page): Promise<(point: [number, number]) => [number, number]> {
+  await surface28c(page).scrollIntoViewIfNeeded();
+  const box = (await surface28c(page).boundingBox())!;
+  return ([x, y]) => [box.x + x * box.width, box.y + y * box.height];
+}
+
+/** Малює мишею по полотну: точки в частках 0..1 полотна. */
+async function mouseDraw28c(page: Page, path: [number, number][]) {
+  const at = await surfaceAt28c(page);
+  const [x0, y0] = at(path[0]!);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  for (const point of path.slice(1)) {
+    const [x, y] = at(point);
+    await page.mouse.move(x, y, { steps: 8 });
+  }
+  await page.mouse.up();
+  await idle28c(page);
+}
+
+/** Малює дотиком через CDP Input.dispatchTouchEvent (touchStart / touchMove / touchEnd) — Chrome робить з нього pointer-події з pointerType 'touch'. */
+async function touchDraw28c(page: Page, path: [number, number][]) {
+  await page.evaluate("window.__pointers28c ?? ((window.__pointers28c = []), document.addEventListener('pointerdown', (e) => window.__pointers28c.push(e.pointerType), true))");
+  const at = await surfaceAt28c(page);
+  const points: [number, number][] = [at(path[0]!)];
+  for (let i = 1; i < path.length; i++) {
+    const [ax, ay] = path[i - 1]!;
+    const [bx, by] = path[i]!;
+    for (let k = 1; k <= 8; k++) points.push(at([ax + ((bx - ax) * k) / 8, ay + ((by - ay) * k) / 8]));
+  }
+  const cdp = await page.context().newCDPSession(page);
+  const [x0, y0] = points[0]!;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+  for (const [x, y] of points.slice(1)) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] });
+    await sleep(8);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+  expect(await page.evaluate('window.__pointers28c.at(-1) ?? null'), 'the pointer type of a touch').toBe('touch');
+  await idle28c(page);
+}
+
+/** Стан полотна: data-strokes, data-points і кількість нетлових пікселів (getImageData). */
+async function canvasOf28c(scope: Page | Locator): Promise<{ strokes: number; points: number; inked: number }> {
+  return scope
+    .locator('canvas.drawing-canvas')
+    .first()
+    .evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let inked = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i]! < 240 || data[i + 1]! < 240 || data[i + 2]! < 240) inked++;
+      return { strokes: Number(canvas.dataset.strokes), points: Number(canvas.dataset.points), inked };
+    });
+}
+
+/** Полотна інших екранів збігаються з полотном художника (штрихи й точки, є фарба); повертає малюнок художника. */
+async function sameDrawing28c(drawer: Page, others: (Page | Locator)[]) {
+  await idle28c(drawer);
+  const mine = await canvasOf28c(drawer.locator('.drawing-pad'));
+  for (const other of others) {
+    await expect
+      .poll(async () => {
+        const seen = await canvasOf28c(other);
+        return [seen.strokes, seen.points, seen.inked > 0];
+      }, POLL)
+      .toEqual([mine.strokes, mine.points, mine.strokes > 0]);
+  }
+  return mine;
+}
+
+/** Вгадування з телефона: поле й «Вгадати». */
+async function guess28c(page: Page, text: string) {
+  await page.locator('.drawing-guess-form input').fill(text);
+  await page.locator('.drawing-guess-form button[type="submit"]').click();
+}
+
+/** Полотно сцени (до відкриття й на відкритті). */
+const stageCanvas28c = (stage: Page) => stage.locator('.drawing-stage');
+
+/** Коло з 16 відрізків, стебло, листок, зигзаг. */
+const CIRCLE28C: [number, number][] = Array.from({ length: 17 }, (_, k): [number, number] => [0.5 + 0.18 * Math.cos((k * Math.PI) / 8), 0.35 + 0.22 * Math.sin((k * Math.PI) / 8)]);
+const STEM28C: [number, number][] = [[0.5, 0.58], [0.5, 0.9]];
+const LEAF28C: [number, number][] = [[0.5, 0.75], [0.62, 0.68], [0.7, 0.72]];
+const ZIGZAG28C: [number, number][] = [[0.15, 0.2], [0.3, 0.5], [0.45, 0.2], [0.6, 0.5], [0.75, 0.2]];
+
+/** Сцена 1600 × 900: без прокрутки, полотно 4:3 і цілком у вікні. */
+async function expectDrawingStageFits28c(stage: Page, name: string) {
+  const [height, clientH, width, clientW] = (await stage.evaluate(
+    '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
+  )) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  const box = (await stage.locator('.drawing-stage canvas.drawing-canvas').boundingBox())!;
+  expect(Math.abs(box.width / box.height - 4 / 3), `${name}: the canvas is not 4:3 (${box.width}×${box.height})`).toBeLessThan(0.02);
+  expect(box.y + box.height, `${name}: the canvas ends below the stage`).toBeLessThanOrEqual(900 + 1);
+  expect(box.x + box.width, `${name}: the canvas ends right of the stage`).toBeLessThanOrEqual(1600 + 1);
+  expect(box.width, `${name}: a small canvas on the stage`).toBeGreaterThanOrEqual(480);
+  console.log(`drawing 28c: ${name} — the stage canvas ${Math.round(box.width)}×${Math.round(box.height)} at ${Math.round(box.x)},${Math.round(box.y)}`);
+}
+
+/** Телефон художника на своїй ширині: полотно й інструменти в межах екрана, кнопки — під палець. */
+async function expectPadFits28c(page: Page, name: string) {
+  const width = page.viewportSize()!.width;
+  const boxes = await page.locator('.drawing-pad canvas, .drawing-pad button').evaluateAll((all) =>
+    all.map((el) => {
+      const box = el.getBoundingClientRect();
+      return { left: box.left, right: box.right, height: box.height, button: el.tagName === 'BUTTON', text: el.getAttribute('aria-label') ?? el.textContent };
+    }),
+  );
+  expect(boxes.filter((box) => box.button).length, `${name}: tools`).toBe(14);
+  for (const box of boxes) {
+    expect(box.left, `${name}: «${box.text}» starts off screen`).toBeGreaterThanOrEqual(0);
+    expect(box.right, `${name}: «${box.text}» ends off screen`).toBeLessThanOrEqual(width);
+    if (box.button) expect(box.height, `${name}: «${box.text}» is a tap target`).toBeGreaterThanOrEqual(32);
+  }
+  await expectNoSideScroll(page, name);
+}
+
+/** Телефон вгадувача: полотно, поле й «Вгадати» цілком у межах екрана (сторінка ріже зайве, тож прокрутки вбік може й не бути). */
+async function expectWatchFits28c(page: Page, name: string) {
+  const width = page.viewportSize()!.width;
+  const boxes = await page.locator('.drawing-watch .drawing-frame, .drawing-guess-form input, .drawing-guess-form button').evaluateAll((all) =>
+    all.map((el) => { const box = el.getBoundingClientRect(); return { left: box.left, right: box.right, text: el.className || el.tagName }; }),
+  );
+  expect(boxes.length, `${name}: the canvas and the guess field`).toBeGreaterThanOrEqual(1);
+  for (const box of boxes) {
+    expect(box.left, `${name}: «${box.text}» starts off screen`).toBeGreaterThanOrEqual(0);
+    expect(box.right, `${name}: «${box.text}» ends off screen (${box.right} > ${width})`).toBeLessThanOrEqual(width);
+  }
+  await expectNoSideScroll(page, name);
+}
+
+async function drawingEditor28c() {
+  // ── Редактор: «малюнок» є лише в класичному раунді — ні на полі, ні в бліці. ──
+  const host = await open('host28ce', 1280, 900);
+  await register(host, 'host', 'Ліна Ведуча', 'host28ce@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Малюнок 28c редактор');
+  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
+  await click(host, 'малюнок');
+  await host.getByText(ukMessages.drawingWordHint, exact).waitFor();
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a drawing has no video').toBe(0);
+  await click(host, '+ Раунд');
+  await click(host, 'Ігрове поле');
+  await host.getByRole('button', { name: /^Категорія 1, клітинка 1:/ }).click();
+  await types.waitFor();
+  expect(await types.getByRole('button', { name: 'один варіант', ...exact }).count(), 'the type picker on a board').toBe(1);
+  expect(await types.getByRole('button', { name: 'малюнок', ...exact }).count(), 'a drawing offered on a board').toBe(0);
+  await click(host, '+ Раунд');
+  await click(host, 'Бліц');
+  await types.waitFor();
+  expect(await types.getByRole('button', { name: 'один варіант', ...exact }).count(), 'the type picker in a blitz').toBe(1);
+  expect(await types.getByRole('button', { name: 'малюнок', ...exact }).count(), 'a drawing offered in a blitz').toBe(0);
+  // Сервер теж не прийме малюнок поза класикою.
+  const cell = (id: string, points: number) => ({ ...withPoints(withId(single, id), points), timeLimit: 30 });
+  const board = boardRound('rb28c', [
+    { title: 'Природа', cells: [drawing28c('bd1', 'Що це?', ['маяк'], 60) as never, cell('bd2', 200), cell('bd3', 300)] },
+    { title: 'Міста', cells: [cell('bd4', 100), cell('bd5', 200), cell('bd6', 300)] },
+    { title: 'Річки', cells: [cell('bd7', 100), cell('bd8', 200), cell('bd9', 300)] },
+  ]);
+  const boardQuiz = { ...makeRoundsQuiz([board]), title: 'Поле 28c' };
+  const refused = await host.request.post(`${base}/api/quizzes`, { data: boardQuiz });
+  expect(refused.status(), 'a drawing on a board saved').toBe(400);
+  // Причина — саме місце малюнка (сервер відповідає лише invalid_payload).
+  const issues = quizSchema.safeParse(boardQuiz).error?.issues.map((issue) => issue.message) ?? [];
+  expect(issues, 'why the board quiz is refused').toEqual(['drawing_place']);
+}
+
+async function drawingGame28c() {
+  const host = await open('host28c', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host28c@example.com');
+  const plain = { ...withPoints(withId(single, 's28c'), 100), text: 'Яка річка тече через Київ?', timeLimit: 30 };
+  const round = classicRound(
+    'r28c',
+    [
+      drawing28c('d1', 'Малюнок перший', ['соняшник'], 60),
+      plain,
+      // Друге — довше: посеред нього перезавантаження й перезапуск сервера.
+      drawing28c('d2', 'Малюнок другий', ['парасолька', 'парасоля'], 90),
+      drawing28c('d3', 'Малюнок третій', ['маяк'], 30),
+    ] as never,
+    { title: 'Малюємо', speedBonus: false, shuffleOptions: false },
+  );
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'end' }), title: 'Малюнок 28c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812 (dpr 2), Тарас 360 × 740, Петро — дотиковий телефон, Ганна 320 × 640. ──
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Малюнок 28c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28c', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya28c', 375, 812, { deviceScaleFactor: 2 });
+  const taras = await open('taras28c', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  const petro = await open('petro28c', 375, 812, { hasTouch: true, isMobile: true });
+  const hanna = await open('hanna28c', 320, 640);
+  const hannaFrames = socketFrames(hanna);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(petro, code, 'Петро', false);
+  await join(hanna, code, 'Ганна', false);
+  await stage.getByText('Ганна').waitFor();
+  const scores = async (wanted: [Page, string][]) => {
+    for (const [page, score] of wanted) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(score);
+  };
+  /** Слово не потрапило ні в DOM, ні в кадри сокета. */
+  const noWord = async (word: string, watched: [string, Page, string[]][]) => {
+    for (const [label, page, frames] of watched) {
+      expect(await page.content(), `«${word}» in the ${label} DOM`).not.toContain(word);
+      expect(frames.join(NL), `«${word}» sent to the ${label}`).not.toContain(word);
+    }
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, olya, taras, petro, hanna);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, olya, taras, petro, hanna);
+
+  // ── Запитання 1: малює Оля (перша за порядком приходу); слово — лише в неї й на пульті. ──
+  await olya.locator('.drawing-pad .drawing-word strong').getByText('соняшник', exact).waitFor();
+  for (const page of [taras, petro, hanna]) await page.locator('.drawing-guess-form input').waitFor();
+  await stage.locator('.drawing-stage .drawing-drawer').getByText('Малює: Оля', exact).waitFor();
+  await host.locator('.host-drawing .drawing-word-was').getByText('Слово: соняшник', exact).waitFor();
+  // Полотно не розмите: на dpr 2 буфер удвічі ширший за CSS-ширину.
+  const sharp = await olya.locator('.drawing-pad canvas').evaluate((element) => [(element as HTMLCanvasElement).width, element.clientWidth]);
+  expect(sharp[0], `the canvas buffer at dpr 2 (${sharp.join(' / ')})`).toBe(Math.round(sharp[1]! * 2));
+
+  // Коло й стебло мишею; жовтий, «Товста», «Крок назад» (стебла немає), листок.
+  await mouseDraw28c(olya, CIRCLE28C);
+  await mouseDraw28c(olya, STEM28C);
+  await sameDrawing28c(olya, [stageCanvas28c(stage), host.locator('.host-drawing'), taras]);
+  await olya.getByRole('button', { name: 'Колір 4', ...exact }).click();
+  await olya.getByRole('button', { name: 'Товста', ...exact }).click();
+  expect(await olya.getByRole('button', { name: 'Колір 4', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  expect(await olya.getByRole('button', { name: 'Товста', ...exact }).getAttribute('aria-pressed')).toBe('true');
+  await click(olya, 'Крок назад');
+  await expect.poll(() => canvasOf28c(stageCanvas28c(stage)).then((c) => c.strokes), POLL).toBe(1);
+  await expect.poll(() => canvasOf28c(taras).then((c) => c.strokes), POLL).toBe(1);
+  await mouseDraw28c(olya, LEAF28C);
+  const first = await sameDrawing28c(olya, [stageCanvas28c(stage), host.locator('.host-drawing'), taras, petro, hanna]);
+  expect(first.strokes, 'strokes after an undo and one more').toBe(2);
+  // Жовтий товстий листок справді жовтий на сцені.
+  const yellow = await stage.locator('.drawing-stage canvas').evaluate((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i]! > 230 && data[i + 1]! > 190 && data[i + 2]! < 100) count++;
+    return count;
+  });
+  expect(yellow, 'yellow pixels of the leaf on the stage').toBeGreaterThan(100);
+  await expectPadFits28c(olya, 'drawing-phone-drawer');
+
+  // Слово не потрапило ні на сцену, ні до вгадувачів.
+  await noWord('соняшник', [['stage', stage, stageFrames], ['Тарас', taras, tarasFrames], ['Ганна', hanna, hannaFrames]]);
+  await expectDrawingStageFits28c(stage, 'question');
+  await shot(stage, 'drawing-stage-question');
+  await shot(taras, 'drawing-phone-guess');
+  await expectWatchFits28c(taras, 'drawing-phone-guess-360');
+  await expectWatchFits28c(hanna, 'drawing-phone-guess-320');
+
+  // Тарас — з опискою, і її прощено; Ганна — «ромашка» (ні); Петро — точно.
+  await guess28c(taras, 'соняшнк');
+  await taras.locator('.drawing-guess.is-done').getByText('Вгадано!', exact).waitFor();
+  expect(await taras.locator('.drawing-guess-form').count(), 'the guess field after a right guess').toBe(0);
+  await shot(taras, 'drawing-phone-guessed');
+  await guess28c(hanna, 'ромашка');
+  await expect.poll(() => hanna.locator('.drawing-guess-status').textContent(), POLL).toBe('Ні');
+  expect(await hanna.locator('.drawing-guess-form input').inputValue(), 'the field after a miss').toBe('');
+  await expect.poll(() => hanna.locator('.drawing-guess-status').textContent(), { timeout: 4000 }).toBe('');
+  expect(await hanna.locator('.drawing-guess-form input').isVisible(), 'the field after the miss faded').toBe(true);
+  await guess28c(petro, 'соняшник');
+  await petro.locator('.drawing-guess.is-done').getByText('Вгадано!', exact).waitFor();
+  // Сцена: лише «Вгадали 2 з 3», без імен; пульт — з іменами.
+  await expect.poll(() => stage.locator('.drawing-stage .drawing-count').textContent(), POLL).toBe('Вгадали 2 з 3');
+  expect(await stage.locator('.drawing-guessers').count(), 'names on the stage before the reveal').toBe(0);
+  expect(await stage.locator('.drawing-stage').innerText(), 'a guesser name on the stage').not.toMatch(/Тарас|Петро/);
+  await expect.poll(() => host.locator('.host-drawing .drawing-guessers .name').allTextContents(), POLL).toEqual(['Тарас', 'Петро']);
+  await shot(host, 'drawing-host');
+  await noWord('соняшник', [['stage', stage, stageFrames], ['Тарас', taras, tarasFrames], ['Ганна', hanna, hannaFrames]]);
+
+  // ── Відкриття: слово, малюнок, хто вгадав; Оля — 100 × 2 / 3 = 67. ──
+  await reveal28a(host);
+  const reveal = stage.locator('.drawing-stage.is-reveal');
+  await reveal.locator('.drawing-word-was').getByText('Слово: соняшник', exact).waitFor();
+  expect(await reveal.locator('.drawing-guessers .name').allTextContents()).toEqual(['Тарас', 'Петро']);
+  expect(await reveal.locator('.drawing-guessers .score').allTextContents()).toEqual(['+100', '+100']);
+  expect(await reveal.locator('.drawing-artist').innerText()).toMatch(/Художник: Оля\s*\+67/);
+  expect((await canvasOf28c(reveal)).strokes, 'the drawing on the reveal').toBe(2);
+  await scores([[olya, '67'], [taras, '100'], [petro, '100'], [hanna, '0']]);
+  await taras.locator('.drawing-reveal .drawing-word-was').getByText('Слово: соняшник', exact).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectDrawingStageFits28c(stage, 'reveal');
+  await shot(stage, 'drawing-stage-reveal');
+  await shot(taras, 'drawing-phone-reveal');
+
+  // ── Звичайне запитання; Тарас закриває сторінку до наступного малюнка. ──
+  await next27a(host);
+  await afterSplash(host, stage, olya, petro, hanna);
+  await taras.close();
+  await reveal28a(host);
+  await next27a(host);
+  await afterSplash(host, stage, olya, petro, hanna);
+
+  // ── Запитання 2: Тарас поза грою — малює Петро, дотиком. ──
+  await petro.locator('.drawing-pad .drawing-word strong').getByText('парасолька', exact).waitFor();
+  await stage.locator('.drawing-stage .drawing-drawer').getByText('Малює: Петро', exact).waitFor();
+  await expect.poll(() => stage.locator('.drawing-stage .drawing-count').textContent(), POLL).toBe('Вгадали 0 з 2');
+  // Полотно попереднього малюнка не лишилося.
+  expect((await canvasOf28c(stageCanvas28c(stage))).strokes, 'old strokes on the new drawing').toBe(0);
+  await touchDraw28c(petro, ZIGZAG28C);
+  await touchDraw28c(petro, STEM28C);
+  await sameDrawing28c(petro, [stageCanvas28c(stage), olya, hanna]);
+  // «Очистити»: усі полотна білі.
+  await click(petro, 'Очистити');
+  for (const scope of [stageCanvas28c(stage), olya, hanna, petro.locator('.drawing-pad')]) await expect.poll(() => canvasOf28c(scope), POLL).toEqual({ strokes: 0, points: 0, inked: 0 });
+  // Парасолька: купол і ручка.
+  await touchDraw28c(petro, [[0.2, 0.5], [0.3, 0.3], [0.5, 0.2], [0.7, 0.3], [0.8, 0.5], [0.2, 0.5]]);
+  await touchDraw28c(petro, [[0.5, 0.5], [0.5, 0.85], [0.42, 0.88]]);
+  const before = await sameDrawing28c(petro, [stageCanvas28c(stage), olya, hanna, host.locator('.host-drawing')]);
+  expect(before.strokes).toBe(2);
+
+  // Петро перезавантажує сторінку: полотно те саме, малює далі.
+  await petro.reload();
+  await surface28c(petro).waitFor();
+  await expect.poll(() => canvasOf28c(petro.locator('.drawing-pad')).then((c) => [c.strokes, c.points, c.inked > 0]), POLL).toEqual([before.strokes, before.points, true]);
+  await touchDraw28c(petro, [[0.35, 0.3], [0.38, 0.45]]);
+  const afterReload = await sameDrawing28c(petro, [stageCanvas28c(stage), olya, hanna]);
+  expect(afterReload.strokes).toBe(3);
+  // Сцена перезавантажується: малюнок той самий.
+  await stage.reload();
+  await stage.locator('.drawing-stage canvas').waitFor();
+  await expect.poll(() => canvasOf28c(stageCanvas28c(stage)).then((c) => [c.strokes, c.points, c.inked > 0]), POLL).toEqual([afterReload.strokes, afterReload.points, true]);
+
+  // Перезапуск сервера: після повернення сцена, пульт і телефони мають ті самі штрихи.
+  await restart(async () => {
+    await stage.getByText(RESTARTING_TEXT, exact).waitFor();
+  });
+  for (const page of [stage, olya, petro, hanna, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await petro.locator('.drawing-pad:not(.is-off)').waitFor();
+  await sameDrawing28c(petro, [stageCanvas28c(stage), olya, hanna, host.locator('.host-drawing')]);
+  expect((await canvasOf28c(petro.locator('.drawing-pad'))).points, 'the drawer’s canvas after the restart').toBe(afterReload.points);
+  await touchDraw28c(petro, [[0.62, 0.3], [0.65, 0.45]]);
+  const afterRestart = await sameDrawing28c(petro, [stageCanvas28c(stage), olya, hanna]);
+  expect(afterRestart.strokes).toBe(4);
+  await noWord('парасол', [['stage', stage, stageFrames], ['Ганна', hanna, hannaFrames]]);
+  // Оля й Ганна вгадують — усі, хто міг (Тарас поза грою), вгадали: запитання закривається саме.
+  await guess28c(olya, 'парасолька');
+  await olya.locator('.drawing-guess.is-done').waitFor();
+  await guess28c(hanna, 'Парасоля');
+  await expect.poll(() => stage.locator('.drawing-count').first().textContent(), POLL).toBe('Вгадали 2 з 2');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
+  await reveal28a(host);
+  await expect.poll(() => reveal.locator('.drawing-artist').innerText(), POLL).toMatch(/Художник: Петро\s*\+100/);
+  expect((await canvasOf28c(reveal)).strokes, 'the drawing on the reveal after the restart').toBe(4);
+  await scores([[olya, '167'], [petro, '200'], [hanna, '100']]);
+
+  // ── Запитання 3: далі за колом — Ганна на 320 px. Петро вгадує, Оля — ні: Ганні 100 × 1 / 2. ──
+  await next27a(host);
+  await afterSplash(host, stage, olya, petro, hanna);
+  await hanna.locator('.drawing-pad .drawing-word strong').getByText('маяк', exact).waitFor();
+  await mouseDraw28c(hanna, [[0.45, 0.85], [0.48, 0.25], [0.52, 0.25], [0.55, 0.85], [0.45, 0.85]]);
+  await mouseDraw28c(hanna, [[0.52, 0.25], [0.85, 0.12]]);
+  await sameDrawing28c(hanna, [stageCanvas28c(stage), olya, petro]);
+  await expectPadFits28c(hanna, 'drawing-phone-drawer-320');
+  const tools = (await hanna.locator('.drawing-tools').boundingBox())!;
+  console.log(`drawing 28c: 320 × 640 — the tools end at ${Math.round(tools.y + tools.height)} px`);
+  await guess28c(petro, 'маяк');
+  await petro.locator('.drawing-guess.is-done').waitFor();
+  await reveal28a(host);
+  await expect.poll(() => reveal.locator('.drawing-artist').innerText(), POLL).toMatch(/Художник: Ганна\s*\+50/);
+  await scores([[olya, '167'], [petro, '300'], [hanna, '150']]);
+  await expectNoSideScroll(hanna, 'drawing-phone-reveal-320');
+
+  // ── Історія: малюнок першого запитання й «Оля». ──
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Малюнок 28c/ }).click();
+  const row = host.locator('.rows.stacked > li', { hasText: 'Малюнок перший' });
+  await row.locator('.history-drawing').getByText('Художник: Оля', exact).waitFor();
+  const kept = await canvasOf28c(row.locator('.history-drawing'));
+  expect([kept.strokes, kept.points], 'the drawing in the history').toEqual([first.strokes, first.points]);
+  expect(kept.inked).toBeGreaterThan(0);
+  await host.locator('.rows.stacked > li', { hasText: 'Малюнок другий' }).locator('.history-drawing').getByText('Художник: Петро', exact).waitFor();
+  await row.scrollIntoViewIfNeeded();
+  await shot(host, 'drawing-history');
+
+  expect(problems).toEqual([]);
+}
+
+async function drawingTeams28c() {
+  const host = await open('host28ct', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host28ct@example.com');
+  const round = classicRound('rt28c', [drawing28c('t1', 'Командний малюнок', ['вишиванка'], 60), drawing28c('t2', 'Ще один малюнок', ['равлик'], 30)] as never, { title: 'Команди малюють', speedBonus: false });
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'end', teams: { count: 2, names: ['Соняшники', 'Маки'] } }), title: 'Малюнок команд 28c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Малюнок команд 28c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28ct', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya28ct', 375, 812);
+  const taras = await open('taras28ct', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  // Петро — арабською.
+  const petro = await open('petro28ct', 375, 812, { locale: 'ar-EG' });
+  const hanna = await open('hanna28ct', 360, 740);
+  const hannaFrames = socketFrames(hanna);
+  const phones = [olya, taras, petro, hanna];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Соняшники'],
+    [taras, 'Тарас', 'Соняшники'],
+    [petro, 'Петро', 'Маки'],
+    [hanna, 'Ганна', 'Маки'],
+  ] as const) {
+    if (page === petro) await join22a(page, ar, code, nickname);
+    else await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Соняшники'), POLL).toEqual(['Оля', 'Тарас']);
+  await expect.poll(() => stageTeam(stage, 'Маки'), POLL).toEqual(['Петро', 'Ганна']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // ── Перший малюнок: малює Оля (Соняшники); Тарас — лише «Малює Оля з вашої команди», без слова й поля. ──
+  await olya.locator('.drawing-pad .drawing-word strong').getByText('вишиванка', exact).waitFor();
+  await taras.locator('.drawing-team-watch').getByText('Малює Оля з вашої команди — ви не вгадуєте', exact).waitFor();
+  expect(await taras.locator('.drawing-guess-form').count(), 'a guess field for the drawer’s teammate').toBe(0);
+  await mouseDraw28c(olya, [[0.3, 0.2], [0.7, 0.2], [0.75, 0.9], [0.25, 0.9], [0.3, 0.2]]);
+  await mouseDraw28c(olya, [[0.4, 0.4], [0.5, 0.5], [0.6, 0.4]]);
+  await sameDrawing28c(olya, [stageCanvas28c(stage), taras, petro, hanna]);
+  for (const [label, page, frames] of [['Тарас', taras, tarasFrames], ['Ганна', hanna, hannaFrames]] as const) {
+    expect(await page.content(), `the word in the ${label} DOM`).not.toContain('вишиванк');
+    expect(frames.join(NL), `the word sent to ${label}`).not.toContain('вишиванк');
+  }
+  await shot(taras, 'drawing-phone-team-watch');
+  await expectWatchFits28c(taras, 'drawing-phone-team-watch-360');
+  await expectWatchFits28c(petro, 'drawing-phone-guess-ar');
+  // Ганна вгадує за Маків — Петро бачить «Вгадано!» на своєму телефоні; усі, хто міг, вгадали — запитання закрите.
+  await guess28c(hanna, 'вишиванка');
+  await petro.getByText((ar as Dict22a).drawingGuessed!, exact).first().waitFor();
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
+  await reveal28a(host);
+  const reveal = stage.locator('.drawing-stage.is-reveal');
+  await reveal.locator('.drawing-word-was').getByText('Слово: вишиванка', exact).waitFor();
+  expect(await reveal.locator('.drawing-guessers .name').allTextContents()).toEqual(['Маки']);
+  expect(await reveal.locator('.drawing-artist').innerText()).toMatch(/Художник: Оля\s*\+100/);
+  for (const page of phones) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe('100');
+
+  // ── Другий малюнок: черга команд — малює Петро (Маки) арабською; ніхто не вгадав — частка 0. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await petro.locator('.drawing-pad .drawing-word strong').getByText('равлик', exact).waitFor();
+  await hanna.locator('.drawing-team-watch').getByText('Малює Петро з вашої команди — ви не вгадуєте', exact).waitFor();
+  expect(await ownDir(petro.locator('.drawing-tools')), 'the Arabic pad direction').toBe('rtl');
+  await mouseDraw28c(petro, CIRCLE28C);
+  await mouseDraw28c(petro, [[0.3, 0.7], [0.85, 0.7]]);
+  await sameDrawing28c(petro, [stageCanvas28c(stage), olya, taras, hanna]);
+  await expectPadFits28c(petro, 'drawing-phone-drawer-ar');
+  expect(await hanna.content(), 'the word in the DOM of the drawer’s teammate').not.toContain('равлик');
+  expect(hannaFrames.join(NL), 'the word sent to the drawer’s teammate').not.toContain('равлик');
+  await guess28c(taras, 'слимак');
+  await expect.poll(() => taras.locator('.drawing-guess-status').textContent(), POLL).toBe('Ні');
+  await reveal28a(host);
+  await reveal.locator('.drawing-word-was').getByText('Слово: равлик', exact).waitFor();
+  expect(await reveal.locator('.drawing-artist').innerText()).toMatch(/Художник: Петро\s*0$/);
+  await reveal.locator('.drawing-nobody').waitFor();
+  for (const page of phones) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe('100');
   await toWinners27c(host, stage);
 
   expect(problems).toEqual([]);
