@@ -24086,7 +24086,11 @@ async function letterWordsGame27d() {
   expect((await checked).ok()).toBe(true);
   await host.locator('.letterwords-editor-check', { hasText: 'Складається слів:' }).waitFor();
   expect(await host.locator('.letterwords-editor-check').textContent()).toContain('комісар');
+  // Добра новина — не попередження: рамка кольору «правильно», не червона.
+  expect(await host.locator('.letterwords-editor-check').evaluate((el) => el.classList.contains('is-none')), 'the found words as a warning').toBe(false);
   expect(await field(host, 'Сума').inputValue(), 'the default sum per word').toBe('20');
+  // Стеля балів: 20 × 10 слів.
+  await host.getByText('За запитання — не більше 200 балів (це й ціна на табло); множник раунду й позначка клітинки її множать.', exact).waitFor();
   await field(host, 'Час, с').fill('90');
   await shot(host, 'letterwords27d-editor');
 
@@ -24250,6 +24254,10 @@ async function letterWordsGame27d() {
   await expectLettersStageFits27d(stage, 'q1 reveal');
   await olya.locator('.letterwords-board li.is-mine').waitFor();
   await olya.locator('.letterwords-best').waitFor();
+  // Правильно — лише найкращий результат; менше слів — «частково».
+  expect(await olya.locator('.result > h2').textContent(), 'Olya with the most words').toBe('Правильно!');
+  expect(await taras.locator('.result > h2').textContent(), 'Taras with fewer words').toBe('Частково правильно');
+  expect(await jose.locator('.result > h2').textContent(), 'Jose with one word').toBe('Correcto en parte');
   await shot(olya, 'letterwords27d-phone-reveal');
   await shot(jose, 'letterwords27d-phone-es-reveal');
 
@@ -24322,6 +24330,14 @@ async function letterWordsGame27d() {
   const first = host.locator('.rows.stacked > li', { hasText: 'Складіть якнайбільше слів' });
   await first.getByText(/Відповіді \(\d+\)/).click();
   await first.locator('.responses li', { hasText: 'Оля' }).getByText('Слів: 3 · найдовше: 6 літ.', exact).waitFor();
+  // Зараховано лише найкращому: Оля.
+  await first.getByText('відповіли 3, правильно 1', exact).waitFor();
+  expect(await first.locator('.responses li.is-correct').count(), 'accepted rows of the first question').toBe(1);
+  await first.locator('.responses li.is-correct', { hasText: 'Оля' }).waitFor();
+  // Випадковий набір в історії: роздані літери й найдовші можливі.
+  const third = host.locator('.rows.stacked > li').filter({ has: host.locator('.letterwords-history') }).last();
+  await third.getByText(`Набір: ${random.map((letter) => letter.toLocaleUpperCase('uk')).join(' ')}`, exact).waitFor();
+  await third.getByText(`Найдовші можливі: ${best.join(', ')}`, exact).waitFor();
   await shot(host, 'letterwords27d-history');
 
   expect(problems).toEqual([]);
