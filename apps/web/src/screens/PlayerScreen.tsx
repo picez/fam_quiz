@@ -35,6 +35,7 @@ import { Nick } from './Nick';
 import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCards';
 import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
+import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -340,10 +341,11 @@ function Result({ view }: { view: PlayerView }) {
       {view.me.sort !== null && <SortOutcome view={view} />}
       <WallOutcome view={view} />
       <SurveyOutcome view={view} />
+      {view.phase === 'reveal' && view.timedlist !== undefined && <TimedListReveal info={view.timedlist} mine={view.me.id} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1063,6 +1065,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : isWall ? (
               // Глядач на полі бачить стіну того, хто вибрав, без дотиків.
               question.wall !== null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />
+            ) : question.type === 'timedlist' && me.timedlist !== undefined ? (
+              // Список (27c): у командній грі поле — у кожного учасника, знахідки спільні.
+              <TimedListPlay key={view.questionIndex} list={me.timedlist} question={question} paused={locked} send={send} />
+            ) : question.type === 'timedlist' ? (
+              // Глядач клітинки поля: лише рядок того, хто вибрав (лічильник без назв).
+              view.timedlist !== undefined && <TimedListBoard info={view.timedlist} reveal={false} />
             ) : question.type === 'wordladder' && me.wordladder !== undefined ? (
               <WordLadderPlay key={view.questionIndex} ladder={me.wordladder} question={question} paused={locked} send={send} />
             ) : chainMine && me.chain !== null ? (
@@ -1209,6 +1217,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <p>{pickedText(me.answer, shownChoices(question), question.slider)}</p>
               <p className="lead">{t('waitReveal')}</p>
             </section>
+          ) : question?.type === 'timedlist' ? (
+            <section className="sent">
+              {me.timedlist !== undefined ? (
+                <TimedListOutcome list={me.timedlist} minus={question.timedlist?.minus ?? null} />
+              ) : (
+                view.timedlist !== undefined && <TimedListBoard info={view.timedlist} reveal={false} />
+              )}
+              {/* Бали залежать від того, скільки ще гравців знайшли той самий пункт. */}
+              <p className="lead">{t('chainWaitResults')}</p>
+            </section>
           ) : me.wordladder !== undefined && question !== null ? (
             <section className="sent">
               <WordLadderOutcome ladder={me.wordladder} question={question} />
@@ -1265,7 +1283,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
-              {question !== null && !isSort && !isWall && !isSurvey && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
@@ -1273,9 +1291,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {isWall && question?.wall != null && <WallGrid wall={question.wall} found={foundOf(view.wall?.rows[0]?.tiles)} />}
               {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} colors={view.reveal.groups.map(() => null)} />}
               {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
+              {view.timedlist !== undefined && <TimedListReveal info={view.timedlist} />}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>

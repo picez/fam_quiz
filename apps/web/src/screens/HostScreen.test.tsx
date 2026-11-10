@@ -1436,6 +1436,34 @@ describe('HostScreen word ladder', () => {
   });
 });
 
+describe('HostScreen timed list', () => {
+  it('the host sees the list and the finders live', () => {
+    const listQ: Question = { id: 'tl', type: 'timedlist', text: 'Планети', imageUrl: null, video: null, timeLimit: 90, points: 100, minus: 50, items: [{ id: 'i1', text: 'Меркурій', accepted: [] }, { id: 'i2', text: 'Венера', accepted: [] }] };
+    const info = {
+      total: 2,
+      minus: 50,
+      players: 2,
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', found: 1, wrong: 1, points: null },
+        { playerId: 'p2', nickname: 'Тарас', found: 0, wrong: 0, points: null },
+      ],
+      items: [
+        { index: 1, text: 'Меркурій', finders: ['p1'], points: null },
+        { index: 2, text: 'Венера', finders: [], points: null },
+      ],
+    };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'timedlist', choices: [], timedlist: { total: 2, minus: 50 } }, correct: listQ, endsAt: Date.now() + 20_000, timedlist: info }));
+    expect(screen.getByRole('heading', { name: 'Список на час' })).toBeTruthy();
+    expect(screen.getByText('Знайшли: Олена')).toBeTruthy();
+    expect(screen.getByText('Ніхто не знайшов')).toBeTruthy();
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+    expect(screen.getByText('Помилок: 1')).toBeTruthy();
+    expect(document.querySelector('.timedlist-reveal .score')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

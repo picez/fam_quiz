@@ -17077,3 +17077,176 @@ button.wall-tile:disabled {
   flex: 1 1 0;
   min-width: 0;
 }
+
+/* Список на час: телефон, сцена й пульт (27c). */
+.timedlist-play {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.timedlist-count {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timedlist-counter {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.75rem;
+  line-height: 1.1;
+}
+
+.timedlist-minus-flash {
+  margin-inline-start: 0.5rem;
+  color: var(--signal);
+}
+
+.timedlist-wrong {
+  color: var(--wrong);
+}
+
+.timedlist-form {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timedlist-status {
+  margin: 0;
+  min-block-size: 1.5em;
+  color: var(--dim);
+}
+
+/* Дві колонки й на 320 px: 2 × 8.5rem + проміжок уміщаються без горизонтальної прокрутки. */
+.timedlist-cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timedlist-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-block-size: 2.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-small);
+}
+
+.timedlist-cell.is-found {
+  border: 1px solid var(--correct);
+  background: var(--sort-landed);
+}
+
+.timedlist-n {
+  flex: none;
+  min-inline-size: 1.5em;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.timedlist-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@keyframes timedlist-pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes timedlist-again {
+  0%,
+  100% {
+    background: var(--sort-landed);
+  }
+  50% {
+    background: var(--spot);
+  }
+}
+
+@keyframes timedlist-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-0.375rem);
+  }
+  75% {
+    transform: translateX(0.375rem);
+  }
+}
+
+.timedlist-cell.is-fresh {
+  animation: timedlist-pop 250ms ease-out;
+}
+
+.timedlist-cell.is-again {
+  outline: 2px solid var(--amber);
+  animation: timedlist-again 600ms ease-in-out;
+}
+
+.timedlist-form input.is-shake {
+  animation: timedlist-shake 300ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timedlist-cell.is-fresh,
+  .timedlist-cell.is-again,
+  .timedlist-form input.is-shake {
+    animation: none;
+  }
+}
+
+.timedlist-reveal {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timedlist-reveal > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-small);
+}
+
+.timedlist-reveal > li.is-mine {
+  background: var(--sort-landed);
+}
+
+.timedlist-finders {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.timedlist-reveal .score {
+  margin-inline-start: auto;
+}
+
+/* Сцена 1600×900: від 11 пунктів — дві колонки. */
+.stage-question .timedlist-reveal.is-wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 1.5rem;
+}
+
+.timedlist-note {
+  margin: 0;
+}
