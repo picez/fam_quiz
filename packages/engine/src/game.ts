@@ -30,6 +30,7 @@ import {
   type TrialKind,
   type UndoTarget,
   type MoreLessSide,
+  type Stroke,
   DEFAULT_TEAM_FORM,
   guidePages,
   newcomersOn,
@@ -76,6 +77,7 @@ import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
+import { dropFromDrawing, drawingDone, openDrawing, scoreDrawing } from './drawing';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
@@ -204,6 +206,8 @@ export interface Play {
   moreless?: MoreLessPlay;
   /** Лише в запитанні раунду «Правда про гравця» (28b). */
   truth?: TruthPlay;
+  /** Лише в запитанні «Малюнок» (28c). */
+  drawing?: DrawingPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -540,6 +544,27 @@ export interface MoreLessPlay {
   scored?: { right: number[] };
 }
 
+/** «Малюнок» (28c): хто малює, штрихи, хто вгадав. */
+export interface DrawingPlay {
+  /** Людина, що малює (соло — гравець, командна гра — учасник); null — малювати нікому (вилучено). */
+  drawerId: string | null;
+  /** Сторона художника в state.players (соло — той самий id, командна — команда); null — немає. */
+  side: string | null;
+  strokes: Stroke[];
+  /** Прийнятих операцій від відкриття. */
+  rev: number;
+  /** Сторони, що вгадали, у порядку вгадування. */
+  guessed: string[];
+  /** З закриття (scoreDrawing): скільки сторін вгадали й скільки могли; вилучення після закриття їх не змінює. */
+  scored?: { guessed: number; could: number };
+}
+
+/** Лічильник черги художників (28c): остання сторона, що малювала, і (командна гра) останній художник кожної команди. */
+export interface DrawTurns {
+  last: string | null;
+  members: Record<string, string>;
+}
+
 /** «Правда про гравця» (28b): факти людей і колода авторів. */
 export interface TruthState {
   /** Факти за id людини (соло — гравець, командна гра — учасник). Немає ключа — факту немає. */
@@ -778,6 +803,8 @@ export interface GameState {
   perks?: Record<string, PerkState>;
   /** «Правда про гравця» (28b): ключ є лише у вікторині з раундом truth (createGame). */
   truth?: TruthState;
+  /** «Малюнок» (28c): черга художників; ключ з'являється з першим запитанням-малюнком. */
+  drawTurns?: DrawTurns;
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -953,7 +980,8 @@ export function addPlayer(state: GameState, player: { id: string; nickname: stri
 export function removePlayer(state: GameState, playerId: string, now?: number): Result {
   const result = removeAnyone(state, playerId, now);
   // Апеляція (12f): вилучена людина зникає з голосів; апеляція вилученого учасника скасовується.
-  return result.ok ? ok(dropFromAppeals(result.state, playerId, now)) : result;
+  // «Малюнок» (28c): вилучений художник лишає малюнок нікому; вилучена сторона зникає з тих, хто вгадав.
+  return result.ok ? ok(dropFromDrawing(dropFromAppeals(result.state, playerId, now))) : result;
 }
 
 function removeAnyone(state: GameState, playerId: string, now?: number): Result {
@@ -1284,6 +1312,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   // «100 до 1»: збудована дошка лягає в запитання запису (знімок вікторини не змінюється). Без дошки сюди не потрапляють:
   // класика відсіює пропуск у nextQuestion, на полі дошка завжди ведучого; null — захист, рядки ведучого.
   const built = question.type === 'survey' ? (surveyBoard(state, question) ?? { rows: question.rows, source: 'host' as const }) : null;
+  // «Малюнок» (28c): художник вибирається тут, разом із лічильником черги, — знімок після перезапуску не дасть другого вибору.
+  const drawn = question.type === 'drawing' ? openDrawing(state) : null;
   const play: Play = {
     roundIndex: state.roundIndex,
     question: built !== null && question.type === 'survey' ? surveyPlayQuestion(question, built) : question,
@@ -1303,6 +1333,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       : {}),
     // «Більше чи менше» (28a): кожен проходить ряд у своєму темпі.
     ...(question.type === 'moreless' ? { moreless: { progress: {} } } : {}),
+    ...(drawn !== null ? { drawing: drawn.drawing } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
@@ -1326,6 +1357,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   const opened = watchAway(
     {
       ...marked,
+      ...(drawn !== null ? { drawTurns: drawn.drawTurns } : {}),
       phase: 'question',
       questionIndex: state.plays.length,
       plays: [...state.plays, play],
@@ -1685,8 +1717,9 @@ export function lockNow(state: GameState): GameState {
   // Бали за список залежать від того, скільки гравців знайшли кожен пункт (27c).
   // «Слова з літер» отримують записи лише тут: слова можна додавати до кінця часу (27d).
   // «Більше чи менше»: неповні ряди отримують записи тут, а лічильники правильних заморожуються (28a).
+  // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -1714,6 +1747,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   const closes = closesAt(state);
   if (now !== null && closes !== null && state.heldAt === null && now > closes) return lockNow(state);
   if (state.plays[state.questionIndex]?.question.type === 'chain') return chainDone(state, now) ? lockNow(state) : state;
+  // «Малюнок» (28c): художник запису до закриття не має — закриває «усі, хто міг, вгадали», а не загальна гілка.
+  if (state.plays[state.questionIndex]?.question.type === 'drawing') return drawingDone(state) ? lockNow(state) : state;
   // На полі запитання закриває сама відповідь або оцінка ведучого.
   if (currentRound(state)?.type === 'board') return state;
   // «Мільйонер»: чекають учасника й присутній зал; без учасника на зв'язку закриє ведучий чи таймер.
@@ -1823,6 +1858,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'letterwords' || play.question.type === 'letterwords') return fail('type_mismatch');
   // «Більше чи менше» — лише вибір за вибором через moreLessPick (28a).
   if (answer.type === 'moreless' || play.question.type === 'moreless') return fail('type_mismatch');
+  // «Малюнок» — лише drawStroke і drawGuess (28c).
+  if (answer.type === 'drawing' || play.question.type === 'drawing') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
@@ -2464,7 +2501,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
-  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'drawing' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   // «Правда про гравця» (28b): бали автора рахує гра з оцінок вгадувачів.
   if (truthPlayOf(state)?.truth.actorId === playerId) return fail('not_allowed');
@@ -2546,7 +2583,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))));
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

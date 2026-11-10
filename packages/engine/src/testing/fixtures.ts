@@ -189,6 +189,17 @@ export const moreless = {
   ],
 } satisfies Question;
 
+/** «Малюнок» (28c): слово «соняшник», 100 балів, 60 с; до типового списку makeQuiz не входить. */
+export const drawing = {
+  ...base,
+  id: 'q20',
+  type: 'drawing',
+  text: 'Що на малюнку?',
+  timeLimit: 60,
+  points: 100,
+  accepted: ['соняшник'],
+} satisfies Question;
+
 /** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
 export const sortQ = {
   ...base,

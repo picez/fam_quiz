@@ -16,10 +16,11 @@ import { stamp } from '../pacing';
 import { sortOf, sortWord } from '../sort';
 import { notStarted } from '../splash';
 import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestionOf } from '../survival';
-import { pickTeam, rollTeamDie } from '../teams';
+import { pickTeam, rollTeamDie, teamMembers, teamsOn } from '../teams';
 import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
 import { moreLessOf, moreLessPick } from '../moreless';
+import { drawGuess, drawStroke } from '../drawing';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
@@ -216,6 +217,18 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
         if (s === before) break;
       }
       return s;
+    }
+    case 'drawing': {
+      // Художник (людина сторони) малює один штрих із трьох точок; вгадувач (у командах — перший учасник) вписує слово ведучого.
+      const drawing = play.drawing;
+      if (drawing === undefined) return state;
+      if (playerId === drawing.side) {
+        if (drawing.drawerId === null || drawing.strokes.length > 0) return state;
+        return act(state, drawStroke(state, drawing.drawerId, { op: 'begin', c: 0, w: 1, p: [100, 100, 500, 400, 900, 700] }, now), what);
+      }
+      if (wrong) return state;
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      return person === undefined ? state : act(state, drawGuess(state, person, question.accepted[0], now), what);
     }
     case 'sort': {
       let s = state;

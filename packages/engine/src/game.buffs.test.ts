@@ -29,6 +29,7 @@ import {
   truthRound,
   letterwords,
   moreless,
+  drawing,
   withId,
   wordladder,
 } from './testing/fixtures';
@@ -183,6 +184,13 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([moreless], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_moreless');
+  });
+
+  it('no buffs on a drawing (28c)', () => {
+    const s = startRound(lobbyWith(makeQuiz([drawing], { buffs }), 'Оля', 'Тарас'), T0, rng0);
+    expect(takeBuff(s, 'p2', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p2', 'double')).toBe('off_drawing');
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_drawing');
   });
 
   it('an auction round has no buffs and no debuff shop (27b)', () => {

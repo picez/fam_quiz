@@ -77,6 +77,7 @@ export const GAME_STATE_VERSION = 22;
  * 27d без нової версії: тип 'letterwords' і необов'язкове Play.letterwords.
  * 28a без нової версії: тип 'moreless' і необов'язкове Play.moreless (з необов'язковим scored).
  * 28b без нової версії: раунд truth, необов'язкові GameState.truth і Play.truth; старий знімок не містить ні того, ні того.
+ * 28c без нової версії: тип 'drawing', необов'язкові Play.drawing і GameState.drawTurns.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 
