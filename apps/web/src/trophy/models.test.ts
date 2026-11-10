@@ -86,6 +86,14 @@ describe('trophy models', () => {
     expect(gltf('grail-family').images).toHaveLength(3);
   });
 
+  it('crown.glb stands on a tall plinth, so the flared crown sits above the plaque', () => {
+    const { min, max } = gltf('crown').accessors[0]!;
+    expect(min![1]).toBe(0);
+    // Ширина — як була (основи зубців до 0.4); зубці з кульками — до 0.725 + 0.12.
+    expect(max![0]).toBeCloseTo(0.4, 2);
+    expect(max![1]).toBeCloseTo(0.845, 2);
+  });
+
   it('the old models are byte-identical to main', () => {
     expect({
       cup: sha('cup'),
@@ -100,7 +108,8 @@ describe('trophy models', () => {
       'grail-family': '83c1941abc17e40c6e7c1c44bfa0ea768e919b0a0279e2979ed48d4920cfb76c',
       cup: 'f971bb41109c4a67a29db610d5e95d58035259ef4a9e232ca70ed1c4bf3837b2',
       medal: '89a1206b474c33106b7d1f9e8bc0171cfee90cffee6d8b41cbcd268b0307e244',
-      crown: '3fef339fca06e528744f4e1bc70ece15ac160bd2474f09de653b1016be49a042',
+      // Корону змінено свідомо: висока широка основа, щоб розтруб не ховав табличку.
+      crown: 'b1319f9a206f361bb86a32676489cd665bfd578f5928b17a55778ca53b59ffd6',
       star: 'db5c1122c2fff841097b1b587ba95cd5c3bc7577184f109dd90d6719843f7f3a',
       statuette: '97c14e308e29a004dd3a508a2f5f5e97adf261fac0191c912549fc7f363fdc7b',
     });

@@ -174,31 +174,32 @@ export const TROPHY_ANCHORS: Record<TrophyKind, KindAnchors> = {
       right: spot([0.342, 0.42, 0], RIGHT, 0.06, 'edge-right'),
     },
   },
-  // Обруч r 0.34 на y 0.18–0.42 (п'ять камінців r 0.35 на y 0.28), розтруб 0.1–0.18 до r 0.36, постамент half 0.22 (грань 0.156).
+  // Обруч r 0.34 на y 0.3–0.54 (п'ять камінців r 0.35 на y 0.4), розтруб 0.22–0.3 до r 0.36; постамент plinth(0.3, 0.2)
+  // (грань 0.212, верх 0.23): корона піднята на 0.12, щоб розтруб не ховав табличку.
   crown: {
     profile: {
       points: [
-        [0.34, 0.1],
-        [0.36, 0.14],
-        [0.34, 0.18],
-        [0.34, 0.42],
+        [0.34, 0.22],
+        [0.36, 0.26],
+        [0.34, 0.3],
+        [0.34, 0.54],
       ],
       segments: 40,
     },
     surfaces: { hoop: 'revolved', ...PLINTH },
-    ring: { shape: 'profile', surface: 'hoop', y0: 0.18, y1: 0.42, tori: ['bottom', 'top'], tube: 0.01 },
-    band: { shape: 'profile', surface: 'hoop', y0: 0.115, y1: 0.165, tori: [], tube: 0 },
-    medallion: spot([0, 0.3, 0.345], FRONT, 0.14, 'hoop'),
-    gems: { center: [0, 0.37, 0], axis: 'y', radius: 0.345, size: 0.04, surface: 'hoop' },
-    plaque: { position: [0, 0.04, 0.158], tiltX: 0, width: 0.18, height: 0.05, surface: 'plinth-front' },
+    ring: { shape: 'profile', surface: 'hoop', y0: 0.3, y1: 0.54, tori: ['bottom', 'top'], tube: 0.01 },
+    band: { shape: 'profile', surface: 'hoop', y0: 0.235, y1: 0.285, tori: [], tube: 0 },
+    medallion: spot([0, 0.42, 0.345], FRONT, 0.14, 'hoop'),
+    gems: { center: [0, 0.49, 0], axis: 'y', radius: 0.345, size: 0.04, surface: 'hoop' },
+    plaque: { position: [0, 0.085, 0.214], tiltX: 0, width: 0.26, height: 0.1, surface: 'plinth-front' },
     stickers: {
-      front: spot([0, 0.3, 0.345], FRONT, 0.12, 'hoop'),
-      back: spot([0, 0.3, -0.345], BACK, 0.12, 'hoop'),
-      // y 0.36: уся пляма (0.30–0.42) на обручі, нижче зубців.
-      left: spot([-0.342, 0.36, 0], LEFT, 0.12, 'hoop'),
-      right: spot([0.342, 0.36, 0], RIGHT, 0.12, 'hoop'),
-      'base-left': spot([-0.158, 0.04, 0], LEFT, 0.06, 'plinth-left'),
-      'base-right': spot([0.158, 0.04, 0], RIGHT, 0.06, 'plinth-right'),
+      front: spot([0, 0.42, 0.345], FRONT, 0.12, 'hoop'),
+      back: spot([0, 0.42, -0.345], BACK, 0.12, 'hoop'),
+      // y 0.48: уся пляма (0.42–0.54) на обручі, нижче зубців.
+      left: spot([-0.342, 0.48, 0], LEFT, 0.12, 'hoop'),
+      right: spot([0.342, 0.48, 0], RIGHT, 0.12, 'hoop'),
+      'base-left': spot([-0.214, 0.1, 0], LEFT, 0.12, 'plinth-left'),
+      'base-right': spot([0.214, 0.1, 0], RIGHT, 0.12, 'plinth-right'),
     },
   },
   // Зірка (outer 0.4, inner 0.17) на y 0.62, лицем до +Z: товщина 0.12 у центрі; постамент half 0.2 (грань 0.141) заввишки 0.18.
