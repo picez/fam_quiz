@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auctionLine, carryLine, debuffLines, ladderLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+import { auctionLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {
@@ -192,5 +192,12 @@ describe('auctionLine', () => {
   it('names the buyer, the price paid and the points', () => {
     expect(auctionLine({ nickname: 'Оля', wager: 400, points: 600 })).toBe('Оля — куплено за 400: +600');
     expect(auctionLine({ nickname: 'Оля', wager: 400, points: -400 })).toBe('Оля — куплено за 400: −400');
+  });
+});
+
+describe('lettersLines', () => {
+  it('the dealt letters and the longest possible words', () => {
+    expect(lettersLines({ letters: [...'квітнесар'], best: ['арсеніт', 'астенік'] })).toEqual(['Набір: К В І Т Н Е С А Р', 'Найдовші можливі: арсеніт, астенік']);
+    expect(lettersLines({ letters: [...'ззщщ'], best: [] })).toEqual(['Набір: З З Щ Щ']);
   });
 });

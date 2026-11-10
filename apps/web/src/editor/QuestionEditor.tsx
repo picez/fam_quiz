@@ -11,6 +11,7 @@ import { PinEditor } from './PinEditor';
 import { VideoField } from './VideoField';
 import { BluffEditor } from './BluffEditor';
 import { SurveyEditor } from './SurveyEditor';
+import { LetterWordsEditor } from './LetterWordsEditor';
 import { TimedListEditor } from './TimedListEditor';
 import { WallEditor } from './WallEditor';
 import { WordLadderEditor } from './WordLadderEditor';
@@ -780,6 +781,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <SurveyEditor question={question} onChange={onChange} clouds={clouds} allowCloud={allowCloud} />;
     case 'timedlist':
       return <TimedListEditor question={question} onChange={onChange} />;
+    case 'letterwords':
+      return <LetterWordsEditor question={question} onChange={onChange} />;
     case 'wordcloud':
       return (
         <>
@@ -858,7 +861,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -892,7 +895,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist';
+              const noVideo = rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -927,14 +930,14 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
       </div>
 
-      {(showTime || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && !isVote)) && (
+      {(showTime || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && !isVote)) && (
         <div className="pair">
           {!showTime ? null : question.video === null || !timeInLimits(question.timeLimit) ? (
             <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
           ) : (
             <p className="meta">{t('noTimerHint')}</p>
           )}
-          {showPoints && question.type !== 'sort' && question.type !== 'timedlist' && !isVote && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
+          {showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && !isVote && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
         </div>
       )}
       {isVote && <p className="meta">{t('noPointsNote')}</p>}

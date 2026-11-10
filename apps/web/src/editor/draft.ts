@@ -47,6 +47,8 @@ import {
   roundQuestions,
   REVEAL_TYPES,
   ladderPathIssue,
+  letterSet,
+  questionPrice,
   type LadderPathIssue,
   type QuestionType,
 } from '@quiz/shared';
@@ -66,15 +68,16 @@ export { QUESTION_TYPES, type QuestionType };
  * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
  * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
  * «Список на час» — так само: класика й поле, не бліц, не фінал, не ставки й не аукціон.
+ * «Слова з літер» — так само, як «Список на час».
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
   if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'bluff' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'letterwords' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
   if (roundType === 'final' || roundType === 'bets' || roundType === 'auction') {
-    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'bluff' && !unscored(type));
+    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'letterwords' && type !== 'bluff' && !unscored(type));
   }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
   if (roundType === 'survival') return SURVIVAL_TYPES;
@@ -162,6 +165,18 @@ function build(common: Common, type: QuestionType): Question {
         points: LIMITS.defaultListPoints,
         minus: null,
         items: Array.from({ length: LIMITS.minListItems }, () => ({ id: newId(), text: '', accepted: [] as string[] })),
+      };
+    case 'letterwords':
+      // Без відео: без таймера слова не скінчаться. Дев'ять випадкових літер, найбільше слів, сума за слово.
+      return {
+        ...common,
+        video: null,
+        type,
+        timeLimit: LIMITS.defaultLetterTime,
+        points: LIMITS.defaultLetterWordPoints,
+        set: { kind: 'random', count: LIMITS.defaultLetterSet },
+        goal: 'most',
+        per: 'word',
       };
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -318,6 +333,8 @@ export function duplicateQuestion(question: Question): Question {
       return { ...question, id, rows: question.rows.map((row) => ({ ...row, id: newId(), accepted: [...row.accepted] })) };
     case 'timedlist':
       return { ...question, id, items: question.items.map((item) => ({ ...item, id: newId(), accepted: [...item.accepted] })) };
+    case 'letterwords':
+      return { ...question, id, set: { ...question.set } };
     case 'poll':
       return { ...question, id, options: question.options.map((option) => ({ ...option, id: newId() })) };
     case 'chain':
@@ -621,6 +638,11 @@ const cleanBody = (question: Question): Question => {
         .filter((item) => item.text !== '' || item.accepted.length > 0);
       return { ...question, text, items };
     }
+    case 'letterwords': {
+      // Свій набір без зайвих пробілів по краях; найдовше слово завжди рахується за літери.
+      const set = question.set.kind === 'fixed' ? { ...question.set, letters: question.set.letters.trim() } : question.set;
+      return { ...question, text, set, per: question.goal === 'longest' ? 'letter' : question.per };
+    }
     case 'multi': {
       const options = withoutSpare(trimAll(question.options), LIMITS.minOptions, question.correctIds);
       const correctIds = question.correctIds.filter((id) => options.some((option) => option.id === id));
@@ -796,19 +818,21 @@ interface Place {
   wordladder: boolean;
   /** Список на час: класика й звичайна клітинка з телефона (правило timedlist_place схеми). */
   timedlist: boolean;
+  /** Слова з літер: так само (правило letterwords_place схеми). */
+  letterwords: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -879,7 +903,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     Number.isInteger(points) &&
     points >= 0 &&
     points <= LIMITS.maxPoints;
-  if (!inLimits) return 'problemLimits';
+  // У «Словах з літер» поле балів зветься «Сума» (за одиницю).
+  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : 'problemLimits';
 
   switch (question.type) {
     case 'single':
@@ -1006,6 +1031,13 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (question.minus !== null && (!Number.isInteger(question.minus) || question.minus < 1 || question.minus > LIMITS.maxPoints)) return 'problemListMinus';
       break;
     }
+    case 'letterwords': {
+      const { set } = question;
+      // Набір — окремий текст проблеми для кожного способу: випадковий (кількість) і свій (літери).
+      if (set.kind === 'random' ? !Number.isInteger(set.count) || set.count < LIMITS.minLetterSet || set.count > LIMITS.maxLetterSet : letterSet(set.letters) === null) return 'problemLettersSet';
+      if (questionPrice(question) > LIMITS.maxPoints) return 'problemLettersPoints';
+      break;
+    }
     case 'bluff': {
       const [truth = ''] = question.accepted;
       if (truth === '') return 'problemBluffTruth';
@@ -1044,6 +1076,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'chain' && !place.chain) return 'problemChainPlace';
   if (question.type === 'wordladder' && !place.wordladder) return 'problemWordLadderPlace';
   if (question.type === 'timedlist' && !place.timedlist) return 'problemListPlace';
+  if (question.type === 'letterwords' && !place.letterwords) return 'problemLettersPlace';
   if (question.type === 'pin' && !place.pin) return 'problemPinPlace';
   if (question.type === 'wall' && !place.wall) return 'problemWallPlace';
   if ((question.type === 'poll' || question.type === 'wordcloud') && !place.vote) return 'problemVotePlace';
@@ -1180,7 +1213,7 @@ const bluffSpareText = (question: Extract<Question, { type: 'bluff' }>, key: Tex
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : LIMITS.minAudioSeconds,
+    min: key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : LIMITS.minAudioSeconds,
     max:
       key === 'problemBluffTruthLong'
         ? LIMITS.bluffLie
@@ -1188,9 +1221,11 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
           ? LIMITS.maxTime
           : key === 'problemListItems'
             ? LIMITS.maxListItems
-            : key === 'problemListPoints' || key === 'problemListMinus'
-              ? LIMITS.maxPoints
-              : LIMITS.maxAudioSeconds,
+            : key === 'problemLettersSet'
+              ? LIMITS.maxLetterSet
+              : key === 'problemListPoints' || key === 'problemListMinus' || key === 'problemLettersPoints'
+                ? LIMITS.maxPoints
+                : LIMITS.maxAudioSeconds,
     // Номер першого пункту списку без назви.
     item: question?.type === 'timedlist' ? question.items.findIndex((entry) => entry.text === '') + 1 : 0,
     clueMin: LIMITS.minClueSeconds,

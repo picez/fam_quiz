@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -692,6 +692,35 @@ describe('host history: answers', () => {
       { nickname: 'Олена', answer: { type: 'timedlist', found: ['l5', 'l2', 'l4'], total: 8, wrong: 1 }, accepted: false },
       { nickname: 'Тарас', answer: { type: 'timedlist', found: ['l5'], total: 8, wrong: 0 }, accepted: false },
     ]);
+    expect(standings.map((s) => [s.nickname, s.score])).toEqual([
+      ['Олена', engine[olena]],
+      ['Тарас', engine[taras]],
+    ]);
+    await local.app.close();
+  });
+
+  it('a letter words game lands in the history with the engine points', async () => {
+    const { local, room, enter, detail } = await start(makeQuiz([letterwords], { speedBonus: false }));
+    const olena = await enter('Олена');
+    const taras = await enter('Тарас');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    for (const word of ['кіт', 'сік', 'морква']) expect(local.manager.letterWord(room, olena, word)).toEqual({ ok: true });
+    expect(local.manager.letterWord(room, taras, 'острів')).toEqual({ ok: true });
+    step('lock');
+    const engine = Object.fromEntries(Object.entries(room.state.plays[0].answers).map(([id, record]) => [id, record.points]));
+    expect(engine).toEqual({ [olena]: 60, [taras]: 20 });
+    step('next');
+    step('next');
+    const result = await detail();
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(result.questions[0].question.type).toBe('letterwords');
+    expect(result.questions[0].responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'letterwords', words: ['кіт', 'сік', 'морква'], longest: 6 }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'letterwords', words: ['острів'], longest: 6 }, accepted: false },
+    ]);
+    expect(result.questions[0]).toMatchObject({ answered: 2, accepted: 1, letterwords: { letters: [...'морквасті'], best: room.state.plays[0].letterwords?.best } });
     expect(standings.map((s) => [s.nickname, s.score])).toEqual([
       ['Олена', engine[olena]],
       ['Тарас', engine[taras]],

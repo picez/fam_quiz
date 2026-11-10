@@ -201,6 +201,12 @@ export function auctionLine(entry: { nickname: string; wager: number; points: nu
   return t('auctionHistoryLine', { nickname: entry.nickname, wager: entry.wager, points: signed(entry.points) });
 }
 
+/** «Слова з літер»: роздані літери великими й найдовші можливі слова (їх немає — лише набір). */
+export function lettersLines(info: NonNullable<GameQuestionResult['letterwords']>): string[] {
+  const set = t('lettersHistorySet', { letters: info.letters.map((l) => l.toLocaleUpperCase('uk')).join(' ') });
+  return info.best.length === 0 ? [set] : [set, t('lettersHistoryBest', { words: info.best.join(', ') })];
+}
+
 /** «Мільйонер»: сходинка, підказки, зал, рішення й підсумок запитання. */
 export function ladderLines(ladder: NonNullable<GameQuestionResult['ladder']>, question: GameQuestionResult['question']): string[] {
   const choices = choicesOf(question);
@@ -438,6 +444,15 @@ export function GameHistory() {
                         {question.ladder !== undefined && (
                           <ul className="ladder-history">
                             {ladderLines(question.ladder, question.question).map((line, at) => (
+                              <li key={at} className="meta">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {question.letterwords !== undefined && (
+                          <ul className="letterwords-history">
+                            {lettersLines(question.letterwords).map((line, at) => (
                               <li key={at} className="meta">
                                 {line}
                               </li>

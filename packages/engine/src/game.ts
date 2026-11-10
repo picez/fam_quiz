@@ -42,6 +42,7 @@ import {
   AUCTION_OPEN_MS,
   auctionPoints,
   auctionPrice,
+  letterSet,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -72,6 +73,7 @@ import { betsPlaying, betsRefusal, enterBetsWager, openBetsQuestion, stakedPlay,
 import { auctionRoundOf, enterAuctionBidding, sellAuction } from './auction';
 import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
+import { scoreLetterWords } from './letterwords';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
@@ -193,6 +195,8 @@ export interface Play {
   wordladder?: Record<string, WordLadderProgress>;
   /** Лише в запитанні-списку (27c). */
   timedlist?: TimedListPlay;
+  /** Лише в запитанні «Слова з літер» (27d). */
+  letterwords?: LetterWordsPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -497,6 +501,22 @@ export interface TimedListPlay {
 export interface TimedListScored {
   players: number;
   items: Record<string, { finders: string[]; points: number }>;
+}
+
+/** Слова гравця (команди) у «Словах з літер»: ключі ladderKey у порядку знахідок. */
+export interface LetterWordsProgress {
+  words: string[];
+}
+
+/**
+ * «Слова з літер» (27d). letters null — випадковий набір ще не роздано; best і possible (найдовші можливі слова й скільки слів
+ * складається з набору) дописує сервер (dealLetters): рушій словника не знає. Гравця в progress немає, поки він не склав жодного слова.
+ */
+export interface LetterWordsPlay {
+  letters: string[] | null;
+  best: string[] | null;
+  possible: number | null;
+  progress: Record<string, LetterWordsProgress>;
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -914,6 +934,11 @@ function removeFromGame(state: GameState, playerId: string): Result {
       const { [playerId]: _progress, ...progress } = play.timedlist.progress;
       kept.timedlist = { ...play.timedlist, present: play.timedlist.present.filter((id) => id !== playerId), progress };
     }
+    // «Слова з літер» (27d): бали кожного залежать лише від його слів, тож поступ іде разом із записом.
+    if (play.letterwords !== undefined) {
+      const { [playerId]: _progress, ...progress } = play.letterwords.progress;
+      kept.letterwords = { ...play.letterwords, progress };
+    }
     if (play.sort !== undefined) {
       const { [playerId]: _progress, ...sort } = play.sort;
       kept.sort = sort;
@@ -1192,6 +1217,10 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'clues' ? { clues: 1 } : {}),
     // «Список на час» (27c): N — хто був на початку; на клітинці поля грає лише той, хто вибрав.
     ...(question.type === 'timedlist' ? { timedlist: { present: board !== undefined ? [board.chooserId] : presentPlayers(state).map((p) => p.id), progress: {} } } : {}),
+    // «Слова з літер» (27d): свій набір — одразу; випадковий і найдовші можливі слова дописує сервер (dealLetters).
+    ...(question.type === 'letterwords'
+      ? { letterwords: { letters: question.set.kind === 'fixed' ? letterSet(question.set.letters) : null, best: null, possible: null, progress: {} } }
+      : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
@@ -1564,8 +1593,9 @@ export function lockNow(state: GameState): GameState {
   // Хто взяв «Ризик» і змовчав, отримує мінус повної ціни (12h).
   // Бали за драбину залежать від найкращого фінішера, тож теж рахуються лише тут (26c).
   // Бали за список залежать від того, скільки гравців знайшли кожен пункт (27c).
+  // «Слова з літер» отримують записи лише тут: слова можна додавати до кінця часу (27d).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -1681,6 +1711,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'wordladder' || play.question.type === 'wordladder') return fail('type_mismatch');
   // Список — лише слово за словом через listEntry (27c).
   if (answer.type === 'timedlist' || play.question.type === 'timedlist') return fail('type_mismatch');
+  // «Слова з літер» — лише слово за словом через letterWord (27d).
+  if (answer.type === 'letterwords' || play.question.type === 'letterwords') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
@@ -2320,7 +2352,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
-  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
@@ -2400,7 +2432,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))));
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

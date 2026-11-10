@@ -29,6 +29,7 @@ import { attachTitles } from './titles';
 import { memoryStorage, type ImageStorage } from './storage/images';
 import { registerUploadRoutes } from './upload-routes';
 import { registerWordLadderRoutes } from './wordladder-routes';
+import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
 
 export interface AppOptions {
@@ -125,6 +126,7 @@ export async function buildApp(options: AppOptions) {
   await registerLobbyRoutes(app, { db: options.db, manager, gate, invites, locate, currentUser });
   await registerFeedRoutes(app, { db: options.db, currentUser });
   await registerWordLadderRoutes(app, { nouns, currentUser });
+  await registerLetterWordsRoutes(app, { nouns, currentUser });
   const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => console.error(message, error) });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
   const calendarNotify: CalendarNotify | undefined =

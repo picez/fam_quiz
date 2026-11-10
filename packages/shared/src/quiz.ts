@@ -3,6 +3,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, t
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
 import { ladderPathIssue } from './wordladder';
+import { letterSet } from './letterwords';
 import { betsRoundIssue } from './bets';
 
 export const LIMITS = {
@@ -174,6 +175,16 @@ export const LIMITS = {
   defaultListTime: 90,
   defaultListPoints: 100,
   defaultListMinus: 50,
+  /** «Слова з літер» (27d): літер у наборі (найменше, найбільше, типово), найкоротше слово, символів у полі й події, слів на гравця, типові час (с) і сума за слово та за літеру. */
+  minLetterSet: 4,
+  maxLetterSet: 12,
+  defaultLetterSet: 9,
+  minLetterWord: 3,
+  letterWord: 30,
+  maxLetterWords: 80,
+  defaultLetterTime: 90,
+  defaultLetterWordPoints: 20,
+  defaultLetterLetterPoints: 10,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -279,7 +290,9 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'bluff'] as const;
+export const LETTER_GOALS = ['most', 'longest'] as const;
+export const LETTER_UNITS = ['word', 'letter'] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
@@ -488,6 +501,17 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('letterwords'),
+      /** Набір літер: свій (рядок ведучого, нормалізує letterSet) чи випадковий з count літер. points — сума за слово чи за літеру. */
+      set: z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('fixed'), letters: z.string().trim().min(1).max(40).refine(isStorable, UNSTORABLE) }),
+        z.object({ kind: z.literal('random'), count: z.number().int().min(LIMITS.minLetterSet).max(LIMITS.maxLetterSet) }),
+      ]),
+      goal: z.enum(LETTER_GOALS),
+      per: z.enum(LETTER_UNITS),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -581,6 +605,14 @@ export const questionSchema = z
       // Одне написання не веде у два пункти; повтор у межах пункту не заважає.
       const keys = q.items.flatMap((i) => [...new Set([i.text, ...i.accepted].map(answerKey))]);
       if (hasDuplicates(keys)) ctx.addIssue({ code: 'custom', message: 'timedlist_duplicate' });
+    }
+    if (q.type === 'letterwords') {
+      if (q.set.kind === 'fixed' && letterSet(q.set.letters) === null) ctx.addIssue({ code: 'custom', message: 'letterwords_letters' });
+      // Найдовше слово рахують за літери.
+      if (q.goal === 'longest' && q.per !== 'letter') ctx.addIssue({ code: 'custom', message: 'letterwords_per' });
+      // Без таймера слова не скінчаться.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'letterwords_video' });
+      if (letterwordsPrice(q) > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'letterwords_points' });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
@@ -766,10 +798,16 @@ export function proximityPartial(question: Question): boolean {
   return question.type === 'slider' || question.type === 'pin' || question.type === 'wall' || question.type === 'survey';
 }
 
+/** Орієнтир ціни «Слів з літер» на табло: найдовше слово — 7 літер (довше словник не має), слова — до 10, літери — до 40. */
+function letterwordsPrice(q: { points: number; goal: 'most' | 'longest'; per: 'word' | 'letter' }): number {
+  return q.points * (q.goal === 'longest' ? 7 : q.per === 'word' ? 10 : 40);
+}
+
 /** Ціна запитання: для сортування й списку — найбільша сума (слова чи пункти × бали за одне), інакше points. */
 export function questionPrice(question: Question): number {
   if (question.type === 'poll' || question.type === 'wordcloud') return 0;
   if (question.type === 'timedlist') return question.points * question.items.length;
+  if (question.type === 'letterwords') return letterwordsPrice(question);
   return question.type === 'sort' ? question.points * question.words.length : question.points;
 }
 
@@ -1200,6 +1238,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'timedlist' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'timedlist');
       if (timedListPlace) ctx.addIssue({ code: 'custom', message: 'timedlist_place' });
+      // «Слова з літер» (27d): класика й звичайна клітинка з телефона.
+      const letterWordsPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'letterwords' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'letterwords');
+      if (letterWordsPlace) ctx.addIssue({ code: 'custom', message: 'letterwords_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

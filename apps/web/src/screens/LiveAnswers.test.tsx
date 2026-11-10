@@ -153,6 +153,17 @@ describe('LiveAnswers', () => {
     expect(rows[1]).not.toContain('Помилок');
   });
 
+  it('writes the number of words and the words found so far of letter words', () => {
+    show([
+      row({ progress: { kind: 'letterwords', words: ['морква', 'ставок'] } }),
+      row({ id: 'b', nickname: 'Богдан', progress: { kind: 'letterwords', words: [] } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('Слів: 2');
+    expect(rows[0]).toContain('морква · ставок');
+  });
+
   it('writes the slider distance', () => {
     show([row({ answered: true, answer: { type: 'slider', value: 47 } as never })], base({ correct: slider }));
     expect(document.querySelector('.live-answer')?.textContent).toBe('47 % · відстань 3 %');

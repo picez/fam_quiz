@@ -101,6 +101,8 @@ export interface GameQuestionResult {
   surveyFromCloud?: true;
   /** Блеф: варіанти в порядку розкриття (правда остання) з нікнеймами авторів і тих, хто вибрав; прибрані — в кінці з removed. */
   bluff?: { options: { text: string; kind: 'truth' | 'lie' | 'spare'; authors: string[]; pickedBy: string[]; removed: boolean }[] };
+  /** «Слова з літер»: роздані літери й найдовші можливі слова; немає в старих записах. */
+  letterwords?: { letters: string[]; best: string[] };
   /** «Ва-банк»: ціна сходинки й стан кожного учасника після неї (за турнірною таблицею). */
   wipeout?: { price: number; rows: { nickname: string; status: WipeoutStatus; bank: number }[] };
   /** «Вибування»: вердикт після розкриття, випробування, привиди й хто живий після цього запитання. */

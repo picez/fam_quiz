@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, timedlist, wordladder } from '@quiz/engine/testing';
-import { hostView, sortOf } from '@quiz/engine';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, poll, single, sortQ, survey, text, withId, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, timedlist, wordladder } from '@quiz/engine/testing';
+import { hostView, lettersDue, seededRng, sortOf } from '@quiz/engine';
 import { AUCTION_BID_MS, AUCTION_OPEN_MS, defaultTeams, LIST_WORDS_PER_SECOND, SPLASH_MS } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { toBetsWager } from '../testing/bets-game';
@@ -513,6 +513,118 @@ describe('word ladder', () => {
     expect(manager.timedList(room, taras.playerId, 'Марс', false)).toEqual({ ok: true });
     scheduler.advance(1000);
     expect(manager.timedList(room, olena.playerId, 'Марс', false)).toEqual({ ok: true });
+  });
+});
+
+describe('letter words (27d)', () => {
+  const NOUNS = nounsOf(['морква', 'острів', 'ставок', 'верстак', 'кентавр', 'сітка', 'кіт', 'сік', 'сом', 'рак', 'мак', 'вода', 'нитка']);
+
+  /** Кожен розісланий зріз запитання «Слова з літер» (для гравця): скільки літер набору він показав. */
+  function watchLetters(manager: RoomManager, room: Room, identity: Identity): number[] {
+    const seen: number[] = [];
+    manager.onEvent((changed, event) => {
+      if (changed !== room || event.type !== 'changed') return;
+      const view = manager.view(room, identity);
+      const letters = view?.question?.letterwords?.letters;
+      if (letters !== undefined) seen.push(letters.length);
+    });
+    return seen;
+  }
+
+  it('every opened letters question is dealt before anyone sees it', () => {
+    // Через next.
+    {
+      const manager = new RoomManager(new FakeScheduler(), seededRng(1), { nouns: NOUNS });
+      const room = manager.create(makeQuiz([letterwordsRandom, single]));
+      manager.connect(room, HOST);
+      const olena = enter(manager, room, 'Олена');
+      const seen = watchLetters(manager, room, olena.identity);
+      expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+      expect(room.state.phase).toBe('question');
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((n) => n === 9)).toBe(true);
+      expect(lettersDue(room.state)).toBeNull();
+      expect(room.state.plays[0].letterwords?.best?.length).toBeGreaterThan(0);
+    }
+    // Через вибір клітинки поля.
+    {
+      const manager = new RoomManager(new FakeScheduler(), seededRng(2), { nouns: NOUNS });
+      const room = manager.create(makeRoundsQuiz([boardRound('g1', [{ title: 'Літери', cells: [{ answerMode: 'phone', question: letterwordsRandom }] }])]));
+      manager.connect(room, HOST);
+      const anna = enter(manager, room, 'Анна');
+      enter(manager, room, 'Богдан');
+      const seen = watchLetters(manager, room, anna.identity);
+      expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+      expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+      expect(manager.pick(room, anna.playerId, letterwordsRandom.id)).toEqual({ ok: true });
+      expect(room.state.phase).toBe('question');
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((n) => n === 9)).toBe(true);
+      expect(lettersDue(room.state)).toBeNull();
+    }
+    // Автопілот відкриває запитання сам, таймером.
+    {
+      const scheduler = new FakeScheduler();
+      const manager = new RoomManager(scheduler, seededRng(3), { nouns: NOUNS });
+      const created = manager.createAutopilot(makeQuiz([letterwordsRandom, single]), 'u1', 'q1', 'Марта');
+      if (!created.ok) throw new Error(created.error);
+      const { room } = created;
+      const author: Identity = { role: 'player', playerId: created.playerId };
+      manager.connect(room, author);
+      const seen = watchLetters(manager, room, author);
+      expect(manager.author(room, created.playerId, { type: 'start' })).toEqual({ ok: true });
+      for (let i = 0; i < 200 && room.state.phase !== 'question'; i++) scheduler.advance(500);
+      expect(room.state.phase).toBe('question');
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.every((n) => n === 9)).toBe(true);
+      expect(lettersDue(room.state)).toBeNull();
+    }
+  });
+
+  it('letter words reach the engine with the room dictionary and change the view only on an accepted word', () => {
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5, { nouns: NOUNS });
+    const room = manager.create(makeQuiz([letterwords]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const events: RoomEvent[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    // Свій набір ведучого: роздача дописала лише найкращі слова.
+    expect(room.state.plays[0].letterwords).toMatchObject({ letters: [...'морквасті'], best: ['морква', 'острів'], possible: 9 });
+    const words = () => {
+      const view = manager.view(room, olena.identity);
+      return view?.role === 'player' ? view.me.letterwords?.words.map((w) => w.text) : undefined;
+    };
+    expect(words()).toEqual([]);
+
+    expect(manager.letterWord(room, olena.playerId, 'Морква')).toEqual({ ok: true });
+    expect(words()).toEqual(['морква']);
+    const changes = events.length;
+    // «ром» з набору, але не в словнику кімнати; «нитка» в словнику, але не з набору.
+    expect(manager.letterWord(room, olena.playerId, 'ром')).toEqual({ ok: false, error: 'word_unknown' });
+    expect(manager.letterWord(room, olena.playerId, 'нитка')).toEqual({ ok: false, error: 'letters_not_in_set' });
+    expect(manager.letterWord(room, olena.playerId, 'морква')).toEqual({ ok: false, error: 'letters_repeat' });
+    expect(manager.letterWord(room, olena.playerId, 'ко')).toEqual({ ok: false, error: 'letters_short' });
+    expect(events.length).toBe(changes);
+    expect(manager.letterWord(room, 'nobody', 'кіт')).toMatchObject({ ok: false });
+  });
+
+  it('letter words are limited per second, like list words', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5, { nouns: NOUNS });
+    const room = manager.create(makeQuiz([letterwords]));
+    manager.connect(room, HOST);
+    const olena = enter(manager, room, 'Олена');
+    const taras = enter(manager, room, 'Тарас');
+    expect(manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
+    for (let i = 0; i < LIST_WORDS_PER_SECOND; i++) expect(manager.letterWord(room, olena.playerId, 'ром')).toEqual({ ok: false, error: 'word_unknown' });
+    expect(manager.letterWord(room, olena.playerId, 'кіт')).toEqual({ ok: false, error: 'too_soon' });
+    expect(manager.letterWord(room, taras.playerId, 'кіт')).toEqual({ ok: true });
+    scheduler.advance(1000);
+    expect(manager.letterWord(room, olena.playerId, 'кіт')).toEqual({ ok: true });
   });
 });
 
@@ -1646,6 +1758,22 @@ describe('teams (10j)', () => {
     expect(manager.tilt(room, olena.playerId, { wordId: head, categoryId: 'c1', amount: 0.5 })).toEqual({ ok: true });
     expect(events).toEqual([{ type: 'tilt', tilt: { sorterId: red, wordId: head, toward: 'c1', amount: 0.5, seq: 0 }, by: olena.playerId, audience: 'team' }]);
     expect(manager.tilt(room, taras.playerId, { wordId: head, categoryId: 'c2', amount: 0.5 })).toEqual({ ok: false, error: 'not_captain' });
+  });
+
+  it('any team member adds letter words', () => {
+    const { manager, room, olena, taras, ira } = teamPlaying([classicRound('r1', [letterwords])]);
+    expect(manager.letterWord(room, olena.playerId, 'морква')).toEqual({ ok: true });
+    // Тарас — не капітан, а слово однаково лягає в спільний список червоних; повтор товариша — без кари.
+    expect(manager.letterWord(room, taras.playerId, 'ставок')).toEqual({ ok: true });
+    expect(manager.letterWord(room, taras.playerId, 'Морква')).toEqual({ ok: false, error: 'letters_repeat' });
+    const words = (identity: Identity) => {
+      const view = manager.view(room, identity);
+      return view?.role === 'player' ? view.me.letterwords?.words.map((w) => w.text) : undefined;
+    };
+    expect(words(olena.identity)).toEqual(['морква', 'ставок']);
+    expect(words(taras.identity)).toEqual(['морква', 'ставок']);
+    expect(words(ira.identity)).toEqual([]);
+    expect(JSON.stringify(manager.view(room, ira.identity))).not.toContain('ставок');
   });
 
   it('any team member enters list words', () => {

@@ -53,6 +53,8 @@ export function questionLines(question: Question): string[] {
         return [...question.accepted, ...question.lies];
       case 'timedlist':
         return question.items.flatMap((item) => [item.text, ...item.accepted]);
+      case 'letterwords':
+        return question.set.kind === 'fixed' ? [question.set.letters] : [];
       default:
         return [];
     }

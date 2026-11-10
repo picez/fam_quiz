@@ -13,6 +13,7 @@ import {
   type HostBets,
   type PlayerBets,
   ladderKey,
+  wordLetters,
   allowedDebuffs,
   debuffPrice,
   boardCells,
@@ -37,7 +38,11 @@ import {
   type CellMark,
   type ChainInfo,
   type PlayerWordLadder,
+  type PlayerLetterWords,
   type PlayerTimedList,
+  type LetterWordsInfo,
+  type LetterWordsRow,
+  type PublicLetterWords,
   type TimedListInfo,
   type TimedListItemView,
   type TimedListRow,
@@ -159,6 +164,7 @@ import { attemptsUsed, blitzRulesOf, blitzSeries, isInstant } from './blitz';
 import { blitzSeriesPoints } from './score';
 import { wordLadderOf } from './wordladder';
 import { listItemPoints, listPlayers, listRows, timedListOf } from './timedlist';
+import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -248,7 +254,7 @@ function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T 
 }
 
 /** Запитання без правильної відповіді й підказки; choices у порядку presented. */
-function publicQuestion(question: Question, presented: string[], clues: PublicClues | null = null): PublicQuestion {
+function publicQuestion(question: Question, presented: string[], clues: PublicClues | null = null, letters: string[] | null = null): PublicQuestion {
   const source: Choice[] =
     question.type === 'order'
       ? question.items
@@ -278,6 +284,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     right,
     orderLabels: question.type === 'order' ? { top: question.topLabel ?? '', bottom: question.bottomLabel ?? '' } : null,
     ...(question.type === 'timedlist' ? { timedlist: { total: question.items.length, minus: question.minus } } : {}),
+    ...(question.type === 'letterwords' ? { letterwords: publicLetters(question, letters) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -315,6 +322,11 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   };
 }
 
+/** Набір, ціль, спосіб і сума «Слів з літер» для всіх; слів і найкращих слів тут немає. */
+function publicLetters(question: Extract<Question, { type: 'letterwords' }>, letters: string[] | null): PublicLetterWords {
+  return { letters: letters ?? [], goal: question.goal, per: question.per, unit: question.points };
+}
+
 /** Публічне запитання для телефона: джерело аудіо видало б, наприклад, назву пісні. */
 function withoutClip(question: PublicQuestion): PublicQuestion {
   return question.audio === null ? question : { ...question, audio: { ...question.audio, clip: null } };
@@ -324,9 +336,9 @@ function withoutClip(question: PublicQuestion): PublicQuestion {
 function shownPublic(state: GameState): PublicQuestion | null {
   const shown = shownQuestion(state);
   if (shown === null) return null;
-  const question = publicQuestion(shown.question, shown.presented, publicClues(state));
-  // «Мільйонер» без таймера: запитання з timeLimit, але відліку немає.
   const play = state.plays[state.questionIndex];
+  const question = publicQuestion(shown.question, shown.presented, publicClues(state), play?.letterwords?.letters ?? null);
+  // «Мільйонер» без таймера: запитання з timeLimit, але відліку немає.
   return play?.ladder?.timed === false ? { ...question, timeLimit: null } : question;
 }
 
@@ -850,7 +862,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist';
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords';
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -941,7 +953,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords';
   return {
     ...info,
     question,
@@ -1046,7 +1058,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist';
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords';
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1238,6 +1250,64 @@ function playerTimedList(state: GameState, playerId: string): PlayerTimedList | 
   const done = progress.found.length === question.items.length;
   const canType = state.phase === 'question' && !state.paused && recordOf(state, state.questionIndex, playerId) === undefined;
   return { found, total: question.items.length, wrong: progress.wrong, canType, done };
+}
+
+/** Поточне запитання «Слова з літер» з його грою; null поза запитанням або для інших типів. */
+function currentLetters(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  return play?.question.type === 'letterwords' ? { play, question: play.question } : null;
+}
+
+/** Слова за довжиною спадно; рівні — у порядку знаходження (sort стабільний). */
+function longestFirst(words: string[]): string[] {
+  return [...words].sort((a, b) => wordLetters(b).length - wordLetters(a).length);
+}
+
+/**
+ * Поступ гравців на «Словах з літер» (27d). Сцена й гравці до reveal бачать лише кількості слів; слова (top, more), бали, найкращі
+ * слова й скільки їх можливо — лише на reveal. Ведучий усе це (крім балів) бачить завжди, ще й слова кожного наживо.
+ */
+function lettersInfo(state: GameState, forHost: boolean): LetterWordsInfo | undefined {
+  const open = currentLetters(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  // На клітинці поля грає лише той, хто вибрав.
+  const players = play.board === undefined ? state.players : state.players.filter((p) => p.id === play.board?.chooserId);
+  const rows: LetterWordsRow[] = players.map((player) => {
+    const words = letterWordsOf(state, player.id).words;
+    const top = revealed ? longestFirst(words).slice(0, question.goal === 'longest' ? 1 : 3) : null;
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      found: words.length,
+      top,
+      more: top === null || question.goal === 'longest' ? null : words.length - top.length,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+    };
+  });
+  // sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => b.found - a.found);
+  const shown = forHost || revealed;
+  return {
+    rows,
+    best: shown ? (play.letterwords?.best ?? null) : null,
+    possible: shown ? (play.letterwords?.possible ?? null) : null,
+    words: forHost ? Object.fromEntries(rows.map((r) => [r.playerId, letterWordsOf(state, r.playerId).words])) : null,
+  };
+}
+
+/** Власні слова гравця (команди); поза запитанням і для глядача клітинки поля — undefined. */
+function playerLetterWords(state: GameState, playerId: string): PlayerLetterWords | undefined {
+  const open = currentLetters(state);
+  if (open === null) return undefined;
+  const { play } = open;
+  if (play.board !== undefined && play.board.chooserId !== playerId) return undefined;
+  const words = letterWordsOf(state, playerId).words.map((text) => ({ text, letters: wordLetters(text).length }));
+  // Кінця часу зріз не знає (у нього немає now): між endsAt і закриттям поле гасить телефон за годинником (PlayerScreen).
+  const canType = state.phase === 'question' && !state.paused && (play.letterwords?.best ?? null) !== null;
+  return { words, canType };
 }
 
 /** Поточне запитання-сортування з його грою; null поза запитанням або для інших типів. */
@@ -2062,6 +2132,7 @@ function base(state: GameState, forHost: boolean) {
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
+    ...optional('letterwords', lettersInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
     wall: wallInfo(state, forHost),
@@ -2319,6 +2390,12 @@ function answeredCount(state: GameState): number {
   const list = currentList(state);
   if (list !== null) {
     const moved = new Set([...Object.keys(list.play.timedlist?.progress ?? {}), ...answered]);
+    return state.players.filter((p) => moved.has(p.id)).length;
+  }
+  // «Слова з літер» (27d): так само, як список.
+  const letters = currentLetters(state);
+  if (letters !== null) {
+    const moved = new Set([...Object.keys(letters.play.letterwords?.progress ?? {}), ...answered]);
     return state.players.filter((p) => moved.has(p.id)).length;
   }
   const sort = currentSort(state);
@@ -2667,6 +2744,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ladder: playerLadder(state, playerId),
       ...optional('wordladder', playerWordLadder(state, playerId)),
       ...optional('timedlist', playerTimedList(state, playerId)),
+      ...optional('letterwords', playerLetterWords(state, playerId)),
       chain: playerChain(state, playerId),
       sort: playerSort(state, playerId),
       wall: playerWall(state, playerId),

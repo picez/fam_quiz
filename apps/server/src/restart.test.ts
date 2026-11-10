@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
 import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -329,6 +329,42 @@ describe('a server restart', () => {
       { index: 5, text: 'Юпітер' },
       { index: 4, text: 'Марс' },
     ]);
+  }, 30_000);
+
+  it('a restored room keeps its set and words', async () => {
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, makeQuiz([letterwordsRandom]));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const tarasJoin = await join(first.ctx, started.code, 'Тарас');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    const taras = client(first.port, { code: started.code, role: 'player', token: tarasJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 2);
+
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    const dealt = first.ctx.manager.get(started.code)!.state.plays[0].letterwords;
+    const best = dealt?.best ?? [];
+    expect(dealt?.letters).toHaveLength(9);
+    expect(best.length).toBeGreaterThan(0);
+    // Найдовші можливі слова роздачі — справжні слова словника з цього набору.
+    expect(await send(olena, 'player:letters', { word: best[0] })).toEqual({ ok: true });
+    expect(await send(taras, 'player:letters', { word: best.at(-1) })).toEqual({ ok: true });
+    const before = first.ctx.manager.get(started.code)!.state.plays[0].letterwords;
+    expect(before?.progress).toEqual({ [olenaJoin.playerId]: { words: [best[0]] }, [tarasJoin.playerId]: { words: [best.at(-1)] } });
+
+    await first.ctx.shutdown();
+    host.last = olena.last = null;
+    const second = await boot(db, 'b', first.port);
+    await until(host, (view) => view.role === 'host' && view.phase === 'question' && view.paused);
+    // Той самий набір, ті самі найкращі слова й слова гравців: другої роздачі не було.
+    expect(second.ctx.manager.get(started.code)!.state.plays[0].letterwords).toEqual(before);
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.letterwords !== undefined);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.question?.letterwords?.letters).toEqual(before?.letters);
+    expect(mine.me.letterwords?.words.map((w) => w.text)).toEqual([best[0]]);
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

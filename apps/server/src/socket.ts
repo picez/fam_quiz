@@ -54,6 +54,7 @@ import {
   perkSchema,
   wordLadderWordSchema,
   timedListWordSchema,
+  letterWordSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -357,6 +358,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = timedListWordSchema.safeParse(payloadOf(args));
       return payload.success ? manager.timedList(room, identity.playerId, payload.data.word, payload.data.enter) : INVALID;
+    });
+
+    on('player:letters', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = letterWordSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.letterWord(room, identity.playerId, payload.data.word) : INVALID;
     });
 
     on('player:sort', (args) => {

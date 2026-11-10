@@ -46,6 +46,8 @@ export type BuffBlock =
   | 'off_wordladder'
   /** «Список на час»: бафів немає (27c). */
   | 'off_timedlist'
+  /** «Слова з літер»: бафів немає (27d). */
+  | 'off_letterwords'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -170,6 +172,8 @@ export type ErrorCode =
   | 'word_one_letter'
   /** «Словесна драбина»: такого слова немає ні в словнику, ні в шляху ведучого (або воно не українське). */
   | 'word_unknown'
+  /** «Слова з літер» (27d): літер немає в наборі чи не стільки; менше трьох літер; те саме слово вдруге; забагато слів. */
+  | 'letters_not_in_set' | 'letters_short' | 'letters_repeat' | 'letters_too_many'
   /** «Словесна драбина»: те саме слово, що й попереднє. */
   | 'word_repeat'
   /** «Словесна драбина»: кроку назад немає — слів ще немає. */

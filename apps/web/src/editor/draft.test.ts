@@ -374,7 +374,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2606,5 +2606,84 @@ describe('timed list in the editor (27c)', () => {
     const question: List = { ...listQ(), minus: 50, items: listQ().items.map((item, i) => (i === 0 ? { ...item, accepted: ['Mercury'] } : item)) };
     saveDraft('timed-list', quizWith(question));
     expect(roundQuestions(loadDraft('timed-list')!.rounds[0])[0]).toEqual(question);
+  });
+});
+
+describe('letter words in the editor (27d)', () => {
+  type Letters = Extract<Question, { type: 'letterwords' }>;
+  const lettersQ = (patch: Partial<Letters> = {}): Letters => ({ ...(newQuestion('letterwords') as Letters), text: 'Складіть слова', ...patch });
+  const ofBlitz = (question: Question): Quiz => ({ ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] });
+  const onCell = (question: Question, cell: Partial<BoardRound['categories'][number]['cells'][number]>): Quiz => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({
+      ...category,
+      title: `К${i + 1}`,
+      cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })),
+    }));
+    const [first, ...rest] = categories;
+    const [head, ...cells] = first.cells;
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, ...cell, question }, ...cells] }, ...rest] }] };
+  };
+  const setIssue = t('problemLettersSet', { index: 1, min: LIMITS.minLetterSet, max: LIMITS.maxLetterSet });
+
+  it('a new letters question is 90 seconds, a random set of nine, most words, 20 a word, no video', () => {
+    expect(newQuestion('letterwords')).toEqual(expect.objectContaining({ type: 'letterwords', timeLimit: 90, points: 20, set: { kind: 'random', count: 9 }, goal: 'most', per: 'word', video: null }));
+  });
+
+  it('questionTypesFor: letters are in classic and on the board only', () => {
+    for (const round of ['blitz', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('letterwords');
+    for (const round of ['classic', 'board'] as const) expect(questionTypesFor(round), round).toContain('letterwords');
+  });
+
+  it('cleaning trims an own set and makes the longest word count per letter', () => {
+    const dirty = lettersQ({ set: { kind: 'fixed', letters: '  морква ' }, goal: 'longest', per: 'word', points: 10 });
+    const [question] = (cleaned(quizWith(dirty)).rounds[0] as ClassicRound).questions as Letters[];
+    expect(question.set).toEqual({ kind: 'fixed', letters: 'морква' });
+    expect(question.per).toBe('letter');
+  });
+
+  it('a filled letters question has no problems and passes the schema', () => {
+    for (const question of [lettersQ(), lettersQ({ set: { kind: 'fixed', letters: 'морква острів' } }), lettersQ({ goal: 'longest', per: 'letter', points: 10 })]) {
+      const quiz = quizWith(question);
+      expect(problemsOf(quiz)).toEqual([]);
+      expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+    }
+  });
+
+  it('a set outside the limits or with a foreign symbol has its own problem', () => {
+    for (const count of [3, 13, 5.5, Number.NaN]) expect(problemsOf(quizWith(lettersQ({ set: { kind: 'random', count } }))), String(count)).toEqual([setIssue]);
+    for (const letters of ['', '   ', 'мор', 'морква острів та ще', 'morква', 'мор3ква']) {
+      expect(problemsOf(quizWith(lettersQ({ set: { kind: 'fixed', letters } }))), letters).toEqual([setIssue]);
+    }
+    expect(problemsOf(quizWith(lettersQ({ set: { kind: 'fixed', letters: "м'ясо, дім" } })))).toEqual([]);
+  });
+
+  it('a unit that makes the price too big has its own problem, and a broken unit is a limits problem about the sum', () => {
+    const big = t('problemLettersPoints', { index: 1, max: LIMITS.maxPoints });
+    expect(problemsOf(quizWith(lettersQ({ points: 201 })))).toEqual([big]);
+    expect(problemsOf(quizWith(lettersQ({ points: 200 })))).toEqual([]);
+    expect(problemsOf(quizWith(lettersQ({ per: 'letter', points: 51 })))).toEqual([big]);
+    expect(problemsOf(quizWith(lettersQ({ goal: 'longest', per: 'letter', points: 286 })))).toEqual([big]);
+    // Поле зветься «Сума»: текст про суму, а не про бали.
+    expect(problemsOf(quizWith(lettersQ({ points: Number.NaN })))).toEqual([t('problemLettersLimits', { index: 1 })]);
+    expect(problemsOf(quizWith(lettersQ({ timeLimit: 3 })))).toEqual([t('problemLettersLimits', { index: 1 })]);
+  });
+
+  it('letters are only for classic and a normal phone cell', () => {
+    const question = lettersQ();
+    const place = t('problemLettersPlace', { index: 1 });
+    expect(problemsOf(ofBlitz(question))).toEqual([place]);
+    expect(problemsOf({ ...quizWith(question), rounds: [{ ...newFinalRound(), questions: [question] }] })).toEqual([place]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'phone' }))).toEqual([]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'voice' }))).toEqual([t('problemCell', { category: 1, problem: place.charAt(0).toLowerCase() + place.slice(1) })]);
+    expect(problemsOf(onCell(question, { kind: 'blitz', answerMode: 'phone' }))).toHaveLength(1);
+  });
+
+  it('a question changed to letters loses its video, and a draft with letters survives storage', () => {
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question;
+    expect(changeType(withVideo, 'letterwords').video).toBeNull();
+    const question = lettersQ({ set: { kind: 'fixed', letters: 'морква' }, goal: 'longest', per: 'letter', points: 10 });
+    saveDraft('letters', quizWith(question));
+    expect(roundQuestions(loadDraft('letters')!.rounds[0])[0]).toEqual(question);
   });
 });

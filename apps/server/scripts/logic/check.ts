@@ -82,6 +82,9 @@ const answersOf = (q: Question): string[] => {
     // Список (27c): жоден пункт і жодне його написання не стоять у тексті завдання.
     case 'timedlist':
       return q.items.flatMap((item) => [item.text, ...item.accepted]);
+    // Слова з літер (27d): відповіді-тексту немає — гравці складають слова самі.
+    case 'letterwords':
+      return [];
     default:
       return [];
   }

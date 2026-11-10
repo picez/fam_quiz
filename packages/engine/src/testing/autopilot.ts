@@ -18,6 +18,7 @@ import { notStarted } from '../splash';
 import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestionOf } from '../survival';
 import { pickTeam, rollTeamDie } from '../teams';
 import { listEntry, timedListOf } from '../timedlist';
+import { letterWord, letterWordsOf } from '../letterwords';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
@@ -192,6 +193,12 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       if (timedListOf(state, playerId).found.length > 0) return state;
       const result = listEntry(state, playerId, question.items[0].text, true, now);
       return act(state, result.ok ? { ok: true, state: result.state } : result, what);
+    }
+    case 'letterwords': {
+      // Бот вводить найдовше можливе слово роздачі (словник сервера його вже знає) і чекає кінця часу; без роздачі — нічого.
+      const best = play.letterwords?.best?.[0];
+      if (best === undefined || letterWordsOf(state, playerId).words.length > 0) return state;
+      return act(state, letterWord(state, playerId, best, now, () => true), what);
     }
     case 'sort': {
       let s = state;

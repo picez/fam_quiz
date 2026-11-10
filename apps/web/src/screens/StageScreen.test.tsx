@@ -963,6 +963,35 @@ describe('StageScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  it('letter words show only counts while playing', () => {
+    const lettersQ = { ...question, type: 'letterwords' as const, text: 'Складіть слова з літер', choices: [], letterwords: { letters: ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'], goal: 'most' as const, per: 'word' as const, unit: 20 } };
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', found: 4, top: null, more: null, points: null },
+      { playerId: 'p2', nickname: 'Тарас', found: 1, top: null, more: null, points: null },
+    ];
+    const info = { rows, best: null, possible: null, words: null };
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: lettersQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 2, letterwords: info }));
+    expect(screen.getByText('Складіть слова з літер')).toBeTruthy();
+    expect(screen.getByText('Складайте слова на телефоні')).toBeTruthy();
+    expect(document.querySelectorAll('.letterwords-tiles.is-big .letterwords-tile')).toHaveLength(9);
+    expect(screen.getByText('Слів: 4')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('морква');
+    expect(document.body.textContent).not.toContain('комісар');
+    expect(screen.queryByText('Найдовші слова з цих літер')).toBeNull();
+    unmount();
+    const reveal: Question = { id: 'lw', type: 'letterwords', text: 'Складіть слова з літер', imageUrl: null, video: null, timeLimit: 90, points: 20, set: { kind: 'random', count: 9 }, goal: 'most', per: 'word' };
+    const revealed = { rows: [{ ...rows[0], top: ['морква', 'острів', 'ставок'], more: 1, points: 80 }, { ...rows[1], top: ['сік'], more: 0, points: 20 }], best: ['морква', 'острів'], possible: 30, words: null };
+    show(view({ phase: 'reveal', questionIndex: 0, question: lettersQ, reveal, playerCount: 2, answeredCount: 2, letterwords: revealed }));
+    expect(screen.getByText('морква, острів, ставок')).toBeTruthy();
+    expect(screen.getByText('ще 1')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Найдовші слова з цих літер' })).toBeTruthy();
+    expect(screen.getByText('Усього слів у наборі: 30')).toBeTruthy();
+    expect(document.querySelector('.letterwords-board .score')?.textContent).toBe('+80');
+    expect(document.querySelectorAll('.letterwords-tile')).toHaveLength(9);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    expect(screen.queryByText('Складайте слова на телефоні')).toBeNull();
+  });
+
   it('a timed list shows only counts while playing, then the whole list', () => {
     const listQ = { ...question, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 3, minus: null } };
     const rows = [

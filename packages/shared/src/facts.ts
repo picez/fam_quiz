@@ -185,6 +185,8 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   if (question.type === 'wordladder') return null;
   // «Список на час» (27c) рахує знахідки, а не швидкість.
   if (question.type === 'timedlist') return null;
+  // «Слова з літер» (27d) рахують слова, а не швидкість.
+  if (question.type === 'letterwords') return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
   if (round?.type === 'bets' || round?.type === 'auction') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;

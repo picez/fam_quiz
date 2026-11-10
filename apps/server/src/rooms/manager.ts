@@ -107,6 +107,10 @@ import {
   wordLadderOf,
   listEntry,
   timedListOf,
+  dealLetters,
+  letterWord,
+  letterWordsOf,
+  lettersDue,
   ladderWord,
   ladderBack,
   recordOf,
@@ -141,6 +145,7 @@ import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
 import { lazyNouns, type NounDictionary } from '../wordladder/nouns';
+import { dealOf, letterIndexOf, pickLetters } from '../letterwords/deal';
 
 export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
@@ -242,7 +247,7 @@ export interface Room {
   likes: RoomLikes;
   /** Вікно частоти player:like (17a), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
   likeRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:list (27c), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
+  /** Вікно частоти player:list (27c) і player:letters (27d), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
   listRate: Map<string, { from: number; count: number }>;
 }
 
@@ -516,7 +521,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни, драбини й списку, вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку й слів з літер, вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -531,6 +536,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'wall' ? wallOf(state, id) : null,
     play?.question.type === 'wordladder' ? wordLadderOf(state, id) : null,
     play?.question.type === 'timedlist' ? timedListOf(state, id) : null,
+    play?.question.type === 'letterwords' ? letterWordsOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -1528,12 +1534,8 @@ export class RoomManager {
     if (!this.alive(room)) return this.gone();
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
-    // Частота — на людину (у команді кожен учасник має своє вікно), як у чернеток.
     const now = this.now();
-    const rate = room.listRate.get(playerId);
-    if (rate === undefined || now - rate.from >= 1000) room.listRate.set(playerId, { from: now, count: 1 });
-    else if (rate.count + 1 > LIST_WORDS_PER_SECOND) return { ok: false, error: 'too_soon' };
-    else rate.count += 1;
+    if (!this.wordAllowed(room, playerId, now)) return { ok: false, error: 'too_soon' };
     const result = listEntry(room.state, who.id, word, enter, now);
     if (!result.ok) return { ok: false, error: result.error };
     // Стан той самий (повтор, живий промах) — нічого не розсилаємо.
@@ -1541,6 +1543,40 @@ export class RoomManager {
     if (result.hit === 'repeat') return { ok: false, error: 'list_repeat', ...(result.index !== undefined ? { index: result.index } : {}) };
     if (result.hit === 'miss') return { ok: false, error: 'list_miss' };
     return { ok: true };
+  }
+
+  /** Слово з літер (27d): у командній грі — будь-який учасник за команду; рушій перевіряє його словником кімнати. Частота — як у списку. */
+  letterWord(room: Room, playerId: string, word: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!this.wordAllowed(room, playerId, now)) return { ok: false, error: 'too_soon' };
+    return this.apply(room, letterWord(room.state, who.id, word, now, (key) => this.nouns.isNoun(key)));
+  }
+
+  /**
+   * Понад LIST_WORDS_PER_SECOND слів на секунду від людини (список 27c, слова з літер 27d) — ні, щоб скрипт не перебирав словник.
+   * Частота — на людину (у команді кожен учасник має своє вікно), як у чернеток; вікно спільне, бо запитання одне за раз.
+   */
+  private wordAllowed(room: Room, playerId: string, now: number): boolean {
+    const rate = room.listRate.get(playerId);
+    if (rate === undefined || now - rate.from >= 1000) room.listRate.set(playerId, { from: now, count: 1 });
+    else if (rate.count + 1 > LIST_WORDS_PER_SECOND) return false;
+    else rate.count += 1;
+    return true;
+  }
+
+  /**
+   * Роздача «Слів з літер» (27d): нове запитання з випадковим набором дістає набір з rng кімнати, будь-який набір — найдовші
+   * можливі слова. Не потрібна — той самий стан. Індекс словника будується при першій роздачі.
+   */
+  private dealLetters(state: GameState): GameState {
+    const due = lettersDue(state);
+    if (due === null) return state;
+    const index = letterIndexOf(this.nouns);
+    const letters = due.letters ?? pickLetters(index, due.count, this.rng);
+    return dealLetters(state, { letters, ...dealOf(index, letters) });
   }
 
   sort(room: Room, playerId: string, wordId: string, categoryId: string): AckResult {
@@ -2075,6 +2111,8 @@ export class RoomManager {
   private commit(room: Room, state: GameState, at = this.now()): void {
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
+    // Слова з літер (27d): роздача — до розсилки, збереження й плану автопілота; next, tick, автопілот і поле проходять тут.
+    state = this.dealLetters(state);
     // Бонуси рівня (15a): старт (ведучим чи автопілотом), пізній гравець і зайняте місце продовження — на тому ж кроці.
     state = this.syncPerks(room, state);
     // Нове запитання: нахили попереднього вже нічого не значать.

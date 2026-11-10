@@ -267,6 +267,9 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
       ...(play.bluff?.stage === 'choice'
         ? { bluff: { options: play.bluff.options, picks: Object.fromEntries(Object.entries(play.bluff.picks).map(([id, pick]) => [id, pick.optionId])) } }
         : {}),
+      ...(play.letterwords?.letters == null || play.letterwords.best === null
+        ? {}
+        : { letterwords: { letters: play.letterwords.letters, best: play.letterwords.best } }),
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),

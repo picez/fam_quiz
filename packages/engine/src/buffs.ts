@@ -122,7 +122,7 @@ function wrongOptions(question: Question): string[] {
   return [];
 }
 
-type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_sort' | 'off_wall' | 'off_vote';
+type PlaceBlock = 'elsewhere' | 'not_chooser' | 'off_blitz' | 'off_blitz_cell' | 'off_final' | 'off_bets' | 'off_auction' | 'off_wipeout' | 'off_survival' | 'off_ladder' | 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_sort' | 'off_wall' | 'off_vote';
 
 /** Де гравець відповідає: null — тут бафи можна; not_chooser — на полі відповідає інший; elsewhere — немає де; off_* — тут бафів немає. */
 function placeBlock(state: GameState, play: Play, playerId: string): PlaceBlock | null {
@@ -154,11 +154,12 @@ function roundOff(round: Round): 'off_blitz' | 'off_final' | 'off_bets' | 'off_a
 }
 
 /** Запитання, на якому бафів немає; null — можна. */
-function questionOff(question: Question): 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_sort' | 'off_wall' | 'off_vote' | null {
-  // Ланцюжок, драбина (26c), список (27c), сортування й стіна рахуються окремо.
+function questionOff(question: Question): 'off_chain' | 'off_wordladder' | 'off_timedlist' | 'off_letterwords' | 'off_sort' | 'off_wall' | 'off_vote' | null {
+  // Ланцюжок, драбина (26c), список (27c), слова з літер (27d), сортування й стіна рахуються окремо.
   if (question.type === 'chain') return 'off_chain';
   if (question.type === 'wordladder') return 'off_wordladder';
   if (question.type === 'timedlist') return 'off_timedlist';
+  if (question.type === 'letterwords') return 'off_letterwords';
   if (question.type === 'sort') return 'off_sort';
   if (question.type === 'wall') return 'off_wall';
   // Без балів — без бафів.

@@ -8,13 +8,15 @@ export interface NounDictionary {
   /** key — ключ ladderKey. */
   isNoun(key: string): boolean;
   readonly size: number;
+  /** Усі ключі словника (27d: індекс літер «Слів з літер»). */
+  keys(): Iterable<string>;
 }
 
 /** Закомічений словник, зібраний scripts/wordladder-dict.ts з VESUM. */
 export const NOUNS_FILE = resolve(import.meta.dirname, '../../data/wordladder-uk.txt');
 
 function dictionaryOf(words: Set<string>): NounDictionary {
-  return { isNoun: (key) => words.has(key), size: words.size };
+  return { isNoun: (key) => words.has(key), size: words.size, keys: () => words.keys() };
 }
 
 /** Текст словника → словник; порожні рядки й рядки '#' пропускаються. */
@@ -31,12 +33,13 @@ export function loadNouns(file: string = NOUNS_FILE): NounDictionary {
   return parseNouns(readFileSync(file, 'utf8'));
 }
 
-/** Читає файл при першому isNoun чи size, а не під час запуску сервера. */
+/** Читає файл при першому isNoun, size чи keys, а не під час запуску сервера. */
 export function lazyNouns(file: string = NOUNS_FILE): NounDictionary {
   let loaded: NounDictionary | null = null;
   const get = () => (loaded ??= loadNouns(file));
   return {
     isNoun: (key) => get().isNoun(key),
+    keys: () => get().keys(),
     get size() {
       return get().size;
     },

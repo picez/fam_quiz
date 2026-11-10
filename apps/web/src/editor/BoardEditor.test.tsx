@@ -275,6 +275,26 @@ describe('BoardEditor timed list cells (27c)', () => {
   });
 });
 
+describe('BoardEditor letter words cells (27d)', () => {
+  it('letters on a voice or blitz cell turn it into a normal phone cell and show the note instead of the cell price and penalty', () => {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first.cells;
+    const odd = { ...round, categories: [{ ...first, cells: [{ ...cell, kind: 'blitz' as const, answerMode: 'voice' as const, penalty: 'all' as const }, ...cells] }, ...rest] };
+    const onChange = vi.fn();
+    const { rerender } = render(<BoardEditor round={odd} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: t('typeShort_letterwords') }));
+    const next = onChange.mock.calls[0][0] as BoardRound;
+    expect(next.categories[0].cells[0]).toMatchObject({ kind: 'normal', answerMode: 'phone', penalty: 'none' });
+    expect(next.categories[0].cells[0].question.type).toBe('letterwords');
+    rerender(<BoardEditor round={next} onChange={onChange} />);
+    expect(screen.getByText(t('letterwordsCellNote'))).toBeTruthy();
+    expect(screen.queryByLabelText('Тип клітинки')).toBeNull();
+    expect(screen.queryByLabelText(t('boardCellMode'))).toBeNull();
+    expect(screen.queryByLabelText(t('boardCellPenalty'))).toBeNull();
+  });
+});
+
 describe('BoardEditor readiness (11a)', () => {
   const ready = (cell: BoardRound['categories'][number]['cells'][number]) => {
     const q = cell.question;

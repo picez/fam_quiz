@@ -128,6 +128,12 @@ export async function checkLadderWords(words: string[]): Promise<string[] | null
   if (!result.ok || !Array.isArray(result.unknown)) return null;
   return result.unknown.filter((word): word is string => typeof word === 'string');
 }
+/** Скільки слів словника складається зі свого набору літер і які найдовші; null — сервер не відповів (попередження тоді не показується). */
+export async function checkLetterWords(letters: string): Promise<{ possible: number; best: string[] } | null> {
+  const result = await request<{ possible?: unknown; best?: unknown }>('/api/letterwords/check', { body: { letters } });
+  if (!result.ok || typeof result.possible !== 'number' || !Array.isArray(result.best)) return null;
+  return { possible: result.possible, best: result.best.filter((word): word is string => typeof word === 'string') };
+}
 export const createQuiz = (quiz: Quiz) => request<{ id: string }>('/api/quizzes', { body: quiz });
 export const updateQuiz = (id: string, quiz: Quiz) => request<{ id: string }>(quizUrl(id), { method: 'PUT', body: quiz });
 export const deleteQuiz = (id: string) => request<object>(quizUrl(id), { method: 'DELETE' });
