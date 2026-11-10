@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { LIMITS, type PlayerTimedList, type PublicQuestion, type TimedListInfo } from '@quiz/shared';
+import { LIMITS, answerKey, type PlayerTimedList, type PublicQuestion, type TimedListInfo } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
@@ -15,8 +15,8 @@ const SHAKE_MS = 300;
 /** Скільки чекати, поки телефонна клавіатура відкриється, перш ніж прокрутити поле у видиму частину. */
 const KEYBOARD_MS = 300;
 
-/** Те саме слово з іншим регістром чи пробілами по краях — для пошуку клітинки повтору. */
-const sameWord = (a: string, b: string) => a.trim().toLocaleLowerCase('uk') === b.trim().toLocaleLowerCase('uk');
+/** Те саме слово з іншим регістром, апострофом чи пробілами — для пошуку клітинки повтору (нормалізація як у схемі). */
+const sameWord = (a: string, b: string) => answerKey(a) === answerKey(b);
 
 /** Нумеровані клітинки: знайдені — з назвою; fresh — щойно знайдена (анімація), again — повтор (блимання). */
 export function TimedListCells({ total, found, fresh = null, again = null }: { total: number; found: { index: number; text: string }[]; fresh?: number | null; again?: number | null }) {
@@ -126,12 +126,18 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
   const info = question.timedlist;
   const minus = info?.minus ?? null;
   const off = paused || !list.canType;
+  // Таймер живого введення читає паузу на мить спрацювання, а не з рендера, у якому почався набір.
+  const offNow = useRef(off);
+  offNow.current = off;
 
   /** Поле — до порожнього, лише якщо в ньому досі те саме слово, що пішло на сервер. */
+  // Якщо за час відповіді гравець почав наступне слово, лишається лише дописаний хвіст — без склеювання з надісланим.
   const clearIf = (sent: string) => {
-    if (value.current !== sent) return;
-    value.current = '';
-    setWord('');
+    const now = value.current;
+    if (!now.startsWith(sent)) return;
+    const rest = now.slice(sent.length).replace(/^[\s,;]+/u, '');
+    value.current = rest;
+    setWord(rest);
   };
 
   const run = async (request: Check) => {
@@ -167,19 +173,26 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
           setStatus(errorText('list_miss'));
         }
       } else {
+        // Слово не перевірено (пауза, кінець часу): те саме слово можна перевірити знову.
+        checked.current = null;
         setStatus(errorText(result.error));
       }
     } catch {
+      checked.current = null;
       setStatus(t('err_unknown'));
     } finally {
       busy.current = false;
-      input.current?.focus();
+      // Фокус повертається, лише якщо гравець свідомо не пішов з поля: інакше клавіатура вискакувала б знову.
+      const active = document.activeElement;
+      if (active === null || active === document.body || active === input.current) input.current?.focus();
       const next = waiting.current;
       waiting.current = null;
-      if (next !== null) {
-        // Жива перевірка йде з тим, що в полі зараз, а не з тим, що було під час запиту.
-        if (next.enter) void run(next);
-        else if (value.current.trim() !== '' && value.current !== checked.current) void run({ word: value.current, enter: false });
+      const now = value.current;
+      if (next !== null && !offNow.current) {
+        // Enter з черги — лише для слова, що досі в полі; інакше (поле очистила знахідка чи гравець дописав) —
+        // жива перевірка того, що в полі зараз.
+        if (next.enter && now === next.word) void run(next);
+        else if (now.trim() !== '' && now !== checked.current) void run({ word: now, enter: false });
       }
     }
   };
@@ -189,7 +202,7 @@ export function TimedListPlay({ list, question, paused, send }: { list: PlayerTi
     setWord(next);
     later('check', LIST_CHECK_MS, () => {
       const now = value.current;
-      if (off || now.trim() === '' || now === checked.current) return;
+      if (offNow.current || now.trim() === '' || now === checked.current) return;
       void run({ word: now, enter: false });
     });
   };

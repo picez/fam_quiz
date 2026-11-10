@@ -148,6 +148,61 @@ describe('TimedListPlay', () => {
     expect(document.activeElement).toBe(field());
   });
 
+  it('a queued enter is dropped when the live check already took the word', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    typeIn('Юпітер');
+    await wait(400);
+    fireEvent.submit(field().form!);
+    await answer({ ok: true });
+    expect(field().value).toBe('');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status').textContent).not.toBe('Цей пункт уже знайдено');
+  });
+
+  it('a queued enter for a word the player kept typing becomes a live check of the field', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    typeIn('Мар');
+    await wait(400);
+    fireEvent.submit(field().form!);
+    typeIn('Марс');
+    await answer({ ok: false, error: 'list_miss' });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenLastCalledWith('player:list', { word: 'Марс', enter: false });
+  });
+
+  it('a find keeps only the next word the player started', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    typeIn('Марс');
+    await wait(400);
+    typeIn('МарсВен');
+    await answer({ ok: true });
+    expect(field().value).toBe('Вен');
+  });
+
+  it('a failed check can be retried with the same word', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf()} question={question} paused={false} send={send} />);
+    typeIn('Марс');
+    await wait(400);
+    await answer({ ok: false, error: 'err_unknown' });
+    typeIn('Марс ');
+    typeIn('Марс');
+    await wait(400);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('a repeat in another case or with extra spaces still flashes its cell', async () => {
+    const { send, answer } = deferred();
+    render(<TimedListPlay list={listOf({ found: [{ index: 2, text: 'Нова Каховка' }] })} question={question} paused={false} send={send} />);
+    typeIn('нова   КАХОВКА');
+    await wait(400);
+    await answer({ ok: false, error: 'list_repeat' });
+    expect(screen.getByText('Нова Каховка').closest('li')?.classList.contains('is-again')).toBe(true);
+  });
+
   it('found words take their numbered place and a new find pops', () => {
     const { rerender } = render(<TimedListPlay list={listOf()} question={question} paused={false} send={vi.fn<Send>()} />);
     rerender(<TimedListPlay list={listOf({ found: [{ index: 5, text: 'Юпітер' }] })} question={question} paused={false} send={vi.fn<Send>()} />);
