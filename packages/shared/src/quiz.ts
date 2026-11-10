@@ -185,6 +185,14 @@ export const LIMITS = {
   defaultLetterTime: 90,
   defaultLetterWordPoints: 20,
   defaultLetterLetterPoints: 10,
+  /** «Більше чи менше» (28a): порівнянь у ряду, символів у запитанні порівняння, тексті варіанта й значенні, типові час (с) і бали нового порівняння. */
+  minMoreLessPairs: 2,
+  maxMoreLessPairs: 20,
+  moreLessPrompt: 80,
+  moreLessOption: 60,
+  moreLessValue: 40,
+  defaultMoreLessTime: 60,
+  defaultMoreLessPoints: 100,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -290,9 +298,16 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
+/** Сторони порівняння «Більше чи менше» (28a). */
+export const MORELESS_SIDES = ['a', 'b'] as const;
+export type MoreLessSide = (typeof MORELESS_SIDES)[number];
+const moreLessOption = z.object({
+  text: z.string().trim().min(1).max(LIMITS.moreLessOption).refine(isStorable, UNSTORABLE),
+  value: z.string().trim().min(1).max(LIMITS.moreLessValue).refine(isStorable, UNSTORABLE),
+});
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
@@ -512,6 +527,24 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('moreless'),
+      /** Ряд порівнянь; points з base — сума pairs[].points (moreless_sum). */
+      pairs: z
+        .array(
+          z.object({
+            id: z.string().min(1).refine(isStorable, UNSTORABLE),
+            prompt: z.string().trim().min(1).max(LIMITS.moreLessPrompt).refine(isStorable, UNSTORABLE),
+            a: moreLessOption,
+            b: moreLessOption,
+            correct: z.enum(MORELESS_SIDES),
+            points: z.number().int().min(1).max(LIMITS.maxPoints),
+          }),
+        )
+        .min(LIMITS.minMoreLessPairs)
+        .max(LIMITS.maxMoreLessPairs),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -540,7 +573,9 @@ export const questionSchema = z
                   ? q.rows.map((r) => r.id)
                   : q.type === 'timedlist'
                     ? q.items.map((i) => i.id)
-                    : [];
+                    : q.type === 'moreless'
+                      ? q.pairs.map((p) => p.id)
+                      : [];
     if (hasDuplicates(ids)) ctx.addIssue({ code: 'custom', message: 'duplicate_ids' });
     if (q.type === 'chain' && q.video !== null) ctx.addIssue({ code: 'custom', message: 'chain_video' });
     if (q.type === 'wordladder') {
@@ -613,6 +648,14 @@ export const questionSchema = z
       // Без таймера слова не скінчаться.
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'letterwords_video' });
       if (letterwordsPrice(q) > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'letterwords_points' });
+    }
+    if (q.type === 'moreless') {
+      // Без таймера ряд не скінчиться.
+      if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'moreless_video' });
+      const total = q.pairs.reduce((sum, p) => sum + p.points, 0);
+      if (total > LIMITS.maxPoints) ctx.addIssue({ code: 'custom', message: 'moreless_points' });
+      else if (q.points !== total) ctx.addIssue({ code: 'custom', message: 'moreless_sum' });
+      if (q.pairs.some((p) => answerKey(p.a.text) === answerKey(p.b.text))) ctx.addIssue({ code: 'custom', message: 'moreless_same' });
     }
     if (q.type === 'bluff') {
       if ((q.accepted[0] ?? '').length > LIMITS.bluffLie) ctx.addIssue({ code: 'custom', message: 'bluff_truth_long' });
@@ -808,6 +851,7 @@ export function questionPrice(question: Question): number {
   if (question.type === 'poll' || question.type === 'wordcloud') return 0;
   if (question.type === 'timedlist') return question.points * question.items.length;
   if (question.type === 'letterwords') return letterwordsPrice(question);
+  if (question.type === 'moreless') return question.pairs.reduce((sum, p) => sum + p.points, 0);
   return question.type === 'sort' ? question.points * question.words.length : question.points;
 }
 
@@ -1244,6 +1288,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'letterwords' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
           : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'letterwords');
       if (letterWordsPlace) ctx.addIssue({ code: 'custom', message: 'letterwords_place' });
+      // «Більше чи менше» (28a): класика й звичайна клітинка з телефона.
+      const moreLessPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'moreless' && (cell.kind !== 'normal' || cellAnswerMode(round, cell) !== 'phone'))
+          : round.type !== 'classic' && roundQuestions(round).some((q) => q.type === 'moreless');
+      if (moreLessPlace) ctx.addIssue({ code: 'custom', message: 'moreless_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

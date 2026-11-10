@@ -4,7 +4,7 @@ import { draftValueSchema, type HostDrafts } from './drafts';
 import { APPEAL_REASONS } from './appeal';
 import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
-import { LIFELINES, LIMITS } from './quiz';
+import { LIFELINES, LIMITS, MORELESS_SIDES } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { RESUME_POINTS_MAX } from './resume';
 import type { Reaction, ReactionItem } from './reactions';
@@ -66,6 +66,9 @@ export const LIST_WORDS_PER_SECOND = 6;
 export const timedListWordSchema = z.object({ word: z.string().max(LIMITS.listWord).refine(isStorable, UNSTORABLE), enter: z.boolean() });
 /** Слово «Слів з літер» (27d), як його ввели; ключ і перевірки — у рушії. */
 export const letterWordSchema = z.object({ word: z.string().max(LIMITS.letterWord).refine(isStorable, UNSTORABLE) });
+/** «Більше чи менше» (28a): скільки виборів на секунду приймає сервер від людини; index — номер порівняння, на яке відповідає телефон. */
+export const MORELESS_PICKS_PER_SECOND = 5;
+export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** Перевірка набору редактора словником (27d): POST /api/letterwords/check. */
 export const letterCheckSchema = z.object({ letters: z.string().max(40) });
 /** Перевірка шляху редактора словником (26c): POST /api/wordladder/check. */
@@ -191,6 +194,7 @@ export interface ClientToServerEvents {
   'player:list': (payload: z.infer<typeof timedListWordSchema>, ack: Ack) => void;
   /** «Слова з літер» (27d): слово гравця (команди). */
   'player:letters': (payload: z.infer<typeof letterWordSchema>, ack: Ack) => void;
+  'player:moreless': (payload: z.infer<typeof moreLessPickSchema>, ack: Ack) => void;
   /** «Хто я?» у власному темпі (12c): відкрити наступну підказку собі (у командній грі — команді). */
   'player:clue': (ack: Ack) => void;
   'player:sort': (payload: z.infer<typeof sortSchema>, ack: Ack) => void;

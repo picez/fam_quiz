@@ -75,6 +75,7 @@ import {
   timedListWordSchema,
   letterWordSchema,
   letterCheckSchema,
+  moreLessPickSchema,
   type Answer,
   type BoardRound,
   type Question,
@@ -2399,5 +2400,94 @@ describe('letter words question (27d)', () => {
     expect(questionPrice(questionSchema.parse(lettersQ({ goal: 'longest', per: 'letter', points: 10 })))).toBe(70);
     expect(questionPrice(questionSchema.parse(lettersQ()))).toBe(200);
     expect(questionPrice(questionSchema.parse(lettersQ({ per: 'letter', points: 10 })))).toBe(400);
+  });
+});
+
+describe('more or less question (28a)', () => {
+  const pairA = { id: 'p1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a', points: 100 };
+  const pairB = { id: 'p2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b', points: 100 };
+  const pairC = { id: 'p3', prompt: 'Що глибше?', a: { text: 'Світязь', value: '58 м' }, b: { text: 'Синевир', value: '22 м' }, correct: 'a', points: 200 };
+  const moreLessQ = (patch: object = {}) => ({ id: 'ml', type: 'moreless', text: 'Порівняйте', imageUrl: null, video: null,
+    timeLimit: 60, points: 400, pairs: [pairA, pairB, pairC], ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const board = (q: object, patch: object = {}) => ({
+    id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES, ...patch,
+    categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+      question: n === 1 && m === 1 ? q : { ...single, id: `q${n}${m}` } })) })),
+  });
+  const withCell = (q: object, cellPatch: object) => {
+    const b = board(q);
+    Object.assign(b.categories[0]!.cells[0]!, cellPatch);
+    return quizOf([b]);
+  };
+  const manyPairs = (count: number, points: number) => Array.from({ length: count }, (_, i) => ({ ...pairA, id: `p${i}`, points }));
+
+  it('accepts a more or less question', () => {
+    expect(QUESTION_TYPES.indexOf('moreless')).toBe(QUESTION_TYPES.indexOf('letterwords') + 1);
+    expect(qIssues(moreLessQ())).toEqual([]);
+    expect(issues(quizOf([round('r', [moreLessQ()])]))).toEqual([]);
+    expect(issues(quizOf([board(moreLessQ())]))).toEqual([]);
+  });
+
+  it('refuses a bad row', () => {
+    expect(valid(questionSchema, moreLessQ({ pairs: [pairA], points: 100 }))).toBe(false);
+    expect(valid(questionSchema, moreLessQ({ pairs: manyPairs(21, 10), points: 210 }))).toBe(false);
+    expect(valid(questionSchema, moreLessQ({ pairs: manyPairs(20, 10), points: 200 }))).toBe(true);
+    expect(valid(questionSchema, moreLessQ({ pairs: [{ ...pairA, a: { text: 'Говерла', value: 'я'.repeat(41) } }, pairB, pairC] }))).toBe(false);
+    expect(valid(questionSchema, moreLessQ({ pairs: [{ ...pairA, prompt: '' }, pairB, pairC] }))).toBe(false);
+    expect(qIssues(moreLessQ({ pairs: [{ ...pairA, b: { text: 'говерла', value: '1 м' } }, pairB, pairC] }))).toContain('moreless_same');
+    expect(qIssues(moreLessQ({ points: 300 }))).toContain('moreless_sum');
+    expect(qIssues(moreLessQ({ pairs: manyPairs(11, 200), points: 2200 }))).toContain('moreless_points');
+    expect(qIssues(moreLessQ({ pairs: manyPairs(10, 200), points: 2000 }))).not.toContain('moreless_points');
+    expect(qIssues(moreLessQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('moreless_video');
+    expect(qIssues(moreLessQ({ pairs: [pairA, { ...pairB, id: 'p1' }, pairC] }))).toContain('duplicate_ids');
+    // Однакові значення — не помилка: «рівно» вирішує позначка ведучого.
+    expect(qIssues(moreLessQ({ pairs: [{ ...pairA, b: { text: 'Бескид', value: '2061 м' } }, pairB, pairC] }))).toEqual([]);
+  });
+
+  it('more or less plays in classic rounds and normal phone cells only', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [moreLessQ({ id: 'mb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [moreLessQ({ id: 'mf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...moreLessQ({ id: 'mbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...moreLessQ({ id: 'mau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [moreLessQ({ id: 'mw2' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    for (const bad of [blitzRound, final, bets, auction, wipeout]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('moreless_place');
+    }
+    expect(issues(withCell(moreLessQ(), { kind: 'blitz' }))).toContain('moreless_place');
+    expect(issues(withCell(moreLessQ(), { answerMode: 'voice' }))).toContain('moreless_place');
+    expect(issues(quizOf([board(moreLessQ(), { answerMode: 'voice' })]))).toContain('moreless_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [moreLessQ({ id: 'ms' })] })).toContain('spare_type');
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single, orderSpare])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('moreless');
+  });
+
+  it('questionPrice of more or less is the sum of its comparisons', () => {
+    expect(questionPrice(questionSchema.parse(moreLessQ()))).toBe(400);
+  });
+
+  it('answerSchema never accepts a more or less summary; the pick event is limited', () => {
+    expect(valid(answerSchema, { type: 'moreless', picks: ['a'], right: 1, total: 3 })).toBe(false);
+    expect(valid(moreLessPickSchema, { index: 0, pick: 'a' })).toBe(true);
+    expect(valid(moreLessPickSchema, { index: 19, pick: 'b' })).toBe(true);
+    expect(valid(moreLessPickSchema, { index: 20, pick: 'a' })).toBe(false);
+    expect(valid(moreLessPickSchema, { index: 0, pick: 'c' })).toBe(false);
+    expect(valid(moreLessPickSchema, { index: 1.5, pick: 'a' })).toBe(false);
   });
 });

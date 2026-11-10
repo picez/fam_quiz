@@ -192,6 +192,8 @@ export type ErrorCode =
   | 'target_offline'
   | 'sort_locked'
   | 'sort_stale'
+  /** «Більше чи менше»: вибір не для поточного порівняння (28a). */
+  | 'moreless_stale'
   | 'duel_used'
   | 'duel_busy'
   | 'duel_empty'
