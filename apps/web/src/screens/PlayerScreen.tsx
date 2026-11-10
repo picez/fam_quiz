@@ -36,6 +36,7 @@ import { FactCards, GameCardView, OwnRevealLine, RoundCardView } from './FactCar
 import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
+import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -342,10 +343,16 @@ function Result({ view }: { view: PlayerView }) {
       <WallOutcome view={view} />
       <SurveyOutcome view={view} />
       {view.phase === 'reveal' && view.timedlist !== undefined && <TimedListReveal info={view.timedlist} mine={view.me.id} />}
+      {view.phase === 'reveal' && view.letterwords !== undefined && (
+        <>
+          <LetterWordsBoard info={view.letterwords} reveal mine={view.me.id} />
+          <LetterWordsBest info={view.letterwords} />
+        </>
+      )}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {view.reveal !== null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -662,7 +669,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Хто вирішує за команду, коли це не я: вибраний (12g) чи капітан.
   const decidesText = team !== null && team.answererId !== null && team.answererId !== team.captainId ? t('teamAnswererDecides', { name: memberName(view, team.answererId) }) : t('teamCaptainDecides');
   // «Список на час» (27c): пишуть усі, хто може діяти за команду, тож дебаф команди діє на телефоні кожного з них.
-  const debuffHere = answersForTeam || (question?.type === 'timedlist' && acting);
+  // «Слова з літер» (27d) — так само.
+  const debuffHere = answersForTeam || ((question?.type === 'timedlist' || question?.type === 'letterwords') && acting);
   const debuff = debuffHere ? me.debuff : null;
   // «Ва-банк»: гравець, що вже не в грі, дивиться — поля відповіді в нього немає.
   const wipeoutWatching = me.wipeout !== null && me.wipeout.status !== 'in';
@@ -1073,6 +1081,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             ) : question.type === 'timedlist' ? (
               // Глядач клітинки поля: лише рядок того, хто вибрав (лічильник без назв).
               view.timedlist !== undefined && <TimedListBoard info={view.timedlist} reveal={false} />
+            ) : question.type === 'letterwords' && me.letterwords !== undefined ? (
+              // Слова з літер (27d): у командній грі поле — у кожного учасника, слова спільні.
+              <LetterWordsPlay key={view.questionIndex} info={me.letterwords} question={question} paused={locked} send={send} />
+            ) : question.type === 'letterwords' ? (
+              // Глядач клітинки поля: лише рядок того, хто вибрав (кількість слів, без самих слів).
+              view.letterwords !== undefined && <LetterWordsBoard info={view.letterwords} reveal={false} />
             ) : question.type === 'wordladder' && me.wordladder !== undefined ? (
               <WordLadderPlay key={view.questionIndex} ladder={me.wordladder} question={question} paused={locked} send={send} />
             ) : chainMine && me.chain !== null ? (
@@ -1229,6 +1243,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {/* Бали залежать від того, скільки ще гравців знайшли той самий пункт. */}
               <p className="lead">{t('chainWaitResults')}</p>
             </section>
+          ) : question?.type === 'letterwords' ? (
+            <section className="sent">
+              {me.letterwords !== undefined ? (
+                <LetterWordsMine words={me.letterwords.words} />
+              ) : (
+                view.letterwords !== undefined && <LetterWordsBoard info={view.letterwords} reveal={false} />
+              )}
+              {/* Бали залежать від слів, а найдовші можливі слова сцена покаже на розкритті. */}
+              <p className="lead">{t('chainWaitResults')}</p>
+            </section>
           ) : me.wordladder !== undefined && question !== null ? (
             <section className="sent">
               <WordLadderOutcome ladder={me.wordladder} question={question} />
@@ -1285,7 +1309,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : board !== null && !chooserIsMe && view.blitz === null ? (
             <section className="result">
               {/* «100 до 1»: підсумок — на табло (SurveyBoard), рядок відповіді з вердиктом зайвий. */}
-              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
+              {question !== null && !isSort && !isWall && !isSurvey && question.type !== 'timedlist' && question.type !== 'letterwords' && <SpotlightChoices removed={view.removed} question={question} spotlight={spotlight} reveal={view.reveal} blink={blink} voice={voice} />}
               {/* Сортування: глядач бачить, як слова розкладаються по категоріях, тож рядок відповіді зайвий. */}
               {isSort && question?.sort != null && (
                 <SortReveal categories={question.sort.categories} question={view.reveal !== null && view.reveal.type === 'sort' ? view.reveal : null} total={question.sort.total} marks={view.sort?.live?.marks ?? null} />
@@ -1294,9 +1318,15 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {view.reveal?.type === 'wall' && <WallReveal question={view.reveal} colors={view.reveal.groups.map(() => null)} />}
               {isSurvey && view.survey !== null && <SurveyBoard info={view.survey} />}
               {view.timedlist !== undefined && <TimedListReveal info={view.timedlist} />}
+              {view.letterwords !== undefined && (
+                <>
+                  <LetterWordsBoard info={view.letterwords} reveal />
+                  <LetterWordsBest info={view.letterwords} />
+                </>
+              )}
               <RevealDetail view={view} answer={spotlight?.answer ?? null} player={{ id: spotlight?.playerId ?? '', nickname: spotlight?.nickname ?? chooserName }} />
               <h2>{t('boardAnswered', { name: chooserName })}</h2>
-              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
+              {view.reveal !== null && !isSort && view.reveal.type !== 'pin' && view.reveal.type !== 'wall' && view.reveal.type !== 'survey' && view.reveal.type !== 'timedlist' && view.reveal.type !== 'letterwords' && <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>}
             </section>
           ) : (
             <>
@@ -1312,7 +1342,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             </>
           )}
           {/* Список (27c): «правильно» — лише знайти все, тож частка правильних тут нічого не каже. */}
-          {view.own?.reveal != null && question?.type !== 'timedlist' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
+          {/* Слова з літер (27d) — так само: «правильно» означає лише «хоч одне слово». */}
+          {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
           {me.appeal?.reasons.map((reason) => (
             <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
               {appealButtonText(reason, me.appeal?.left ?? 0)}

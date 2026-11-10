@@ -1464,6 +1464,32 @@ describe('HostScreen timed list', () => {
   });
 });
 
+describe('HostScreen letter words', () => {
+  it('the host sees every word and the best words live', () => {
+    const lettersQ: Question = { id: 'lw', type: 'letterwords', text: 'Слова', imageUrl: null, video: null, timeLimit: 90, points: 20, set: { kind: 'fixed', letters: 'морквасті' }, goal: 'most', per: 'word' };
+    const info = {
+      rows: [
+        { playerId: 'p1', nickname: 'Олена', found: 2, top: null, more: null, points: null },
+        { playerId: 'p2', nickname: 'Тарас', found: 0, top: null, more: null, points: null },
+      ],
+      best: ['морква', 'острів'],
+      possible: 30,
+      words: { p1: ['ставок', 'сік'], p2: [] },
+    };
+    const letterwords = { letters: ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'], goal: 'most' as const, per: 'word' as const, unit: 20 };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'letterwords', choices: [], letterwords }, correct: lettersQ, endsAt: Date.now() + 20_000, letterwords: info }));
+    expect(screen.getByRole('heading', { name: 'Слова з літер' })).toBeTruthy();
+    expect(document.querySelectorAll('.host-letterwords .letterwords-tile')).toHaveLength(9);
+    expect(screen.getByText('ставок, сік')).toBeTruthy();
+    expect(screen.getByText('Слів: 2')).toBeTruthy();
+    expect(screen.getByText('морква')).toBeTruthy();
+    expect(screen.getByText('Усього слів у наборі: 30')).toBeTruthy();
+    expect(document.querySelector('.letterwords-board .score')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

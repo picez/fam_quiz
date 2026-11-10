@@ -10,6 +10,7 @@ import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
 import { WordLadderBoard, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
+import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { SortBoard } from './SortView';
 import { WallReveal } from './WallReveal';
 import { WallTable } from './WallTable';
@@ -1101,6 +1102,16 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* Слова з літер (27d): набір, слова кожного наживо й найдовші можливі слова завжди; бали — на розкритті. Оцінювати нічого. */}
+      {view.letterwords !== undefined && !liveHides && (
+        <section className="panel host-letterwords">
+          <h2>{t('type_letterwords')}</h2>
+          {view.question?.letterwords !== undefined && <LetterTiles letters={view.question.letterwords.letters} />}
+          <LetterWordsBoard info={view.letterwords} reveal={phase === 'reveal'} />
+          <LetterWordsBest info={view.letterwords} />
+        </section>
+      )}
+
       {view.sort !== null && !liveHides && (
         <section className="panel">
           <h2>{t('sortTitle')}</h2>
@@ -1160,7 +1171,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* Під час класичного ланцюжка бали ще не пораховано, а поступ уже показує панель «Ланцюжок». */}
-      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
+      {view.question !== null && live && blitz === null && board === null && !liveHides && !(isFinal && phase === 'reveal') && !((view.chain !== null || view.wordladder !== undefined || view.timedlist !== undefined || view.letterwords !== undefined || view.sort !== null || correct?.type === 'wall') && !isFinal && phase === 'question') && (
         <section className="panel">
           <h2>{t('responses')}</h2>
           {view.responses.length === 0 && !isFinal ? (

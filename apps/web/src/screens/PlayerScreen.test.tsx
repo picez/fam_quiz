@@ -1605,6 +1605,53 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Меркурій').closest('li')?.classList.contains('is-mine')).toBe(false);
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
+
+  const lettersQuestion = { ...publicQuestion, type: 'letterwords' as const, text: 'Складіть слова', choices: [], letterwords: { letters: ['м', 'о', 'р', 'к', 'в', 'а', 'с', 'т', 'і'], goal: 'most' as const, per: 'word' as const, unit: 20 } };
+  const myWords = { words: [{ text: 'ставок', letters: 6 }], canType: true };
+
+  it('27d: a letter words question shows the tiles, the field and the own words', () => {
+    show(onQuestion({ question: lettersQuestion, endsAt: Date.now() + 20_000, me: { ...me, letterwords: myWords } }));
+    expect(screen.getAllByRole('timer')).toHaveLength(1);
+    expect(screen.getByLabelText('Ваше слово')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Літера М' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Додати' })).toBeTruthy();
+    expect(screen.getByText('ставок')).toBeTruthy();
+  });
+
+  it('27d: a watcher of a board cell sees the count of the chooser', () => {
+    const letterwords = { rows: [{ playerId: 'p2', nickname: 'Тарас', found: 3, top: null, more: null, points: null }], best: null, possible: null, words: null };
+    show(onQuestion({ question: lettersQuestion, endsAt: Date.now() + 20_000, letterwords }));
+    expect(screen.queryByLabelText('Ваше слово')).toBeNull();
+    expect(screen.getByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('Слів: 3')).toBeTruthy();
+  });
+
+  it('27d: after letter words close the phone shows its own words', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: lettersQuestion, me: { ...me, letterwords: { ...myWords, canType: false } } }));
+    expect(screen.queryByLabelText('Ваше слово')).toBeNull();
+    expect(screen.getByText('ставок')).toBeTruthy();
+  });
+
+  it('27d: the reveal of letter words shows the best words of everyone and the longest possible', () => {
+    const letterwords = {
+      rows: [
+        { playerId: 'p2', nickname: 'Тарас', found: 2, top: ['острів', 'сік'], more: 0, points: 40 },
+        { playerId: me.id, nickname: me.nickname, found: 1, top: ['ставок'], more: 0, points: 20 },
+      ],
+      best: ['морква', 'острів'],
+      possible: 30,
+      words: null,
+    };
+    const reveal = { id: 'lw', type: 'letterwords' as const, text: 'Складіть слова', imageUrl: null, video: null, timeLimit: 90, points: 20, set: { kind: 'random' as const, count: 9 }, goal: 'most' as const, per: 'word' as const };
+    show(view({ phase: 'reveal', questionIndex: 0, question: lettersQuestion, reveal, me: { ...me, letterwords: { ...myWords, canType: false } }, letterwords, own: { reveal: { kind: 'share', percent: 50 }, round: null, game: null } }));
+    expect(screen.getByText('острів, сік')).toBeTruthy();
+    expect(screen.getByText('ставок').closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(screen.getByRole('heading', { name: 'Найдовші слова з цих літер' })).toBeTruthy();
+    expect(screen.getByText('морква')).toBeTruthy();
+    expect(screen.getByText('Усього слів у наборі: 30')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
+  });
 });
 
 describe('PlayerScreen round facts', () => {
@@ -3455,6 +3502,15 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     cleanup();
     show(asQuestion(olya, { question: listQuestion, me }));
     expect(document.querySelector('[data-debuff]')).toBeNull();
+  });
+
+  it('27d: on letter words the team debuff acts on every member who can type', () => {
+    const lettersQuestion = { ...publicQuestion, type: 'letterwords' as const, text: 'Складіть слова', choices: [], letterwords: { letters: ['м', 'о', 'р', 'к'], goal: 'most' as const, per: 'word' as const, unit: 20 } };
+    const me = { ...baseMe, debuff: { kind: 'fog' as const, since: Date.now(), by: null }, letterwords: { words: [], canType: true } };
+    show(asQuestion({ ...olya, canAct: true }, { question: lettersQuestion, me }));
+    expect(document.querySelector('[data-debuff="fog"]')).not.toBeNull();
+    expect(screen.getByLabelText('Ваше слово')).toBeTruthy();
+    expect(document.querySelector('.team-debuff-strip')).toBeNull();
   });
 
   it('in chosen mode with no pick the captain answers and reads the banner', () => {
