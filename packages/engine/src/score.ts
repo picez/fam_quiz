@@ -61,6 +61,11 @@ export function wordLadderShare(steps: number, best: number, max: number): numbe
   return steps > max ? 0 : (max - steps + 1) / (max - best + 1);
 }
 
+/** Частка ціни пункту «Списку на час», знайденого k гравцями з n: (n − k + 1) / n; k поза 1…n — 0. */
+export function listShare(n: number, k: number): number {
+  return k < 1 || k > n ? 0 : (n - k + 1) / n;
+}
+
 /** Частка ціни за ланцюжок: 1 найшвидшому, лінійно до 0.5 на межі часу. */
 export function chainFactor(timeMs: number, fastestMs: number, limitMs: number): number {
   if (limitMs <= fastestMs) return 1;

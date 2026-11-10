@@ -65,6 +65,8 @@ import {
   type AutopilotState,
   type WallProgress,
   type WipeoutPlay,
+  type TimedListPlay,
+  type TimedListProgress,
   type WordLadderProgress,
 } from './game';
 import { stamp } from './pacing';
@@ -103,6 +105,7 @@ import {
   wipeoutRound,
   withAudio,
   withId,
+  timedlist,
   withReveal,
   wordladder,
 } from './testing/fixtures';
@@ -110,6 +113,7 @@ import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from '
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
 import { guessWall } from './wall';
+import { listEntry } from './timedlist';
 import { ladderWord } from './wordladder';
 import { pickDoor } from './survival';
 import { decideWipeout, wipeoutChoiceOf, wipeoutPlayOf } from './wipeout';
@@ -304,7 +308,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -344,6 +348,8 @@ const STATE_SHAPE: Record<string, string> = {
   BluffOption: keysOf<BluffOption>()(['id', 'text', 'kind', 'authors', 'removed'], true),
   ChainProgress: keysOf<ChainProgress>()(['solved', 'shown', 'hints'], true),
   WordLadderProgress: keysOf<WordLadderProgress>()(['words'], true),
+  TimedListPlay: keysOf<TimedListPlay>()(['present', 'progress'], true),
+  TimedListProgress: keysOf<TimedListProgress>()(['found', 'wrong'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1148,7 +1154,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,extraMs,final,ladder,overtime,question,roundIndex,sort,survey,survival,timedlist,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1182,6 +1188,8 @@ const KEYS: Record<number, Record<string, string>> = {
     BluffOption: 'authors,id,kind,removed,text',
     ChainProgress: 'hints,shown,solved',
     WordLadderProgress: 'words',
+    TimedListPlay: 'present,progress',
+    TimedListProgress: 'found,wrong',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1417,6 +1425,12 @@ function representative(): GameState[] {
   const wandered = awayStart(awayEnd(awayStart(openAt(lobbyWith(awayQuiz, 'Оля', 'Петро'), T0), 'p1', T0 + 1000), 'p1', T0 + 4000), 'p2', T0 + 5000);
   // 26c: «Словесна драбина» — Оля прийняла одне слово: Play.wordladder, WordLadderProgress.
   const laddering = must(ladderWord(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [wordladder])]), 'Оля', 'Петро'), T0), 'p1', 'пола', T0 + 1000, () => false));
+  // 27c: «Список на час» — Оля знайшла Марс і промахнулася з Enter: Play.timedlist, TimedListPlay, TimedListProgress.
+  const listOpen = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [timedlist])]), 'Оля', 'Петро'), T0);
+  const listMarsResult = listEntry(listOpen, 'p1', 'Марс', true, T0 + 1000);
+  const listMars = listMarsResult.ok ? listMarsResult.state : listOpen;
+  const listResult = listEntry(listMars, 'p1', 'Плутон', true, T0 + 1500);
+  const listing = listResult.ok ? listResult.state : listMars;
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1452,6 +1466,7 @@ function representative(): GameState[] {
     undone,
     selfOpened,
     laddering,
+    listing,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1661,6 +1676,21 @@ describe('the saved state', () => {
     // старий знімок без поля відновлюється й без нього
     const plain = roundTrip(suspend(roundTrip(open), T0 + 1000));
     expect('wordladder' in plain.plays[0]).toBe(false);
+  });
+
+  it('a timed list snapshot keeps every find without a new version', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    const open = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [timedlist])]), 'Оля', 'Петро'), T0);
+    const saved: GameState = { ...open, plays: open.plays.map((p) => ({ ...p, timedlist: { present: ['p1', 'p2'], progress: { p1: { found: ['l4'], wrong: 1 } } } })) };
+    const back = roundTrip(suspend(roundTrip(saved), T0 + 1000));
+    expect(back.plays[0].timedlist).toEqual({ present: ['p1', 'p2'], progress: { p1: { found: ['l4'], wrong: 1 } } });
+    // гра йде далі з тими самими знахідками
+    const resumed = must(resume(back, T0 + 1000 + HOUR));
+    const moved = listEntry(resumed, 'p1', 'Юпітер', true, T0 + 2000 + HOUR);
+    expect(moved.ok && moved.state.plays[0].timedlist?.progress.p1).toEqual({ found: ['l4', 'l5'], wrong: 1 });
+    // старий знімок без поля відновлюється й без нього
+    const plain = roundTrip(suspend(roundTrip({ ...open, plays: open.plays.map(({ timedlist: _list, ...p }) => p) }), T0 + 1000));
+    expect('timedlist' in plain.plays[0]).toBe(false);
   });
 
   it('a state without clueOpens restores and keeps opening by the timer; a self-paced play keeps clueOpens across the round trip', () => {
@@ -1917,6 +1947,8 @@ describe('the saved state', () => {
       add('BluffOption', s.plays.flatMap((p) => p.bluff?.options ?? []));
       add('SortProgress', s.plays.flatMap((p) => Object.values(p.sort ?? {})));
       add('WordLadderProgress', s.plays.flatMap((p) => Object.values(p.wordladder ?? {})));
+      add('TimedListPlay', s.plays.map((p) => p.timedlist));
+      add('TimedListProgress', s.plays.flatMap((p) => Object.values(p.timedlist?.progress ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

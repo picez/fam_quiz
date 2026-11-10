@@ -129,6 +129,27 @@ export const wordladder = {
   maxSteps: 8,
 } satisfies Question;
 
+/** «Список на час» (27c): вісім планет, 100 балів за пункт, мінус 50, 90 с; до типового списку makeQuiz не входить. */
+export const timedlist = {
+  ...base,
+  id: 'q11',
+  type: 'timedlist',
+  text: 'Планети Сонячної системи',
+  timeLimit: 90,
+  points: 100,
+  minus: 50,
+  items: [
+    { id: 'l1', text: 'Меркурій', accepted: [] },
+    { id: 'l2', text: 'Венера', accepted: [] },
+    { id: 'l3', text: 'Земля', accepted: [] },
+    { id: 'l4', text: 'Марс', accepted: ['Червона планета'] },
+    { id: 'l5', text: 'Юпітер', accepted: [] },
+    { id: 'l6', text: 'Сатурн', accepted: [] },
+    { id: 'l7', text: 'Уран', accepted: [] },
+    { id: 'l8', text: 'Нептун', accepted: [] },
+  ],
+} satisfies Question;
+
 /** Сортування: 100 балів за слово, підвисання 3 с; до типового списку makeQuiz не входить. */
 export const sortQ = {
   ...base,

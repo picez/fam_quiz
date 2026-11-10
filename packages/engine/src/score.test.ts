@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerPoints, blitzSeriesPoints, chainFactor, scorePoints, speedFactor, streakBonus, wordLadderShare } from './score';
+import { answerPoints, blitzSeriesPoints, chainFactor, scorePoints, speedFactor, listShare, streakBonus, wordLadderShare } from './score';
 
 describe('speedFactor', () => {
   it('is 1 when the speed bonus is off', () => {
@@ -82,6 +82,17 @@ describe('wordLadderShare', () => {
     expect(wordLadderShare(4, 4, 8)).toBe(1);
     expect(wordLadderShare(9, 4, 8)).toBe(0);
     expect(wordLadderShare(8, 4, 8)).toBe(0.2);
+  });
+});
+
+describe('listShare', () => {
+  it('an item found by k of n players pays (n − k + 1) / n; k outside 1…n pays nothing', () => {
+    expect(listShare(4, 1)).toBe(1);
+    expect(listShare(4, 2)).toBe(0.75);
+    expect(listShare(4, 4)).toBe(0.25);
+    expect(listShare(1, 1)).toBe(1);
+    expect(listShare(4, 0)).toBe(0);
+    expect(listShare(4, 5)).toBe(0);
   });
 });
 

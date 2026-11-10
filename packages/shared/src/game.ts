@@ -44,6 +44,8 @@ export type BuffBlock =
   | 'off_vote'
   /** «Словесна драбина»: бафів немає (26c). */
   | 'off_wordladder'
+  /** «Список на час»: бафів немає (27c). */
+  | 'off_timedlist'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */

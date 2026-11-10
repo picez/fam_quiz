@@ -73,6 +73,7 @@ export const GAME_STATE_VERSION = 22;
  * 26c без нової версії: тип запитання 'wordladder' і необов'язкове Play.wordladder; старий знімок не містить ні того, ні того.
  * 27a без нової версії: раунд bets на тих самих FinalState/FinalPlay.
  * 27b без нової версії: раунд auction на тих самих FinalState/FinalPlay; годинник торгу — startedAt/endsAt етапу wager.
+ * 27c без нової версії: тип 'timedlist' і необов'язкове Play.timedlist.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 
