@@ -39,6 +39,8 @@ function started(row: LiveRow): boolean {
       return progress.found.length > 0 || progress.wrong > 0;
     case 'letterwords':
       return progress.words.length > 0;
+    case 'moreless':
+      return progress.done > 0;
     case 'sort':
       return progress.sorted > 0 || progress.misses > 0;
     case 'wall':
@@ -92,6 +94,9 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'letterwords':
         parts.push(t('lettersLive', { n: progress.words.length }));
         parts.push(progress.words.join(' · '));
+        break;
+      case 'moreless':
+        parts.push(t('morelessLive', { done: progress.done, total: progress.total, right: progress.right }));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));

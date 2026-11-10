@@ -17615,3 +17615,60 @@ button.letterwords-tile:focus-visible {
     animation: none;
   }
 }
+
+/* Більше чи менше: редактор (28a). */
+.moreless-editor-pair {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.moreless-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.moreless-editor-head > .moreless-editor-input {
+  flex: 1 1 0;
+}
+
+/* Два варіанти поруч, а на вузькому екрані один під одним. */
+.moreless-editor-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.moreless-editor-side {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* Поля тексту й значення — як поля редактора (без цього — системне світле поле дрібним шрифтом). */
+.moreless-editor-input {
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+}
+
+.moreless-editor-input:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.moreless-editor-input::placeholder {
+  color: var(--dim);
+  font-weight: 400;
+}

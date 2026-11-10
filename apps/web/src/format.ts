@@ -142,6 +142,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'letterwords':
       // Правильної відповіді немає: слів багато.
       return '—';
+    case 'moreless':
+      // Правильні варіанти — у таблиці розкриття, не в рядку.
+      return '—';
     case 'sort':
       return question.categories
         .map((category) => `${category.text}: ${question.words.filter((word) => word.categoryId === category.id).map((word) => word.text).join(', ')}`)
@@ -218,6 +221,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return t(answer.finished ? 'wordLadderAnswerDone' : 'wordLadderAnswerPart', { steps: answer.steps });
     case 'letterwords':
       return t('lettersAnswer', { n: answer.words.length, longest: answer.longest });
+    case 'moreless':
+      return t('morelessAnswer', { right: answer.right, total: answer.total });
     case 'timedlist':
       return t(answer.wrong > 0 ? 'listAnswerWrong' : 'listAnswer', { found: answer.found.length, total: answer.total, wrong: answer.wrong });
     case 'sort':

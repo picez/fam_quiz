@@ -164,6 +164,16 @@ describe('LiveAnswers', () => {
     expect(rows[0]).toContain('морква · ставок');
   });
 
+  it('writes how far each got and how many are right of more or less, only for those who started', () => {
+    show([
+      row({ progress: { kind: 'moreless', done: 2, total: 3, right: 1 } }),
+      row({ id: 'b', nickname: 'Богдан', progress: { kind: 'moreless', done: 0, total: 3, right: 0 } }),
+    ]);
+    const rows = [...document.querySelectorAll('.live-rows li')].map((li) => li.textContent ?? '');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('2 / 3 · правильно 1');
+  });
+
   it('writes the slider distance', () => {
     show([row({ answered: true, answer: { type: 'slider', value: 47 } as never })], base({ correct: slider }));
     expect(document.querySelector('.live-answer')?.textContent).toBe('47 % · відстань 3 %');

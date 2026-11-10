@@ -26,7 +26,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { QUESTION_TYPES } from './draft';
+import { QUESTION_TYPES, blankMoreLessPair } from './draft';
 import { newId } from './new-id';
 
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -129,6 +129,29 @@ function reviveLetterWords(base: Extract<Question, { type: 'letterwords' }>): Qu
 }
 
 /**
+ * Більше чи менше з чернетки: порівняння — об'єкти з рядками, стороною a/b й балами-числами (порожнє поле — NaN),
+ * без жодного порівняння — три порожні; відео немає.
+ */
+function reviveMoreLess(base: Extract<Question, { type: 'moreless' }>): Question {
+  const text = (value: unknown) => (typeof value === 'string' ? value : '');
+  const option = (value: unknown) => (isRecord(value) ? { text: text(value.text), value: text(value.value) } : { text: '', value: '' });
+  const raw = Array.isArray(base.pairs) ? (base.pairs as unknown[]).filter(isRecord) : [];
+  const pairs = raw.map((pair) => ({
+    id: typeof pair.id === 'string' ? pair.id : newId(),
+    prompt: text(pair.prompt),
+    a: option(pair.a),
+    b: option(pair.b),
+    correct: pair.correct === 'b' ? ('b' as const) : ('a' as const),
+    points: 'points' in pair ? numberOr(pair.points) : LIMITS.defaultMoreLessPoints,
+  }));
+  return {
+    ...base,
+    video: null,
+    pairs: pairs.length === 0 ? Array.from({ length: 3 }, () => blankMoreLessPair(LIMITS.defaultMoreLessPoints)) : pairs,
+  };
+}
+
+/**
  * Блеф з чернетки: правда й написання — рядки (інакше одне порожнє), запасні вигадки — рядки (інакше дві порожні);
  * час вибору — число, порожнє поле (null у JSON) — NaN, будь-що інше — типові 30. Відео блеф не має.
  */
@@ -211,6 +234,7 @@ function revive(stored: Question): Question {
   if (base.type === 'bluff') return reviveBluff(base);
   if (base.type === 'timedlist') return reviveTimedList(base);
   if (base.type === 'letterwords') return reviveLetterWords(base);
+  if (base.type === 'moreless') return reviveMoreLess(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({
