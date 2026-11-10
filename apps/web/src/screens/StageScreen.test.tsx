@@ -2833,6 +2833,10 @@ describe('StageScreen: player truth (28b)', () => {
     const standings = [{ participantId: 'p1', nickname: 'Олена', score: 0, totalTimeMs: 1, rank: 1 }];
     show(view({ phase: 'round_end', round, standings, truth: info({ index: null, count: 0, skipped: true }) }));
     expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
+    cleanup();
+    // Останній раунд без фактів: гра одразу на підсумках — повідомлення там.
+    show(view({ phase: 'finished', round, standings, truth: info({ index: null, count: 0, skipped: true }) }));
+    expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
   });
 
   it('a team question names who answers for every team, the author’s team too', () => {

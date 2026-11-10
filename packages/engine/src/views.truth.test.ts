@@ -172,6 +172,24 @@ describe('player truth views (28b)', () => {
     expect(stageView(opened()).truth?.skipped).toBe(false);
   });
 
+  it('a skipped last round says so on the finished game, an early end before the deal does not', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), truthRound('r2')]);
+    const s0 = must(start(lobbyWith(quiz, 'Олена', 'Тарас')));
+    // Класика: відкрити, закрити, розкрити, далі — round_end першого раунду, потім intro раунду truth.
+    let s = must(next(s0, t0, rng0));
+    s = must(lock(s, t0 + 1000));
+    s = must(next(s, t0 + 2000, rng0));
+    s = must(next(s, t0 + 3000, rng0));
+    while (s.phase !== 'intro') s = must(next(s, t0 + 4000, rng0));
+    expect(stageView(s).truth?.skipped).toBe(false);
+    const done = must(next(s, t0 + 5000, rng0));
+    expect(done.phase).toBe('finished');
+    expect(stageView(done).truth?.skipped).toBe(true);
+    expect(playerView(done, 'p1')?.truth?.skipped).toBe(true);
+    // Ведучий завершив гру на заставці раунду truth — колоди немає, це не пропуск.
+    expect(stageView({ ...s, phase: 'finished' }).truth?.skipped).toBe(false);
+  });
+
   it('other quizzes have no truth key', () => {
     const quizzes = [
       makeRoundsQuiz([classicRound('r1', [single])]),

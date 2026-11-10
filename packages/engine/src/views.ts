@@ -1142,7 +1142,9 @@ function truthInfo(state: GameState): TruthInfo | undefined {
     count: truth.deck === undefined ? Object.values(truth.facts).filter((f) => !f.hidden).length : truth.deck.length,
     index: truthIndex(state),
     reveal: truthReveal(state),
-    skipped: state.phase === 'round_end' && round !== null && !state.plays.some((p) => p.roundIndex === state.roundIndex),
+    // Останній раунд без фактів закінчує гру одразу (finished без round_end) — повідомлення тоді на підсумках; дострокове
+    // завершення до роздачі (колоди ще немає) пропуском не є.
+    skipped: (state.phase === 'round_end' || (state.phase === 'finished' && truth.deck !== undefined)) && round !== null && !state.plays.some((p) => p.roundIndex === state.roundIndex),
   };
 }
 

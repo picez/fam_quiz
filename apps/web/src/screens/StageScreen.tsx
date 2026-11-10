@@ -962,7 +962,7 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
-      {phase === 'round_end' && view.truth?.skipped === true && <TruthSkipped />}
+      {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
       {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
         <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}

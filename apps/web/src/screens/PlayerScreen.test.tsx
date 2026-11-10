@@ -4694,5 +4694,8 @@ describe('PlayerScreen player truth (28b)', () => {
     cleanup();
     show(view({ phase: 'round_end', round, standings: null, truth: info({ index: null, count: 2 }), me: { ...me, truth: mine() } }));
     expect(screen.queryByText(t('truthSkipped'))).toBeNull();
+    cleanup();
+    show(view({ phase: 'finished', round, truth: info({ index: null, count: 0, skipped: true }), me: { ...me, truth: mine() } }));
+    expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
   });
 });

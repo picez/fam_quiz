@@ -1496,7 +1496,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
-      {phase === 'round_end' && view.truth?.skipped === true && <TruthSkipped />}
+      {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
 
       {phase === 'round_end' && view.standings !== null && (
         <>
