@@ -3033,3 +3033,36 @@ describe('QuizEditor: timed list (27c)', () => {
     screen.getByRole('button', { name: 'список на час' });
   });
 });
+
+describe('QuizEditor: letter words (27d)', () => {
+  it('saves a letters question with an own set, no video and no separate points field', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 404 })));
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Складіть слова з літер');
+    click('слова з літер');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    expect(screen.queryByLabelText(t('pointsLabel'))).toBeNull();
+    click(t('lettersSourceFixed'));
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemLettersSet', { index: 1, min: 4, max: 12 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    fill(t('lettersOwn'), ' морква острів ');
+    click(t('lettersGoalLongest'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'letterwords', set: { kind: 'fixed', letters: 'морква острів' }, goal: 'longest', per: 'letter', points: 10, video: null, timeLimit: 90 });
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('a blitz round has no letters chip, the board has it', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'слова з літер' })).toBeNull();
+    click('+ Раунд');
+    click('Ігрове поле');
+    screen.getByRole('button', { name: 'слова з літер' });
+  });
+});

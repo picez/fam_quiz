@@ -7,6 +7,8 @@ import {
   CELL_MARKS,
   CELL_PENALTIES,
   DEBUFF_KINDS,
+  LETTER_GOALS,
+  LETTER_UNITS,
   LIMITS,
   PIN_MAPS,
   PIN_MAP_ASPECT,
@@ -115,6 +117,18 @@ function reviveTimedList(base: Extract<Question, { type: 'timedlist' }>): Questi
 }
 
 /**
+ * Слова з літер з чернетки: набір — свій (рядок) чи випадковий (число, порожнє поле — NaN; без набору — типові 9 літер),
+ * ціль і спосіб — з переліку (інакше типові), сума й час — числа; відео немає.
+ */
+function reviveLetterWords(base: Extract<Question, { type: 'letterwords' }>): Question {
+  const raw: unknown = base.set;
+  const set = isRecord(raw) && raw.kind === 'fixed' ? { kind: 'fixed' as const, letters: typeof raw.letters === 'string' ? raw.letters : '' } : { kind: 'random' as const, count: isRecord(raw) && 'count' in raw ? numberOr(raw.count) : LIMITS.defaultLetterSet };
+  const goal = (LETTER_GOALS as readonly unknown[]).includes(base.goal) ? base.goal : 'most';
+  const per = (LETTER_UNITS as readonly unknown[]).includes(base.per) ? base.per : 'word';
+  return { ...base, video: null, set, goal, per };
+}
+
+/**
  * Блеф з чернетки: правда й написання — рядки (інакше одне порожнє), запасні вигадки — рядки (інакше дві порожні);
  * час вибору — число, порожнє поле (null у JSON) — NaN, будь-що інше — типові 30. Відео блеф не має.
  */
@@ -196,6 +210,7 @@ function revive(stored: Question): Question {
   if (base.type === 'survey') return reviveSurvey(base);
   if (base.type === 'bluff') return reviveBluff(base);
   if (base.type === 'timedlist') return reviveTimedList(base);
+  if (base.type === 'letterwords') return reviveLetterWords(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

@@ -139,6 +139,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
       return question.path.map((word) => word.toLocaleUpperCase('uk')).join(' → ');
     case 'timedlist':
       return question.items.map((item, n) => `${n + 1}. ${item.text}`).join(', ');
+    case 'letterwords':
+      // Правильної відповіді немає: слів багато.
+      return '—';
     case 'sort':
       return question.categories
         .map((category) => `${category.text}: ${question.words.filter((word) => word.categoryId === category.id).map((word) => word.text).join(', ')}`)
@@ -213,6 +216,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
         : t('chainAnswerPart', { solved: answer.solved, total: question.words.length - 1 });
     case 'wordladder':
       return t(answer.finished ? 'wordLadderAnswerDone' : 'wordLadderAnswerPart', { steps: answer.steps });
+    case 'letterwords':
+      return t('lettersAnswer', { n: answer.words.length, longest: answer.longest });
     case 'timedlist':
       return t(answer.wrong > 0 ? 'listAnswerWrong' : 'listAnswer', { found: answer.found.length, total: answer.total, wrong: answer.wrong });
     case 'sort':

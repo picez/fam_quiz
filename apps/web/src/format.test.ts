@@ -228,6 +228,14 @@ describe('timed list texts', () => {
   });
 });
 
+describe('letter words texts (27d)', () => {
+  const lettersQ: Question = { ...base, type: 'letterwords', set: { kind: 'random', count: 9 }, goal: 'most', per: 'word' };
+  it('writes the number of words and the longest, and has no right answer to show', () => {
+    expect(answerText({ type: 'letterwords', words: ['морква', 'ставок', 'острів'], longest: 6 }, lettersQ)).toBe('Слів: 3 · найдовше: 6 літ.');
+    expect(correctText(lettersQ)).toBe('—');
+  });
+});
+
 describe('chain texts', () => {
   const chainQ: Question = { ...base, type: 'chain', words: ['Форель', 'Риба', 'Океан', 'Корабель'], hintSeconds: 5 };
   it('writes the chain and chain answers in words', () => {

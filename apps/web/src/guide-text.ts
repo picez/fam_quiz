@@ -56,6 +56,8 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   survey: '💯',
   bluff: '🎭',
   timedlist: '📝',
+  // 🔤 уже в словесної драбини.
+  letterwords: '🔠',
 };
 
 /** Значок типу запитання мовою інтерфейсу. */
