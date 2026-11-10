@@ -32,7 +32,7 @@ const PLAYERS: Player[] = [
 
 /** Зігране запитання: межа 20 с, з балами, решта прапорців false. */
 function q(index: number, roundIndex: number, extra: Partial<FactQuestion> = {}): FactQuestion {
-  return { index, roundIndex, number: index + 1, text: `Q${index}`, limitMs: 20000, scored: true, board: false, blitz: false, bluff: false, final: false, ...extra };
+  return { index, roundIndex, number: index + 1, text: `Q${index}`, limitMs: 20000, scored: true, board: false, blitz: false, bluff: false, final: false, wholeRow: false, ...extra };
 }
 
 /** Рядок «учасник × спроба»; roundIndex береться з extra (типово 0). */
@@ -218,6 +218,14 @@ describe('in-game facts (12d)', () => {
     // Та сама частка й та сама кількість відповідей — раніше запитання.
     const even = input([row('o', 0, true, 2000), row('p', 0, false, 2000), row('o', 1, false, 2000), row('p', 1, true, 2000)], { questions: [q(0, 0), q(1, 0)] });
     expect(find(gameAwards(even), 'hardest')).toEqual({ kind: 'hardest', question: { roundIndex: 0, number: 1, text: 'Q0' }, accepted: 1, answered: 2 });
+  });
+
+  it('the hardest question skips rows and lists', () => {
+    // Q0 — ряд «Більше чи менше» (і так само список чи слова з літер): 0 з 3, але неповний ряд — не «неправильно».
+    const rows = [row('o', 0, false, 2000), row('p', 0, false, 2000), row('i', 0, false, 2000), row('o', 1, true, 2000), row('p', 1, false, 2000)];
+    const facts = input(rows, { questions: [q(0, 0, { wholeRow: true }), q(1, 0)] });
+    expect(find(gameAwards(facts), 'hardest')).toEqual({ kind: 'hardest', question: { roundIndex: 0, number: 2, text: 'Q1' }, accepted: 1, answered: 2 });
+    expect(find(gameAwards(input(rows.slice(0, 3), { questions: [q(0, 0, { wholeRow: true })] })), 'hardest')).toBeNull();
   });
 
   it('iron nerves count right answers in the last three seconds', () => {

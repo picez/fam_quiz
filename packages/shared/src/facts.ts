@@ -49,6 +49,13 @@ export interface FactQuestion {
   blitz: boolean;
   bluff: boolean;
   final: boolean;
+  /** Ряд чи список (timedlist, letterwords, moreless): «правильно» — лише за весь ряд, тож «Найважчим запитанням» не буває. */
+  wholeRow: boolean;
+}
+
+/** Типи, де «правильно» — лише за весь ряд (FactQuestion.wholeRow). */
+export function wholeRowQuestion(question: Question): boolean {
+  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless';
 }
 
 /** Рядок «учасник × спроба» (12d): як рядок answer без штрафів і голосів. */
@@ -497,10 +504,14 @@ const genius: CardFn = (scope, input) => {
   return { kind: 'genius', names: best.names, count: best.value, question };
 };
 
-/** 🧗 Найважче запитання: найменша частка правильних серед ≥ hardestAnswers; нічия — більше відповідей, далі раніше. */
+/**
+ * 🧗 Найважче запитання: найменша частка правильних серед ≥ hardestAnswers; нічия — більше відповідей, далі раніше.
+ * Ряди й списки (wholeRow) пропускаються: неповний ряд з балами — не «неправильно», а довгий ряд інакше вигравав би завжди.
+ */
 const hardest: CardFn = (scope, input) => {
   let best: { q: FactQuestion; accepted: number; answered: number } | null = null;
   for (const q of plainQuestions(input, scope)) {
+    if (q.wholeRow) continue;
     const main = mainAnswers(input, q);
     if (main.length < FACT_LIMITS.hardestAnswers) continue;
     const cur = { q, accepted: main.filter((a) => a.accepted).length, answered: main.length };

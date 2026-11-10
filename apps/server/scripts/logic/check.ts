@@ -85,15 +85,24 @@ const answersOf = (q: Question): string[] => {
     // Слова з літер (27d): відповіді-тексту немає — гравці складають слова самі.
     case 'letterwords':
       return [];
-    // «Більше чи менше» (28a): значення обох варіантів не стоять ні в тексті запитання, ні в запитанні порівняння.
-    case 'moreless':
-      return q.pairs.flatMap((pair) => [pair.a.value, pair.b.value]);
+    // «Більше чи менше» (28a) — попарно, у moreLessLeaks.
     default:
       return [];
   }
 };
 // Літери-варіанти А–Г, «Так»-варіанти й числа в рядах самі собою трапляються в тексті — їх не перевіряємо.
 const skip = (a: string) => norm(a).length < 3 || /^\d+$/.test(norm(a));
+
+/**
+ * «Більше чи менше» (28a), кожне порівняння окремо: його значення не стоять ні в тексті запитання, ні в запитанні порівняння,
+ * ні в тексті жодного з двох варіантів («Говерла (2061 м)»).
+ */
+export function moreLessLeaks(q: Extract<Question, { type: 'moreless' }>): string[] {
+  return q.pairs.flatMap((pair) => {
+    const where = norm([q.text, pair.prompt, pair.a.text, pair.b.text].join(' '));
+    return [pair.a.value, pair.b.value].filter((value) => !skip(value) && where.includes(norm(value))).map((value) => `«${q.text.slice(0, 60)}» ${pair.id}: value «${value}» appears in the question`);
+  });
+}
 // Задачі, де правильний варіант неминуче названо в умові (вибір серед названих людей, слів, деталей).
 const NAMED = [
   'Петро старший за Олену', 'Синя шестерня крутиться', 'Справа про торт', 'Підозрюваний: «У суботу, 31 квітня', 'Три скриньки підписані',
@@ -101,8 +110,9 @@ const NAMED = [
 ];
 for (const q of everything) {
   if (NAMED.some((p) => q.text.startsWith(p))) continue;
-  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : '', q.type === 'moreless' ? q.pairs.map((p) => p.prompt).join(' ') : ''].join(' '));
+  const where = norm([q.text, q.hint ?? '', q.type === 'clues' ? q.clues.join(' ') : ''].join(' '));
   for (const a of answersOf(q)) if (!skip(a) && where.includes(norm(a))) problems.push(`${short(q)}: answer «${a}» appears in the question`);
+  if (q.type === 'moreless') problems.push(...moreLessLeaks(q));
 }
 for (const c of quiz.duels?.categories ?? []) for (const d of c.questions) for (const a of d.accepted) if (!skip(a) && norm(d.text).includes(norm(a))) problems.push(`duel «${d.text}»: answer in text`);
 

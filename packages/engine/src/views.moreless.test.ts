@@ -79,6 +79,18 @@ describe('more or less views', () => {
     expect(info.picks).toBeNull();
   });
 
+  it('on reveal rows go by points, then by how far each got', () => {
+    // Олена пройшла все й усе неправильно (0), Тарас — одне правильне (+100), Віра нічого.
+    let s = picks(picks(startRound(lobbyWith(makeQuiz([moreless]), ...PLAYERS), 0), 'p1', ['b', 'a', 'b']), 'p2', ['a']);
+    expect(stageInfo(s).rows.map((row) => row.playerId)).toEqual(['p1', 'p2', 'p3']);
+    s = must(next(must(lock(s, 5000)), 6000));
+    expect(stageInfo(s).rows.map((row) => [row.playerId, row.points])).toEqual([
+      ['p2', 100],
+      ['p1', 0],
+      ['p3', 0],
+    ]);
+  });
+
   it('the player sees own marks on reveal', () => {
     const s = must(next(must(lock(played(), 5000)), 6000));
     expect(playerView(s, 'p2')?.me.moreless).toEqual({ done: 2, total: 3, picks: ['a', 'a'], canPick: false, marks: ['right', 'wrong', 'late'], points: 100 });

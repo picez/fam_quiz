@@ -328,12 +328,12 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   };
 }
 
-/** Набір, ціль, спосіб і сума «Слів з літер» для всіх; слів і найкращих слів тут немає. */
-/** Тексти варіантів без значень і без правильної сторони. */
+/** Тексти варіантів «Більше чи менше» без значень і без правильної сторони. */
 function publicMoreLess(question: Extract<Question, { type: 'moreless' }>): PublicMoreLess {
   return { pairs: question.pairs.map((pair) => ({ id: pair.id, prompt: pair.prompt, a: pair.a.text, b: pair.b.text, points: pair.points })) };
 }
 
+/** Набір, ціль, спосіб і сума «Слів з літер» для всіх; слів і найкращих слів тут немає. */
 function publicLetters(question: Extract<Question, { type: 'letterwords' }>, letters: string[] | null): PublicLetterWords {
   return { letters: letters ?? [], goal: question.goal, per: question.per, unit: question.points };
 }
@@ -1349,8 +1349,8 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
       points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
     };
   });
-  // sort стабільний: рівні лишаються в порядку гравців.
-  rows.sort((a, b) => b.done - a.done);
+  // На reveal — за балами, далі за пройденим; до того — за пройденим. sort стабільний: рівні лишаються в порядку гравців.
+  rows.sort((a, b) => (revealed ? (b.points ?? 0) - (a.points ?? 0) : 0) || b.done - a.done);
   const counts = moreLessRight(state, play);
   return {
     rows,
