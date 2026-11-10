@@ -108,9 +108,36 @@ describe('SudokuEditor', () => {
     expect(document.activeElement).toBe(cell(1, 2));
     fireEvent.keyDown(cell(1, 2), { key: 'ArrowDown' });
     expect(document.activeElement).toBe(cell(2, 2));
-    // Назад до генератора — нова сітка середньої складності.
+    // Назад до генератора — нова сітка середньої складності (цифри є, тож спершу підтвердження).
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByRole('radio', { name: t('sudokuSourceGenerate') }));
+    expect(confirm).toHaveBeenCalledWith(t('sudokuGenerateConfirm'));
     expect(last().level).toBe('medium');
     expect(last()).toMatchObject(generateSudoku(last().seed!, 'medium'));
+    confirm.mockRestore();
+  });
+
+  it('going back to the generator does not drop the own digits silently', () => {
+    const start = newQuestion('sudoku') as Sudoku;
+    const { spy, last } = view(start);
+    fireEvent.click(screen.getByRole('radio', { name: t('sudokuSourceCustom') }));
+    fireEvent.change(cell(1, 1), { target: { value: '' } });
+    const mine = last().givens;
+    const calls = spy.mock.calls.length;
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(screen.getByRole('radio', { name: t('sudokuSourceGenerate') }));
+    // «Скасувати» — цифри ведучого лишаються, режим теж.
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls.length).toBe(calls);
+    expect(screen.getByRole('radio', { name: t('sudokuSourceCustom') })).toHaveProperty('checked', true);
+    expect(cell(1, 2).value).toBe(mine[1] === '0' ? '' : mine[1]);
+    // Порожня сітка — питати нема про що.
+    confirm.mockClear();
+    for (let i = 0; i < 36; i += 1) if (mine[i] !== '0') fireEvent.change(cell(Math.floor(i / 6) + 1, (i % 6) + 1), { target: { value: '' } });
+    expect(last().givens).toBe(EMPTY_SUDOKU);
+    fireEvent.click(screen.getByRole('radio', { name: t('sudokuSourceGenerate') }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(last().level).toBe('medium');
+    confirm.mockRestore();
   });
 });

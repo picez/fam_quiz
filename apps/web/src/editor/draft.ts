@@ -168,7 +168,8 @@ export interface CrosswordBuild {
 
 /**
  * Складає кросворд зі слів, режиму й ключа (той самий детермінований компонувальник, що перевіряє схема).
- * Порожні слова — ще не готово; не українські, повтори й слова без перетину — попередження з назвами слів;
+ * Порожні слова — ще не готово (розкладки немає), але вже вписані від двох складаються для прев'ю; не українські, повтори й слова
+ * без перетину — попередження з назвами слів;
  * у режимі ключа без придатного ключа сітка зберігається без ключових клітинок (про ключ скаже перевірка), а коли бракує літер — не зберігається.
  */
 export function buildCrossword(question: Pick<Crossword, 'mode' | 'entries' | 'key'>): CrosswordBuild {
@@ -178,16 +179,20 @@ export function buildCrossword(question: Pick<Crossword, 'mode' | 'entries' | 'k
   const bad = filled.filter((entry) => crosswordLetters(entry.answer) === null);
   // Непридатне вже вписане слово важить більше за ще не вписане.
   if (bad.length > 0) return none({ kind: 'word', words: bad.map((entry) => entry.answer.trim()) });
-  if (filled.length < entries.length) return none({ kind: 'empty' });
-  const keys = entries.map((entry) => crosswordLetters(entry.answer)!.join(''));
-  const twins = entries.filter((_, i) => keys.indexOf(keys[i]!) !== i);
+  // Поки є порожні рядки, складаємо вже вписані слова (від двох): прев'ю й попередження — у міру набору, розкладка не зберігається.
+  const partial = filled.length < entries.length;
+  if (partial && filled.length < 2) return none({ kind: 'empty' });
+  const words = partial ? filled : entries;
+  const keys = words.map((entry) => crosswordLetters(entry.answer)!.join(''));
+  const twins = words.filter((_, i) => keys.indexOf(keys[i]!) !== i);
   if (twins.length > 0) return none({ kind: 'duplicate', words: twins.map((entry) => entry.answer.trim()) });
-  const laid = layoutCrossword(entries);
+  const laid = layoutCrossword(words);
   if (!laid.ok) {
     const ids = new Set(laid.ids);
-    return none({ kind: laid.reason === 'word' ? 'word' : 'unplaced', words: entries.filter((entry) => ids.has(entry.id)).map((entry) => entry.answer.trim()) });
+    return none({ kind: laid.reason === 'word' ? 'word' : 'unplaced', words: words.filter((entry) => ids.has(entry.id)).map((entry) => entry.answer.trim()) });
   }
   const grid = laid.layout;
+  if (partial) return { layout: null, grid, warning: { kind: 'empty' } };
   if (question.mode === 'full') return { layout: grid, grid, warning: null };
   if (question.key === null || crosswordKeyLetters(question.key) === null) return { layout: grid, grid, warning: { kind: 'key' } };
   const picked = pickKeyCells(grid, entries, question.key);

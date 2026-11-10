@@ -1,6 +1,6 @@
 import type { RoundBrief } from '@quiz/shared';
 import { buffName } from './buff-meta';
-import { t } from './i18n';
+import { countText, t } from './i18n';
 
 function modifiers(brief: RoundBrief, lead: string[], penaltyKey: 'summaryPenalty' | 'summaryPenaltyCells' = 'summaryPenalty'): string {
   const parts = [...lead];
@@ -32,7 +32,10 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     return lines;
   }
   if (brief.type === 'puzzles' && brief.puzzles !== null) {
-    lines.push(t('summaryPuzzles'), t('summaryPuzzlesCount', { sudoku: brief.puzzles.sudoku, crossword: brief.puzzles.crossword }));
+    // Лише ті головоломки, що є: «3 судоку · 2 кросворди», без нулів; жодної — без рядка.
+    const { sudoku, crossword } = brief.puzzles;
+    const kinds = [sudoku > 0 ? countText('summarySudokus', sudoku, { count: sudoku }) : '', crossword > 0 ? countText('summaryCrosswords', crossword, { count: crossword }) : ''].filter((part) => part !== '');
+    lines.push(t('summaryPuzzles'), ...(kinds.length > 0 ? [kinds.join(' · ')] : []));
     return lines;
   }
   if (brief.type === 'bets' && brief.bets !== null) {

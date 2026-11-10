@@ -28,6 +28,11 @@ export function SudokuEditor({ question, onChange }: { question: Sudoku; onChang
   const count = CELLS.filter(given).length;
   const generate = (level: SudokuLevel, seed: number) => onChange({ ...question, level, seed, ...generateSudoku(seed, level) });
   const setDigit = (i: number, digit: string) => onChange(withSudokuGivens(question, question.givens.slice(0, i) + digit + question.givens.slice(i + 1)));
+  // Свої цифри не зникають мовчки: нова сітка замість них — лише після підтвердження.
+  const toGenerator = () => {
+    if (custom && count > 0 && !window.confirm(t('sudokuGenerateConfirm'))) return;
+    generate('medium', randomSudokuSeed());
+  };
   const status: TextKey | null = check.conflicts.length > 0 ? 'sudokuConflict' : check.count === 1 ? 'sudokuUnique' : check.count > 1 ? 'sudokuMany' : count > 0 ? 'sudokuNone' : null;
 
   const onKey = (i: number, event: KeyboardEvent<HTMLInputElement>) => {
@@ -45,7 +50,7 @@ export function SudokuEditor({ question, onChange }: { question: Sudoku; onChang
     <div className="sudoku-editor">
       <div className="sudoku-editor-choice" role="radiogroup" aria-label={t('sudokuSourceLabel')}>
         <label className="check">
-          <input type="radio" name={`sudoku-source-${question.id}`} checked={!custom} onChange={() => generate('medium', randomSudokuSeed())} />
+          <input type="radio" name={`sudoku-source-${question.id}`} checked={!custom} onChange={toGenerator} />
           <span>{t('sudokuSourceGenerate')}</span>
         </label>
         <label className="check">

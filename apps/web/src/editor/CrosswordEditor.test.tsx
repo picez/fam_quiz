@@ -67,6 +67,25 @@ describe('CrosswordEditor', () => {
     expect(screen.getByRole('status').textContent).toBe('');
   });
 
+  it('the preview grows from the first two words, while the rest are still empty', () => {
+    const { last } = view();
+    type(WORDS.slice(0, 1));
+    expect(screen.queryByRole('table', { name: t('crosswordPreview') })).toBeNull();
+    type(WORDS.slice(0, 2));
+    // Два слова з чотирьох: сітка вже видно, а розкладка не зберігається, поки є порожні рядки.
+    const two = layoutCrossword(last().entries.slice(0, 2));
+    expect(two.ok).toBe(true);
+    if (!two.ok) return;
+    expect(preview().querySelectorAll('tr')).toHaveLength(two.layout.height);
+    expect(preview().querySelectorAll('.crossword-cell.is-letter')).toHaveLength(6 + 6 - 1);
+    expect(last().layout).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('');
+    // Третє слово без спільних літер — попередження ще до четвертого.
+    fireEvent.change(row(3).getByLabelText(t('crosswordAnswer')), { target: { value: 'дуб' } });
+    expect(screen.getByRole('status').textContent).toBe(t('crosswordUnplaced', { words: 'дуб' }));
+    expect(last().layout).toBeNull();
+  });
+
   it('warns about words that do not cross', () => {
     const { last } = view();
     type([...WORDS.slice(0, 3), ['дуб', 'Могутнє дерево']]);
