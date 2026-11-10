@@ -1586,13 +1586,14 @@ function playerPuzzle(state: GameState, playerId: string): PlayerPuzzle | undefi
   const board = play.puzzle.boards[playerId];
   const cells = board?.cells ?? new Array<string>(puzzleSize(question)).fill('');
   const record = recordOf(state, state.questionIndex, playerId);
-  const done = board?.done === true || record !== undefined;
+  // done — лише натиснуте «Готово»: запис на закритті (час, ведучий) його не ставить, телефон за ним вибирає рядок стану.
+  const done = board?.done === true;
   const scored = new Set(scoredCells(question, solution));
   return {
     cells,
     mask: puzzleMask(state, question, solution, playerId, cells, board?.by),
     done,
-    canEdit: state.phase === 'question' && !state.paused && !done,
+    canEdit: state.phase === 'question' && !state.paused && !done && record === undefined,
     seq: board?.seq ?? 0,
     result:
       state.phase === 'reveal'

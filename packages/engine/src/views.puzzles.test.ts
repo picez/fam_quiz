@@ -189,6 +189,22 @@ describe('puzzle views', () => {
     expect(edit(s, 'p2')).toBe(false);
   });
 
+  it('a grid closed by the time is not done: done means the button was pressed', () => {
+    // Телефон за done вибирає «Розв’язання зафіксовано», інакше — «Час вийшов» / «Запитання закрито».
+    let s = played();
+    s = must(puzzleFinish(s, 'p1', s.questionIndex, 2000));
+    s = must(lock(s, 5000));
+    const mine = (id: string) => playerView(s, id)?.me.puzzle;
+    expect(mine('p1')?.done).toBe(true);
+    expect(mine('p2')?.done).toBe(false);
+    expect(mine('p3')?.done).toBe(false);
+    expect(mine('p2')?.canEdit).toBe(false);
+    s = must(next(s, 6000));
+    expect(mine('p2')?.done).toBe(false);
+    expect(mine('p2')?.canEdit).toBe(false);
+    expect(mine('p2')?.result).not.toBeNull();
+  });
+
   it('the answered counters agree on the stage and the pad', () => {
     // «Відповів» — той, хто здав сітку: вписування без «Готово» відповіддю не рахується ні на сцені, ні на пульті.
     let s = played();
