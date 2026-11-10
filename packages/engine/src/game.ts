@@ -125,7 +125,7 @@ import {
   stopLadder,
   submitLadderAnswer,
 } from './ladder';
-import { addMember, dropMember, formTeams, memberConnected, memberOf, presentMembers, teamsOn, withoutDuelists, withoutTeam } from './teams';
+import { addMember, dropMember, formTeams, memberConnected, memberOf, presentMembers, teamMembers, teamsOn, withoutDuelists, withoutTeam } from './teams';
 import { notStarted, questionSplashKind, questionSplashMs, shiftSplash, splashLead, withSplash, type Splash } from './splash';
 
 export interface PlayerState {
@@ -570,6 +570,11 @@ export interface DrawingPlay {
 export interface PuzzlePlay {
   /** Дошки поточного запитання; openQuestion спорожнює дошки минулих запитань (сітку зберігає запис, answer.grid). */
   boards: Record<string, PuzzleBoard>;
+  /**
+   * Лише в командній грі: учасники кожної команди на відкритті, у порядку команди. Колір учасника в масці — його місце тут
+   * (хто прийшов пізніше — після них), тож вилучення нікого не зсуває. Старі стани без поля — поточний склад.
+   */
+  order?: Record<string, string[]>;
 }
 
 /** Сітка гравця (команди) в «Головоломках». */
@@ -1055,7 +1060,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     // «Головоломки» (28d): бали кожного залежать лише від його сітки, тож дошка йде разом із записом.
     if (play.puzzle !== undefined) {
       const { [playerId]: _board, ...boards } = play.puzzle.boards;
-      kept.puzzle = { boards };
+      kept.puzzle = { ...play.puzzle, boards };
     }
     // «Більше чи менше» (28a): лише відкрите запитання; закрите вже пораховане (scored), його вибори лишаються як були.
     if (play.moreless !== undefined && index === state.questionIndex && state.phase === 'question') {
@@ -1367,7 +1372,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'moreless' ? { moreless: { progress: {} } } : {}),
     ...(drawn !== null ? { drawing: drawn.drawing } : {}),
     // «Головоломки» (28d): кожен гравець (команда) розв'язує свою сітку; присутні — на мить відкриття.
-    ...(isPuzzle(question) ? { puzzle: { boards: {} } } : {}),
+    ...(isPuzzle(question) ? { puzzle: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'

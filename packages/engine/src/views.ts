@@ -56,6 +56,7 @@ import {
   type PublicPuzzle,
   type PuzzleBoardView,
   type PuzzleInfo,
+  type PuzzleTone,
   type PlayerPuzzle,
   type LetterWordsRow,
   type PublicLetterWords,
@@ -146,7 +147,7 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
+import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay } from './game';
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
@@ -185,7 +186,7 @@ import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
-import { puzzleSize, puzzleSolution, puzzleSolved, puzzleTotal, scoredCells } from './puzzles';
+import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
@@ -345,7 +346,6 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   };
 }
 
-/** Тексти варіантів «Більше чи менше» без значень і без правильної сторони. */
 /** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
 function publicPuzzle(question: Extract<Question, { type: 'sudoku' | 'crossword' }>): PublicPuzzle {
   if (question.type === 'sudoku') return { kind: 'sudoku', givens: question.givens };
@@ -362,6 +362,7 @@ function publicPuzzle(question: Extract<Question, { type: 'sudoku' | 'crossword'
   return { kind: 'crossword', mode: question.mode, width: layout.width, height: layout.height, mask, words, keyCells: question.mode === 'key' ? layout.keyCells : [] };
 }
 
+/** Тексти варіантів «Більше чи менше» без значень і без правильної сторони. */
 function publicMoreLess(question: Extract<Question, { type: 'moreless' }>): PublicMoreLess {
   return { pairs: question.pairs.map((pair) => ({ id: pair.id, prompt: pair.prompt, a: pair.a.text, b: pair.b.text, points: pair.points })) };
 }
@@ -1527,19 +1528,45 @@ function currentPuzzle(state: GameState) {
 }
 
 /**
- * Маска дошки: '#' блок, 'g' задана (судоку), '0' порожньо, '1'...'9' - хто вписав (соло завжди '1'; у команді номер учасника в команді,
- * з 9-го '9'; вилучений учасник чи невідомий автор - '9'). Значень немає.
+ * Місця учасників команди boardOwner для кольорів маски (28d): склад на відкритті (PuzzlePlay.order), далі ті, хто прийшов пізніше.
+ * Вилучений учасник лишає своє місце порожнім — нікого не зсуває. Соло — порожньо.
  */
-function puzzleMask(state: GameState, question: Extract<Question, { type: 'sudoku' | 'crossword' }>, solution: readonly string[], boardOwner: string, cells: readonly string[], by: readonly string[] | undefined): string {
-  const members = teamsOn(state) ? teamMembers(state, boardOwner).map((m) => m.id) : [];
+function puzzleSlots(state: GameState, puzzle: PuzzlePlay, boardOwner: string): string[] {
+  if (!teamsOn(state)) return [];
+  const opened = puzzle.order?.[boardOwner] ?? [];
+  return [...opened, ...teamMembers(state, boardOwner).map((m) => m.id).filter((id) => !opened.includes(id))];
+}
+
+const toneAt = (slot: number) => Math.min(slot + 1, 9);
+
+/** Поточні учасники команди з кольорами маски; соло — порожньо. */
+function puzzleTones(state: GameState, slots: readonly string[], boardOwner: string): PuzzleTone[] {
+  if (!teamsOn(state)) return [];
+  return teamMembers(state, boardOwner).map((m) => ({ id: m.id, nickname: m.nickname, tone: toneAt(slots.indexOf(m.id)) }));
+}
+
+/** Соло-колір 1…9 за id гравця: той самий на кожній сторінці сцени, на розкритті й після вилучення інших. */
+function soloTone(id: string): number {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return (hash % 9) + 1;
+}
+
+/**
+ * Маска дошки: '#' блок, 'g' задана (судоку), '0' порожньо, '1'...'9' - хто вписав (соло завжди '1'; у команді tone учасника
+ * з puzzleTones), 'x' - учасника вже немає в команді (чи автор невідомий). Значень немає.
+ */
+function puzzleMask(state: GameState, question: Extract<Question, { type: 'sudoku' | 'crossword' }>, solution: readonly string[], tones: readonly PuzzleTone[], cells: readonly string[], by: readonly string[] | undefined): string {
+  const team = teamsOn(state);
+  const toneOf = new Map(tones.map((m) => [m.id, m.tone]));
   return solution
     .map((want, i) => {
       if (question.type === 'sudoku' && question.givens[i] !== '0') return 'g';
       if (want === '') return '#';
       if ((cells[i] ?? '') === '') return '0';
-      if (members.length === 0) return '1';
-      const at = members.indexOf(by?.[i] ?? '');
-      return String(at < 0 ? 9 : Math.min(at + 1, 9));
+      if (!team) return '1';
+      const tone = toneOf.get(by?.[i] ?? '');
+      return tone === undefined ? 'x' : String(tone);
     })
     .join('');
 }
@@ -1557,15 +1584,20 @@ function puzzleInfo(state: GameState, forHost: boolean): PuzzleInfo | undefined 
   const { play, question } = open;
   const revealed = state.phase === 'reveal';
   const solution = puzzleSolution(question);
+  const total = solution.filter((v) => v !== '').length;
+  const team = teamsOn(state);
   const rows: PuzzleBoardView[] = state.players.map((player) => {
     const board = play.puzzle.boards[player.id];
     const cells = board?.cells ?? new Array<string>(solution.length).fill('');
+    const members = puzzleTones(state, puzzleSlots(state, play.puzzle, player.id), player.id);
     return {
       playerId: player.id,
       nickname: player.nickname,
-      mask: puzzleMask(state, question, solution, player.id, cells, board?.by),
+      mask: puzzleMask(state, question, solution, members, cells, board?.by),
+      tone: team ? 0 : soloTone(player.id),
+      members,
       filled: filledOf(solution, cells),
-      total: puzzleTotal(question),
+      total,
       done: board?.done === true,
       last: board?.last ?? null,
       cells: forHost || revealed ? cells : null,
@@ -1589,9 +1621,11 @@ function playerPuzzle(state: GameState, playerId: string): PlayerPuzzle | undefi
   // done — лише натиснуте «Готово»: запис на закритті (час, ведучий) його не ставить, телефон за ним вибирає рядок стану.
   const done = board?.done === true;
   const scored = new Set(scoredCells(question, solution));
+  const members = puzzleTones(state, puzzleSlots(state, play.puzzle, playerId), playerId);
   return {
     cells,
-    mask: puzzleMask(state, question, solution, playerId, cells, board?.by),
+    mask: puzzleMask(state, question, solution, members, cells, board?.by),
+    members,
     done,
     canEdit: state.phase === 'question' && !state.paused && !done && record === undefined,
     seq: board?.seq ?? 0,

@@ -148,10 +148,82 @@ describe('puzzle views', () => {
     const t1 = stageInfo(s).boards.find((b) => b.playerId === 't1');
     expect(t1?.nickname).toBe('Червоні');
     expect(t1?.mask[empties[0]]).toBe('1');
-    expect(t1?.mask[empties[1]]).toMatch(/^[1-9]$/);
+    expect(t1?.mask[empties[1]]).toBe('x');
     expect(t1?.filled).toBe(2);
     expect(hostView(s).puzzle?.boards.find((b) => b.playerId === 't1')?.cells?.[empties[1]]).toBe(right(empties[1]));
-    expect(playerView(s, 'm1')?.me.puzzle?.mask[empties[1]]).toMatch(/^[1-9]$/);
+    expect(playerView(s, 'm1')?.me.puzzle?.mask[empties[1]]).toBe('x');
+  });
+
+  it('member colours stay with the member: a removal shifts nobody, the removed author has its own mark', () => {
+    let s = must(next(teamGame(teamQuiz([puzzlesRound('pz', [sudoku])]), [['Оля', 'Тарас', 'Ірина'], ['Петро', 'Ганна']]), 0));
+    s = write(s, 't1', [empties[0]], 'm1');
+    s = write(s, 't1', [empties[1]], 'm2');
+    s = write(s, 't1', [empties[2]], 'm3');
+    const before = stageInfo(s).boards.find((b) => b.playerId === 't1');
+    expect([0, 1, 2].map((k) => before?.mask[empties[k]])).toEqual(['1', '2', '3']);
+    expect(before?.members).toEqual([
+      { id: 'm1', nickname: 'Оля', tone: 1 },
+      { id: 'm2', nickname: 'Тарас', tone: 2 },
+      { id: 'm3', nickname: 'Ірина', tone: 3 },
+    ]);
+    s = must(removePlayer(s, 'm1', 1500));
+    const after = stageInfo(s).boards.find((b) => b.playerId === 't1');
+    expect([0, 1, 2].map((k) => after?.mask[empties[k]])).toEqual(['x', '2', '3']);
+    expect(after?.members).toEqual([
+      { id: 'm2', nickname: 'Тарас', tone: 2 },
+      { id: 'm3', nickname: 'Ірина', tone: 3 },
+    ]);
+    const mine = playerView(s, 'm3')?.me.puzzle;
+    expect(mine?.mask[empties[0]]).toBe('x');
+    expect(mine?.members).toEqual(after?.members);
+    // Соло не має учасників, лише власний колір.
+    expect(stageInfo(fresh()).boards.every((b) => b.members.length === 0)).toBe(true);
+  });
+
+  it('a solo colour follows the player id, not the order on the stage', () => {
+    const s = write(played(), 'p3', empties);
+    const tones = Object.fromEntries(stageInfo(s).boards.map((b) => [b.playerId, b.tone]));
+    for (const tone of Object.values(tones)) expect(tone).toBeGreaterThanOrEqual(1);
+    for (const tone of Object.values(tones)) expect(tone).toBeLessThanOrEqual(9);
+    const done = revealed(must(puzzleFinish(s, 'p3', s.questionIndex, 2000)));
+    // На розкритті рядки впорядковано за балами, а колір лишається тим самим.
+    expect(stageInfo(done).boards[0].playerId).toBe('p3');
+    expect(Object.fromEntries(stageInfo(done).boards.map((b) => [b.playerId, b.tone]))).toEqual(tones);
+    const gone = must(removePlayer(s, 'p1', 1500));
+    expect(stageInfo(gone).boards.map((b) => [b.playerId, b.tone])).toEqual([['p2', tones.p2], ['p3', tones.p3]]);
+  });
+
+  it('locked keeps values and the solution from the stage and rivals; the host still sees them', () => {
+    const s = must(lock(played(), 5000));
+    expect(s.phase).toBe('locked');
+    const info = stageInfo(s);
+    expect(info.solution).toBeNull();
+    expect(info.boards.every((b) => b.cells === null && b.solved === null && b.points === null)).toBe(true);
+    expect(JSON.stringify(stageView(s))).not.toContain(sudoku.solution);
+    const rival = playerView(s, 'p2');
+    expect(rival?.puzzle?.boards.every((b) => b.cells === null)).toBe(true);
+    expect(rival?.me.puzzle?.result).toBeNull();
+    const host = hostView(s).puzzle;
+    expect(host?.solution).toEqual(puzzleSolution(sudoku));
+    expect(host?.boards[0].cells?.[empties[4]]).toBe(wrongDigit(empties[4]));
+    expect(host?.boards.every((b) => b.solved === null)).toBe(true);
+  });
+
+  it('a key crossword marks only key cells wrong', () => {
+    let s = fresh([crosswordKey]);
+    const solution = puzzleSolution(crosswordKey);
+    const keyCells = crosswordKey.layout!.keyCells;
+    const letters = solution.flatMap((v, i) => (v === '' ? [] : [i]));
+    const plain = letters.filter((i) => !keyCells.includes(i));
+    const other = (i: number) => (solution[i] === 'а' ? 'о' : 'а');
+    // p1: ключ правильний, решта — хибна; p2: усе правильно, крім однієї ключової клітинки.
+    s = write(s, 'p1', keyCells, 'p1', (i) => solution[i]);
+    s = write(s, 'p1', plain, 'p1', other);
+    s = write(s, 'p2', letters, 'p2', (i) => (i === keyCells[1] ? other(i) : solution[i]));
+    s = revealed(s);
+    expect(playerView(s, 'p1')?.me.puzzle?.result).toEqual({ solved: true, wrong: [], points: 300 });
+    expect(playerView(s, 'p2')?.me.puzzle?.result).toEqual({ solved: false, wrong: [keyCells[1]], points: 0 });
+    expect(playerView(s, 'p3')?.me.puzzle?.result?.wrong).toEqual([...keyCells].sort((a, b) => a - b));
   });
 
   it('reveal shows every grid and the solution', () => {

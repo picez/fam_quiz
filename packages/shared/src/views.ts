@@ -347,11 +347,25 @@ export type PublicPuzzle =
       keyCells: number[];
     };
 
-/** Дошка гравця (команди) в «Головоломках»: маска без значень. mask: '0' порожньо, 'g' задана (судоку), '#' блок, '1'…'9' — хто заповнив (соло завжди '1'; у команді номер учасника, з 9-го '9'). */
+/** Учасник команди в «Головоломках» (28d) і його колір: tone — цифра маски '1'…'9' (місце в команді на відкритті, з 9-го — 9). */
+export interface PuzzleTone {
+  id: string;
+  nickname: string;
+  tone: number;
+}
+
+/**
+ * Дошка гравця (команди) в «Головоломках»: маска без значень. mask: '0' порожньо, 'g' задана (судоку), '#' блок, '1'…'9' — хто заповнив
+ * (соло завжди '1'; у команді — tone учасника з members), 'x' — учасник, якого вже немає в команді.
+ */
 export interface PuzzleBoardView {
   playerId: string;
   nickname: string;
   mask: string;
+  /** Соло: колір гравця 1…9, стабільний за його id (не за місцем на сцені); у команді 0 — кольори в members. */
+  tone: number;
+  /** Командна гра: поточні учасники з їхніми кольорами; соло — порожньо. */
+  members: PuzzleTone[];
   filled: number;
   total: number;
   done: boolean;
@@ -375,6 +389,8 @@ export interface PuzzleInfo {
 export interface PlayerPuzzle {
   cells: string[];
   mask: string;
+  /** Командна гра: учасники своєї команди з кольорами маски (легенда); соло — порожньо. */
+  members: PuzzleTone[];
   done: boolean;
   /** Можна вписувати: question, не пауза, сітку ще не здано. */
   canEdit: boolean;
