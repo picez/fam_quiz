@@ -41,6 +41,7 @@ import {
   AUCTION_BID_MS,
   AUCTION_OPEN_MS,
   auctionPoints,
+  auctionPrice,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -1255,7 +1256,7 @@ export function finalOutcome(state: GameState): BankOutcome | null {
   }));
   if (round.type === 'auction') {
     // Правильно — ціна + ставка; помилка — −ставка (або −ставка − ціна за loss: 'bid_price').
-    const points = Object.fromEntries(entries.map((e) => [e.playerId, auctionPoints(round, play.question.points, e.wager, e.correct)]));
+    const points = Object.fromEntries(entries.map((e) => [e.playerId, auctionPoints(round, auctionPrice(play.question), e.wager, e.correct)]));
     return { bank: 0, refund: false, points };
   }
   if (round.type === 'bets' || (round.type === 'final' && round.wagerMode === 'bank')) return splitBank(entries);

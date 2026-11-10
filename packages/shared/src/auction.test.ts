@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auctionBidFits, auctionNextBid, auctionPoints } from './auction';
+import { auctionBidFits, auctionNextBid, auctionPoints, auctionPrice } from './auction';
 
 const step50 = { bidMode: 'step', bidStep: 50 } as const;
 const free = { bidMode: 'free', bidStep: 50 } as const;
@@ -27,5 +27,10 @@ describe('auction rules (27b)', () => {
     expect(auctionPoints({ loss: 'bid' }, 200, 400, false)).toBe(-400);
     expect(auctionPoints({ loss: 'bid_price' }, 200, 400, false)).toBe(-600);
     expect(auctionPoints({ loss: 'bid_price' }, 200, 400, true)).toBe(600);
+  });
+
+  it('the price of a sort question is per word times words', () => {
+    expect(auctionPrice({ type: 'single', points: 200 })).toBe(200);
+    expect(auctionPrice({ type: 'sort', points: 10, words: [{}, {}, {}] })).toBe(30);
   });
 });

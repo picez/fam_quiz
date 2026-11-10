@@ -24,3 +24,8 @@ export function auctionPoints(round: Pick<AuctionRound, 'loss'>, price: number, 
   if (correct) return price + bid;
   return round.loss === 'bid_price' ? -bid - price : -bid;
 }
+
+/** Ціна запитання в «Аукціоні»: у сортуванні points — ціна за слово, тож ціна — points × кількість слів; інакше points. */
+export function auctionPrice(question: { type: string; points: number; words?: readonly unknown[] }): number {
+  return question.type === 'sort' ? question.points * (question.words?.length ?? 0) : question.points;
+}

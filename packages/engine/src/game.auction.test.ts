@@ -224,6 +224,29 @@ describe('the auction round (27b)', () => {
     expect(scores(s)).toEqual([1400, 500, 300, 0]);
   });
 
+  it('a sold sort question is priced per word times words', () => {
+    const sorting = withPoints(withId(sortQ, 's1'), 10);
+    const sold = sell(bid(toBidding({ bidMode: 'free' }, {}, [sorting]), [['p1', 100]]));
+    let s = sold;
+    for (let i = 0; i < sorting.words.length; i++) {
+      const head = sorting.words.find((w) => w.id === sortOf(s, 'p1').queue[0]);
+      s = must(sortWord(s, 'p1', head?.id ?? '', head?.categoryId ?? '', t0 + 2000 + i * 100));
+    }
+    s = reveal(s);
+    expect(pointsOf(s, 'p1')).toBe(140);
+  });
+
+  it('pending debuffs fire only for the winner of a sold question', () => {
+    const pending = { kind: 'fog' as const, firedAt: null, since: null, by: null };
+    const bidding = bid(toBidding(), [['p1', 100]]);
+    const sold = sell({ ...bidding, debuffs: { p1: pending, p2: pending } });
+    expect(sold.debuffs.p1?.firedAt).toBe(sold.questionIndex);
+    expect(sold.debuffs.p2).toEqual(pending);
+    // Непродане запитання — для всіх: дебафи спрацьовують у всіх.
+    const open = sell({ ...toBidding(), debuffs: { p1: pending, p2: pending } });
+    expect(open.debuffs.p2?.firedAt).toBe(open.questionIndex);
+  });
+
   it('the winner loses the bid, or the bid and the price', () => {
     const lose = (options: Options) => {
       const sold = sell(bid(toBidding(options, {}, [a2]), [['p2', 100]]));

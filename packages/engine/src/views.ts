@@ -2,6 +2,7 @@ import {
   allowedBuffs,
   AUCTION_BID_MS,
   AUCTION_OPEN_MS,
+  auctionPrice,
   type AuctionInfo,
   type HostAuction,
   type PlayerAuction,
@@ -1004,7 +1005,7 @@ function auctionInfo(state: GameState): AuctionInfo | null {
     theme: round.title,
     index,
     total: round.questions.length,
-    price: question.points,
+    price: auctionPrice(question),
     mode: round.bidMode,
     step: round.bidStep,
     loss: round.loss,
@@ -1015,7 +1016,8 @@ function auctionInfo(state: GameState): AuctionInfo | null {
     next: wager ? (auctionNextNow(state) ?? 0) : 0,
     endsAt: wager && state.heldAt === null ? state.endsAt : null,
     remainingMs: wager ? (state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs) : null,
-    totalMs: wager && leader === null ? AUCTION_OPEN_MS : AUCTION_BID_MS,
+    // Довжина смужки — від початку відліку (вхід у торг чи остання ставка): лідера, якого зняв ведучий, смужка не помічає.
+    totalMs: wager && state.startedAt !== null && state.endsAt !== null ? state.endsAt - state.startedAt : wager && leader === null ? AUCTION_OPEN_MS : AUCTION_BID_MS,
     open: open.open,
     result,
   };

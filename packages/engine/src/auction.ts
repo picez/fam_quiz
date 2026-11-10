@@ -63,7 +63,11 @@ export function sellAuction(state: GameState, now: number, rng: Rng): GameState 
   const question = round?.questions[betsIndex(state)];
   if (round === null || question === undefined || state.phase !== 'wager' || state.final === null) return state;
   const leader = auctionLeader(state);
-  const opened = openQuestion(state, question, now, rng);
-  if (leader === null) return opened;
-  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers: { [leader.playerId]: leader.bid }, allIn: [], graded: [] } });
+  if (leader === null) return openQuestion(state, question, now, rng);
+  // Відповідає лише переможець: дебафи, що чекають на інших, не згорають даремно — чекають наступного запитання.
+  const waiting = Object.entries(state.debuffs).filter(([id, debuff]) => id !== leader.playerId && debuff.firedAt === null);
+  const winnerOnly = Object.fromEntries(Object.entries(state.debuffs).filter(([id]) => id === leader.playerId));
+  const opened = openQuestion({ ...state, debuffs: winnerOnly }, question, now, rng);
+  const debuffs = { ...opened.debuffs, ...Object.fromEntries(waiting) };
+  return withCurrentPlay({ ...opened, debuffs }, { ...opened.plays[opened.questionIndex], final: { wagers: { [leader.playerId]: leader.bid }, allIn: [], graded: [] } });
 }

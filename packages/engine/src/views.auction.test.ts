@@ -4,7 +4,7 @@ import { adjustScore } from './adjust';
 import { placeWager } from './final';
 import { lock, next, pause, start, submitAnswer, type GameState } from './game';
 import { hostView, playerView, stageView } from './views';
-import { auctionRound, betsRound, bool, classicRound, finalRound, makeRoundsQuiz, numeric, single, withId, withPoints } from './testing/fixtures';
+import { auctionRound, betsRound, bool, classicRound, finalRound, makeRoundsQuiz, numeric, single, sortQ, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
 const rng = () => 0;
@@ -83,6 +83,20 @@ describe('auction views (27b)', () => {
     // До першої ставки — довший годинник.
     expect(stageView(toBidding()).auction).toMatchObject({ bid: 0, leader: null, next: 100, totalMs: AUCTION_OPEN_MS, endsAt: t0 + AUCTION_OPEN_MS });
     expect(phone(s, 'p3').auction).toEqual(info);
+  });
+
+  it('a sort question is priced per word times words', () => {
+    const sorting = withPoints(withId(sortQ, 's1'), 10);
+    expect(stageView(toBidding({}, [sorting])).auction?.price).toBe(40);
+  });
+
+  it('the clock bar keeps its length when the host takes the leader away', () => {
+    const s = bid(toBidding(), [['p1', 100]], t0 + 2000);
+    expect(stageView(s).auction?.totalMs).toBe(AUCTION_BID_MS);
+    const zero = must(adjustScore(s, 'p1', -800, t0 + 3000));
+    expect(zero.final?.wagers).toEqual({});
+    expect(stageView(zero).auction).toMatchObject({ leader: null, totalMs: AUCTION_BID_MS });
+    expect(stageView(toBidding()).auction?.totalMs).toBe(AUCTION_OPEN_MS);
   });
 
   it('intro carries the next question without bids or teaser', () => {
