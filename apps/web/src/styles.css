@@ -17533,6 +17533,23 @@ button.letterwords-tile:focus-visible {
   padding-block: 0.375rem;
 }
 
+/* Телефон: заголовок найдовших слів у картці вердикту — звичайний підзаголовок, а не другий вердикт (без кольору й «✗»). */
+.result .letterwords-best h2 {
+  font-size: 1.125rem;
+  color: inherit;
+}
+
+.result .letterwords-best h2::before {
+  content: none;
+}
+
+/* Сцена: слова рядка й «ще N» одного розміру й читаються з залу; найдовші можливі — так само. */
+.stage .letterwords-board .letterwords-words,
+.stage .letterwords-board .letterwords-more,
+.stage .letterwords-best li {
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
 .host-letterwords {
   display: grid;
   gap: 0.75rem;
