@@ -320,12 +320,13 @@ export function attachSockets(
     }
     socket.data.watch = false;
     manager.connect(room, identity);
+    // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу —
+    // раніше за перший зріз: клієнт зі скинутою моделлю, побачивши в зрізі rev, інакше попросив би draw:sync удруге.
+    const sketch = manager.drawSnapshot(room);
+    if (sketch !== null) socket.emit('drawing', sketch);
     push(socket);
     // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде (пульт — лише з «наживо»).
     for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
-    // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу.
-    const sketch = manager.drawSnapshot(room);
-    if (sketch !== null) socket.emit('drawing', sketch);
     socket.on('disconnect', () => manager.disconnect(room, identity));
 
     // Обробники приймають довільні аргументи: типи подій описують чесного клієнта, а не будь-якого.

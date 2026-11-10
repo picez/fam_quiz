@@ -738,7 +738,11 @@ describe('host presence', () => {
     const sync: DrawingEvent = { kind: 'sync', questionIndex: 0, rev: 3, strokes };
     const late = open({ code: game.code, role: 'stage', token: game.stageToken });
     const got = listenDrawing(late);
+    const order: string[] = [];
+    late.socket.onAny((event: string) => order.push(event));
     await vi.waitFor(() => expect(got).toEqual([sync]));
+    // штрихи приходять раніше за перший зріз: клієнт зі скинутою моделлю не просить draw:sync удруге
+    await vi.waitFor(() => expect(order.slice(0, 2)).toEqual(['drawing', 'state']));
     expect(await send(late, 'draw:sync')).toEqual({ ok: true });
     await vi.waitFor(() => expect(got).toEqual([sync, sync]));
     expect(await send(late, 'draw:sync')).toEqual({ ok: true });
