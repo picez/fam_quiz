@@ -38,6 +38,14 @@ describe('noun dictionary (26c)', () => {
     expect(nouns.isNoun("м'ята")).toBe(true);
   });
 
+  it('keys gives every key (27d)', () => {
+    expect([...parseNouns('# x\nполе\n\nпола\n').keys()].sort()).toEqual(['пола', 'поле']);
+    expect([...nounsOf(['ПОЛЕ', 'м’ята']).keys()].sort()).toEqual(["м'ята", 'поле']);
+    const lazy = lazyNouns(FIXTURE);
+    expect([...lazy.keys()]).toHaveLength(7);
+    expect([...loadNouns().keys()]).toHaveLength(loadNouns().size);
+  });
+
   it('the committed dictionary is a real noun list', () => {
     const nouns = loadNouns();
     expect(nouns.size).toBeGreaterThan(20_000);

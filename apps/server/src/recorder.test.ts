@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, timedlist, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
@@ -185,6 +185,22 @@ describe('recorder', () => {
     expect(answers).toHaveLength(2);
     expect(answers[0]).toMatchObject({ points: 100, payload: { type: 'timedlist', found: ['l5', 'l2'], total: 8, wrong: 0 } });
     expect(answers[1]).toMatchObject({ points: 150, payload: { type: 'timedlist', found: ['l5', 'l2', 'l4'], total: 8, wrong: 1 } });
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a letter words answer is recorded with its words and longest word', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([letterwords], { speedBonus: false }));
+    ctx.host('start');
+    ctx.host('next');
+    for (const word of ['кіт', 'сік', 'морква']) expect(ctx.manager.letterWord(ctx.room, ctx.olena, word)).toEqual({ ok: true });
+    expect(ctx.manager.letterWord(ctx.room, ctx.taras, 'кіт')).toEqual({ ok: true });
+    ctx.host('lock');
+    const { answers } = await ctx.saved();
+
+    // 20 балів за слово.
+    expect(answers).toHaveLength(2);
+    expect(answers[0]).toMatchObject({ accepted: true, points: 20, payload: { type: 'letterwords', words: ['кіт'], longest: 3 } });
+    expect(answers[1]).toMatchObject({ accepted: true, points: 60, payload: { type: 'letterwords', words: ['кіт', 'сік', 'морква'], longest: 6 } });
     expect(ctx.errors).toEqual([]);
   });
 

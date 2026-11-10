@@ -32,7 +32,7 @@ describe('the «Вечір тринадцяти тем» quiz', () => {
   it('has every round type and every question type, all buffs and debuffs, duels', () => {
     expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction')));
     // Без опитувань і «хмари» серед гравців: «100 до 1» лише за справжніми опитуваннями.
-    expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud' && type !== 'wordladder' && type !== 'timedlist'))); // 26c: демо без драбини; 27c: новий тип, демо без списку
+    expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'poll' && type !== 'wordcloud' && type !== 'wordladder' && type !== 'timedlist' && type !== 'letterwords'))); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер
     expect(played(quiz).filter((q) => q.type === 'survey' && ('cloudId' in q)).length).toBe(0);
     expect(quiz.settings.buffs).toEqual([...BUFF_KINDS]);
     expect(quiz.settings.debuffs).toEqual([...DEBUFF_KINDS]);

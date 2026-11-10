@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, timedlist, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -628,6 +628,29 @@ describe('host presence', () => {
     const mine = await until(olena, (view) => view.role === 'player' && view.me.timedlist?.wrong === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.timedlist?.found).toEqual([{ index: 4, text: 'Марс' }]);
+  });
+
+  it('player:letters is player-only and validated', async () => {
+    await ctx.app.close();
+    ctx = await buildApp({ db, auth: TEST_AUTH, nouns: nounsOf(['морква', 'кіт']) });
+    await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    url = `http://127.0.0.1:${(ctx.app.server.address() as AddressInfo).port}`;
+    const created = (await startGame(ctx.app, makeQuiz([letterwords]))).game;
+    const { host, stage, olena } = await lobby(created);
+    for (const who of [host, stage]) expect(await send(who, 'player:letters', { word: 'кіт' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ word: 5 }, { word: 'а'.repeat(31) }, {}, undefined]) {
+      expect(await send(olena, 'player:letters', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+
+    expect(await send(olena, 'player:letters', { word: 'Морква' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:letters', { word: 'морква' })).toEqual({ ok: false, error: 'letters_repeat' });
+    expect(await send(olena, 'player:letters', { word: 'ром' })).toEqual({ ok: false, error: 'word_unknown' });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.letterwords?.words.length === 1);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.me.letterwords?.words).toEqual([{ text: 'морква', letters: 6 }]);
   });
 
   it('player:sort is player-only and validated', async () => {
