@@ -48,6 +48,8 @@ export type BuffBlock =
   | 'off_timedlist'
   /** «Слова з літер»: бафів немає (27d). */
   | 'off_letterwords'
+  /** «Більше чи менше»: бафів немає (28a). */
+  | 'off_moreless'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -192,6 +194,8 @@ export type ErrorCode =
   | 'target_offline'
   | 'sort_locked'
   | 'sort_stale'
+  /** «Більше чи менше»: вибір не для поточного порівняння (28a). */
+  | 'moreless_stale'
   | 'duel_used'
   | 'duel_busy'
   | 'duel_empty'

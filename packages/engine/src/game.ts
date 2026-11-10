@@ -29,6 +29,7 @@ import {
   type TeamForm,
   type TrialKind,
   type UndoTarget,
+  type MoreLessSide,
   DEFAULT_TEAM_FORM,
   guidePages,
   newcomersOn,
@@ -74,6 +75,7 @@ import { auctionRoundOf, enterAuctionBidding, sellAuction } from './auction';
 import { chainDone, scoreChain } from './chain';
 import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
+import { scoreMoreLess } from './moreless';
 import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
@@ -197,6 +199,8 @@ export interface Play {
   timedlist?: TimedListPlay;
   /** Лише в запитанні «Слова з літер» (27d). */
   letterwords?: LetterWordsPlay;
+  /** Лише в запитанні «Більше чи менше» (28a). */
+  moreless?: MoreLessPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -517,6 +521,20 @@ export interface LetterWordsPlay {
   best: string[] | null;
   possible: number | null;
   progress: Record<string, LetterWordsProgress>;
+}
+
+/** Вибори гравця (команди) у «Більше чи менше» (28a): picks[i] — сторона в порівнянні i, строго по черзі. */
+export interface MoreLessProgress {
+  picks: MoreLessSide[];
+}
+
+/**
+ * «Більше чи менше» (28a). Гравця в progress немає, поки він не вибрав жодного разу.
+ * scored — з закриття (scoreMoreLess): скільки гравців (команд) відповіли правильно на кожне порівняння.
+ */
+export interface MoreLessPlay {
+  progress: Record<string, MoreLessProgress>;
+  scored?: { right: number[] };
 }
 
 /** Фінал поточного раунду; null поза раундом фіналу. */
@@ -939,6 +957,11 @@ function removeFromGame(state: GameState, playerId: string): Result {
       const { [playerId]: _progress, ...progress } = play.letterwords.progress;
       kept.letterwords = { ...play.letterwords, progress };
     }
+    // «Більше чи менше» (28a): лише відкрите запитання; закрите вже пораховане (scored), його вибори лишаються як були.
+    if (play.moreless !== undefined && index === state.questionIndex && state.phase === 'question') {
+      const { [playerId]: _progress, ...progress } = play.moreless.progress;
+      kept.moreless = { ...play.moreless, progress };
+    }
     if (play.sort !== undefined) {
       const { [playerId]: _progress, ...sort } = play.sort;
       kept.sort = sort;
@@ -1221,6 +1244,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'letterwords'
       ? { letterwords: { letters: question.set.kind === 'fixed' ? letterSet(question.set.letters) : null, best: null, possible: null, progress: {} } }
       : {}),
+    // «Більше чи менше» (28a): кожен проходить ряд у своєму темпі.
+    ...(question.type === 'moreless' ? { moreless: { progress: {} } } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
@@ -1594,8 +1619,9 @@ export function lockNow(state: GameState): GameState {
   // Бали за драбину залежать від найкращого фінішера, тож теж рахуються лише тут (26c).
   // Бали за список залежать від того, скільки гравців знайшли кожен пункт (27c).
   // «Слова з літер» отримують записи лише тут: слова можна додавати до кінця часу (27d).
+  // «Більше чи менше»: неповні ряди отримують записи тут, а лічильники правильних заморожуються (28a).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -1713,6 +1739,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'timedlist' || play.question.type === 'timedlist') return fail('type_mismatch');
   // «Слова з літер» — лише слово за словом через letterWord (27d).
   if (answer.type === 'letterwords' || play.question.type === 'letterwords') return fail('type_mismatch');
+  // «Більше чи менше» — лише вибір за вибором через moreLessPick (28a).
+  if (answer.type === 'moreless' || play.question.type === 'moreless') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
@@ -2352,7 +2380,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
-  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   const current = currentRound(state);
   if (current?.type === 'board') return overrideBoard(state, current, playerId, grade, now);
@@ -2432,7 +2460,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))));
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, DEBUFF_KINDS, LIMITS, ROUND_TYPES, allSpares, questionsOf, quizSchema, roundTrials, type Question } from '@quiz/shared';
 import { LOGIC_FILES, LOGIC_PHOTOS, logicQuiz } from './logic-quiz';
-import { problems } from './logic/check';
+import { moreLessLeaks, problems } from './logic/check';
 
 const quiz = logicQuiz((key) => `/uploads/${`k${key}`.padEnd(16, 'x')}.png`);
 const played: Question[] = [...questionsOf(quiz), ...quiz.rounds.flatMap(roundTrials)];
@@ -9,6 +9,25 @@ const played: Question[] = [...questionsOf(quiz), ...quiz.rounds.flatMap(roundTr
 describe('the «Логіка й дедукція» quiz', () => {
   it('passes every check of logic/check.ts, puzzle answers included', () => {
     expect(problems).toEqual([]);
+  });
+
+  it('the more or less leak check looks at each pair on its own, option texts included', () => {
+    const option = (text: string, value: string) => ({ text, value });
+    const pair = (id: string, prompt: string, a: ReturnType<typeof option>, b: ReturnType<typeof option>) => ({ id, prompt, a, b, correct: 'a' as const, points: 100 });
+    const q = {
+      id: 'q', type: 'moreless', text: 'Порівняйте', hint: null, imageUrl: null, video: null, audio: null, timeLimit: 60, points: 300,
+      pairs: [
+        pair('p1', 'Що вище?', option('Говерла (2061 м)', '2061 м'), option('Ейфелева вежа', '330 м')),
+        // 1233 км стоїть у тексті іншої пари — це не витік цієї.
+        pair('p2', 'Що довше?', option('Рейн', '2850 км'), option('Дунай', '1233 км')),
+        pair('p3', 'Що довше: 1233 км чи ні?', option('Дніпро', '2201 км'), option('Десна', '1130 км')),
+        pair('p4', 'Що глибше?', option('Світязь', '58 м'), option('Синевир, 22 м завглибшки', '22 м')),
+      ],
+    } as unknown as Extract<Question, { type: 'moreless' }>;
+    expect(moreLessLeaks(q)).toEqual([
+      '«Порівняйте» p1: value «2061 м» appears in the question',
+      '«Порівняйте» p4: value «22 м» appears in the question',
+    ]);
   });
 
   it('passes the quiz schema within the limits', () => {

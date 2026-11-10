@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, timedlist, wordladder } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, timedlist, wordladder } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -651,6 +651,24 @@ describe('host presence', () => {
     const mine = await until(olena, (view) => view.role === 'player' && view.me.letterwords?.words.length === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.letterwords?.words).toEqual([{ text: 'морква', letters: 6 }]);
+  });
+
+  it('player:moreless is player-only and validated', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([moreless]))).game;
+    const { host, stage, olena } = await lobby(created);
+    for (const who of [host, stage]) expect(await send(who, 'player:moreless', { index: 0, pick: 'a' })).toEqual({ ok: false, error: 'forbidden' });
+    for (const payload of [{ index: -1, pick: 'a' }, { index: 0, pick: 'c' }, { index: 0 }, { index: 1.5, pick: 'a' }, undefined]) {
+      expect(await send(olena, 'player:moreless', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+
+    expect(await send(olena, 'player:moreless', { index: 0, pick: 'a' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:moreless', { index: 0, pick: 'b' })).toEqual({ ok: false, error: 'moreless_stale', index: 1 });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless?.done === 1);
+    if (mine.role !== 'player') throw new Error('not a player');
+    expect(mine.me.moreless?.picks).toEqual(['a']);
   });
 
   it('player:sort is player-only and validated', async () => {

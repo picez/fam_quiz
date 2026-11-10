@@ -992,6 +992,47 @@ describe('StageScreen final', () => {
     expect(screen.queryByText('Складайте слова на телефоні')).toBeNull();
   });
 
+  it('more or less shows only progress while playing', () => {
+    const moreQ = {
+      ...question,
+      type: 'moreless' as const,
+      text: 'Порівняйте',
+      choices: [],
+      moreless: {
+        pairs: [
+          { id: 'p1', prompt: 'Що вище?', a: 'Говерла', b: 'Ейфелева вежа', points: 100 },
+          { id: 'p2', prompt: 'Що довше?', a: 'Рейн', b: 'Дунай', points: 100 },
+        ],
+      },
+    };
+    const rows = [
+      { playerId: 'p1', nickname: 'Олена', done: 2, total: 2, right: null, points: null },
+      { playerId: 'p2', nickname: 'Тарас', done: 1, total: 2, right: null, points: null },
+    ];
+    const { unmount } = show(view({ phase: 'question', questionIndex: 0, question: moreQ, endsAt: Date.now() + 20_000, playerCount: 2, answeredCount: 1, moreless: { rows, pairs: null, picks: null } }));
+    expect(screen.getByText('Порівняйте')).toBeTruthy();
+    expect(screen.getByText('Порівнюйте на телефоні')).toBeTruthy();
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+    expect(screen.getByText('Відповіли 1 з 2')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('2061 м');
+    expect(document.querySelector('.moreless-reveal')).toBeNull();
+    unmount();
+    const pairs = [
+      { id: 'p1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a' as const, points: 100 },
+      { id: 'p2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b' as const, points: 100 },
+    ];
+    const reveal: Question = { id: 'ml', type: 'moreless', text: 'Порівняйте', imageUrl: null, video: null, timeLimit: 60, points: 200, pairs };
+    const revealed = { rows: [{ ...rows[0], right: 2, points: 200 }, { ...rows[1], right: 0, points: 0 }], pairs: pairs.map((pair, i) => ({ ...pair, right: i === 0 ? 1 : 2 })), picks: null };
+    show(view({ phase: 'reveal', questionIndex: 0, question: moreQ, reveal, playerCount: 2, answeredCount: 2, moreless: revealed }));
+    expect(screen.getByText('2061 м')).toBeTruthy();
+    expect(screen.getByText('Говерла').closest('.moreless-side')?.classList.contains('moreless-right')).toBe(true);
+    expect(screen.getByText('Правильно: 2')).toBeTruthy();
+    expect(screen.getByText('правильно 2 з 2')).toBeTruthy();
+    expect(screen.getByText('+200')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    expect(screen.queryByText('Порівнюйте на телефоні')).toBeNull();
+  });
+
   it('a timed list shows only counts while playing, then the whole list', () => {
     const listQ = { ...question, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 3, minus: null } };
     const rows = [

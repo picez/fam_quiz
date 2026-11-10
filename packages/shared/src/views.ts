@@ -4,7 +4,7 @@ import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
 import type { BuffBlock, BuffKind, DebuffKind, DuelStage, Grade, Phase, RetryStage, ShopBlock, SplashKind } from './game';
 import type { HostUndoTarget } from './events';
-import type { AnswerMode, AuctionBidMode, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
+import type { AnswerMode, AuctionBidMode, MoreLessSide, AuctionLoss, LadderPick, LifelineKind, CellKind, CellMark, CellPenalty, PinMap, Question, QuestionAudio, RevealMode, Round, RoundType, TrialKind, Video, WagerMode } from './quiz';
 import type { FactCard, GameCard, OwnRevealFact, RevealFacts, RoundCard, RoundShare } from './facts';
 import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
@@ -110,6 +110,8 @@ export interface PublicQuestion {
   timedlist?: PublicTimedList;
   /** Лише на запитанні «Слова з літер» (27d); ключа немає в інших типів. Слів і найкращих слів тут немає. */
   letterwords?: PublicLetterWords;
+  /** Лише на запитанні «Більше чи менше» (28a); ключа немає в інших типів. Значень і правильних сторін тут немає. */
+  moreless?: PublicMoreLess;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -328,6 +330,55 @@ export interface PlayerLetterWords {
   words: { text: string; letters: number }[];
   /** question, не пауза, набір роздано. */
   canType: boolean;
+}
+
+/** «Більше чи менше» (28a), усім: тексти варіантів без значень і без правильного. */
+export interface PublicMoreLess {
+  pairs: { id: string; prompt: string; a: string; b: string; points: number }[];
+}
+
+export interface MoreLessRow {
+  playerId: string;
+  nickname: string;
+  done: number;
+  total: number;
+  /** Лише на reveal (ведучому завжди), інакше null. */
+  right: number | null;
+  /** Лише на reveal, інакше null. */
+  points: number | null;
+}
+
+export interface MoreLessPairView {
+  id: string;
+  prompt: string;
+  a: { text: string; value: string };
+  b: { text: string; value: string };
+  correct: MoreLessSide;
+  points: number;
+  /** Скільки гравців (команд) відповіли правильно. */
+  right: number;
+}
+
+export interface MoreLessInfo {
+  /** За done спаданням, далі в порядку гравців. */
+  rows: MoreLessRow[];
+  /** Ведучому завжди, іншим лише на reveal; інакше null. */
+  pairs: MoreLessPairView[] | null;
+  /** Ведучому — вибори кожного наживо; іншим null. */
+  picks: Record<string, MoreLessSide[]> | null;
+}
+
+export interface PlayerMoreLess {
+  done: number;
+  total: number;
+  /** Власні вибори по черзі, без правильності. */
+  picks: MoreLessSide[];
+  /** Можна вибирати: question, не пауза, цей гравець (відповідач команди) вибирає, ряд не пройдено. */
+  canPick: boolean;
+  /** Лише на reveal: по порівнянню; інакше null. */
+  marks: ('right' | 'wrong' | 'late')[] | null;
+  /** Лише на reveal; інакше null. */
+  points: number | null;
 }
 
 export interface PlayerTimedList {
@@ -1395,6 +1446,8 @@ interface BaseView {
   timedlist?: TimedListInfo;
   /** «Слова з літер» (27d): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
   letterwords?: LetterWordsInfo;
+  /** «Більше чи менше» (28a): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
+  moreless?: MoreLessInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
   sort: SortInfo | null;
   /** null поза стіною; див. WallInfo. */
@@ -1634,6 +1687,8 @@ export interface PlayerView extends BaseView {
     timedlist?: PlayerTimedList;
     /** Власні слова гравця (27d): лише на запитанні «Слова з літер»; інакше ключа немає. */
     letterwords?: PlayerLetterWords;
+    /** Власний ряд гравця (28a): лише на запитанні «Більше чи менше»; інакше ключа немає. */
+    moreless?: PlayerMoreLess;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
     sort: PlayerSort | null;
     /** null поза стіною і для того, хто тут не складає (глядач на полі). */
@@ -1725,6 +1780,7 @@ export type LiveProgress =
   | { kind: 'wordladder'; steps: number; words: string[]; finished: boolean }
   | { kind: 'timedlist'; found: string[]; total: number; wrong: number }
   | { kind: 'letterwords'; words: string[] }
+  | { kind: 'moreless'; done: number; total: number; right: number }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -1814,6 +1870,8 @@ export interface HostView extends BaseView {
   timedlist?: TimedListInfo;
   /** Як у BaseView, але ведучому завжди ще й слова кожного, найкращі слова й скільки їх можливо. */
   letterwords?: LetterWordsInfo;
+  /** Як у BaseView, але ведучому завжди ще й значення, правильні сторони, вибори кожного й right наживо. */
+  moreless?: MoreLessInfo;
   /** Як у BaseView, але і у фіналі. */
   chain: ChainInfo | null;
   /** Як у BaseView, але і у фіналі. */

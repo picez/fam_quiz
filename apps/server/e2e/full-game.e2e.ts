@@ -24450,3 +24450,486 @@ async function letterWordsTeams27d() {
 
   expect(problems).toEqual([]);
 }
+
+it('part 28a: more or less — own pace, a miss does not stop the row, out of time, no spoilers on the stage, values on reveal, a team answerer, a board cell, 320 px', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await moreLessGame28a();
+    await moreLessTeams28a(sockets);
+    await moreLessBoard28a();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+/** Порівняння «Більше чи менше» для e2e: [запитання, варіант А, значення А, варіант Б, значення Б, правильний, бали]. */
+type Pair28a = [string, string, string, string, string, 'a' | 'b', number];
+
+/** Набір плану: правильні варіанти перемішані; другий варіант Б — довгий, щоб на 320 px він переносився. */
+const PAIRS28A: Pair28a[] = [
+  ['Що вище?', 'Говерла', '2061 м', 'Ейфелева вежа', '330 м', 'a', 100],
+  ['Що довше?', 'Рейн', '1233 км', 'Дунай, що тече через десять країн', '2850 км', 'b', 100],
+  ['Що глибше?', 'Світязь', '58 м', 'Синевир', '22 м', 'a', 100],
+  ['Хто важчий?', 'Бегемот', '1500 кг', 'Африканський слон', '6000 кг', 'b', 100],
+  ['Чого більше?', 'Клавіш у фортепіано', '88', 'Кісток у дорослої людини', '206', 'b', 100],
+  ['Що старше?', 'Софійський собор', '1037', 'Собор Паризької Богоматері', '1163', 'a', 200],
+];
+
+/** Друге запитання на 25 с. */
+const PAIRS28A_Q2: Pair28a[] = [
+  ['Що довше?', 'Дніпро', '2201 км', 'Дністер', '1362 км', 'a', 100],
+  ['Чого більше?', 'Клітинок на шаховій дошці', '64', 'Днів у високосному році', '366', 'b', 100],
+  ['Хто швидший?', 'Гепард', '110 км/год', 'Людина', '44 км/год', 'a', 100],
+  ['Що старше?', 'Львівський університет', '1661', 'Гарвардський університет', '1636', 'b', 100],
+];
+
+/** Командне запитання з трьох порівнянь. */
+const PAIRS28A_TEAM: Pair28a[] = [
+  ['Чого більше?', 'Ніг у павука', '8', 'Ніг у мухи', '6', 'a', 100],
+  ['Що важче?', 'Кілограм пір’я', '1 кг', 'Кавун', '8 кг', 'b', 100],
+  ['Чого більше?', 'Хвилин у добі', '1440', 'Секунд у годині', '3600', 'b', 100],
+];
+
+/** 20 порівнянь — найбільший ряд: таблиця розкриття на сцені 1600 × 900 у два стовпці. */
+const PAIRS28A_20: Pair28a[] = [
+  ...PAIRS28A.map(([prompt, a, va, b, vb, correct]): Pair28a => [prompt, a, va, b, vb, correct, 50]),
+  ...PAIRS28A_Q2.map(([prompt, a, va, b, vb, correct]): Pair28a => [prompt, a, va, b, vb, correct, 50]),
+  ...PAIRS28A_TEAM.map(([prompt, a, va, b, vb, correct]): Pair28a => [prompt, a, va, b, vb, correct, 50]),
+  ['Що вище?', 'Київська телевежа', '385 м', 'Монумент «Батьківщина-мати»', '102 м', 'a', 50],
+  ['Що довше?', 'Південний Буг', '806 км', 'Десна', '1130 км', 'b', 50],
+  ['Що вище?', 'Бурдж-Халіфа', '828 м', 'Емпайр-стейт-білдінг', '443 м', 'a', 50],
+  ['Кого більше на полі?', 'Гравців футбольної команди', '11', 'Гравців волейбольної команди на майданчику', '6', 'a', 50],
+  ['Хто важчий?', 'Зубр', '900 кг', 'Лось', '500 кг', 'a', 50],
+  ['Що старше?', 'Ейфелева вежа', '1889', 'Статуя Свободи', '1886', 'b', 50],
+  ['Чого більше?', 'Струн у класичній гітарі', '6', 'Струн у бандури', 'до 65', 'b', 50],
+];
+
+/** Запитання «Більше чи менше» для API. */
+function moreLess28a(id: string, text: string, pairs: Pair28a[], timeLimit: number) {
+  const list = pairs.map(([prompt, a, va, b, vb, correct, points], at) => ({ id: `${id}p${at + 1}`, prompt, a: { text: a, value: va }, b: { text: b, value: vb }, correct, points }));
+  return { id, text, imageUrl: null, video: null, timeLimit, type: 'moreless' as const, pairs: list, points: list.reduce((sum, pair) => sum + pair.points, 0) };
+}
+
+/** Натиск кнопки варіанта за текстом: чекає, поки кнопки знову активні (після переходу вони гаснуть на 350 мс). */
+async function morelessPick28a(page: Page, option: string) {
+  const button = page.locator('button.moreless-option', { hasText: new RegExp(`^${option.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) });
+  await expect.poll(() => button.getAttribute('aria-disabled').catch(() => 'true'), POLL).toBe('false');
+  await button.click();
+}
+/** Лічильник «3 / 8» на телефоні; null — лічильника немає (пройдено все чи не той екран). */
+const morelessCounter28a = (page: Page) => page.evaluate("document.querySelector('.moreless-counter')?.textContent ?? null") as Promise<string | null>;
+/** Рядок гравця (чи команди) на табло «Більше чи менше». */
+const morelessRow28a = (page: Page, nickname: string) => page.locator('.moreless-board li', { has: page.locator('.name', { hasText: new RegExp(`^${nickname}$`) }) });
+
+/** Проходить ряд: answers — 'a'/'b' по порядку; лічильник росте після кожного натиску, правильності не видно. */
+async function morelessRun28a(page: Page, pairs: Pair28a[], answers: ('a' | 'b')[], from = 0) {
+  for (const [at, side] of answers.entries()) {
+    const index = from + at;
+    const pair = pairs[index]!;
+    expect(await morelessCounter28a(page), `the counter before pick ${index + 1}`).toBe(`${index + 1} / ${pairs.length}`);
+    await morelessPick28a(page, side === 'a' ? pair[1] : pair[3]);
+    if (index + 1 < pairs.length) await expect.poll(() => morelessCounter28a(page), POLL).toBe(`${index + 2} / ${pairs.length}`);
+    expect(await page.locator('.moreless-mark, .moreless-right, .moreless-reveal').count(), 'rightness shown before the reveal').toBe(0);
+  }
+}
+
+/** Сцена 1600 × 900: без прокрутки вниз і вбік, жоден текст таблиці й рядків не обрізано. */
+async function expectMoreLessStageFits28a(stage: Page, name: string) {
+  const [height, clientH, width, clientW] = (await stage.evaluate(
+    '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
+  )) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  const clipped = await stage
+    .locator('.moreless-reveal .moreless-row-prompt, .moreless-reveal .moreless-side-text, .moreless-reveal .moreless-side-value, .moreless-reveal .moreless-row-count, .moreless-board .name')
+    .evaluateAll((all) => all.filter((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1).map((el) => el.textContent));
+  expect(clipped, `${name}: clipped texts`).toEqual([]);
+  // Таблиця й рядки гравців — у межах вікна.
+  const out = await stage
+    .locator('.moreless-reveal > li, .moreless-board li')
+    .evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1; }).map((el) => el.textContent));
+  expect(out, `${name}: rows outside the stage`).toEqual([]);
+}
+
+/** Заповнює порівняння index (з 1) у редакторі. */
+async function fillPair28a(host: Page, index: number, [prompt, a, va, b, vb, correct, points]: Pair28a) {
+  const group = host.getByRole('group', { name: `Порівняння ${index}`, ...exact });
+  await group.getByLabel('Запитання порівняння', exact).fill(prompt);
+  await group.getByLabel('Варіант А', exact).fill(a);
+  await group.getByLabel('Значення', exact).nth(0).fill(va);
+  await group.getByLabel('Варіант Б', exact).fill(b);
+  await group.getByLabel('Значення', exact).nth(1).fill(vb);
+  await group.getByLabel('Правильний варіант', exact).nth(correct === 'a' ? 0 : 1).check();
+  await group.getByLabel('Бали', exact).fill(String(points));
+}
+
+/** Закриває запитання (якщо ще відкрите) і показує відповідь. */
+async function reveal28a(host: Page) {
+  const close = host.getByRole('button', { name: 'Закрити запитання', ...exact });
+  const show = host.getByRole('button', { name: 'Показати відповідь', ...exact });
+  const ready = (button: Locator) => button.isEnabled({ timeout: 200 }).catch(() => false);
+  for (const until = Date.now() + 20_000; Date.now() < until; await sleep(200)) {
+    if (await ready(show)) return show.click();
+    if (await ready(close)) await close.click().catch(() => undefined);
+  }
+  throw new Error('no «Показати відповідь» on the host');
+}
+
+async function moreLessGame28a() {
+  // ── Редактор: класичний раунд, два запитання — 6 порівнянь на 60 с і 4 на 25 с. ──
+  const host = await open('host28a', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host28a@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Більше чи менше 28a');
+  await click(host, 'більше чи менше');
+  await questionText(host).fill('Порівняйте пари');
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'more or less has no video').toBe(0);
+  expect(await host.getByRole('group', { name: /^Порівняння \d+$/ }).count(), 'three blank comparisons').toBe(3);
+  await host.getByText('Разом: 300', exact).waitFor();
+  for (let i = 3; i < PAIRS28A.length; i++) await click(host, '+ Порівняння');
+  for (const [at, pair] of PAIRS28A.entries()) await fillPair28a(host, at + 1, at === PAIRS28A.length - 1 ? [...pair.slice(0, 6), 100] as Pair28a : pair);
+  await host.getByText('Разом: 600', exact).waitFor();
+  // Останнє порівняння — 200: сума оновлюється сама.
+  await host.getByRole('group', { name: 'Порівняння 6', ...exact }).getByLabel('Бали', exact).fill('200');
+  await host.getByText('Разом: 700', exact).waitFor();
+  await field(host, 'Час, с').fill('60');
+  // Однакові варіанти пари — проблема при збереженні.
+  const second = host.getByRole('group', { name: 'Порівняння 2', ...exact });
+  await second.getByLabel('Варіант Б', exact).fill('рейн');
+  await click(host, 'Зберегти');
+  await host.getByText('Запитання 1: два варіанти одного порівняння однакові.', exact).first().waitFor();
+  await second.getByLabel('Варіант Б', exact).fill(PAIRS28A[1]![3]);
+  await shot(host, 'moreless28a-editor');
+
+  await click(host, 'Додати запитання');
+  await click(host, 'більше чи менше');
+  await questionText(host).fill('Ще чотири пари');
+  await click(host, '+ Порівняння');
+  for (const [at, pair] of PAIRS28A_Q2.entries()) await fillPair28a(host, at + 1, pair);
+  await host.getByText('Разом: 400', exact).waitFor();
+  await field(host, 'Час, с').fill('25');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Більше чи менше 28a' }).waitFor();
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Більше чи менше 28a')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: Record<string, unknown>[] }[] };
+  expect(stored.rounds[0]!.type).toBe('classic');
+  const [q1, q2] = stored.rounds[0]!.questions as { type: string; points: number; timeLimit: number; pairs: { prompt: string; a: { text: string; value: string }; b: { text: string; value: string }; correct: string; points: number }[] }[];
+  expect(q1).toMatchObject({ type: 'moreless', points: 700, timeLimit: 60 });
+  expect(q1!.pairs.map((pair) => [pair.prompt, pair.a.text, pair.a.value, pair.b.text, pair.b.value, pair.correct, pair.points])).toEqual(PAIRS28A);
+  expect(q2).toMatchObject({ type: 'moreless', points: 400, timeLimit: 25 });
+  expect(q2!.pairs.map((pair) => pair.correct)).toEqual(['a', 'b', 'a', 'b']);
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812, Тарас 360 × 740, Хосе 320 × 640 (es). ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28a', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya28a', 375, 812);
+  const taras = await open('taras28a', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  const jose = await open('jose28a', 320, 640, { locale: 'es-ES' });
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join22a(jose, es, code, 'Хосе');
+  await stage.getByText('Хосе').waitFor();
+  const phones = [olya, taras, jose];
+  const scores = async (wanted: [string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('button.moreless-option').first().waitFor();
+
+  // ── Запитання 1: власний темп; помилка (друге порівняння) ряду не зупиняє. ──
+  expect(await morelessCounter28a(olya)).toBe('1 / 6');
+  await shot(olya, 'moreless28a-phone-pick');
+  await morelessRun28a(olya, PAIRS28A, ['a', 'a', 'a', 'b', 'b', 'a']);
+  await olya.getByText('Готово! Чекаємо на відкриття', exact).waitFor();
+  expect(await olya.locator('button.moreless-option').count(), 'buttons after the whole row').toBe(0);
+  await shot(olya, 'moreless28a-phone-done');
+  // Тарас: два вибори й чекає — у нього «3 / 6», а в Олі вже «Готово».
+  await morelessRun28a(taras, PAIRS28A, ['a', 'b']);
+  expect(await morelessCounter28a(taras)).toBe('3 / 6');
+  expect(await morelessCounter28a(olya), 'Olya has no counter when done').toBeNull();
+  // Подвійний дотик Хосе відповідає лише за одне порівняння.
+  await jose.locator('button.moreless-option').first().dblclick();
+  await expect.poll(() => morelessCounter28a(jose), POLL).toBe('2 / 6');
+  await jose.waitForTimeout(600);
+  expect(await morelessCounter28a(jose), 'a double tap answered two comparisons').toBe('2 / 6');
+  // 320 px: кнопки в межах екрана, довгий варіант переноситься, а не ріже.
+  const joseButtons = await jose.locator('button.moreless-option').evaluateAll((all) =>
+    all.map((el) => { const box = el.getBoundingClientRect(); return { left: box.left, right: box.right, height: box.height, clipped: el.scrollWidth > el.clientWidth + 1, text: el.textContent }; }),
+  );
+  for (const button of joseButtons) {
+    expect(button.left, `«${button.text}» starts off screen`).toBeGreaterThanOrEqual(0);
+    expect(button.right, `«${button.text}» ends off screen`).toBeLessThanOrEqual(320);
+    expect(button.height, `«${button.text}» is a tap target`).toBeGreaterThanOrEqual(44);
+    expect(button.clipped, `«${button.text}» clipped`).toBe(false);
+  }
+  await expectNoSideScroll(jose, 'moreless28a-phone-es-320');
+  await expectNoSideScroll(taras, 'moreless28a-phone-360');
+
+  // Сцена: лише скільки пройшов кожен; ні значень, ні правильних, ні балів.
+  for (const [name, done] of [['Оля', '6 / 6'], ['Тарас', '2 / 6'], ['Хосе', '1 / 6']] as const) {
+    await expect.poll(() => morelessRow28a(stage, name).locator('.tag').first().textContent(), POLL).toBe(done);
+  }
+  expect(await stage.locator('.moreless-right-of, .moreless-board .score, .moreless-reveal').count(), 'right counts or points on the stage before the reveal').toBe(0);
+  const stageHtml = await stage.content();
+  for (const [label, seen] of [['stage DOM', stageHtml], ['stage frames', stageFrames.join(NL)], ['Taras frames', tarasFrames.join(NL)]] as const) {
+    for (const hidden of ['2061 м', '330 м', '"correct"', '6000 кг', '"206"']) expect(seen, `«${hidden}» in the ${label} before the reveal`).not.toContain(hidden);
+  }
+  await shot(stage, 'moreless28a-stage-question');
+
+  // Пульт (з «Відповідями наживо»): значення, правильні й вибори кожного.
+  await host.locator('#live-answers').waitFor();
+  await expect.poll(() => liveRow(host, 'Оля').innerText(), POLL).toContain('6 / 6 · правильно 5');
+  await expect.poll(() => liveRow(host, 'Тарас').innerText(), POLL).toContain('2 / 6 · правильно 2');
+  await host.locator('.host-moreless').getByText('2061 м', exact).waitFor();
+  await host.locator('.host-moreless').getByText('2850 км', exact).waitFor();
+  expect(await morelessRow28a(host, 'Оля').locator('.moreless-pick').count(), 'Olya’s picks on the host').toBe(6);
+  expect(await morelessRow28a(host, 'Оля').locator('.moreless-pick.is-wrong').count(), 'Olya’s miss on the host').toBe(1);
+  // «Відповіли» — ті, хто пройшов увесь ряд: на пульті так само, як на сцені; рядка «Правильна відповідь: —» немає.
+  await expect.poll(() => host.locator('.live-jump').textContent(), POLL).toBe('Відповіли 1 з 3');
+  expect(await host.locator('.live-count').textContent(), 'the live panel count').toBe('Відповіли 1 з 3');
+  await expect.poll(() => stage.getByText('Відповіли 1 з 3', exact).count(), POLL).toBe(1);
+  expect(await host.getByText(/Правильна відповідь/).count(), 'an empty right answer line on the host').toBe(0);
+  await shot(host, 'moreless28a-host-live');
+
+  // Ведучий закриває раніше часу: «Запитання закрито», а не «Час вийшов».
+  await click(host, 'Закрити запитання');
+  await taras.getByText('Запитання закрито: пройдено 2 з 6', exact).waitFor();
+  await jose.getByText('Pregunta cerrada: 1 de 6 hechas', exact).waitFor();
+  expect(await taras.getByText(/Час вийшов/).count(), 'time up after the host closed').toBe(0);
+
+  // ── Розкриття: таблиця зі значеннями, правильний підсвічено, «Правильно: N»; бали. ──
+  await reveal28a(host);
+  for (const [name, points] of [['Оля', '+600'], ['Тарас', '+200'], ['Хосе', '+100']] as const) {
+    await expect.poll(() => morelessRow28a(stage, name).locator('.score').textContent(), POLL).toBe(points);
+  }
+  expect(await morelessRow28a(stage, 'Оля').locator('.moreless-right-of').textContent()).toBe('правильно 5 з 6');
+  const table = stage.locator('.moreless-reveal > li');
+  expect(await table.count()).toBe(6);
+  for (const value of ['2061 м', '330 м', '2850 км', '1163']) await stage.locator('.moreless-reveal').getByText(value, exact).waitFor();
+  expect(await table.nth(0).locator('.moreless-right .moreless-side-text').textContent(), 'the right side of pair 1').toBe('Говерла');
+  expect(await table.nth(1).locator('.moreless-right .moreless-side-text').textContent(), 'the right side of pair 2').toBe(PAIRS28A[1]![3]);
+  expect(await table.locator('.moreless-row-count').allTextContents()).toEqual(['Правильно: 3', 'Правильно: 1', 'Правильно: 1', 'Правильно: 1', 'Правильно: 1', 'Правильно: 1']);
+  await scores(['600', '200', '100']);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless28a-stage-reveal');
+  await expectMoreLessStageFits28a(stage, 'q1 reveal');
+  // Телефони: свої позначки — у Тараса чотири «без відповіді».
+  await taras.locator('.moreless-reveal').waitFor();
+  expect(await taras.locator('.moreless-mark').allTextContents()).toEqual(['правильно', 'правильно', 'без відповіді', 'без відповіді', 'без відповіді', 'без відповіді']);
+  expect(await olya.locator('.moreless-mark.is-wrong').count(), 'Olya’s miss').toBe(1);
+  expect(await olya.locator('.result > h2').textContent(), 'Olya with one miss').toBe('Частково правильно');
+  await shot(taras, 'moreless28a-phone-reveal');
+  await shot(olya, 'moreless28a-phone-reveal-olya');
+  await expectNoSideScroll(jose, 'moreless28a-phone-es-reveal');
+
+  // ── Запитання 2: Тарас не встигає — 1 вибір і 25 с очікування. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await expect.poll(() => morelessCounter28a(olya), POLL).toBe('1 / 4');
+  await morelessRun28a(olya, PAIRS28A_Q2, ['a', 'b', 'a', 'b']);
+  await olya.getByText('Готово! Чекаємо на відкриття', exact).waitFor();
+  await expect.poll(() => morelessCounter28a(taras), POLL).toBe('1 / 4');
+  await morelessRun28a(taras, PAIRS28A_Q2, ['a']);
+  await taras.getByText('Час вийшов: пройдено 1 з 4', exact).waitFor({ timeout: 40_000 });
+  for (const button of await taras.locator('button.moreless-option').all()) expect(await button.getAttribute('aria-disabled'), 'a button after the time').toBe('true');
+  await shot(taras, 'moreless28a-phone-late');
+  await reveal28a(host);
+  await expect.poll(() => morelessRow28a(stage, 'Тарас').locator('.score').textContent(), POLL).toBe('+100');
+  expect(await morelessRow28a(stage, 'Оля').locator('.score').textContent()).toBe('+400');
+  expect(await morelessRow28a(stage, 'Хосе').locator('.score').textContent(), 'Jose without picks').toBe('0');
+  await scores(['1000', '300', '100']);
+
+  // ── Історія гри: «Правильно: 5 з 6» в Олі. ──
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Більше чи менше 28a/ }).click();
+  const first = host.locator('.rows.stacked > li', { hasText: 'Порівняйте пари' });
+  await first.getByText(/Відповіді \(\d+\)/).click();
+  await first.locator('.responses li', { hasText: 'Оля' }).getByText('Правильно: 5 з 6', exact).waitFor();
+  await first.locator('.responses li', { hasText: 'Тарас' }).getByText('Правильно: 2 з 6', exact).waitFor();
+  await shot(host, 'moreless28a-history');
+
+  expect(problems).toEqual([]);
+}
+
+async function moreLessTeams28a(sockets: Socket[]) {
+  const host = await open('host28at', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host28at@example.com');
+  const round = classicRound('rt28a', [moreLess28a('mt1', 'Командні пари', PAIRS28A_TEAM, 60), moreLess28a('mt2', 'Двадцять пар', PAIRS28A_20, 90)] as never, { title: 'Команди 28a', speedBonus: false });
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'] } }), title: 'Команди 28a' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Команди 28a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28at', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya28at', 375, 812);
+  const petro = await open('petro28at', 375, 812);
+  // Іра — капітан Синіх арабською: порядок кнопок як у редакторі.
+  const ira = await open('ira28at', 375, 812, { locale: 'ar-EG' });
+  const marko = await open('marko28at', 320, 640);
+  const markoFrames = socketFrames(marko);
+  const phones = [olya, petro, ira, marko];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Червоні'],
+    [petro, 'Петро', 'Червоні'],
+    [ira, 'Іра', 'Сині'],
+    [marko, 'Марко', 'Сині'],
+  ] as const) {
+    if (page === ira) await join22a(page, ar, code, nickname);
+    else await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  // Богдан (сокет) — ще один у Червоних: його вибір сервер відхиляє, бо відповідає капітан.
+  const bohdan = await pilotPlayer(sockets, code, 'Богдан');
+  const lobby = await frame(bohdan, (v) => (v.teams?.teams.length ?? 0) === 2);
+  const redId = lobby.view.teams!.teams.find((team) => team.name === 'Червоні')!.id;
+  await emitOk(bohdan, 'player:team', { teamId: redId });
+  await expect.poll(() => stageTeam(stage, 'Червоні'), POLL).toEqual(['Оля', 'Петро', 'Богдан']);
+  await expect.poll(() => stageTeam(stage, 'Сині'), POLL).toEqual(['Іра', 'Марко']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await olya.locator('button.moreless-option').first().waitFor();
+  await ira.locator('button.moreless-option').first().waitFor();
+
+  // Капітан Червоних проходить ряд; товариш бачить поступ без кнопок.
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['a', 'b']);
+  await petro.getByText('Відповідає Оля: 2 / 3', exact).waitFor();
+  expect(await petro.locator('button.moreless-option').count(), 'buttons for a teammate').toBe(0);
+  await shot(petro, 'moreless28a-team-watch');
+  const refused = await bohdan.emit('player:moreless', { index: 2, pick: 'b' });
+  expect(refused, 'a pick from a teammate').toEqual({ ok: false, error: 'not_captain' });
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['b'], 2);
+  await petro.getByText('Відповідає Оля: 3 / 3', exact).waitFor();
+  // Сині: капітан — один вибір.
+  expect(await ownDir(ira.locator('.moreless-options'))).toBe('rtl');
+  expect(await ira.locator('button.moreless-option').allTextContents(), 'the editor order in Arabic').toEqual([PAIRS28A_TEAM[0]![1], PAIRS28A_TEAM[0]![3]]);
+  await shot(ira, 'moreless28a-phone-ar');
+  await morelessRun28a(ira, PAIRS28A_TEAM, ['a']);
+  await marko.locator('.moreless-team-watch').waitFor();
+  await expect.poll(() => morelessRow28a(stage, 'Червоні').locator('.tag').first().textContent(), POLL).toBe('3 / 3');
+  await expect.poll(() => morelessRow28a(stage, 'Сині').locator('.tag').first().textContent(), POLL).toBe('1 / 3');
+  for (const hidden of ['"1440"', '"3600"', '"8 кг"', '"correct"']) expect(markoFrames.join(NL), `«${hidden}» sent to Marko before the reveal`).not.toContain(hidden);
+
+  await reveal28a(host);
+  await expect.poll(() => morelessRow28a(stage, 'Червоні').locator('.score').textContent(), POLL).toBe('+300');
+  expect(await morelessRow28a(stage, 'Сині').locator('.score').textContent()).toBe('+100');
+  // Бали команди спільні: у кожного учасника на телефоні той самий рахунок.
+  for (const [page, score] of [[olya, '300'], [petro, '300'], [ira, '100'], [marko, '100']] as const) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(score);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless28a-team-stage-reveal');
+  await expectMoreLessStageFits28a(stage, 'team reveal');
+  await shot(ira, 'moreless28a-phone-ar-reveal');
+
+  // ── 20 порівнянь: таблиця розкриття на 1600 × 900 у два стовпці, нічого не обрізано. ──
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  await expect.poll(() => morelessCounter28a(olya), POLL).toBe('1 / 20');
+  await morelessRun28a(olya, PAIRS28A_20, ['a', 'b', 'a', 'b']);
+  await expectNoSideScroll(marko, 'moreless28a-team-watch-320');
+  await reveal28a(host);
+  await expect.poll(() => stage.locator('.moreless-reveal > li').count(), POLL).toBe(20);
+  await expect.poll(() => morelessRow28a(stage, 'Червоні').locator('.score').textContent(), POLL).toBe('+200');
+  expect(await stage.locator('.moreless-reveal.is-two').count(), 'two columns for 20 comparisons').toBe(1);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless28a-stage-reveal-20');
+  await expectMoreLessStageFits28a(stage, '20 comparisons');
+  await expectNoSideScroll(marko, 'moreless28a-phone-320-reveal-20');
+
+  expect(problems).toEqual([]);
+}
+
+async function moreLessBoard28a() {
+  const host = await open('host28ab', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', 'host28ab@example.com');
+  const plain = (id: string, text: string, points: number) => ({ ...withPoints(withId(single, id), points), text, timeLimit: 30 });
+  const cellOlya = moreLess28a('mb1', 'Пари для Олі', PAIRS28A_TEAM, 60);
+  const cellTaras = moreLess28a('mb2', 'Пари для Тараса', PAIRS28A_Q2.slice(0, 2), 25);
+  const round = boardRound(
+    'rb28a',
+    [
+      { title: 'Порівняння', cells: [{ question: cellOlya as never, mark: 'x2' }, cellTaras as never, plain('b13', 'Порівняння за 400?', 400)] },
+      { title: 'Міста', cells: [plain('b21', 'Місто за 100?', 100), plain('b22', 'Місто за 200?', 200), plain('b23', 'Місто за 300?', 300)] },
+      { title: 'Річки', cells: [plain('b31', 'Річка за 100?', 100), plain('b32', 'Річка за 200?', 200), plain('b33', 'Річка за 300?', 300)] },
+    ],
+    { title: 'Поле 28a' },
+  );
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'end' }), title: 'Поле 28a' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Поле 28a' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage28ab', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya28ab', 375, 812);
+  const taras = await open('taras28ab', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, olya, taras);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, olya, taras);
+
+  // Оля вибирає клітинку ×2 і проходить ряд — одразу розкриття, бали ×2.
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Порівняння, 300', ...exact }).click();
+  await olya.locator('button.moreless-option').first().waitFor();
+  // Глядач клітинки бачить лише поступ того, хто вибрав.
+  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('0 / 3');
+  expect(await taras.locator('button.moreless-option').count(), 'buttons for a viewer of the cell').toBe(0);
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['a', 'b']);
+  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
+  await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
+  expect(await morelessRow28a(stage, 'Тарас').count(), 'a row for a viewer of the cell').toBe(0);
+  await shot(taras, 'moreless28a-board-cell');
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['b'], 2);
+  await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.score').textContent(), POLL).toBe('+600');
+  await stage.locator('.moreless-reveal').waitFor();
+  await expect.poll(() => phoneScore27a(olya).textContent(), POLL).toBe('600');
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless28a-board-stage-reveal');
+  await expectMoreLessStageFits28a(stage, 'board reveal');
+
+  // Друга клітинка: Тарас вибирає й мовчить до кінця часу — запис 0, рахунок не зменшився.
+  await step27a(host, 'Далі');
+  const next = host.getByRole('button', { name: 'Наступне запитання', ...exact });
+  if (await next.waitFor({ timeout: 3000 }).then(() => true, () => false)) await next.click();
+  await taras.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await taras.getByRole('button', { name: 'Порівняння, 200', ...exact }).click();
+  await taras.locator('button.moreless-option').first().waitFor();
+  await taras.getByText('Час вийшов: пройдено 0 з 2', exact).waitFor({ timeout: 40_000 });
+  await reveal28a(host);
+  await expect.poll(() => morelessRow28a(stage, 'Тарас').locator('.score').textContent(), POLL).toBe('0');
+  expect(await morelessRow28a(stage, 'Тарас').locator('.moreless-right-of').textContent()).toBe('правильно 0 з 2');
+  await expect.poll(() => phoneScore27a(taras).textContent(), POLL).toBe('0');
+  expect(await phoneScore27a(olya).textContent()).toBe('600');
+
+  expect(problems).toEqual([]);
+}

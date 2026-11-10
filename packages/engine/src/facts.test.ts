@@ -39,7 +39,7 @@ describe('fact rows from the state (12d)', () => {
     s = must(submitAnswer(s, 'p2', lviv, 4000));
     const input = factInput(s);
     expect(input.questions).toEqual([
-      { index: 0, roundIndex: 0, number: 1, text: single.text, limitMs: single.timeLimit * 1000, scored: true, board: false, blitz: false, bluff: false, final: false },
+      { index: 0, roundIndex: 0, number: 1, text: single.text, limitMs: single.timeLimit * 1000, scored: true, board: false, blitz: false, bluff: false, final: false, wholeRow: false },
     ]);
     expect(input.rows).toEqual([
       { playerId: 'p1', questionIndex: 0, roundIndex: 0, attempt: 0, timeMs: 2100, accepted: true, buff: null, spare: false, wager: null, bluff: null },

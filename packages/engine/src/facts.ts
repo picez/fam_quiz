@@ -2,6 +2,7 @@ import {
   AWAY_MS,
   bluffFact,
   factLimitMs,
+  wholeRowQuestion,
   gameAwards,
   gameCard,
   isUnscored,
@@ -53,6 +54,7 @@ export function factInput(state: GameState): FactInput {
       blitz: play.blitz !== undefined,
       bluff: play.question.type === 'bluff',
       final: play.final !== undefined,
+      wholeRow: wholeRowQuestion(play.question),
     });
     // Голоси опитувань і хмари — не відповіді.
     if (!scored) continue;

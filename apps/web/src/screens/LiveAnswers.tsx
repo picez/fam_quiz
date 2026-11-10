@@ -39,6 +39,8 @@ function started(row: LiveRow): boolean {
       return progress.found.length > 0 || progress.wrong > 0;
     case 'letterwords':
       return progress.words.length > 0;
+    case 'moreless':
+      return progress.done > 0;
     case 'sort':
       return progress.sorted > 0 || progress.misses > 0;
     case 'wall':
@@ -92,6 +94,9 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'letterwords':
         parts.push(t('lettersLive', { n: progress.words.length }));
         parts.push(progress.words.join(' · '));
+        break;
+      case 'moreless':
+        parts.push(t('morelessLive', { done: progress.done, total: progress.total, right: progress.right }));
         break;
       case 'sort':
         parts.push(progress.card === null ? t('liveSortDone', { misses: progress.misses }) : t('liveSort', { card: progress.card, sorted: progress.sorted, total: progress.total, misses: progress.misses }));
@@ -276,8 +281,12 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
   const ticking = !collapsed && [...live.rows, ...(live.aside?.rows ?? [])].some((row) => draftOf(row, drafts) !== undefined);
   const now = useServerNow(ticking, offsetMs);
   const context: RowContext = { view, tilts, drafts, now };
+  // «Більше чи менше»: «відповіли» — ті, хто пройшов увесь ряд, як у шапці пульта й на сцені (live.answered рахує й тих, хто лише почав).
+  const answered = live.rows.some((row) => row.progress?.kind === 'moreless')
+    ? live.rows.filter((row) => row.progress?.kind === 'moreless' && row.progress.done >= row.progress.total).length
+    : live.answered;
   const count = !duel && (
-    <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered: live.answered, total: live.total })}</p>
+    <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered, total: live.total })}</p>
   );
   const body = collapsed ? (
     <>

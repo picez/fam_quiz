@@ -7,6 +7,7 @@ import {
   breakdownOf,
   cellAnswerMode,
   factLimitMs,
+  wholeRowQuestion,
   factTable,
   gameAwards,
   roundTotals,
@@ -185,6 +186,7 @@ function factInputOf(
       bluff: question.type === 'bluff',
       // Ставки (27a) і продане запитання «Аукціону» (27b) — як фінал для цікавинок: без рядка розкриття, а мовчання не відповідь.
       final: round?.type === 'final' || round?.type === 'bets' || (round?.type === 'auction' && soldAuction(answers.filter((a) => a.questionIndex === index))),
+      wholeRow: wholeRowQuestion(question),
     });
   });
   const finals = new Set(questions.filter((q) => q.final).map((q) => q.index));

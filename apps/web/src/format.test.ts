@@ -360,3 +360,16 @@ describe('signed', () => {
     expect(signed(750)).toBe('+750');
   });
 });
+
+describe('more or less texts (28a)', () => {
+  const pairs = [
+    { id: 'p1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a' as const, points: 100 },
+    { id: 'p2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b' as const, points: 100 },
+    { id: 'p3', prompt: 'Що глибше?', a: { text: 'Світязь', value: '58 м' }, b: { text: 'Синевир', value: '22 м' }, correct: 'a' as const, points: 100 },
+  ];
+  const moreQ: Question = { ...base, type: 'moreless', points: 300, pairs };
+  it('writes how many were right and has no single right answer to show', () => {
+    expect(answerText({ type: 'moreless', picks: ['a', 'a', 'a'], right: 2, total: 3 }, moreQ)).toBe('Правильно: 2 з 3');
+    expect(correctText(moreQ)).toBe('—');
+  });
+});

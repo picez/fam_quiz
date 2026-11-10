@@ -105,7 +105,15 @@ export interface LetterWordsAnswer {
   longest: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer;
+/** Підсумок «Більше чи менше» (28a) гравця (команди); складає рушій, з телефона не приходить. picks — вибори по черзі, right — правильних, total — порівнянь у ряду. */
+export interface MoreLessAnswer {
+  type: 'moreless';
+  picks: ('a' | 'b')[];
+  right: number;
+  total: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

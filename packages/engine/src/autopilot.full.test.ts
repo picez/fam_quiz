@@ -17,6 +17,7 @@ import {
   ladderRound,
   makeRoundsQuiz,
   match,
+  moreless,
   multi,
   numeric,
   order,
@@ -109,7 +110,7 @@ function recordFor(state: GameState, questionId: string, playerId: string) {
 
 const classicQuiz: Quiz = makeRoundsQuiz(
   [
-    classicRound('r1', [single, multi, bool, text, numeric, order, match, chain, sortQ, slider, clues, pin, wall3]),
+    classicRound('r1', [single, multi, bool, text, numeric, order, match, chain, sortQ, slider, clues, pin, wall3, withId(moreless, 'qm')]),
     classicRound('r2', [poll, cloud, survey, bluff, withVideo(withId(single, 'qv'))], { title: 'Друге коло' }),
   ],
   { leaderboard: 'each', newcomers: true },
@@ -221,7 +222,8 @@ describe('autopilot: scores and defaults', () => {
 
   it('classic: every scored question type is answered right from the phone', () => {
     const { state } = play(classicQuiz, answering);
-    const scored = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q14', 'q17', 'q19', 'qv'];
+    // 28a: новий тип — «Більше чи менше» (qm), бот проходить увесь ряд правильно.
+    const scored = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q14', 'q17', 'q19', 'qm', 'qv'];
     for (const id of scored) expect([id, recordFor(state, id, 'p2')?.grade]).toEqual([id, 'correct']);
   });
 

@@ -19,6 +19,7 @@ import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestio
 import { pickTeam, rollTeamDie } from '../teams';
 import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
+import { moreLessOf, moreLessPick } from '../moreless';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
@@ -199,6 +200,20 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       const best = play.letterwords?.best?.[0];
       if (best === undefined || letterWordsOf(state, playerId).words.length > 0) return state;
       return act(state, letterWord(state, playerId, best, now, () => true), what);
+    }
+    case 'moreless': {
+      // Бот проходить увесь ряд правильними виборами.
+      let s = state;
+      while (s.phase === 'question' && recordOf(s, s.questionIndex, playerId) === undefined) {
+        const index = moreLessOf(s, playerId).picks.length;
+        const pair = question.pairs[index];
+        if (pair === undefined) break;
+        const before = s;
+        s = act(s, moreLessPick(s, playerId, index, pair.correct, now), what);
+        // Відмова з поблажливими людьми лишає той самий стан — далі не крутимося.
+        if (s === before) break;
+      }
+      return s;
     }
     case 'sort': {
       let s = state;

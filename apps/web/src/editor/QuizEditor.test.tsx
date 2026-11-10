@@ -3066,3 +3066,56 @@ describe('QuizEditor: letter words (27d)', () => {
     screen.getByRole('button', { name: 'слова з літер' });
   });
 });
+
+describe('QuizEditor: more or less (28a)', () => {
+  it('saves a more or less question with comparisons, values, the right sides and points each, with no video and no separate points field', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Порівняйте');
+    click('більше чи менше');
+    expect(screen.queryByLabelText('Відео з YouTube')).toBeNull();
+    // Бафів у типу немає — і підказки для них теж.
+    expect(screen.queryByLabelText(t('hintLabel'))).toBeNull();
+    // Лише три поля балів, по одному в кожному порівнянні: загального немає.
+    expect(screen.getAllByLabelText(t('pointsLabel'))).toHaveLength(3);
+    const rows = [
+      ['Що вище?', 'Говерла', '2061 м', 'Ейфелева вежа', '330 м', 'a'],
+      ['Що довше?', 'Рейн', '1233 км', 'Дунай', '2850 км', 'b'],
+      ['Що глибше?', 'Світязь', '58 м', 'Синевир', '22 м', 'a'],
+    ];
+    click('Зберегти');
+    await waitFor(() => expect(screen.getAllByText(t('problemMoreLessEmpty', { index: 1 })).length).toBeGreaterThan(0));
+    expect(onSave).not.toHaveBeenCalled();
+    rows.forEach(([prompt, a, av, b, bv, correct], at) => {
+      const card = within(screen.getByRole('group', { name: t('morelessPairN', { index: at + 1 }) }));
+      fireEvent.change(card.getByLabelText(t('morelessPrompt')), { target: { value: prompt } });
+      fireEvent.change(card.getByLabelText(t('morelessOptionA')), { target: { value: a } });
+      fireEvent.change(card.getByLabelText(t('morelessOptionB')), { target: { value: b } });
+      const [valueA, valueB] = card.getAllByLabelText(t('morelessValue'));
+      fireEvent.change(valueA, { target: { value: av } });
+      fireEvent.change(valueB, { target: { value: bv } });
+      if (correct === 'b') fireEvent.click(card.getAllByRole('radio', { name: t('morelessCorrect') })[1]);
+    });
+    fireEvent.change(within(screen.getByRole('group', { name: t('morelessPairN', { index: 2 }) })).getByLabelText(t('morelessPoints')), { target: { value: '150' } });
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [question] = roundQuestions(saved(onSave).rounds[0]);
+    expect(question).toMatchObject({ type: 'moreless', points: 350, video: null, timeLimit: 60 });
+    if (question.type !== 'moreless') throw new Error('unexpected');
+    expect(question.pairs.map((p) => [p.prompt, p.a.text, p.a.value, p.b.text, p.b.value, p.correct, p.points])).toEqual([
+      ['Що вище?', 'Говерла', '2061 м', 'Ейфелева вежа', '330 м', 'a', 100],
+      ['Що довше?', 'Рейн', '1233 км', 'Дунай', '2850 км', 'b', 150],
+      ['Що глибше?', 'Світязь', '58 м', 'Синевир', '22 м', 'a', 100],
+    ]);
+    expect(quizSchema.safeParse(saved(onSave)).success).toBe(true);
+  });
+
+  it('a blitz round has no more or less chip, the board has it', () => {
+    open();
+    addRound('Бліц');
+    expect(screen.queryByRole('button', { name: 'більше чи менше' })).toBeNull();
+    click('+ Раунд');
+    click('Ігрове поле');
+    screen.getByRole('button', { name: 'більше чи менше' });
+  });
+});

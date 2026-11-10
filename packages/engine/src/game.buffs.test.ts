@@ -26,6 +26,7 @@ import {
   text,
   timedlist,
   letterwords,
+  moreless,
   withId,
   wordladder,
 } from './testing/fixtures';
@@ -174,6 +175,12 @@ describe('buffs', () => {
     const s = startRound(lobbyWith(makeQuiz([letterwords], { buffs }), 'Оля'), T0, rng0);
     expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
     expect(buffBlock(s, 'p1', 'double')).toBe('off_letterwords');
+  });
+
+  it('more or less has no buffs (28a)', () => {
+    const s = startRound(lobbyWith(makeQuiz([moreless], { buffs }), 'Оля'), T0, rng0);
+    expect(takeBuff(s, 'p1', 'double', T0, rng0)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_moreless');
   });
 
   it('an auction round has no buffs and no debuff shop (27b)', () => {

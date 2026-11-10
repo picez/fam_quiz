@@ -10,7 +10,7 @@ const key = (text: string) => text.trim().toLocaleLowerCase('uk');
 const played = (q: Quiz): Question[] => [...questionsOf(q), ...q.rounds.flatMap(roundTrials)];
 
 /** Усі типи, крім опитувань, «хмари слів» і «100 до 1» (реального опитування для цієї гри немає). */
-const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'survey' && t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords'); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер
+const EXPECTED_TYPES = QUESTION_TYPES.filter((t) => t !== 'poll' && t !== 'wordcloud' && t !== 'survey' && t !== 'wordladder' && t !== 'timedlist' && t !== 'letterwords' && t !== 'moreless'); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»
 
 /** Заборонені корені: росія й радянський період; шукаються на початку слова. */
 const BANNED = [

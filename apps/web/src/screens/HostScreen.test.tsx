@@ -1508,6 +1508,50 @@ describe('HostScreen letter words', () => {
   });
 });
 
+describe('HostScreen more or less', () => {
+  const pairs = [
+    { id: 'p1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a' as const, points: 100 },
+    { id: 'p2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b' as const, points: 100 },
+  ];
+  const moreQ: Question = { id: 'ml', type: 'moreless', text: 'Порівняйте', imageUrl: null, video: null, timeLimit: 60, points: 200, pairs };
+  const moreless = { pairs: pairs.map((pair) => ({ id: pair.id, prompt: pair.prompt, a: pair.a.text, b: pair.b.text, points: pair.points })) };
+  const info = {
+    rows: [
+      { playerId: 'p1', nickname: 'Олена', done: 2, total: 2, right: 1, points: null },
+      { playerId: 'p2', nickname: 'Тарас', done: 0, total: 2, right: 0, points: null },
+    ],
+    pairs: pairs.map((pair, i) => ({ ...pair, right: i === 0 ? 1 : 0 })),
+    picks: { p1: ['a' as const, 'a' as const], p2: [] },
+  };
+
+  it('the host sees values and picks live', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'moreless', choices: [], moreless }, correct: moreQ, endsAt: Date.now() + 20_000, moreless: info }));
+    expect(screen.getByRole('heading', { name: 'Більше чи менше' })).toBeTruthy();
+    expect(screen.getByText('2061 м')).toBeTruthy();
+    expect(screen.getByText('Дунай').closest('.moreless-side')?.classList.contains('moreless-right')).toBe(true);
+    expect(screen.getByText('правильно 1 з 2')).toBeTruthy();
+    expect(document.querySelectorAll('.host-moreless .moreless-pick')).toHaveLength(2);
+    expect(document.querySelector('.host-moreless .score')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Відповіді' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+
+  it('no empty right answer line, and «answered» counts whole rows as on the stage', () => {
+    // Почали обидва (answeredCount 2), пройшла весь ряд лише Олена.
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 2, question: { ...publicOf(single), type: 'moreless', choices: [], moreless }, correct: moreQ, endsAt: Date.now() + 20_000, moreless: { ...info, rows: [info.rows[0], { ...info.rows[1], done: 1 }] } }));
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.getByText(/Відповіли 1 з 2/)).toBeTruthy();
+  });
+
+  it('with the live panel up, the host still sees the values, the right sides and the picks', () => {
+    const live = { kind: 'answers' as const, answered: 0, total: 2, rows: [], aside: null };
+    show(view({ phase: 'question', questionIndex: 0, question: { ...publicOf(single), type: 'moreless', choices: [], moreless }, correct: moreQ, endsAt: Date.now() + 20_000, moreless: info, live }));
+    expect(document.getElementById('live-answers')).not.toBeNull();
+    expect(screen.getByText('2850 км')).toBeTruthy();
+    expect(document.querySelectorAll('.host-moreless .moreless-pick')).toHaveLength(2);
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

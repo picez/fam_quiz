@@ -55,6 +55,7 @@ import {
   wordLadderWordSchema,
   timedListWordSchema,
   letterWordSchema,
+  moreLessPickSchema,
   HOST_DRAFTS_MS,
   type AckResult,
   type ClientToServerEvents,
@@ -364,6 +365,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = letterWordSchema.safeParse(payloadOf(args));
       return payload.success ? manager.letterWord(room, identity.playerId, payload.data.word) : INVALID;
+    });
+
+    on('player:moreless', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = moreLessPickSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.moreLess(room, identity.playerId, payload.data.index, payload.data.pick) : INVALID;
     });
 
     on('player:sort', (args) => {

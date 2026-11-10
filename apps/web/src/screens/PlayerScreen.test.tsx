@@ -1658,6 +1658,94 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
   });
+
+  const moreQuestion = {
+    ...publicQuestion,
+    type: 'moreless' as const,
+    text: 'Порівняйте',
+    choices: [],
+    moreless: {
+      pairs: [
+        { id: 'p1', prompt: 'Що вище?', a: 'Говерла', b: 'Ейфелева вежа', points: 100 },
+        { id: 'p2', prompt: 'Що довше?', a: 'Рейн', b: 'Дунай', points: 100 },
+      ],
+    },
+  };
+  const myRow = { done: 0, total: 2, picks: [], canPick: true, marks: null, points: null };
+
+  it('28a: a more or less question shows one comparison with two buttons', () => {
+    show(onQuestion({ question: moreQuestion, endsAt: Date.now() + 20_000, me: { ...me, moreless: myRow } }));
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Говерла/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Ейфелева вежа/ })).toBeTruthy();
+  });
+
+  it('28a: when the time runs out the buttons stop before the server closes the question', () => {
+    show(onQuestion({ question: moreQuestion, endsAt: Date.now() - 1000, me: { ...me, moreless: myRow } }));
+    expect(screen.getByRole('button', { name: /Говерла/ }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText('Час вийшов: пройдено 0 з 2')).toBeTruthy();
+  });
+
+  it('28a: a watcher of a board cell sees how far the chooser got', () => {
+    const moreless = { rows: [{ playerId: 'p2', nickname: 'Тарас', done: 1, total: 2, right: null, points: null }], pairs: null, picks: null };
+    show(onQuestion({ question: moreQuestion, endsAt: Date.now() + 20_000, moreless }));
+    expect(screen.queryByRole('button', { name: /Говерла/ })).toBeNull();
+    expect(screen.getByText('Тарас')).toBeTruthy();
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+  });
+
+  it('28a: after the close the phone says how far it got', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: { ...me, moreless: { ...myRow, done: 2, picks: ['a', 'b'], canPick: false } } }));
+    expect(screen.getByText('Готово! Чекаємо на відкриття')).toBeTruthy();
+    cleanup();
+    // Телефон відкрився вже на locked: кінця часу не знає — «закрито», не «час вийшов».
+    show(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: { ...me, moreless: { ...myRow, done: 1, picks: ['a'], canPick: false } } }));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
+    expect(screen.queryByText(/Час вийшов/)).toBeNull();
+  });
+
+  it('28a: the close says the time ran out only when it did', () => {
+    const send: Send = vi.fn(async () => ({ ok: true as const }));
+    const screenOf = (current: PlayerView) => <PlayerScreen view={current} hostOnline offsetMs={0} send={send} />;
+    const lockedRow = { ...me, moreless: { ...myRow, done: 1, picks: ['a' as const], canPick: false } };
+    // Ведучий закрив за 20 с до кінця.
+    const { rerender } = render(screenOf(onQuestion({ question: moreQuestion, endsAt: Date.now() + 20_000, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 0, question: moreQuestion, me: lockedRow })));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
+    // Наступне запитання закрилося саме, коли сплив час.
+    rerender(screenOf(onQuestion({ questionIndex: 1, question: moreQuestion, endsAt: Date.now() - 100, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 1, question: moreQuestion, me: lockedRow })));
+    expect(screen.getByText('Час вийшов: пройдено 1 з 2')).toBeTruthy();
+    // Ведучий закрив під час паузи — теж «закрито».
+    rerender(screenOf(onQuestion({ questionIndex: 2, question: moreQuestion, endsAt: Date.now() - 100, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(onQuestion({ questionIndex: 2, question: moreQuestion, endsAt: null, remainingMs: 5000, paused: true, me: { ...me, moreless: myRow } })));
+    rerender(screenOf(view({ phase: 'locked', questionIndex: 2, question: moreQuestion, me: lockedRow })));
+    expect(screen.getByText('Запитання закрито: пройдено 1 з 2')).toBeTruthy();
+  });
+
+  it('28a: the reveal shows the own marks, the table and the rows', () => {
+    const pairs = [
+      { id: 'p1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a' as const, points: 100, right: 2 },
+      { id: 'p2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b' as const, points: 100, right: 0 },
+    ];
+    const moreless = {
+      rows: [
+        { playerId: 'p2', nickname: 'Тарас', done: 2, total: 2, right: 2, points: 200 },
+        { playerId: me.id, nickname: me.nickname, done: 2, total: 2, right: 1, points: 100 },
+      ],
+      pairs,
+      picks: null,
+    };
+    const reveal: Question = { id: 'ml', type: 'moreless', text: 'Порівняйте', imageUrl: null, video: null, timeLimit: 60, points: 200, pairs: pairs.map(({ right: _right, ...pair }) => pair) };
+    const result = { grade: 'partial' as const, points: 100, streakBonus: 0 } as PlayerView['me']['result'];
+    show(view({ phase: 'reveal', questionIndex: 0, question: moreQuestion, reveal, me: { ...me, result, moreless: { ...myRow, done: 2, picks: ['a', 'a'], canPick: false, marks: ['right', 'wrong'], points: 100 } }, moreless, own: { reveal: { kind: 'share', percent: 50 }, round: null, game: null } }));
+    expect(screen.getByText('2061 м')).toBeTruthy();
+    expect(screen.getByText('Дунай').closest('.moreless-side')?.classList.contains('moreless-right')).toBe(true);
+    expect(screen.getByText('помилка')).toBeTruthy();
+    expect(screen.getByText('правильно 1 з 2').closest('li')?.classList.contains('is-mine')).toBe(true);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    expect(screen.queryByText(/Правильно відповіли/)).toBeNull();
+  });
 });
 
 describe('PlayerScreen round facts', () => {
@@ -3517,6 +3605,23 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     expect(document.querySelector('[data-debuff="fog"]')).not.toBeNull();
     expect(screen.getByLabelText('Ваше слово')).toBeTruthy();
     expect(document.querySelector('.team-debuff-strip')).toBeNull();
+  });
+
+  it('28a: on more or less the answerer gets the buttons and the rest of the team watches the progress', () => {
+    const moreQuestion = { ...publicQuestion, type: 'moreless' as const, text: 'Порівняйте', choices: [], moreless: { pairs: [{ id: 'p1', prompt: 'Що вище?', a: 'Говерла', b: 'Ейфелева вежа', points: 100 }, { id: 'p2', prompt: 'Що довше?', a: 'Рейн', b: 'Дунай', points: 100 }] } };
+    const debuff = { kind: 'fog' as const, since: Date.now(), by: null };
+    show(asQuestion(petro, { question: moreQuestion, me: { ...baseMe, debuff, moreless: { done: 1, total: 2, picks: ['a'], canPick: true, marks: null, points: null } } }));
+    expect(screen.getByRole('button', { name: /Дунай/ })).toBeTruthy();
+    expect(document.querySelector('[data-debuff="fog"]')).not.toBeNull();
+    cleanup();
+    show(asQuestion(olya, { question: moreQuestion, me: { ...baseMe, debuff, moreless: { done: 1, total: 2, picks: ['a'], canPick: false, marks: null, points: null } } }));
+    expect(screen.queryByRole('button', { name: /Дунай/ })).toBeNull();
+    expect(screen.getByText('Відповідає Петро: 1 / 2')).toBeTruthy();
+    expect(document.querySelector('[data-debuff]')).toBeNull();
+    cleanup();
+    // Типово за команду відповідає капітан.
+    show(asQuestion({}, { question: moreQuestion, me: { ...baseMe, moreless: { done: 0, total: 2, picks: [], canPick: true, marks: null, points: null } } }));
+    expect(screen.getByRole('button', { name: /Говерла/ })).toBeTruthy();
   });
 
   it('in chosen mode with no pick the captain answers and reads the banner', () => {

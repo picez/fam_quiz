@@ -28,6 +28,7 @@ export * from './auction';
 export * from './chain';
 export * from './timedlist';
 export * from './letterwords';
+export * from './moreless';
 export * from './wordladder';
 export * from './sort';
 export * from './wall';

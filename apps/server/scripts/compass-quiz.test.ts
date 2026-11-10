@@ -25,7 +25,7 @@ describe('the «Компас» quiz', () => {
   it('has every round type and every question type, «100 до 1» from the warm-up cloud, and the new rounds before the final', () => {
     expect(new Set(compassQuiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction')));
     expect(compassQuiz.rounds.filter((r) => r.type === 'classic').length).toBeGreaterThanOrEqual(2);
-    expect(new Set(questionsOf(compassQuiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'wordladder' && type !== 'timedlist' && type !== 'letterwords'))); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер
+    expect(new Set(questionsOf(compassQuiz).map((q) => q.type))).toEqual(new Set(QUESTION_TYPES.filter((type) => type !== 'wordladder' && type !== 'timedlist' && type !== 'letterwords' && type !== 'moreless'))); // 26c: демо без драбини; 27c: новий тип, демо без списку; 27d: новий тип, демо без слів з літер; 28a: новий тип, демо без «Більше чи менше»
     expect(compassQuiz.rounds.length).toBeLessThanOrEqual(LIMITS.maxRounds);
     expect(compassQuiz.rounds.slice(-4).map((r) => r.type)).toEqual(['wipeout', 'survival', 'ladder', 'final']);
     const survey = questionsOf(compassQuiz).find((q) => q.type === 'survey');

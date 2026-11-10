@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
+import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
@@ -49,6 +50,8 @@ function filled(question: Question): Question {
       return { ...question, text, rows: question.rows.map((row, i) => ({ ...row, text: `Відповідь ${i + 1}`, popularity: 10 + i })) };
     case 'timedlist':
       return { ...question, text, items: question.items.map((item, i) => ({ ...item, text: `Пункт ${i + 1}` })) };
+    case 'moreless':
+      return { ...question, text, pairs: question.pairs.map((p, i) => ({ ...p, prompt: `Що більше ${i + 1}?`, a: { text: `Лівий ${i + 1}`, value: `${i + 10}` }, b: { text: `Правий ${i + 1}`, value: `${i + 20}` } })) };
     case 'sort':
       return {
         ...question,
@@ -374,7 +377,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2685,5 +2688,109 @@ describe('letter words in the editor (27d)', () => {
     const question = lettersQ({ set: { kind: 'fixed', letters: 'морква' }, goal: 'longest', per: 'letter', points: 10 });
     saveDraft('letters', quizWith(question));
     expect(roundQuestions(loadDraft('letters')!.rounds[0])[0]).toEqual(question);
+  });
+});
+
+describe('more or less in the editor (28a)', () => {
+  type More = Extract<Question, { type: 'moreless' }>;
+  type Pair = More['pairs'][number];
+  const pair = (patch: Partial<Pair> = {}): Pair => ({
+    id: newId(),
+    prompt: 'Що вище?',
+    a: { text: 'Говерла', value: '2061 м' },
+    b: { text: 'Ейфелева вежа', value: '330 м' },
+    correct: 'a',
+    points: 100,
+    ...patch,
+  });
+  const moreQ = (patch: Partial<More> = {}): More => {
+    const pairs = patch.pairs ?? [pair(), pair({ prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b' }), pair({ prompt: 'Що глибше?', a: { text: 'Світязь', value: '58 м' }, b: { text: 'Синевир', value: '22 м' } })];
+    return { ...(newQuestion('moreless') as More), text: 'Порівняйте', ...patch, pairs, points: patch.points ?? pairs.reduce((sum, p) => sum + p.points, 0) };
+  };
+  const place = t('problemMoreLessPlace', { index: 1 });
+  const onCell = (question: Question, cell: Partial<BoardRound['categories'][number]['cells'][number]>): Quiz => {
+    const round = newBoardRound();
+    const categories = round.categories.map((category, i) => ({ ...category, title: `К${i + 1}`, cells: category.cells.map((c) => ({ ...c, question: filled(c.question) })) }));
+    const [first, ...rest] = categories;
+    const [head, ...cells] = first.cells;
+    return { ...newQuiz(), title: 'Гра', rounds: [{ ...round, categories: [{ ...first, cells: [{ ...head, ...cell, question }, ...cells] }, ...rest] }] };
+  };
+
+  it('a new question is 60 seconds, three empty comparisons of 100 with the left side right, 300 in all, no video', () => {
+    const q = newQuestion('moreless') as More;
+    expect(q).toMatchObject({ type: 'moreless', timeLimit: 60, points: 300, video: null });
+    expect(q.pairs).toHaveLength(3);
+    for (const p of q.pairs) expect(p).toMatchObject({ prompt: '', a: { text: '', value: '' }, b: { text: '', value: '' }, correct: 'a', points: 100 });
+    expect(new Set(q.pairs.map((p) => p.id)).size).toBe(3);
+  });
+
+  it('questionTypesFor: more or less is in classic and on the board only', () => {
+    for (const round of ['blitz', 'final', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('moreless');
+    for (const round of ['classic', 'board'] as const) expect(questionTypesFor(round), round).toContain('moreless');
+  });
+
+  it('cleaning trims every text and value and makes the points the sum of the comparisons', () => {
+    const dirty = moreQ({ pairs: [pair({ prompt: '  Що вище? ', a: { text: ' Говерла ', value: ' 2061 м ' }, points: 50 }), pair({ points: 70 })], points: 999 });
+    const [question] = (cleaned(quizWith(dirty)).rounds[0] as ClassicRound).questions as More[];
+    expect(question.pairs[0]).toMatchObject({ prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' } });
+    expect(question.points).toBe(120);
+  });
+
+  it('a filled question has no problems and passes the schema; equal values are fine', () => {
+    for (const question of [moreQ(), moreQ({ pairs: [pair({ a: { text: 'Кіт', value: '4 кг' }, b: { text: 'Пес', value: '4 кг' } }), pair()] })]) {
+      const quiz = quizWith(question);
+      expect(problemsOf(quiz)).toEqual([]);
+      expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);
+    }
+  });
+
+  it('each bad quantity has its own problem', () => {
+    const count = t('problemMoreLessPairs', { index: 1, min: LIMITS.minMoreLessPairs, max: LIMITS.maxMoreLessPairs });
+    expect(problemsOf(quizWith(moreQ({ pairs: [pair()] })))).toEqual([count]);
+    expect(problemsOf(quizWith(moreQ({ pairs: Array.from({ length: 21 }, () => pair({ points: 10 })) })))).toEqual([count]);
+    const empty = t('problemMoreLessEmpty', { index: 1 });
+    const text = (patch: Partial<Pair>) => problemsOf(quizWith(moreQ({ pairs: [pair(patch), pair()] })));
+    expect(text({ prompt: '  ' })).toEqual([empty]);
+    expect(text({ a: { text: '', value: '1 м' } })).toEqual([empty]);
+    expect(text({ b: { text: 'Вежа', value: ' ' } })).toEqual([empty]);
+    const same = t('problemMoreLessSame', { index: 1 });
+    expect(text({ b: { text: ' говерла ', value: '1 м' } })).toEqual([same]);
+    const pairPoints = t('problemMoreLessPairPoints', { index: 1, max: LIMITS.maxPoints });
+    for (const points of [0, -5, 2.5, Number.NaN, 2001]) expect(text({ points }), String(points)).toEqual([pairPoints]);
+    const big = t('problemMoreLessPoints', { index: 1, max: LIMITS.maxPoints });
+    expect(problemsOf(quizWith(moreQ({ pairs: Array.from({ length: 11 }, () => pair({ points: 200 })) })))).toEqual([big]);
+    expect(problemsOf(quizWith(moreQ({ pairs: Array.from({ length: 10 }, () => pair({ points: 200 })) })))).toEqual([]);
+  });
+
+  it('a bad time is a limits problem', () => {
+    expect(problemsOf(quizWith(moreQ({ timeLimit: 3 })))).toEqual([t('problemLimits', { index: 1 })]);
+  });
+
+  it('more or less is only for classic and a normal phone cell', () => {
+    const question = moreQ();
+    const ofBlitz: Quiz = { ...quizWith(question), rounds: [{ ...newBlitzRound(), questions: [question] }] };
+    expect(problemsOf(ofBlitz)).toEqual([place]);
+    expect(problemsOf({ ...quizWith(question), rounds: [{ ...newFinalRound(), questions: [question] }] })).toEqual([place]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'phone' }))).toEqual([]);
+    expect(problemsOf(onCell(question, { kind: 'normal', answerMode: 'voice' }))).toEqual([t('problemCell', { category: 1, problem: place.charAt(0).toLowerCase() + place.slice(1) })]);
+    expect(problemsOf(onCell(question, { kind: 'blitz', answerMode: 'phone' }))).toHaveLength(1);
+  });
+
+  it('a copy has new ids for the comparisons, and a changed type loses the video', () => {
+    const question = moreQ();
+    const copy = duplicateQuestion(question) as More;
+    expect(copy.id).not.toBe(question.id);
+    for (const [at, p] of copy.pairs.entries()) {
+      expect(p.id).not.toBe(question.pairs[at].id);
+      expect({ ...p, id: '' }).toEqual({ ...question.pairs[at], id: '' });
+    }
+    const withVideo = { ...newQuestion('single'), video: { id: 'dQw4w9WgXcQ', start: 0 } } as Question;
+    expect(changeType(withVideo, 'moreless').video).toBeNull();
+  });
+
+  it('a draft with more or less survives storage, with broken fields mended', () => {
+    const question = moreQ();
+    saveDraft('more-less', quizWith(question));
+    expect(roundQuestions(loadDraft('more-less')!.rounds[0])[0]).toEqual(question);
   });
 });
