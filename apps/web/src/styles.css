@@ -18269,9 +18269,11 @@ button.letterwords-tile:focus-visible {
   max-width: 100%;
 }
 
+/* Один стовпець не ширший за екран: інакше природна ширина поля вгадування розсуває його й полотно за край. */
 .drawing-pad,
 .drawing-watch {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.625rem;
   min-width: 0;
 }
@@ -18494,8 +18496,9 @@ button.letterwords-tile:focus-visible {
   min-width: 0;
 }
 
+/* Над полотном — шапка запитання (≈ 21rem на 1600×900), під ним — рядок «Малює · Вгадали», поля сцени й смуга реакцій (≈ 8rem). */
 .drawing-stage .drawing-frame {
-  width: min(100%, calc((100vh - 21rem) * 4 / 3));
+  width: min(100%, calc((100vh - 29rem) * 4 / 3));
 }
 
 .drawing-stage .drawing-board {
@@ -18515,7 +18518,7 @@ button.letterwords-tile:focus-visible {
 }
 
 .drawing-stage.is-reveal .drawing-frame {
-  width: min(60vw, calc((100vh - 22rem) * 4 / 3));
+  width: min(60vw, calc((100vh - 23rem) * 4 / 3));
 }
 
 .drawing-stage.is-reveal .drawing-reveal-rows {
