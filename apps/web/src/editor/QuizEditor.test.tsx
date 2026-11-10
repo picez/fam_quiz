@@ -2963,6 +2963,21 @@ describe('QuizEditor: auction round (27b)', () => {
     expect(roundQuestions(quiz.rounds[1]).map((q: Question) => q.points)).toEqual([300, 500, 700]);
   });
 
+  it('a cleared step is reset when switching to the free mode', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Аукціон');
+    fireEvent.click(settingsBlock());
+    fill(t('auctionStepLabel'), '');
+    fireEvent.change(screen.getByLabelText(t('auctionModeLabel')), { target: { value: 'free' } });
+    fillQuestion('Яке місто столиця', '300', t('betsCutAll'));
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(saved(onSave).rounds[1]).toMatchObject({ type: 'auction', bidMode: 'free', bidStep: 50 });
+  });
+
   it('hides the step in the free mode but keeps the number', async () => {
     const { onSave } = open();
     fill('Назва вікторини', 'Гра');

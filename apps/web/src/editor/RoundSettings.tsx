@@ -231,7 +231,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           </label>
           <label className="field">
             <span>{t('auctionModeLabel')}</span>
-            <select value={round.bidMode} onChange={(event) => onChange({ ...round, bidMode: event.target.value === 'free' ? 'free' : 'step' })}>
+            <select value={round.bidMode} onChange={(event) => onChange(event.target.value === 'free' ? { ...round, bidMode: 'free', bidStep: Number.isInteger(round.bidStep) && round.bidStep >= 1 && round.bidStep <= LIMITS.maxBet ? round.bidStep : LIMITS.defaultBidStep } : { ...round, bidMode: 'step' })}>
               <option value="step">{t('auctionModeStep')}</option>
               <option value="free">{t('auctionModeFree')}</option>
             </select>

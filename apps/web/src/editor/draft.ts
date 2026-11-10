@@ -1036,7 +1036,7 @@ const betsNumbersBroken = (round: BetsRound) => !wholeBet(round.betStart, 1) || 
 /** Налаштування ставок не дають зберегти: числа чи мінімум останнього запитання над найбільшою ставкою. */
 const betsSettingsBroken = (round: BetsRound) => betsNumbersBroken(round) || betsRoundIssue(round, round.questions.length) !== null;
 
-/** Крок ставки «Аукціону» поза межами 1…maxBet. */
+/** Крок ставки «Аукціону» поза межами 1…maxBet. Схема вимагає крок і в режимі free, тому RoundSettings при перемиканні на free повертає некоректний крок до типового. */
 const auctionNumbersBroken = (round: AuctionRound) => !wholeBet(round.bidStep, 1);
 
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */

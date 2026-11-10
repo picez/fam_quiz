@@ -376,6 +376,15 @@ describe('GameHistory: answers', () => {
     expect(details[1].textContent).toContain('Львів');
   });
 
+  it('an unsold auction question says nobody bought and keeps the ordinary answer rows', async () => {
+    const unsold: GameDetail = { ...answered, questions: answered.questions.map((question) => ({ ...question, auction: true })) };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: unsold });
+    open('/history/g1');
+    expect((await screen.findAllByText('Ніхто не купив — відповідали всі')).length).toBe(2);
+    expect(screen.getAllByText(/^Відповіді \(\d\)$/)).toHaveLength(2);
+    expect(screen.queryByText(/купив за/)).toBeNull();
+  });
+
   it('history answers show the buff they were given with', async () => {
     const buffed: GameDetail = {
       ...answered,
