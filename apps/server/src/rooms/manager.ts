@@ -112,6 +112,9 @@ import {
   letterWordsOf,
   moreLessOf,
   moreLessPick,
+  drawGuess,
+  drawingOf,
+  drawStroke,
   submitTruth,
   hideTruth,
   lettersDue,
@@ -141,7 +144,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -259,6 +262,10 @@ export interface Room {
   moreLessRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:truth (28b), як draftRate. Лише в пам'яті. */
   truthRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:draw (28c): операції художника. Лише в пам'яті. */
+  drawRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:draw-guess (28c), окреме від drawRate: спроби вгадати. Лише в пам'яті. */
+  drawGuessRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -345,7 +352,9 @@ export type RoomEvent =
   /** Нахил картки сортування (11d): by — людина, що шле; audience — кому показ дозволено. Стан гри той самий. */
   | { type: 'tilt'; tilt: SortTilt; by: string; audience: 'all' | 'team' }
   /** Лайк (17a): бажаний стан для бази (attachLikes); стан гри той самий, сокетам нічого. */
-  | { type: 'like'; change: LikeChange };
+  | { type: 'like'; change: LikeChange }
+  /** Операція художника (28c): малюнок у room.state уже змінено, але без changed — сокетам легка подія, сховищу — відкладений запис. Слова не несе. */
+  | { type: 'drawing'; event: DrawingEvent };
 export type RoomListener = (room: Room, event: RoomEvent) => void;
 
 export type HostAction =
@@ -392,6 +401,15 @@ export type JoinResult =
 const GONE: AckResult = { ok: false, error: 'game_not_found' };
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
+
+/** Вікно частоти на секунду (як pickAllowed): понад limit подій від людини за вікно — ні; вікно сплило — нове з цією подією. */
+function windowAllowed(rates: Map<string, { from: number; count: number }>, personId: string, now: number, limit: number): boolean {
+  const rate = rates.get(personId);
+  if (rate === undefined || now - rate.from >= 1000) rates.set(personId, { from: now, count: 1 });
+  else if (rate.count + 1 > limit) return false;
+  else rate.count += 1;
+  return true;
+}
 const RESTARTING: AckResult = { ok: false, error: 'restarting' };
 
 export const SAVED_ROOM_VERSION = 1;
@@ -690,6 +708,8 @@ export class RoomManager {
       listRate: new Map(),
       moreLessRate: new Map(),
       truthRate: new Map(),
+      drawRate: new Map(),
+      drawGuessRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -765,6 +785,8 @@ export class RoomManager {
       listRate: new Map(),
       moreLessRate: new Map(),
       truthRate: new Map(),
+      drawRate: new Map(),
+      drawGuessRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1625,6 +1647,49 @@ export class RoomManager {
     return result;
   }
 
+  /**
+   * Операція художника (28c): лише людина drawerId (у командній грі — учасник). Малюнок міняється в room.state без commit і без changed:
+   * таймер, крок і автопілот ті самі, сокети отримують легку подію drawing, сховище пише кімнату відкладено. Операція без зміни
+   * (порожній «крок назад») — ok без події. Понад DRAW_OPS_PER_SECOND на секунду — too_soon.
+   */
+  draw(room: Room, personId: string, op: DrawOp): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, personId, 'self');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.drawRate, personId, now, DRAW_OPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    const result = drawStroke(room.state, personId, op, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.state !== room.state) this.sketch(room, result.state, op);
+    return { ok: true };
+  }
+
+  /**
+   * Спроба вгадати малюнок (28c): у командній грі — будь-який учасник за команду (рушій). Ack лише { ok: true } (вгадано, commit — changed)
+   * чи відмова (drawing_miss для будь-якого хибного слова — ні слова, ні відстані). Понад DRAW_GUESSES_PER_SECOND на секунду — too_soon.
+   */
+  drawGuess(room: Room, personId: string, text: string): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const now = this.now();
+    if (!windowAllowed(room.drawGuessRate, personId, now, DRAW_GUESSES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    return this.apply(room, drawGuess(room.state, personId, text, now));
+  }
+
+  /** Повний малюнок поточного запитання (28c) для sync: при підключенні й на draw:sync. null — запитання не «Малюнок» (чи не на question/locked/reveal). */
+  drawSnapshot(room: Room): DrawingEvent | null {
+    const drawing = drawingOf(room.state);
+    if (drawing === null) return null;
+    return { kind: 'sync', questionIndex: room.state.questionIndex, rev: drawing.rev, strokes: drawing.strokes };
+  }
+
+  /** Новий малюнок без commit (28c): ні awayStep, ні stamp, ні planAutopilot, ні reschedule — змінилися лише штрихи й rev. */
+  private sketch(room: Room, state: GameState, op: DrawOp): void {
+    room.state = state;
+    const drawing = drawingOf(state);
+    if (drawing === null) return;
+    this.emit(room, { type: 'drawing', event: { kind: 'ops', questionIndex: state.questionIndex, rev: drawing.rev, op } });
+  }
+
   /** Понад MORELESS_PICKS_PER_SECOND виборів на секунду від людини (28a) — ні. Вікно своє, як у wordAllowed, але окреме. */
   private pickAllowed(room: Room, playerId: string, now: number): boolean {
     const rate = room.moreLessRate.get(playerId);
@@ -2058,6 +2123,8 @@ export class RoomManager {
     room.pickRate.delete(playerId);
     room.moreLessRate.delete(playerId);
     room.truthRate.delete(playerId);
+    room.drawRate.delete(playerId);
+    room.drawGuessRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {

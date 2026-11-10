@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
+import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
 import { answer, appeal, scoreAdjustment } from './db/schema';
@@ -76,6 +76,13 @@ function send(tracked: Tracked, event: string, ...args: unknown[]): Promise<AckR
 function listenTilt(tracked: Tracked): SortTilt[] {
   const received: SortTilt[] = [];
   tracked.socket.on('sort:tilt', (tilt) => received.push(tilt));
+  return received;
+}
+
+/** Збирає події малюнка (28c), що прийшли сокету. */
+function listenDrawing(tracked: Tracked): DrawingEvent[] {
+  const received: DrawingEvent[] = [];
+  tracked.socket.on('drawing', (event) => received.push(event));
   return received;
 }
 
@@ -669,6 +676,75 @@ describe('host presence', () => {
     const mine = await until(olena, (view) => view.role === 'player' && view.me.moreless?.done === 1);
     if (mine.role !== 'player') throw new Error('not a player');
     expect(mine.me.moreless?.picks).toEqual(['a']);
+  });
+
+  it('player:draw and player:draw-guess are player-only and validated', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([drawing]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    for (const who of [host, stage]) {
+      expect(await send(who, 'player:draw', { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: false, error: 'forbidden' });
+      expect(await send(who, 'player:draw-guess', { text: 'маяк' })).toEqual({ ok: false, error: 'forbidden' });
+    }
+    const bad = [
+      { op: 'begin', c: 9, w: 0, p: [1, 1] },
+      { op: 'begin', c: 0, w: 3, p: [1, 1] },
+      { op: 'begin', c: 0, w: 0, p: [1, 1001] },
+      { op: 'begin', c: 0, w: 0, p: [1, 1, 2] },
+      { op: 'begin', c: 0, w: 0, p: [1.5, 1] },
+      { op: 'more', index: 0, p: Array.from({ length: 129 * 2 }, () => 1) },
+      { op: 'undo', extra: 1 },
+      { op: 'paint' },
+      undefined,
+    ];
+    for (const payload of bad) expect(await send(olena, 'player:draw', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const payload of [{ text: 5 }, { text: 'а'.repeat(61) }, {}, undefined]) expect(await send(taras, 'player:draw-guess', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:draw', { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });
+    expect(await send(taras, 'player:draw', { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: false, error: 'drawing_not_drawer' });
+    expect(await send(taras, 'player:draw-guess', { text: 'ромашка' })).toEqual({ ok: false, error: 'drawing_miss' });
+    expect(await send(taras, 'player:draw-guess', { text: 'Соняшник' })).toEqual({ ok: true });
+  });
+
+  it('every socket of the room gets the drawing event, the word never', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([drawing]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    const frames = { stage: [] as unknown[], taras: [] as unknown[] };
+    stage.socket.onAny((...args) => frames.stage.push(args));
+    taras.socket.onAny((...args) => frames.taras.push(args));
+    const got = { host: listenDrawing(host), stage: listenDrawing(stage), olena: listenDrawing(olena), taras: listenDrawing(taras) };
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:draw', { op: 'begin', c: 4, w: 1, p: [100, 200] })).toEqual({ ok: true });
+    const event: DrawingEvent = { kind: 'ops', questionIndex: 0, rev: 1, op: { op: 'begin', c: 4, w: 1, p: [100, 200] } };
+    await vi.waitFor(() => {
+      for (const list of Object.values(got)) expect(list).toEqual([event]);
+    });
+    expect(await send(taras, 'player:draw-guess', { text: 'ромашка' })).toEqual({ ok: false, error: 'drawing_miss' });
+    await pause(50);
+    for (const list of Object.values(frames)) expect(JSON.stringify(list)).not.toContain('соняшник');
+  });
+
+  it('a new socket gets the drawing on connect', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([drawing]))).game;
+    const { game, host, olena } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    for (let i = 0; i < 3; i++) expect(await send(olena, 'player:draw', { op: 'begin', c: i, w: 0, p: [i, i] })).toEqual({ ok: true });
+    const strokes = [0, 1, 2].map((i) => ({ c: i, w: 0, p: [i, i] }));
+    const sync: DrawingEvent = { kind: 'sync', questionIndex: 0, rev: 3, strokes };
+    const late = open({ code: game.code, role: 'stage', token: game.stageToken });
+    const got = listenDrawing(late);
+    await vi.waitFor(() => expect(got).toEqual([sync]));
+    expect(await send(late, 'draw:sync')).toEqual({ ok: true });
+    await vi.waitFor(() => expect(got).toEqual([sync, sync]));
+    expect(await send(late, 'draw:sync')).toEqual({ ok: true });
+    expect(await send(late, 'draw:sync')).toEqual({ ok: false, error: 'too_soon' });
+    await pause(50);
+    expect(got).toHaveLength(3);
   });
 
   it('player:truth saves the fact and answers ok only', async () => {

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { breakdownOf, DEFAULT_RULES, defaultTeams, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound } from '@quiz/engine/testing';
+import { breakdownOf, DEFAULT_RULES, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -734,6 +734,29 @@ describe('host history: answers', () => {
       ['Олена', engine[olena]],
       ['Тарас', engine[taras]],
     ]);
+    await local.app.close();
+  });
+
+  it('a drawing game lands in the history with the drawer, the strokes and the engine points', async () => {
+    const { local, room, enter, detail } = await start(makeQuiz([drawing], { speedBonus: false }));
+    const olya = await enter('Оля');
+    const taras = await enter('Тарас');
+    const ira = await enter('Іра');
+    const step = (type: 'start' | 'lock' | 'next') => expect(local.manager.host(room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    expect(local.manager.draw(room, olya, { op: 'begin', c: 4, w: 1, p: [300, 300, 320, 340] })).toEqual({ ok: true });
+    expect(local.manager.drawGuess(room, taras, 'соняшник')).toEqual({ ok: true });
+    step('lock');
+    const engine = Object.fromEntries(Object.entries(room.state.plays[0].answers).map(([id, record]) => [id, record.points]));
+    expect(engine).toEqual({ [olya]: 50, [taras]: 100, [ira]: 0 });
+    step('next');
+    step('next');
+    const result = await detail();
+    const standings = result.standings as unknown as { nickname: string; score: number }[];
+    expect(result.questions[0].question.type).toBe('drawing');
+    expect(result.questions[0]).toMatchObject({ drawing: { drawer: 'Оля', strokes: packStrokes([{ c: 4, w: 1, p: [300, 300, 320, 340] }]) } });
+    expect(Object.fromEntries(standings.map((s) => [s.nickname, s.score]))).toEqual({ Оля: engine[olya], Тарас: engine[taras], Іра: engine[ira] });
     await local.app.close();
   });
 
