@@ -113,7 +113,14 @@ export interface MoreLessAnswer {
   total: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer;
+/** Запис «Малюнка» (28c); складає рушій, з телефона не приходить. Вгадувач: guess — що вписав, drew — null; художник: guess — null, drew — скільки сторін вгадали з тих, що могли. */
+export interface DrawingAnswer {
+  type: 'drawing';
+  guess: string | null;
+  drew: { guessed: number; could: number } | null;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {
