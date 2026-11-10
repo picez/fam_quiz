@@ -1220,7 +1220,7 @@ const KEYS: Record<number, Record<string, string>> = {
     MoreLessScored: 'right',
     MoreLessProgress: 'picks',
     TruthState: 'deck,facts',
-    TruthFact: 'at,hidden,text',
+    TruthFact: 'at,hidden,revised,text',
     TruthPlay: 'actorId,authorId,guessers,right',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
