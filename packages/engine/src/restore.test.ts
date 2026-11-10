@@ -371,7 +371,7 @@ const STATE_SHAPE: Record<string, string> = {
   MoreLessScored: keysOf<NonNullable<MoreLessPlay['scored']>>()(['right'], true),
   MoreLessProgress: keysOf<MoreLessProgress>()(['picks'], true),
   TruthState: keysOf<TruthState>()(['facts', 'deck'], true),
-  TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at'], true),
+  TruthFact: keysOf<TruthFact>()(['text', 'hidden', 'at', 'revised'], true),
   TruthPlay: keysOf<TruthPlay>()(['authorId', 'actorId', 'guessers', 'right'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),

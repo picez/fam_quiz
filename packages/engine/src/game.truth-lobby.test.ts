@@ -19,7 +19,7 @@ describe('player truth facts in the lobby', () => {
     const s = must(submitTruth(lobby(), 'p1', '  Я стрибала   з парашутом ', t0));
     expect(facts(s).p1).toEqual({ text: 'Я стрибала з парашутом', hidden: false, at: t0 });
     const changed = must(submitTruth(s, 'p1', 'Я плавала з акулами', t0 + 1000));
-    expect(facts(changed).p1).toEqual({ text: 'Я плавала з акулами', hidden: false, at: t0 + 1000 });
+    expect(facts(changed).p1).toEqual({ text: 'Я плавала з акулами', hidden: false, at: t0 + 1000, revised: true });
     expect(Object.keys(facts(changed))).toEqual(['p1']);
     const cleared = must(submitTruth(changed, 'p1', '   ', t0 + 2000));
     expect('p1' in facts(cleared)).toBe(false);
@@ -55,7 +55,7 @@ describe('player truth facts in the lobby', () => {
     expect(must(hideTruth(hidden, 'p2', true))).toBe(hidden);
     expect(facts(must(hideTruth(hidden, 'p2', false))).p2.hidden).toBe(false);
     const rewritten = must(submitTruth(hidden, 'p2', 'Я знаю сім мов', t0 + 1000));
-    expect(facts(rewritten).p2).toEqual({ text: 'Я знаю сім мов', hidden: false, at: t0 + 1000 });
+    expect(facts(rewritten).p2).toEqual({ text: 'Я знаю сім мов', hidden: false, at: t0 + 1000, revised: true });
     // той самий текст не знімає «сховано»
     expect(facts(must(submitTruth(hidden, 'p2', 'Я знаю шість мов', t0 + 1000))).p2.hidden).toBe(true);
     expect(hideTruth(s, 'p3', true)).toEqual({ ok: false, error: 'not_found' });

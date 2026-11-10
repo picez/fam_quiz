@@ -500,9 +500,9 @@ describe('team game: player truth (28b)', () => {
       { id: 'm2', text: 'Тарас' },
       { id: 'm4', text: 'Хосе' },
     ]);
-    // на «Правді» відповідача немає: жодна команда (і команда автора) не позначена окремо
+    // на «Правді» відповідача немає, але сцена не виділяє команду автора: жодна команда не має null
     expect(answeringTeams(s, play)).toEqual([]);
-    expect(stageView(s).teams?.teams.map((t) => t.answererId)).toEqual([null, null]);
+    expect(stageView(s).teams?.teams.map((t) => t.answererId)).toEqual(['m1', 'm3']);
     // капітан команди автора не вгадує
     expect(actAnswer(s, 'm1', { type: 'single', optionId: 'm3' }, 5000)).toEqual({ ok: false, error: 'truth_own' });
     // капітан t2 помиляється — команда автора бере повну ціну

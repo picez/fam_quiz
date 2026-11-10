@@ -41,7 +41,7 @@ export function submitTruth(state: GameState, personId: string, raw: string, now
   }
   if (old?.text === text) return ok(state);
   // Новий текст ведучий ще не бачив: «сховано» знімається, сховати можна знову.
-  return ok({ ...state, truth: { ...truth, facts: { ...truth.facts, [personId]: { text, hidden: false, at: now } } } });
+  return ok({ ...state, truth: { ...truth, facts: { ...truth.facts, [personId]: { text, hidden: false, at: now, ...(old === undefined ? {} : { revised: true as const }) } } } });
 }
 
 /** Ведучий ховає чи показує факт, поки запитання про нього не відкрилося. truth_closed / not_found. */
@@ -52,8 +52,10 @@ export function hideTruth(state: GameState, personId: string, hidden: boolean): 
   if (fact === undefined) return fail('not_found');
   // Запитання про цей факт уже відкрито чи зіграно.
   if (state.plays.some((play) => play.truth?.authorId === personId)) return fail('truth_closed');
-  if (fact.hidden === hidden) return ok(state);
-  return ok({ ...state, truth: { ...truth, facts: { ...truth.facts, [personId]: { ...fact, hidden } } } });
+  // Будь-яка дія ведучого з фактом знімає позначку «новий текст».
+  if (fact.hidden === hidden && fact.revised === undefined) return ok(state);
+  const { revised: _seen, ...rest } = fact;
+  return ok({ ...state, truth: { ...truth, facts: { ...truth.facts, [personId]: { ...rest, hidden } } } });
 }
 
 /**
