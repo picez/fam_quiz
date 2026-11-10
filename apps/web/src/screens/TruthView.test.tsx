@@ -15,8 +15,8 @@ const info = (over: Partial<TruthInfo> = {}): TruthInfo => ({ open: true, count:
 const hostTruth = (over: Partial<HostTruth> = {}): HostTruth => ({
   ...info({ count: 2 }),
   facts: [
-    { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false },
-    { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: false },
+    { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
+    { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: false, inDeck: true },
   ],
   author: null,
   ...over,
@@ -108,8 +108,8 @@ describe('HostTruthFacts', () => {
       <HostTruthFacts
         truth={hostTruth({
           facts: [
-            { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: true, revised: false },
-            { id: 'p2', nickname: 'Тарас', text: 'Маю чотирьох котів', hidden: true, played: false, revised: true },
+            { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: true, revised: false, inDeck: true },
+            { id: 'p2', nickname: 'Тарас', text: 'Маю чотирьох котів', hidden: true, played: false, revised: true, inDeck: true },
           ],
         })}
         send={send}
@@ -125,6 +125,23 @@ describe('HostTruthFacts', () => {
     await waitFor(() => expect(send).toHaveBeenCalledWith('host:truth-hide', { playerId: 'p2', hidden: false }));
     rerender(<HostTruthFacts truth={hostTruth({ facts: [] })} send={send} />);
     expect(screen.getByText(t('truthHostNone'))).toBeTruthy();
+  });
+
+  it('after the deal a fact outside the deck has no button', () => {
+    render(
+      <HostTruthFacts
+        truth={hostTruth({
+          facts: [
+            { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
+            { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: true, played: false, revised: false, inDeck: false },
+          ],
+        })}
+        send={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: t('truthHostShow') })).toBeNull();
+    expect(screen.getByText(t('truthHostHiddenMark'))).toBeTruthy();
   });
 
   it("reports the server's refusal", async () => {
@@ -237,6 +254,17 @@ describe('TruthReveal', () => {
     expect(screen.getByText('Тарас → Олена ✓')).toBeTruthy();
     expect(screen.getByText('Іра → Тарас ✗')).toBeTruthy();
     expect(screen.getByText('Хосе — без вибору')).toBeTruthy();
+  });
+
+  it('the stage packs a crowd of picks tighter; a few picks and the phone stay as they are', () => {
+    const picks = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `g${i}`, nickname: `Гравець ${i}`, pickedId: null, picked: null, correct: false }));
+    const truthOf = (n: number) => info({ open: false, count: 1, index: 0, reveal: { author: { id: 'p1', nickname: 'Олена' }, points: 300, picks: picks(n) } });
+    const { container, rerender } = render(<TruthReveal truth={truthOf(21)} big />);
+    expect(container.querySelector('.truth-reveal')?.className).toBe('truth-reveal is-big is-many');
+    rerender(<TruthReveal truth={truthOf(12)} big />);
+    expect(container.querySelector('.truth-reveal')?.className).toBe('truth-reveal is-big');
+    rerender(<TruthReveal truth={truthOf(21)} />);
+    expect(container.querySelector('.truth-reveal')?.className).toBe('truth-reveal');
   });
 
   it('nothing before the reveal', () => {

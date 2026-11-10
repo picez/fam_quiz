@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameDetail, GameSummary, Question } from '@quiz/shared';
 import { continueGame, deleteSavedGame, getGame, listGames, me } from '../api';
 import { loadAuthor, loadHost, loadLastGame, loadPlayer, saveAuthor, saveHost, saveLastGame } from '../storage';
+import { t } from '../i18n';
 import { GameHistory } from './GameHistory';
 import { History } from './History';
 
@@ -182,6 +183,44 @@ describe('GameHistory', () => {
     expect(screen.getByRole('link', { name: 'Історія ігор' }).getAttribute('href')).toBe('/history');
     // Текст запитання й статистика стоять в окремих рядках: інакше на телефоні текст стискається.
     for (const list of screen.getAllByRole('list')) expect(list.className).toContain('stacked');
+  });
+
+  it('a truth question marks the author row in the answers list (28b)', async () => {
+    const fact: Question = { ...singleQ, id: 'truth-0', text: 'Я стрибала з парашутом', options: [{ id: 'p1', text: 'Олена' }, { id: 'p2', text: 'Тарас' }], correctId: 'p1' };
+    const truthGame: GameDetail = {
+      ...detail,
+      rounds: [{ title: '', type: 'truth' }],
+      questions: [
+        {
+          index: 0,
+          roundIndex: 0,
+          text: fact.text,
+          type: 'single',
+          answered: 1,
+          accepted: 0,
+          cell: null,
+          question: fact,
+          responses: [{ nickname: 'Тарас', answer: { type: 'single', optionId: 'p2' }, accepted: false, buff: null, spare: null, awayMs: null, appeal: null }],
+          final: null,
+          bets: false,
+          auction: false,
+          truth: { author: 'Олена', points: 1000 },
+        },
+      ],
+    };
+    vi.mocked(getGame).mockResolvedValue({ ok: true, data: truthGame });
+    const { container } = open('/history/g1');
+    await screen.findByText('Я стрибала з парашутом');
+    const rows = [...container.querySelectorAll('.responses li')];
+    expect(rows).toHaveLength(2);
+    const author = rows.find((row) => row.querySelector('.responses-name')?.textContent === 'Олена');
+    expect(author?.textContent).toContain(t('truthHistoryAuthorRow'));
+    expect(author?.textContent).toContain('+1000');
+    const taras = rows.find((row) => row.querySelector('.responses-name')?.textContent === 'Тарас');
+    expect(taras?.textContent).not.toContain(t('truthHistoryAuthorRow'));
+    // «Відповіді (1)»: автор — не відповідь
+    expect(container.querySelector('.responses summary')?.textContent).toBe(t('responsesTitle', { count: 1 }));
+    expect(screen.getByText('Факт написав(ла): Олена · автор +1000')).toBeTruthy();
   });
 
   it('marks the details of a game a bot ran, beside the team mark', async () => {

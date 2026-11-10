@@ -18096,6 +18096,12 @@ button.letterwords-tile:focus-visible {
   row-gap: 0.25rem;
 }
 
+/* Ім'я — стовпчик сталої ширини: тексти фактів починаються на одній лінії, хай які довгі імена й скільки позначок у рядку. */
+.truth-facts .truth-fact .name {
+  flex: 0 0 9rem;
+  min-width: 0;
+}
+
 .truth-facts .truth-fact-text {
   flex: 1 1 12rem;
 }
@@ -18211,6 +18217,29 @@ button.letterwords-tile:focus-visible {
 .truth-reveal.is-big .truth-picks {
   justify-content: center;
   font-size: clamp(1rem, 1.6vw, 1.625rem);
+}
+
+/* 20+ гравців: дрібніші імена й рядки розкриття, щільніші проміжки — усе вміщається на 1600×900 без прокрутки. */
+.truth-stage-names.is-many {
+  gap: 0.375rem 0.5rem;
+  font-size: clamp(0.875rem, 1.15vw, 1.25rem);
+}
+
+.truth-stage-names.is-many li {
+  padding: 0.125rem 0.625rem;
+}
+
+.truth-reveal.is-big.is-many {
+  gap: 0.25rem;
+}
+
+.truth-reveal.is-big.is-many .truth-author {
+  font-size: clamp(1.5rem, 3vw, 3rem);
+}
+
+.truth-reveal.is-big.is-many .truth-picks {
+  gap: 0.25rem 0.875rem;
+  font-size: clamp(0.875rem, 1.1vw, 1.125rem);
 }
 
 .truth-pick-row.is-correct {

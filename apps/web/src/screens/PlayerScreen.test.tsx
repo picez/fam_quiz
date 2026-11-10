@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SPLASH_MS, emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { t } from '../i18n';
+import { errorText, t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
 import { PlayerScreen } from './PlayerScreen';
 import { BLINK_MS, SUSPENSE_MS } from './verdict-blink';
@@ -4659,6 +4659,21 @@ describe('PlayerScreen player truth (28b)', () => {
     expect(screen.queryByText(/Фактів/)).toBeNull();
   });
 
+  it('a truth_closed refusal that arrives with canWrite:false is shown on the screen', async () => {
+    let answer: (result: { ok: false; error: 'truth_closed' }) => void = () => {};
+    const send = vi.fn(() => new Promise((resolve) => (answer = resolve))) as unknown as Send;
+    const open = view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } });
+    const { rerender } = render(<PlayerScreen view={open} hostOnline offsetMs={0} send={send} />);
+    fireEvent.change(screen.getByLabelText(t('truthFactLabel')), { target: { value: 'Я бачила північне сяйво' } });
+    fireEvent.click(screen.getByRole('button', { name: t('truthFactSave') }));
+    // роздача: форма зникає раніше, ніж приходить відмова
+    const closed = view({ phase: 'intro', round, truth: info({ open: false, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: false }) } });
+    rerender(<PlayerScreen view={closed} hostOnline offsetMs={0} send={send} />);
+    expect(screen.queryByLabelText(t('truthFactLabel'))).toBeNull();
+    answer({ ok: false, error: 'truth_closed' });
+    expect(await screen.findByText(errorText('truth_closed'))).toBeTruthy();
+  });
+
   it('a late player writes a fact between questions until the deal', () => {
     show(view({ phase: 'intro', round, truth: info({ open: true, count: 2, index: null }), me: { ...me, truth: mine({ canWrite: true }) } }));
     expect(screen.getByLabelText(t('truthFactLabel'))).toBeTruthy();
@@ -4695,6 +4710,8 @@ describe('PlayerScreen player truth (28b)', () => {
     show(view({ phase: 'reveal', round, questionIndex: 0, question: truthQuestion, reveal: { ...truthFull, correctId: 'p2' }, truth: info({ reveal }), me: { ...me, truth: mine(), answer: { type: 'single', optionId: 'p3' }, result: { grade: 'wrong', accepted: false, points: 0, streakBonus: 0 } as never } }));
     expect(screen.getByText('Це написав(ла) Тарас')).toBeTruthy();
     expect(screen.getByText('Олена → Хосе ✗')).toBeTruthy();
+    // автора вже названо — рядок «Правильна відповідь: C. Тарас» його лише повторив би
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
   });
 
   it('a round with no facts says it was skipped on the phone too', () => {

@@ -428,11 +428,7 @@ export function GameHistory() {
                           </div>
                         )}
                         {question.auction && question.final === null && <p className="meta auction-open">{t('auctionHistoryOpen')}</p>}
-                        {question.truth !== undefined && (
-                          <p className="meta truth-history">
-                            <span className="tag">{t('truthHistoryAuthorRow')}</span> {truthLine(question.truth)}
-                          </p>
-                        )}
+                        {question.truth !== undefined && <p className="meta truth-history">{truthLine(question.truth)}</p>}
                         {question.wipeout !== undefined && (
                           <ul className="wipeout-history">
                             {wipeoutLines(question.wipeout).map((line, at) => (
@@ -501,10 +497,20 @@ export function GameHistory() {
                             ))}
                           </ul>
                         )}
-                        {question.responses.length > 0 && (
+                        {(question.responses.length > 0 || question.truth !== undefined) && (
                           <details className="responses">
                             <summary>{t('responsesTitle', { count: question.responses.length })}</summary>
                             <ul>
+                              {/* «Правда про гравця» (28b): автор не відповідав — його рядок з позначкою й часткою, без відповіді. */}
+                              {question.truth !== undefined && (
+                                <li className="truth-author-row">
+                                  <span className="responses-who">
+                                    <span className="responses-name">{question.truth.author}</span>
+                                    <span className="tag">{t('truthHistoryAuthorRow')}</span>
+                                  </span>
+                                  <span className="responses-answer">{signed(question.truth.points)}</span>
+                                </li>
+                              )}
                               {question.responses.map((response, at) => (
                                 <li
                                   key={at}

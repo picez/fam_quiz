@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { quizSizeText } from '../format';
 import { countText, errorText, t } from '../i18n';
 import { AdminPager } from './Admin';
 import { adminQuizzes, deleteQuizAsAdmin } from './admin-api';
@@ -73,7 +74,7 @@ export function AdminQuizzes(): JSX.Element {
                     {t('adminAuthor', { name: nickText(row.author.nickname) })}
                     {row.authorBanned && ` (${t('adminAuthorBanned')})`}
                   </p>
-                  <p className="meta">{countText('questionCount', row.questionCount)}</p>
+                  <p className="meta">{quizSizeText(countText('questionCount', row.questionCount), row.questionCount, row.truth)}</p>
                   <p className="meta">{t('adminGamesOf', { count: row.games })}</p>
                   <div className="admin-actions">
                     <Link className="btn" to={`/admin/quizzes/${encodeURIComponent(row.id)}`}>

@@ -360,7 +360,9 @@ function Result({ view }: { view: PlayerView }) {
       )}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
+      {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
+        view.truth?.index == null &&
         (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
@@ -915,7 +917,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'lobby' && view.author === null && view.prizes !== undefined && view.prizes.places.length > 0 && <PlayingFor prizes={view.prizes} size="phone" />}
       {/* «Правда про гравця» (28b): лише число фактів — чиї вони, телефон не каже. */}
       {phase === 'lobby' && view.truth !== undefined && <p className="meta truth-lobby-count">{t('truthFactsCount', { count: view.truth.count })}</p>}
-      {(phase === 'lobby' || truthLateForm) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} />}
+      {(phase === 'lobby' || truthLateForm) && me.truth !== undefined && <TruthFactForm truth={me.truth} send={send} onError={setError} />}
 
       {phase === 'guide' && view.guide !== null && <GuidePageView guide={view.guide} size="phone" autopilot={view.autopilot} />}
 

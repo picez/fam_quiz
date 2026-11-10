@@ -6,8 +6,14 @@ import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
 import { StageAnswerers } from './StageAnswerers';
 
-/** Телефон: поле факту (до 200 символів, лічильник), «Зберегти»; збережений текст або позначка ведучого. Факти закрито — нічого. */
-export function TruthFactForm({ truth, send }: { truth: PlayerTruth; send: Send }) {
+/** Понад стільки імен сцена ущільнює список і рядки розкриття: 20+ гравців уміщаються на 1600×900. */
+const MANY_TRUTH_NAMES = 12;
+
+/**
+ * Телефон: поле факту (до 200 символів, лічильник), «Зберегти»; збережений текст або позначка ведучого. Факти закрито — нічого.
+ * Відмова truth_closed приходить разом зі зрізом canWrite:false — форми вже немає, тож її текст іде в onError (рядок помилки екрана).
+ */
+export function TruthFactForm({ truth, send, onError }: { truth: PlayerTruth; send: Send; onError?: (text: string | null) => void }) {
   const id = useId();
   const [value, setValue] = useState(truth.fact);
   // Поки людина пише, новий зріз поле не скидає; без правок поле йде за збереженим текстом.
@@ -26,6 +32,11 @@ export function TruthFactForm({ truth, send }: { truth: PlayerTruth; send: Send 
     const text = truthText(value);
     void send('player:truth', { text })
       .then((result) => {
+        if (!result.ok && result.error === 'truth_closed' && onError !== undefined) {
+          setError(null);
+          onError(errorText(result.error));
+          return;
+        }
         setError(result.ok ? null : errorText(result.error));
         if (result.ok) setDirty(false);
       })
@@ -79,7 +90,7 @@ export function TruthFactForm({ truth, send }: { truth: PlayerTruth; send: Send 
   );
 }
 
-/** Пульт: людина · факт · «Сховати»/«Показати» (host:truth-hide); зіграні — без кнопки; число нехованих. */
+/** Пульт: людина · факт · «Сховати»/«Показати» (host:truth-hide); зіграні й поза колодою (після роздачі) — без кнопки; число нехованих. */
 export function HostTruthFacts({ truth, send, onError }: { truth: HostTruth; send: Send; onError?: (text: string | null) => void }) {
   const busy = useRef(false);
   const toggle = (playerId: string, hidden: boolean) => {
@@ -113,7 +124,7 @@ export function HostTruthFacts({ truth, send, onError }: { truth: HostTruth; sen
                 {fact.hidden && <span className="tag is-wrong">{t('truthHostHiddenMark')}</span>}
                 {fact.played ? (
                   <span className="tag">{t('truthHostPlayed')}</span>
-                ) : (
+                ) : !fact.inDeck ? null : (
                   <button type="button" className="btn btn-small" onClick={() => toggle(fact.id, !fact.hidden)}>
                     {t(fact.hidden ? 'truthHostShow' : 'truthHostHide')}
                   </button>
@@ -229,7 +240,7 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
       {view.phase === 'reveal' ? (
         <TruthReveal truth={truth} big />
       ) : (
-        <ul className="truth-stage-names">
+        <ul className={question.choices.length > MANY_TRUTH_NAMES ? 'truth-stage-names is-many' : 'truth-stage-names'}>
           {question.choices.map((choice) => (
             <li key={choice.id} dir="auto">
               {choice.text}
@@ -246,7 +257,7 @@ export function TruthReveal({ truth, big = false }: { truth: TruthInfo; big?: bo
   const { reveal } = truth;
   if (reveal === null) return null;
   return (
-    <section className={big ? 'truth-reveal is-big' : 'truth-reveal'}>
+    <section className={['truth-reveal', big ? 'is-big' : '', big && reveal.picks.length > MANY_TRUTH_NAMES ? 'is-many' : ''].filter(Boolean).join(' ')}>
       <p className="truth-author" dir="auto">
         {t('truthAuthorIs', { nickname: reveal.author.nickname })}
       </p>

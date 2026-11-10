@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
+import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Question, type Quiz } from '@quiz/shared';
 import { t } from '../i18n';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
@@ -3028,6 +3028,24 @@ describe('QuizEditor: truth round (28b)', () => {
     click('Зберегти');
     await waitFor(() => expect(screen.getAllByText(new RegExp(t('problemTruthOnce'))).length).toBeGreaterThan(0));
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('a bad price or timer is refused with its own problem, not the shared round settings one', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Правда про гравця');
+    fireEvent.click(settingsBlock());
+    fill(t('truthTimeLabel'), '2');
+    click('Зберегти');
+    const problem = t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime });
+    await waitFor(() => expect(screen.getAllByText(new RegExp(problem.slice(0, 20))).length).toBeGreaterThan(0));
+    expect(screen.queryByText(new RegExp(t('problemRules').slice(0, 20)))).toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
+    fill(t('truthTimeLabel'), '30');
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
   });
 });
 

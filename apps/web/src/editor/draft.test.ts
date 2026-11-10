@@ -2809,6 +2809,15 @@ describe('truth round (28b)', () => {
     expect(problemsOf(quizWith(newTruthRound(), newTruthRound())).some((problem) => problem.includes(t('problemTruthOnce')))).toBe(true);
   });
 
+  it('a bad price or timer has its own problem text', () => {
+    const problem = t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime });
+    for (const bad of [{ points: -1 }, { points: LIMITS.maxPoints + 1 }, { points: 1.5 }, { timeLimit: LIMITS.minTime - 1 }, { timeLimit: LIMITS.maxTime + 1 }, { timeLimit: Number.NaN }]) {
+      const problems = problemsOf(quizWith({ ...newTruthRound(), ...bad }));
+      expect(problems.some((p) => p.includes(problem))).toBe(true);
+      expect(problems.some((p) => p.includes(t('problemRules')))).toBe(false);
+    }
+  });
+
   it('a draft with a truth round passes the schema after cleaning and survives storage', () => {
     const quiz = quizWith(newTruthRound());
     expect(quizSchema.safeParse(cleaned(quiz)).success).toBe(true);

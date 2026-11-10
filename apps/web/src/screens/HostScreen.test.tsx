@@ -3573,8 +3573,8 @@ describe('HostScreen: player truth (28b)', () => {
   ];
   const truthQuestion: Question = { id: 'truth-0', type: 'single', text: 'Я стрибала з парашутом', imageUrl: null, video: null, timeLimit: 30, points: 200, options: names, correctId: 'p1' };
   const facts = [
-    { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false },
-    { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: true },
+    { id: 'p1', nickname: 'Олена', text: 'Я стрибала з парашутом', hidden: false, played: false, revised: false, inDeck: true },
+    { id: 'p2', nickname: 'Тарас', text: 'Маю трьох котів', hidden: false, played: false, revised: true, inDeck: true },
   ];
   const truth = (over: object = {}) => ({ open: true, count: 2, index: null, reveal: null, skipped: false, facts, author: null, ...over });
   const row = (playerId: string, nickname: string, over: object = {}) => ({ playerId, nickname, answer: null, timeMs: 30000, accepted: true, grade: 'correct' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 200, overridden: false, buff: null, spare: null, clue: null, ...over });
@@ -3601,5 +3601,11 @@ describe('HostScreen: player truth (28b)', () => {
     const author = items.find((li) => li.textContent?.includes('Олена'))!;
     expect(within(author).queryAllByRole('button')).toHaveLength(0);
     expect(within(author).getByText(t('truthHistoryAuthorRow'))).toBeTruthy();
+  });
+
+  it('the right answer of a truth question is the name, without an option letter', () => {
+    show(during('reveal', truthQuestion, { round: truthRound, truth: truth({ open: false, index: 0 }) }));
+    expect(screen.getByText('Правильна відповідь: Олена')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь: A\./)).toBeNull();
   });
 });

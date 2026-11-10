@@ -1384,7 +1384,7 @@ export function problemsOf(quiz: Quiz): string[] {
     }
     if (round.type === 'truth') {
       if (draft.rounds.findIndex((r) => r.type === 'truth') !== roundIndex) problems.push(where(t('problemTruthOnce')));
-      if (truthNumbersBroken(round)) problems.push(where(t('problemRules')));
+      if (truthNumbersBroken(round)) problems.push(where(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })));
       return;
     }
     if (round.type === 'bets') {

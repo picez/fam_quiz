@@ -116,6 +116,12 @@ const MAIN_ACTION: Partial<Record<HostView['phase'], { label: TextKey; event: Ho
 /** Етапи, на яких раунд ще триває й його можна завершити достроково. */
 const IN_ROUND: HostView['phase'][] = ['duel', 'intro', 'wager', 'board', 'question', 'locked', 'reveal', 'leaderboard'];
 
+/** Правильна відповідь на пульті; «Правда про гравця» (28b) — лише ім'я автора: імена йдуть без літер варіантів. */
+function hostCorrectText(correct: NonNullable<HostView['correct']>, view: HostView): string {
+  if (view.truth?.index != null && correct.type === 'single') return correct.options.find((option) => option.id === correct.correctId)?.text ?? '';
+  return correctText(correct, view.question?.choices);
+}
+
 /** Рядок контексту: поточний раунд і (за потреби) тип запитання, кожне з «ⓘ». */
 function HostContext({ round, question }: { round: NonNullable<HostView['round']>; question?: NonNullable<HostView['question']> }) {
   return (
@@ -782,7 +788,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
             </div>
           )}
           {/* «Більше чи менше»: правильні варіанти — у таблиці порівнянь нижче, рядок «—» нічого не каже. */}
-          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && <p className="answer">{t('correctAnswer', { answer: correctText(correct, view.question.choices) })}</p>}
+          {correct !== null && correct.type !== 'wall' && correct.type !== 'poll' && correct.type !== 'wordcloud' && correct.type !== 'survey' && correct.type !== 'bluff' && correct.type !== 'moreless' && <p className="answer">{t('correctAnswer', { answer: hostCorrectText(correct, view) })}</p>}
           {correct?.hint !== undefined && <p className="meta hint-known">{t('hintKnown', { hint: correct.hint })}</p>}
         </section>
       )}

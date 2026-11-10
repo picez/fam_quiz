@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { listQuizzes, type QuizSummary } from '../api';
 import { addDemoQuiz, useStartGame } from '../host-game';
+import { quizSizeText } from '../format';
 import { errorText, t } from '../i18n';
 import { ProfileSubpage } from '../profile/ProfileSubpage';
 import { useAccount } from '../useAccount';
@@ -95,7 +96,7 @@ export function CreateGame() {
               <li className="panel" key={quiz.id}>
                 <div>
                   <h2 dir="auto">{quiz.title}</h2>
-                  <p className="meta">{t('questionCount', { count: quiz.questionCount })}</p>
+                  <p className="meta">{quizSizeText(t('questionCount', { count: quiz.questionCount }), quiz.questionCount, quiz.truth)}</p>
                 </div>
                 <div className="toolbar">
                   <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run(() => startGame(quiz.id))}>

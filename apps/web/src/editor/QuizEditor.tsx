@@ -222,6 +222,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
       // Ставки: найбільша ставка й числа лежать у налаштуваннях раунду.
       const betsMaxPrefix = t('problemBetsMax', { min: 0, max: 0 }).split('0')[0];
       if (found.some((problem) => problem.includes(betsMaxPrefix) || problem.includes(t('problemRules')))) setSettingsOpen(true);
+      // Ціна й таймер «Правди про гравця» — у налаштуваннях раунду.
+      if (found.some((problem) => problem.includes(t('problemTruthNumbers', { max: LIMITS.maxPoints, min: LIMITS.minTime, maxTime: LIMITS.maxTime })))) setSettingsOpen(true);
       const sparePrefixes = [t('sparesTitle'), t('problemSparesEmpty'), t('spareN', { index: '' }).trim()];
       if (found.some((problem) => sparePrefixes.some((prefix) => problem.startsWith(prefix)))) setSparesOpen(true);
       // Показати запитання, яке треба виправити: воно може бути далеко у списку.
