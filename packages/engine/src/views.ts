@@ -141,7 +141,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
-import { truthGuessers, truthOpen, truthPlayOf, truthRoundOf } from './truth';
+import { inTruthDeck, truthCount, truthGuessers, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -458,6 +458,8 @@ function pinMarks(state: GameState, forHost: boolean): PinMark[] | null {
 function timesOf(round: Round): { min: number; max: number } | null {
   // «Мільйонер» без таймера: час запитань не діє.
   if (round.type === 'ladder' && !round.timer) return null;
+  // «Правда про гравця» (28b): запитань у вікторині немає, усі з часом раунду.
+  if (round.type === 'truth') return { min: round.timeLimit, max: round.timeLimit };
   const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [q.timeLimit] : []));
   return limits.length === 0 ? null : { min: Math.min(...limits), max: Math.max(...limits) };
 }
@@ -1139,12 +1141,12 @@ function truthInfo(state: GameState): TruthInfo | undefined {
   const round = truthRoundOf(state);
   return {
     open: truthOpen(state),
-    count: truth.deck === undefined ? Object.values(truth.facts).filter((f) => !f.hidden).length : truth.deck.length,
+    count: truthCount(state),
     index: truthIndex(state),
     reveal: truthReveal(state),
-    // Останній раунд без фактів закінчує гру одразу (finished без round_end) — повідомлення тоді на підсумках; дострокове
-    // завершення до роздачі (колоди ще немає) пропуском не є.
-    skipped: (state.phase === 'round_end' || (state.phase === 'finished' && truth.deck !== undefined)) && round !== null && !state.plays.some((p) => p.roundIndex === state.roundIndex),
+    // Пропуск — колоду роздано, а запитань з неї немає. Останній такий раунд закінчує гру одразу (finished без round_end) —
+    // повідомлення тоді на підсумках; дострокове завершення до роздачі (колоди ще немає) чи з фактами в колоді пропуском не є.
+    skipped: (state.phase === 'round_end' || state.phase === 'finished') && round !== null && truthSkipped(state),
   };
 }
 
@@ -1156,11 +1158,23 @@ function hostTruth(state: GameState): HostTruth | undefined {
   const facts = truthPeople(state).flatMap((p) => {
     const fact = Object.hasOwn(truth.facts, p.id) ? truth.facts[p.id] : undefined;
     if (fact === undefined || !truthPresent(state, p.id)) return [];
-    return [{ id: p.id, nickname: p.nickname, text: fact.text, hidden: fact.hidden, played: state.plays.some((play) => play.truth?.authorId === p.id), revised: fact.revised === true }];
+    return [
+      {
+        id: p.id,
+        nickname: p.nickname,
+        text: fact.text,
+        hidden: fact.hidden,
+        played: state.plays.some((play) => play.truth?.authorId === p.id),
+        revised: fact.revised === true,
+        inDeck: inTruthDeck(state, p.id),
+      },
+    ];
   });
   const open = truthPlayOf(state);
   const authorId = open !== null && (state.phase === 'question' || state.phase === 'locked') ? open.truth.authorId : null;
-  const nickname = authorId === null ? undefined : truthPeople(state).find((p) => p.id === authorId)?.nickname;
+  // Автора вилучили на відкритому запитанні — нік зі знімка варіантів.
+  const options = open?.question.type === 'single' ? open.question.options : [];
+  const nickname = authorId === null ? undefined : (truthPeople(state).find((p) => p.id === authorId)?.nickname ?? options.find((o) => o.id === authorId)?.text);
   return { ...info, facts, author: authorId === null ? null : { id: authorId, nickname: nickname ?? '' } };
 }
 
@@ -2270,7 +2284,7 @@ function base(state: GameState, forHost: boolean) {
     round: roundInfo(state),
     questionIndex: roundQuestionNumber(state),
     // Пропущені «100 до 1» (хмара без слів) у лічильник не входять. «Правда про гравця» (28b): запитань у вікторині немає — колода.
-    total: round?.type === 'truth' ? (state.truth?.deck?.length ?? 0) : round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
+    total: round?.type === 'truth' ? truthCount(state) : round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
     question: shownPublic(state),
     endsAt: held ? null : state.endsAt,
     remainingMs,
@@ -2648,8 +2662,10 @@ function revealStats(state: GameState, question: Question): RevealStats {
   );
   const play = state.plays[state.questionIndex];
   const board = play?.board !== undefined;
-  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
-  const records = Object.values(currentAnswers(state)).filter((record) => (board || record.spare === undefined) && (play === undefined || !isSilentRisk(play, record)));
+  // Мовчання з «Ризиком» (12h) — штраф, а не відповідь. Частка автора «Правди про гравця» (28b) — не відповідь.
+  const records = Object.entries(currentAnswers(state))
+    .filter(([id, record]) => id !== play?.truth?.actorId && (board || record.spare === undefined) && (play === undefined || !isSilentRisk(play, record)))
+    .map(([, record]) => record);
   const counts: Record<string, number> = {};
   for (const { answer } of records) {
     // У бліці гравець міг натиснути й не встигнути відповісти.

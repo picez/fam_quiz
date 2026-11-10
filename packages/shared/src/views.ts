@@ -943,7 +943,10 @@ export interface PlayerBets {
 export interface TruthInfo {
   /** Факти ще приймаються. */
   open: boolean;
-  /** До роздачі — скільки нехованих фактів написано (лише число, без імен); після — скільки запитань у колоді. */
+  /**
+   * До роздачі — скільки нехованих фактів написано (лише число, без імен; після старту — людей, що грають);
+   * після — зіграні запитання й ті записи колоди, що ще зіграються (сховане чи вилучене після роздачі не рахується).
+   */
   count: number;
   /** question…reveal раунду truth: номер запитання (від 0); інакше null. */
   index: number | null;
@@ -954,14 +957,15 @@ export interface TruthInfo {
     points: number;
     picks: { id: string; nickname: string; pickedId: string | null; picked: string | null; correct: boolean }[];
   } | null;
-  /** Лише round_end раунду truth без жодного запитання (фактів не було). */
+  /** Лише round_end (чи finished) раунду truth, коли колоду роздано, а запитань з неї немає й не буде. */
   skipped: boolean;
 }
 
 /** Як TruthInfo, але ведучому ще й усі факти й автор поточного запитання. */
 export interface HostTruth extends TruthInfo {
-  /** Факти тих, хто в грі, у порядку приходу людей: сховано, чи запитання вже відкрито, чи текст змінено після дії ведучого. */
-  facts: { id: string; nickname: string; text: string; hidden: boolean; played: boolean; revised: boolean }[];
+  /** Факти тих, хто в грі, у порядку приходу людей: сховано, чи запитання вже відкрито, чи текст змінено після дії ведучого;
+   * inDeck — факт іде в колоду (до роздачі — завжди; після — лише роздані, решта вже не зіграється). */
+  facts: { id: string; nickname: string; text: string; hidden: boolean; played: boolean; revised: boolean; inDeck: boolean }[];
   /** question/locked: автор поточного запитання; інакше null. */
   author: { id: string; nickname: string } | null;
 }

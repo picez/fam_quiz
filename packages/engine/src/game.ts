@@ -540,7 +540,6 @@ export interface MoreLessPlay {
   scored?: { right: number[] };
 }
 
-/** Фінал поточного раунду; null поза раундом фіналу. */
 /** «Правда про гравця» (28b): факти людей і колода авторів. */
 export interface TruthState {
   /** Факти за id людини (соло — гравець, командна гра — учасник). Немає ключа — факту немає. */
@@ -570,6 +569,7 @@ export interface TruthPlay {
   right?: string[];
 }
 
+/** Фінал поточного раунду; null поза раундом фіналу. */
 export interface FinalState {
   /** Межа ставки: max(0, рахунок) на вході в етап wager; бали від ведучого під час ставок її оновлюють. */
   limits: Record<string, number>;
@@ -1217,6 +1217,17 @@ export function questionsLeft(state: GameState): boolean {
   return currentRound(state)?.type === 'board' ? hasActiveCells(state) : nextQuestion(state) !== undefined;
 }
 
+/** Наступне запитання — ще в поточному раунді: на заставці раунду (навіть коли nextQuestion мовчить — учасника «Мільйонера» ще не вибрано) чи поки в ньому є запитання. */
+function comingInRound(state: GameState): boolean {
+  const fresh = state.phase === 'intro' || state.phase === 'guide';
+  return state.phase !== 'round_end' && (fresh || questionsLeft(state));
+}
+
+/** Раунд наступного запитання (як у comingQuestion): поточний, поки в ньому ще будуть запитання, інакше наступний; кінець гри — null. */
+export function comingRound(state: GameState): Round | null {
+  return comingInRound(state) ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
+}
+
 /**
  * Наступне запитання, яке відкриється (12g, щоб капітан не вибирав відповідача на бліц, опитування чи «хмару»):
  * у раунді, де ще є запитання (і на заставці раунду), — nextQuestion чи перше; на round_end чи коли раунд вичерпано — перше запитання наступного раунду.
@@ -1224,10 +1235,9 @@ export function questionsLeft(state: GameState): boolean {
  * Поле (клітинку ще не вибрано) і кінець гри — null.
  */
 export function comingQuestion(state: GameState): { question: Question; blitz: boolean; ladder: boolean; truth: boolean } | null {
-  // Заставка раунду: раунд ще попереду, навіть коли nextQuestion мовчить (учасника «Мільйонера» ще не вибрано).
   const fresh = state.phase === 'intro' || state.phase === 'guide';
-  const inRound = state.phase !== 'round_end' && (fresh || questionsLeft(state));
-  const round = inRound ? currentRound(state) : (state.quiz.rounds[state.roundIndex + 1] ?? null);
+  const inRound = comingInRound(state);
+  const round = comingRound(state);
   if (round === null || round.type === 'board') return null;
   // «Правда про гравця» (28b): запитання створює роздача; до неї (і в наступному раунді) їх ще немає.
   if (round.type === 'truth') {

@@ -6,6 +6,7 @@ import { shopBlock } from './debuffs';
 import { endRound, lock, next, override, recordOf, removePlayer, shuffle, start, submitAnswer, tick, type GameState } from './game';
 import { addLatePlayer } from './saved';
 import { hideTruth, submitTruth, truthGuessers, truthOpen, truthPlayOf } from './truth';
+import { undoPanel, undoScore } from './undo';
 import { classicRound, makeRoundsQuiz, single, truthRound, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 
@@ -170,6 +171,25 @@ describe('player truth round (28b)', () => {
     // запис автора ведучий не оцінює
     expect(override(s, author, 'correct')).toEqual({ ok: false, error: 'not_allowed' });
     expect(override(s, author, 'wrong')).toEqual({ ok: false, error: 'not_allowed' });
+  });
+
+  it("the author's share cannot be undone: truth answers are not undoable (UNDOABLE_ROUNDS), so a fixed undo cannot drift from the recalculated share", () => {
+    const base = opened();
+    const author = authorOf(base);
+    const [g1, g2] = guessersOf(base);
+    let s = must(submitAnswer(base, g1, pick(author), t0 + 1000));
+    s = must(submitAnswer(s, g2, pick(missOf(base)), t0 + 1000));
+    s = must(next(must(lock(s)), t0 + 31_000, rng0));
+    const q = s.questionIndex;
+    expect(recordOf(s, q, author)?.points).toBe(200);
+    // наступне запитання: попереднє вже видно в панелі скасування
+    s = must(next(s, t0 + 32_000, rng0));
+    expect(s.questionIndex).toBe(q + 1);
+    expect(undoScore(s, { question: q, playerId: author }, t0 + 33_000)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(undoScore(s, { question: q, playerId: g1 }, t0 + 33_000)).toEqual({ ok: false, error: 'not_allowed' });
+    expect(undoScore(s, { question: q }, t0 + 33_000)).toEqual({ ok: false, error: 'not_allowed' });
+    const rows = undoPanel(s)?.rounds.flatMap((r) => r.questions.filter((x) => x.index === q).flatMap((x) => x.rows)) ?? [];
+    expect(rows).toEqual([]);
   });
 
   it('no speed, no streak, no buffs', () => {

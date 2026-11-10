@@ -2070,6 +2070,17 @@ describe('question ids (17a)', () => {
     expect(renamed.correctId).toBe('a');
   });
 
+  it('withUniqueQuestionIds leaves a truth round as it is and still renames repeats around it (28b)', () => {
+    let n = 0;
+    const truth = { id: 'r2', type: 'truth', title: '', points: 300, timeLimit: 30 };
+    const quiz = quizOf([classic('r1', [single('q1')]), truth, classic('r3', [single('q1')])]);
+    const fixed = withUniqueQuestionIds(quiz, () => `fresh-${++n}`);
+    expect(fixed.rounds[1]).toBe(quiz.rounds[1]);
+    expect((fixed.rounds[2] as { questions: { id: string }[] }).questions.map((q) => q.id)).toEqual(['fresh-1']);
+    const lone = quizOf([truth, classic('r3', [single('q1')])]);
+    expect(withUniqueQuestionIds(lone, () => 'never')).toBe(lone);
+  });
+
   it('withUniqueQuestionIds returns the same quiz when nothing repeats', () => {
     const quiz = quizOf([classic('r1', [single('q1'), single('q2')])], [single('s1')]);
     expect(withUniqueQuestionIds(quiz, () => 'never')).toBe(quiz);

@@ -10,12 +10,12 @@ export const LIMITS = {
   questionText: 300,
   optionText: 120,
   answerText: 200,
+  /** «Правда про гравця» (28b): довжина факту про себе. */
+  truthText: 200,
   minTime: 5,
   maxTime: 120,
   defaultTime: 30,
   maxPoints: 2000,
-  /** «Правда про гравця» (28b): довжина факту про себе. */
-  truthText: 200,
   defaultPoints: 1000,
   minOptions: 2,
   maxOptions: 6,
@@ -1431,6 +1431,11 @@ export function allowedBuffs(quiz: Pick<Quiz, 'settings'>): BuffKind[] {
 /** Усі запитання вікторини в порядку раундів. */
 export function questionsOf(quiz: Quiz): Question[] {
   return quiz.rounds.flatMap(roundQuestions);
+}
+
+/** Є раунд «Правда про гравця» (28b): його запитання створює гра з фактів, у questionsOf їх немає — списки показують це окремим підписом. */
+export function hasTruthRound(quiz: Pick<Quiz, 'rounds'>): boolean {
+  return quiz.rounds.some((round) => round.type === 'truth');
 }
 
 /** Усі запитання раунду: у полі — по категоріях, у порядку клітинок. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer } from '@quiz/shared';
 import { seededRng } from './bluff';
-import { lock, next, removePlayer, start, submitAnswer, type GameState } from './game';
+import { endRound, lock, next, removePlayer, start, submitAnswer, type GameState } from './game';
 import { hideTruth, submitTruth } from './truth';
 import { assignTeam } from './teams';
 import { hostView, playerView, stageView } from './views';
@@ -177,8 +177,8 @@ describe('player truth views (28b)', () => {
     expect(s.truth?.deck?.length).toBe(3);
     expect(stageView(s).total).toBe(3);
     expect(playerView(s, 'p4')?.total).toBe(3);
-    // До роздачі колоди немає — 0, а не запитання вікторини.
-    expect(stageView(must(start(lobby()))).total).toBe(0);
+    // До роздачі колоди немає — число фактів, а не запитання вікторини.
+    expect(stageView(must(start(lobby()))).total).toBe(3);
   });
 
   it('a skipped last round says so on the finished game, an early end before the deal does not', () => {
@@ -197,6 +197,98 @@ describe('player truth views (28b)', () => {
     expect(playerView(done, 'p1')?.truth?.skipped).toBe(true);
     // Ведучий завершив гру на заставці раунду truth — колоди немає, це не пропуск.
     expect(stageView({ ...s, phase: 'finished' }).truth?.skipped).toBe(false);
+  });
+
+  it('the round intro has the round timer and the fact count, not «0 questions · no timer»', () => {
+    const intro = must(start(lobby()));
+    expect(intro.phase).toBe('intro');
+    expect(stageView(intro).round?.times).toEqual({ min: 30, max: 30 });
+    expect(stageView(intro).total).toBe(3);
+    expect(hostView(intro).total).toBe(3);
+    expect(playerView(intro, 'p4')?.total).toBe(3);
+    // сховане до роздачі не рахується
+    expect(stageView(must(hideTruth(intro, 'p2', true))).total).toBe(2);
+  });
+
+  it('a deck entry that will not be played is not counted: «Fact k of n» ends at n', () => {
+    let s = opened();
+    const later = s.truth?.deck?.slice(1) ?? [];
+    expect(later).toHaveLength(2);
+    // ведучий ховає один з ще не зіграних фактів, другого автора вилучено
+    s = must(hideTruth(s, later[0], true));
+    expect(stageView(s).truth?.count).toBe(2);
+    expect(stageView(s).total).toBe(2);
+    s = must(removePlayer(s, later[1]));
+    expect(stageView(s).truth?.count).toBe(1);
+    expect(stageView(s).total).toBe(1);
+    // відкрите запитання рахується, навіть коли автора вилучено
+    s = must(removePlayer(s, authorOf(s)));
+    expect(stageView(s).truth?.count).toBe(1);
+  });
+
+  it('after the deal a fact outside the deck cannot be shown, and the host panel knows it', () => {
+    const hidden = must(hideTruth(lobby(), 'p3', true));
+    const s = opened(hidden);
+    expect(s.truth?.deck).not.toContain('p3');
+    expect(hideTruth(s, 'p3', false)).toEqual({ ok: false, error: 'truth_closed' });
+    const facts = hostView(s).truth?.facts ?? [];
+    expect(facts.find((f) => f.id === 'p3')?.inDeck).toBe(false);
+    expect(facts.find((f) => f.id === 'p1')?.inDeck).toBe(true);
+    // до роздачі — у колоді все
+    expect(hostView(hidden).truth?.facts.every((f) => f.inDeck)).toBe(true);
+  });
+
+  it('a round ended at the intro with facts is not skipped; an empty deal is', () => {
+    const intro = must(start(lobby()));
+    const ended = must(endRound(intro, t0));
+    expect(stageView(ended).truth?.skipped).toBe(false);
+    const empty = must(next(must(start(lobby({}))), t0, rng0));
+    expect(stageView(empty).truth?.skipped).toBe(true);
+    // раунд із зіграним запитанням, завершений достроково, — не пропуск
+    const s = must(next(must(start(lobby({ p1: FACTS.p1 }))), t0, rng0));
+    expect(s.phase).toBe('question');
+    expect(stageView(must(endRound(s, t0 + 1000))).truth?.skipped).toBe(false);
+  });
+
+  it('the host still sees the nickname of an author removed on the open question', () => {
+    let s = opened();
+    const author = authorOf(s);
+    const nickname = s.players.find((p) => p.id === author)?.nickname;
+    s = must(removePlayer(s, author));
+    expect(hostView(s).truth?.author).toEqual({ id: author, nickname });
+  });
+
+  it("the reveal stats do not count the author's share as an answer", () => {
+    let s = opened(lobby({ p1: FACTS.p1 }));
+    s = must(submitAnswer(s, 'p2', pick('p4'), t0 + 1000));
+    s = must(lock(s));
+    s = must(next(s, t0 + 3000, rng0));
+    expect(s.phase).toBe('reveal');
+    // автор (p1) обдурив Тараса: його частка > 0, але це не відповідь
+    expect(s.plays[s.questionIndex].answers.p1?.points).toBeGreaterThan(0);
+    expect(stageView(s).stats).toMatchObject({ answered: 1, accepted: 0, counts: { p4: 1 } });
+  });
+
+  it('teams with a rotating answerer: before the truth round the captain is shown, as on its questions', () => {
+    const quiz = teamQuiz([classicRound('r1', [single]), truthRound('r2'), classicRound('r3', [single])], 2, 'rotate');
+    let s = teamLobby(quiz, 'Оля', 'Петро', 'Марко', 'Ната');
+    for (const [m, t] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']]) s = must(assignTeam(s, m, t));
+    s = must(submitTruth(s, 'm1', 'Я виростила лимон', 0));
+    s = must(start(s));
+    s = must(next(s, t0, rng0));
+    s = must(lock(s, t0 + 1000));
+    const captains = ['m1', 'm3'];
+    const shown = (state: GameState) => stageView(state).teams?.teams.map((t) => t.answererId);
+    let guard = 0;
+    while (!(s.phase === 'intro' && s.roundIndex === 1) && guard++ < 20) {
+      s = must(next(s, t0 + 2000, rng0));
+      if (s.phase === 'round_end') expect(shown(s)).toEqual(captains);
+    }
+    expect(s.phase).toBe('intro');
+    expect(shown(s)).toEqual(captains);
+    s = must(next(s, t0 + 3000, rng0));
+    expect(s.phase).toBe('question');
+    expect(shown(s)).toEqual(captains);
   });
 
   it('other quizzes have no truth key', () => {

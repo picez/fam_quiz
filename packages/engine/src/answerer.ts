@@ -1,6 +1,6 @@
 import { answererModeOf, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
 // game.ts (openQuestion) імпортуватиме цей файл, а цей файл — його; звертання лише під час виклику функцій.
-import { comingQuestion, currentRound, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
+import { comingQuestion, comingRound, currentRound, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
 import { trialOpen } from './survival';
 import { actorOf } from './team-act';
 import { captainOf, memberOf, teamMembers, teamsOn, withTeams } from './teams';
@@ -89,8 +89,12 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
   return index === state.questionIndex ? answererOf(state, teamId) : null;
 }
 
-/** Наступне запитання — бліц, опитування чи «хмара» (comingQuestion): відповідача немає, вибір капітана відкладено. */
+/**
+ * Наступне запитання — бліц, опитування чи «хмара» (comingQuestion): відповідача немає, вибір капітана відкладено.
+ * «Правда про гравця» (28b) — теж; до роздачі її запитань ще немає, тож дивимось на раунд (comingRound).
+ */
 export function freeForAllNext(state: GameState): boolean {
+  if (comingRound(state)?.type === 'truth') return true;
   const coming = comingQuestion(state);
   return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question));
 }

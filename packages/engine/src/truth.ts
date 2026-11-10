@@ -52,6 +52,8 @@ export function hideTruth(state: GameState, personId: string, hidden: boolean): 
   if (fact === undefined) return fail('not_found');
   // Запитання про цей факт уже відкрито чи зіграно.
   if (state.plays.some((play) => play.truth?.authorId === personId)) return fail('truth_closed');
+  // Після роздачі факт поза колодою (сховано до роздачі, автор без команди) вже не зіграється: «Показати» нічого не дасть.
+  if (!inTruthDeck(state, personId)) return fail('truth_closed');
   // Будь-яка дія ведучого з фактом знімає позначку «новий текст».
   if (fact.hidden === hidden && fact.revised === undefined) return ok(state);
   const { revised: _seen, ...rest } = fact;
@@ -121,6 +123,31 @@ export function nextTruthQuestion(state: GameState): Question | undefined {
     if (question !== null) return question;
   }
   return undefined;
+}
+
+/**
+ * Скільки запитань дає раунд truth: до роздачі — нехованих фактів (після старту — лише людей, що грають);
+ * після роздачі — зіграні запитання + ще не зіграні записи колоди, що досі зіграються (truthQuestion не null).
+ */
+export function truthCount(state: GameState): number {
+  const truth = state.truth;
+  if (truth === undefined) return 0;
+  if (truth.deck === undefined) {
+    return Object.entries(truth.facts).filter(([id, fact]) => !fact.hidden && (state.phase === 'lobby' || inGame(state, id))).length;
+  }
+  const played = new Set(state.plays.filter((p) => p.truth !== undefined).map((p) => p.question.id));
+  return played.size + truth.deck.filter((_, k) => !played.has(`${TRUTH_QUESTION_PREFIX}${k}`) && truthQuestion(state, k) !== null).length;
+}
+
+/** Колоду роздано, а запитань з неї немає й не буде: раунд пропущено. */
+export function truthSkipped(state: GameState): boolean {
+  return state.truth?.deck !== undefined && truthCount(state) === 0;
+}
+
+/** Факт іде в колоду: до роздачі — будь-який, після — лише той, чий автор у колоді. */
+export function inTruthDeck(state: GameState, personId: string): boolean {
+  const deck = state.truth?.deck;
+  return deck === undefined || deck.includes(personId);
 }
 
 /** play.truth для запитання, що відкривається: автор, його учасник рушія, присутні вгадувачі без нього. */
