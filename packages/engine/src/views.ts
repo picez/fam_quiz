@@ -1,5 +1,10 @@
 import {
   allowedBuffs,
+  AUCTION_BID_MS,
+  AUCTION_OPEN_MS,
+  type AuctionInfo,
+  type HostAuction,
+  type PlayerAuction,
   betMinimum,
   betsTeaser,
   type BetsInfo,
@@ -117,7 +122,8 @@ import {
 } from '@quiz/shared';
 import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState } from './game';
 import { lastNotice } from './adjust';
-import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, wagerLimitOf, wagerRound } from './bets';
+import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
+import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -957,6 +963,103 @@ function playerBets(state: GameState, playerId: string): PlayerBets | null {
     playing?.includes(playerId) === true ? 'playing' : limit < minimum ? 'low' : playing !== null ? 'late' : wager !== null ? 'placed' : 'choosing';
   const canBet = state.phase === 'wager' && !state.paused && (status === 'choosing' || status === 'placed');
   return { status, wager, minimum, limit, canBet };
+}
+
+/**
+ * «Аукціон» (27b) від intro до leaderboard: раунд, запитання k і хто його грає.
+ * На intro і leaderboard k — наступне запитання; на wager — те, що торгується; на question…reveal — продане чи відкрите.
+ * Продане запитання (play.final) грає лише переможець; непродане — усі.
+ */
+function auctionOpenNow(state: GameState) {
+  const round = auctionRoundOf(state);
+  if (round === null || !BETS_PHASES.includes(state.phase)) return null;
+  const played = state.plays.filter((play) => play.roundIndex === state.roundIndex).length;
+  const index = state.phase === 'intro' || state.phase === 'leaderboard' ? Math.min(played, round.questions.length - 1) : betsIndex(state);
+  const question = round.questions[index];
+  if (question === undefined) return null;
+  const playing = betsPlaying(state);
+  const opened = BETS_OPEN_PHASES.includes(state.phase);
+  return { round, index, question, wager: state.phase === 'wager', sold: playing !== null, open: opened && playing === null, winnerId: playing?.[0] ?? null };
+}
+
+/** Межа гравця в «Аукціоні»: на торгу й запитанні — знята на вході в торг (і йде за балами від ведучого), інакше max(0, рахунок). */
+function auctionLimitNow(state: GameState, playerId: string): number {
+  if (state.phase === 'wager' || BETS_OPEN_PHASES.includes(state.phase)) return wagerLimitOf(state, playerId);
+  return Math.max(0, state.players.find((p) => p.id === playerId)?.score ?? 0);
+}
+
+function auctionInfo(state: GameState): AuctionInfo | null {
+  const open = auctionOpenNow(state);
+  if (open === null) return null;
+  const { round, index, question, wager, sold, winnerId } = open;
+  const leader = wager ? auctionLeader(state) : null;
+  const leaderId = wager ? (leader?.playerId ?? null) : winnerId;
+  const winner = leaderId === null ? undefined : state.players.find((p) => p.id === leaderId);
+  const play = state.plays[state.questionIndex];
+  const bid = wager ? (leader?.bid ?? 0) : sold && winnerId !== null && play?.final !== undefined ? (play.final.wagers[winnerId] ?? 0) : 0;
+  const record = state.phase === 'reveal' && winnerId !== null ? recordOf(state, state.questionIndex, winnerId) : undefined;
+  const result = record !== undefined && winnerId !== null && finalShown(state, winnerId) ? { grade: record.grade, points: finalVisiblePoints(state, winnerId) } : null;
+  // Пауза: годинник стоїть, клієнт показує залишок (як у інших таймерах).
+  return {
+    theme: round.title,
+    index,
+    total: round.questions.length,
+    price: question.points,
+    mode: round.bidMode,
+    step: round.bidStep,
+    loss: round.loss,
+    // До продажу — лише початок тексту: без варіантів, медіа й полів типу.
+    teaser: wager ? betsTeaser(question.text, question.betsCut ?? 0) : null,
+    bid,
+    leader: winner === undefined ? null : { playerId: winner.id, nickname: winner.nickname },
+    next: wager ? (auctionNextNow(state) ?? 0) : 0,
+    endsAt: wager && state.heldAt === null ? state.endsAt : null,
+    remainingMs: wager ? (state.heldAt !== null ? remainingOf(state, state.heldAt) : state.remainingMs) : null,
+    totalMs: wager && leader === null ? AUCTION_OPEN_MS : AUCTION_BID_MS,
+    open: open.open,
+    result,
+  };
+}
+
+/** Статус гравця на торгу: лідер, без балів, коротко (межа менша за наступну ставку) чи може ставити. */
+function auctionBidStatus(state: GameState, playerId: string): 'bidding' | 'leading' | 'short' | 'none' {
+  const limit = auctionLimitNow(state, playerId);
+  if (auctionLeader(state)?.playerId === playerId) return 'leading';
+  if (limit <= 0) return 'none';
+  return limit < (auctionNextNow(state) ?? 0) ? 'short' : 'bidding';
+}
+
+function hostAuction(state: GameState): HostAuction | null {
+  const info = auctionInfo(state);
+  const open = auctionOpenNow(state);
+  if (info === null || open === null) return null;
+  const { round, question, winnerId } = open;
+  const manual = round.check === 'manual';
+  const play = state.plays[state.questionIndex];
+  const graded = play?.final?.graded ?? [];
+  // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder';
+  const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
+  const winner = state.players.find((p) => p.id === winnerId);
+  return {
+    ...info,
+    question,
+    limits: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, limit: auctionLimitNow(state, p.id), canBid: open.wager && auctionBidStatus(state, p.id) === 'bidding' })),
+    manual,
+    pending: answer !== null && winner !== undefined && winnerId !== null && !graded.includes(winnerId) ? [{ playerId: winnerId, nickname: winner.nickname, answer }] : [],
+  };
+}
+
+function playerAuction(state: GameState, playerId: string): PlayerAuction | null {
+  const open = auctionOpenNow(state);
+  if (open === null) return null;
+  const limit = auctionLimitNow(state, playerId);
+  if (open.wager) {
+    const status = auctionBidStatus(state, playerId);
+    return { status, limit, next: auctionNextNow(state) ?? 0, canBid: !state.paused && status === 'bidding' };
+  }
+  const status: PlayerAuction['status'] = open.open ? 'open' : open.winnerId === playerId ? 'winner' : 'watching';
+  return { status, limit, next: 0, canBid: false };
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
@@ -1882,6 +1985,7 @@ function base(state: GameState, forHost: boolean) {
     spotlight: spotlightOf(state, forHost),
     final: finalInfo(state),
     ...optional('bets', betsInfo(state) ?? undefined),
+    ...optional('auction', auctionInfo(state) ?? undefined),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
@@ -2141,7 +2245,7 @@ function answeredCount(state: GameState): number {
   const answered = [...new Set([...recorded, ...held])];
   const sort = currentSort(state);
   const ladder = currentLadder(state);
-  if ((sort === null && ladder === null) || !wagerRound(currentRound(state))) return answered.length;
+  if ((sort === null && ladder === null) || !stakedPlay(play)) return answered.length;
   const progress = sort !== null ? sort.play.sort : ladder?.play.wordladder;
   const moved = new Set([...Object.keys(progress ?? {}), ...answered]);
   return state.players.filter((p) => moved.has(p.id)).length;
@@ -2479,6 +2583,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       blitz: playerBlitz(state, playerId),
       final: playerFinal(state, playerId),
       ...optional('bets', playerBets(state, playerId) ?? undefined),
+      ...optional('auction', playerAuction(state, playerId) ?? undefined),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
@@ -2609,7 +2714,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, ...shared } = base(state, true);
   return {
     ...shared,
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
@@ -2630,6 +2735,7 @@ export function hostView(state: GameState): HostView {
     board: hostBoard(state),
     final: hostFinal(state),
     ...optional('bets', hostBets(state) ?? undefined),
+    ...optional('auction', hostAuction(state) ?? undefined),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),
