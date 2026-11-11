@@ -22,10 +22,10 @@ export const mixThemeOf = (id: string): MixTheme | null => {
 /** Найменший таймер запитання в цій вікторині (правило власника). */
 export const MIN_TIMER = 25;
 
-const blank = (text: string, points: number, timeLimit: number) => ({ id: 'x', text, imageUrl: null, video: null, timeLimit, points });
+export const blank = (text: string, points: number, timeLimit: number) => ({ id: 'x', text, imageUrl: null, video: null, timeLimit, points });
 
 /** Словесна драбина: path — шлях ведучого від стартового слова до цільового (слова зі словника драбини). */
-const ladder = (text: string, path: string[], maxSteps: number, points = 1500, time = 120): Question => ({
+export const ladder = (text: string, path: string[], maxSteps: number, points = 1500, time = 120): Question => ({
   ...blank(text, points, time),
   type: 'wordladder',
   path,
@@ -33,7 +33,7 @@ const ladder = (text: string, path: string[], maxSteps: number, points = 1500, t
 });
 
 /** «Слова з літер» зі своїм набором ведучого. */
-const letters = (text: string, set: string, goal: 'most' | 'longest', points: number, time = 90): Question => ({
+export const letters = (text: string, set: string, goal: 'most' | 'longest', points: number, time = 90): Question => ({
   ...blank(text, points, time),
   type: 'letterwords',
   set: { kind: 'fixed', letters: set },
@@ -42,7 +42,7 @@ const letters = (text: string, set: string, goal: 'most' | 'longest', points: nu
 });
 
 /** «Список на час»: items — [назва, інші написання?][]; points — ціна одного пункту. */
-const list = (text: string, items: [string, string[]?][], points: number, minus: number | null, time = 90): Question => ({
+export const list = (text: string, items: [string, string[]?][], points: number, minus: number | null, time = 90): Question => ({
   ...blank(text, points, time),
   type: 'timedlist',
   items: items.map(([name, accepted = []], i) => ({ id: `i${i + 1}`, text: name, accepted })),
@@ -50,7 +50,7 @@ const list = (text: string, items: [string, string[]?][], points: number, minus:
 });
 
 /** «Більше чи менше»: pairs — [запитання, [варіант, значення], [варіант, значення], правильна сторона, бали]. */
-const moreless = (text: string, pairs: [string, [string, string], [string, string], 'a' | 'b', number][], time = 60): Question => ({
+export const moreless = (text: string, pairs: [string, [string, string], [string, string], 'a' | 'b', number][], time = 60): Question => ({
   ...blank(text, pairs.reduce((sum, p) => sum + p[4], 0), time),
   type: 'moreless',
   pairs: pairs.map(([prompt, a, b, correct, points], i) => ({
@@ -64,14 +64,14 @@ const moreless = (text: string, pairs: [string, [string, string], [string, strin
 });
 
 /** «Малюнок»: accepted[0] — слово для художника. */
-const drawing = (text: string, accepted: string[], points: number, time = 75): Question => ({
+export const drawing = (text: string, accepted: string[], points: number, time = 75): Question => ({
   ...blank(text, points, time),
   type: 'drawing',
   accepted,
 });
 
 /** Судоку 6×6 (28d): сітка й розв'язок — генератором із shared за seed і складністю, як у редакторі. */
-const sudoku = (text: string, seed: number, level: SudokuLevel, points: number, time = 180): Question => ({
+export const sudoku = (text: string, seed: number, level: SudokuLevel, points: number, time = 180): Question => ({
   ...blank(text, points, time),
   type: 'sudoku',
   level,
@@ -80,7 +80,7 @@ const sudoku = (text: string, seed: number, level: SudokuLevel, points: number, 
 });
 
 /** Кросворд (28d): розкладка — компонувальником редактора; з ключем (режим key) — ще й ключові клітинки. */
-const crossword = (text: string, words: [string, string][], key: string | null, points: number, time = 240): Question => {
+export const crossword = (text: string, words: [string, string][], key: string | null, points: number, time = 240): Question => {
   const entries = words.map(([answer, clue], i) => ({ id: `w${i + 1}`, answer, clue }));
   const laid = layoutCrossword(entries);
   if (!laid.ok) throw new Error(`crossword: ${laid.reason} ${laid.ids.join(',')}`);
@@ -90,15 +90,15 @@ const crossword = (text: string, words: [string, string][], key: string | null, 
 };
 
 /** Позначка обрізу для раундів «Ставки» й «Аукціон»: скільки перших слів видно під час ставок. */
-const cut = (question: Question, words: number): Question => ({ ...question, betsCut: words });
+export const cut = (question: Question, words: number): Question => ({ ...question, betsCut: words });
 
 /** Аудіо з YouTube: id перевірено через oEmbed (офіційні канали гуртів і VEVO). */
-const yt = (question: Question, id: string, start = 0, duration = 25): Question => withAudio(question, { source: 'youtube', id, start, duration });
+export const yt = (question: Question, id: string, start = 0, duration = 25): Question => withAudio(question, { source: 'youtube', id, start, duration });
 
-type Cell = ReturnType<typeof cell>;
+export type Cell = ReturnType<typeof cell>;
 
 /** Детермінований генератор (mulberry32) із зерном із рядка. */
-const random = (seed: string) => {
+export const random = (seed: string) => {
   let a = [...seed].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619), 2166136261) >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -112,7 +112,7 @@ const random = (seed: string) => {
  * Множник (×2 чи ×3 навмання) і бліц-клітинка — на випадкових цінах, щоб гравці не мали шаблону.
  * Бліц-клітинка є приблизно в половині категорій і падає лише на просту клітинку з телефона.
  */
-const scatter = (seed: string, cells: Cell[]): Cell[] => {
+export const scatter = (seed: string, cells: Cell[]): Cell[] => {
   const next = random(`mix-${seed}`);
   const out: Cell[] = [...cells].sort((x, y) => questionPrice(x.question) - questionPrice(y.question)).map((c) => ({ ...c, mark: 'none', kind: 'normal', penalty: 'none' }));
   const marked = Math.floor(next() * out.length);
