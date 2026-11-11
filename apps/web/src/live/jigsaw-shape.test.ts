@@ -46,4 +46,13 @@ describe('piecePath', () => {
     expect(right.length).toBeGreaterThan(0);
     expect(key(left)).toEqual(key(right));
   });
+  it('an offset moves the whole piece without changing its shape', () => {
+    const at = points(piecePath([1, -1, 1, 0], 100, 80, 300, 160));
+    const home = points(piecePath([1, -1, 1, 0], 100, 80));
+    expect(at).toHaveLength(home.length);
+    at.forEach((p, i) => {
+      expect(p.x).toBeCloseTo(home[i]!.x + 300, 1);
+      expect(p.y).toBeCloseTo(home[i]!.y + 160, 1);
+    });
+  });
 });

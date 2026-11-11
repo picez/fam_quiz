@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEBUFF_KINDS, SPLASH_MS, emptyBrief, generateSudoku, type PuzzleInfo, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
+import { DEBUFF_KINDS, SPLASH_MS, emptyBrief, generateSudoku, jigsawTabs, type JigsawBoardView, type JigsawInfo, type PuzzleInfo, type Answer, type AppealView, type BluffInfo, type BluffOptionView, type HostDuel, type HostLive, type HostView, type LiveRow, Question, RoundInfo, type WipeoutInfo, type WipeoutRow, type SurvivalInfo, type SurvivalRow } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { HostScreen } from './HostScreen';
@@ -1609,6 +1609,43 @@ describe('HostScreen puzzles (28d)', () => {
     show(view({ phase: 'question', questionIndex: 0, playerCount: 1, answeredCount: 0, question: { ...publicOf(single), type: 'crossword', choices: [], puzzle }, correct: crossQ, endsAt: Date.now() + 60_000, puzzle: crossInfo }));
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
     expect(document.querySelector('.host-puzzle .puzzle-solution .puzzle-words')?.textContent).toContain('ЛИС');
+  });
+});
+
+describe('HostScreen jigsaw (29c)', () => {
+  const jigsaw = { photo: '/uploads/0123456789abcdef0123.jpg', aspect: '4:3' as const, focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, tabs: jigsawTabs(3, 4, 1), preview: false };
+  const jigsawQ = { id: 'j1', type: 'jigsaw', text: 'Складіть пазл', imageUrl: null, video: null, timeLimit: 120, points: 300, ...jigsaw, seed: 1 } as unknown as Question;
+  const publicQ = { ...publicOf(single), type: 'jigsaw' as const, text: 'Складіть пазл', choices: [], jigsaw };
+  const all = Array.from({ length: 12 }, (_, k) => k);
+  const board = (playerId: string, nickname: string, placed: number[], over: Partial<JigsawBoardView> = {}): JigsawBoardView => ({
+    playerId, nickname, placed, tones: null, total: 12, done: false, timeMs: null, points: null, ...over,
+  });
+
+  it('the host sees the same boards', () => {
+    const info: JigsawInfo = { boards: [board('p1', 'Оля', [0, 1, 2, 5, 6, 7]), board('p2', 'Тарас', all, { done: true, timeMs: 41_200 }), board('p3', 'Ната', [])] };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 3, answeredCount: 1, question: publicQ, correct: jigsawQ, endsAt: Date.now() + 60_000, jigsaw: info }));
+    const panel = document.querySelector<HTMLElement>('.host-jigsaw')!;
+    expect(within(panel).getByRole('heading', { name: 'Пазл' })).toBeTruthy();
+    const thumbs = panel.querySelectorAll('.jigsaw-thumb');
+    expect([...thumbs].map((thumb) => thumb.querySelector('.puzzle-thumb-count')?.textContent)).toEqual(['50 %', '100 %', '0 %']);
+    expect(thumbs[0].querySelectorAll('clipPath path')).toHaveLength(6);
+    expect(screen.getByText(/Відповіли 1 з 3/)).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+    expect(panel.querySelector('.jigsaw-table')).toBeNull();
+  });
+
+  it('on reveal the host sees the photo and the time table too', () => {
+    const info: JigsawInfo = { boards: [board('p2', 'Тарас', all, { done: true, timeMs: 41_200, points: 300 }), board('p1', 'Оля', [0, 1, 2], { points: 0 })] };
+    show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: publicQ, correct: jigsawQ, jigsaw: info }));
+    const panel = document.querySelector<HTMLElement>('.host-jigsaw')!;
+    expect(panel.querySelector('img')?.getAttribute('src')).toBe(jigsaw.photo);
+    const rows = [...panel.querySelectorAll('.jigsaw-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Тарас', '41,2 с', '+300'],
+      ['—', 'Оля', 'Не склав · 25 %', '0'],
+    ]);
+    expect(panel.querySelectorAll('.jigsaw-thumb')).toHaveLength(2);
   });
 });
 

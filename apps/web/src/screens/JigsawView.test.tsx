@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { jigsawTabs, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { jigsawTabs, type JigsawBoardView, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
-import { JigsawPlay, JigsawReveal } from './JigsawView';
+import { JigsawPlay, JigsawReveal, JigsawTable, jigsawTablePageSize } from './JigsawView';
 
 const JIGSAW: PublicJigsaw = { photo: '/uploads/0123456789abcdef0123.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, tabs: jigsawTabs(3, 4, 1), preview: false };
 const infoOf = (over: Partial<PlayerJigsaw> = {}): PlayerJigsaw => ({ placed: [], held: [], done: false, canPlace: true, seq: 0, timeMs: null, result: null, ...over });
@@ -208,5 +208,31 @@ describe('JigsawReveal', () => {
     expect(document.querySelectorAll('.jigsaw-frame .is-placed')).toHaveLength(3);
     expect(document.querySelector('.jigsaw-ghost')).toBeTruthy();
     expect(screen.getByText(t('jigsawAnswerPart', { placed: 3, total: 12 }))).toBeTruthy();
+  });
+});
+
+describe('jigsaw stage table (29c)', () => {
+  const view = (playerId: string, nickname: string, over: Partial<JigsawBoardView>): JigsawBoardView => ({ playerId, nickname, placed: [], tones: null, total: 12, done: false, timeMs: null, points: 0, ...over });
+
+  it('equal times share a place, unfinished boards have none', () => {
+    const all = Array.from({ length: 12 }, (_, k) => k);
+    const info = {
+      boards: [
+        view('a', 'Оля', { placed: all, done: true, timeMs: 30_000, points: 300 }),
+        view('b', 'Тарас', { placed: all, done: true, timeMs: 30_000, points: 300 }),
+        view('c', 'Ната', { placed: all, done: true, timeMs: 60_000, points: 150 }),
+        view('d', 'Іра', { placed: [0, 1, 2, 3] }),
+      ],
+    };
+    render(<JigsawTable info={info} host />);
+    expect([...document.querySelectorAll('.jigsaw-table tbody .rank')].map((td) => td.textContent)).toEqual(['1', '1', '3', '—']);
+    expect(screen.getByText('Не склав · 33 %')).toBeTruthy();
+  });
+
+  it('long tables page evenly on the stage', () => {
+    expect(jigsawTablePageSize(5)).toBe(5);
+    expect(jigsawTablePageSize(12)).toBe(12);
+    expect(jigsawTablePageSize(13)).toBe(7);
+    expect(jigsawTablePageSize(25)).toBe(9);
   });
 });

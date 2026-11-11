@@ -249,7 +249,7 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       if (answer.guess !== null) return t('drawingAnswer', { guess: answer.guess });
       return answer.drew === null ? '—' : t('drawingDrewAnswer', { guessed: answer.drew.guessed, could: answer.drew.could });
     case 'jigsaw':
-      return answer.done && answer.timeMs !== null ? t('jigsawAnswerDone', { time: secondsText(answer.timeMs) }) : t('jigsawAnswerPart', { placed: answer.placed, total: answer.total });
+      return answer.done && answer.timeMs !== null ? t('jigsawAnswerDone', { time: secondsText(answer.timeMs) }) : t('jigsawUndone', { placed: answer.placed, total: answer.total });
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
       return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });

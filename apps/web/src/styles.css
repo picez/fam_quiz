@@ -19548,6 +19548,146 @@ input.sudoku-editor-cell:focus-visible {
   text-overflow: ellipsis;
 }
 
+/* Пазл (29c): сцена й пульт. Мініатюра — SVG у тій самій картці puzzle-thumb (--gw / --gh — співвідношення рамки): поставлені
+   шматочки — одне зменшене фото з clipPath; лінії розрізу й обведення товаришів не товщають від масштабу (non-scaling-stroke). */
+.jigsaw-thumb-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--gw) / var(--gh);
+}
+
+.jigsaw-thumb-bed {
+  fill: color-mix(in srgb, var(--paper) 6%, var(--surface));
+}
+
+.jigsaw-thumb-cuts {
+  fill: none;
+  stroke: color-mix(in srgb, var(--paper) 20%, transparent);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.jigsaw-thumb-blank {
+  fill: #5b5560;
+}
+
+.jigsaw-thumb-tone {
+  fill: none;
+  stroke: var(--by);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.jigsaw-thumb-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--paper) 35%, transparent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.jigsaw-thumb-time {
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Розкриття на сцені: велике фото ліворуч (вписане в комірку за --ar), таблиця часу праворуч. */
+.puzzle-stage.jigsaw-stage.is-reveal {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.jigsaw-stage-photo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  container-type: size;
+}
+
+.jigsaw-stage-img {
+  display: block;
+  width: min(100cqw, 100cqh * var(--ar, 1));
+  height: auto;
+  border: 2px solid color-mix(in srgb, var(--paper) 35%, transparent);
+  border-radius: var(--radius-small);
+}
+
+.jigsaw-stage-table {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.jigsaw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(1rem, 1.7vw, 1.875rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.jigsaw-table th {
+  padding: 0 0.5em 0.4em;
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.65em;
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.jigsaw-table td {
+  padding: 0.35em 0.5em;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  white-space: nowrap;
+}
+
+.jigsaw-table .rank {
+  width: 3ch;
+  color: var(--amber);
+  font-weight: 800;
+}
+
+.jigsaw-table .name {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.jigsaw-table .score,
+.jigsaw-table th:last-child {
+  text-align: end;
+}
+
+.jigsaw-table tr.is-undone td {
+  color: var(--dim);
+}
+
+.jigsaw-table.is-host {
+  font-size: 1rem;
+}
+
+/* Пульт: на розкритті фото й таблиця над мініатюрами. */
+.host-jigsaw-results {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+
+.host-jigsaw-results .jigsaw-stage-photo {
+  container-type: normal;
+}
+
+.host-jigsaw-results .jigsaw-stage-img {
+  width: 100%;
+}
+
 .puzzle-solution {
   display: flex;
   flex-direction: column;

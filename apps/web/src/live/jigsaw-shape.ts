@@ -43,16 +43,17 @@ function edge({ ox, oy, dx, dy, nx, ny }: Frame, length: number, side: number, s
 /**
  * Шлях SVG (d) шматочка в пікселях: ядро в (0,0)…(w,h), сторони за годинниковою — top, right, bottom, left
  * (0 — пряма, 1 — виступ назовні, −1 — западина, як jigsawSides). Виступ іде до JIGSAW_TAB × меншої сторони назовні.
+ * (x, y) — зсув ядра: мініатюри сцени збирають шматочки однієї рамки без transform.
  */
-export function piecePath(sides: [number, number, number, number], w: number, h: number): string {
+export function piecePath(sides: [number, number, number, number], w: number, h: number, x = 0, y = 0): string {
   const small = Math.min(w, h);
   const [top, right, bottom, left] = sides;
   return [
-    'M0 0',
-    edge({ ox: 0, oy: 0, dx: 1, dy: 0, nx: 0, ny: -1 }, w, top, small),
-    edge({ ox: w, oy: 0, dx: 0, dy: 1, nx: 1, ny: 0 }, h, right, small),
-    edge({ ox: w, oy: h, dx: -1, dy: 0, nx: 0, ny: 1 }, w, bottom, small),
-    edge({ ox: 0, oy: h, dx: 0, dy: -1, nx: -1, ny: 0 }, h, left, small),
+    `M${num(x)} ${num(y)}`,
+    edge({ ox: x, oy: y, dx: 1, dy: 0, nx: 0, ny: -1 }, w, top, small),
+    edge({ ox: x + w, oy: y, dx: 0, dy: 1, nx: 1, ny: 0 }, h, right, small),
+    edge({ ox: x + w, oy: y + h, dx: -1, dy: 0, nx: 0, ny: 1 }, w, bottom, small),
+    edge({ ox: x, oy: y + h, dx: 0, dy: -1, nx: -1, ny: 0 }, h, left, small),
     'Z',
   ].join(' ');
 }

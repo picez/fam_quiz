@@ -1,10 +1,11 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react';
-import { aspectRatio, jigsawCrop, jigsawSides, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
-import { secondsText } from '../format';
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react';
+import { aspectRatio, jigsawCrop, jigsawSides, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { piecePad, piecePath } from '../live/jigsaw-shape';
 import type { Send } from '../live/types';
 import { useJigsaw, type JigsawModel } from '../live/useJigsaw';
+import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
 /** Тап: рух менший за стільки пікселів і коротший за стільки мілісекунд — поворот на 90°, а не перетягування. */
 export const JIGSAW_TAP_PX = 6;
@@ -422,5 +423,237 @@ function JigsawRevealBoard({ mine, jigsaw }: { mine: PlayerJigsaw | undefined; j
         <Frame jigsaw={jigsaw} layout={layout} placed={mine?.placed ?? []} image={image} crop={crop} ghost />
       </figure>
     </div>
+  );
+}
+
+/** Рамка мініатюри в умовних одиницях: ширина THUMB_W, висота — за співвідношенням; шматочки — piecePath у тих самих одиницях. */
+const THUMB_W = 1000;
+/** Обрізане фото для мініатюр — стільки пікселів завширшки (зменшене один раз на запитання): чітко на найбільшій мініатюрі 1600×900 і дешево для 40 дошок. */
+export const JIGSAW_THUMB_PX = 640;
+/** Рядків таблиці часу на сторінці сцени (понад — рівні сторінки по черзі, як мініатюри). */
+export const JIGSAW_TABLE_PAGE = 12;
+
+/** Спільне для всіх мініатюр запитання: рамка, шлях кожного шматочка на своєму місці, лінії розрізу одним шляхом. */
+interface ThumbGeometry {
+  w: number;
+  h: number;
+  paths: string[];
+  cuts: string;
+}
+
+function thumbGeometry(aspect: PublicJigsaw['aspect'], rows: number, cols: number, tabs: string): ThumbGeometry {
+  const w = THUMB_W;
+  const h = Math.round((THUMB_W / aspectRatio(aspect)) * 100) / 100;
+  const cw = w / cols;
+  const ch = h / rows;
+  const paths = Array.from({ length: rows * cols }, (_, k) => piecePath(jigsawSides(rows, cols, tabs, k), cw, ch, (k % cols) * cw, Math.floor(k / cols) * ch));
+  return { w, h, paths, cuts: paths.join(' ') };
+}
+
+/** Фото в одиницях рамки мініатюри: href і прямокутник, у який його покласти (зменшена обрізана копія — уся рамка). */
+interface ThumbPhoto {
+  href: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Фото для мініатюр одне на всі дошки: обрізана рамка, зменшена до JIGSAW_THUMB_PX на canvas (JPEG data URL), — браузер декодує
+ * маленьку картинку, а не повне фото на кожну дошку. Якщо canvas недоступний чи «забруднений» (фото з іншого origin) — саме фото,
+ * зсунуте й збільшене так, щоб рамка jigsawCrop лягла на мініатюру. null — фото ще не завантажилось.
+ */
+function useThumbPhoto(jigsaw: PublicJigsaw, geometry: ThumbGeometry): ThumbPhoto | null {
+  const image = usePhoto(jigsaw.photo);
+  const crop = useCrop(image, jigsaw);
+  return useMemo(() => {
+    if (image === null || crop === null) return null;
+    const { w, h } = geometry;
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.min(JIGSAW_THUMB_PX, Math.round(crop.sw)));
+      canvas.height = Math.max(1, Math.round((canvas.width * h) / w));
+      const ctx = canvas.getContext('2d');
+      if (ctx === null) throw new Error('no canvas');
+      ctx.drawImage(image, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
+      return { href: canvas.toDataURL('image/jpeg', 0.85), x: 0, y: 0, width: w, height: h };
+    } catch {
+      const scale = w / crop.sw;
+      return { href: jigsaw.photo, x: -crop.sx * scale, y: -crop.sy * scale, width: image.naturalWidth * scale, height: image.naturalHeight * scale };
+    }
+  }, [image, crop, geometry, jigsaw.photo]);
+}
+
+const percentOf = (board: JigsawBoardView) => (board.total > 0 ? Math.round((100 * board.placed.length) / board.total) : 0);
+
+interface ThumbProps {
+  board: JigsawBoardView;
+  geometry: ThumbGeometry;
+  photo: ThumbPhoto | null;
+  /** Співвідношення рамки для CSS (--gw / --gh). */
+  gw: number;
+  gh: number;
+}
+
+/** Мініатюра не перемальовується, поки її дошка та сама: розсилка приносить нові об'єкти, тож порівнюємо значення. */
+function sameThumb(a: ThumbProps, b: ThumbProps): boolean {
+  const x = a.board;
+  const y = b.board;
+  return (
+    a.geometry === b.geometry &&
+    a.photo === b.photo &&
+    a.gw === b.gw &&
+    a.gh === b.gh &&
+    x.playerId === y.playerId &&
+    x.nickname === y.nickname &&
+    x.tones === y.tones &&
+    x.total === y.total &&
+    x.done === y.done &&
+    x.timeMs === y.timeMs &&
+    x.points === y.points &&
+    x.placed.length === y.placed.length &&
+    x.placed.every((piece, i) => piece === y.placed[i])
+  );
+}
+
+/**
+ * Мініатюра дошки (SVG): тьмяна рамка з лініями розрізу, поставлені шматочки — одне фото з clipPath із їхніх шляхів (до завантаження
+ * фото — сіра заливка тієї ж форми); у командах кожен шматочок обведено кольором того, хто поставив (tones). Під рамкою — нік,
+ * відсоток, а в тих, хто склав, — ✓ і час.
+ */
+export const JigsawThumb = memo(function JigsawThumb({ board, geometry, photo, gw, gh }: ThumbProps) {
+  const clipId = `jigsaw-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const { w, h, paths, cuts } = geometry;
+  const clip = `url(#${clipId})`;
+  return (
+    <li className={board.done ? 'puzzle-thumb jigsaw-thumb is-done' : 'puzzle-thumb jigsaw-thumb'} data-player={board.playerId} style={{ '--gw': gw, '--gh': gh } as CSSProperties}>
+      <div className="puzzle-thumb-card">
+        <svg className="jigsaw-thumb-svg" viewBox={`0 0 ${w} ${h}`} aria-hidden="true" focusable="false">
+          <defs>
+            <clipPath id={clipId}>
+              {board.placed.map((piece) => (
+                <path key={piece} d={paths[piece]} />
+              ))}
+            </clipPath>
+          </defs>
+          <rect className="jigsaw-thumb-bed" width={w} height={h} />
+          <path className="jigsaw-thumb-cuts" d={cuts} />
+          {board.placed.length > 0 &&
+            (photo === null ? (
+              <rect className="jigsaw-thumb-blank" width={w} height={h} clipPath={clip} />
+            ) : (
+              <image href={photo.href} x={photo.x} y={photo.y} width={photo.width} height={photo.height} preserveAspectRatio="none" clipPath={clip} />
+            ))}
+          {board.tones !== null && board.placed.map((piece, i) => <path key={piece} className={`jigsaw-thumb-tone by-${board.tones?.[i] ?? 'x'}`} d={paths[piece]} />)}
+          <rect className="jigsaw-thumb-edge" width={w} height={h} />
+        </svg>
+        <p className="puzzle-thumb-name" dir="auto" title={board.nickname}>
+          {board.nickname}
+        </p>
+        <p className="puzzle-thumb-caption">
+          <span className="puzzle-thumb-count">{t('jigsawPercent', { percent: percentOf(board) })}</span>
+          {board.done && (
+            <span className="puzzle-thumb-done" role="img" aria-label={t('puzzleDone')} title={t('puzzleDone')}>
+              ✓
+            </span>
+          )}
+          {board.done && board.timeMs !== null && <span className="jigsaw-thumb-time">{t('jigsawSeconds', { time: secondsText(board.timeMs) })}</span>}
+          {board.points !== null && board.points > 0 && <span className="score">{signed(board.points)}</span>}
+        </p>
+      </div>
+    </li>
+  );
+}, sameThumb);
+
+function aspectParts(aspect: PublicJigsaw['aspect']): [number, number] {
+  const [a, b] = aspect.split(':').map(Number);
+  return [a ?? 1, b ?? 1];
+}
+
+/**
+ * Мініатюри дошок усіх гравців (команд), як PuzzleBoards: на сцені — уся решта екрана (puzzleGrid), понад 40 — рівні сторінки по
+ * черзі (puzzlePageSize, PUZZLE_PAGE_MS); пульт (host) — звичайна сітка без сторінок. Геометрія шматочків і зменшене фото — одні на
+ * всі мініатюри; кожна мініатюра перемальовується лише тоді, коли змінилась її дошка.
+ */
+export function JigsawBoards({ info, jigsaw, reveal = false, host = false }: { info: JigsawInfo; jigsaw: PublicJigsaw; reveal?: boolean; host?: boolean }) {
+  const { aspect, rows, cols, tabs } = jigsaw;
+  const geometry = useMemo(() => thumbGeometry(aspect, rows, cols, tabs), [aspect, rows, cols, tabs]);
+  const photo = useThumbPhoto(jigsaw, geometry);
+  const size = puzzlePageSize(info.boards.length, reveal);
+  const page = usePage(info.boards.length, size, !host);
+  const from = host ? 0 : page * size;
+  const shown = host ? info.boards : info.boards.slice(from, from + size);
+  const grid = puzzleGrid(shown.length, reveal);
+  const [gw, gh] = aspectParts(aspect);
+  return (
+    <div className={host ? 'puzzle-boards-fit jigsaw-boards is-host' : grid.dense ? 'puzzle-boards-fit jigsaw-boards is-dense' : 'puzzle-boards-fit jigsaw-boards'}>
+      <ul className="puzzle-boards" style={host ? undefined : ({ '--cols': grid.cols, '--rows': grid.rows } as CSSProperties)}>
+        {shown.map((board) => (
+          <JigsawThumb key={board.playerId} board={board} geometry={geometry} photo={photo} gw={gw} gh={gh} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Розмір сторінки таблиці: рівні сторінки (25 → 9 + 8 + 8), а не повна й майже порожня. */
+export function jigsawTablePageSize(n: number): number {
+  if (n <= JIGSAW_TABLE_PAGE) return Math.max(1, n);
+  return Math.ceil(n / Math.ceil(n / JIGSAW_TABLE_PAGE));
+}
+
+/**
+ * Таблиця часу на розкритті: «місце · хто · час · бали» в порядку дошок (склали — за часом, далі за кількістю шматочків). Місце —
+ * лише в тих, хто склав (однаковий час — однакове місце); незавершені — «Не склав · N %». На сцені понад JIGSAW_TABLE_PAGE рядків —
+ * сторінки по черзі; на пульті — уся таблиця.
+ */
+export function JigsawTable({ info, host = false }: { info: JigsawInfo; host?: boolean }) {
+  const places = new Map<string, number>();
+  info.boards.forEach((board, i) => {
+    if (!board.done) return;
+    const before = info.boards[i - 1];
+    places.set(board.playerId, before !== undefined && before.done && before.timeMs === board.timeMs ? (places.get(before.playerId) ?? i + 1) : i + 1);
+  });
+  const size = jigsawTablePageSize(info.boards.length);
+  const page = usePage(info.boards.length, size, !host);
+  const shown = host ? info.boards : info.boards.slice(page * size, page * size + size);
+  return (
+    <table className={host ? 'jigsaw-table is-host' : 'jigsaw-table'} aria-label={t('jigsawTableLabel')}>
+      <thead>
+        <tr>
+          <th scope="col">{t('jigsawTablePlace')}</th>
+          <th scope="col">{t('jigsawTableWho')}</th>
+          <th scope="col">{t('jigsawTableTime')}</th>
+          <th scope="col">{t('jigsawTablePoints')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((board) => (
+          <tr key={board.playerId} className={board.done ? 'is-done' : 'is-undone'}>
+            <td className="rank">{places.get(board.playerId) ?? '—'}</td>
+            <td className="name" dir="auto">
+              {board.nickname}
+            </td>
+            <td className="jigsaw-table-time">{board.done && board.timeMs !== null ? t('jigsawSeconds', { time: secondsText(board.timeMs) }) : t('jigsawUndonePercent', { percent: percentOf(board) })}</td>
+            <td className="score">{signed(board.points ?? 0)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Розкриття на сцені й пульті: велике справжнє фото (тією ж рамкою, що й пазл) і таблиця часу. */
+export function JigsawResults({ info, jigsaw, host = false }: { info: JigsawInfo; jigsaw: PublicJigsaw; host?: boolean }) {
+  return (
+    <>
+      <figure className="jigsaw-stage-photo" style={{ '--ar': aspectRatio(jigsaw.aspect) } as CSSProperties}>
+        <PhotoImg jigsaw={jigsaw} className="jigsaw-stage-img" alt={t('jigsawPreview')} />
+      </figure>
+      <div className="jigsaw-stage-table">
+        <JigsawTable info={info} host={host} />
+      </div>
+    </>
   );
 }
