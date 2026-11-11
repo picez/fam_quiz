@@ -37,7 +37,7 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
-import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
+import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanOut } from './MoreLessView';
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
@@ -1130,7 +1130,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Більше чи менше (28a): вибирає той, хто відповідає (у команді — відповідач), решта команди бачить поступ;
               // глядач клітинки поля — лише рядок того, хто вибрав. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
               me.moreless === undefined ? (
-                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+                view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               ) : team !== null && !team.canAct ? (
                 <p className="lead moreless-team-watch">{t('morelessTeamWatch', { name: memberName(view, team.answererId), done: me.moreless.done, total: me.moreless.total })}</p>
               ) : (
@@ -1400,7 +1400,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {me.moreless !== undefined ? (
                 <h2>{me.moreless.done >= me.moreless.total ? t('morelessDone') : t(ranOut ? 'morelessLate' : 'morelessClosed', { done: me.moreless.done, total: me.moreless.total })}</h2>
               ) : (
-                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+                view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               )}
             </section>
           ) : me.wordladder !== undefined && question !== null ? (

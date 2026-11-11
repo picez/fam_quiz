@@ -1520,6 +1520,7 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
           }))
         : null,
     picks: forHost ? Object.fromEntries(rows.map((r) => [r.playerId, moreLessOf(state, r.playerId).picks])) : null,
+    ...(play.board === undefined ? {} : { watch: { playerId: play.board.chooserId, done: moreLessOf(state, play.board.chooserId).picks.length, picks: [...moreLessOf(state, play.board.chooserId).picks] } }),
   };
 }
 

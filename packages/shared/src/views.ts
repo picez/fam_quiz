@@ -518,6 +518,13 @@ export interface MoreLessPairView {
   right: number;
 }
 
+/** Клітинка поля (28a, 29i): хід того, хто відповідає, — для всіх, без правильності й значень до reveal. */
+export interface MoreLessCellWatch {
+  playerId: string;
+  done: number;
+  picks: MoreLessSide[];
+}
+
 export interface MoreLessInfo {
   /** За done спаданням, далі в порядку гравців. */
   rows: MoreLessRow[];
@@ -525,6 +532,8 @@ export interface MoreLessInfo {
   pairs: MoreLessPairView[] | null;
   /** Ведучому — вибори кожного наживо; іншим null. */
   picks: Record<string, MoreLessSide[]> | null;
+  /** Лише на клітинці поля; поза нею ключа немає. */
+  watch?: MoreLessCellWatch;
 }
 
 export interface PlayerMoreLess {

@@ -288,6 +288,7 @@
   "appealMineYes": "yes",
   "appealNo": "No",
   "appealNoVoters": "No one to vote",
+  "morelessWatchPicks": "Player's picks",
   "appealWaitOther": "The hall is voting on another appeal — you can appeal after it",
   "appealPassedHint": "The room has already accepted it — to change the mark, undo the points in “↶ Points” once you've moved on",
   "appealPausedHint": "Paused: you can vote after the pause",
