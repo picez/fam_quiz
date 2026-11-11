@@ -817,6 +817,8 @@ export class RoomManager {
     // Автопілот: пульта немає; стоїть на паузі «нікого», 30 хв на повернення будь-кого (commit → watchEmpty).
     if (room.state.autopilot === undefined) this.hostLeft(room);
     this.commit(room, room.state);
+    // Живі «тримаю» пазла (29c) зі знімка теж спливають розсилкою, а не лише після наступного руху.
+    this.watchHolds(room);
     return room;
   }
 

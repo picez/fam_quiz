@@ -132,4 +132,20 @@ describe('jigsaw (29c) in the room manager', () => {
     const view = next.view(back, phone as Identity);
     expect(view?.role === 'player' ? view.me.jigsaw?.placed : null).toEqual([2]);
   });
+
+  it('a hold restored with the room still lapses with a push', () => {
+    const { scheduler, manager, room, people } = jigsawRoom(['Олена', 'Тарас', 'Іра', 'Марко'], true);
+    const [olena] = people;
+    expect(manager.jigsawHold(room, olena.playerId, { questionIndex: 0, piece: 3 })).toEqual({ ok: true });
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    const next = new RoomManager(scheduler, () => 0.5);
+    const events: unknown[] = [];
+    next.onEvent((_room, event) => events.push(event));
+    const back = next.restore(saved) as Room;
+    expect(back.holdExpiry).not.toBeNull();
+    events.length = 0;
+    scheduler.advance(JIGSAW_HOLD_MS);
+    expect(events).toContainEqual({ type: 'changed', puzzle: true });
+  });
 });
