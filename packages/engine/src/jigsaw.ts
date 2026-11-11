@@ -64,7 +64,7 @@ function jigsawRecord(state: GameState, play: JigsawQuestionPlay, board: JigsawB
   const points = finished ? Math.round((base * fastest) / Math.max(1, timeMs)) : 0;
   const grade: Grade = finished ? 'correct' : 'wrong';
   const answer: JigsawAnswer = { type: 'jigsaw', placed: board.placed.length, total, done: finished, timeMs: board.doneMs };
-  return { answer, timeMs, accepted: finished, accuracy: finished ? 1 : board.placed.length / total, grade, basePoints: finished ? base : 0, streakBonus: 0, points, overridden: false };
+  return { answer, timeMs, accepted: finished, accuracy: finished ? 1 : board.placed.length / total, grade, basePoints: points, streakBonus: 0, points, overridden: false };
 }
 
 /**

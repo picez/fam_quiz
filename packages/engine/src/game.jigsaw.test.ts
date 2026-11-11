@@ -5,7 +5,8 @@ import { jigsawHold, jigsawOf, jigsawPlace, jigsawTotal, liveHolds, scoreJigsaw 
 import { hostLive } from './live';
 import { actorOf } from './team-act';
 import { FIRST_BUFFS } from './testing/buffs';
-import { jigsaw, jigsawQuiz } from './testing/fixtures';
+import { jigsaw, jigsawQuiz, makeRoundsQuiz, single } from './testing/fixtures';
+import { DEFAULT_RULES } from '@quiz/shared';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 import { classicRound } from './testing/fixtures';
@@ -96,6 +97,17 @@ describe('jigsaw: the engine', () => {
     expect(record(c, 'p2')!.points).toBe(200);
     expect(record(c, 'p3')!.points).toBe(120);
     expect(c.players.find((p) => p.id === 'p3')!.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it('a streak rule keeps the time-scaled points and counts the bonus on them', () => {
+    const rules = { ...DEFAULT_RULES, streak: { length: 1, bonus: { kind: 'percent' as const, value: 50 } } };
+    const quiz = makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [jigsaw], { rules })]);
+    const s = toJigsaw(startRound(lobbyWith(quiz, ...PLAYERS), 0));
+    const a = build(s, 'p1', 12, T(s) + 40_000);
+    const b = build(a, 'p2', 12, T(s) + 60_000);
+    const closed = must(lock(b, T(s) + 61_000));
+    expect(recordOf(closed, 1, 'p1')).toMatchObject({ basePoints: 300, streakBonus: 150, points: 450 });
+    expect(recordOf(closed, 1, 'p2')).toMatchObject({ basePoints: 200, streakBonus: 100, points: 300 });
   });
 
   it('everyone finished closes the question', () => {
