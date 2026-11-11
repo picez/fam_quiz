@@ -29,4 +29,15 @@ export interface TrophyHandle {
 /** Рушій трофеїв (three.js); цей файл його типи описує без three — тож імпортувати його можна звідусіль. */
 export interface TrophyEngine {
   mount(host: HTMLElement, options: TrophyMount, events: { onReady(): void; onError(): void }): TrophyHandle;
+  /**
+   * Статичний знімок вигляду (data URL з прозорим тлом, кадрування як у сцені) через той самий спільний рендерер;
+   * збій — null. Необов'язковий: підмінні рушії в тестах можуть його не мати.
+   */
+  snapshot?(look: TrophyLook, label: string): Promise<TrophySnapshot | null>;
+}
+
+/** Знімок трофея: url — data URL (WebP, на старому Safari — PNG); complete — оформлення намальоване повністю. */
+export interface TrophySnapshot {
+  url: string;
+  complete: boolean;
 }

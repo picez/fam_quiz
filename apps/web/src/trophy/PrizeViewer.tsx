@@ -29,7 +29,18 @@ const FOCUSABLE = 'button, [href], [tabindex]:not([tabindex="-1"])';
  * не гортається (overflow: hidden на body), а #root — inert; закриття повертає обидва як було.
  * Назви призу тут немає: її бачить лише власник складу (publicContent).
  */
-export function PrizeViewer({ content, place, onClose }: { content: Content; place: PrizePlace; onClose: () => void }): JSX.Element {
+export function PrizeViewer({
+  content,
+  place,
+  onClose,
+  trophyFirst = false,
+}: {
+  content: Content;
+  place: PrizePlace;
+  onClose: () => void;
+  /** Відкрито дотиком картинки трофея: показати 3D-трофей, навіть коли є фото справжнього призу. */
+  trophyFirst?: boolean;
+}): JSX.Element {
   const headingId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
@@ -73,7 +84,7 @@ export function PrizeViewer({ content, place, onClose }: { content: Content; pla
     }
   };
 
-  const photo = content.real?.photoUrl ?? null;
+  const photo = trophyFirst && content.trophy !== null ? null : (content.real?.photoUrl ?? null);
   return createPortal(
     <>
       <div className="prize-view-backdrop" onClick={onClose} />

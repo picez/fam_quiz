@@ -14,6 +14,7 @@ vi.mock('../trophy/diploma', async (importOriginal) => ({
   shareDiploma: vi.fn(),
 }));
 vi.mock('../trophy/TrophyView', () => ({ TrophyView: () => <span className="trophy-mock" /> }));
+vi.mock('../trophy/TrophyPicture', () => ({ TrophyPicture: () => <span className="picture-mock" /> }));
 
 const render$ = vi.mocked(renderDiploma);
 const share = vi.mocked(shareDiploma);
@@ -57,61 +58,31 @@ describe('Showcase', () => {
     expect(screen.getByText('🎁 Піца')).toBeTruthy();
   });
 
-  it('without IntersectionObserver only emoji show, and a tap opens 3D for that card', () => {
-    vi.stubGlobal('IntersectionObserver', undefined);
-    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' })] }} own />);
-    expect(document.querySelector('.trophy-mock')).toBeNull();
-    const emoji = document.querySelectorAll('.award-emoji');
-    expect(emoji).toHaveLength(2);
-    fireEvent.click(emoji[0]!);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
-    expect(document.querySelectorAll('.award-emoji')).toHaveLength(1);
-  });
-
-  function fakeObserver() {
-    const observers: { cb: IntersectionObserverCallback; seen: Element[] }[] = [];
-    class Fake {
-      seen: Element[] = [];
-      cb: IntersectionObserverCallback;
-      constructor(cb: IntersectionObserverCallback) {
-        this.cb = cb;
-        observers.push(this);
-      }
-      observe(el: Element) {
-        this.seen.push(el);
-      }
-      disconnect() {}
-      unobserve() {}
-    }
-    vi.stubGlobal('IntersectionObserver', Fake);
-    const show = (index: number, isIntersecting = true) => {
-      const card = document.querySelectorAll('.award-card')[index]!;
-      const entry = observers.find((o) => o.seen.includes(card))!;
-      act(() => entry.cb([{ isIntersecting } as IntersectionObserverEntry], entry as unknown as IntersectionObserver));
-    };
-    return show;
-  }
-
-  it('mounts 3D only for the cards that are in view and keeps it after they scroll away', () => {
-    const show = fakeObserver();
-    render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards: [award({ id: 'a1' }), award({ id: 'a2' }), award({ id: 'a3' })] }} own />);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(0);
-    expect(document.querySelectorAll('.award-emoji')).toHaveLength(3);
-    show(1);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
-    show(1, false);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(1);
-    expect(document.querySelectorAll('.award-emoji')).toHaveLength(2);
-  });
-
-  it('allows at most 6 live 3D cards by scrolling; the rest stay emoji until tapped', () => {
-    const show = fakeObserver();
+  it('every trophy is a static picture (no live 3D on the page); a tap opens the 3D viewer', () => {
     const awards = Array.from({ length: 8 }, (_, i) => award({ id: `a${i}` }));
     render(<Showcase showcase={{ pins: { prizes: [], achievements: [] }, title: null, awards }} own />);
-    for (let i = 0; i < 8; i++) show(i);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(6);
+    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(0);
+    expect(document.querySelectorAll('.award-emoji .picture-mock')).toHaveLength(8);
     fireEvent.click(document.querySelectorAll('.award-emoji')[0]!);
-    expect(document.querySelectorAll('.trophy-mock')).toHaveLength(7);
+    const dialog = screen.getByRole('dialog', { name: 'Приз за 1 місце' });
+    expect(dialog.querySelectorAll('.trophy-mock')).toHaveLength(1);
+  });
+
+  it('a tap on the trophy picture shows the 3D trophy even when the prize has a photo; «Кубок» shows the photo', () => {
+    const data: ShowcaseData = {
+      title: null,
+      pins: { prizes: [], achievements: [] },
+      awards: [award({ content: { real: { text: 'Кубок сім’ї', photoUrl: 'https://img/cup.jpg' } } })],
+    };
+    render(<Showcase showcase={data} own />);
+    fireEvent.click(screen.getByRole('button', { name: 'Золотий кубок' }));
+    let dialog = screen.getByRole('dialog');
+    expect(dialog.querySelector('.trophy-mock')).not.toBeNull();
+    expect(dialog.querySelector('img.prize-view-photo')).toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Кубок' }));
+    dialog = screen.getByRole('dialog');
+    expect(dialog.querySelector('img.prize-view-photo')).not.toBeNull();
   });
 
   it('the diploma button exists only for awards with a diploma and makes it with the award nickname', async () => {

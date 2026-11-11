@@ -9,7 +9,7 @@ import { actAnswer, actBuzz, actorOf, pickDuelist } from './team-act';
 import { pickTeam, rollTeamDie, setTeamForm, startTeamDice } from './teams';
 import { hostView, playerView, stageView } from './views';
 import { T0, T1, duelQuiz, revealOf } from './testing/duel';
-import { blitzRound, boardRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, poll, single, single4, sortQ, text, withId } from './testing/fixtures';
+import { blitzRound, boardRound, classicRound, cloud, makeQuiz, makeRoundsQuiz, pin, poll, single, single4, sortQ, text, withId } from './testing/fixtures';
 import { head, right } from './testing/sort';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
@@ -117,6 +117,24 @@ describe('team views: after the start', () => {
     expect(JSON.stringify(playerView(s, 'm3'))).not.toContain('Кременчук');
     expect(JSON.stringify(playerView(s, 'm4'))).not.toContain('Кременчук');
     expect(JSON.stringify(stageView(s))).not.toContain('Кременчук');
+  });
+
+  it('a pin question: every member sees both teams’ pins with team names only on the reveal (29b)', () => {
+    const pinQuiz = teamQuiz([classicRound('r1', [pin])]);
+    let s = must(actAnswer(opened(pinQuiz), 'm1', { type: 'pin', x: 0.61, y: 0.5 }, T0 + 1000));
+    expect(playerView(s, 'm3')?.pinMarks).toBeNull();
+    expect(JSON.stringify(playerView(s, 'm3'))).not.toContain('0.61');
+    s = must(actAnswer(s, 'm3', { type: 'pin', x: 0.52, y: 0.5 }, T0 + 1000));
+    expect(JSON.stringify(playerView(s, 'm2'))).not.toContain('0.52');
+    s = must(next(s, T0 + 2000, rng));
+    expect(s.phase).toBe('reveal');
+    for (const id of ['m1', 'm2', 'm3', 'm4']) {
+      expect(playerView(s, id)?.pinMarks?.map((mark) => [mark.playerId, mark.nickname, mark.x])).toEqual([
+        ['t2', 'Сині', 0.52],
+        ['t1', 'Червоні', 0.61],
+      ]);
+    }
+    expect(playerView(s, 'm2')?.pinMarks).toEqual(stageView(s).pinMarks);
   });
 });
 

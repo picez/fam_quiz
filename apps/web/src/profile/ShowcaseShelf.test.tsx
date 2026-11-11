@@ -4,9 +4,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AwardCard } from '@quiz/shared';
 import { renderDiploma, shareDiploma } from '../trophy/diploma';
+import { loadTrophyEngine, webglAvailable } from '../trophy/loadEngine';
+import { clearTrophyPictures } from '../trophy/picture-cache';
 import { ShowcaseShelf } from './ShowcaseShelf';
 
-vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: () => false }));
+vi.mock('../trophy/loadEngine', () => ({ loadTrophyEngine: vi.fn(async () => null), webglAvailable: vi.fn(() => false) }));
 vi.mock('../trophy/diploma', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../trophy/diploma')>()),
   renderDiploma: vi.fn(),
@@ -30,7 +32,12 @@ const open = (props: Partial<Parameters<typeof ShowcaseShelf>[0]> = {}) =>
     </MemoryRouter>,
   );
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(webglAvailable).mockReturnValue(false);
+  vi.mocked(loadTrophyEngine).mockResolvedValue(null);
+  clearTrophyPictures();
+});
 afterEach(cleanup);
 
 describe('ShowcaseShelf', () => {
@@ -59,6 +66,49 @@ describe('ShowcaseShelf', () => {
       expect.stringContaining('Вікторина c'),
       expect.stringContaining('Вікторина a'),
     ]);
+  });
+
+  it('without WebGL the cup is the emoji; with it, a static picture of the real cup and no live scene', async () => {
+    open({ awards: [award('a')] });
+    expect(document.querySelector('.shelf-icon')!.textContent).toBe('🏆');
+    expect(document.querySelector('.shelf-icon img')).toBeNull();
+    cleanup();
+    vi.mocked(webglAvailable).mockReturnValue(true);
+    const snapshot = vi.fn(async () => ({ url: 'data:image/webp;base64,CUP', complete: true }));
+    const mount = vi.fn();
+    vi.mocked(loadTrophyEngine).mockResolvedValue({ mount, snapshot });
+    open({ awards: [award('a'), award('b')] });
+    await act(async () => {});
+    const pictures = [...document.querySelectorAll<HTMLImageElement>('.shelf-icon img.trophy-picture')];
+    expect(pictures.map((img) => img.src)).toEqual(['data:image/webp;base64,CUP', 'data:image/webp;base64,CUP']);
+    expect(pictures[0]!.alt).toBe('Золотий кубок');
+    // Два однакові кубки — один знімок; жодної живої сцени.
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(mount).not.toHaveBeenCalled();
+  });
+
+  it('a studio trophy (decor with photos and inscriptions) and the family grail become pictures of their full look', async () => {
+    vi.mocked(webglAvailable).mockReturnValue(true);
+    const snapshot = vi.fn(async (_look: unknown, _label: string) => ({ url: 'data:image/webp;base64,STUDIO', complete: true }));
+    vi.mocked(loadTrophyEngine).mockResolvedValue({ mount: vi.fn(), snapshot });
+    const studio: NonNullable<AwardCard['content']['trophy']> = {
+      kind: 'grail',
+      material: 'gold',
+      decor: {
+        photos: [{ url: `/uploads/${'a'.repeat(32)}.webp`, crop: { x: 0.5, y: 0.5, scale: 1 } }],
+        photoPlace: 'ring',
+        frame: 'gold',
+        photoStyle: 'normal',
+        inscriptions: [{ place: 'band', text: 'Чемпіонка', font: null, look: 'engraved', color: '#ffd700' }],
+        effect: { kind: 'glow' },
+        appearance: 'rise',
+        stickers: [],
+      },
+    };
+    open({ awards: [award('s', { content: { trophy: studio } }), award('g', { content: { trophy: { kind: 'grail', material: 'gold' } } })] });
+    await act(async () => {});
+    expect(snapshot.mock.calls.map(([look]) => look)).toEqual(expect.arrayContaining([studio, { kind: 'grail', material: 'gold' }]));
+    expect(document.querySelectorAll('.shelf-icon img.trophy-picture')).toHaveLength(2);
   });
 
   it('a tap on a cup opens the full-screen viewer', () => {

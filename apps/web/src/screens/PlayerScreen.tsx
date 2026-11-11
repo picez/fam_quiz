@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { clueShare, isUnscored, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
-import { answerText, correctText, markText, pickedText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
+import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
 import { typeHow } from '../guide-text';
@@ -130,22 +130,32 @@ function CluesNow({ clues, offsetMs, more }: { clues: PublicClues; offsetMs: num
   );
 }
 
-/** Розкриття «Хто я?» і точки: усі підказки або мапа з точкою гравця, правильною точкою й колами. */
+/**
+ * Розкриття «Хто я?» і точки: усі підказки або мапа з точками всіх гравців (команд) з іменами, як на сцені (29b),
+ * правильною точкою й колами; своя точка підсвічена. Без чужих точок (запасне, фінал) — лише своя.
+ */
 function RevealDetail({ view, answer, player }: { view: PlayerView; answer: Answer | null; player: { id: string; nickname: string } }) {
   const { reveal, question } = view;
   if (reveal === null || question === null) return null;
   if (reveal.type === 'clues' && question.clues !== null) return <CluesList clues={question.clues} offsetMs={0} all={reveal.clues} />;
   if (reveal.type === 'pin' && question.pin !== null) {
-    const marks = answer?.type === 'pin' ? [{ playerId: player.id, nickname: player.nickname, x: answer.x, y: answer.y }] : [];
+    const all = view.pinMarks ?? [];
+    const mine = answer?.type === 'pin' && !all.some((mark) => mark.playerId === player.id) ? [{ playerId: player.id, nickname: player.nickname, x: answer.x, y: answer.y }] : [];
+    const best = all[0];
     return (
-      <PinBoard
-        pin={question.pin}
-        imageUrl={question.imageUrl}
-        marks={marks}
-        target={reveal.target}
-        radii={{ full: reveal.fullRadius, zero: reveal.zeroRadius }}
-        highlight={player.id}
-      />
+      <>
+        <PinBoard
+          pin={question.pin}
+          imageUrl={question.imageUrl}
+          marks={[...all, ...mine]}
+          target={reveal.target}
+          radii={{ full: reveal.fullRadius, zero: reveal.zeroRadius }}
+          highlight={player.id}
+        />
+        {best !== undefined && best.points > 0 && all.length > 1 && (
+          <p className="meta pin-best">{t('pinBest', { name: best.nickname, distance: pinDistanceText(reveal, best.x, best.y) })}</p>
+        )}
+      </>
     );
   }
   return null;
