@@ -82,7 +82,7 @@ describe('spotdiff (29d) in the room manager', () => {
   it('in a team each member has an own rate window', () => {
     const { manager, room, people } = spotRoom(['Олена', 'Тарас', 'Петро', 'Ганна'], true);
     const [olena, , petro] = people;
-    const team = room.state.teams!.members.find((m) => m.id === olena.playerId)!.teamId;
+    const team = room.state.teams!.members.find((m) => m.id === olena.playerId)!.teamId!;
     expect(room.state.teams!.members.find((m) => m.id === petro.playerId)!.teamId).toBe(team);
     expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: true });
     for (let k = 1; k < SPOTDIFF_TAPS_PER_SECOND; k++) expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: false, error: 'spotdiff_found' });
