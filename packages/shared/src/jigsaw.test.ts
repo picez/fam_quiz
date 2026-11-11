@@ -15,6 +15,7 @@ describe('jigsaw geometry', () => {
     expect(jigsawGrid(12, '4:3')).toEqual({ rows: 3, cols: 4 });
     expect(jigsawGrid(12, '16:9')).toEqual({ rows: 3, cols: 4 });
     expect(jigsawGrid(12, '3:4')).toEqual({ rows: 4, cols: 3 });
+    expect(jigsawGrid(12, '1:1')).toEqual({ rows: 3, cols: 4 });
     expect(jigsawGrid(7, '1:1')).toEqual({ rows: 2, cols: 3 });
     expect(jigsawGrid(7, '16:9')).toEqual({ rows: 2, cols: 4 });
     expect(jigsawGrid(24, '3:4')).toEqual({ rows: 6, cols: 4 });
@@ -78,5 +79,14 @@ describe('jigsaw geometry', () => {
     expect(jigsawCrop(1000, 500, '1:1', { x: 0, y: 0.5 }).sx).toBe(0);
     expect(jigsawCrop(1000, 500, '1:1', { x: 1, y: 0.5 }).sx).toBe(500);
     expect(jigsawCrop(600, 900, '16:9', { x: 0.5, y: 0.5 })).toEqual({ sx: 0, sy: 281.25, sw: 600, sh: 337.5 });
+  });
+
+  it('reads the sides of a 2x2 grid from a hand-computed tabs string', () => {
+    // edges: v(0,0)=1, v(1,0)=0, h(0,0)=0, h(0,1)=1
+    const tabs = '1001';
+    expect(jigsawSides(2, 2, tabs, 0)).toEqual([0, 1, -1, 0]);
+    expect(jigsawSides(2, 2, tabs, 1)).toEqual([0, 0, 1, -1]);
+    expect(jigsawSides(2, 2, tabs, 2)).toEqual([1, -1, 0, 0]);
+    expect(jigsawSides(2, 2, tabs, 3)).toEqual([-1, 0, 0, 1]);
   });
 });
