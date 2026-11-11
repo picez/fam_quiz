@@ -1831,6 +1831,46 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  const spotQuestion = {
+    ...publicQuestion,
+    type: 'spotdiff' as const,
+    text: 'Знайдіть відмінності',
+    choices: [],
+    spotdiff: { original: '/uploads/0123456789abcdef0001.png', changed: '/uploads/0123456789abcdef0002.png', aspect: 4 / 3, total: 3, spots: null },
+  };
+  const mySpot = { found: [{ index: 0, x: 0.2, y: 0.3, r: 0.05, tone: null }], total: 3, done: false, canTap: true, seq: 1, timeMs: null, result: null };
+
+  it('29d: a spotdiff question shows two pictures with my finds, and others only as a count', () => {
+    const spotdiff = { boards: [{ playerId: 'p1', nickname: 'p1', found: 1, total: 3, done: false, timeMs: null, points: null }, { playerId: 'p2', nickname: 'p2', found: 3, total: 3, done: true, timeMs: 20_000, points: null }] };
+    show(onQuestion({ question: spotQuestion, endsAt: Date.now() + 60_000, playerCount: 2, spotdiff, me: { ...me, spotdiff: mySpot } }));
+    expect(document.querySelectorAll('.spot-pic')).toHaveLength(2);
+    expect(document.querySelectorAll('.spot-pic.is-tap')).toHaveLength(2);
+    expect(document.querySelectorAll('.spot-ring')).toHaveLength(2);
+    expect(screen.getByText('Знайдено 1 з 3')).toBeTruthy();
+    expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
+  });
+
+  it('29d: after the close the pictures stay read-only', () => {
+    show(view({ phase: 'locked', questionIndex: 0, question: spotQuestion, me: { ...me, spotdiff: { ...mySpot, canTap: false } } }));
+    expect(screen.getByText('Запитання закрито.')).toBeTruthy();
+    expect(document.querySelectorAll('.spot-pic')).toHaveLength(2);
+    expect(document.querySelectorAll('.spot-pic.is-tap')).toHaveLength(0);
+  });
+
+  it('29d: the reveal shows every circle and no correct-answer line', () => {
+    const reveal = { id: 'sd', type: 'spotdiff', text: 'Знайдіть відмінності', imageUrl: null, video: null, timeLimit: 90, points: 300 } as unknown as Question;
+    const result = { grade: 'partial' as const, points: 100, streakBonus: 0 } as PlayerView['me']['result'];
+    const spots = [
+      { x: 0.2, y: 0.3, r: 0.05 },
+      { x: 0.5, y: 0.5, r: 0.05 },
+      { x: 0.8, y: 0.7, r: 0.05 },
+    ];
+    show(view({ phase: 'reveal', questionIndex: 0, question: { ...spotQuestion, spotdiff: { ...spotQuestion.spotdiff, spots } }, reveal, me: { ...me, result, spotdiff: { ...mySpot, canTap: false, result: { points: 100 } } } }));
+    expect(document.querySelectorAll('.spot-reveal .spot-ring')).toHaveLength(6);
+    expect(document.querySelectorAll('.spot-reveal .spot-ring.is-missed')).toHaveLength(4);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   const drawQuestion = { ...publicQuestion, type: 'drawing' as const, text: 'Намалюйте рослину', timeLimit: 60, points: 100, choices: [] };
   const drawInfo = { drawerId: 'p2', drawerName: 'Оля', side: 'p2', rev: 0, guessed: 0, could: 2, word: null, guessers: null, drawerPoints: null };
   const noCanvas = () => vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);

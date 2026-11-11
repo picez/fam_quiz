@@ -40,6 +40,7 @@ import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } f
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
+import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
@@ -384,12 +385,14 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {view.phase === 'reveal' && view.question?.puzzle !== undefined && <PuzzleReveal mine={view.me.puzzle} question={view.question} solution={view.puzzle?.solution ?? null} />}
       {/* Пазл (29c): своя рамка поверх блідої готової картинки; бали — вище, рядка правильної відповіді немає. */}
       {view.phase === 'reveal' && view.question?.jigsaw !== undefined && <JigsawReveal mine={view.me.jigsaw} question={view.question} />}
+      {/* Знайди відмінності (29d): усі кола на обох картинках, свої знахідки суцільні; рядка правильної відповіді немає. */}
+      {view.phase === 'reveal' && view.question?.spotdiff !== undefined && <SpotdiffReveal mine={view.me.spotdiff} question={view.question} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1156,6 +1159,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   )}
                 </>
               )
+            ) : question.type === 'spotdiff' ? (
+              // Знайди відмінності (29d): у команді одна спільна дошка, тапає будь-хто; заморозка — кожному своя.
+              me.spotdiff !== undefined &&
+              question.spotdiff !== undefined && (
+                <>
+                  <SpotdiffPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.spotdiff.changed}`} info={me.spotdiff} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} />
+                  {view.spotdiff !== undefined && (
+                    <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.spotdiff.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                  )}
+                </>
+              )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1373,6 +1387,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <section className="sent">
               <h2>{me.jigsaw.done ? t('jigsawDoneIn', { time: secondsText(me.jigsaw.timeMs ?? 0) }) : t(ranOut ? 'jigsawTimeUp' : 'jigsawClosed')}</h2>
               <JigsawPlay key={`${view.round?.index ?? 0}:${view.questionIndex}`} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={false} timeUp={false} send={send} closed />
+            </section>
+          ) : question?.type === 'spotdiff' && me.spotdiff !== undefined && question.spotdiff !== undefined ? (
+            // Знайди відмінності (29d): картинки з власними знахідками лише для перегляду; бали — на розкритті.
+            <section className="sent">
+              <h2>{me.spotdiff.done ? t('spotdiffAllFound') : t(ranOut ? 'spotdiffTimeUp' : 'spotdiffClosed')}</h2>
+              <SpotdiffPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.spotdiff.changed}`} info={me.spotdiff} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} send={send} closed />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">
