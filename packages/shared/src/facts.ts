@@ -55,7 +55,7 @@ export interface FactQuestion {
 
 /** Типи, де «правильно» — лише за весь ряд (FactQuestion.wholeRow). */
 export function wholeRowQuestion(question: Question): boolean {
-  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless' || question.type === 'drawing' || question.type === 'sudoku' || question.type === 'crossword';
+  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless' || question.type === 'drawing' || question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw';
 }
 
 /** Рядок «учасник × спроба» (12d): як рядок answer без штрафів і голосів. */
@@ -198,7 +198,7 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   // «Малюнок» (28c): ціна без швидкості.
   if (question.type === 'drawing') return null;
   // «Головоломки» (28d): без швидкості.
-  if (question.type === 'sudoku' || question.type === 'crossword') return null;
+  if (question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw') return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
   if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth' || round?.type === 'puzzles') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;

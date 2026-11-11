@@ -7,6 +7,7 @@ import { letterSet } from './letterwords';
 import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
+import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
 
 export const LIMITS = {
   questionText: 300,
@@ -222,6 +223,13 @@ export const LIMITS = {
   puzzleBatch: 12,
   /** Найдовший таймер судоку й кросворду, с: типові 180 і 240 довші за загальні maxTime. */
   maxPuzzleTime: 600,
+  /** «Пазл» (29c): шматочків у редакторі (6…36), типові 12; типові час (с), мінімум часу й бали. */
+  minJigsawPieces: 6,
+  maxJigsawPieces: 36,
+  defaultJigsawPieces: 12,
+  minJigsawTime: 25,
+  defaultJigsawTime: 120,
+  defaultJigsawPoints: 300,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -327,7 +335,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -633,6 +641,24 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('jigsaw'),
+      timeLimit: z.number().int().min(LIMITS.minJigsawTime).max(LIMITS.maxPuzzleTime),
+      /** Фото пазла (окреме поле: imageUrl мусить бути null, щоб готова картинка не показувалась). */
+      photo: z.string().regex(IMAGE_URL),
+      aspect: z.enum(JIGSAW_ASPECTS),
+      /** Частка «запасу» фото поза рамкою: 0 — лівий/верхній край, 0.5 — центр. */
+      focus: z.object({ x: share01, y: share01 }),
+      rows: z.number().int().min(2).max(12),
+      cols: z.number().int().min(2).max(12),
+      /** Лише для «інша форма» в редакторі. */
+      seed: z.number().int().min(0).max(2 ** 32 - 1),
+      /** По символу на внутрішнє ребро (jigsawTabs). */
+      tabs: z.string().regex(/^[01]*$/).max(264),
+      /** Показувати зменшену готову картинку поруч. */
+      preview: z.boolean(),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -760,6 +786,17 @@ export const questionSchema = z
       if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_video' });
       // Підказка недосяжна: бафи в раунді вимкнено (off_puzzles).
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'puzzle_hint' });
+    }
+    if (q.type === 'jigsaw') {
+      // Готова картинка на сцені видала б пазл: фото лише в полі photo.
+      if (q.imageUrl !== null) ctx.addIssue({ code: 'custom', message: 'jigsaw_image' });
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'jigsaw_video' });
+      // Підказка недосяжна: бафи на пазлі вимкнено (off_jigsaw).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'jigsaw_hint' });
+      const pieces = q.rows * q.cols;
+      const ratio = jigsawPieceRatio(q.rows, q.cols, q.aspect);
+      if (pieces < LIMITS.minJigsawPieces || pieces > LIMITS.maxJigsawPieces || ratio < 0.5 || ratio > 2) ctx.addIssue({ code: 'custom', message: 'jigsaw_grid' });
+      else if (q.tabs.length !== jigsawEdgeCount(q.rows, q.cols)) ctx.addIssue({ code: 'custom', message: 'jigsaw_tabs' });
     }
     if (q.type === 'sudoku') {
       const issue = sudokuIssue(q.givens, q.solution);
@@ -1178,6 +1215,13 @@ export function isPuzzle(question: { type: Question['type'] }): boolean {
   return (PUZZLE_TYPES as readonly string[]).includes(question.type);
 }
 
+/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл; isPuzzle пазла не охоплює. */
+export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw'] as const satisfies readonly Question['type'][];
+
+export function fitsPuzzlesRound(question: { type: Question['type'] }): boolean {
+  return (PUZZLES_ROUND_TYPES as readonly string[]).includes(question.type);
+}
+
 /** «Головоломки» (28d): лише судоку й кросворди; без правил, швидкості й перемішування. */
 export const puzzlesRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -1456,7 +1500,13 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => isPuzzle(cell.question))
           : round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some(isPuzzle);
       if (puzzlePlace) ctx.addIssue({ code: 'custom', message: 'puzzle_place' });
-      if (round.type === 'puzzles' && round.questions.some((q) => !isPuzzle(q))) ctx.addIssue({ code: 'custom', message: 'puzzles_type' });
+      if (round.type === 'puzzles' && round.questions.some((q) => !fitsPuzzlesRound(q))) ctx.addIssue({ code: 'custom', message: 'puzzles_type' });
+      // «Пазл» (29c): лише класика й «Головоломки»; жодної клітинки поля, жодного питання на виживання.
+      const jigsawPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'jigsaw')
+          : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'jigsaw');
+      if (jigsawPlace) ctx.addIssue({ code: 'custom', message: 'jigsaw_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

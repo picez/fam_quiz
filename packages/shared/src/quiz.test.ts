@@ -89,6 +89,12 @@ import {
   pickKeyCells,
   duelQuestionSchema,
   puzzleFillSchema,
+  jigsawPlaceSchema,
+  jigsawHoldSchema,
+  jigsawGrid,
+  jigsawTabs,
+  fitsPuzzlesRound,
+  isPuzzle,
   puzzleDoneSchema,
   PUZZLE_BATCHES_PER_SECOND,
 } from './index';
@@ -2860,8 +2866,108 @@ describe('puzzles round (28d)', () => {
 
   it('the round brief of puzzles counts the questions', () => {
     const parsed = roundSchema.parse(puzzles([sudokuQ({ id: 'a' }), crosswordQ({ id: 'b' }), sudokuQ({ id: 'c' })]));
-    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, time: 180 + 240 + 180 });
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, jigsaw: 0, time: 180 + 240 + 180 });
     expect(roundBrief(roundSchema.parse(round('r', [single]))).puzzles).toBeNull();
     expect(emptyBrief('puzzles').puzzles).toBeNull();
+  });
+});
+
+describe('jigsaw question (29c)', () => {
+  const grid = jigsawGrid(12, '4:3');
+  const jigsawQ = (patch: object = {}) => ({ id: 'jg', type: 'jigsaw', text: 'Складіть пазл', imageUrl: null, video: null,
+    timeLimit: 120, points: 300, photo: '/uploads/' + 'a'.repeat(32) + '.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 },
+    ...grid, seed: 1, tabs: jigsawTabs(grid.rows, grid.cols, 1), preview: true, ...patch });
+  const puzzles = (questions: object[]) => ({ id: 'pz', type: 'puzzles', title: 'Головоломки', questions });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a jigsaw', () => {
+    expect(QUESTION_TYPES.indexOf('jigsaw')).toBe(QUESTION_TYPES.indexOf('crossword') + 1);
+    expect(qIssues(jigsawQ())).toEqual([]);
+    const six = jigsawGrid(36, '1:1');
+    expect(qIssues(jigsawQ({ aspect: '1:1', ...six, tabs: jigsawTabs(six.rows, six.cols, 1) }))).toEqual([]);
+    expect(qIssues(jigsawQ({ timeLimit: 25 }))).toEqual([]);
+  });
+
+  it('refuses a broken jigsaw', () => {
+    expect(qIssues(jigsawQ({ imageUrl: '/uploads/' + 'b'.repeat(32) + '.jpg' }))).toContain('jigsaw_image');
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 };
+    expect(qIssues(jigsawQ({ video }))).toContain('jigsaw_video');
+    expect(qIssues(jigsawQ({ audio }))).toContain('jigsaw_video');
+    expect(qIssues(jigsawQ({ imageUrl: '/uploads/' + 'b'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('jigsaw_video');
+    expect(qIssues(jigsawQ({ hint: 'Почніть з кута' }))).toContain('jigsaw_hint');
+    expect(qIssues(jigsawQ({ rows: 2, cols: 2, tabs: '0000' }))).toContain('jigsaw_grid');
+    expect(qIssues(jigsawQ({ rows: 6, cols: 7, tabs: jigsawTabs(6, 7, 1) }))).toContain('jigsaw_grid');
+    expect(qIssues(jigsawQ({ aspect: '1:1', rows: 2, cols: 12, tabs: jigsawTabs(2, 12, 1) }))).toContain('jigsaw_grid');
+    expect(qIssues(jigsawQ({ tabs: jigsawTabs(3, 4, 1).slice(1) }))).toContain('jigsaw_tabs');
+    expect(valid(questionSchema, jigsawQ({ timeLimit: 24 }))).toBe(false);
+    expect(valid(questionSchema, jigsawQ({ timeLimit: 601 }))).toBe(false);
+    expect(valid(questionSchema, jigsawQ({ photo: 'https://x/y.jpg' }))).toBe(false);
+    expect(valid(questionSchema, jigsawQ({ tabs: '12' }))).toBe(false);
+  });
+
+  it('a jigsaw plays only in classic and puzzles rounds', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [jigsawQ({ id: 'jb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [jigsawQ({ id: 'jf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...jigsawQ({ id: 'jbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...jigsawQ({ id: 'jau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [jigsawQ({ id: 'jw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [jigsawQ({ id: 'jsv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [jigsawQ({ id: 'jl' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    for (const bad of [blitzRound, final, bets, auction, wipeout, survival, ladder]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('jigsaw_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? jigsawQ({ id: 'jc' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('jigsaw_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [jigsawQ({ id: 'jt' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('jigsaw_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [jigsawQ({ id: 'js' })] })).toContain('spare_type');
+    expect(valid(duelQuestionSchema, jigsawQ())).toBe(false);
+    // класика й «Головоломки» приймають
+    expect(issues(quizOf([round('c', [jigsawQ({ id: 'jc2' })])]))).toEqual([]);
+    expect(issues(quizOf([puzzles([jigsawQ({ id: 'ja' })])]))).toEqual([]);
+    const sudoku = { id: 'su', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium') };
+    expect(issues(quizOf([puzzles([sudoku, jigsawQ({ id: 'jb2' })])]))).toEqual([]);
+    // а puzzles з одиночним — як і раніше
+    expect(issues(quizOf([puzzles([single])]))).toContain('puzzles_type');
+    expect(issues(quizOf([puzzles([jigsawQ({ id: 'jx' }), { ...single, id: 'q2' }])]))).toContain('puzzles_type');
+    expect(fitsPuzzlesRound(jigsawQ() as never)).toBe(true);
+    expect(isPuzzle(jigsawQ() as never)).toBe(false);
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('jigsaw');
+  });
+
+  it('the jigsaw events are limited', () => {
+    const move = { questionIndex: 7, piece: 3, x: 1.5, y: -0.5, rot: 2 };
+    expect(valid(jigsawPlaceSchema, move)).toBe(true);
+    expect(valid(jigsawPlaceSchema, { ...move, piece: 36 })).toBe(false);
+    expect(valid(jigsawPlaceSchema, { ...move, rot: 4 })).toBe(false);
+    expect(valid(jigsawPlaceSchema, { ...move, x: Infinity })).toBe(false);
+    expect(valid(jigsawPlaceSchema, { ...move, extra: 1 })).toBe(false);
+    expect(valid(jigsawHoldSchema, { questionIndex: 7, piece: 3 })).toBe(true);
+    expect(valid(jigsawHoldSchema, { questionIndex: 7, piece: 36 })).toBe(false);
+    expect(valid(jigsawHoldSchema, { questionIndex: 7, piece: 3, x: 1 })).toBe(false);
+    expect(valid(answerSchema, { type: 'jigsaw', placed: 3, total: 12, done: false, timeMs: null })).toBe(false);
   });
 });

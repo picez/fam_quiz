@@ -573,3 +573,12 @@ describe('puzzle facts (28d)', () => {
     }
   });
 });
+
+describe('jigsaw facts (29c)', () => {
+  it('a jigsaw has no answer window', () => {
+    const q = { id: 'jg', type: 'jigsaw', text: 'Пазл', imageUrl: null, video: null, timeLimit: 120, points: 300 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBeNull();
+    expect(factLimitMs(q, { type: 'puzzles' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(q)).toBe(true);
+  });
+});

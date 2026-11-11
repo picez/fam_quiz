@@ -37,8 +37,8 @@ export interface RoundBrief {
   auction: { mode: AuctionBidMode; step: number; loss: AuctionLoss; count: number } | null;
   /** «Правда про гравця»: ціна й таймер; null поза ним. */
   truth: { points: number; time: number } | null;
-  /** «Головоломки» (28d): скільки судоку й кросвордів і сумарний час; null поза ним. */
-  puzzles: { sudoku: number; crossword: number; time: number } | null;
+  /** «Головоломки» (28d): скільки судоку, кросвордів і пазлів і сумарний час; null поза ним. */
+  puzzles: { sudoku: number; crossword: number; jigsaw: number; time: number } | null;
 }
 
 /** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction truth і puzzles null, answerModes []. */
@@ -83,6 +83,7 @@ export function roundBrief(round: Round): RoundBrief {
       puzzles: {
         sudoku: round.questions.filter((q) => q.type === 'sudoku').length,
         crossword: round.questions.filter((q) => q.type === 'crossword').length,
+        jigsaw: round.questions.filter((q) => q.type === 'jigsaw').length,
         time: round.questions.reduce((sum, q) => sum + q.timeLimit, 0),
       },
     };
