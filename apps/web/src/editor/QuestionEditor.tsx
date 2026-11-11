@@ -974,7 +974,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           ) : (
             <p className="meta">{t('noTimerHint')}</p>
           )}
-          {showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote && <NumberField label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
+          {showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote && <NumberField key={question.type} label={t('pointsLabel')} value={question.points} onChange={(points) => onChange({ ...question, points })} />}
         </div>
       )}
       {isVote && <p className="meta">{t('noPointsNote')}</p>}
