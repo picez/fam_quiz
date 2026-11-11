@@ -62,6 +62,11 @@ import {
   type JigsawBoardView,
   type JigsawInfo,
   type PlayerJigsaw,
+  type PublicSpotdiff,
+  type SpotdiffBoardView,
+  type SpotdiffInfo,
+  type SpotdiffHostInfo,
+  type PlayerSpotdiff,
   type LetterWordsRow,
   type PublicLetterWords,
   type TimedListInfo,
@@ -191,6 +196,7 @@ import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
+import { spotdiffOf } from './spotdiff';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -276,12 +282,12 @@ function withoutBluffSecrets(question: Question): Question {
 function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
   if (answer === null) return answer;
   // «Головоломки» (28d): сітка гравця (grid) — значення, до розкриття її не бачить ніхто.
-  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw') return revealed ? answer : null;
+  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw' || answer.type === 'spotdiff') return revealed ? answer : null;
   return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
 /** Запитання без правильної відповіді й підказки; choices у порядку presented. */
-function publicQuestion(question: Question, presented: string[], clues: PublicClues | null = null, letters: string[] | null = null): PublicQuestion {
+function publicQuestion(question: Question, presented: string[], clues: PublicClues | null = null, letters: string[] | null = null, revealed = false): PublicQuestion {
   const source: Choice[] =
     question.type === 'order'
       ? question.items
@@ -315,6 +321,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'moreless' ? { moreless: publicMoreLess(question) } : {}),
     ...(question.type === 'sudoku' || question.type === 'crossword' ? { puzzle: publicPuzzle(question) } : {}),
     ...(question.type === 'jigsaw' ? { jigsaw: publicJigsaw(question) } : {}),
+    ...(question.type === 'spotdiff' ? { spotdiff: publicSpotdiff(question, revealed) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -357,6 +364,11 @@ function publicJigsaw(question: Extract<Question, { type: 'jigsaw' }>): PublicJi
   return { photo: question.photo, aspect: question.aspect, focus: question.focus, rows: question.rows, cols: question.cols, tabs: question.tabs, preview: question.preview };
 }
 
+/** Дві картинки, рамка й кількість кіл; самі кола (місця) - лише на reveal, до нього вони таємні. */
+function publicSpotdiff(question: Extract<Question, { type: 'spotdiff' }>, revealed: boolean): PublicSpotdiff {
+  return { original: question.original, changed: question.changed, aspect: question.aspect, total: question.spots.length, spots: revealed ? question.spots.map((s) => ({ ...s })) : null };
+}
+
 /** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
 function publicPuzzle(question: Extract<Question, { type: 'sudoku' | 'crossword' }>): PublicPuzzle {
   if (question.type === 'sudoku') return { kind: 'sudoku', givens: question.givens };
@@ -393,7 +405,7 @@ function shownPublic(state: GameState): PublicQuestion | null {
   const shown = shownQuestion(state);
   if (shown === null) return null;
   const play = state.plays[state.questionIndex];
-  const question = publicQuestion(shown.question, shown.presented, publicClues(state), play?.letterwords?.letters ?? null);
+  const question = publicQuestion(shown.question, shown.presented, publicClues(state), play?.letterwords?.letters ?? null, state.phase === 'reveal');
   // «Мільйонер» без таймера: запитання з timeLimit, але відліку немає.
   return play?.ladder?.timed === false ? { ...question, timeLimit: null } : question;
 }
@@ -920,7 +932,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && !(play !== undefined && isPuzzle(play.question));
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && play?.question.type !== 'spotdiff' && !(play !== undefined && isPuzzle(play.question));
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -1011,7 +1023,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && !isPuzzle(play.question);
   return {
     ...info,
     question,
@@ -1116,7 +1128,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && !isPuzzle(play.question);
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1685,6 +1697,74 @@ function playerJigsaw(state: GameState, actorId: string, memberId: string, now: 
     held: Object.entries(holds).flatMap(([piece, hold]) => (hold.by === memberId ? [] : [{ piece: Number(piece), tone: jigsawTone(state, play.jigsaw.order?.[actorId], actorId, hold.by) }])),
     done,
     canPlace: state.phase === 'question' && !state.paused && !done && record === undefined,
+    seq: board?.seq ?? 0,
+    timeMs: board?.doneMs ?? null,
+    result: state.phase === 'reveal' ? { points: record?.points ?? 0 } : null,
+  };
+}
+
+/** Поточне «Знайди відмінності» з його грою (будь-який етап запитання); null поза запитанням або для інших типів. */
+function currentSpotdiff(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.spotdiff === undefined || play.question.type !== 'spotdiff') return null;
+  return { play: { ...play, spotdiff: play.spotdiff }, question: play.question };
+}
+
+/** Дошки «Знайди відмінності» (29d): лише кількість знайдених, без місць; до reveal - порядок гравців, на reveal - знайшли все (за часом), далі за кількістю спадно. */
+function spotdiffBoards(state: GameState): (SpotdiffBoardView & { spots: number[] })[] | undefined {
+  const open = currentSpotdiff(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  const boards = state.players.map((player) => {
+    const board = play.spotdiff.boards[player.id];
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      found: board?.found.length ?? 0,
+      total: question.spots.length,
+      done: board?.doneMs != null,
+      timeMs: board?.doneMs ?? null,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+      spots: board?.found ?? [],
+    };
+  });
+  if (revealed) boards.sort((a, b) => (a.done === b.done ? (a.done ? (a.timeMs ?? 0) - (b.timeMs ?? 0) : b.found - a.found) : a.done ? -1 : 1));
+  return boards;
+}
+
+/** Зріз для сцени й телефонів: лише кількості (місця таємні до reveal, а там їх несе PublicQuestion). */
+function spotdiffInfo(state: GameState): SpotdiffInfo | undefined {
+  const boards = spotdiffBoards(state);
+  return boards === undefined ? undefined : { boards: boards.map(({ spots: _spots, ...board }) => board) };
+}
+
+/** Зріз ведучого: ті самі дошки з номерами знайдених кіл і всі кола завжди. */
+function spotdiffHostInfo(state: GameState): SpotdiffHostInfo | undefined {
+  const open = currentSpotdiff(state);
+  const boards = spotdiffBoards(state);
+  return open === null || boards === undefined ? undefined : { boards, spots: open.question.spots.map((s) => ({ ...s })) };
+}
+
+/** Власні (командні) знахідки гравця: координати лише знайдених кіл; tone - колір того, хто знайшов, у командах. */
+function playerSpotdiff(state: GameState, actorId: string): PlayerSpotdiff | undefined {
+  const open = currentSpotdiff(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const board = spotdiffOf(state, actorId);
+  const record = recordOf(state, state.questionIndex, actorId);
+  const team = teamsOn(state);
+  const done = board?.doneMs != null;
+  return {
+    found: (board?.found ?? []).map((index, i) => {
+      const by = board?.by?.[i];
+      const tone = team ? (by === undefined ? '9' : jigsawTone(state, play.spotdiff.order?.[actorId], actorId, by)) : null;
+      return { index, x: question.spots[index].x, y: question.spots[index].y, r: question.spots[index].r, tone };
+    }),
+    total: question.spots.length,
+    done,
+    canTap: state.phase === 'question' && !state.paused && !done && record === undefined,
     seq: board?.seq ?? 0,
     timeMs: board?.doneMs ?? null,
     result: state.phase === 'reveal' ? { points: record?.points ?? 0 } : null,
@@ -2615,6 +2695,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('moreless', moreLessInfo(state, forHost)),
     ...optional('puzzle', puzzleInfo(state, forHost)),
     ...optional('jigsaw', jigsawInfo(state)),
+    ...optional('spotdiff', spotdiffInfo(state)),
     ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
@@ -3026,7 +3107,8 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
   if (!teamsOn(state)) {
     const view = ownView(state, playerId);
     const jigsaw = playerJigsaw(state, playerId, playerId, now);
-    return view === null ? null : { ...view, me: jigsaw === undefined ? view.me : { ...view.me, jigsaw }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
+    const spotdiff = playerSpotdiff(state, playerId);
+    return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -3040,7 +3122,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
   return {
     ...view,
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -3375,9 +3457,10 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, drawing: _publicDrawing, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, drawing: _publicDrawing, spotdiff: _publicSpotdiff, ...shared } = base(state, true);
   return {
     ...shared,
+    ...optional('spotdiff', spotdiffHostInfo(state)),
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
     ...(wards === undefined ? {} : { wards }),
     role: 'host',
