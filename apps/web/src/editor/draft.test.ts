@@ -3145,5 +3145,12 @@ describe('spotdiff in the editor (29d)', () => {
     const [fixed] = roundQuestions(loadDraft('spot-wild')!.rounds[0]!) as [Spot];
     expect(fixed.spots).toEqual([{ x: 1, y: 0, r: 0.25 }, { x: 0.1, y: 0.1, r: 0.015 }]);
     expect(fixed).toMatchObject({ aspect: 4 / 3, original: '' });
+
+    // співвідношення поза 0,5…3 (точці можна 0,25…4) — типове
+    for (const [aspect, kept] of [[0.3, 4 / 3], [3.5, 4 / 3], [0.5, 0.5], [3, 3]] as const) {
+      sessionStorage.setItem('quiz:draft:spot-aspect', JSON.stringify(inRound(newClassicRound(), { ...spot(), aspect } as Question)));
+      const [back] = roundQuestions(loadDraft('spot-aspect')!.rounds[0]!) as [Spot];
+      expect(back.aspect, String(aspect)).toBe(kept);
+    }
   });
 });

@@ -1195,19 +1195,39 @@ describe('StageScreen final', () => {
       expect(document.querySelectorAll('.spot-pic .spot-ring')).toHaveLength(6);
       const rows = [...document.querySelectorAll('.spotdiff-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
       expect(rows).toEqual([
-        ['1', 'Тарас', 'Знайдено 3 з 3 · 41,2 с', '+300'],
-        ['2', 'Оля', 'Знайдено 2 з 3', '+200'],
-        ['3', 'Ната', 'Знайдено 0 з 3', '0'],
+        ['1', 'Тарас', '3 з 3 · 41,2 с', '+300'],
+        ['2', 'Оля', '2 з 3', '+200'],
+        // нічого не знайшла — без місця й без балів
+        ['—', 'Ната', '0 з 3', ''],
       ]);
       expect(document.querySelector('.spotdiff-card')).toBeNull();
       expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     });
 
-    it('twelve rows fit the stage', () => {
+    it('twelve rows go on one table page with --rows 12', () => {
       const info = { boards: Array.from({ length: 12 }, (_, i) => b(`p${i}`, `Гравець ${i + 1}`, 3, { done: true, timeMs: 30_000 + i, points: 300 })) };
       show(view({ phase: 'reveal', questionIndex: 0, question: { ...spotQ, spotdiff: { ...sd, spots } }, reveal: spotFull, playerCount: 12, answeredCount: 12, spotdiff: info }));
       expect(document.querySelectorAll('.spotdiff-table tbody tr')).toHaveLength(12);
       expect((document.querySelector('.spotdiff-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('12');
+    });
+
+    it('thirteen rows split into two table pages that take turns', () => {
+      vi.useFakeTimers();
+      try {
+        const info = { boards: Array.from({ length: 13 }, (_, i) => b(`p${i}`, `Гравець ${i + 1}`, 3, { done: true, timeMs: 30_000 + i, points: 300 })) };
+        show(view({ phase: 'reveal', questionIndex: 0, question: { ...spotQ, spotdiff: { ...sd, spots } }, reveal: spotFull, playerCount: 13, answeredCount: 13, spotdiff: info }));
+        const names = () => [...document.querySelectorAll('.spotdiff-table tbody td.name')].map((td) => td.textContent);
+        const ranks = () => [...document.querySelectorAll('.spotdiff-table tbody td.rank')].map((td) => td.textContent);
+        expect(names()).toEqual(Array.from({ length: 7 }, (_, i) => `Гравець ${i + 1}`));
+        expect((document.querySelector('.spotdiff-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('7');
+        act(() => vi.advanceTimersByTime(8000));
+        expect(names()).toEqual(Array.from({ length: 6 }, (_, i) => `Гравець ${i + 8}`));
+        // місця наскрізні: друга сторінка починається з 8
+        expect(ranks()[0]).toBe('8');
+        expect((document.querySelector('.spotdiff-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('6');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

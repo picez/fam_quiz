@@ -44,6 +44,8 @@ const view = (patch: Partial<SpotdiffQuestion> = {}) => {
 };
 const board = () => screen.getByRole('group', { name: t('spotdiffMarkHint') });
 const circle = (x: number, y: number, r = 0.06) => ({ x, y, r });
+/** Розміри картинки 1200 px завширшки з таким співвідношенням. */
+const px = (aspect: number) => ({ width: 1200, height: 1200 / aspect });
 
 describe('SpotdiffEditor', () => {
   it('a tap on the changed picture adds a circle', () => {
@@ -148,7 +150,7 @@ describe('SpotdiffEditor uploads', () => {
   };
 
   it('a changed picture with another aspect is refused', async () => {
-    const measure = vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(1.5).mockResolvedValueOnce(1.6);
+    const measure = vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(1.5)).mockResolvedValueOnce(px(1.6));
     upload(ORIGINAL, CHANGED);
     const { calls } = view({ original: '', changed: '', aspect: 4 / 3 });
     pick(t('spotdiffOriginal'));
@@ -160,7 +162,7 @@ describe('SpotdiffEditor uploads', () => {
   });
 
   it('a changed picture within the tolerance is kept', async () => {
-    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(1.5).mockResolvedValueOnce(1.51);
+    vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(1.5)).mockResolvedValueOnce(px(1.51));
     upload(ORIGINAL, CHANGED);
     const { calls } = view({ original: '', changed: '', aspect: 4 / 3 });
     pick(t('spotdiffOriginal'));
@@ -170,7 +172,7 @@ describe('SpotdiffEditor uploads', () => {
   });
 
   it('a new original with another aspect clears the second picture and the circles', async () => {
-    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(1);
+    vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(1));
     upload(OTHER);
     const { calls } = view({ spots: [circle(0.5, 0.5)] });
     pick(t('spotdiffOriginal'));
@@ -178,7 +180,7 @@ describe('SpotdiffEditor uploads', () => {
   });
 
   it('a new original with the same aspect keeps the circle selection', async () => {
-    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(2);
+    vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(2));
     upload(OTHER);
     const { calls } = view({ spots: [circle(0.5, 0.5, 0.1)] });
     fireEvent.pointerDown(board(), { pointerId: 1, clientX: 210, clientY: 100 });
@@ -188,8 +190,37 @@ describe('SpotdiffEditor uploads', () => {
     expect(screen.getByRole('button', { name: t('spotdiffRemove') }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('an original narrower than 1 : 2 or wider than 3 : 1 is refused', async () => {
+    const measure = vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(0.4)).mockResolvedValueOnce(px(3.2)).mockResolvedValueOnce(px(0.5));
+    upload(ORIGINAL, ORIGINAL, ORIGINAL);
+    const { calls } = view({ original: '', changed: '', aspect: 4 / 3 });
+    pick(t('spotdiffOriginal'));
+    await screen.findByText(t('spotdiffAspectBad'));
+    pick(t('spotdiffOriginal'));
+    await waitFor(() => expect(measure).toHaveBeenCalledTimes(2));
+    await screen.findByText(t('spotdiffAspectBad'));
+    expect(calls).toHaveLength(0);
+    pick(t('spotdiffOriginal'));
+    await waitFor(() => expect(calls.at(-1)?.[0]).toMatchObject({ original: ORIGINAL, aspect: 0.5 }));
+    expect(screen.queryByText(t('spotdiffAspectBad'))).toBeNull();
+  });
+
+  it('a small picture is kept with a warning', async () => {
+    vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce({ width: 320, height: 240 }).mockResolvedValueOnce({ width: 400, height: 300 });
+    upload(ORIGINAL, CHANGED);
+    const { calls } = view({ original: '', changed: '', aspect: 4 / 3 });
+    pick(t('spotdiffOriginal'));
+    await waitFor(() => expect(calls.at(-1)?.[0]).toMatchObject({ original: ORIGINAL, aspect: 4 / 3 }));
+    expect(screen.getByText(t('spotdiffLowRes', { width: 320, min: 400 }))).toBeTruthy();
+    // 400 px — уже без попередження
+    pick(t('spotdiffChanged'));
+    await waitFor(() => expect(calls.at(-1)?.[0]).toMatchObject({ changed: CHANGED }));
+    expect(screen.queryByText(t('spotdiffLowRes', { width: 400, min: 400 }))).toBeNull();
+    expect(screen.getByText(t('spotdiffLowRes', { width: 320, min: 400 }))).toBeTruthy();
+  });
+
   it('a changed picture before the original asks for the original first', async () => {
-    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(2);
+    vi.spyOn(imageField, 'measureImage').mockResolvedValueOnce(px(2));
     upload(CHANGED);
     view({ original: '', changed: '' });
     pick(t('spotdiffChanged'));

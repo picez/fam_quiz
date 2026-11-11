@@ -1,4 +1,4 @@
-import { memo, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { PlayerSpotdiff, PublicQuestion, PublicSpotdiff, SpotdiffBoardView, SpotdiffHostInfo, SpotdiffInfo } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
@@ -25,13 +25,13 @@ export interface SpotRing {
   missed?: boolean;
 }
 
-/** Картинка не перемальовується від тапів: лише її адреса й підпис. */
-const Picture = memo(function Picture({ src, alt }: { src: string; alt: string }) {
-  return <img src={src} alt={alt} draggable={false} />;
+/** Картинка не перемальовується від тапів: лише її адреса, підпис і (стала) реакція на помилку завантаження. */
+const Picture = memo(function Picture({ src, alt, onError }: { src: string; alt: string; onError: (src: string) => void }) {
+  return <img src={src} alt={alt} draggable={false} onError={() => onError(src)} />;
 });
 
-/** Кола й хрестики поверх картинки: viewBox у ширинах, тож кола лишаються колами за будь-якого співвідношення. */
-function Overlay({ aspect, circles, misses }: { aspect: number; circles: readonly SpotRing[]; misses: readonly SpotMiss[] }) {
+/** Кола й хрестики поверх картинки: viewBox у ширинах, тож кола лишаються колами за будь-якого співвідношення. Без змін кіл чи хрестиків — без перемальовування. */
+const Overlay = memo(function Overlay({ aspect, circles, misses }: { aspect: number; circles: readonly SpotRing[]; misses: readonly SpotMiss[] }) {
   if (circles.length === 0 && misses.length === 0) return null;
   return (
     <svg className="spot-overlay" viewBox={`0 0 1 ${1 / aspect}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -56,7 +56,9 @@ function Overlay({ aspect, circles, misses }: { aspect: number; circles: readonl
       })}
     </svg>
   );
-}
+});
+
+const NO_MISSES: readonly SpotMiss[] = [];
 
 export interface SpotdiffPicturesProps {
   spotdiff: PublicSpotdiff;
@@ -68,15 +70,19 @@ export interface SpotdiffPicturesProps {
 }
 
 /**
- * Дві картинки «Знайди відмінності» (29d) в однакових рамках aspect (object-fit: fill), з колами на обох. Телефон: нижче 640 px —
- * одна над одною, від 640 px — поруч. Сцена й пульт беруть той самий компонент без onTap.
+ * Дві картинки «Знайди відмінності» (29d) в однакових рамках aspect (object-fit: fill), з колами на обох. Телефон: горизонтальні
+ * картинки нижче 640 px — одна над одною, від 640 px — поруч; вертикальні (aspect < 1) — завжди поруч. Сцена й пульт беруть той
+ * самий компонент без onTap. Картинка, що не завантажилась, не приймає тапів і показує підпис про помилку.
  */
-export function SpotdiffPictures({ spotdiff, circles, onTap, frozen = false, misses = [] }: SpotdiffPicturesProps) {
+export function SpotdiffPictures({ spotdiff, circles, onTap, frozen = false, misses = NO_MISSES }: SpotdiffPicturesProps) {
   const start = useRef<{ id: number; x: number; y: number } | null>(null);
+  // Адреси, що не завантажились: за адресою, тож нова картинка починає з чистого.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
+  const onError = useCallback((src: string) => setBroken((now) => (now.has(src) ? now : new Set(now).add(src))), []);
   const tappable = onTap !== undefined && !frozen;
 
   const onDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!tappable) return;
+    if (!tappable || event.currentTarget.dataset.broken === 'true') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     start.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
   };
@@ -93,27 +99,40 @@ export function SpotdiffPictures({ spotdiff, circles, onTap, frozen = false, mis
     onTap(x, y, rect.width);
   };
 
-  const frame = (src: string, alt: string, which: 'original' | 'changed') => (
-    <div
-      className={`spot-pic${tappable ? ' is-tap' : ''}${frozen ? ' spot-frozen' : ''}`}
-      data-pic={which}
-      dir="ltr"
-      style={{ '--ar': spotdiff.aspect, aspectRatio: String(spotdiff.aspect) } as CSSProperties}
-      onPointerDown={onDown}
-      onPointerUp={onUp}
-      onPointerCancel={() => {
-        start.current = null;
-      }}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <Picture src={src} alt={alt} />
-      <Overlay aspect={spotdiff.aspect} circles={circles} misses={misses} />
-      {frozen && <span className="spot-frozen-note">{t('spotdiffFrozen')}</span>}
-    </div>
-  );
+  const frame = (src: string, alt: string, which: 'original' | 'changed') => {
+    const failed = broken.has(src);
+    return (
+      <div
+        className={`spot-pic${tappable && !failed ? ' is-tap' : ''}${frozen ? ' spot-frozen' : ''}${failed ? ' is-broken' : ''}`}
+        data-pic={which}
+        data-broken={failed ? 'true' : undefined}
+        dir="ltr"
+        style={{ '--ar': spotdiff.aspect, aspectRatio: String(spotdiff.aspect) } as CSSProperties}
+        onPointerDown={onDown}
+        onPointerUp={onUp}
+        onPointerCancel={() => {
+          start.current = null;
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <Picture src={src} alt={alt} onError={onError} />
+        <Overlay aspect={spotdiff.aspect} circles={circles} misses={misses} />
+        {failed && (
+          <span className="spot-broken-note" role="alert">
+            {t('spotdiffImageError')}
+          </span>
+        )}
+        {frozen && !failed && (
+          <span className="spot-frozen-note" aria-hidden="true">
+            {t('spotdiffFrozen')}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="spot-pictures">
+    <div className={spotdiff.aspect < 1 ? 'spot-pictures is-tall' : 'spot-pictures'} style={{ '--ar': spotdiff.aspect } as CSSProperties}>
       {frame(spotdiff.original, t('spotdiffOriginal'), 'original')}
       {frame(spotdiff.changed, t('spotdiffChanged'), 'changed')}
     </div>
@@ -145,19 +164,27 @@ export function SpotdiffPlay(props: SpotdiffPlayProps) {
 function SpotdiffBoard({ info, spotdiff, questionIndex, paused, timeUp, send, closed = false }: SpotdiffPlayProps & { spotdiff: PublicSpotdiff }) {
   const model = useSpotdiff(info, questionIndex, send);
   const interactive = !closed && !paused && !timeUp && info.canTap && !info.done;
-  const status = info.done
-    ? `${t('spotdiffAllFound')} · ${t('jigsawSeconds', { time: secondsText(info.timeMs ?? 0) })}`
-    : closed
-      ? ''
+  const frozen = !closed && model.frozen;
+  // Закрите запитання: заголовок (у батька) уже каже «усе знайдено за …» чи «час вийшов», тож рядок стану порожній.
+  const status = closed
+    ? ''
+    : info.done
+      ? t('spotdiffDoneIn', { time: secondsText(info.timeMs ?? 0) })
       : timeUp
         ? t('spotdiffTimeUp')
         : model.offline
           ? t('spotdiffOffline')
-          : '';
+          : frozen
+            ? t('spotdiffFrozen')
+            : '';
+  // Кожен зріз приносить новий масив found; кільця міняються лише з seq дошки (нова знахідка), тож Overlay не перемальовується даремно.
+  const foundNow = useRef(model.found);
+  foundNow.current = model.found;
+  const rings = useMemo(() => ringsOf(foundNow.current), [info.seq, model.found.length]);
   return (
     <div className="spot-play">
       <p className="meta spot-progress">{t('spotdiffFound', { found: info.found.length, total: info.total })}</p>
-      <SpotdiffPictures spotdiff={spotdiff} circles={ringsOf(model.found)} onTap={interactive ? model.tap : undefined} frozen={!closed && model.frozen} misses={closed ? [] : model.misses} />
+      <SpotdiffPictures spotdiff={spotdiff} circles={rings} onTap={interactive ? model.tap : undefined} frozen={frozen} misses={closed ? NO_MISSES : model.misses} />
       <p className="puzzle-status" role="status" aria-live="polite">
         {status}
       </p>
@@ -216,7 +243,10 @@ export function SpotdiffBoards({ boards, reveal = false, host = false }: { board
   );
 }
 
-/** Таблиця розкриття: «місце · нік · знайдено · бали» в порядку сервера; рівні результати ділять місце. Сторінки й шрифт — як у JigsawTable. */
+/**
+ * Таблиця розкриття: «місце · нік · знайдено · бали» в порядку сервера; рівні результати ділять місце, хто не знайшов нічого — «—»
+ * і без балів. Сторінки й шрифт — як у JigsawTable.
+ */
 export function SpotdiffTable({ boards, host = false }: { boards: readonly SpotdiffBoardView[]; host?: boolean }) {
   const places = boards.map((board, i) => {
     let at = i;
@@ -240,15 +270,17 @@ export function SpotdiffTable({ boards, host = false }: { boards: readonly Spotd
       <tbody>
         {shown.map((board, i) => (
           <tr key={board.playerId} className={board.done ? 'is-done' : 'is-undone'}>
-            <td className="rank">{places[from + i]}</td>
+            {/* Нічого не знайшов — без місця й без балів, як незавершені в JigsawTable. */}
+            <td className="rank">{board.found === 0 ? '—' : places[from + i]}</td>
             <td className="name" dir="auto">
               {board.nickname}
             </td>
             <td className="jigsaw-table-time">
-              {t('spotdiffFound', { found: board.found, total: board.total })}
+              {/* Стовпець і так зветься «Знайдено»: у комірці лише «x з N», щоб таблиця була вужчою за картинки. */}
+              {t('spotdiffCardCount', { found: board.found, total: board.total })}
               {board.done && board.timeMs !== null ? ` · ${t('jigsawSeconds', { time: secondsText(board.timeMs) })}` : ''}
             </td>
-            <td className="score">{signed(board.points ?? 0)}</td>
+            <td className="score">{board.found === 0 ? '' : signed(board.points ?? 0)}</td>
           </tr>
         ))}
       </tbody>

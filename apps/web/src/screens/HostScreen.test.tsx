@@ -1677,8 +1677,8 @@ describe('HostScreen spotdiff (29d)', () => {
     const panel = document.querySelector<HTMLElement>('.host-spotdiff')!;
     const rows = [...panel.querySelectorAll('.spotdiff-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
     expect(rows).toEqual([
-      ['1', 'Оля', 'Знайдено 2 з 3', '+200'],
-      ['2', 'Тарас', 'Знайдено 1 з 3', '+100'],
+      ['1', 'Оля', '2 з 3', '+200'],
+      ['2', 'Тарас', '1 з 3', '+100'],
     ]);
     expect(panel.querySelectorAll('.spot-pic')[1].querySelectorAll('.spot-ring.is-missed')).toHaveLength(1);
   });

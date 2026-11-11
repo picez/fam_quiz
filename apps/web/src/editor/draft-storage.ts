@@ -14,8 +14,10 @@ import {
   jigsawGrid,
   jigsawPieceRatio,
   jigsawTabs,
+  SPOT_MAX_ASPECT,
   SPOT_MAX_COUNT,
   SPOT_MAX_R,
+  SPOT_MIN_ASPECT,
   SPOT_MIN_R,
   SUDOKU_SOURCES,
   LETTER_GOALS,
@@ -226,7 +228,7 @@ function reviveJigsaw(base: Extract<Question, { type: 'jigsaw' }>): Question {
 function reviveSpotdiff(base: Extract<Question, { type: 'spotdiff' }>): Question {
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
   const url = (value: unknown) => (typeof value === 'string' ? value : '');
-  const aspect = typeof base.aspect === 'number' && Number.isFinite(base.aspect) && base.aspect >= LIMITS.pinMinAspect && base.aspect <= LIMITS.pinMaxAspect ? base.aspect : 4 / 3;
+  const aspect = typeof base.aspect === 'number' && Number.isFinite(base.aspect) && base.aspect >= SPOT_MIN_ASPECT && base.aspect <= SPOT_MAX_ASPECT ? base.aspect : 4 / 3;
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const raw: unknown[] = Array.isArray(base.spots) ? base.spots : [];
   const spots = raw

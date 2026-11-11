@@ -20004,6 +20004,12 @@ input.sudoku-editor-cell:focus-visible {
   min-width: 0;
 }
 
+/* Попередження про малу картинку: не помилка, картинка вже збережена. */
+.spotdiff-warning {
+  margin: 0;
+  color: var(--amber);
+}
+
 .spotdiff-editor-row {
   display: flex;
   flex-wrap: wrap;
@@ -20060,7 +20066,7 @@ input.sudoku-editor-cell:focus-visible {
   stroke-width: 0.004px;
 }
 
-/* «Знайди відмінності»: телефон (29d). Дві рамки aspect; нижче 640 px одна над одною (кожна не вища за 38dvh), від 640 px поруч. */
+/* «Знайди відмінності»: телефон (29d). Дві рамки aspect; нижче 640 px одна над одною (кожна не вища за 38dvh), від 640 px поруч; вертикальні — завжди поруч. */
 .spot-play {
   display: grid;
   justify-items: center;
@@ -20080,6 +20086,19 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
+}
+
+/*
+ * Вертикальні картинки (aspect < 1) на телефоні — поруч навіть на 320 px: одна над одною вони були б крихітні. Кожна якомога
+ * більша: на всю свою колонку, але не вища за ~64dvh (над ними рядок «Знайдено», під ними стан і таймер).
+ */
+.spot-play .spot-pictures.is-tall {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.spot-play .spot-pictures.is-tall .spot-pic {
+  width: min(100%, calc(64dvh * var(--ar, 0.75)));
 }
 
 .spot-pic {
@@ -20159,6 +20178,24 @@ input.sudoku-editor-cell:focus-visible {
   filter: grayscale(1) brightness(0.6);
 }
 
+/* Картинка не завантажилась: тапів немає, замість неї — підпис. */
+.spot-pic.is-broken {
+  min-height: 4rem;
+  outline: 1px dashed var(--line);
+}
+
+.spot-broken-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: none;
+}
+
 .spot-frozen-note {
   position: absolute;
   inset: 0;
@@ -20179,6 +20216,10 @@ input.sudoku-editor-cell:focus-visible {
 
   .spot-pic {
     width: min(100%, calc(70dvh * var(--ar, 1.3333)));
+  }
+
+  .spot-play .spot-pictures.is-tall .spot-pic {
+    width: min(100%, calc(70dvh * var(--ar, 0.75)));
   }
 }
 
@@ -20302,9 +20343,10 @@ input.sudoku-editor-cell:focus-visible {
   padding: 0.3em 0.6em;
 }
 
-/* Розкриття на сцені: картинки ліворуч, таблиця праворуч. */
-.spotdiff-stage.is-reveal .spotdiff-stage-pics {
-  min-height: 0;
+/* Розкриття на сцені: картинки ліворуч (разом ≈ 60 % ширини екрана, щоб кола було видно з залу), таблиця праворуч — решта. */
+.puzzle-stage.jigsaw-stage.spotdiff-stage.is-reveal {
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  column-gap: 1.5vw;
 }
 
 .spotdiff-legend {

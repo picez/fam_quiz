@@ -1,16 +1,19 @@
-import { LIMITS, SPOT_DEFAULT_R, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_R, aspectsMatch, type Question, type SpotCircle } from '@quiz/shared';
+import { LIMITS, SPOT_DEFAULT_R, SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_R, aspectsMatch, type Question, type SpotCircle } from '@quiz/shared';
 import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
 import { t } from '../i18n';
 import { shareOf } from '../live/spot-geometry';
 import { QuestionImage } from '../screens/QuestionImage';
-import { ACCEPT, measureAspect, useImageUpload } from './ImageField';
+import { ACCEPT, measureImage, useImageUpload } from './ImageField';
 import { TimeField } from './JigsawEditor';
 import type { SpotdiffQuestion } from './draft';
 
 const clampR = (r: number) => Math.min(SPOT_MAX_R, Math.max(SPOT_MIN_R, r));
 
-/** Відстань у ширинах картинки (висота ділиться на співвідношення сторін). */
+/** Дрейф пальця до стількох CSS px — ще тап, а не перетягування (радіус не міняється). */
 const DRAG_THRESHOLD_PX = 6;
+/** Картинка вужча за стільки px (naturalWidth) — попередження: на сцені буде розмита. Зберігається все одно. */
+const SPOT_LOW_RES_PX = 400;
+/** Відстань у ширинах картинки (висота ділиться на співвідношення сторін). */
 const dist = (aspect: number, x: number, y: number, s: { x: number; y: number }) => Math.hypot(x - s.x, (y - s.y) / aspect);
 
 /** Кола поверх картинки: viewBox у ширинах, тож кола лишаються колами при будь-якому співвідношенні. */
@@ -30,7 +33,7 @@ function Circles({ spots, aspect, selected }: { spots: readonly SpotCircle[]; as
 }
 
 /** Одне завантаження з підписом: окреме поле, щоб «Оригінал» і «Зі змінами» не плуталися. */
-function UploadSlot({ label, url, busy, error, onPick, onClear }: { label: string; url: string; busy: boolean; error: string | null; onPick: (event: ChangeEvent<HTMLInputElement>) => void; onClear: () => void }) {
+function UploadSlot({ label, url, busy, error, narrow, onPick, onClear }: { label: string; url: string; busy: boolean; error: string | null; narrow: number | null; onPick: (event: ChangeEvent<HTMLInputElement>) => void; onClear: () => void }) {
   return (
     <div className="spotdiff-slot image-field">
       <strong>{label}</strong>
@@ -49,6 +52,11 @@ function UploadSlot({ label, url, busy, error, onPick, onClear }: { label: strin
       {error !== null && (
         <p className="error" role="alert">
           {error}
+        </p>
+      )}
+      {error === null && narrow !== null && url !== '' && (
+        <p className="meta spotdiff-warning" role="status">
+          {t('spotdiffLowRes', { width: narrow, min: SPOT_LOW_RES_PX })}
         </p>
       )}
     </div>
@@ -72,6 +80,8 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
     };
   }, []);
   const [problem, setProblem] = useState<{ slot: 'original' | 'changed'; text: string } | null>(null);
+  // Ширина (px) щойно завантаженої замалої картинки — для попередження; null — усе гаразд чи ще не міряли.
+  const [narrow, setNarrow] = useState<{ original: number | null; changed: number | null }>({ original: null, changed: null });
   const [selected, setSelected] = useState<number | null>(null);
   const [full, setFull] = useState(false);
   const area = useRef<HTMLDivElement>(null);
@@ -85,22 +95,27 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
     if (url === null) return;
     request.current[slot] += 1;
     const mine = request.current[slot];
-    void measureAspect(url).then((next) => {
+    void measureImage(url).then((size) => {
       if (!mounted.current || mine !== request.current[slot]) return;
-      if (next === null) return setProblem({ slot, text: t('pinImageFailed') });
-      if (next < LIMITS.pinMinAspect || next > LIMITS.pinMaxAspect) return setProblem({ slot, text: t('pinAspectBad') });
+      if (size === null) return setProblem({ slot, text: t('pinImageFailed') });
+      const next = size.width / size.height;
+      if (next < SPOT_MIN_ASPECT || next > SPOT_MAX_ASPECT) return setProblem({ slot, text: t('spotdiffAspectBad') });
       const current = latest.current.question;
+      // Мала картинка — лише попередження: вона зберігається.
+      const low = size.width < SPOT_LOW_RES_PX ? size.width : null;
       if (slot === 'original') {
         setProblem(null);
         // Інше співвідношення робить стару пару й кола недійсними.
         const same = current.changed !== '' && aspectsMatch(current.aspect, next);
         if (!same) setSelected(null);
+        setNarrow((now) => ({ original: low, changed: same ? now.changed : null }));
         put(same ? { original: url, aspect: next } : { original: url, aspect: next, changed: '', spots: [] });
         return;
       }
       if (current.original === '') return setProblem({ slot, text: t('spotdiffNeedOriginal') });
       if (!aspectsMatch(current.aspect, next)) return setProblem({ slot, text: t('spotdiffAspectMismatch') });
       setProblem(null);
+      setNarrow((now) => ({ ...now, changed: low }));
       put({ changed: url });
     });
   };
@@ -174,11 +189,13 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
           url={original}
           busy={first.busy}
           error={problem?.slot === 'original' ? problem.text : first.error}
+          narrow={narrow.original}
           onPick={first.pick}
           onClear={() => {
             first.clearError();
             setProblem(null);
             setSelected(null);
+            setNarrow({ original: null, changed: null });
             put({ original: '', changed: '', spots: [] });
           }}
         />
@@ -187,11 +204,13 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
           url={changed}
           busy={second.busy}
           error={problem?.slot === 'changed' ? problem.text : second.error}
+          narrow={narrow.changed}
           onPick={second.pick}
           onClear={() => {
             second.clearError();
             setProblem(null);
             setSelected(null);
+            setNarrow((now) => ({ ...now, changed: null }));
             put({ changed: '', spots: [] });
           }}
         />

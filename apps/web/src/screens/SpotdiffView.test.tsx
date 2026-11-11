@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -87,7 +87,10 @@ describe('SpotdiffPlay', () => {
     await act(async () => tapAt(pic('original'), 40, 140));
     expect(pic('original').classList.contains('spot-frozen')).toBe(true);
     expect(pic('changed').classList.contains('spot-frozen')).toBe(true);
-    expect(screen.getAllByText(t('spotdiffFrozen'))).toHaveLength(2);
+    // підпис на картинках — для очей, а оголошує паузу рядок стану
+    expect(screen.getAllByText(t('spotdiffFrozen'))).toHaveLength(3);
+    expect(screen.getByRole('status').textContent).toBe(t('spotdiffFrozen'));
+    expect([...document.querySelectorAll('.spot-frozen-note')].every((note) => note.getAttribute('aria-hidden') === 'true')).toBe(true);
     tapAt(pic('changed'), 40, 380);
     expect(send).toHaveBeenCalledTimes(1);
   });
@@ -96,9 +99,47 @@ describe('SpotdiffPlay', () => {
     const send = vi.fn<Send>();
     const found = [0, 1, 2].map((index) => ({ index, x: 0.2 * (index + 1), y: 0.5, r: 0.05, tone: null }));
     mount({ send, info: infoOf({ found, done: true, canTap: false, timeMs: 41_500 }) });
-    expect(screen.getByRole('status').textContent).toBe(`${t('spotdiffAllFound')} · ${t('jigsawSeconds', { time: '41,5' })}`);
+    expect(screen.getByRole('status').textContent).toBe(t('spotdiffDoneIn', { time: '41,5' }));
     tapAt(pic('original'), 40, 140);
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('closed and all found leaves the status line to the heading', () => {
+    const found = [0, 1, 2].map((index) => ({ index, x: 0.2 * (index + 1), y: 0.5, r: 0.05, tone: null }));
+    render(<SpotdiffPlay info={infoOf({ found, done: true, canTap: false, timeMs: 41_500 })} question={questionOf()} questionIndex={1} paused={false} timeUp={false} send={vi.fn<Send>()} closed />);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('a picture that fails to load takes no taps and says so', () => {
+    const { send } = mount();
+    fireEvent.error(pic('changed').querySelector('img')!);
+    expect(pic('changed').classList.contains('is-tap')).toBe(false);
+    expect(pic('changed').classList.contains('is-broken')).toBe(true);
+    expect(within(pic('changed')).getByText(t('spotdiffImageError'))).toBeTruthy();
+    tapAt(pic('changed'), 16 + 72, 340 + 108);
+    expect(send).not.toHaveBeenCalled();
+    // друга картинка тапається далі
+    expect(pic('original').classList.contains('is-tap')).toBe(true);
+    tapAt(pic('original'), 16 + 72, 100 + 108);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('tall pictures stand side by side', () => {
+    render(<SpotdiffPlay info={infoOf()} question={questionOf({ aspect: 0.6 })} questionIndex={1} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(document.querySelector('.spot-pictures')!.classList.contains('is-tall')).toBe(true);
+    cleanup();
+    mount();
+    expect(document.querySelector('.spot-pictures')!.classList.contains('is-tall')).toBe(false);
+  });
+
+  it('memoized rings still follow a new find', () => {
+    const info = infoOf({ found: [{ index: 1, x: 0.3, y: 0.6, r: 0.05, tone: null }], seq: 1 });
+    const send = vi.fn<Send>();
+    const view = render(<SpotdiffPlay info={info} question={questionOf()} questionIndex={1} paused={false} timeUp={false} send={send} />);
+    view.rerender(<SpotdiffPlay info={{ ...info, found: [...info.found] }} question={questionOf()} questionIndex={1} paused={false} timeUp={false} send={send} />);
+    expect(pic('changed').querySelectorAll('.spot-ring')).toHaveLength(1);
+    view.rerender(<SpotdiffPlay info={{ ...info, seq: 2, found: [...info.found, { index: 0, x: 0.7, y: 0.2, r: 0.05, tone: null }] }} question={questionOf()} questionIndex={1} paused={false} timeUp={false} send={send} />);
+    expect(pic('changed').querySelectorAll('.spot-ring')).toHaveLength(2);
   });
 
   it('a paused question takes no taps', () => {
@@ -138,6 +179,8 @@ describe('SpotdiffPlay', () => {
     expect(narrow).toMatch(/\.spot-pic \{[^}]*width:\s*min\(100%,\s*calc\(38dvh \* var\(--ar/);
     expect(section).toMatch(/@media \(min-width: 640px\) \{\s*\.spot-pictures \{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
     expect(narrow).toMatch(/\.spot-pic > img \{[^}]*object-fit:\s*fill/);
+    // Вертикальні картинки — поруч і на вузькому екрані.
+    expect(narrow).toMatch(/\.spot-play \.spot-pictures\.is-tall \{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   });
 });
 

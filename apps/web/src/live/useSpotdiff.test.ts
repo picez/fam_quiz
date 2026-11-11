@@ -37,7 +37,9 @@ describe('useSpotdiff', () => {
     const send = answering({ ok: true });
     const hook = mount(send);
     act(() => hook.result.current.tap(0.5, 0.4, 150));
-    expect(send).toHaveBeenCalledWith('player:spotdiff', { questionIndex: 0, x: 0.5, y: 0.4, width: 200 });
+    expect(send).toHaveBeenCalledWith('player:spotdiff', { questionIndex: 0, x: 0.5, y: 0.4, width: 150 });
+    act(() => hook.result.current.tap(0.5, 0.4, 40));
+    expect(send).toHaveBeenLastCalledWith('player:spotdiff', { questionIndex: 0, x: 0.5, y: 0.4, width: 60 });
     act(() => hook.result.current.tap(0.5, 0.4, 9000));
     expect(send).toHaveBeenLastCalledWith('player:spotdiff', { questionIndex: 0, x: 0.5, y: 0.4, width: 4000 });
   });
@@ -67,6 +69,28 @@ describe('useSpotdiff', () => {
     await act(async () => frozen.result.current.tap(0.5, 0.4, 288));
     expect(frozen.result.current.frozen).toBe(true);
     expect(frozen.result.current.misses).toEqual([]);
+  });
+
+  it('late frozen answers do not stretch a running freeze', async () => {
+    vi.useFakeTimers();
+    const pending: ((result: SendResult) => void)[] = [];
+    const send = vi.fn<Send>(() => new Promise<SendResult>((resolve) => pending.push(resolve)));
+    const hook = mount(send);
+    // три тапи летять разом: перший заморожує, решта приходять пізніше з spotdiff_frozen
+    act(() => {
+      hook.result.current.tap(0.1, 0.1, 288);
+      hook.result.current.tap(0.2, 0.2, 288);
+      hook.result.current.tap(0.3, 0.3, 288);
+    });
+    await act(async () => pending[0]({ ok: false, error: 'spotdiff_freeze' }));
+    expect(hook.result.current.frozen).toBe(true);
+    act(() => vi.advanceTimersByTime(600));
+    await act(async () => pending[1]({ ok: false, error: 'spotdiff_frozen' }));
+    act(() => vi.advanceTimersByTime(300));
+    await act(async () => pending[2]({ ok: false, error: 'spotdiff_frozen' }));
+    expect(hook.result.current.frozen).toBe(true);
+    act(() => vi.advanceTimersByTime(SPOTDIFF_FREEZE_MS - 900));
+    expect(hook.result.current.frozen).toBe(false);
   });
 
   it('a miss shows a cross that fades', async () => {

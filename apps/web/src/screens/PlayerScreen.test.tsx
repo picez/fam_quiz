@@ -1847,7 +1847,15 @@ describe('PlayerScreen final', () => {
     expect(document.querySelectorAll('.spot-pic.is-tap')).toHaveLength(2);
     expect(document.querySelectorAll('.spot-ring')).toHaveLength(2);
     expect(screen.getByText('Знайдено 1 з 3')).toBeTruthy();
-    expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
+    // унизу — скільки гравців уже знайшло все, щоб не плутати з власним «Знайдено x з N» угорі
+    expect(screen.getByText('Гравців завершило: 1 з 2')).toBeTruthy();
+    expect(screen.queryByText('Готово: 1 з 2')).toBeNull();
+  });
+
+  it('29d: in teams the bottom line counts teams', () => {
+    const spotdiff = { boards: [{ playerId: 't1', nickname: 'Соняшники', found: 3, total: 3, done: true, timeMs: 20_000, points: null }, { playerId: 't2', nickname: 'Маки', found: 1, total: 3, done: false, timeMs: null, points: null }] };
+    show(teamPlayerView({ phase: 'question', questionIndex: 0, question: spotQuestion, endsAt: Date.now() + 60_000, playerCount: 2, spotdiff, me: { ...baseMe, spotdiff: mySpot } }));
+    expect(screen.getByText('Команд завершило: 1 з 2')).toBeTruthy();
   });
 
   it('29d: after the close the pictures stay read-only', () => {
@@ -1855,6 +1863,14 @@ describe('PlayerScreen final', () => {
     expect(screen.getByText('Запитання закрито.')).toBeTruthy();
     expect(document.querySelectorAll('.spot-pic')).toHaveLength(2);
     expect(document.querySelectorAll('.spot-pic.is-tap')).toHaveLength(0);
+  });
+
+  it('29d: all found and closed says the time once, in the heading', () => {
+    const found = [0, 1, 2].map((index) => ({ index, x: 0.2 * (index + 1), y: 0.5, r: 0.05, tone: null }));
+    show(view({ phase: 'locked', questionIndex: 0, question: spotQuestion, me: { ...me, spotdiff: { ...mySpot, found, done: true, canTap: false, timeMs: 41_500 } } }));
+    expect(screen.getByRole('heading', { name: 'Усе знайдено за 41,5 с. Чекаємо інших' })).toBeTruthy();
+    expect(screen.getAllByText(/Усе знайдено/)).toHaveLength(1);
+    expect(document.querySelector('.spot-play .puzzle-status')!.textContent).toBe('');
   });
 
   it('29d: the reveal shows every circle and no correct-answer line', () => {

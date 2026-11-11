@@ -1166,7 +1166,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                 <>
                   <SpotdiffPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.spotdiff.changed}`} info={me.spotdiff} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} />
                   {view.spotdiff !== undefined && (
-                    <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.spotdiff.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                    <p className="meta puzzle-others">{t(team !== null ? 'spotdiffTeamsDone' : 'spotdiffPlayersDone', { done: view.spotdiff.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
                   )}
                 </>
               )
@@ -1391,7 +1391,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           ) : question?.type === 'spotdiff' && me.spotdiff !== undefined && question.spotdiff !== undefined ? (
             // Знайди відмінності (29d): картинки з власними знахідками лише для перегляду; бали — на розкритті.
             <section className="sent">
-              <h2>{me.spotdiff.done ? t('spotdiffAllFound') : t(ranOut ? 'spotdiffTimeUp' : 'spotdiffClosed')}</h2>
+              <h2>{me.spotdiff.done ? t('spotdiffDoneIn', { time: secondsText(me.spotdiff.timeMs ?? 0) }) : t(ranOut ? 'spotdiffTimeUp' : 'spotdiffClosed')}</h2>
               <SpotdiffPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.spotdiff.changed}`} info={me.spotdiff} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} send={send} closed />
             </section>
           ) : question?.type === 'moreless' ? (

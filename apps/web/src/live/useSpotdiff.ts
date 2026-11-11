@@ -97,7 +97,8 @@ export function useSpotdiff(info: PlayerSpotdiff, questionIndex: number, send: S
       setOffline((was) => (was === lost ? was : lost));
       if (result.ok) return;
       if (result.error === 'spotdiff_miss' || result.error === 'spotdiff_freeze') cross(x, y);
-      if (result.error === 'spotdiff_freeze' || result.error === 'spotdiff_frozen') freeze();
+      // Нова заморозка (spotdiff_freeze) стартує відлік заново; spotdiff_frozen від тапів, що вже летіли, ту, що триває, не продовжує.
+      if (result.error === 'spotdiff_freeze' || (result.error === 'spotdiff_frozen' && !frozenNow.current)) freeze();
     });
   };
 
