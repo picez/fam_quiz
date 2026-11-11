@@ -1910,6 +1910,12 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText('Ваше слово')).toBeNull();
   });
 
+  it('29i: a guesser keeps the drawing title on the locked phase', () => {
+    noCanvas();
+    show(view({ phase: 'locked', questionIndex: 0, question: { ...drawQuestion, text: '' }, drawing: drawInfo, me: { ...me, drawing: { role: 'guesser', word: null, guessed: false, canDraw: false, canGuess: false, points: null } } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Малюнок — вгадайте, що малює Оля');
+  });
+
   it('28c: the drawer sees the word and the pad', () => {
     noCanvas();
     show(onQuestion({ question: drawQuestion, endsAt: Date.now() + 40_000, drawing: { ...drawInfo, drawerId: 'p1', drawerName: 'Олена', side: 'p1' }, me: { ...me, drawing: { role: 'drawer', word: 'соняшник', guessed: false, canDraw: true, canGuess: false, points: null } } }));

@@ -334,6 +334,12 @@ describe('MoreLessWatch', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
+  it('names who is choosing from the rows, also before the first pick', () => {
+    const info: MoreLessInfo = { rows: [{ playerId: 'p1', nickname: 'Оля', done: 0, total: 3, right: null, points: null }], pairs: null, picks: null, watch: { playerId: 'p1', done: 0, picks: [] } };
+    const { container } = render(<MoreLessWatch info={info} question={question} />);
+    expect(container.querySelector('.moreless-watch-chooser')?.textContent).toBe('Вибирає Оля');
+  });
+
   it('shows done when the row is finished and nothing without a watch', () => {
     const { container, rerender } = render(<MoreLessWatch info={watchInfo(3, ['a', 'b', 'a'])} question={question} />);
     expect(container.querySelector('.moreless-done')).not.toBeNull();

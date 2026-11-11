@@ -1505,6 +1505,7 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
   // На reveal — за балами, далі за пройденим; до того — за пройденим. sort стабільний: рівні лишаються в порядку гравців.
   rows.sort((a, b) => (revealed ? (b.points ?? 0) - (a.points ?? 0) : 0) || b.done - a.done);
   const counts = moreLessRight(state, play);
+  const chooserPicks = play.board === undefined ? [] : moreLessOf(state, play.board.chooserId).picks;
   return {
     rows,
     pairs:
@@ -1520,11 +1521,11 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
           }))
         : null,
     picks: forHost ? Object.fromEntries(rows.map((r) => [r.playerId, moreLessOf(state, r.playerId).picks])) : null,
-    ...(play.board === undefined ? {} : { watch: { playerId: play.board.chooserId, done: moreLessOf(state, play.board.chooserId).picks.length, picks: [...moreLessOf(state, play.board.chooserId).picks] } }),
+    ...(play.board === undefined ? {} : { watch: { playerId: play.board.chooserId, done: chooserPicks.length, picks: [...chooserPicks] } }),
   };
 }
 
-/** Власний ряд гравця (команди); поза запитанням і для глядача клітинки поля — undefined. Кінця часу зріз не знає: кнопки гасить годинник телефона. */
+/** Власний ряд гравця (команди); поза запитанням — undefined; глядач клітинки поля свого ряду не має, замість нього він отримує view.moreless.watch. Кінця часу зріз не знає: кнопки гасить годинник телефона. */
 function playerMoreLess(state: GameState, playerId: string): PlayerMoreLess | undefined {
   const open = currentMoreLess(state);
   if (open === null) return undefined;
@@ -2655,12 +2656,13 @@ function withDrawerText<V extends { question: PublicQuestion | null }>(state: Ga
   return shown === null ? view : { ...view, question: { ...view.question, text: shown.text } };
 }
 
-/** Спільна частина зрізу; forHost — для ведучого (черга з вибором, spotlight голови миттєвого бліцу). */
+/** Запитання зрізу без тексту «Малюнка» для всіх, крім ведучого (forHost): вгадувачам і сцені текст — це підказка. */
 function hiddenDrawingText(state: GameState, forHost: boolean): PublicQuestion | null {
   const q = shownPublic(state);
   return !forHost && q !== null && drawingTextHidden(state, null) ? { ...q, text: '' } : q;
 }
 
+/** Спільна частина зрізу; forHost — для ведучого (черга з вибором, spotlight голови миттєвого бліцу). */
 function base(state: GameState, forHost: boolean) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
   const held = state.heldAt !== null;

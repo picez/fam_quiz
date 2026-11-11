@@ -294,8 +294,10 @@ export function MoreLessWatch({ info, question }: { info: MoreLessInfo; question
   const total = pairs.length;
   const pair = pairs[watch.done];
   const over = watch.done >= total;
+  const chooser = info.rows.find((row) => row.playerId === watch.playerId);
   return (
     <section className="moreless-watch">
+      {chooser !== undefined && <p className="meta moreless-watch-chooser">{t('morelessWatchPicks', { name: chooser.nickname })}</p>}
       {over || pair === undefined ? (
         <p className="lead moreless-done">{t('morelessDone')}</p>
       ) : (
@@ -318,7 +320,6 @@ export function MoreLessWatch({ info, question }: { info: MoreLessInfo; question
       )}
       {watch.picks.length > 0 && (
         <>
-          <h3 className="meta">{t('morelessWatchPicks')}</h3>
           <ol className={watch.picks.length > 6 ? 'moreless-watch-picks is-two' : 'moreless-watch-picks'}>
             {watch.picks.map((pick, i) => {
               const done = pairs[i];

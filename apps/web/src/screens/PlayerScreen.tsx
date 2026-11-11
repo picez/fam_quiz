@@ -866,6 +866,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // «Правда про гравця» (28b): запитання раунду — факт, варіанти — імена людей гри.
   const truthQ = view.truth !== undefined && view.truth.index !== null && question?.type === 'single';
   const truthOwn = truthQ && me.truth?.own === true;
+  const lockedTitle = question === null ? '' : drawingTitle(question, view.drawing?.drawerName ?? null);
   // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
   // Факти збираються в лобі (повна форма). Після старту — лише між запитаннями, поки раунд не роздано, і лише без факту
@@ -1128,7 +1129,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
             ) : question.type === 'moreless' ? (
               // Більше чи менше (28a): вибирає той, хто відповідає (у команді — відповідач), решта команди бачить поступ;
-              // глядач клітинки поля — лише рядок того, хто вибрав. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
+              // глядач клітинки поля бачить, хто вибирає, поточну пару й вибрані тексти — правильність лише на розкритті. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
               me.moreless === undefined ? (
                 view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               ) : team !== null && !team.canAct ? (
@@ -1310,7 +1311,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'locked' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
+          {/* Малюнок: рушій ховає текст від вгадувачів, тож заголовок той самий, що на етапі запитання. */}
+          <h1 className={questionClass(lockedTitle)} dir="auto">{lockedTitle}</h1>
           <AwayNote away={view.away} />
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}

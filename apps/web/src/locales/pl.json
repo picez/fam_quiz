@@ -289,7 +289,7 @@
   "appealMineYes": "tak",
   "appealNo": "Nie",
   "appealNoVoters": "Nie ma komu głosować",
-  "morelessWatchPicks": "Wybory gracza",
+  "morelessWatchPicks": "Wybiera {name}",
   "appealWaitOther": "Sala głosuje nad inną apelacją — potem możesz złożyć swoją",
   "appealPassedHint": "Publiczność już zaliczyła — żeby zmienić ocenę, cofnij punkty w „↶ Punkty”, gdy przejdziesz dalej",
   "appealPausedHint": "Pauza: głosować można po niej",
