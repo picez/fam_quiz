@@ -97,6 +97,10 @@ import {
   isPuzzle,
   puzzleDoneSchema,
   PUZZLE_BATCHES_PER_SECOND,
+  spotdiffTapSchema,
+  SPOTDIFF_TAPS_PER_SECOND,
+  SPOTDIFF_MISSES,
+  SPOTDIFF_FREEZE_MS,
 } from './index';
 
 const single = {
@@ -2866,7 +2870,7 @@ describe('puzzles round (28d)', () => {
 
   it('the round brief of puzzles counts the questions', () => {
     const parsed = roundSchema.parse(puzzles([sudokuQ({ id: 'a' }), crosswordQ({ id: 'b' }), sudokuQ({ id: 'c' })]));
-    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, jigsaw: 0, time: 180 + 240 + 180 });
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, jigsaw: 0, spotdiff: 0, time: 180 + 240 + 180 });
     expect(roundBrief(roundSchema.parse(round('r', [single]))).puzzles).toBeNull();
     expect(emptyBrief('puzzles').puzzles).toBeNull();
   });
@@ -2969,5 +2973,115 @@ describe('jigsaw question (29c)', () => {
     expect(valid(jigsawHoldSchema, { questionIndex: 7, piece: 36 })).toBe(false);
     expect(valid(jigsawHoldSchema, { questionIndex: 7, piece: 3, x: 1 })).toBe(false);
     expect(valid(answerSchema, { type: 'jigsaw', placed: 3, total: 12, done: false, timeMs: null })).toBe(false);
+  });
+});
+
+describe('spotdiff question (29d)', () => {
+  const spotQ = (patch: object = {}) => ({ id: 'sd', type: 'spotdiff', text: 'Знайдіть відмінності', imageUrl: null, video: null,
+    timeLimit: 90, points: 300, original: '/uploads/' + 'a'.repeat(32) + '.jpg', changed: '/uploads/' + 'b'.repeat(32) + '.jpg', aspect: 4 / 3,
+    spots: [{ x: 0.2, y: 0.2, r: 0.05 }, { x: 0.5, y: 0.5, r: 0.05 }, { x: 0.8, y: 0.8, r: 0.05 }], ...patch });
+  const puzzles = (questions: object[]) => ({ id: 'pz', type: 'puzzles', title: 'Головоломки', questions });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const circles = (n: number) => Array.from({ length: n }, (_, i) => ({ x: 0.05 + i * 0.09, y: 0.5, r: 0.03 }));
+
+  it('accepts a spotdiff', () => {
+    expect(QUESTION_TYPES.indexOf('spotdiff')).toBe(QUESTION_TYPES.indexOf('jigsaw') + 1);
+    expect(qIssues(spotQ())).toEqual([]);
+    expect(qIssues(spotQ({ spots: circles(1) }))).toEqual([]);
+    expect(qIssues(spotQ({ spots: circles(10) }))).toEqual([]);
+    expect(qIssues(spotQ({ timeLimit: 25 }))).toEqual([]);
+    expect(LIMITS.minSpotdiffTime).toBe(25);
+    expect(LIMITS.defaultSpotdiffTime).toBe(90);
+    expect(LIMITS.defaultSpotdiffPoints).toBe(300);
+  });
+
+  it('refuses a broken spotdiff', () => {
+    expect(qIssues(spotQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg' }))).toContain('spotdiff_image');
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 };
+    expect(qIssues(spotQ({ video }))).toContain('spotdiff_video');
+    expect(qIssues(spotQ({ audio }))).toContain('spotdiff_video');
+    expect(qIssues(spotQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('spotdiff_video');
+    expect(qIssues(spotQ({ hint: 'Дивіться в кутах' }))).toContain('spotdiff_hint');
+    expect(qIssues(spotQ({ changed: '/uploads/' + 'a'.repeat(32) + '.jpg' }))).toContain('spotdiff_same');
+    expect(valid(questionSchema, spotQ({ spots: [] }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ spots: circles(11) }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ spots: [{ x: 0.5, y: 0.5, r: 0.3 }] }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ spots: [{ x: 0.5, y: 0.5, r: 0.01 }] }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ spots: [{ x: 1.1, y: 0.5, r: 0.05 }] }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ timeLimit: 24 }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ timeLimit: 601 }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ original: 'https://x/y.jpg' }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ aspect: 0.1 }))).toBe(false);
+  });
+
+  it('a spotdiff plays only in classic and puzzles rounds', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [spotQ({ id: 'sb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [spotQ({ id: 'sf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...spotQ({ id: 'sbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...spotQ({ id: 'sau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [spotQ({ id: 'sw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [spotQ({ id: 'ssv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [spotQ({ id: 'sl' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    for (const bad of [blitzRound, final, bets, auction, wipeout, survival, ladder]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('spotdiff_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? spotQ({ id: 'sc' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('spotdiff_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [spotQ({ id: 'st' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('spotdiff_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [spotQ({ id: 'ss' })] })).toContain('spare_type');
+    expect(valid(duelQuestionSchema, spotQ())).toBe(false);
+    // класика й «Головоломки» приймають
+    expect(issues(quizOf([round('c', [spotQ({ id: 'sc2' })])]))).toEqual([]);
+    expect(issues(quizOf([puzzles([spotQ({ id: 'sa' })])]))).toEqual([]);
+    const sudoku = { id: 'su', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium') };
+    expect(issues(quizOf([puzzles([sudoku, spotQ({ id: 'sb2' })])]))).toEqual([]);
+    expect(fitsPuzzlesRound(spotQ() as never)).toBe(true);
+    expect(isPuzzle(spotQ() as never)).toBe(false);
+  });
+
+  it('the round brief of puzzles counts spotdiffs', () => {
+    const parsed = roundSchema.parse(puzzles([spotQ({ id: 'a' }), spotQ({ id: 'b' })]));
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 2, time: 180 });
+  });
+
+  it('old quizzes still parse', () => {
+    const parsed = quizSchema.safeParse(quizOf([round('r', [single])]));
+    expect(parsed.success).toBe(true);
+    expect(JSON.stringify(parsed.data)).not.toContain('spotdiff');
+  });
+
+  it('the spotdiff event is limited', () => {
+    const tap = { questionIndex: 7, x: 0.5, y: 0.5, width: 320 };
+    expect(valid(spotdiffTapSchema, tap)).toBe(true);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 199 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 4001 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 200 })).toBe(true);
+    expect(valid(spotdiffTapSchema, { ...tap, x: -0.1 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, y: 1.1 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, extra: 1 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, questionIndex: -1 })).toBe(false);
+    expect(SPOTDIFF_TAPS_PER_SECOND).toBe(6);
+    expect(SPOTDIFF_MISSES).toBe(3);
+    expect(SPOTDIFF_FREEZE_MS).toBe(1000);
+    expect(valid(answerSchema, { type: 'spotdiff', found: 1, total: 3, done: false, timeMs: null })).toBe(false);
   });
 });

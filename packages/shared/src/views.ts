@@ -11,6 +11,7 @@ import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
 import type { JigsawAspect } from './jigsaw';
+import type { SpotCircle } from './spotdiff';
 import type { LikesView } from './likes';
 import type { RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
@@ -117,6 +118,8 @@ export interface PublicQuestion {
   puzzle?: PublicPuzzle;
   /** Лише на запитанні «Пазл» (29c); ключа немає в інших типів. Фото не таємниця: телефон ріже з нього шматочки. */
   jigsaw?: PublicJigsaw;
+  /** Лише на запитанні «Знайди відмінності» (29d); ключа немає в інших типів. spots — лише на reveal. */
+  spotdiff?: PublicSpotdiff;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -388,6 +391,51 @@ export interface PlayerJigsaw {
   canPlace: boolean;
   seq: number;
   timeMs: number | null;
+  result: { points: number } | null;
+}
+
+/** «Знайди відмінності» (29d), усім: дві картинки, рамка й кількість кіл; самі кола (spots) — лише на reveal, інакше null. */
+export interface PublicSpotdiff {
+  original: string;
+  changed: string;
+  aspect: number;
+  total: number;
+  spots: SpotCircle[] | null;
+}
+
+/** Дошка гравця (команди) в «Знайди відмінності» (29d); місць тут немає, лише кількість знайдених. */
+export interface SpotdiffBoardView {
+  playerId: string;
+  nickname: string;
+  found: number;
+  total: number;
+  done: boolean;
+  timeMs: number | null;
+  /** Лише на reveal; інакше null. */
+  points: number | null;
+}
+
+export interface SpotdiffInfo {
+  /** До reveal — порядок гравців; на reveal — знайшли все (за timeMs), далі за found спадно, за рівності — порядок гравців. */
+  boards: SpotdiffBoardView[];
+}
+
+/** Як SpotdiffInfo, але ведучому завжди ще й номери знайдених кіл кожної дошки та всі кола. */
+export interface SpotdiffHostInfo {
+  boards: (SpotdiffBoardView & { spots: number[] })[];
+  spots: SpotCircle[];
+}
+
+/** Власна (командна) дошка гравця (29d): лише знайдені кола; tone — '1'…'9' у командах, інакше null. */
+export interface PlayerSpotdiff {
+  found: { index: number; x: number; y: number; r: number; tone: string | null }[];
+  total: number;
+  done: boolean;
+  /** Можна тапати: question, не пауза, не все знайдено. */
+  canTap: boolean;
+  seq: number;
+  timeMs: number | null;
+  /** Лише на reveal. */
   result: { points: number } | null;
 }
 
@@ -1643,6 +1691,8 @@ interface BaseView {
   puzzle?: PuzzleInfo;
   /** «Пазл» (29c): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
   jigsaw?: JigsawInfo;
+  /** «Знайди відмінності» (29d): лише на такому запитанні (question, locked, reveal); без місць кіл; інакше ключа немає. */
+  spotdiff?: SpotdiffInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -1892,6 +1942,8 @@ export interface PlayerView extends BaseView {
     puzzle?: PlayerPuzzle;
     /** Власна дошка гравця (29c): лише на пазлі; інакше ключа немає. */
     jigsaw?: PlayerJigsaw;
+    /** Власна дошка гравця (29d): лише на «Знайди відмінності»; інакше ключа немає. */
+    spotdiff?: PlayerSpotdiff;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
@@ -1994,6 +2046,7 @@ export type LiveProgress =
   | { kind: 'drawing'; role: 'drawer' | 'guesser'; guessed: boolean }
   | { kind: 'puzzle'; filled: number; total: number; done: boolean }
   | { kind: 'jigsaw'; placed: number; total: number; done: boolean }
+  | { kind: 'spotdiff'; found: number; total: number; done: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -2091,6 +2144,8 @@ export interface HostView extends BaseView {
   puzzle?: PuzzleInfo;
   /** Як у BaseView. */
   jigsaw?: JigsawInfo;
+  /** Як у BaseView, але ведучому завжди ще й кола (місця) та номери знайдених кіл кожної дошки. */
+  spotdiff?: SpotdiffHostInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */

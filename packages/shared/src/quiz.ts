@@ -8,6 +8,7 @@ import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
+import { SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
 export const LIMITS = {
   questionText: 300,
@@ -230,6 +231,9 @@ export const LIMITS = {
   minJigsawTime: 25,
   defaultJigsawTime: 120,
   defaultJigsawPoints: 300,
+  minSpotdiffTime: 25,
+  defaultSpotdiffTime: 90,
+  defaultSpotdiffPoints: 300,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -335,7 +339,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -659,6 +663,21 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('spotdiff'),
+      timeLimit: z.number().int().min(LIMITS.minSpotdiffTime).max(LIMITS.maxPuzzleTime),
+      /** Дві картинки (окремі поля: imageUrl мусить бути null, щоб загальна картинка не малювалась третьою). */
+      original: z.string().regex(IMAGE_URL),
+      changed: z.string().regex(IMAGE_URL),
+      /** Ширина / висота; записує редактор з першої картинки. */
+      aspect: z.number().finite().min(LIMITS.pinMinAspect).max(LIMITS.pinMaxAspect),
+      /** Кола відмінностей: центр — частки ширини й висоти, радіус — частка ширини. */
+      spots: z
+        .array(z.object({ x: share01, y: share01, r: z.number().finite().min(SPOT_MIN_R).max(SPOT_MAX_R) }))
+        .min(SPOT_MIN_COUNT)
+        .max(SPOT_MAX_COUNT),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -797,6 +816,14 @@ export const questionSchema = z
       const ratio = jigsawPieceRatio(q.rows, q.cols, q.aspect);
       if (pieces < LIMITS.minJigsawPieces || pieces > LIMITS.maxJigsawPieces || ratio < 0.5 || ratio > 2) ctx.addIssue({ code: 'custom', message: 'jigsaw_grid' });
       else if (q.tabs.length !== jigsawEdgeCount(q.rows, q.cols)) ctx.addIssue({ code: 'custom', message: 'jigsaw_tabs' });
+    }
+    if (q.type === 'spotdiff') {
+      // Загальна картинка видала б третю: обидві лише в original і changed.
+      if (q.imageUrl !== null) ctx.addIssue({ code: 'custom', message: 'spotdiff_image' });
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'spotdiff_video' });
+      // Підказка недосяжна: бафи на «Знайди відмінності» вимкнено (off_spotdiff).
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'spotdiff_hint' });
+      if (q.original === q.changed) ctx.addIssue({ code: 'custom', message: 'spotdiff_same' });
     }
     if (q.type === 'sudoku') {
       const issue = sudokuIssue(q.givens, q.solution);
@@ -1215,8 +1242,8 @@ export function isPuzzle(question: { type: Question['type'] }): boolean {
   return (PUZZLE_TYPES as readonly string[]).includes(question.type);
 }
 
-/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл; isPuzzle пазла не охоплює. */
-export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw'] as const satisfies readonly Question['type'][];
+/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл і (29d) «Знайди відмінності»; isPuzzle їх не охоплює. */
+export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw', 'spotdiff'] as const satisfies readonly Question['type'][];
 
 export function fitsPuzzlesRound(question: { type: Question['type'] }): boolean {
   return (PUZZLES_ROUND_TYPES as readonly string[]).includes(question.type);
@@ -1507,6 +1534,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'jigsaw')
           : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'jigsaw');
       if (jigsawPlace) ctx.addIssue({ code: 'custom', message: 'jigsaw_place' });
+      // «Знайди відмінності» (29d): так само лише класика й «Головоломки».
+      const spotdiffPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'spotdiff')
+          : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'spotdiff');
+      if (spotdiffPlace) ctx.addIssue({ code: 'custom', message: 'spotdiff_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'
