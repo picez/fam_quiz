@@ -39,6 +39,7 @@ import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
 import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
+import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
@@ -371,12 +372,14 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {view.phase === 'reveal' && view.drawing !== undefined && <DrawingReveal info={view.drawing} strokes={strokes} me={teamOf(view)?.id ?? view.me.id} />}
       {/* Головоломки (28d): своя сітка з позначеними помилками й правильний розв'язок. */}
       {view.phase === 'reveal' && view.question?.puzzle !== undefined && <PuzzleReveal mine={view.me.puzzle} question={view.question} solution={view.puzzle?.solution ?? null} />}
+      {/* Пазл (29c): своя рамка поверх блідої готової картинки; бали — вище, рядка правильної відповіді немає. */}
+      {view.phase === 'reveal' && view.question?.jigsaw !== undefined && <JigsawReveal mine={view.me.jigsaw} question={view.question} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1133,6 +1136,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   )}
                 </>
               )
+            ) : question.type === 'jigsaw' ? (
+              // Пазл (29c): у команді один спільний пазл, ставить будь-хто; шматочок у пальці товариша не береться.
+              me.jigsaw !== undefined && (
+                <>
+                  <JigsawPlay key={view.questionIndex} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={locked} timeUp={buffTimeOver} send={send} team={team !== null} />
+                  {view.jigsaw !== undefined && (
+                    <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.jigsaw.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                  )}
+                </>
+              )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1344,6 +1357,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <section className="sent">
               <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
               <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} />
+            </section>
+          ) : question?.type === 'jigsaw' && me.jigsaw !== undefined ? (
+            // Пазл (29c): рамка лише для перегляду; бали — на розкритті.
+            <section className="sent">
+              <h2>{me.jigsaw.done ? t('jigsawDoneIn', { time: secondsText(me.jigsaw.timeMs ?? 0) }) : t(ranOut ? 'jigsawTimeUp' : 'jigsawClosed')}</h2>
+              <JigsawPlay key={view.questionIndex} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={false} timeUp={false} send={send} closed />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">

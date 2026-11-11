@@ -19663,3 +19663,121 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
 }
 /* Головоломки: кінець сцени й пульта */
+
+/* «Пазл» (29c) на телефоні: рамка зверху, купка з прокруткою знизу, шматочок у пальці — над усім. */
+.jigsaw-play {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.jigsaw-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.jigsaw-progress {
+  margin: 0;
+}
+
+.jigsaw-preview {
+  width: 4.5rem;
+  height: auto;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.jigsaw-frame {
+  position: relative;
+  flex: none;
+  background-color: rgba(255, 255, 255, 0.04);
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: var(--cw) var(--ch);
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.jigsaw-ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.jigsaw-piece {
+  position: absolute;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transform-origin: center;
+}
+
+.jigsaw-piece.is-placed {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.jigsaw-piece.is-loose {
+  z-index: 2;
+  cursor: grab;
+}
+
+.jigsaw-piece.is-off {
+  cursor: default;
+}
+
+/* Тримає товариш: притемнений, обведений його кольором. */
+.jigsaw-piece.is-held {
+  opacity: 0.5;
+  filter: drop-shadow(0 0 1.5px var(--by)) drop-shadow(0 0 1.5px var(--by));
+}
+
+.jigsaw-piece.is-lifted {
+  opacity: 0;
+}
+
+.jigsaw-piece.is-ghost {
+  z-index: 20;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.45));
+}
+
+.jigsaw-canvas {
+  display: block;
+}
+
+.jigsaw-pile {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 100%;
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 0.25rem;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.jigsaw-slot {
+  position: relative;
+  flex: none;
+}
+
+.jigsaw-reveal-part {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  margin: 0;
+}
