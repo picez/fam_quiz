@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES } from '@quiz/shared';
 import { buffBlock, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
-import { lock, next, override, pause, recordOf, tick, type GameState } from './game';
+import { lock, next, override, pause, recordOf, removePlayer, tick, type GameState } from './game';
 import { hostLive } from './live';
 import { scoreSpotdiff, spotdiffOf, spotdiffTap, type SpotTap } from './spotdiff';
 import { actorOf } from './team-act';
@@ -153,6 +153,57 @@ describe('spotdiff: the engine', () => {
     expect(recordOf(closed, 1, 'p2')).toMatchObject({ grade: 'partial', points: 200, basePoints: 200 });
   });
 
+  it('a classic multiplier 2 doubles the full price and the share', () => {
+    const rules = { ...DEFAULT_RULES, multiplier: 2 as const };
+    const quiz = makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [spotdiff], { rules })]);
+    const s = toSpotdiff(startRound(lobbyWith(quiz, ...PLAYERS), 0));
+    const a = findAll(s, 'p1', 3, T(s) + 10_000);
+    expect(record(a, 'p1')).toMatchObject({ grade: 'correct', points: 600, basePoints: 600 });
+    const b = findAll(a, 'p2', 2, T(s) + 20_000);
+    const closed = must(lock(b, T(s) + 30_000));
+    expect(recordOf(closed, 1, 'p2')).toMatchObject({ grade: 'partial', points: 400, basePoints: 400 });
+  });
+
+  it('a streak bonus lands on top of the full price', () => {
+    const rules = { ...DEFAULT_RULES, streak: { length: 1, bonus: { kind: 'percent' as const, value: 50 } } };
+    const quiz = makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [spotdiff], { rules })]);
+    const s = toSpotdiff(startRound(lobbyWith(quiz, ...PLAYERS), 0));
+    const a = findAll(s, 'p1', 3, T(s) + 10_000);
+    const closed = must(lock(a, T(s) + 20_000));
+    expect(recordOf(closed, 1, 'p1')).toMatchObject({ grade: 'correct', basePoints: 300, streakBonus: 150, points: 450 });
+  });
+
+  it('the engine clamps the width to 60…4000', () => {
+    const s = fresh();
+    const right = spotdiff.spots[1].x + spotdiff.spots[1].r;
+    const at1 = (dx: number, width: number) => spotdiffTap(s, 'p1', 'p1', 0, { x: right + dx, y: spotdiff.spots[1].y, width }, T(s) + 1000);
+    // ширина 0 рахується як 60: допуск 8 %, а не промах
+    expect(at1(0.079, 0)).toMatchObject({ ok: true, outcome: 'hit' });
+    expect(at1(0.081, 0)).toMatchObject({ ok: true, outcome: 'miss' });
+    // величезна ширина — як 4000: допуск 4 %
+    expect(at1(0.039, 1e9)).toMatchObject({ ok: true, outcome: 'hit' });
+    expect(at1(0.041, 1e9)).toMatchObject({ ok: true, outcome: 'miss' });
+  });
+
+  it('a removed player takes the board away', () => {
+    const open = fresh();
+    const s = hit(open, 'p1', 0, T(open) + 1000);
+    expect(spotdiffOf(s, 'p1')).not.toBeNull();
+    const removed = must(removePlayer(s, 'p1', T(s) + 2000));
+    expect(spotdiffOf(removed, 'p1')).toBeNull();
+    expect(Object.keys(removed.plays[removed.questionIndex].spotdiff!.boards)).toEqual([]);
+  });
+
+  it('the next question empties a tapped board, the record stays', () => {
+    const s = fresh();
+    const a = sure(tap(hit(s, 'p1', 0, T(s) + 1000), 'p2', MISS, T(s) + 2000));
+    expect(Object.keys(a.plays[1].spotdiff!.boards).sort()).toEqual(['p1', 'p2']);
+    const b = toSpotdiff(must(lock(a, T(s) + 3000)), 'sd2');
+    expect(b.plays[1].spotdiff).toEqual({ boards: {} });
+    expect(recordOf(b, 1, 'p1')).toMatchObject({ grade: 'partial', points: 100 });
+    expect(recordOf(b, 1, 'p2')).toMatchObject({ grade: 'wrong', points: 0 });
+  });
+
   it('everyone found all closes the question', () => {
     const s = fresh();
     const a = findAll(s, 'p1', 3, T(s) + 10_000);
@@ -207,6 +258,29 @@ describe('spotdiff: the engine', () => {
     const all = hit(c, 't1', 2, t + 400, 'm2');
     expect(record(all, 't1')).toMatchObject({ grade: 'correct', points: 300 });
     expect(record(all, 'm1')).toBeUndefined();
+  });
+
+  it('a teammate hit does not reset the other misses', () => {
+    const quiz = teamQuiz([classicRound('c1', [spotdiff])]);
+    const s = must(next(teamGame(quiz, LAYOUT), 0, rng0));
+    let a = sure(tap(s, 't1', MISS, 1000, 'm1'));
+    a = sure(tap(a, 't1', MISS, 1001, 'm1'));
+    const b = hit(a, 't1', 0, 1002, 'm2');
+    expect(spotdiffOf(b, 't1')!.misses).toEqual({ m1: 2, m2: 0 });
+    // третій промах m1 усе ще морозить
+    const c = tap(b, 't1', MISS, 1003, 'm1');
+    expect(c.ok && c.outcome).toBe('freeze');
+  });
+
+  it('both teams found all closes the question', () => {
+    const quiz = teamQuiz([classicRound('c1', [spotdiff])]);
+    const s = must(next(teamGame(quiz, LAYOUT), 0, rng0));
+    const a = findAll(s, 't1', 3, 1000, 'm1');
+    expect(a.phase).toBe('question');
+    const b = findAll(a, 't2', 3, 2000, 'm4');
+    expect(b.phase).toBe('locked');
+    expect(recordOf(b, 0, 't1')).toMatchObject({ grade: 'correct', points: 300 });
+    expect(recordOf(b, 0, 't2')).toMatchObject({ grade: 'correct', points: 300 });
   });
 
   it('a non-captain taps in a captain round', () => {

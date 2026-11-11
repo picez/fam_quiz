@@ -1,4 +1,4 @@
-import { questionPrice, rulesOf, SPOTDIFF_FREEZE_MS, SPOTDIFF_MISSES, spotHit, spotPoints, type ErrorCode, type Grade, type Question, type SpotdiffAnswer } from '@quiz/shared';
+import { questionPrice, rulesOf, SPOT_MAX_WIDTH, SPOT_MIN_WIDTH, SPOTDIFF_FREEZE_MS, SPOTDIFF_MISSES, spotHit, spotPoints, type ErrorCode, type Grade, type Question, type SpotdiffAnswer } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, fail, recordOf, roundQuestionNumber, type AnswerRecord, type GameState, type Play, type Result, type SpotdiffBoard, type SpotdiffPlay } from './game';
@@ -78,7 +78,9 @@ export function spotdiffTap(state: GameState, actorId: string, memberId: string,
   if (!('question' in checked)) return checked.ok ? { ok: false, error: 'wrong_phase' } : checked;
   const play = checked;
   const current = spotdiffOf(state, actorId) ?? emptyBoard(state);
-  const hit = spotHit(play.question, tap.x, tap.y, tap.width, new Set(current.found));
+  // Схема події вже обмежує ширину, але рушій не покладається на неї: допуск рахується від SPOT_MIN_WIDTH…SPOT_MAX_WIDTH.
+  const width = Math.min(SPOT_MAX_WIDTH, Math.max(SPOT_MIN_WIDTH, tap.width));
+  const hit = spotHit(play.question, tap.x, tap.y, width, new Set(current.found));
   if (hit === 'found') return { ok: false, error: 'spotdiff_found' };
   const withBoard = (board: SpotdiffBoard): SpotdiffQuestionPlay => ({ ...play, spotdiff: { ...play.spotdiff, boards: { ...play.spotdiff.boards, [actorId]: board } } });
   if (hit === null) {
