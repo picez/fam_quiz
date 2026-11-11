@@ -63,6 +63,9 @@ function filled(question: Question): Question {
         categories: question.categories.map((c, i) => ({ ...c, text: `Категорія ${i + 1}` })),
         words: question.words.map((w, i) => ({ ...w, text: `Слово ${i + 1}` })),
       };
+    case 'jigsaw':
+      // Фото вантажиться окремо: без нього пазл не готовий (перевіряє тест нижче).
+      return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
     default:
       return { ...question, text };
   }
@@ -384,7 +387,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2922,8 +2925,8 @@ describe('puzzles in the editor (28d)', () => {
   const puzzlesQuiz = (...questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newPuzzlesRound(), questions }] });
   const custom = (givens: string): Sudoku => ({ ...(newQuestion('sudoku') as Sudoku), level: 'custom', seed: null, givens, solution: EMPTY_SUDOKU });
 
-  it('puzzles take only sudoku and crossword', () => {
-    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword']);
+  it('puzzles take only sudoku, crossword and jigsaw', () => {
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw']);
     for (const round of ROUND_TYPES.filter((type) => type !== 'puzzles')) {
       expect(questionTypesFor(round), round).not.toContain('sudoku');
       expect(questionTypesFor(round), round).not.toContain('crossword');
@@ -3034,5 +3037,59 @@ describe('puzzle default texts (28d)', () => {
     expect(crossword.text).toBe(t('crosswordDefaultText'));
     expect(changeType(crossword, 'sudoku').text).toBe(t('sudokuDefaultText'));
     expect(changeType({ ...sudoku, text: 'Судоку від Марти' }, 'crossword').text).toBe('Судоку від Марти');
+  });
+});
+
+describe('jigsaw in the editor (29c)', () => {
+  type Jigsaw = Extract<Question, { type: 'jigsaw' }>;
+  const PHOTO = '/uploads/0123456789abcdef0123.jpg';
+  const jigsaw = (patch: Partial<Jigsaw> = {}): Jigsaw => ({ ...(newQuestion('jigsaw') as Jigsaw), photo: PHOTO, ...patch });
+  const inClassic = (q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newClassicRound(), questions: [q] }] });
+  const inPuzzles = (q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newPuzzlesRound(), questions: [q] }] });
+
+  it('a jigsaw lives in classic and puzzles only', () => {
+    expect(questionTypesFor('classic')).toContain('jigsaw');
+    expect(questionTypesFor('puzzles')).toContain('jigsaw');
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw']);
+    for (const round of ['blitz', 'final', 'board', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('jigsaw');
+  });
+
+  it('a new jigsaw waits for a photo', () => {
+    const q = newQuestion('jigsaw') as Jigsaw;
+    expect(q).toMatchObject({ type: 'jigsaw', photo: '', imageUrl: null, video: null, aspect: '4:3', rows: 3, cols: 4, focus: { x: 0.5, y: 0.5 }, preview: true, timeLimit: LIMITS.defaultJigsawTime, points: LIMITS.defaultJigsawPoints });
+    expect(q.tabs).toHaveLength(17);
+    expect('hint' in q || 'audio' in q || 'reveal' in q).toBe(false);
+    expect(problemsOf(inClassic(q))).toEqual([t('problemJigsawPhoto', { index: 1 })]);
+    expect(problemsOf(inClassic(jigsaw()))).toEqual([]);
+    expect(questionSchema.safeParse(cleanedQuestion(jigsaw())).success).toBe(true);
+  });
+
+  it('jigsaw problems point at the question', () => {
+    expect(problemsOf(inPuzzles(jigsaw()))).toEqual([]);
+    expect(problemsOf({ ...newQuiz(), title: 'Гра', rounds: [{ ...newBlitzRound(), questions: [jigsaw()] }] })).toEqual([t('problemJigsawPlace', { index: 1 })]);
+    expect(problemsOf(inClassic(jigsaw({ rows: 12, cols: 12 })))).toEqual([t('problemJigsawGrid', { index: 1 })]);
+    expect(problemsOf(inClassic(jigsaw({ tabs: '01' })))).toEqual([t('problemJigsawGrid', { index: 1 })]);
+    expect(problemsOf(inClassic(jigsaw({ imageUrl: PHOTO })))).toEqual([t('problemJigsawImage', { index: 1 })]);
+    expect(problemsOf(inClassic(jigsaw({ timeLimit: 24 })))).toEqual([t('problemJigsawLimits', { index: 1, min: LIMITS.minJigsawTime, max: LIMITS.maxPuzzleTime, points: LIMITS.maxPoints })]);
+    expect(problemsOf(inClassic(jigsaw({ timeLimit: LIMITS.maxPuzzleTime })))).toEqual([]);
+  });
+
+  it('cleaning drops what a jigsaw cannot have, and switching types keeps the picture as the photo', () => {
+    const dirty = { ...jigsaw(), hint: 'підказка', audio: { source: 'youtube', id: 'abcdefghijk', start: 0, duration: 10 } } as unknown as Question;
+    expect(cleanedQuestion(dirty)).not.toHaveProperty('hint');
+    expect(cleanedQuestion(dirty)).not.toHaveProperty('audio');
+    const single = { ...newQuestion('single'), imageUrl: PHOTO };
+    expect(changeType(single, 'jigsaw')).toMatchObject({ type: 'jigsaw', photo: PHOTO, imageUrl: null });
+    const original = jigsaw();
+    expect(duplicateQuestion(original)).toMatchObject({ photo: PHOTO, tabs: original.tabs, seed: original.seed });
+  });
+
+  it('a stored jigsaw draft with junk revives to something the editor can show', () => {
+    const junk = { ...jigsaw(), aspect: 'x', rows: 99, cols: 'a', tabs: 7, focus: { x: 5, y: 'b' }, seed: -1, preview: 3 } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:jigsaw-bad', JSON.stringify(inClassic(junk)));
+    const [revived] = roundQuestions(loadDraft('jigsaw-bad')!.rounds[0]!) as [Jigsaw];
+    expect(revived).toMatchObject({ aspect: '4:3', rows: 3, cols: 4, focus: { x: 1, y: 0.5 }, seed: 0, preview: true, photo: PHOTO });
+    expect(revived.tabs).toHaveLength(17);
+    expect(questionSchema.safeParse(cleanedQuestion(revived)).success).toBe(true);
   });
 });

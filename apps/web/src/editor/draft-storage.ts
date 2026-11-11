@@ -9,6 +9,11 @@ import {
   CROSSWORD_MODES,
   DEBUFF_KINDS,
   EMPTY_SUDOKU,
+  JIGSAW_ASPECTS,
+  jigsawEdgeCount,
+  jigsawGrid,
+  jigsawPieceRatio,
+  jigsawTabs,
   SUDOKU_SOURCES,
   LETTER_GOALS,
   LETTER_UNITS,
@@ -193,6 +198,25 @@ function reviveSudoku(base: Extract<Question, { type: 'sudoku' }>): Question {
 }
 
 /**
+ * Пазл з чернетки: фото — рядок (інакше порожнє), співвідношення — з переліку (інакше 4:3); сітка й виступи, що не складаються
+ * (чужі числа, не та довжина tabs), перераховуються з seed; focus затискається в 0…1. Без відео, звуку, «перевертання», підказки й готової картинки.
+ */
+function reviveJigsaw(base: Extract<Question, { type: 'jigsaw' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const aspect = (JIGSAW_ASPECTS as readonly unknown[]).includes(base.aspect) ? base.aspect : '4:3';
+  const seed = typeof base.seed === 'number' && Number.isInteger(base.seed) && base.seed >= 0 && base.seed <= 2 ** 32 - 1 ? base.seed : 0;
+  const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
+  const focus: unknown = base.focus;
+  const kept = isRecord(focus) ? { x: share(focus.x), y: share(focus.y) } : { x: 0.5, y: 0.5 };
+  const fallback = jigsawGrid(LIMITS.defaultJigsawPieces, aspect);
+  const sane = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 2 && value <= 12;
+  const fits = sane(base.rows) && sane(base.cols) && base.rows * base.cols >= LIMITS.minJigsawPieces && base.rows * base.cols <= LIMITS.maxJigsawPieces && jigsawPieceRatio(base.rows, base.cols, aspect) >= 0.5 && jigsawPieceRatio(base.rows, base.cols, aspect) <= 2;
+  const grid = fits ? { rows: base.rows, cols: base.cols } : fallback;
+  const tabs = typeof base.tabs === 'string' && /^[01]*$/.test(base.tabs) && base.tabs.length === jigsawEdgeCount(grid.rows, grid.cols) ? base.tabs : jigsawTabs(grid.rows, grid.cols, seed);
+  return { ...rest, imageUrl: null, video: null, photo: typeof base.photo === 'string' ? base.photo : '', aspect, focus: kept, ...grid, seed, tabs, preview: typeof base.preview === 'boolean' ? base.preview : true };
+}
+
+/**
  * Кросворд з чернетки: слова — об'єкти з рядками (інакше чотири порожні), режим — з переліку (інакше «увесь кросворд»),
  * ключ — рядок лише в режимі ключа; розкладка — лише об'єкт зі словами й ключовими клітинками (зберігаючи, редактор її перескладе).
  */
@@ -283,6 +307,7 @@ function revive(stored: Question): Question {
   if (base.type === 'drawing') return reviveDrawing(base);
   if (base.type === 'sudoku') return reviveSudoku(base);
   if (base.type === 'crossword') return reviveCrossword(base);
+  if (base.type === 'jigsaw') return reviveJigsaw(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({
