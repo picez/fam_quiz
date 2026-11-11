@@ -113,6 +113,7 @@ import {
   moreLessOf,
   moreLessPick,
   jigsawHold,
+  jigsawHoldsEnd,
   jigsawOf,
   jigsawPlace,
   puzzleFill,
@@ -207,6 +208,8 @@ export interface Room {
   /** Автопілот (11g): автор поставив паузу й пішов — через HOST_ABSENCE_MS пауза знімається сама; null — таймера немає. */
   authorAway: unknown;
   expiry: unknown;
+  /** «Пазл» (29c): мить, коли спливає найближчий блок «тримаю», — тоді товариші отримують зріз без нього (сам стан не міняється); null — блоків немає. */
+  holdExpiry: unknown;
   expiryPhase: Phase | null;
   /**
    * Чернетки (10j, 12b): id рядка «Відповідей наживо» (гравець, команда, людина в опитуванні командної гри) → живий вибір.
@@ -697,6 +700,7 @@ export class RoomManager {
       absence: null,
       authorAway: null,
       expiry: null,
+      holdExpiry: null,
       expiryPhase: null,
       drafts: new Map(),
       draftRate: new Map(),
@@ -776,6 +780,7 @@ export class RoomManager {
       absence: null,
       authorAway: null,
       expiry: null,
+      holdExpiry: null,
       expiryPhase: null,
       drafts: new Map(),
       draftRate: new Map(),
@@ -1750,7 +1755,25 @@ export class RoomManager {
     if (!result.ok) return { ok: false, error: result.error };
     const finished = jigsawOf(result.state, actorId)?.doneMs != null && jigsawOf(room.state, actorId)?.doneMs == null;
     if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
+    this.watchHolds(room);
     return { ok: true };
+  }
+
+  /**
+   * Блок «тримаю» спливає без жодної події (відпускання окремої події не має): у мить, коли спливає найближчий, кімната шле зрізи ще раз
+   * (зрізи будуються від now, тож товариші бачать шматочок вільним), і так до останнього живого блоку. Новий «тримаю» переносить таймер.
+   */
+  private watchHolds(room: Room): void {
+    this.scheduler.clearTimeout(room.holdExpiry);
+    room.holdExpiry = null;
+    const at = jigsawHoldsEnd(room.state, this.now());
+    if (at === null) return;
+    room.holdExpiry = this.scheduler.setTimeout(() => {
+      room.holdExpiry = null;
+      if (!this.alive(room)) return;
+      this.emit(room, { type: 'changed', puzzle: true });
+      this.watchHolds(room);
+    }, Math.max(0, at - this.now()));
   }
 
   /** Повний малюнок поточного запитання (28c) для sync: при підключенні й на draw:sync. null — запитання не «Малюнок» (чи не на question/locked/reveal). */
@@ -2328,8 +2351,8 @@ export class RoomManager {
   }
 
   private clearTimers(room: Room): void {
-    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry]) this.scheduler.clearTimeout(handle);
-    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = null;
+    for (const handle of [room.deadline, room.pilot, room.absence, room.authorAway, room.expiry, room.holdExpiry]) this.scheduler.clearTimeout(handle);
+    room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = null;
   }
 
   private apply(room: Room, result: Result): AckResult {

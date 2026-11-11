@@ -35,6 +35,17 @@ export function liveHolds(board: JigsawBoard, now: number): Record<string, Hold>
   return Object.fromEntries(Object.entries(board.held ?? {}).filter(([, hold]) => hold.until > now));
 }
 
+/**
+ * Найближча мить після now, коли спливає живий блок «тримаю» поточного пазла (на етапі question): тоді зрізи товаришів мають
+ * показати шматочок вільним, хоч стан і не змінився. null — живих блоків немає.
+ */
+export function jigsawHoldsEnd(state: GameState, now: number): number | null {
+  const play = jigsawPlay(state);
+  if (play === null || state.phase !== 'question') return null;
+  const ends = Object.values(play.jigsaw.boards).flatMap((board) => Object.values(liveHolds(board, now)).map((hold) => hold.until));
+  return ends.length === 0 ? null : Math.min(...ends);
+}
+
 /** Порожня дошка; by і held — лише в командній грі. */
 function emptyBoard(state: GameState): JigsawBoard {
   return { placed: [], ...(teamsOn(state) ? { by: [], held: {} } : {}), doneMs: null, seq: 0 };

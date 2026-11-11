@@ -94,6 +94,31 @@ describe('jigsaw (29c) in the room manager', () => {
     expect(manager.jigsawPlace(room, mate.playerId, { questionIndex: 0, ...spot(5) })).toEqual({ ok: true });
   });
 
+  it('a lapsed hold reaches the teammates without another move, a refresh moves the push', () => {
+    const { scheduler, manager, room, people } = jigsawRoom(['Олена', 'Тарас', 'Іра', 'Марко'], true);
+    const [olena, mate] = [people[0], people[2]];
+    const heldOnMate = () => {
+      const view = manager.view(room, mate.identity);
+      return view?.role === 'player' ? view.me.jigsaw?.held.map((held) => held.piece) : null;
+    };
+    const events: unknown[] = [];
+    manager.onEvent((_room, event) => events.push(event));
+    expect(manager.jigsawHold(room, olena.playerId, { questionIndex: 0, piece: 3 })).toEqual({ ok: true });
+    expect(heldOnMate()).toEqual([3]);
+    // «Тримаю» ще раз за секунду: блок до 1000 + JIGSAW_HOLD_MS, і розсилка — тоді ж, а не за першим блоком.
+    scheduler.advance(1000);
+    expect(manager.jigsawHold(room, olena.playerId, { questionIndex: 0, piece: 3 })).toEqual({ ok: true });
+    events.length = 0;
+    scheduler.advance(JIGSAW_HOLD_MS - 1);
+    expect(events).toEqual([]);
+    expect(heldOnMate()).toEqual([3]);
+    // Олена відпустила (окремої події немає): блок спливає, і товариші отримують зріз без нього.
+    scheduler.advance(1);
+    expect(events).toEqual([{ type: 'changed', puzzle: true }]);
+    expect(heldOnMate()).toEqual([]);
+    expect(manager.jigsawPlace(room, mate.playerId, { questionIndex: 0, ...spot(3) })).toEqual({ ok: true });
+  });
+
   it('a restored room keeps the jigsaw', () => {
     const { scheduler, manager, room, people } = jigsawRoom(['Олена', 'Тарас']);
     const [olena] = people;
