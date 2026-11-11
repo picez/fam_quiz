@@ -2536,6 +2536,8 @@ const uk = {
   drawingGuessed: 'Вгадано!',
   drawingGuessTitle: 'Малюнок — вгадайте, що малює {name}',
   drawingGuessTitleAnon: 'Малюнок — вгадайте, що малюють',
+  sudokuPencil: 'Олівець',
+  sudokuPencilMarks: 'позначки: {digits}',
   drawingMiss: 'Ні',
   drawingGuessPlaceholder: 'Що це?',
   drawingGuessButton: 'Вгадати',

@@ -998,6 +998,8 @@
   "drawingGuessButton": "Raten",
   "drawingGuessTitle": "Zeichnung — rate, was {name} zeichnet",
   "drawingGuessTitleAnon": "Zeichnung — rate, was gezeichnet wird",
+  "sudokuPencil": "Bleistift",
+  "sudokuPencilMarks": "Notizen: {digits}",
   "drawingGuessPlaceholder": "Was ist das?",
   "drawingGuessed": "Erraten!",
   "drawingHelp": "Es wird reihum gezeichnet: jedes Mal die nächste Person, in Teams das nächste Team. Das Wort sehen nur die zeichnende Person und das Host-Pult.",

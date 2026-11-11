@@ -1006,6 +1006,8 @@
   "drawingGuessButton": "Indovina",
   "drawingGuessTitle": "Disegno — indovina cosa disegna {name}",
   "drawingGuessTitleAnon": "Disegno — indovina cosa si disegna",
+  "sudokuPencil": "Matita",
+  "sudokuPencilMarks": "note: {digits}",
   "drawingGuessPlaceholder": "Che cos'è?",
   "drawingGuessed": "Indovinato!",
   "drawingHelp": "Si disegna a turno: ogni volta il giocatore successivo, a squadre la squadra successiva. La parola la vedono solo chi disegna e la console del conduttore.",

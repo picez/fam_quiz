@@ -1006,6 +1006,8 @@
   "drawingGuessButton": "Zgadnij",
   "drawingGuessTitle": "Rysunek — zgadnij, co rysuje {name}",
   "drawingGuessTitleAnon": "Rysunek — zgadnij, co jest rysowane",
+  "sudokuPencil": "Ołówek",
+  "sudokuPencilMarks": "notatki: {digits}",
   "drawingGuessPlaceholder": "Co to jest?",
   "drawingGuessed": "Zgadnięte!",
   "drawingHelp": "Rysuje się po kolei: za każdym razem następny gracz, w drużynach — następna drużyna. Słowo widzą tylko rysujący i pulpit prowadzącego.",

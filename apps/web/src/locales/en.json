@@ -998,6 +998,8 @@
   "drawingGuessButton": "Guess",
   "drawingGuessTitle": "Drawing — guess what {name} is drawing",
   "drawingGuessTitleAnon": "Drawing — guess what is being drawn",
+  "sudokuPencil": "Pencil",
+  "sudokuPencilMarks": "notes: {digits}",
   "drawingGuessPlaceholder": "What is it?",
   "drawingGuessed": "Guessed!",
   "drawingHelp": "Players take turns drawing: each time the next player, in teams the next team. Only the drawer and the host console see the word.",

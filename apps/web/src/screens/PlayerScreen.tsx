@@ -1143,7 +1143,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Головоломки (28d): у команді одна спільна сітка, вписує будь-хто; кольори — хто з учасників що вписав.
               me.puzzle !== undefined && (
                 <>
-                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} />
+                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
                   {/* Чужі сітки на телефоні не показуються (місце): лише скільки вже натиснули «Готово». */}
                   {view.puzzle !== undefined && (
                     <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
@@ -1381,7 +1381,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
             <section className="sent">
               <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
-              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} />
+              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
             </section>
           ) : question?.type === 'jigsaw' && me.jigsaw !== undefined ? (
             // Пазл (29c): рамка лише для перегляду; бали — на розкритті.

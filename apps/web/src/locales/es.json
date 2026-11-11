@@ -1006,6 +1006,8 @@
   "drawingGuessButton": "Adivinar",
   "drawingGuessTitle": "Dibujo — adivina qué dibuja {name}",
   "drawingGuessTitleAnon": "Dibujo — adivina qué se dibuja",
+  "sudokuPencil": "Lápiz",
+  "sudokuPencilMarks": "notas: {digits}",
   "drawingGuessPlaceholder": "¿Qué es?",
   "drawingGuessed": "¡Acertado!",
   "drawingHelp": "Se dibuja por turnos: cada vez el siguiente jugador; en equipos, el siguiente equipo. La palabra solo la ven quien dibuja y la consola del presentador.",
