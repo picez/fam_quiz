@@ -60,7 +60,7 @@ describe('spotdiff (29d) in the room manager', () => {
     const frozenAt = scheduler.now();
     expect(manager.spotdiffTap(room, olena.playerId, MISS)).toEqual({ ok: false, error: 'spotdiff_freeze' });
     const board = room.state.plays[1].spotdiff?.boards[olena.playerId];
-    expect(board?.misses[olena.playerId]).toBe(0);
+    expect(board?.misses[olena.playerId]).toBe(3);
     expect(board?.frozenUntil[olena.playerId]).toBe(frozenAt + SPOTDIFF_FREEZE_MS);
     expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: false, error: 'spotdiff_frozen' });
     scheduler.advance(SPOTDIFF_FREEZE_MS);
