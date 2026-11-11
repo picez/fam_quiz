@@ -363,12 +363,14 @@ export function playerAppeal(state: GameState, personId: string, participant: st
   const open = appealOpen(state);
   const voter = open !== null && appealVoters(state, open.by).includes(personId);
   const vote = voter && Object.hasOwn(open.votes, personId) ? open.votes[personId] : null;
-  const fit = open === null && left > 0 ? appealReasons(state, participant) : [];
+  const fit = left > 0 ? appealReasons(state, participant) : [];
   if (fit.length === 0) return { left, reasons: [], block: null, voter, vote };
   // Капітан має перевагу: некапітан кнопки не має, хоч би й голосувати було кому.
   const who = actorOf(state, personId, 'captain');
   if (!who.ok || who.id !== participant) return { left, reasons: [], block: 'captain', voter, vote };
   if (appealVoters(state, participant).length === 0) return { left, reasons: [], block: 'no_voters', voter, vote };
+  // Чужа апеляція вже відкрита: openAppeal відмовив би, тож кнопки нема, а людина чекає свою чергу.
+  if (open !== null) return { left, reasons: [], block: 'appeal_open', voter, vote };
   // Усі перевірки openAppeal пройдено, крім паузи: на паузі кнопки немає (openAppeal відмовив би).
   return { left, reasons: state.paused ? [] : fit, block: null, voter, vote };
 }

@@ -2963,6 +2963,7 @@ const uk = {
   appealButton: '⚖️ Оскаржити (лишилось {left})',
   appealButtonAway: '⚖️ Оскаржити штраф (лишилось {left})',
   appealNoVoters: 'Нема кому голосувати',
+  appealWaitOther: 'Зал голосує за іншу апеляцію — потім зможете й ви',
   appealCaptain: 'Оскаржує капітан',
   appealTitle: '⚖️ {name} оскаржує',
   appealTitleTeam: '⚖️ Команда «{name}» оскаржує',

@@ -101,7 +101,7 @@ describe('the autopilot and the appeal (12f)', () => {
     expect(go(late).phase).not.toBe('reveal');
   });
 
-  it('an early decision while someone else can still appeal: not before the window', () => {
+  it('an early decision while someone else can still appeal: a fresh window from the decision', () => {
     let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
     expect(atOf(s)).toBe(R + AUTOPILOT_MS.appealWindow);
     s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);
@@ -109,8 +109,8 @@ describe('the autopilot and the appeal (12f)', () => {
     s = act(s, castAppealVote(s, 'a', appealOpen(s)!.id, true, R + 2000), R + 2000);
     s = act(s, castAppealVote(s, 'p3', appealOpen(s)!.id, true, R + 2000), R + 2000);
     expect(s.appeals?.[0].outcome).toBe('yes');
-    // Іра ще може оскаржити: 2 + 3 < 8, тож до кінця вікна.
-    expect(atOf(s)).toBe(R + AUTOPILOT_MS.appealWindow);
+    // Іра ще може оскаржити: вікно відлічується заново від рішення.
+    expect(atOf(s)).toBe(R + 2000 + AUTOPILOT_MS.appealWindow);
   });
 
   it('time runs out: tick closes the vote at endsAt (tie), then appealShown', () => {
@@ -166,13 +166,41 @@ describe('the autopilot and the appeal (12f)', () => {
     expect(atOf(s)).toBe(R + 3000 + AUTOPILOT_MS.reveal);
   });
 
-  it('a tie while someone else can still appeal: the window is the floor', () => {
+  it('a tie while someone else can still appeal: a fresh window from the decision', () => {
     let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
     s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);
     s = act(s, castAppealVote(s, 'a', appealOpen(s)!.id, true, R + 2000), R + 2000);
     s = act(s, castAppealVote(s, 'p3', appealOpen(s)!.id, false, R + 2000), R + 2000);
     expect(s.appeals?.[0].outcome).toBe('tie');
-    expect(atOf(s)).toBe(R + AUTOPILOT_MS.appealWindow);
+    expect(atOf(s)).toBe(R + 2000 + AUTOPILOT_MS.appealWindow);
+  });
+
+  it('two players appeal one after another', () => {
+    let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
+    s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);
+    s = act(s, castAppealVote(s, 'a', 1, false, R + 2000), R + 2000);
+    s = act(s, castAppealVote(s, 'p3', 1, false, R + 2000), R + 2000);
+    expect(atOf(s)).toBe(R + 2000 + AUTOPILOT_MS.appealWindow);
+    // Іра оскаржує пізніше за старе вікно (R + appealWindow).
+    expect(R + 9000).toBeGreaterThan(R + AUTOPILOT_MS.appealWindow);
+    s = act(s, openAppeal(s, 'p3', 'grade', R + 9000), R + 9000);
+    expect(appealOpen(s)).not.toBeNull();
+    s = act(s, castAppealVote(s, 'a', 2, true, R + 9500), R + 9500);
+    s = act(s, castAppealVote(s, 'p2', 2, true, R + 9500), R + 9500);
+    expect(s.appeals?.[1].outcome).toBe('yes');
+    expect(atOf(s)).toBe(R + 9500 + AUTOPILOT_MS.appealShown);
+    expect(go(s).phase).not.toBe('reveal');
+  });
+
+  it('the window after a decision survives a pause', () => {
+    let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
+    s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);
+    s = act(s, castAppealVote(s, 'a', 1, false, R + 2000), R + 2000);
+    s = act(s, castAppealVote(s, 'p3', 1, false, R + 2000), R + 2000);
+    expect(atOf(s)).toBe(R + 2000 + AUTOPILOT_MS.appealWindow);
+    s = act(s, authorPause(s, R + 3000), R + 3000);
+    s = act(s, authorResume(s, R + 20_000), R + 20_000);
+    expect(atOf(s)).toBe(R + 20_000 + (AUTOPILOT_MS.appealWindow - 1000));
   });
 
   it('a second appeal on the same reveal waits again and then shows appealShown', () => {

@@ -108,6 +108,7 @@ interface Props {
 }
 
 const NO_SYNC = () => {};
+const APPEAL_BLOCK_KEY = { captain: 'appealCaptain', no_voters: 'appealNoVoters', appeal_open: 'appealWaitOther' } as const;
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
 function survivalStateLine(own: PlayerView['me']['survival']): string | null {
@@ -1510,7 +1511,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {appealButtonText(reason, me.appeal?.left ?? 0)}
             </button>
           ))}
-          {me.appeal?.block != null && <p className="meta appeal-block">{t(me.appeal.block === 'captain' ? 'appealCaptain' : 'appealNoVoters')}</p>}
+          {me.appeal?.block != null && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
           {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
             <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />

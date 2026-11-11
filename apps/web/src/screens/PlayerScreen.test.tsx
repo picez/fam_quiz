@@ -4339,6 +4339,12 @@ describe('PlayerScreen appeal (12f)', () => {
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
   });
 
+  it('says the hall votes on another appeal, without a button', () => {
+    show(revealOf({}, mine({ block: 'appeal_open' })));
+    expect(screen.getByText('Зал голосує за іншу апеляцію — потім зможете й ви').classList.contains('appeal-block')).toBe(true);
+    expect(document.querySelector('.appeal-button')).toBeNull();
+  });
+
   it('says nobody can vote, or that the captain appeals, without a button', () => {
     show(revealOf({}, mine({ block: 'no_voters' })));
     expect(screen.getByText('Нема кому голосувати').classList.contains('appeal-block')).toBe(true);
