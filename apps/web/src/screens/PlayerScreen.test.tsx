@@ -85,6 +85,7 @@ const view = (over: Partial<PlayerView> = {}): PlayerView => ({
   standings: null,
   table: null,
   myBreakdown: null,
+  pinMarks: null,
   own: null,
   away: null,
   lastAway: null,
@@ -2713,6 +2714,45 @@ describe('PlayerScreen: «Who am I?» and pin (10c)', () => {
     expect(document.querySelector('.pin-circle-full')).not.toBeNull();
     expect(document.querySelector('.pin-circle-zero')).not.toBeNull();
     expect(screen.getByText(/^Точка за .* % від правильної$/)).toBeTruthy();
+  });
+
+  it('pin reveal (29b): everyone’s pins with names like on the stage, mine highlighted, plus the closest line', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: pinQuestion,
+        reveal: pinFull,
+        pinMarks: [
+          { playerId: 'p2', nickname: 'Богдан', x: 0.11, y: 0.3, points: 1000 },
+          { playerId: 'p1', nickname: 'Олена', x: 0.2, y: 0.3, points: 600 },
+          { playerId: 'p3', nickname: 'Іра', x: 0.9, y: 0.9, points: 0 },
+        ],
+        me: { ...me, answer: { type: 'pin', x: 0.2, y: 0.3 }, result: { grade: 'partial', points: 600, streakBonus: 0 } as never },
+      }),
+    );
+    const marks = [...document.querySelectorAll('.pin-board .pin-mark')];
+    expect(marks.map((mark) => mark.getAttribute('aria-label'))).toEqual(['Богдан', 'Олена', 'Іра']);
+    expect(marks.map((mark) => mark.textContent)).toEqual(['Богдан', 'Олена', 'Іра']);
+    expect(screen.getByRole('img', { name: 'Олена' }).classList.contains('is-best')).toBe(true);
+    expect(screen.getByRole('img', { name: 'Богдан' }).classList.contains('is-best')).toBe(false);
+    expect(document.querySelector('.pin-target')).not.toBeNull();
+    expect(document.querySelector('.pin-best')?.textContent).toMatch(/^Найближче: Богдан/);
+  });
+
+  it('pin reveal without everyone’s pins (own spare) still shows my own pin', () => {
+    show(
+      view({
+        phase: 'reveal',
+        questionIndex: 0,
+        question: pinQuestion,
+        reveal: pinFull,
+        pinMarks: null,
+        me: { ...me, answer: { type: 'pin', x: 0.12, y: 0.3 }, result: { grade: 'correct', points: 1000, streakBonus: 0 } as never },
+      }),
+    );
+    expect([...document.querySelectorAll('.pin-board .pin-mark')].map((mark) => mark.getAttribute('aria-label'))).toEqual(['Олена']);
+    expect(document.querySelector('.pin-best')).toBeNull();
   });
 
   it('clues reveal: all clues without placeholders and the correct answer', () => {

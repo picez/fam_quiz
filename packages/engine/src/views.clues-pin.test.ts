@@ -113,9 +113,41 @@ describe('pin in the views', () => {
     expect(stageView(s).pinMarks).toBeNull();
   });
 
+  it('phones get everyone’s pins only on the reveal, the same as the stage (29b)', () => {
+    let s = pinOpen();
+    expect(playerView(s, 'p1')!.pinMarks).toBeNull();
+    s = must(submitAnswer(s, 'p1', at(0.59), 1000));
+    // Поки запитання йде, Богдан не бачить точки Анни — ні в pinMarks, ні деінде в зрізі.
+    expect(playerView(s, 'p2')!.pinMarks).toBeNull();
+    expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('0.59');
+    s = must(submitAnswer(s, 'p2', at(0.52), 1000));
+    expect(s.phase).toBe('locked');
+    for (const id of ['p1', 'p2']) expect(playerView(s, id)!.pinMarks).toBeNull();
+    expect(JSON.stringify(playerView(s, 'p2'))).not.toContain('0.59');
+    s = must(next(s, 0, rng));
+    expect(s.phase).toBe('reveal');
+    for (const id of ['p1', 'p2']) expect(playerView(s, id)!.pinMarks).toEqual(stageView(s).pinMarks);
+    expect(playerView(s, 'p1')!.pinMarks).toEqual([
+      { playerId: 'p2', nickname: 'Богдан', x: 0.52, y: 0.5, points: 1000 },
+      { playerId: 'p1', nickname: 'Анна', x: 0.59, y: 0.5, points: 500 },
+    ]);
+    // Після розкриття — знову нічого.
+    s = must(next(s, 0, rng));
+    expect(s.phase).not.toBe('reveal');
+    expect(playerView(s, 'p1')!.pinMarks).toBeNull();
+  });
+
+  it('a player without a pin of their own still sees the others on the reveal', () => {
+    let s = pinOpen();
+    s = must(submitAnswer(s, 'p1', at(0.59), 1000));
+    s = must(next(must(lock(s)), 0, rng));
+    expect(playerView(s, 'p2')!.pinMarks).toEqual([{ playerId: 'p1', nickname: 'Анна', x: 0.59, y: 0.5, points: 500 }]);
+  });
+
   it('other types have no pin marks and no pin base', () => {
     const s = openClassic();
     expect(hostView(s).pinMarks).toBeNull();
+    expect(playerView(s, 'p1')!.pinMarks).toBeNull();
     expect(playerView(s, 'p1')!.question?.pin).toBeNull();
   });
 

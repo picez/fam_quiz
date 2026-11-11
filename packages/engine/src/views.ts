@@ -3010,6 +3010,7 @@ function lobbyView(state: GameState, member: TeamMember, team: PlayerTeam): Play
     standings: null,
     table: null,
     myBreakdown: null,
+    pinMarks: null,
     own: null,
     away: null,
     lastAway: null,
@@ -3185,6 +3186,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.
     myBreakdown: state.phase === 'lobby' ? null : breakdownFor(ownSeen(state), playerId),
+    // Чужі точки — лише на розкритті, як на сцені (29b); на власному запасному запитанні вони з іншої мапи.
+    pinMarks: spare === null ? pinMarks(state, false) : null,
     own: state.phase === 'lobby' ? null : ownFacts(state, playerId, sharedFacts(state)),
     away: null,
     lastAway: null,

@@ -114,6 +114,7 @@ export const teamPlayerView = (over: Partial<PlayerView> = {}, team: Partial<Pla
   standings: null,
   table: null,
   myBreakdown: null,
+  pinMarks: null,
   own: null,
   away: null,
   lastAway: null,
