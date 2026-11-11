@@ -517,7 +517,7 @@
   "question.sort.what": "Słowa trzeba rozłożyć do kategorii.",
   "question.spotdiff.how.0": "Wgraj „Oryginał” i „Ze zmianami”: drugi obrazek musi mieć takie same proporcje jak pierwszy (z dokładnością do 2 %), a same proporcje — od 1 : 2 do 3 : 1; obrazek węższy niż 400 pikseli zostanie przyjęty z ostrzeżeniem, że na dużym ekranie będzie rozmyty. Dotknij drugiego obrazka, aby zaznaczyć różnicę kółkiem, i przeciągnij, aby zmienić jego promień; od 1 do 10 kółek.",
   "question.spotdiff.how.1": "Na telefonie można dotykać dowolnego z dwóch obrazków. Dotknięcie tuż obok kółka też się liczy (tolerancja 24 pikseli na ekranie, ale nie mniej niż 4 % i nie więcej niż 8 % szerokości obrazka). Znalezione kółko jest zaznaczone na obu obrazkach.",
-  "question.spotdiff.how.2": "Trzy pudła z rzędu blokują gracza na 1 sekundę; trafienie zeruje licznik pudeł. W drużynie plansza jest wspólna, a blokada każdego jest osobna.",
+  "question.spotdiff.how.2": "Trzy pudła z rzędu blokują gracza na 1 sekundę, a każde kolejne pudło z rzędu wydłuża blokadę o sekundę (2 s, 3 s, do 5 s); trafienie zeruje licznik pudeł. W drużynie plansza jest wspólna, a blokada każdego jest osobna.",
   "question.spotdiff.how.3": "Do odsłonięcia miejsca różnic widzi tylko prowadzący na pilocie; na scenie widać, ile kto już znalazł, a po odsłonięciu — wszystkie kółka.",
   "question.spotdiff.limits.0": "Czas — od {minSpotdiffTime} do {maxPuzzleTime} s, domyślnie {defaultSpotdiffTime}.",
   "question.spotdiff.limits.1": "Tylko w rundzie klasycznej i w „Łamigłówkach”; bez wideo, dźwięku, podpowiedzi do buffów i gotowego obrazka pytania.",
