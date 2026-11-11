@@ -558,8 +558,8 @@ export const JigsawThumb = memo(function JigsawThumb({ board, geometry, photo, g
               ✓
             </span>
           )}
+          {/* Бали — у таблиці часу поруч (на розкритті), не в тісному підписі мініатюри. */}
           {board.done && board.timeMs !== null && <span className="jigsaw-thumb-time">{t('jigsawSeconds', { time: secondsText(board.timeMs) })}</span>}
-          {board.points !== null && board.points > 0 && <span className="score">{signed(board.points)}</span>}
         </p>
       </div>
     </li>
