@@ -27963,7 +27963,7 @@ async function spotdiffGame29d() {
   const frozen = petro.locator('.spot-play .spot-pic.spot-frozen[data-pic="changed"]');
   await frozen.waitFor({ timeout: 2000 });
   const frozenAt = Date.now();
-  await petro.getByText('Пауза на секунду.', exact).first().waitFor();
+  await petro.getByText('Пауза.', exact).first().waitFor();
   await shot(petro, 'spotdiff29d-phone-frozen');
   await tapShare29d(petro, 'changed', spots[1]!.x, spots[1]!.y);
   await sleep(300);
