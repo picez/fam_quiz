@@ -132,7 +132,16 @@ export interface PuzzleAnswer {
   done?: boolean;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer;
+/** Запис «Пазла» (29c) гравця (команди); складає рушій, з телефона не приходить. placed — поставлено шматочків, total — усього, timeMs — мить складання від відкриття (мс сервера, без пауз) або null. */
+export interface JigsawAnswer {
+  type: 'jigsaw';
+  placed: number;
+  total: number;
+  done: boolean;
+  timeMs: number | null;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

@@ -1794,6 +1794,43 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 
+  const jigsawQuestion = {
+    ...publicQuestion,
+    type: 'jigsaw' as const,
+    text: 'Складіть пазл',
+    choices: [],
+    jigsaw: { photo: '/uploads/0123456789abcdef0123.jpg', aspect: '4:3' as const, focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, tabs: '0'.repeat(17), preview: false },
+  };
+  const myJigsaw = { placed: [], held: [], done: false, canPlace: true, seq: 0, timeMs: null, result: null };
+
+  it('29c: a jigsaw question shows the frame and the pile, and others only as a count', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const jigsaw = { boards: [{ playerId: 'p1', nickname: 'p1', placed: [], tones: null, total: 12, done: false, timeMs: null, points: null }, { playerId: 'p2', nickname: 'p2', placed: [], tones: null, total: 12, done: true, timeMs: 30_000, points: null }] };
+    show(onQuestion({ question: jigsawQuestion, endsAt: Date.now() + 60_000, playerCount: 2, jigsaw, me: { ...me, jigsaw: myJigsaw } }));
+    expect(screen.getByLabelText('Рамка пазла')).toBeTruthy();
+    expect(document.querySelectorAll('.jigsaw-pile .jigsaw-piece')).toHaveLength(12);
+    expect(screen.getByText('Готово: 1 з 2')).toBeTruthy();
+  });
+
+  it('29c: after the close the frame stays read-only', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    show(view({ phase: 'locked', questionIndex: 0, question: jigsawQuestion, me: { ...me, jigsaw: { ...myJigsaw, placed: [0, 1], canPlace: false } } }));
+    expect(screen.getByText('Запитання закрито.')).toBeTruthy();
+    expect(document.querySelectorAll('.jigsaw-frame .is-placed')).toHaveLength(2);
+    expect(document.querySelector('.jigsaw-pile')).toBeNull();
+  });
+
+  it('29c: the reveal shows my pieces and no correct-answer line', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const reveal = { id: 'jg', type: 'jigsaw', text: 'Складіть пазл', imageUrl: null, video: null, timeLimit: 120, points: 300 } as unknown as Question;
+    const result = { grade: 'correct' as const, points: 300, streakBonus: 0 } as PlayerView['me']['result'];
+    const all = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    show(view({ phase: 'reveal', questionIndex: 0, question: jigsawQuestion, reveal, me: { ...me, result, jigsaw: { ...myJigsaw, placed: all, done: true, canPlace: false, timeMs: 47_300, result: { points: 300 } } } }));
+    expect(screen.getByText('Склав за 47,3 с')).toBeTruthy();
+    expect(document.querySelectorAll('.jigsaw-reveal .is-placed')).toHaveLength(12);
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+  });
+
   const drawQuestion = { ...publicQuestion, type: 'drawing' as const, text: 'Намалюйте рослину', timeLimit: 60, points: 100, choices: [] };
   const drawInfo = { drawerId: 'p2', drawerName: 'Оля', side: 'p2', rev: 0, guessed: 0, could: 2, word: null, guessers: null, drawerPoints: null };
   const noCanvas = () => vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);

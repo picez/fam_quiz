@@ -41,10 +41,10 @@ import { puzzleSolution } from './puzzles';
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
 
 /** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'sort', 'wall', 'bluff'];
+const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'sort', 'wall', 'bluff'];
 
 /** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'sort', 'wall', 'survey', 'bluff'];
+const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -167,6 +167,10 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     const solution = puzzleSolution(question);
     const filled = board === undefined ? 0 : solution.filter((v, i) => v !== '' && board.cells[i] !== '').length;
     return { kind: 'puzzle', filled, total: solution.filter((v) => v !== '').length, done: board?.done === true };
+  }
+  if (question.type === 'jigsaw') {
+    const board = play.jigsaw?.boards[id];
+    return { kind: 'jigsaw', placed: board?.placed.length ?? 0, total: question.rows * question.cols, done: board?.doneMs != null };
   }
   if (question.type === 'sort') {
     const progress = sortOf(state, id);

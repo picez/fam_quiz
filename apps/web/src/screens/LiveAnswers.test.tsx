@@ -428,6 +428,25 @@ describe('LiveAnswers: puzzles (28d)', () => {
   });
 });
 
+describe('LiveAnswers: jigsaw (29c)', () => {
+  const jigsaw = { id: 'j1', type: 'jigsaw', text: 'Пазл', imageUrl: null, video: null, timeLimit: 120, points: 300, photo: '/uploads/a.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, seed: 1, tabs: '0'.repeat(17), preview: false } as unknown as Question;
+
+  it('live answers show pieces and done', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', progress: { kind: 'jigsaw', placed: 5, total: 12, done: false } }),
+      row({ id: 'p2', nickname: 'Тарас', answered: true, answer: { type: 'jigsaw', placed: 12, total: 12, done: true, timeMs: 41_200 } as never, progress: { kind: 'jigsaw', placed: 12, total: 12, done: true } }),
+      row({ id: 'p3', nickname: 'Ната', progress: { kind: 'jigsaw', placed: 0, total: 12, done: false } }),
+    ];
+    show(rows, base({ correct: jigsaw }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers[0]).toBe('На місці: 5 з 12');
+    expect(answers[1]).toBe('Склав за 41,2 с · Готово ✓');
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+    // Хто ще не поставив жодного шматочка — серед тих, на кого чекаємо.
+    expect(within(document.querySelector('.live-waiting') as HTMLElement).getByText('Ната')).toBeTruthy();
+  });
+});
+
 describe('LiveAnswers: where the card is heading (11d)', () => {
   const sortView = (over: Partial<HostView> = {}) =>
     base({ question: { choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } } as never, ...over });

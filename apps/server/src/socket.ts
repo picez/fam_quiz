@@ -58,6 +58,8 @@ import {
   timedListWordSchema,
   letterWordSchema,
   moreLessPickSchema,
+  jigsawHoldSchema,
+  jigsawPlaceSchema,
   puzzleDoneSchema,
   puzzleFillSchema,
   drawGuessSchema,
@@ -453,6 +455,19 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = puzzleDoneSchema.safeParse(payloadOf(args));
       return payload.success ? manager.puzzleDone(room, identity.playerId, payload.data.questionIndex) : INVALID;
+    });
+
+    // «Пазл» (29c): ack лише { ok: true } чи помилка; номер запитання — в межах раунду, як у зрізі.
+    on('player:jigsaw', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = jigsawPlaceSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.jigsawPlace(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:jigsaw-hold', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = jigsawHoldSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.jigsawHold(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:draw', (args) => {

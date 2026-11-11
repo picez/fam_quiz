@@ -32,9 +32,13 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     return lines;
   }
   if (brief.type === 'puzzles' && brief.puzzles !== null) {
-    // Лише ті головоломки, що є: «3 судоку · 2 кросворди», без нулів; жодної — без рядка.
-    const { sudoku, crossword } = brief.puzzles;
-    const kinds = [sudoku > 0 ? countText('summarySudokus', sudoku, { count: sudoku }) : '', crossword > 0 ? countText('summaryCrosswords', crossword, { count: crossword }) : ''].filter((part) => part !== '');
+    // Лише ті головоломки, що є: «3 судоку · 2 кросворди · 1 пазл», без нулів; жодної — без рядка.
+    const { sudoku, crossword, jigsaw } = brief.puzzles;
+    const kinds = [
+      sudoku > 0 ? countText('summarySudokus', sudoku, { count: sudoku }) : '',
+      crossword > 0 ? countText('summaryCrosswords', crossword, { count: crossword }) : '',
+      jigsaw > 0 ? countText('summaryJigsaws', jigsaw, { count: jigsaw }) : '',
+    ].filter((part) => part !== '');
     lines.push(t('summaryPuzzles'), ...(kinds.length > 0 ? [kinds.join(' · ')] : []));
     return lines;
   }

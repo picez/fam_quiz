@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, puzzlesRound, single, survivalRound, text as textQ, truthRound, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, countSudoku, crosswordCells, generateSudoku, layoutCrossword, levelOf, pickKeyCells, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type CrosswordLayout, type PublicPuzzle, type SudokuLevel, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, countSudoku, crosswordCells, generateSudoku, jigsawTabs, layoutCrossword, levelOf, pickKeyCells, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type CrosswordLayout, type PublicPuzzle, type SudokuLevel, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -26850,4 +26850,722 @@ async function puzzlesCrowd28d(sockets: Socket[]) {
   if (process.env.E2E_SHOTS === '1') await sleep(800);
   await expectPuzzleStageFits28d(stage, '24 players reveal');
   await shot(stage, 'puzzles28d-24-reveal-stage');
+}
+
+it('part 29c: jigsaw after a classic round — upload and crop in the editor, taps turn, drags snap, the fastest gets the maximum, 320 px', async () => {
+  try {
+    await jigsawGame29c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 29c: jigsaw in teams — one shared puzzle, a held piece is locked for two seconds, the stage shows member colours, a restart keeps the pieces', async () => {
+  try {
+    await jigsawTeams29c();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 29c: jigsaw with 24 players — the stage thumbnails fit 1600×900', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await jigsawCrowd29c(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+type Grid29c = { rows: number; cols: number };
+type StoredJigsaw29c = { type: 'jigsaw'; imageUrl: string | null; photo: string; aspect: string; focus: { x: number; y: number }; rows: number; cols: number; seed: number; tabs: string; preview: boolean; timeLimit: number; points: number };
+type Via29c = 'mouse' | 'touch';
+
+/**
+ * Синтетичне фото для пазла (жодних справжніх фото): шість кольорових секторів навколо центру, світліші догори, з білими кільцями —
+ * кожен шматочок вирізняється. PNG, як avatarPng.
+ */
+function sectorsPng29c(width: number, height: number): Buffer {
+  const hsl = (h: number, s: number, l: number) => {
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+    };
+    return [f(0), f(8), f(4)];
+  };
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  const [cx, cy] = [width * 0.55, height * 0.45];
+  for (let y = 0; y < height; y++) {
+    raw[y * (width * 3 + 1)] = 0;
+    for (let x = 0; x < width; x++) {
+      const angle = (Math.atan2(y - cy, x - cx) / (2 * Math.PI) + 1) % 1;
+      const ring = Math.hypot(x - cx, y - cy) % 70 < 5;
+      const [r, g, b] = ring ? [245, 245, 240] : hsl(Math.floor(angle * 6) * 60 + ((angle * 360) % 60) / 2, 0.75, 0.3 + 0.4 * (1 - y / height));
+      const at = y * (width * 3 + 1) + 1 + x * 3;
+      [raw[at], raw[at + 1], raw[at + 2]] = [r!, g!, b!];
+    }
+  }
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buffer: Buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const out = Buffer.alloc(body.length + 8);
+    out.writeUInt32BE(data.length, 0);
+    body.copy(out, 4);
+    out.writeUInt32BE(crc(body), body.length + 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+/** Фото 800 × 450 (16:9) у полі «Пазла» редактора: загальне завантаження, потім рамка кадру над картинкою. */
+async function uploadPhoto29c(page: Page) {
+  await page.locator('.jigsaw-editor input[type="file"]').setInputFiles({ name: 'sectors.png', mimeType: 'image/png', buffer: sectorsPng29c(800, 450) });
+  await page.locator('.jigsaw-editor-crop img').waitFor();
+  await expect.poll(() => page.locator('.jigsaw-editor-crop img').evaluate((img) => (img as HTMLImageElement).naturalWidth), POLL).toBe(800);
+}
+
+/** Те саме фото через API завантажень (для вікторин, зібраних без редактора): адреса /uploads/…. */
+async function apiPhoto29c(page: Page): Promise<string> {
+  const response = await page.request.post(`${base}/api/uploads`, { data: sectorsPng29c(800, 450), headers: { 'content-type': 'image/png' } });
+  expect(response.ok(), await response.text()).toBe(true);
+  return ((await response.json()) as { url: string }).url;
+}
+
+/** «Пазл» для API: rows × cols, 4:3, виступи з seed 29, готова картинка поруч. */
+function jigsaw29c(id: string, rows: number, cols: number, timeLimit: number, photo: string) {
+  return { id, text: 'Складіть пазл', imageUrl: null, video: null, timeLimit, points: 300, type: 'jigsaw' as const, photo, aspect: '4:3' as const, focus: { x: 0.5, y: 0.5 }, rows, cols, seed: 29, tabs: jigsawTabs(rows, cols, 29), preview: true };
+}
+
+/** Ще не поставлений шматочок k на телефоні (у купці чи на рамці). */
+const loose29c = (page: Page, k: number) => page.locator(`.jigsaw-play .jigsaw-piece.is-loose[data-piece="${k}"]`);
+/** Поставлений шматочок k у рамці телефона. */
+const placed29c = (page: Page, k: number) => page.locator(`.jigsaw-play .jigsaw-frame .jigsaw-piece.is-placed[data-piece="${k}"]`);
+const placedCount29c = (page: Page) => page.locator('.jigsaw-play .jigsaw-frame .jigsaw-piece.is-placed').count();
+/** Мініатюра дошки на сцені чи пульті за ім'ям. */
+const thumb29c = (page: Page, scope: string, name: string) => page.locator(`${scope} .jigsaw-thumb`, { has: page.locator('.puzzle-thumb-name', { hasText: new RegExp(`^${name}$`) }) });
+/** Дошки «Пазла» з останнього кадру сокета, де вони є (сцена). */
+const jigsawBoards29c = (frames: string[]) => stateViews(frames).reverse().find((view) => view.jigsaw !== undefined)!.jigsaw!.boards;
+
+/** Центр шматочка на екрані: спершу прокручує його у видиму частину купки; у цій точці під пальцем — саме він. */
+async function pieceCenter29c(page: Page, k: number): Promise<{ x: number; y: number }> {
+  const piece = loose29c(page, k);
+  await piece.evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' }));
+  // Купка щойно могла перескладатися (товариш поставив шматочок): місце беремо, коли воно двічі поспіль те саме і під ним саме цей шматочок.
+  let at = { x: NaN, y: NaN };
+  await expect
+    .poll(async () => {
+      const box = (await piece.boundingBox())!;
+      const next = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const still = Math.abs(next.x - at.x) < 0.5 && Math.abs(next.y - at.y) < 0.5;
+      at = next;
+      const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest('[data-piece]')?.getAttribute('data-piece') ?? null, [at.x, at.y]);
+      return still && hit === String(k);
+    }, { ...POLL, interval: 60 })
+    .toBe(true);
+  return at;
+}
+
+/** Точка екрана, куди відпустити шматочок, щоб лівий верхній кут його ядра ліг у (x, y) клітинок рамки (палець — у центрі шматочка). */
+async function cellPoint29c(page: Page, grid: Grid29c, to: { x: number; y: number }): Promise<{ x: number; y: number }> {
+  const frame = (await page.locator('.jigsaw-play .jigsaw-frame').boundingBox())!;
+  const point = { x: frame.x + ((to.x + 0.5) * frame.width) / grid.cols, y: frame.y + ((to.y + 0.5) * frame.height) / grid.rows };
+  const view = page.viewportSize()!;
+  expect(point.y, 'the frame cell is on screen').toBeGreaterThanOrEqual(0);
+  expect(point.y, 'the frame cell is on screen').toBeLessThanOrEqual(view.height);
+  return point;
+}
+
+const cdp29c = new WeakMap<Page, Awaited<ReturnType<BrowserContext['newCDPSession']>>>();
+/** Дотик через CDP Input.dispatchTouchEvent: Chrome робить з нього pointer-події з pointerType 'touch' (як touchDraw28c). */
+async function touch29c(page: Page, points: { x: number; y: number }[]) {
+  let cdp = cdp29c.get(page);
+  if (cdp === undefined) {
+    cdp = await page.context().newCDPSession(page);
+    cdp29c.set(page, cdp);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [points[0]!] });
+  for (const point of points.slice(1)) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point] });
+    await sleep(8);
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+}
+
+/** Точки від from до to: спершу короткий зсув (більший за поріг тапу), далі рівні кроки. */
+function path29c(from: { x: number; y: number }, to: { x: number; y: number }, steps = 12) {
+  const points = [from, { x: from.x + 8, y: from.y - 8 }];
+  for (let i = 1; i <= steps; i++) points.push({ x: from.x + 8 + ((to.x - from.x - 8) * i) / steps, y: from.y - 8 + ((to.y - from.y + 8) * i) / steps });
+  return points;
+}
+
+/** Перетягує шматочок k так, щоб лівий верхній кут ядра ліг у (x, y) клітинок рамки: мишею (pointer) чи пальцем (touch). */
+async function dragPiece29c(page: Page, grid: Grid29c, k: number, to: { x: number; y: number }, via: Via29c = 'mouse') {
+  const from = await pieceCenter29c(page, k);
+  const target = await cellPoint29c(page, grid, to);
+  if (via === 'touch') return touch29c(page, path29c(from, target));
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (const point of path29c(from, target).slice(1)) await page.mouse.move(point.x, point.y);
+  await page.mouse.up();
+}
+
+/** Тап по шматочку (поворот на 90°). */
+async function tapPiece29c(page: Page, k: number, via: Via29c) {
+  const at = await pieceCenter29c(page, k);
+  if (via === 'touch') await touch29c(page, [at]);
+  else await page.mouse.click(at.x, at.y);
+}
+
+/** Тапи по шматочку, доки він не стане прямо (data-rot '0'); шматочок на своєму місці від останнього тапу прилипає. */
+async function turnUpright29c(page: Page, k: number, via: Via29c = 'mouse') {
+  const piece = loose29c(page, k);
+  const state = async () => ((await piece.count()) === 0 ? 'placed' : await piece.getAttribute('data-rot'));
+  for (let taps = 0; taps < 4; taps++) {
+    const rot = await state();
+    if (rot === '0' || rot === 'placed') return;
+    await tapPiece29c(page, k, via);
+    await expect.poll(state, POLL).not.toBe(rot);
+  }
+  expect(await state(), `piece ${k} after four taps`).toMatch(/^(0|placed)$/);
+}
+
+/** Ставить шматочок: тапами прямо, потім перетягуванням на своє місце з невеликим зсувом (менше чверті клітинки); чекає, доки прилипне. */
+async function placePiece29c(page: Page, grid: Grid29c, k: number, via: Via29c = 'mouse', nudge = { x: 0.08, y: -0.06 }) {
+  await turnUpright29c(page, k, via);
+  await dragPiece29c(page, grid, k, { x: (k % grid.cols) + nudge.x, y: Math.floor(k / grid.cols) + nudge.y }, via);
+  await placed29c(page, k).waitFor({ timeout: 5000 });
+}
+
+/** Сцена 1600 × 900: без прокрутки, кожна мініатюра (і фото й таблиця розкриття) цілком у вікні. */
+async function expectJigsawStageFits29c(stage: Page, name: string) {
+  const [height, clientH, width, clientW] = (await stage.evaluate(
+    '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
+  )) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  const out = await stage
+    .locator('.jigsaw-stage .puzzle-thumb, .jigsaw-stage .jigsaw-stage-photo, .jigsaw-stage .jigsaw-table')
+    .evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1 || box.top < -1; }).map((el) => el.textContent));
+  expect(out, `${name}: parts outside the stage`).toEqual([]);
+  const svg = stage.locator('.jigsaw-stage .jigsaw-thumb-svg').first();
+  if ((await svg.count()) > 0) {
+    const mini = (await svg.boundingBox())!;
+    console.log(`jigsaw 29c: ${name} — a thumbnail ${Math.round(mini.width)}×${Math.round(mini.height)}`);
+  }
+}
+
+async function jigsawGame29c() {
+  // ── Редактор: класика з одним запитанням → класика з пазлом → «Головоломки» (судоку й пазл 3×2); у бліці пазла немає. ──
+  const host = await open('host29c', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host29c@example.com');
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Пазл 29c');
+  await host.locator('details.rules').first().locator('summary').click();
+  await select27b(host, 'Показувати рейтинг', 'end');
+  await questionText(host).fill('Столиця України?');
+  await field(host, 'Варіант 1').fill('Львів');
+  await field(host, 'Варіант 2').fill('Київ');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Час, с').fill('30');
+
+  await click(host, '+ Раунд');
+  await click(host, 'Класичний');
+  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
+  await types.getByRole('button', { name: 'пазл', ...exact }).click();
+  expect(await questionText(host).inputValue(), 'the default jigsaw text').toBe('Складіть пазл.');
+  const grid = host.locator('.jigsaw-editor-pieces output');
+  const slider = host.locator('.jigsaw-editor-pieces input[type="range"]');
+  await expect.poll(() => grid.textContent(), POLL).toBe('4×3 = 12');
+  expect(await field(host, 'Час, с').inputValue(), 'the default jigsaw time').toBe('120');
+  await expect.poll(() => field(host, 'Бали').inputValue(), POLL).toBe('300');
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a jigsaw has no video').toBe(0);
+  await host.getByText('Додайте фото: з нього гра виріже шматочки.', exact).waitFor();
+  await uploadPhoto29c(host);
+  // Співвідношення й кількість: 16:9 — та сама сітка 4×3; 7 шматочків на 4:3 — 3×2 = 6; назад 12.
+  await host.getByRole('radio', { name: '16:9', ...exact }).click();
+  await expect.poll(() => grid.textContent(), POLL).toBe('4×3 = 12');
+  await host.getByRole('radio', { name: '4:3', ...exact }).click();
+  expect(await host.getByRole('radio', { name: '4:3', ...exact }).getAttribute('aria-checked')).toBe('true');
+  await slider.fill('7');
+  await expect.poll(() => grid.textContent(), POLL).toBe('3×2 = 6');
+  await slider.fill('12');
+  await expect.poll(() => grid.textContent(), POLL).toBe('4×3 = 12');
+  expect(await host.locator('.jigsaw-cuts path').count(), 'cut lines over the crop').toBe(12);
+  // Рамка кадру: фото 16:9 ширше за 4:3 — рамку тягнуть ліворуч.
+  const frame = host.locator('.jigsaw-editor-frame');
+  const leftOf = async () => Number((await frame.getAttribute('style'))?.match(/left:\s*([\d.]+)%/)?.[1] ?? NaN);
+  const startLeft = await leftOf();
+  expect(startLeft, 'the crop starts centred').toBeGreaterThan(5);
+  const frameBox = (await frame.boundingBox())!;
+  await host.mouse.move(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
+  await host.mouse.down();
+  await host.mouse.move(frameBox.x + frameBox.width / 2 - 30, frameBox.y + frameBox.height / 2, { steps: 6 });
+  await host.mouse.up();
+  await expect.poll(leftOf, POLL).toBeLessThan(startLeft - 1);
+  // «Інша форма»: ті самі шматочки, інші виступи.
+  const cuts = () => host.locator('.jigsaw-cuts path').evaluateAll((all) => all.map((path) => path.getAttribute('d')).join('|'));
+  const shape = await cuts();
+  await click(host, 'Інша форма');
+  await expect.poll(cuts, POLL).not.toBe(shape);
+  await field(host, 'Показувати гравцям готову картинку поруч').check();
+  await field(host, 'Час, с').fill('90');
+  await shot(host, 'jigsaw29c-editor');
+
+  await click(host, '+ Раунд');
+  await click(host, 'Головоломки');
+  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
+  expect(await types.getByRole('button', { name: 'пазл', ...exact }).count(), 'a jigsaw in the puzzles round').toBe(1);
+  await field(host, 'Час, с').fill('60');
+  await click(host, 'Додати запитання');
+  await types.getByRole('button', { name: 'пазл', ...exact }).click();
+  await uploadPhoto29c(host);
+  await slider.fill('6');
+  await expect.poll(() => grid.textContent(), POLL).toBe('3×2 = 6');
+  await field(host, 'Час, с').fill('60');
+
+  await click(host, '+ Раунд');
+  await click(host, 'Бліц');
+  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
+  expect(await types.getByRole('button', { name: 'пазл', ...exact }).count(), 'a jigsaw in the blitz menu').toBe(0);
+  await click(host, 'Видалити раунд');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Пазл 29c' }).waitFor();
+
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Пазл 29c')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: { type: string }[] }[] };
+  expect(stored.rounds.map((round) => round.type)).toEqual(['classic', 'classic', 'puzzles']);
+  expect(stored.rounds[2]!.questions.map((q) => q.type)).toEqual(['sudoku', 'jigsaw']);
+  const big = stored.rounds[1]!.questions[0] as StoredJigsaw29c;
+  const small = stored.rounds[2]!.questions[1] as StoredJigsaw29c;
+  expect(big).toMatchObject({ type: 'jigsaw', imageUrl: null, aspect: '4:3', rows: 3, cols: 4, timeLimit: 90, points: 300, preview: true });
+  expect(big.photo).toMatch(/^\/uploads\/[\w-]+\.png$/);
+  expect(big.focus.x, 'the crop moved left').toBeLessThan(0.45);
+  expect(big.tabs, 'the stored tabs are the seed’s tabs').toBe(jigsawTabs(3, 4, big.seed));
+  expect(small).toMatchObject({ rows: 2, cols: 3, timeLimit: 60 });
+  const g1: Grid29c = { rows: 3, cols: 4 };
+  const g2: Grid29c = { rows: 2, cols: 3 };
+
+  // ── Гра: сцена 1600 × 900; Оля 375 × 812 і Тарас 360 × 740 — миша; Петро 320 × 640 — пальцем. ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29c', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya29c', 375, 812);
+  const olyaFrames = socketFrames(olya);
+  const taras = await open('taras29c', 360, 740);
+  const tarasFrames = socketFrames(taras);
+  const petro = await open('petro29c', 320, 640, { hasTouch: true, isMobile: true });
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(petro, code, 'Петро', false);
+  await stage.getByText('Петро').waitFor();
+  const phones = [olya, taras, petro];
+  const scores = async (wanted: [string, string, string]) => {
+    for (const [at, page] of phones.entries()) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(wanted[at]);
+  };
+
+  // ── Раунд 1: класичне запитання (Петро — хибно). ──
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await petro.getByRole('button', { name: /Львів/ }).click();
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // ── Раунд 2: пазл 4×3 (90 с) — номер у раунді 0, індекс у plays 1. ──
+  for (const page of phones) await page.locator('.jigsaw-play .jigsaw-pile').waitFor();
+  const shown = stateViews(olyaFrames).reverse().find((view) => view.question?.jigsaw !== undefined)!;
+  expect(shown.questionIndex, 'the phone’s question number in the round').toBe(0);
+  expect(shown.question!.jigsaw).toMatchObject({ photo: big.photo, aspect: '4:3', rows: 3, cols: 4, tabs: big.tabs, preview: true });
+  expect(await olya.locator('.jigsaw-play .jigsaw-piece.is-loose').count(), 'the pile on the phone').toBe(12);
+  await olya.locator('.jigsaw-play .jigsaw-preview').waitFor();
+  await stage.locator('.jigsaw-stage .jigsaw-thumb').nth(2).waitFor();
+  expect(await stage.locator('.jigsaw-stage .jigsaw-thumb').count(), 'a board per player').toBe(3);
+  // Купки різні на різних телефонах (порядок від гравця).
+  const pileOrder = (page: Page) => page.locator('.jigsaw-pile .jigsaw-piece').evaluateAll((all) => all.map((el) => el.getAttribute('data-piece')).join(','));
+  expect(await pileOrder(olya), 'the same pile order on two phones').not.toBe(await pileOrder(taras));
+
+  // Петро (320 px, пальцем): три шматочки й не встигає.
+  for (const k of [0, 5, 11]) await placePiece29c(petro, g1, k, 'touch');
+  expect(await petro.evaluate('window.matchMedia("(pointer: coarse)").matches'), 'Petro’s phone is a touch screen').toBe(true);
+  await sleep(1500);
+  expect(await placedCount29c(petro), 'Petro’s pieces after the push window').toBe(3);
+  await expect.poll(() => thumb29c(stage, '.jigsaw-stage', 'Петро').locator('.puzzle-thumb-count').textContent(), POLL).toBe('25 %');
+  await expectNoSideScroll(petro, 'jigsaw29c-phone-320');
+  const petroBoxes = await petro.locator('.jigsaw-play .jigsaw-frame, .jigsaw-play .jigsaw-pile').evaluateAll((all) => all.map((el) => { const box = el.getBoundingClientRect(); return [box.left, box.right] as const; }));
+  for (const [left, right] of petroBoxes) {
+    expect(left, 'the jigsaw starts off screen at 320 px').toBeGreaterThanOrEqual(0);
+    expect(right, 'the jigsaw ends off screen at 320 px').toBeLessThanOrEqual(320);
+  }
+
+  // Оля (миша): повернутий шматочок на своєму місці не прилипає; тапами прямо — прилипає.
+  const rots = await olya.locator('.jigsaw-pile .jigsaw-piece').evaluateAll((all) => all.map((el) => [Number(el.getAttribute('data-piece')), el.getAttribute('data-rot')] as const));
+  let turned = rots.find(([, rot]) => rot !== '0')?.[0];
+  if (turned === undefined) {
+    turned = 0;
+    await tapPiece29c(olya, 0, 'mouse');
+  }
+  await dragPiece29c(olya, g1, turned, { x: turned % 4, y: Math.floor(turned / 4) });
+  const lying = olya.locator(`.jigsaw-frame .jigsaw-piece.is-loose[data-piece="${turned}"]`);
+  await lying.waitFor();
+  await sleep(600);
+  expect(await placed29c(olya, turned).count(), 'a turned piece on its own place').toBe(0);
+  expect(await lying.getAttribute('data-rot'), 'the piece is still turned').not.toBe('0');
+  await turnUpright29c(olya, turned);
+  await placed29c(olya, turned).waitFor();
+  const rest = Array.from({ length: 12 }, (_, k) => k).filter((k) => k !== turned);
+  for (const k of rest.slice(0, 5)) await placePiece29c(olya, g1, k);
+  await expect.poll(() => thumb29c(stage, '.jigsaw-stage', 'Оля').locator('.puzzle-thumb-count').textContent(), POLL).toBe('50 %');
+  await expect.poll(() => stage.locator('.jigsaw-stage .jigsaw-thumb image').count(), POLL).toBe(2);
+  if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await shot(olya, 'jigsaw29c-phone-preview');
+  await expectJigsawStageFits29c(stage, 'question');
+  await shot(stage, 'jigsaw29c-stage');
+  await thumb29c(host, '.host-jigsaw', 'Оля').locator('.puzzle-thumb-count').getByText('50 %', exact).waitFor();
+  await shot(host, 'jigsaw29c-host');
+  for (const k of rest.slice(5)) await placePiece29c(olya, g1, k);
+  await olya.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
+  await sleep(1500);
+  expect(await placedCount29c(olya), 'Olya’s pieces stay in the frame').toBe(12);
+  expect(await olya.locator('.jigsaw-play .jigsaw-piece.is-loose').count(), 'loose pieces after done').toBe(0);
+
+  // Тарас (миша, повільніше): прямий шматочок за 0,4 клітинки від місця не прилипає, точніше — прилипає.
+  await turnUpright29c(taras, 6);
+  await dragPiece29c(taras, g1, 6, { x: 2.4, y: 1 });
+  await taras.locator('.jigsaw-frame .jigsaw-piece.is-loose[data-piece="6"]').waitFor();
+  await sleep(600);
+  expect(await placed29c(taras, 6).count(), 'a piece 0.4 cells off').toBe(0);
+  await dragPiece29c(taras, g1, 6, { x: 2.1, y: 1.05 });
+  await placed29c(taras, 6).waitFor();
+  for (const k of [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11]) {
+    await placePiece29c(taras, g1, k);
+    await sleep(150);
+  }
+  await taras.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
+  await stage.getByText('Відповіли 2 з 3', exact).first().waitFor();
+  await expect.poll(() => stage.locator('.jigsaw-stage .jigsaw-thumb.is-done').count(), POLL).toBe(2);
+  for (const frames of [olyaFrames, tarasFrames, petroFrames]) expect(frames.join(NL), 'a stale refusal').not.toContain('jigsaw_stale');
+
+  // Петро не встиг: час виходить, у нього 0.
+  await petro.getByText('Час вийшов.', exact).first().waitFor({ timeout: 100_000 });
+  await reveal28a(host);
+  const table = stage.locator('.jigsaw-stage.is-reveal .jigsaw-table');
+  await table.waitFor();
+  await stage.locator('.jigsaw-stage.is-reveal .jigsaw-stage-photo img').waitFor();
+  const boards = jigsawBoards29c(stageFrames);
+  const [bOlya, bTaras, bPetro] = ['Оля', 'Тарас', 'Петро'].map((name) => boards.find((board) => board.nickname === name)!);
+  expect(boards.map((board) => board.nickname), 'the reveal order').toEqual(['Оля', 'Тарас', 'Петро']);
+  expect(bOlya).toMatchObject({ done: true, points: 300 });
+  expect(bTaras!.done).toBe(true);
+  const tarasPoints = Math.round((300 * bOlya!.timeMs!) / bTaras!.timeMs!);
+  console.log(`jigsaw 29c: Оля ${bOlya!.timeMs} ms, Тарас ${bTaras!.timeMs} ms → ${tarasPoints}`);
+  expect(tarasPoints, 'Taras was slower').toBeLessThan(300);
+  expect(bTaras!.points, 'max × fastest / own').toBe(tarasPoints);
+  expect(bPetro).toMatchObject({ done: false, timeMs: null, points: 0 });
+  expect(bPetro!.placed.length).toBe(3);
+  const rows = await table.locator('tbody tr').evaluateAll((all) => all.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? '')));
+  expect(rows.map((row) => [row[0], row[1], row[3]]), 'the time table').toEqual([['1', 'Оля', '+300'], ['2', 'Тарас', `+${tarasPoints}`], ['—', 'Петро', '0']]);
+  expect(rows[2]![2], 'Petro’s row').toBe('Не склав · 25 %');
+  await scores(['300', String(tarasPoints), '0']);
+  await taras.locator('.jigsaw-reveal figcaption').getByText(/^Склав за [\d,]+ с$/).waitFor();
+  await petro.locator('.jigsaw-reveal figcaption').getByText('Поставлено 3 з 12', exact).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectJigsawStageFits29c(stage, 'reveal');
+  await shot(stage, 'jigsaw29c-reveal-stage');
+  await shot(petro, 'jigsaw29c-phone-320-reveal');
+
+  // ── Раунд 3 «Головоломки»: судоку, потім пазл 3×2 — номер у раунді 1; усі складають, запитання закривається саме. ──
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('.sudoku-play').waitFor();
+  for (const page of phones) await done28d(page);
+  await reveal28a(host);
+  await next27a(host);
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('.jigsaw-play .jigsaw-pile').waitFor();
+  const second = stateViews(petroFrames).reverse().find((view) => view.question?.jigsaw !== undefined)!;
+  expect(second.questionIndex, 'the jigsaw after the sudoku is number 1 in the round').toBe(1);
+  expect(second.question!.jigsaw).toMatchObject({ rows: 2, cols: 3 });
+  const sentFrom = [olyaFrames.length, tarasFrames.length, petroFrames.length];
+  for (const k of [0, 1, 2, 3, 4, 5]) await placePiece29c(olya, g2, k);
+  for (const k of [5, 4, 3, 2, 1, 0]) await placePiece29c(taras, g2, k);
+  for (const k of [2, 0, 4, 1, 5, 3]) await placePiece29c(petro, g2, k, 'touch');
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
+  await stage.getByText('Відповіли 3 з 3', exact).first().waitFor();
+  for (const [at, frames] of [olyaFrames, tarasFrames, petroFrames].entries()) {
+    const sent = frames.slice(sentFrom[at]).join(NL);
+    expect(sent, 'a stale refusal in the puzzles round').not.toContain('jigsaw_stale');
+    expect(sent, 'a refused piece in the puzzles round').not.toMatch(/jigsaw_(miss|placed|done)/);
+  }
+  await reveal28a(host);
+  await expect.poll(() => stage.locator('.jigsaw-stage.is-reveal .jigsaw-table tbody tr.is-done').count(), POLL).toBe(3);
+  const second3 = jigsawBoards29c(stageFrames);
+  expect(second3.map((board) => board.nickname)).toEqual(['Оля', 'Тарас', 'Петро']);
+  expect(second3[0]!.points).toBe(300);
+  await scores(['600', String(tarasPoints + second3[1]!.points!), String(second3[2]!.points!)]);
+  await toWinners27c(host, stage);
+
+  expect(problems).toEqual([]);
+}
+
+async function jigsawTeams29c() {
+  const host = await open('host29ct', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host29ct@example.com');
+  const photo = await apiPhoto29c(host);
+  const question = jigsaw29c('t29c', 3, 4, 120, photo);
+  const data = {
+    ...makeRoundsQuiz([classicRound('ct29c', [{ ...withId(single, 'ct1'), timeLimit: 30 }], { speedBonus: false }), puzzlesRound('pt29c', [question as never], { title: 'Командний пазл' })], {
+      leaderboard: 'end',
+      teams: { count: 2, names: ['Соняшники', 'Маки'] },
+    }),
+    title: 'Пазл команд 29c',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Пазл команд 29c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29ct', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  const olya = await open('olya29ct', 375, 812);
+  const taras = await open('taras29ct', 360, 740);
+  const petro = await open('petro29ct', 375, 812);
+  const hanna = await open('hanna29ct', 320, 640, { hasTouch: true, isMobile: true });
+  const phones = [olya, taras, petro, hanna];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Соняшники'],
+    [taras, 'Тарас', 'Соняшники'],
+    [petro, 'Петро', 'Маки'],
+    [hanna, 'Ганна', 'Маки'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Соняшники'), POLL).toEqual(['Оля', 'Тарас']);
+  await expect.poll(() => stageTeam(stage, 'Маки'), POLL).toEqual(['Петро', 'Ганна']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  // Класичне запитання першого раунду: без відповідей.
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('.jigsaw-play .jigsaw-pile').waitFor();
+  const g: Grid29c = { rows: 3, cols: 4 };
+  const stageThumb = (name: string) => thumb29c(stage, '.jigsaw-stage', name);
+  const sameOn = async (pages: Page[], pieces: number[]) => {
+    for (const page of pages) for (const k of pieces) await placed29c(page, k).waitFor();
+  };
+  // Спільна дошка: купка товариша перескладається, коли до нього доходить мій шматочок, — наступний хід чекає, доки дійде.
+  const placeShared = async (page: Page, k: number, mates: Page[], via: Via29c = 'mouse') => {
+    await placePiece29c(page, g, k, via);
+    await sameOn(mates, [k]);
+  };
+
+  // ── Оля тримає шматочок 6: у Тараса він притемнений і не береться; Оля відпускає — за ≤ 2 с Тарас його бере. ──
+  const held = 6;
+  const from = await pieceCenter29c(olya, held);
+  await olya.mouse.move(from.x, from.y);
+  await olya.mouse.down();
+  await olya.mouse.move(from.x + 12, from.y - 12, { steps: 3 });
+  await olya.locator(`.jigsaw-play [data-dragging="${held}"]`).waitFor();
+  const tarasPiece = loose29c(taras, held);
+  await expect.poll(() => tarasPiece.getAttribute('class'), POLL).toMatch(/\bis-held\b/);
+  expect(await tarasPiece.getAttribute('aria-disabled'), 'a held piece is disabled for a teammate').toBe('true');
+  expect(await tarasPiece.getAttribute('aria-label')).toBe(`Шматочок ${held + 1} — тримає товариш`);
+  // Суперники цього не бачать.
+  expect(await loose29c(petro, held).getAttribute('class'), 'the other team sees the hold').not.toMatch(/\bis-held\b/);
+  const box = (await tarasPiece.boundingBox())!;
+  await taras.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await taras.mouse.down();
+  await taras.mouse.move(box.x + box.width / 2 + 40, box.y - 60, { steps: 6 });
+  expect(await taras.locator('.jigsaw-play [data-dragging]').count(), 'Taras lifts a held piece').toBe(0);
+  await taras.mouse.up();
+  // Тримання триває понад 2 с (Олин телефон повторює «тримаю»).
+  await sleep(2600);
+  expect(await tarasPiece.getAttribute('class'), 'the hold after 2.6 s of holding').toMatch(/\bis-held\b/);
+  if (process.env.E2E_SHOTS === '1') await sleep(300);
+  await shot(taras, 'jigsaw29c-teams-phone');
+  // Відпускає над купкою: шматочок назад у купці.
+  const pile = (await olya.locator('.jigsaw-play .jigsaw-pile').boundingBox())!;
+  await olya.mouse.move(pile.x + pile.width / 2, pile.y + pile.height / 2, { steps: 6 });
+  const released = Date.now();
+  await olya.mouse.up();
+  await expect.poll(() => tarasPiece.getAttribute('class'), { timeout: 5000 }).not.toMatch(/\bis-held\b/);
+  const freeAfter = Date.now() - released;
+  console.log(`jigsaw 29c: the held piece is free on the teammate’s phone ${freeAfter} ms after the release`);
+  expect(freeAfter, 'the hold lapses about 1–2 s after the release').toBeGreaterThanOrEqual(700);
+  expect(freeAfter, 'the hold lapses about 1–2 s after the release').toBeLessThanOrEqual(3500);
+  await placeShared(taras, held, [olya]);
+
+  // ── Обидва ставлять різні шматочки — однаково в обох телефонах і на сцені, кольорами учасників. ──
+  await placeShared(olya, 0, [taras]);
+  await placeShared(olya, 1, [taras]);
+  await placeShared(taras, 10, [olya]);
+  await placeShared(taras, 11, [olya]);
+  const sunflowers = [held, 0, 1, 10, 11];
+  await sameOn([olya, taras], sunflowers);
+  await placeShared(petro, 3, [hanna]);
+  await placeShared(hanna, 8, [petro], 'touch');
+  await sameOn([petro, hanna], [3, 8]);
+  expect(await placed29c(petro, 0).count(), 'a Sunflowers piece on a Poppies phone').toBe(0);
+  await expect.poll(() => stageThumb('Соняшники').locator('.puzzle-thumb-count').textContent(), POLL).toBe(`${Math.round((100 * sunflowers.length) / 12)} %`);
+  await expect.poll(() => jigsawBoards29c(stageFrames).find((board) => board.nickname === 'Соняшники')?.tones, POLL).toBe('21122');
+  expect(jigsawBoards29c(stageFrames).find((board) => board.nickname === 'Соняшники')!.placed).toEqual(sunflowers);
+  expect(jigsawBoards29c(stageFrames).find((board) => board.nickname === 'Маки')!.tones).toBe('12');
+  expect(await stageThumb('Соняшники').locator('.jigsaw-thumb-tone.by-1').count(), 'Olya’s colour on the stage').toBe(2);
+  expect(await stageThumb('Соняшники').locator('.jigsaw-thumb-tone.by-2').count(), 'Taras’s colour on the stage').toBe(3);
+  if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await expectJigsawStageFits29c(stage, 'teams question');
+  await shot(stage, 'jigsaw29c-teams-stage');
+  await expectNoSideScroll(hanna, 'jigsaw29c-teams-phone-320');
+
+  // ── Перезапуск сервера посеред пазла: шматочки на місці, телефони ставлять далі. ──
+  await restart(async () => {
+    await stage.getByText(RESTARTING_TEXT, exact).waitFor();
+  });
+  for (const page of [stage, ...phones, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  await sameOn([olya, taras], sunflowers);
+  await sameOn([petro, hanna], [3, 8]);
+  await expect.poll(() => stageThumb('Соняшники').locator('.jigsaw-thumb-tone').count(), POLL).toBe(sunflowers.length);
+  await olya.locator('.jigsaw-play .jigsaw-piece.is-loose:not(.is-off)').first().waitFor();
+  const left = Array.from({ length: 12 }, (_, k) => k).filter((k) => !sunflowers.includes(k));
+  for (const [at, k] of left.entries()) await placeShared(at % 2 === 0 ? olya : taras, k, [at % 2 === 0 ? taras : olya]);
+  await olya.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
+  await taras.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
+  await expect.poll(() => stageThumb('Соняшники').locator('.puzzle-thumb-done').count(), POLL).toBe(1);
+  // Маки складають довше: решту ставлять Петро й Ганна.
+  const poppies = Array.from({ length: 12 }, (_, k) => k).filter((k) => k !== 3 && k !== 8);
+  for (const [at, k] of poppies.entries()) {
+    if (at % 2 === 0) await placeShared(petro, k, [hanna]);
+    else await placeShared(hanna, k, [petro], 'touch');
+  }
+  await host.getByRole('button', { name: 'Показати відповідь', ...exact }).waitFor({ timeout: 10_000 });
+  await reveal28a(host);
+  await stage.locator('.jigsaw-stage.is-reveal .jigsaw-table').waitFor();
+  const boards = jigsawBoards29c(stageFrames);
+  expect(boards.map((board) => board.nickname)).toEqual(['Соняшники', 'Маки']);
+  const poppiesPoints = Math.round((300 * boards[0]!.timeMs!) / boards[1]!.timeMs!);
+  expect(boards[0]!.points).toBe(300);
+  expect(boards[1]!.points).toBe(poppiesPoints);
+  for (const [page, score] of [[olya, '300'], [taras, '300'], [petro, String(poppiesPoints)], [hanna, String(poppiesPoints)]] as const) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(score);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectJigsawStageFits29c(stage, 'teams reveal');
+  await shot(stage, 'jigsaw29c-teams-reveal-stage');
+  await toWinners27c(host, stage);
+
+  expect(problems).toEqual([]);
+}
+
+/** 24 гравці без браузера (сокети) ставлять шматочки; кожен третій складає весь пазл; мініатюри на сцені 1600 × 900 без прокрутки. */
+async function jigsawCrowd29c(sockets: Socket[]) {
+  const host = await open('host29cc', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', 'host29cc@example.com');
+  const photo = await apiPhoto29c(host);
+  const question = jigsaw29c('c29c', 3, 4, 60, photo);
+  const data = { ...makeRoundsQuiz([puzzlesRound('pc29c', [question as never])], { leaderboard: 'end' }), title: 'Пазл натовпу 29c' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Пазл натовпу 29c' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29cc', 1600, 900);
+  await stage.goto(stageUrl);
+  const names = [
+    'Олександра Петренко', 'Богдана Коваленко', 'Ярослав Шевченко', 'Мирослава Бондар', 'Владислав Ткаченко', 'Анастасія Мельник',
+    'Святослав Кравчук', 'Христина Олійник', 'Станіслав Лисенко', 'Катерина Руденко', 'Остап Марченко', 'Соломія Савченко',
+    'Тарас Гончаренко', 'Ірина Кузьменко', 'Максим Литвиненко', 'Вероніка Захарчук', 'Назар Поліщук', 'Злата Тимошенко',
+    'Дмитро Павленко', 'Олена Кириленко', 'Роман Мороз', 'Оксана Бойко', 'Левко Гнатюк', 'Дарина Ковальчук',
+  ];
+  const players: { nickname: string; socket: Socket }[] = [];
+  for (const nickname of names) {
+    const response = await fetch(`${base}/api/games/by-code/${code}/join`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nickname }) });
+    expect(response.status, nickname).toBe(201);
+    const { token } = (await response.json()) as { token: string };
+    const socket = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+    sockets.push(socket);
+    await new Promise<void>((done, fail) => {
+      socket.once('connect', () => done());
+      socket.once('connect_error', fail);
+    });
+    players.push({ nickname, socket });
+  }
+  const emit = <T,>(socket: Socket, event: string, payload: unknown) => new Promise<T>((done) => socket.emit(event, payload, done));
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await stage.locator('.jigsaw-stage').waitFor();
+  await expect.poll(() => stage.locator('.jigsaw-stage .jigsaw-thumb').count(), POLL).toBe(24);
+  // Кожен — від 1 до 11 шматочків (порядок від номера гравця), кожен третій — усі 12; шматочки — на свої місця з малим зсувом.
+  await Promise.all(
+    players.map(async (player, k) => {
+      const count = k % 3 === 2 ? 12 : 1 + (k % 11);
+      const pieces = Array.from({ length: 12 }, (_, j) => (k * 5 + j * 7) % 12).slice(0, count);
+      for (const piece of pieces) {
+        const payload = { questionIndex: 0, piece, x: (piece % 4) + 0.1, y: Math.floor(piece / 4) - 0.1, rot: 0 };
+        let ack = await emit<{ ok: boolean; error?: string }>(player.socket, 'player:jigsaw', payload);
+        for (let tries = 0; !ack.ok && ack.error === 'too_soon' && tries < 10; tries++) {
+          await sleep(300);
+          ack = await emit<{ ok: boolean; error?: string }>(player.socket, 'player:jigsaw', payload);
+        }
+        expect(ack, `${player.nickname} places ${piece}`).toEqual({ ok: true });
+      }
+    }),
+  );
+  await expect.poll(() => stage.locator('.jigsaw-stage .jigsaw-thumb.is-done').count(), POLL).toBe(8);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectNoSideScroll(stage, 'jigsaw29c-24-stage');
+  await expectJigsawStageFits29c(stage, '24 players');
+  const clipped = await stage.locator('.jigsaw-stage .puzzle-thumb-name').evaluateAll((all) => all.filter((el) => el.getBoundingClientRect().width < 40).map((el) => el.textContent));
+  expect(clipped, 'names squeezed to nothing').toEqual([]);
+  await reveal28a(host);
+  await stage.locator('.jigsaw-stage.is-reveal .jigsaw-table').waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectJigsawStageFits29c(stage, '24 players reveal');
+  await shot(stage, 'jigsaw29c-24-reveal-stage');
+
+  expect(problems).toEqual([]);
 }

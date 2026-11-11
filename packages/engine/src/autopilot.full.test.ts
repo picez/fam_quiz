@@ -39,6 +39,7 @@ import {
   withPoints,
   withVideo,
   puzzlesQuiz,
+  jigsawQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -168,6 +169,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['host-picked untimed ladder with every lifeline', ladderQuiz],
   ['duels', duelQuiz()],
   ['puzzles: a sudoku and two crosswords', puzzlesQuiz({ leaderboard: 'end' })],
+  ['a jigsaw in a classic round and in puzzles', jigsawQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
   ...(['host', 'pick', 'random', 'dice'] as TeamForm[]).map(
@@ -330,6 +332,15 @@ describe('autopilot: scores and defaults', () => {
     expect(state.players.map((p) => p.score)).toEqual([900, 900, 900]);
     // сітки минулих запитань спорожнено, записи їх зберігають
     expect(state.plays.slice(0, 2).every((p) => Object.keys(p.puzzle?.boards ?? {}).length === 0)).toBe(true);
+  });
+
+  it('jigsaw: every bot builds the whole puzzle after an earlier round, every record is correct (29c)', () => {
+    const { state } = play(jigsawQuiz(), answering);
+    expect(state.plays.map((p) => p.question.id)).toEqual(['q1', 'j1', 'j2']);
+    for (const p of state.plays.slice(1)) {
+      for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade]).toEqual([p.question.id, id, 'correct']);
+    }
+    expect(state.plays.slice(1, 2).every((p) => Object.keys(p.jigsaw?.boards ?? {}).length === 0)).toBe(true);
   });
 
   it('a team game: every team answers right through its captain', () => {

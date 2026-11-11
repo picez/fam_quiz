@@ -84,6 +84,24 @@ export const puzzleFillSchema = z
       .max(LIMITS.puzzleBatch),
   })
   .strict();
+/**
+ * «Пазл» (29c): поставити шматочок (лівий верхній кут ядра в клітинках рамки, rot — чверті оберту) і «тримаю» (командна гра).
+ * questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає jigsaw_stale.
+ */
+export const JIGSAW_MOVES_PER_SECOND = 8;
+/** Скільки шматочок, який узяв учасник команди, заблокований для інших (мс), і як часто телефон повторює «тримаю». */
+export const JIGSAW_HOLD_MS = 2000;
+export const JIGSAW_HOLD_REFRESH_MS = 1000;
+export const jigsawPlaceSchema = z
+  .object({
+    questionIndex: z.number().int().nonnegative(),
+    piece: z.number().int().min(0).max(35),
+    x: z.number().finite().min(-20).max(20),
+    y: z.number().finite().min(-20).max(20),
+    rot: z.number().int().min(0).max(3),
+  })
+  .strict();
+export const jigsawHoldSchema = z.object({ questionIndex: z.number().int().nonnegative(), piece: z.number().int().min(0).max(35) }).strict();
 export const puzzleDoneSchema = z.object({ questionIndex: z.number().int().nonnegative() }).strict();
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
@@ -237,6 +255,10 @@ export interface ClientToServerEvents {
   'player:puzzle': (payload: z.infer<typeof puzzleFillSchema>, ack: Ack) => void;
   /** «Головоломки» (28d): кнопка «Готово» (безповоротна; у команді — за всіх). */
   'player:puzzle-done': (payload: z.infer<typeof puzzleDoneSchema>, ack: Ack) => void;
+  /** «Пазл» (29c): шматочок поставлено; ack — лише ok чи помилка (jigsaw_stale, jigsaw_done, jigsaw_piece, jigsaw_placed, jigsaw_held, jigsaw_miss, time_over, too_soon). */
+  'player:jigsaw': (payload: z.infer<typeof jigsawPlaceSchema>, ack: Ack) => void;
+  /** «Пазл» (29c): учасник команди узяв шматочок; блок на JIGSAW_HOLD_MS. */
+  'player:jigsaw-hold': (payload: z.infer<typeof jigsawHoldSchema>, ack: Ack) => void;
   /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
   'player:draw': (payload: DrawOp, ack: Ack) => void;
   /** «Малюнок» (28c): спроба вгадати слово; ack — лише { ok: true } чи drawing_miss, слово й відстань не повертаються. */

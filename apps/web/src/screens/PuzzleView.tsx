@@ -639,7 +639,7 @@ export function puzzleGrid(n: number, reveal: boolean): { cols: number; rows: nu
 }
 
 /** Поточна сторінка мініатюр: понад size сторінки міняються кожні PUZZLE_PAGE_MS. */
-function usePage(count: number, size: number, enabled: boolean): number {
+export function usePage(count: number, size: number, enabled: boolean): number {
   const pages = enabled ? Math.max(1, Math.ceil(count / size)) : 1;
   const [page, setPage] = useState(0);
   useEffect(() => {

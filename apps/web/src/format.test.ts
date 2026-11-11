@@ -392,3 +392,12 @@ describe('drawing texts (28c)', () => {
     expect(correctText(drawQ)).toBe('Соняшник');
   });
 });
+
+describe('jigsaw texts (29c)', () => {
+  const jigsawQ = { ...base, type: 'jigsaw', points: 300, photo: '/uploads/a.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, seed: 1, tabs: '0'.repeat(17), preview: false } as unknown as Question;
+  it('history shows the time', () => {
+    expect(answerText({ type: 'jigsaw', placed: 12, total: 12, done: true, timeMs: 47_300 } as Answer, jigsawQ)).toBe('Склав за 47,3 с');
+    expect(answerText({ type: 'jigsaw', placed: 5, total: 12, done: false, timeMs: 120_000 } as Answer, jigsawQ)).toBe('Не склав · 5 з 12');
+    expect(correctText(jigsawQ)).toBe('—');
+  });
+});

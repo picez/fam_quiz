@@ -58,6 +58,10 @@ import {
   type PuzzleInfo,
   type PuzzleTone,
   type PlayerPuzzle,
+  type PublicJigsaw,
+  type JigsawBoardView,
+  type JigsawInfo,
+  type PlayerJigsaw,
   type LetterWordsRow,
   type PublicLetterWords,
   type TimedListInfo,
@@ -186,6 +190,7 @@ import { letterWordsOf } from './letterwords';
 import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain';
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
+import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -271,7 +276,7 @@ function withoutBluffSecrets(question: Question): Question {
 function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
   if (answer === null) return answer;
   // «Головоломки» (28d): сітка гравця (grid) — значення, до розкриття її не бачить ніхто.
-  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle') return revealed ? answer : null;
+  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw') return revealed ? answer : null;
   return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
@@ -309,6 +314,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'letterwords' ? { letterwords: publicLetters(question, letters) } : {}),
     ...(question.type === 'moreless' ? { moreless: publicMoreLess(question) } : {}),
     ...(question.type === 'sudoku' || question.type === 'crossword' ? { puzzle: publicPuzzle(question) } : {}),
+    ...(question.type === 'jigsaw' ? { jigsaw: publicJigsaw(question) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -344,6 +350,11 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     audio: question.audio ? { duration: question.audio.duration, clip: question.audio } : null,
     reveal: question.reveal ?? null,
   };
+}
+
+/** Фото й сітка пазла: не таємниця (телефон ріже з нього шматочки). */
+function publicJigsaw(question: Extract<Question, { type: 'jigsaw' }>): PublicJigsaw {
+  return { photo: question.photo, aspect: question.aspect, focus: question.focus, rows: question.rows, cols: question.cols, tabs: question.tabs, preview: question.preview };
 }
 
 /** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
@@ -909,7 +920,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && !(play !== undefined && isPuzzle(play.question));
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && !(play !== undefined && isPuzzle(play.question));
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -1000,7 +1011,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && !isPuzzle(play.question);
   return {
     ...info,
     question,
@@ -1105,7 +1116,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && !isPuzzle(play.question);
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1607,6 +1618,77 @@ function puzzleInfo(state: GameState, forHost: boolean): PuzzleInfo | undefined 
   });
   if (revealed) rows.sort((a, b) => (b.points ?? 0) - (a.points ?? 0) || b.filled - a.filled);
   return { kind: question.type, boards: rows, solution: forHost || revealed ? solution : null };
+}
+
+/** Поточний пазл з його грою (будь-який етап запитання); null поза запитанням або для інших типів. */
+function currentJigsaw(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.jigsaw === undefined || play.question.type !== 'jigsaw') return null;
+  return { play: { ...play, jigsaw: play.jigsaw }, question: play.question };
+}
+
+/** Колір учасника команди: цифра '1'…'9' за місцем на відкритті (JigsawPlay.order), далі ті, хто прийшов пізніше; невідомий - '9'. */
+function jigsawTone(state: GameState, order: readonly string[] | undefined, teamId: string, memberId: string): string {
+  const opened = order ?? [];
+  const slots = [...opened, ...teamMembers(state, teamId).map((m) => m.id).filter((id) => !opened.includes(id))];
+  const slot = slots.indexOf(memberId);
+  return String(slot < 0 ? 9 : toneAt(slot));
+}
+
+/**
+ * Дошки «Пазла» (29c) для сцени й ведучого: поставлені шматочки кожного гравця (команди), навіть порожні (фото й так публічне).
+ * До reveal - порядок гравців; на reveal - склали за часом, далі за кількістю шматочків спадно.
+ */
+function jigsawInfo(state: GameState): JigsawInfo | undefined {
+  const open = currentJigsaw(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const revealed = state.phase === 'reveal';
+  const team = teamsOn(state);
+  const boards: JigsawBoardView[] = state.players.map((player) => {
+    const board = play.jigsaw.boards[player.id];
+    const placed = board?.placed ?? [];
+    const toneOf = (i: number) => {
+      const by = board?.by?.[i];
+      return by === undefined ? '9' : jigsawTone(state, play.jigsaw.order?.[player.id], player.id, by);
+    };
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      placed,
+      tones: team ? placed.map((_, i) => toneOf(i)).join('') : null,
+      total: jigsawTotal(question),
+      done: board?.doneMs != null,
+      timeMs: board?.doneMs ?? null,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+    };
+  });
+  if (revealed) boards.sort((a, b) => (a.done === b.done ? (a.done ? (a.timeMs ?? 0) - (b.timeMs ?? 0) : b.placed.length - a.placed.length) : a.done ? -1 : 1));
+  return { boards };
+}
+
+/**
+ * Власна дошка гравця (команди). held - лише чужі живі блоки товаришів (власні телефон знає сам); живість - від now; без now
+ * (зріз сам годинника не має) блоки показуються як записані, далі їх гасить годинник телефона.
+ */
+function playerJigsaw(state: GameState, actorId: string, memberId: string, now: number | undefined): PlayerJigsaw | undefined {
+  const open = currentJigsaw(state);
+  if (open === null) return undefined;
+  const { play } = open;
+  const board = jigsawOf(state, actorId);
+  const record = recordOf(state, state.questionIndex, actorId);
+  const holds = board === null ? {} : now === undefined ? (board.held ?? {}) : liveHolds(board, now);
+  const done = board?.doneMs != null;
+  return {
+    placed: board?.placed ?? [],
+    held: Object.entries(holds).flatMap(([piece, hold]) => (hold.by === memberId ? [] : [{ piece: Number(piece), tone: jigsawTone(state, play.jigsaw.order?.[actorId], actorId, hold.by) }])),
+    done,
+    canPlace: state.phase === 'question' && !state.paused && !done && record === undefined,
+    seq: board?.seq ?? 0,
+    timeMs: board?.doneMs ?? null,
+    result: state.phase === 'reveal' ? { points: record?.points ?? 0 } : null,
+  };
 }
 
 /** Власна сітка гравця (команди): значення бачить він і товариші; правильність (result) - лише на reveal. */
@@ -2532,6 +2614,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('letterwords', lettersInfo(state, forHost)),
     ...optional('moreless', moreLessInfo(state, forHost)),
     ...optional('puzzle', puzzleInfo(state, forHost)),
+    ...optional('jigsaw', jigsawInfo(state)),
     ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
@@ -2939,10 +3022,11 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
   return entry === undefined ? undefined : entry.answer;
 }
 
-export function playerView(state: GameState, playerId: string): PlayerView | null {
+export function playerView(state: GameState, playerId: string, now?: number): PlayerView | null {
   if (!teamsOn(state)) {
     const view = ownView(state, playerId);
-    return view === null ? null : { ...view, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
+    const jigsaw = playerJigsaw(state, playerId, playerId, now);
+    return view === null ? null : { ...view, me: jigsaw === undefined ? view.me : { ...view.me, jigsaw }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -2956,7 +3040,7 @@ export function playerView(state: GameState, playerId: string): PlayerView | nul
   return {
     ...view,
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,

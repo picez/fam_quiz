@@ -54,6 +54,8 @@ export type BuffBlock =
   | 'off_drawing'
   /** «Головоломки»: бафів немає (28d). */
   | 'off_puzzles'
+  /** «Пазл»: бафів немає (29c). */
+  | 'off_jigsaw'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
   /** На полі: у категорії клітинки немає власних запасних (9d). */
@@ -212,6 +214,8 @@ export type ErrorCode =
   | 'drawing_not_drawer' | 'drawing_stale' | 'drawing_full' | 'drawing_miss' | 'drawing_own'
   /** «Головоломки» (28d): пакет не для поточного запитання; сітку вже здано; клітинка поза сіткою чи недопустиме значення; задану клітинку судоку не змінити. */
   | 'puzzle_stale' | 'puzzle_done' | 'puzzle_cell' | 'puzzle_given'
+  /** «Пазл» (29c): подія не для поточного запитання; пазл складено; шматочка немає; уже поставлений товаришем; його тримає товариш; не на своєму місці. */
+  | 'jigsaw_stale' | 'jigsaw_done' | 'jigsaw_piece' | 'jigsaw_placed' | 'jigsaw_held' | 'jigsaw_miss'
   | 'duel_used'
   | 'duel_busy'
   | 'duel_empty'

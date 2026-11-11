@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LIMITS, type Question } from '@quiz/shared';
 import { t } from '../i18n';
@@ -38,5 +39,23 @@ describe('QuestionEditor drawing (28c)', () => {
     rerender(<QuestionEditor question={newQuestion('text')} onChange={onChange} types={questionTypesFor('classic')} />);
     fireEvent.click(screen.getByRole('button', { name: t('typeShort_drawing') }));
     expect(onChange.mock.calls.at(-1)?.[0]).toMatchObject({ type: 'drawing' });
+  });
+});
+
+describe('QuestionEditor points after a type switch (29c)', () => {
+  it('the points field shows the new type points on the first paint', () => {
+    const seen: string[] = [];
+    // Шар над редактором: його layout-ефект іде після DOM, але до звичайних ефектів поля — те, що побачить око.
+    function Probe({ question }: { question: Question }) {
+      useLayoutEffect(() => {
+        seen.push((screen.getByLabelText(t('pointsLabel')) as HTMLInputElement).value);
+      });
+      return <QuestionEditor question={question} onChange={vi.fn()} types={questionTypesFor('classic')} />;
+    }
+    const text = { ...newQuestion('text'), points: 100 } as Question;
+    const jigsaw = { ...newQuestion('jigsaw'), id: text.id, points: 777 } as Question;
+    const { rerender } = render(<Probe question={text} />);
+    rerender(<Probe question={jigsaw} />);
+    expect(seen).toEqual(['100', '777']);
   });
 });

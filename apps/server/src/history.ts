@@ -684,7 +684,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         answered: distinct(main.filter((a) => a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         accepted: distinct(main.filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.participantId)),
         cell: quiz === null ? null : cellResult(quiz, ref, nicknames, given, standings),
-        question: cloudRows === undefined ? question : { ...question, rows: cloudRows },
+        question: cloudRows === undefined || question.type !== 'survey' ? question : { ...question, rows: cloudRows },
         ...(cloudRows === undefined ? {} : { surveyFromCloud: true as const }),
         ...(ref?.bluff === undefined ? {} : { bluff: bluffResult(ref, nicknames) }),
         ...(ref?.letterwords === undefined || question.type !== 'letterwords' ? {} : { letterwords: ref.letterwords }),

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -862,6 +862,36 @@ describe('host history: answers', () => {
     expect(empty.room.state.phase).toBe('round_end');
     expect((await empty.detail()).questions).toEqual([]);
     await empty.local.app.close();
+  });
+
+  it('history shows a finished jigsaw', async () => {
+    const scheduler = new FakeScheduler();
+    const game = await start(jigsawQuiz(), scheduler);
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    step('lock');
+    for (let i = 0; i < 6 && !(game.room.state.phase === 'question' && game.room.state.plays[game.room.state.questionIndex].question.type === 'jigsaw'); i++) step('next');
+    const total = jigsaw.rows * jigsaw.cols;
+    const put = (who: string, piece: number) =>
+      expect(manager.jigsawPlace(game.room, who, { questionIndex: 0, piece, x: piece % jigsaw.cols, y: Math.floor(piece / jigsaw.cols), rot: 0 })).toEqual({ ok: true });
+    // Олена складає все (з паузами, щоб не впертися в частоту), Тарас ставить один шматочок.
+    for (let k = 0; k < total; k++) {
+      put(olena, k);
+      if (k % 6 === 5) scheduler.advance(1000);
+    }
+    put(taras, 0);
+    step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    const jig = result.questions.find((q) => q.question.type === 'jigsaw');
+    expect(jig?.responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'jigsaw', placed: total, total, done: true }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'jigsaw', placed: 1, total, done: false, timeMs: null }, accepted: false },
+    ]);
   });
 
   it('history shows a solved puzzle', async () => {

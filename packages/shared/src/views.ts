@@ -10,6 +10,7 @@ import type { GuidePage } from './guide';
 import type { LadderOutcomeKind } from './ladder';
 import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
+import type { JigsawAspect } from './jigsaw';
 import type { LikesView } from './likes';
 import type { RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
@@ -114,6 +115,8 @@ export interface PublicQuestion {
   moreless?: PublicMoreLess;
   /** Лише на судоку й кросворді (28d); ключа немає в інших типів. Розв'язку, слів і ключа тут немає. */
   puzzle?: PublicPuzzle;
+  /** Лише на запитанні «Пазл» (29c); ключа немає в інших типів. Фото не таємниця: телефон ріже з нього шматочки. */
+  jigsaw?: PublicJigsaw;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -346,6 +349,47 @@ export type PublicPuzzle =
       words: { number: number; row: number; col: number; dir: 'across' | 'down'; length: number; clue: string }[];
       keyCells: number[];
     };
+
+/** «Пазл» (29c), усім: фото, рамка, сітка й виступи; preview лише вмикає мініатюру готової картинки на телефоні. */
+export interface PublicJigsaw {
+  photo: string;
+  aspect: JigsawAspect;
+  focus: { x: number; y: number };
+  rows: number;
+  cols: number;
+  tabs: string;
+  preview: boolean;
+}
+
+/** Дошка гравця (команди) в «Пазлі» (29c). tones — лише в командах: цифра '1'…'9' (колір учасника) на кожен поставлений шматочок, паралельно placed. */
+export interface JigsawBoardView {
+  playerId: string;
+  nickname: string;
+  placed: number[];
+  tones: string | null;
+  total: number;
+  done: boolean;
+  timeMs: number | null;
+  /** Лише на reveal; інакше null. */
+  points: number | null;
+}
+
+export interface JigsawInfo {
+  /** До reveal — порядок гравців; на reveal — склали (за timeMs), далі за кількістю шматочків спадно. */
+  boards: JigsawBoardView[];
+}
+
+/** Власна дошка гравця (29c). held — лише чужі живі блоки товаришів по команді; result — лише на reveal. */
+export interface PlayerJigsaw {
+  placed: number[];
+  held: { piece: number; tone: string }[];
+  done: boolean;
+  /** Можна ставити: question, не пауза, пазл ще не складено. */
+  canPlace: boolean;
+  seq: number;
+  timeMs: number | null;
+  result: { points: number } | null;
+}
 
 /** Учасник команди в «Головоломках» (28d) і його колір: tone — цифра маски '1'…'9' (місце в команді на відкритті, з 9-го — 9). */
 export interface PuzzleTone {
@@ -1597,6 +1641,8 @@ interface BaseView {
   moreless?: MoreLessInfo;
   /** «Головоломки» (28d): лише на судоку й кросворді (question, locked, reveal); маски без значень, значення й розв'язок — після reveal; інакше ключа немає. */
   puzzle?: PuzzleInfo;
+  /** «Пазл» (29c): лише на такому запитанні (question, locked, reveal); інакше ключа немає. */
+  jigsaw?: JigsawInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -1844,6 +1890,8 @@ export interface PlayerView extends BaseView {
     moreless?: PlayerMoreLess;
     /** Власна сітка гравця (28d): лише на судоку й кросворді; інакше ключа немає. */
     puzzle?: PlayerPuzzle;
+    /** Власна дошка гравця (29c): лише на пазлі; інакше ключа немає. */
+    jigsaw?: PlayerJigsaw;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
@@ -1945,6 +1993,7 @@ export type LiveProgress =
   | { kind: 'moreless'; done: number; total: number; right: number }
   | { kind: 'drawing'; role: 'drawer' | 'guesser'; guessed: boolean }
   | { kind: 'puzzle'; filled: number; total: number; done: boolean }
+  | { kind: 'jigsaw'; placed: number; total: number; done: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -2040,6 +2089,8 @@ export interface HostView extends BaseView {
   moreless?: MoreLessInfo;
   /** Як у BaseView, але ведучому завжди ще й значення кожної дошки та розв'язок. */
   puzzle?: PuzzleInfo;
+  /** Як у BaseView. */
+  jigsaw?: JigsawInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */
