@@ -2731,7 +2731,7 @@ const uk = {
   jigsawPieceHeld: 'Шматочок {n} — тримає товариш',
   jigsawPreview: 'Готова картинка',
   jigsawProgress: 'На місці: {placed} з {total}',
-  jigsawDoneIn: 'Склали за {time} с. Чекаємо інших',
+  jigsawDoneIn: 'Готово за {time} с. Чекаємо інших',
   jigsawTimeUp: 'Час вийшов.',
   jigsawClosed: 'Запитання закрито.',
   jigsawOffline: 'Немає зв’язку — шматочок надішлеться, щойно він повернеться.',

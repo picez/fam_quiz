@@ -19760,7 +19760,7 @@ input.sudoku-editor-cell:focus-visible {
   justify-content: center;
   gap: 0.25rem;
   width: 100%;
-  max-height: 42vh;
+  max-height: 34vh;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;

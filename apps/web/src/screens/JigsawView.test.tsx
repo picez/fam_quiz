@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { jigsawTabs, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { t } from '../i18n';
@@ -119,6 +119,51 @@ describe('JigsawPlay', () => {
     expect(document.querySelector('[data-dragging="3"]')).toBeTruthy();
     fireEvent.pointerUp(el, { pointerId: 1, clientX: 30, clientY: 600 });
     expect(document.querySelector('[data-dragging]')).toBeNull();
+  });
+
+  it('a drag redraws only the lifted piece', async () => {
+    // Фото «завантажується» одразу: шматочки малюються з нього.
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1200);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(900);
+    vi.spyOn(HTMLImageElement.prototype, 'src', 'set').mockImplementation(function (this: HTMLImageElement) {
+      queueMicrotask(() => this.onload?.(new Event('load')));
+    });
+    vi.stubGlobal('Path2D', class {});
+    const drawImage = vi.fn();
+    const noop = () => undefined;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage, setTransform: noop, clearRect: noop, translate: noop, save: noop, restore: noop, clip: noop, fill: noop, stroke: noop } as never);
+    mount();
+    await act(async () => undefined);
+    expect(drawImage).toHaveBeenCalledTimes(12);
+    const el = pieceEl(3);
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 20, clientY: 20 });
+    // Перший рух: з'являється лише шматочок у пальці.
+    expect(drawImage).toHaveBeenCalledTimes(13);
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 40, clientY: 40 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 60, clientY: 60 });
+    expect(drawImage).toHaveBeenCalledTimes(13);
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 60, clientY: 600 });
+    vi.unstubAllGlobals();
+  });
+
+  it('a piece turns from the keyboard', () => {
+    mount();
+    const el = document.querySelector<HTMLElement>('.jigsaw-pile [data-rot="0"]')!;
+    const piece = Number(el.dataset.piece);
+    expect(el.tabIndex).toBe(0);
+    fireEvent.keyDown(el, { key: 'Enter' });
+    expect(pieceEl(piece).dataset.rot).toBe('1');
+    fireEvent.keyDown(pieceEl(piece), { key: ' ' });
+    expect(pieceEl(piece).dataset.rot).toBe('2');
+  });
+
+  it('pieces are not inside an image role', () => {
+    mount();
+    turnTo(5, 1);
+    dragTo(pieceEl(5), 1, 1);
+    const onFrame = document.querySelector('.jigsaw-frame [data-piece="5"]')!;
+    expect(onFrame.closest('[role="img"]')).toBeNull();
   });
 
   it('the preview shows only when allowed', () => {

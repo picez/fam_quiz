@@ -1567,7 +1567,7 @@
   "jigsawCrop": "Marco del encuadre: arrastra para elegir una parte de la foto",
   "jigsawCropHint": "Arrastra el marco para elegir una parte de la foto. Las líneas muestran cómo se corta en piezas.",
   "jigsawDefaultText": "Arma el rompecabezas.",
-  "jigsawDoneIn": "Hecho en {time} s. Esperando a los demás",
+  "jigsawDoneIn": "Listo en {time} s. Esperando a los demás",
   "jigsawFrame": "Marco del puzle",
   "jigsawHelp": "El jugador arma la imagen con las piezas en el móvil; un equipo arma un único rompecabezas común. Puntos: el más rápido recibe el precio completo, el resto menos; quien no termina recibe 0.",
   "jigsawNewShape": "Otra forma",
