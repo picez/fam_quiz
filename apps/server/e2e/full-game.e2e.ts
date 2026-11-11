@@ -28397,3 +28397,67 @@ async function spotdiffCrowd29d(sockets: Socket[]) {
 
   expect(problems).toEqual([]);
 }
+
+it('part 29i: more or less on a board cell — the stage and the other phone see who chooses, the pair and the picks', async () => {
+  try {
+    await morelessWatch29i();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
+
+async function morelessWatch29i() {
+  const host = await open('host29i', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', `host29i-${Date.now()}@example.com`);
+  const plain = (id: string, text: string, points: number) => ({ ...withPoints(withId(single, id), points), text, timeLimit: 30 });
+  const cell = moreLess28a('w1', 'Пари для Олі', PAIRS28A_TEAM, 60);
+  const round = boardRound(
+    'r29i',
+    [
+      { title: 'Порівняння', cells: [cell as never, plain('w12', 'Порівняння за 200?', 200), plain('w13', 'Порівняння за 400?', 400)] },
+      { title: 'Міста', cells: [plain('w21', 'Місто за 100?', 100), plain('w22', 'Місто за 200?', 200), plain('w23', 'Місто за 300?', 300)] },
+      { title: 'Річки', cells: [plain('w31', 'Річка за 100?', 100), plain('w32', 'Річка за 200?', 200), plain('w33', 'Річка за 300?', 300)] },
+    ],
+    { title: 'Поле 29i' },
+  );
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'end' }), title: 'Поле 29i' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Поле 29i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29i', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya29i', 375, 812);
+  const taras = await open('taras29i', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, olya, taras);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, olya, taras);
+
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Порівняння, 300', ...exact }).click();
+  await olya.locator('button.moreless-option').first().waitFor();
+  for (const [name, page] of [['stage', stage], ['phone', taras]] as const) {
+    await page.locator('.moreless-watch').waitFor();
+    await expect.poll(() => page.locator('.moreless-watch-chooser').textContent(), POLL).toBe('Вибирає Оля');
+    expect(await page.locator('button.moreless-option').count(), `buttons for a viewer on the ${name}`).toBe(0);
+  }
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['a']);
+  await expect.poll(() => taras.locator('.moreless-watch-picks li').count(), POLL).toBe(1);
+  await expect.poll(() => stage.locator('.moreless-watch-picks li').count(), POLL).toBe(1);
+  expect(await stage.locator('.moreless-watch').textContent()).not.toMatch(/[✓✗]/);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless29i-watch-stage');
+  await shot(taras, 'moreless29i-watch-phone');
+  await expectNoSideScroll(taras, 'moreless29i-watch-phone-360');
+  expect(problems).toEqual([]);
+}
