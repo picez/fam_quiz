@@ -112,6 +112,9 @@ import {
   letterWordsOf,
   moreLessOf,
   moreLessPick,
+  jigsawHold,
+  jigsawOf,
+  jigsawPlace,
   puzzleFill,
   puzzleFinish,
   puzzleOf,
@@ -148,7 +151,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -272,6 +275,8 @@ export interface Room {
   drawGuessRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:puzzle (28d): пакети клітинок людини (у команді — кожного учасника окремо). «Готово» його не рахує. Лише в пам'яті. */
   puzzleRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:jigsaw і player:jigsaw-hold (29c): одне на людину для обох подій. Лише в пам'яті. */
+  jigsawRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -593,6 +598,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'letterwords' ? letterWordsOf(state, id) : null,
     play?.question.type === 'moreless' ? moreLessOf(state, id) : null,
     play?.question.type === 'sudoku' || play?.question.type === 'crossword' ? puzzleOf(state, id) : null,
+    play?.question.type === 'jigsaw' ? jigsawOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -719,6 +725,7 @@ export class RoomManager {
       drawRate: new Map(),
       drawGuessRate: new Map(),
       puzzleRate: new Map(),
+      jigsawRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -797,6 +804,7 @@ export class RoomManager {
       drawRate: new Map(),
       drawGuessRate: new Map(),
       puzzleRate: new Map(),
+      jigsawRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1712,6 +1720,39 @@ export class RoomManager {
     return this.apply(room, puzzleFinish(room.state, who.id, questionIndex, this.now()));
   }
 
+  /**
+   * Шматочок «Пазла» (29c): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Ack лише { ok: true } чи відмова. Частота — одне вікно jigsawRate на постановки й «тримаю». Зміна йде commit з прапорцем puzzle:
+   * розсилка зрізів зливається в замикальному вікні, а завершення (останній шматочок) рушій закриває одразу, тож воно виходить без очікування.
+   */
+  jigsawPlace(room: Room, playerId: string, payload: { questionIndex: number; piece: number; x: number; y: number; rot: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.jigsawRate, playerId, now, JIGSAW_MOVES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    const { questionIndex, ...move } = payload;
+    return this.jigsawApply(room, who.id, jigsawPlace(room.state, who.id, playerId, questionIndex, move, now), now);
+  }
+
+  /** «Тримаю» учасника команди (29c): блок шматочка на 2 с для решти. Соло — без зміни. Те саме вікно частоти, що й у постановки. */
+  jigsawHold(room: Room, playerId: string, payload: { questionIndex: number; piece: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.jigsawRate, playerId, now, JIGSAW_MOVES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    return this.jigsawApply(room, who.id, jigsawHold(room.state, who.id, playerId, payload.questionIndex, payload.piece, now), now);
+  }
+
+  /** Зміна без завершення дошки зливається в замикальному вікні розсилки; завершення (doneMs) і закриття — одразу. */
+  private jigsawApply(room: Room, actorId: string, result: ReturnType<typeof jigsawPlace>, now: number): AckResult {
+    if (!result.ok) return { ok: false, error: result.error };
+    const finished = jigsawOf(result.state, actorId)?.doneMs != null && jigsawOf(room.state, actorId)?.doneMs == null;
+    if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
+    return { ok: true };
+  }
+
   /** Повний малюнок поточного запитання (28c) для sync: при підключенні й на draw:sync. null — запитання не «Малюнок» (чи не на question/locked/reveal). */
   drawSnapshot(room: Room): DrawingEvent | null {
     const drawing = drawingOf(room.state);
@@ -2164,6 +2205,7 @@ export class RoomManager {
     room.drawRate.delete(playerId);
     room.drawGuessRate.delete(playerId);
     room.puzzleRate.delete(playerId);
+    room.jigsawRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
