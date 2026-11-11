@@ -2,8 +2,14 @@
 
 export const SPOT_SLACK = 0.04; // частка ширини
 export const SPOT_MIN_PX = 24; // CSS px на екрані гравця
-export const SPOT_MIN_WIDTH = 200;
+/** Стеля допуску: на дуже вузькій картинці 24 px не роздувають зону влучання понад 8 % ширини. */
+export const SPOT_MAX_SLACK = 0.08;
+/** Ширина картинки на екрані гравця (CSS px): вертикальні картинки поруч на телефоні бувають вузькими. */
+export const SPOT_MIN_WIDTH = 60;
 export const SPOT_MAX_WIDTH = 4000;
+/** Співвідношення сторін (ширина / висота): вужче за 1 : 2 чи ширше за 3 : 1 на телефоні стає надто дрібним. */
+export const SPOT_MIN_ASPECT = 0.5;
+export const SPOT_MAX_ASPECT = 3;
 export const SPOT_MIN_R = 0.015;
 export const SPOT_MAX_R = 0.25;
 export const SPOT_DEFAULT_R = 0.06;
@@ -18,9 +24,9 @@ export interface SpotCircle {
   r: number;
 }
 
-/** Допуск у ширинах картинки: не менше 4 % і не менше 24 px на екрані гравця. */
+/** Допуск у ширинах картинки: 24 px на екрані гравця, але не менше 4 % і не більше 8 % ширини. */
 export function spotSlack(width: number): number {
-  return Math.max(SPOT_SLACK, SPOT_MIN_PX / width);
+  return Math.max(SPOT_SLACK, Math.min(SPOT_MIN_PX / width, SPOT_MAX_SLACK));
 }
 
 /**

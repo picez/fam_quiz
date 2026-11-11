@@ -101,6 +101,8 @@ import {
   SPOTDIFF_TAPS_PER_SECOND,
   SPOTDIFF_MISSES,
   SPOTDIFF_FREEZE_MS,
+  SPOT_MIN_ASPECT,
+  SPOT_MAX_ASPECT,
 } from './index';
 
 const single = {
@@ -3021,6 +3023,16 @@ describe('spotdiff question (29d)', () => {
     expect(valid(questionSchema, spotQ({ timeLimit: 601 }))).toBe(false);
     expect(valid(questionSchema, spotQ({ original: 'https://x/y.jpg' }))).toBe(false);
     expect(valid(questionSchema, spotQ({ aspect: 0.1 }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ aspect: 0.49 }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ aspect: 3.01 }))).toBe(false);
+    expect(valid(questionSchema, spotQ({ aspect: 4 }))).toBe(false);
+  });
+
+  it('a spotdiff aspect on the edges 0.5 and 3 parses', () => {
+    expect(SPOT_MIN_ASPECT).toBe(0.5);
+    expect(SPOT_MAX_ASPECT).toBe(3);
+    expect(qIssues(spotQ({ aspect: 0.5 }))).toEqual([]);
+    expect(qIssues(spotQ({ aspect: 3 }))).toEqual([]);
   });
 
   it('a spotdiff plays only in classic and puzzles rounds', () => {
@@ -3072,9 +3084,10 @@ describe('spotdiff question (29d)', () => {
   it('the spotdiff event is limited', () => {
     const tap = { questionIndex: 7, x: 0.5, y: 0.5, width: 320 };
     expect(valid(spotdiffTapSchema, tap)).toBe(true);
-    expect(valid(spotdiffTapSchema, { ...tap, width: 199 })).toBe(false);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 59 })).toBe(false);
     expect(valid(spotdiffTapSchema, { ...tap, width: 4001 })).toBe(false);
-    expect(valid(spotdiffTapSchema, { ...tap, width: 200 })).toBe(true);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 60 })).toBe(true);
+    expect(valid(spotdiffTapSchema, { ...tap, width: 4000 })).toBe(true);
     expect(valid(spotdiffTapSchema, { ...tap, x: -0.1 })).toBe(false);
     expect(valid(spotdiffTapSchema, { ...tap, y: 1.1 })).toBe(false);
     expect(valid(spotdiffTapSchema, { ...tap, extra: 1 })).toBe(false);

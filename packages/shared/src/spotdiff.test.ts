@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aspectsMatch, spotHit, spotPoints, spotSlack } from './spotdiff';
+import { SPOT_MAX_SLACK, SPOT_MIN_WIDTH, aspectsMatch, spotHit, spotPoints, spotSlack } from './spotdiff';
 
 const one = { aspect: 2, spots: [{ x: 0.5, y: 0.5, r: 0.05 }] };
 const none = new Set<number>();
@@ -14,10 +14,19 @@ describe('spotdiff geometry', () => {
 
   it('the slack grows to 24 px on a small picture', () => {
     expect(spotSlack(1000)).toBe(0.04);
+    expect(spotSlack(400)).toBeCloseTo(0.06, 9);
     expect(spotSlack(300)).toBe(0.08);
-    expect(spotSlack(200)).toBe(0.12);
     expect(spotHit(one, 0.63, 0.5, 300, none)).toBe(0);
     expect(spotHit(one, 0.632, 0.5, 300, none)).toBeNull();
+  });
+
+  it('the slack stops at 8 % on a very narrow picture', () => {
+    expect(spotSlack(200)).toBe(0.08);
+    expect(spotSlack(60)).toBe(0.08);
+    expect(SPOT_MAX_SLACK).toBe(0.08);
+    expect(SPOT_MIN_WIDTH).toBe(60);
+    expect(spotHit(one, 0.63, 0.5, 100, none)).toBe(0);
+    expect(spotHit(one, 0.632, 0.5, 100, none)).toBeNull();
   });
 
   it('the nearest circle wins', () => {

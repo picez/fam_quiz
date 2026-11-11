@@ -35,16 +35,16 @@
 
 - **Назва.** Тип називається `'spotdiff'` і стоїть у `QUESTION_TYPES` одразу після `'jigsaw'`. До `PUZZLE_TYPES` **не** додається. `PUZZLES_ROUND_TYPES` стає `[...PUZZLE_TYPES, 'jigsaw', 'spotdiff']`.
 - **Картинки зберігаються в окремих полях `original` і `changed`, а `imageUrl` мусить бути `null`** (`spotdiff_image`, як `jigsaw_image`): загальний `QuestionImage` не повинен малювати третю картинку. Однакові адреси дають `spotdiff_same`. Відео, аудіо й `reveal` дають `spotdiff_video`, а `hint` дає `spotdiff_hint`.
-- **Співвідношення сторін.** Сервер не може виміряти картинку, тож `aspect` (ширина / висота) записує редактор з **першої** картинки, у межах `LIMITS.pinMinAspect…pinMaxAspect`. Другу картинку редактор приймає лише тоді, коли її співвідношення відрізняється не більше ніж на `SPOT_ASPECT_TOLERANCE = 0.02` (`|a₂/a₁ − 1|`). Інакше картинка не зберігається, і редактор показує `spotdiffAspectMismatch`. Якщо замінити першу картинку на іншу з іншим співвідношенням, друга картинка й кола очищаються. Обидві картинки малюються в однакових рамках `aspect` з `object-fit: fill`.
+- **Співвідношення сторін.** Сервер не може виміряти картинку, тож `aspect` (ширина / висота) записує редактор з **першої** картинки, у межах `SPOT_MIN_ASPECT…SPOT_MAX_ASPECT` (0.5…3; фінальна хвиля: вужче, ніж у точки). Другу картинку редактор приймає лише тоді, коли її співвідношення відрізняється не більше ніж на `SPOT_ASPECT_TOLERANCE = 0.02` (`|a₂/a₁ − 1|`). Інакше картинка не зберігається, і редактор показує `spotdiffAspectMismatch`. Якщо замінити першу картинку на іншу з іншим співвідношенням, друга картинка й кола очищаються. Обидві картинки малюються в однакових рамках `aspect` з `object-fit: fill`.
 - **Запитання:**
   ```ts
   { ...base, type: 'spotdiff',
     timeLimit: int 25…600,
     original: string /* IMAGE_URL */, changed: string /* IMAGE_URL */,
-    aspect: number /* pinMinAspect…pinMaxAspect */,
+    aspect: number /* SPOT_MIN_ASPECT…SPOT_MAX_ASPECT (0.5…3) */,
     spots: { x: 0…1; y: 0…1; r: 0.015…0.25 }[] /* 1…10 */ }
   ```
-- **Влучання** `spotHit(question, x, y, width, found)`. Відстань рахується в ширинах картинки: `d = hypot(x − s.x, (y − s.y) / aspect)`. Кандидатами є незнайдені кола з `d ≤ s.r + spotSlack(width) + 1e-9`, і з них перемагає найменше `d − s.r`. Якщо кандидатів немає, але тап зачепив уже знайдене коло, результат `'found'`: це не промах, і лічильник не змінюється. Інакше результат `null` (промах). Ширина в події обмежена `200…4000` (`SPOT_MIN_WIDTH`, `SPOT_MAX_WIDTH`), тож найбільший допуск — 0.12 ширини. Обман із підробленою шириною нічого більшого не дає.
+- **Влучання** `spotHit(question, x, y, width, found)`. Відстань рахується в ширинах картинки: `d = hypot(x − s.x, (y − s.y) / aspect)`. Кандидатами є незнайдені кола з `d ≤ s.r + spotSlack(width) + 1e-9`, і з них перемагає найменше `d − s.r`. Якщо кандидатів немає, але тап зачепив уже знайдене коло, результат `'found'`: це не промах, і лічильник не змінюється. Інакше результат `null` (промах). Ширина в події обмежена `60…4000` (`SPOT_MIN_WIDTH`, `SPOT_MAX_WIDTH`), а допуск має стелю `SPOT_MAX_SLACK = 0.08`: `spotSlack(width) = max(0.04, min(24 / width, 0.08))`, тож найбільший допуск — 0.08 ширини. Обман із підробленою шириною нічого більшого не дає.
 - **Тапати можна по будь-якій картинці.** Телефон рахує `x`, `y` відносно тієї картинки, по якій тапнули. Координати в обох однакові.
 - **Стан** (`game.ts`):
   ```ts
@@ -105,7 +105,7 @@
 ## Review Focus
 
 1. **Запитання після попереднього раунду.** Тап із номером у межах раунду приймається, а з `state.questionIndex` (коли вони різні) дає `spotdiff_stale`. Тести: задача 3 `taps after an earlier round by the round-local number`; задача 5 `taps through the socket after a classic round`; задача 9 — сценарій після класики.
-2. **Тап трохи мимо на маленькому телефоні.** На ширині 300 px допуск 0.08 ширини (24 px), на 1000 px — 0.04. Тап за межею допуску вже промах, а ширина менша за 200 відкидається схемою. Тести: задача 1 `the slack grows to 24 px on a small picture`, задача 2 `the spotdiff event is limited`.
+2. **Тап трохи мимо на маленькому телефоні.** На ширині 300 px допуск 0.08 ширини (24 px), на 1000 px — 0.04. Тап за межею допуску вже промах, а ширина менша за 60 відкидається схемою; допуск не більший за 0.08 ширини. Тести: задача 1 `the slack grows to 24 px on a small picture`, задача 2 `the spotdiff event is limited`.
 3. **Місця не витікають до розкриття.** Ні базовий зріз (сцена, телефони), ні `PublicQuestion` не містять координат кіл до `reveal`. Телефон бачить лише власні (командні) знахідки, а суперник — лише кількість. Тест: задача 4 `spots stay secret until reveal`.
 4. **Тап по вже знайденому й заморозка в команді.** Тап по колу, яке знайшов товариш, не рахується промахом. Заморозка одного учасника не морозить товариша. Тапи під час заморозки не змінюють стан, а влучання обнуляє лічильник. Тести: задача 3 `three misses freeze for a second` і `teams share one board, freezes are personal`.
 5. **Тип не в тому раунді чи з поганими картинками.** Бліц, фінал, поле, ставки, аукціон, вибування, виживання, мільйонер, запасні й дуель дають помилку; класика й «Головоломки» проходять. Однакові картинки, `imageUrl` не null, 0 або 11 кіл — помилки. Тест: задача 2 `a spotdiff plays only in classic and puzzles rounds` і `refuses a broken spotdiff`.
@@ -122,7 +122,8 @@
 ```ts
 export const SPOT_SLACK = 0.04;          // частка ширини
 export const SPOT_MIN_PX = 24;           // CSS px на екрані гравця
-export const SPOT_MIN_WIDTH = 200;
+export const SPOT_MAX_SLACK = 0.08;          // стеля допуску (фінальна хвиля)
+export const SPOT_MIN_WIDTH = 60;
 export const SPOT_MAX_WIDTH = 4000;
 export const SPOT_MIN_R = 0.015;
 export const SPOT_MAX_R = 0.25;
@@ -130,8 +131,10 @@ export const SPOT_DEFAULT_R = 0.06;
 export const SPOT_MIN_COUNT = 1;
 export const SPOT_MAX_COUNT = 10;
 export const SPOT_ASPECT_TOLERANCE = 0.02;
+export const SPOT_MIN_ASPECT = 0.5;
+export const SPOT_MAX_ASPECT = 3;
 export interface SpotCircle { x: number; y: number; r: number }
-export function spotSlack(width: number): number;                       // max(SPOT_SLACK, SPOT_MIN_PX / width)
+export function spotSlack(width: number): number;                       // max(SPOT_SLACK, min(SPOT_MIN_PX / width, SPOT_MAX_SLACK))
 export function spotHit(question: { aspect: number; spots: readonly SpotCircle[] }, x: number, y: number, width: number, found: ReadonlySet<number>): number | 'found' | null;
 export function spotPoints(base: number, found: number, total: number): number;
 export function aspectsMatch(a: number, b: number): boolean;             // |b/a − 1| ≤ SPOT_ASPECT_TOLERANCE
@@ -140,7 +143,7 @@ export function aspectsMatch(a: number, b: number): boolean;             // |b/a
 
 - [ ] **Step 1: Write the failing tests** (`spotdiff.test.ts`), для `aspect: 2` і кола `{ x: 0.5, y: 0.5, r: 0.05 }`:
   - `hits inside the circle plus four percent` — ширина 1000: `(0.59, 0.5)` → 0; `(0.591, 0.5)` → null; `(0.5, 0.68)` → 0 (вертикаль ділиться на aspect); `(0.5, 0.682)` → null.
-  - `the slack grows to 24 px on a small picture` — `spotSlack(1000) === 0.04`, `spotSlack(300) === 0.08`, `spotSlack(200) === 0.12`; ширина 300: `(0.63, 0.5)` → 0, `(0.632, 0.5)` → null.
+  - `the slack grows to 24 px on a small picture` — `spotSlack(1000) === 0.04`, `spotSlack(300) === 0.08`, `spotSlack(200) === 0.08` (стеля); ширина 300: `(0.63, 0.5)` → 0, `(0.632, 0.5)` → null.
   - `the nearest circle wins` — кола A `{0.3,0.5,0.05}`, B `{0.42,0.5,0.05}`, ширина 1000, тап `(0.37, 0.5)` → 1; з `found {1}` → 0; з `found {0,1}` → `'found'`; тап `(0.9, 0.9)` з `found {0,1}` → null.
   - `bad taps miss` — `NaN`, `x: 1.2` → null.
   - `points split by the count, all found is the full price` — `spotPoints(300, 2, 7) === 86`, `spotPoints(300, 7, 7) === 300`, `spotPoints(100, 1, 3) === 33`, `spotPoints(100, 2, 3) === 67`, `spotPoints(300, 0, 5) === 0`.
@@ -187,7 +190,7 @@ git commit -m "feat(shared): 29d spot-the-difference geometry — a hit within t
 z.object({ ...base, type: z.literal('spotdiff'),
   timeLimit: z.number().int().min(LIMITS.minSpotdiffTime).max(LIMITS.maxPuzzleTime),
   original: z.string().regex(IMAGE_URL), changed: z.string().regex(IMAGE_URL),
-  aspect: z.number().finite().min(LIMITS.pinMinAspect).max(LIMITS.pinMaxAspect),
+  aspect: z.number().finite().min(SPOT_MIN_ASPECT).max(SPOT_MAX_ASPECT),
   spots: z.array(z.object({ x: share01, y: share01, r: z.number().finite().min(SPOT_MIN_R).max(SPOT_MAX_R) })).min(SPOT_MIN_COUNT).max(SPOT_MAX_COUNT) })
 // events.ts — questionIndex: номер у раунді, без верхньої межі
 export const spotdiffTapSchema = z.object({ questionIndex: z.number().int().nonnegative(), x: share01, y: share01,
@@ -471,7 +474,7 @@ export function SpotdiffPictures(props: { spotdiff: PublicSpotdiff; circles: { x
 - [ ] **Step 1: Write the failing tests:**
   - `useSpotdiff.test.ts`:
     - `a tap sends the round-local number and the width` — `tap(0.5, 0.4, 288)` з `questionIndex 0` → `send('player:spotdiff', { questionIndex: 0, x: 0.5, y: 0.4, width: 288 })`;
-    - `a tiny width is raised to the minimum` — `tap(…, 150)` → `width: 200`;
+    - `a tiny width is raised to the minimum` — `tap(…, 40)` → `width: 60`;
     - `a freeze blocks taps for a second` (fake timers) — ack `spotdiff_freeze` → `frozen` true, `tap` нічого не надсилає; через 1000 мс знову надсилає;
     - `a miss shows a cross that fades` — ack `spotdiff_miss` → один елемент у `misses`, через 600 мс порожньо.
   - `SpotdiffView.test.tsx`:

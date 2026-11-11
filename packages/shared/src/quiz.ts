@@ -8,7 +8,7 @@ import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
-import { SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
+import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
 export const LIMITS = {
   questionText: 300,
@@ -231,8 +231,11 @@ export const LIMITS = {
   minJigsawTime: 25,
   defaultJigsawTime: 120,
   defaultJigsawPoints: 300,
+  /** «Знайди відмінності» (29d): мінімум часу, с (як у пазла). */
   minSpotdiffTime: 25,
+  /** Типовий час «Знайди відмінності», с. */
   defaultSpotdiffTime: 90,
+  /** Типові бали «Знайди відмінності»: повна ціна за всі кола, частина — пропорційно. */
   defaultSpotdiffPoints: 300,
 } as const;
 
@@ -668,8 +671,8 @@ export const questionSchema = z
       /** Дві картинки (окремі поля: imageUrl мусить бути null, щоб загальна картинка не малювалась третьою). */
       original: z.string().regex(IMAGE_URL),
       changed: z.string().regex(IMAGE_URL),
-      /** Ширина / висота; записує редактор з першої картинки. */
-      aspect: z.number().finite().min(LIMITS.pinMinAspect).max(LIMITS.pinMaxAspect),
+      /** Ширина / висота; записує редактор з першої картинки. Вужче, ніж у точки: 1 : 2 … 3 : 1, щоб на телефоні картинки лишались помітними. */
+      aspect: z.number().finite().min(SPOT_MIN_ASPECT).max(SPOT_MAX_ASPECT),
       /** Кола відмінностей: центр — частки ширини й висоти, радіус — частка ширини. */
       spots: z
         .array(z.object({ x: share01, y: share01, r: z.number().finite().min(SPOT_MIN_R).max(SPOT_MAX_R) }))
