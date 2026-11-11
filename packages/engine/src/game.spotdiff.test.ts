@@ -85,14 +85,42 @@ describe('spotdiff: the engine', () => {
     const three = tap(sure(two), 'p3', MISS, t);
     expect(three.ok && three.outcome).toBe('freeze');
     const frozen = sure(three);
-    expect(spotdiffOf(frozen, 'p3')).toMatchObject({ misses: { p3: 0 }, frozenUntil: { p3: t + 1000 }, found: [0] });
+    expect(spotdiffOf(frozen, 'p3')).toMatchObject({ misses: { p3: 3 }, frozenUntil: { p3: t + 1000 }, found: [0] });
     // під час заморозки тап ігнорується й не рахується: відмова, стан той самий
     expect(tap(frozen, 'p3', at(1), t + 999)).toEqual({ ok: false, error: 'spotdiff_frozen' });
     expect(tap(frozen, 'p3', MISS, t + 999)).toEqual({ ok: false, error: 'spotdiff_frozen' });
-    expect(spotdiffOf(frozen, 'p3')!.misses).toEqual({ p3: 0 });
+    expect(spotdiffOf(frozen, 'p3')!.misses).toEqual({ p3: 3 });
     const after = tap(frozen, 'p3', at(1), t + 1000);
     expect(after.ok && after.outcome).toBe('hit');
     expect(spotdiffOf(sure(after), 'p3')!.found).toEqual([0, 1]);
+  });
+
+  it('the freeze grows with every miss in a row (1, 2, 3, 5, 5 s) and a hit resets the count', () => {
+    let cur = fresh();
+    let t = T(cur) + 1000;
+    const frozenFor: number[] = [];
+    for (let k = 1; k <= 7; k++) {
+      const r = tap(cur, 'p3', MISS, t);
+      cur = sure(r);
+      expect(spotdiffOf(cur, 'p3')!.misses).toEqual({ p3: k });
+      if (k < 3) {
+        expect(r.ok && r.outcome).toBe('miss');
+        t += 10;
+        continue;
+      }
+      expect(r.ok && r.outcome).toBe('freeze');
+      const ms = spotdiffOf(cur, 'p3')!.frozenUntil.p3 - t;
+      frozenFor.push(ms);
+      // тап під час заморозки не рахується
+      expect(tap(cur, 'p3', MISS, t + ms - 1)).toEqual({ ok: false, error: 'spotdiff_frozen' });
+      t += ms;
+    }
+    expect(frozenFor).toEqual([1000, 2000, 3000, 4000, 5000]);
+    expect(spotdiffOf(cur, 'p3')!.misses).toEqual({ p3: 7 });
+    const reset = hit(cur, 'p3', 0, t);
+    expect(spotdiffOf(reset, 'p3')!.misses).toEqual({ p3: 0 });
+    const again = tap(reset, 'p3', MISS, t + 10);
+    expect(again.ok && again.outcome).toBe('miss');
   });
 
   it('a found circle is not a miss', () => {
@@ -246,7 +274,7 @@ describe('spotdiff: the engine', () => {
     expect(tap(a, 't1', at(1), t + 10, 'm3')).toEqual({ ok: false, error: 'not_found' });
     let b = a;
     for (let k = 0; k < 3; k++) b = sure(tap(b, 't1', MISS, t + 100 + k, 'm1'));
-    expect(spotdiffOf(b, 't1')).toMatchObject({ frozenUntil: { m1: t + 102 + 1000 }, misses: { m1: 0 } });
+    expect(spotdiffOf(b, 't1')).toMatchObject({ frozenUntil: { m1: t + 102 + 1000 }, misses: { m1: 3 } });
     expect(tap(b, 't1', at(1), t + 200, 'm1')).toEqual({ ok: false, error: 'spotdiff_frozen' });
     const c = hit(b, 't1', 1, t + 200, 'm2');
     expect(spotdiffOf(c, 't1')).toMatchObject({ found: [0, 1], by: ['m1', 'm2'] });

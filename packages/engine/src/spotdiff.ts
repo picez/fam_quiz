@@ -1,4 +1,4 @@
-import { questionPrice, rulesOf, SPOT_MAX_WIDTH, SPOT_MIN_WIDTH, SPOTDIFF_FREEZE_MS, SPOTDIFF_MISSES, spotHit, spotPoints, type ErrorCode, type Grade, type Question, type SpotdiffAnswer } from '@quiz/shared';
+import { questionPrice, rulesOf, SPOT_MAX_WIDTH, SPOT_MIN_WIDTH, spotdiffFreezeMs, spotHit, spotPoints, type ErrorCode, type Grade, type Question, type SpotdiffAnswer } from '@quiz/shared';
 import { withPlay } from './blitz';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { autoLock, fail, recordOf, roundQuestionNumber, type AnswerRecord, type GameState, type Play, type Result, type SpotdiffBoard, type SpotdiffPlay } from './game';
@@ -7,7 +7,7 @@ import { memberOf, teamsOn } from './teams';
 import { limitMsOf, timeOverFor } from './timing';
 
 // «Знайди відмінності» (29d): кожен гравець (команда — одна спільна дошка) тапає по картинках; сервер перевіряє влучання з допуском.
-// Бали: усі знайдені — повна ціна; інакше round(ціна × знайдено / усього). Після SPOTDIFF_MISSES промахів підряд людина замерзає.
+// Бали: усі знайдені — повна ціна; інакше round(ціна × знайдено / усього). Після SPOTDIFF_MISSES промахів підряд людина замерзає, і кожен наступний промах підряд подовжує заморозку (spotdiffFreezeMs).
 
 export type SpotdiffQuestion = Extract<Question, { type: 'spotdiff' }>;
 type SpotdiffQuestionPlay = Play & { question: SpotdiffQuestion; spotdiff: SpotdiffPlay };
@@ -70,8 +70,8 @@ function spotdiffRefusal(state: GameState, actorId: string, memberId: string, qu
 
 /**
  * Тап людини memberId за гравця (команду) actorId у (x, y) — частки картинки — при ширині картинки width CSS px.
- * Влучання — нове коло, промахи людини обнуляються; тап по вже знайденому — spotdiff_found без змін; промах — лічильник + 1,
- * на SPOTDIFF_MISSES — обнулення й заморозка на SPOTDIFF_FREEZE_MS. Останнє коло — doneMs, запис, autoLock.
+ * Влучання — нове коло, промахи людини обнуляються; тап по вже знайденому — spotdiff_found без змін; промах — лічильник + 1
+ * (після заморозки не обнуляється), від SPOTDIFF_MISSES — заморозка на spotdiffFreezeMs(лічильник): 1, 2, 3… до 5 с. Останнє коло — doneMs, запис, autoLock.
  */
 export function spotdiffTap(state: GameState, actorId: string, memberId: string, questionIndex: number, tap: { x: number; y: number; width: number }, now: number): SpotTap {
   const checked = spotdiffRefusal(state, actorId, memberId, questionIndex, now);
@@ -85,11 +85,12 @@ export function spotdiffTap(state: GameState, actorId: string, memberId: string,
   const withBoard = (board: SpotdiffBoard): SpotdiffQuestionPlay => ({ ...play, spotdiff: { ...play.spotdiff, boards: { ...play.spotdiff.boards, [actorId]: board } } });
   if (hit === null) {
     const misses = (current.misses[memberId] ?? 0) + 1;
-    const freeze = misses >= SPOTDIFF_MISSES;
+    const freezeMs = spotdiffFreezeMs(misses);
+    const freeze = freezeMs > 0;
     const written: SpotdiffBoard = {
       ...current,
-      misses: { ...current.misses, [memberId]: freeze ? 0 : misses },
-      frozenUntil: freeze ? { ...current.frozenUntil, [memberId]: now + SPOTDIFF_FREEZE_MS } : current.frozenUntil,
+      misses: { ...current.misses, [memberId]: misses },
+      frozenUntil: freeze ? { ...current.frozenUntil, [memberId]: now + freezeMs } : current.frozenUntil,
     };
     return { ok: true, state: withPlay(state, withBoard(written)), outcome: freeze ? 'freeze' : 'miss' };
   }
