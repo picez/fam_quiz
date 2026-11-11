@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SPOTDIFF_FREEZE_MS, SPOTDIFF_TAPS_PER_SECOND } from '@quiz/shared';
+import { defaultTeams, SPOTDIFF_FREEZE_MS, SPOTDIFF_TAPS_PER_SECOND } from '@quiz/shared';
 import { spotdiff, spotdiffQuiz } from '@quiz/engine/testing';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { RoomManager, type Identity, type Room } from './manager';
@@ -20,12 +20,16 @@ function enter(manager: RoomManager, room: Room, nickname: string) {
 }
 
 /** Після першого раунду відкрите «Знайди відмінності»: номер у раунді 0, індекс у plays 1. */
-function spotRoom(names: string[]) {
+function spotRoom(names: string[], teams = false) {
   const scheduler = new FakeScheduler();
   const manager = new RoomManager(scheduler, () => 0.5);
-  const room = manager.create(spotdiffQuiz());
+  const room = manager.create(spotdiffQuiz(teams ? { teams: defaultTeams(2) } : {}));
   manager.connect(room, HOST);
   const people = names.map((name) => enter(manager, room, name));
+  if (teams) {
+    const [red, blue] = room.state.teams!.list.map((t) => t.id);
+    people.forEach((who, i) => expect(manager.host(room, { type: 'team-assign', memberId: who.playerId, teamId: i % 2 === 0 ? red : blue })).toEqual({ ok: true }));
+  }
   const step = (type: 'start' | 'next' | 'lock') => expect(manager.host(room, { type })).toEqual({ ok: true });
   step('start');
   step('next');
@@ -53,10 +57,11 @@ describe('spotdiff (29d) in the room manager', () => {
     scheduler.advance(200);
     expect(manager.spotdiffTap(room, olena.playerId, MISS)).toEqual({ ok: false, error: 'spotdiff_miss' });
     scheduler.advance(200);
+    const frozenAt = scheduler.now();
     expect(manager.spotdiffTap(room, olena.playerId, MISS)).toEqual({ ok: false, error: 'spotdiff_freeze' });
     const board = room.state.plays[1].spotdiff?.boards[olena.playerId];
     expect(board?.misses[olena.playerId]).toBe(0);
-    expect(board?.frozenUntil[olena.playerId]).toBeGreaterThan(0);
+    expect(board?.frozenUntil[olena.playerId]).toBe(frozenAt + SPOTDIFF_FREEZE_MS);
     expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: false, error: 'spotdiff_frozen' });
     scheduler.advance(SPOTDIFF_FREEZE_MS);
     expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: true });
@@ -72,6 +77,20 @@ describe('spotdiff (29d) in the room manager', () => {
     expect(manager.spotdiffTap(room, taras.playerId, tapAt(1))).toEqual({ ok: true });
     scheduler.advance(1000);
     expect(manager.spotdiffTap(room, olena.playerId, tapAt(1))).toEqual({ ok: true });
+  });
+
+  it('in a team each member has an own rate window', () => {
+    const { manager, room, people } = spotRoom(['Олена', 'Тарас', 'Петро', 'Ганна'], true);
+    const [olena, , petro] = people;
+    const team = room.state.teams!.members.find((m) => m.id === olena.playerId)!.teamId;
+    expect(room.state.teams!.members.find((m) => m.id === petro.playerId)!.teamId).toBe(team);
+    expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: true });
+    for (let k = 1; k < SPOTDIFF_TAPS_PER_SECOND; k++) expect(manager.spotdiffTap(room, olena.playerId, tapAt(0))).toEqual({ ok: false, error: 'spotdiff_found' });
+    // товариш має своє вікно: його шість тапів не відсікаються
+    for (let k = 0; k < SPOTDIFF_TAPS_PER_SECOND; k++) expect(manager.spotdiffTap(room, petro.playerId, tapAt(0))).toEqual({ ok: false, error: 'spotdiff_found' });
+    expect(manager.spotdiffTap(room, olena.playerId, tapAt(1))).toEqual({ ok: false, error: 'too_soon' });
+    expect(manager.spotdiffTap(room, petro.playerId, tapAt(1))).toEqual({ ok: false, error: 'too_soon' });
+    expect(room.state.plays[1].spotdiff?.boards[team]?.found).toEqual([0]);
   });
 
   it('a hit goes out at once, a miss is merged', () => {

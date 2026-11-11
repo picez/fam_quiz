@@ -1764,7 +1764,8 @@ export class RoomManager {
     const { questionIndex, ...tap } = payload;
     const result = spotdiffTap(room.state, who.id, playerId, questionIndex, tap, now);
     if (!result.ok) return { ok: false, error: result.error };
-    this.commit(room, result.state, now, result.outcome !== 'hit' && result.state.phase === room.state.phase);
+    // Промах фази не змінює (закриває лише останнє влучання), тож для нього вистачає замикального вікна.
+    this.commit(room, result.state, now, result.outcome !== 'hit');
     if (result.outcome === 'hit') return { ok: true };
     return { ok: false, error: result.outcome === 'miss' ? 'spotdiff_miss' : 'spotdiff_freeze' };
   }
