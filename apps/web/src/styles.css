@@ -19085,9 +19085,41 @@ input.sudoku-editor-cell:focus-visible {
   font-size: 1.25rem;
 }
 
-.puzzle-key.puzzle-erase {
-  grid-column: 1 / -1;
+.puzzle-key.puzzle-erase,
+.puzzle-key.puzzle-pencil {
+  grid-column: span 3;
   font-size: 1rem;
+}
+
+/* Перемикач олівця: ввімкнений — акцентна рамка й заливка, видно здалеку. */
+.puzzle-pencil[aria-pressed='true'] {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  font-weight: 800;
+}
+
+/* Позначки-кандидати: цифри 1–6 сіткою 2×3 (цифра d на місці d − 1). */
+.sudoku-pencil {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  width: 100%;
+  height: 100%;
+  font-size: 0.55em;
+  line-height: 1;
+  color: var(--muted);
+}
+
+/* Виділена клітинка має заливку акценту: сірі позначки там не читаються, тож беруть колір цифри. */
+.sudoku-cell.is-selected .sudoku-pencil {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.sudoku-pencil > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .puzzle-play [aria-disabled='true'].btn {
@@ -19215,6 +19247,12 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.crossword-clue.is-filled,
+.crossword-active.is-filled {
+  text-decoration: line-through;
+  opacity: 0.55;
 }
 
 .crossword-clue {
@@ -19882,10 +19920,34 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .jigsaw-preview {
-  width: 4.5rem;
+  display: block;
+  width: 7rem;
   height: auto;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Прев'ю — кнопка: дотик відкриває ту саму обрізку на весь екран. */
+.jigsaw-preview-open {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  line-height: 0;
+  cursor: zoom-in;
+}
+
+.jigsaw-preview-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* На весь екран — та сама рамка (aspect-ratio, cover, focus), вписана і за шириною, і за висотою. */
+.image-zoom-img.jigsaw-zoom-img {
+  width: min(100%, calc((100vh - 1rem) * var(--ar)));
+  width: min(100%, calc((100dvh - 1rem) * var(--ar)));
+  height: auto;
 }
 
 .jigsaw-frame {
@@ -20386,3 +20448,35 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1rem;
 }
 /* кінець: «Знайди відмінності» на сцені й пульті */
+
+.moreless-watch {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.moreless-option.is-static {
+  cursor: default;
+}
+
+.moreless-watch-picks {
+  margin: 0;
+  padding-inline-start: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.moreless-watch-picks.is-two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 1.5rem;
+}
+
+.stage .moreless-watch .moreless-prompt {
+  font-size: 2.25rem;
+}
+
+.stage .moreless-watch .moreless-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}

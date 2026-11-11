@@ -1505,6 +1505,7 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
   // На reveal — за балами, далі за пройденим; до того — за пройденим. sort стабільний: рівні лишаються в порядку гравців.
   rows.sort((a, b) => (revealed ? (b.points ?? 0) - (a.points ?? 0) : 0) || b.done - a.done);
   const counts = moreLessRight(state, play);
+  const chooserPicks = play.board === undefined ? [] : moreLessOf(state, play.board.chooserId).picks;
   return {
     rows,
     pairs:
@@ -1520,10 +1521,11 @@ function moreLessInfo(state: GameState, forHost: boolean): MoreLessInfo | undefi
           }))
         : null,
     picks: forHost ? Object.fromEntries(rows.map((r) => [r.playerId, moreLessOf(state, r.playerId).picks])) : null,
+    ...(play.board === undefined ? {} : { watch: { playerId: play.board.chooserId, done: chooserPicks.length, picks: [...chooserPicks] } }),
   };
 }
 
-/** Власний ряд гравця (команди); поза запитанням і для глядача клітинки поля — undefined. Кінця часу зріз не знає: кнопки гасить годинник телефона. */
+/** Власний ряд гравця (команди); поза запитанням — undefined; глядач клітинки поля свого ряду не має, замість нього він отримує view.moreless.watch. Кінця часу зріз не знає: кнопки гасить годинник телефона. */
 function playerMoreLess(state: GameState, playerId: string): PlayerMoreLess | undefined {
   const open = currentMoreLess(state);
   if (open === null) return undefined;
@@ -2640,6 +2642,26 @@ function inFinalRound(state: GameState): boolean {
   return currentRound(state)?.type === 'final';
 }
 
+/** «Малюнок»: поки йде запитання, текст-підказку бачить лише художник (людина drawerId); personId null — сцена й будь-хто без імені. */
+function drawingTextHidden(state: GameState, personId: string | null): boolean {
+  const drawing = drawingOf(state);
+  if (drawing === null || (state.phase !== 'question' && state.phase !== 'locked')) return false;
+  return personId === null || personId !== drawing.drawerId;
+}
+
+/** Художникові повертає справжній текст запитання (спільний зріз команди його ховає). */
+function withDrawerText<V extends { question: PublicQuestion | null }>(state: GameState, personId: string, view: V): V {
+  if (view.question?.type !== 'drawing' || drawingTextHidden(state, personId)) return view;
+  const shown = shownPublic(state);
+  return shown === null ? view : { ...view, question: { ...view.question, text: shown.text } };
+}
+
+/** Запитання зрізу без тексту «Малюнка» для всіх, крім ведучого (forHost): вгадувачам і сцені текст — це підказка. */
+function hiddenDrawingText(state: GameState, forHost: boolean): PublicQuestion | null {
+  const q = shownPublic(state);
+  return !forHost && q !== null && drawingTextHidden(state, null) ? { ...q, text: '' } : q;
+}
+
 /** Спільна частина зрізу; forHost — для ведучого (черга з вибором, spotlight голови миттєвого бліцу). */
 function base(state: GameState, forHost: boolean) {
   // Під час утримання годинник стоїть: клієнти не рахують від endsAt.
@@ -2657,7 +2679,7 @@ function base(state: GameState, forHost: boolean) {
     questionIndex: roundQuestionNumber(state),
     // Пропущені «100 до 1» (хмара без слів) у лічильник не входять. «Правда про гравця» (28b): запитань у вікторині немає — колода.
     total: round?.type === 'truth' ? truthCount(state) : round ? roundQuestions(round).length - skippedSurveys(state).length : questionsOf(state.quiz).length,
-    question: shownPublic(state),
+    question: hiddenDrawingText(state, forHost),
     endsAt: held ? null : state.endsAt,
     remainingMs,
     limitMs:
@@ -3105,7 +3127,8 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
 
 export function playerView(state: GameState, playerId: string, now?: number): PlayerView | null {
   if (!teamsOn(state)) {
-    const view = ownView(state, playerId);
+    const own = ownView(state, playerId);
+    const view = own === null ? null : withDrawerText(state, playerId, own);
     const jigsaw = playerJigsaw(state, playerId, playerId, now);
     const spotdiff = playerSpotdiff(state, playerId);
     return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
@@ -3120,7 +3143,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
   const vote = unscoredNow(state) ? publicAnswer(recordOf(state, state.questionIndex, member.id)?.answer ?? null, isRevealed(state)) : view.me.answer;
   // Свій вихід — людини, а не команди: зріз команди спільний, тож away додається тут, як vote.
   return {
-    ...view,
+    ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
     me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)) },
     away: ownAway(state, member.id),

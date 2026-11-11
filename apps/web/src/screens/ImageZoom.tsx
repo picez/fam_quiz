@@ -1,4 +1,4 @@
-import { useEffect, useRef, type JSX } from 'react';
+import { useEffect, useRef, type JSX, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { t } from '../i18n';
 
@@ -6,9 +6,9 @@ import { t } from '../i18n';
  * Картинка на весь екран (портал у body, модальний): чорне тло, картинка вписана в екран, × угорі.
  * Закривається ×, Escape, дотиком будь-де; фокус — на ×, Tab лишається на ньому, після закриття
  * повертається туди, де був. Поки відкрито, сторінка не гортається, а #root — inert. Звичайне зведення
- * пальців у браузері збільшує її ще (viewport не забороняє масштаб).
+ * пальців у браузері збільшує її ще (viewport не забороняє масштаб). children — своя картинка замість звичайної (пазл: та сама обрізка, що в рамці).
  */
-export function ImageZoom({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }): JSX.Element {
+export function ImageZoom({ url, alt, onClose, children }: { url: string; alt: string; onClose: () => void; children?: ReactNode }): JSX.Element {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const latest = useRef(onClose);
   latest.current = onClose;
@@ -42,7 +42,7 @@ export function ImageZoom({ url, alt, onClose }: { url: string; alt: string; onC
       <button ref={closeRef} type="button" className="image-zoom-close" aria-label={t('imageZoomClose')} onClick={onClose}>
         ×
       </button>
-      <img className="image-zoom-img" src={url} alt={alt} />
+      {children ?? <img className="image-zoom-img" src={url} alt={alt} />}
     </div>,
     document.body,
   );

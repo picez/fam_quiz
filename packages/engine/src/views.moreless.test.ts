@@ -137,6 +137,37 @@ describe('more or less views', () => {
     expect(stageInfo(s).rows.map((r) => r.playerId)).toEqual(['p1']);
   });
 
+  it('a board cell: the stage and other phones see the picks of the answerer without right or wrong', () => {
+    const round = boardRound('b1', [{ title: 'Порівняння', cells: [{ mark: 'x3', answerMode: 'phone', question: moreless }] }]);
+    const lobby = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Олена', 'Тарас'))), 0));
+    const s = picks(must(pickCell(lobby, 'p1', 'q14', 0, () => 0)), 'p1', ['a', 'b']);
+    const expected = { playerId: 'p1', done: 2, picks: ['a', 'b'] };
+    expect(stageView(s).moreless?.watch).toEqual(expected);
+    expect(playerView(s, 'p2')?.moreless?.watch).toEqual(expected);
+    const info = stageInfo(s);
+    expect(info.pairs).toBeNull();
+    expect(info.picks).toBeNull();
+    expect(info.rows[0]?.right).toBeNull();
+    const json = JSON.stringify(info);
+    for (const secret of ['2061', '330 м', '2850', 'correct']) expect(json).not.toContain(secret);
+  });
+
+  it('a classic moreless has no watch', () => {
+    expect('watch' in stageInfo(played())).toBe(false);
+  });
+
+  it('the watch stays on locked and reveal', () => {
+    const round = boardRound('b1', [{ title: 'Порівняння', cells: [{ mark: 'x3', answerMode: 'phone', question: moreless }] }]);
+    const lobby = must(next(must(start(lobbyWith(makeRoundsQuiz([round], { leaderboard: 'end' }), 'Олена', 'Тарас'))), 0));
+    const s = picks(must(pickCell(lobby, 'p1', 'q14', 0, () => 0)), 'p1', ['a']);
+    const locked = must(lock(s, 5000));
+    expect(stageInfo(locked).watch).toEqual({ playerId: 'p1', done: 1, picks: ['a'] });
+    const revealed = must(next(locked, 6000));
+    expect(revealed.phase).toBe('reveal');
+    expect(stageInfo(revealed).watch).toEqual({ playerId: 'p1', done: 1, picks: ['a'] });
+    expect(stageInfo(revealed).pairs).not.toBeNull();
+  });
+
   it('canPick follows phase, pause and the end of the row', () => {
     const s = startRound(lobbyWith(makeQuiz([moreless]), ...PLAYERS), 0);
     expect(playerView(s, 'p1')?.me.moreless?.canPick).toBe(true);

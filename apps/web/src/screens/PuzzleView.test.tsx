@@ -7,7 +7,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { generateSudoku, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleBoardView, type PuzzleInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
 import { PUZZLE_FLUSH_MS } from '../live/usePuzzleBoard';
-import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid, puzzlePageSize } from './PuzzleView';
+import { sudokuPeers } from '../live/sudoku-pencil';
+import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid, puzzlePageSize, wordFilled } from './PuzzleView';
 
 const base: Omit<PublicQuestion, 'type' | 'puzzle'> = {
   text: 'Розв’яжіть',
@@ -179,6 +180,148 @@ describe('SudokuPlay', () => {
   });
 });
 
+describe('sudoku pencil', () => {
+  // Дві порожні клітинки, що бачать одна одну (рядок, стовпець чи блок), і порожня клітинка поза їхніми лініями.
+  const empties = givens.split('').flatMap((ch, i) => (ch === '0' ? [i] : []));
+  const a = empties[0];
+  const b = empties.find((i) => i !== a && sudokuPeers(a).includes(i))!;
+  const far = empties.find((i) => i !== a && i !== b && !sudokuPeers(a).includes(i) && !sudokuPeers(b).includes(i));
+  const notes = (i: number) => [...(sudokuCell(i).querySelectorAll('.sudoku-pencil > span') as NodeListOf<HTMLElement>)].map((el) => el.textContent).join('');
+  const pencilButton = () => screen.getByRole('button', { name: 'Олівець' });
+  const key = (digit: string) => fireEvent.click(screen.getByRole('button', { name: digit }));
+  const mount = (over: Partial<Parameters<typeof SudokuPlay>[0]> = {}, send: Send = vi.fn<Send>()) =>
+    render(<SudokuPlay info={mineOf(36)} question={sudoku} questionIndex={0} paused={false} timeUp={false} send={send} {...over} />);
+
+  it('the pencil toggles small candidates in an empty cell', () => {
+    vi.useFakeTimers();
+    const send = vi.fn<Send>();
+    mount({}, send);
+    fireEvent.click(sudokuCell(a));
+    expect(pencilButton().getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(pencilButton());
+    expect(pencilButton().getAttribute('aria-pressed')).toBe('true');
+    key('1');
+    key('3');
+    expect(sudokuCell(a).querySelector('.sudoku-pencil')).not.toBeNull();
+    expect(notes(a)).toBe('13');
+    expect(sudokuCell(a).getAttribute('aria-label')).toContain('позначки: 1, 3');
+    // Цифра d стоїть на місці d − 1 сітки 2×3.
+    expect(sudokuCell(a).querySelectorAll('.sudoku-pencil > span')).toHaveLength(6);
+    expect(sudokuCell(a).querySelectorAll('.sudoku-pencil > span')[2].textContent).toBe('3');
+    key('3');
+    expect(notes(a)).toBe('1');
+    wait(PUZZLE_FLUSH_MS);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('a written digit hides the marks of its cell and removes it from peers', () => {
+    vi.useFakeTimers();
+    mount();
+    fireEvent.click(sudokuCell(a));
+    fireEvent.click(pencilButton());
+    key('1');
+    key('3');
+    fireEvent.click(sudokuCell(b));
+    key('3');
+    key('2');
+    fireEvent.click(pencilButton());
+    expect(pencilButton().getAttribute('aria-pressed')).toBe('false');
+    key('3');
+    expect(sudokuCell(b).textContent).toBe('3');
+    expect(sudokuCell(b).querySelector('.sudoku-pencil')).toBeNull();
+    expect(notes(a)).toBe('1');
+    // Стерта цифра позначок не повертає.
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(sudokuCell(b).textContent).toBe('');
+    expect(notes(a)).toBe('1');
+  });
+
+  it('29i: erase in the pencil mode removes the digit of a filled cell, as without the pencil', () => {
+    vi.useFakeTimers();
+    mount();
+    fireEvent.click(sudokuCell(a));
+    key('4');
+    expect(sudokuCell(a).textContent).toBe('4');
+    fireEvent.click(pencilButton());
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(sudokuCell(a).textContent).toBe('');
+    expect(pencilButton().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it("a teammate's digit removes the marks of its cell and that digit from its row, column and box", () => {
+    vi.useFakeTimers();
+    const info = (cells: string[], seq: number) => mineOf(36, { cells, seq, members: [{ id: 'p1', nickname: 'Я', tone: 1 }, { id: 'p2', nickname: 'Він', tone: 2 }] });
+    const send = vi.fn<Send>();
+    const view = mount({ info: info(new Array<string>(36).fill(''), 0) }, send);
+    fireEvent.click(sudokuCell(a));
+    fireEvent.click(pencilButton());
+    key('3');
+    key('4');
+    fireEvent.click(sudokuCell(b));
+    key('3');
+    key('5');
+    if (far !== undefined) {
+      fireEvent.click(sudokuCell(far));
+      key('3');
+    }
+    const cells = new Array<string>(36).fill('');
+    cells[b] = '3';
+    view.rerender(<SudokuPlay info={info(cells, 1)} question={sudoku} questionIndex={0} paused={false} timeUp={false} send={send} />);
+    expect(sudokuCell(b).querySelector('.sudoku-pencil')).toBeNull();
+    expect(notes(a)).toBe('4');
+    if (far !== undefined) expect(notes(far)).toBe('3');
+    view.rerender(<SudokuPlay info={info(new Array<string>(36).fill(''), 2)} question={sudoku} questionIndex={0} paused={false} timeUp={false} send={send} />);
+    expect(notes(a)).toBe('4');
+    expect(sudokuCell(b).querySelector('.sudoku-pencil')).toBeNull();
+  });
+
+  it('marks survive a remount for the same question and are gone for another', () => {
+    vi.useFakeTimers();
+    sessionStorage.clear();
+    const pencil = { room: 'ABCD', round: 0 };
+    const first = mount({ pencil });
+    fireEvent.click(sudokuCell(a));
+    fireEvent.click(pencilButton());
+    key('2');
+    first.unmount();
+    mount({ pencil });
+    expect(notes(a)).toBe('2');
+    cleanup();
+    mount({ pencil, questionIndex: 1 });
+    expect(sudokuCell(a).querySelector('.sudoku-pencil')).toBeNull();
+    cleanup();
+    const other = { ...sudoku, puzzle: { kind: 'sudoku' as const, givens: givens.replace('0', '1') } };
+    mount({ pencil, question: other });
+    expect(document.querySelector('.sudoku-pencil')).toBeNull();
+    sessionStorage.clear();
+  });
+
+  it('erase in pencil mode clears the marks of the cell', () => {
+    vi.useFakeTimers();
+    mount();
+    fireEvent.click(sudokuCell(a));
+    fireEvent.click(pencilButton());
+    key('1');
+    key('2');
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(sudokuCell(a).querySelector('.sudoku-pencil')).toBeNull();
+  });
+
+  it('digits in pencil mode do nothing on a filled cell', () => {
+    vi.useFakeTimers();
+    const send = vi.fn<Send>();
+    mount({}, send);
+    fireEvent.click(sudokuCell(a));
+    key('4');
+    fireEvent.click(pencilButton());
+    key('2');
+    expect(sudokuCell(a).textContent).toBe('4');
+    expect(sudokuCell(a).querySelector('.sudoku-pencil')).toBeNull();
+    fireEvent.keyDown(window, { key: '5' });
+    expect(sudokuCell(a).textContent).toBe('4');
+  });
+});
+
 describe('CrosswordPlay', () => {
   it('typing jumps to the next cell of the word', () => {
     vi.useFakeTimers();
@@ -294,6 +437,52 @@ describe('CrosswordPlay', () => {
     typeIn('л');
     wait(PUZZLE_FLUSH_MS);
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe('crossword filled clues', () => {
+  const clueBtn = (re: RegExp) => screen.getByText(re, { selector: 'button.crossword-clue' });
+  const filled = () => [...document.querySelectorAll('.crossword-clue.is-filled')].map((b) => b.textContent);
+
+  it('wordFilled', () => {
+    expect(wordFilled([0, 1, 2], ['а', 'б', 'в'])).toBe(true);
+    expect(wordFilled([0, 1, 2], ['а', '', 'в'])).toBe(false);
+  });
+
+  it('a clue whose cells are all filled is struck through, and plain again after an erase', () => {
+    vi.useFakeTimers();
+    render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    fireEvent.click(crosswordCell(0));
+    typeIn('лис');
+    // Курсор перейшов на слово 2; слово 1 заповнене.
+    fireEvent.click(crosswordCell(2));
+    fireEvent.click(crosswordCell(0));
+    expect(active()).toContain('Руда хитрунка');
+    expect(document.querySelector('.crossword-active')!.classList.contains('is-filled')).toBe(true);
+    expect(clueBtn(/Руда хитрунка/).classList.contains('is-filled')).toBe(true);
+    expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-filled')).toBe(false);
+    fireEvent.click(crosswordCell(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(clueBtn(/Руда хитрунка/).classList.contains('is-filled')).toBe(false);
+    expect(document.querySelector('.crossword-active')!.classList.contains('is-filled')).toBe(false);
+  });
+
+  it("a teammate's letters count too", () => {
+    const view = render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(filled()).toEqual([]);
+    const cells = new Array<string>(12).fill('');
+    cells[0] = 'л';
+    cells[3] = 'и';
+    cells[6] = 'п';
+    cells[9] = 'а';
+    view.rerender(<CrosswordPlay info={mineOf(12, { cells, seq: 1 })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-filled')).toBe(true);
+  });
+
+  it('filled says nothing about right or wrong', () => {
+    const cells = ['х', 'х', 'х', '', '', '', '', '', '', '', '', ''];
+    render(<CrosswordPlay info={mineOf(12, { cells })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(clueBtn(/Руда хитрунка/).className).toBe('crossword-clue is-filled');
   });
 });
 

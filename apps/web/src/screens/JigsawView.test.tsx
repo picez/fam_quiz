@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { jigsawTabs, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { JIGSAW_HOLD_REFRESH_MS, jigsawTabs, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { t } from '../i18n';
+import { piecePad } from '../live/jigsaw-shape';
 import type { Send, SendResult } from '../live/types';
-import { JigsawPlay, JigsawReveal, JigsawTable, jigsawTablePageSize } from './JigsawView';
+import { JigsawPlay, JigsawReveal, JigsawTable, jigsawDropAt, jigsawTablePageSize } from './JigsawView';
 
 const JIGSAW: PublicJigsaw = { photo: '/uploads/0123456789abcdef0123.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, tabs: jigsawTabs(3, 4, 1), preview: false };
 const infoOf = (over: Partial<PlayerJigsaw> = {}): PlayerJigsaw => ({ placed: [], held: [], done: false, canPlace: true, seq: 0, timeMs: null, result: null, ...over });
@@ -238,6 +239,120 @@ describe('JigsawPlay', () => {
     mount({ info: infoOf({ placed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], done: true, canPlace: false, timeMs: 47_300 }) });
     expect(screen.getByRole('status').textContent).toContain('47,3');
     expect(document.querySelector('.jigsaw-pile')).toBeNull();
+  });
+});
+
+describe('jigsawDropAt', () => {
+  const rect = { left: 0, top: 0, width: 304, height: 228 };
+  it('clamps the corner into the frame when the centre is inside', () => {
+    expect(jigsawDropAt(rect, 4, 3, 262, 182)).toEqual({ x: 3, y: 2 });
+    expect(jigsawDropAt(rect, 4, 3, -18, 62)).toEqual({ x: 0, y: 0.816 });
+  });
+  it('a centre outside the frame is no drop', () => {
+    expect(jigsawDropAt(rect, 4, 3, -58, 62)).toBeNull(); // центр x = −20
+    expect(jigsawDropAt(rect, 4, 3, 272, 62)).toBeNull(); // центр x = 310
+    expect(jigsawDropAt({ ...rect, width: 0 }, 4, 3, 0, 0)).toBeNull();
+  });
+});
+
+describe('JigsawPlay edges (29i)', () => {
+  const pad = piecePad(CELL, CELL);
+  const frameEl = (piece: number) => document.querySelector<HTMLElement>(`.jigsaw-frame [data-piece="${piece}"].is-loose`);
+  /** Палець на (0, 0) — центр ядра; відпускає в (x, y). */
+  function releaseAt(el: HTMLElement, x: number, y: number) {
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: x / 2, clientY: y / 2 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: x, clientY: y });
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: x, clientY: y });
+  }
+
+  it('a piece dropped by the right edge lies inside the frame', () => {
+    const { send } = mount();
+    turnTo(5, 1);
+    releaseAt(pieceEl(5), 300, 220);
+    const el = frameEl(5)!;
+    expect(el.style.left).toBe(`${3 * CELL - pad}px`);
+    expect(el.style.top).toBe(`${2 * CELL - pad}px`);
+    dragTo(el, 1, 1);
+    expect(frameEl(5)!.style.left).toBe(`${CELL - pad}px`);
+    expect(frameEl(5)!.style.top).toBe(`${CELL - pad}px`);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('the finger past the left edge within half a cell: back to the pile', () => {
+    const { send } = mount();
+    releaseAt(pieceEl(5), -20, 100);
+    expect(pieceEl(5)).toBeTruthy();
+    expect(frameEl(5)).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('a piece on the frame dragged out goes back to the pile', () => {
+    const { send } = mount();
+    turnTo(5, 1);
+    dragTo(pieceEl(5), 1, 1);
+    expect(frameEl(5)).toBeTruthy();
+    releaseAt(frameEl(5)!, 310, 100);
+    expect(frameEl(5)).toBeNull();
+    expect(pieceEl(5)).toBeTruthy();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('lost pointer capture ends the drag', () => {
+    const { send } = mount();
+    const el = pieceEl(5);
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 40, clientY: 40 });
+    expect(document.querySelector('[data-dragging="5"]')).toBeTruthy();
+    fireEvent.lostPointerCapture(el, { pointerId: 1 });
+    expect(document.querySelector('[data-dragging]')).toBeNull();
+    turnTo(5, 0);
+    dragTo(pieceEl(5), 1, 1);
+    expect(send).toHaveBeenCalledWith('player:jigsaw', { questionIndex: 2, piece: 5, x: 1, y: 1, rot: 0 });
+  });
+
+  it('lost pointer capture ends the drag and stops holding', () => {
+    vi.useFakeTimers();
+    try {
+      const { send } = mount({ team: true });
+      const el = pieceEl(3);
+      fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(el, { pointerId: 1, clientX: 40, clientY: 40 });
+      expect(send).toHaveBeenCalledWith('player:jigsaw-hold', { questionIndex: 2, piece: 3 });
+      fireEvent.lostPointerCapture(el, { pointerId: 1 });
+      expect(document.querySelector('[data-dragging]')).toBeNull();
+      const holds = () => vi.mocked(send).mock.calls.filter(([event]) => event === 'player:jigsaw-hold').length;
+      const before = holds();
+      act(() => {
+        vi.advanceTimersByTime(JIGSAW_HOLD_REFRESH_MS * 2);
+      });
+      expect(holds()).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a pointerup on the window frees a gesture whose piece left the DOM', () => {
+    const { send } = mount();
+    const el = pieceEl(5);
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 40, clientY: 40 });
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    expect(document.querySelector('[data-dragging]')).toBeNull();
+    turnTo(6, 0);
+    dragTo(pieceEl(6), 2, 1);
+    expect(send).toHaveBeenCalledWith('player:jigsaw', { questionIndex: 2, piece: 6, x: 2, y: 1, rot: 0 });
+  });
+
+  it('the preview opens the same crop full screen', () => {
+    mount({ jigsaw: { preview: true, focus: { x: 0.2, y: 0.7 } } });
+    fireEvent.click(screen.getByRole('button', { name: t('imageZoomOpen') }));
+    const dialog = screen.getByRole('dialog');
+    const img = dialog.querySelector<HTMLImageElement>('img')!;
+    expect(img.style.aspectRatio).toBe('4 / 3');
+    expect(img.style.objectPosition).toBe('20% 70%');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 

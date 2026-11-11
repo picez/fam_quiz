@@ -48,8 +48,8 @@ import { ChainBoard, ChainWords, fullMask } from './ChainView';
 import { WordLadderBoard, WordLadderGoal, WordLadderPath } from './WordLadderView';
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
-import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
-import { DrawingBoard, DrawingLive, DrawingReveal, strokesOf } from './DrawingView';
+import { MoreLessBoard, MoreLessReveal, MoreLessWatch } from './MoreLessView';
+import { DrawingBoard, DrawingLive, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
 import { SpotdiffStage } from './SpotdiffView';
@@ -326,7 +326,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       )}
       {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
       <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
-        <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
+        <h1 className={questionClass(drawingTitle(question, view.drawing?.drawerName ?? null))} dir="auto">{drawingTitle(question, view.drawing?.drawerName ?? null)}</h1>
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">
@@ -483,7 +483,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       {view.moreless !== undefined && !finalReveal && (
         <section className={view.phase === 'reveal' ? 'moreless-stage is-reveal' : 'moreless-stage'}>
           {view.phase === 'reveal' && view.moreless.pairs !== null && <MoreLessReveal pairs={view.moreless.pairs} />}
-          <MoreLessBoard info={view.moreless} reveal={view.phase === 'reveal'} />
+          {view.phase !== 'reveal' && view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={view.phase === 'reveal'} />}
         </section>
       )}
       {/* Малюнок (28c): велике полотно; до відкриття — хто малює й скільки вгадали, на відкритті — слово, імена й бали. */}

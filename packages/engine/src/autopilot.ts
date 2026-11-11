@@ -320,7 +320,7 @@ function moveOf(state: GameState, from: number): Move | null {
     case 'locked':
       return nextAt(from + AUTOPILOT_MS.locked);
     case 'reveal': {
-      // Апеляція (12f): голосування закриває tick рушія; після рішення — ще appealShown; поки хтось може оскаржити — не менше appealWindow від початку розкриття.
+      // Апеляція (12f): голосування закриває tick рушія; після рішення — ще appealShown; поки хтось ще може оскаржити — appealWindow від початку розкриття, а після будь-якої апеляції на цьому розкритті (рішення чи скасування) — заново від її миті.
       if (appealOpen(state) !== null) return null;
       // Скасована апеляція картки не має (appealView): показувати нема чого, розкриття йде своїм часом.
       const last = lastAppeal(state);
@@ -328,7 +328,7 @@ function moveOf(state: GameState, from: number): Move | null {
       const base = from + (decided ? AUTOPILOT_MS.appealShown : revealMs(state));
       // appealPossible читається лише тут, а мить перераховується тільки на зміну pilotKey (відкриття, рішення апеляції тощо):
       // якщо можливість оскаржити зникне інакше (хтось вийшов зі зв'язку), вікно, що вже стоїть, лишається — це лише кілька зайвих секунд.
-      const window = appealPossible(state) ? (state.stepAt ?? from) + AUTOPILOT_MS.appealWindow : 0;
+      const window = appealPossible(state) ? (last !== null ? from : (state.stepAt ?? from)) + AUTOPILOT_MS.appealWindow : 0;
       return nextAt(Math.max(base, window));
     }
     case 'leaderboard':

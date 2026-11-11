@@ -1910,6 +1910,12 @@ describe('PlayerScreen final', () => {
     expect(screen.queryByText('Ваше слово')).toBeNull();
   });
 
+  it('29i: a guesser keeps the drawing title on the locked phase', () => {
+    noCanvas();
+    show(view({ phase: 'locked', questionIndex: 0, question: { ...drawQuestion, text: '' }, drawing: drawInfo, me: { ...me, drawing: { role: 'guesser', word: null, guessed: false, canDraw: false, canGuess: false, points: null } } }));
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Малюнок — вгадайте, що малює Оля');
+  });
+
   it('28c: the drawer sees the word and the pad', () => {
     noCanvas();
     show(onQuestion({ question: drawQuestion, endsAt: Date.now() + 40_000, drawing: { ...drawInfo, drawerId: 'p1', drawerName: 'Олена', side: 'p1' }, me: { ...me, drawing: { role: 'drawer', word: 'соняшник', guessed: false, canDraw: true, canGuess: false, points: null } } }));
@@ -4337,6 +4343,17 @@ describe('PlayerScreen appeal (12f)', () => {
     show(revealOf({}, mine({ left: 1, reasons: ['grade', 'away'] })));
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити (лишилось 1)' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '⚖️ Оскаржити штраф (лишилось 1)' })).toBeTruthy();
+  });
+
+  it('says the hall votes on another appeal, without a button', () => {
+    show(revealOf({}, mine({ block: 'appeal_open' })));
+    expect(screen.getByText('Зал голосує за іншу апеляцію — потім зможете й ви').classList.contains('appeal-block')).toBe(true);
+    expect(document.querySelector('.appeal-button')).toBeNull();
+  });
+
+  it('29i: a voter of the open appeal is not told to wait for another one', () => {
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ block: 'appeal_open', voter: true })));
+    expect(screen.queryByText('Зал голосує за іншу апеляцію — потім зможете й ви')).toBeNull();
   });
 
   it('says nobody can vote, or that the captain appeals, without a button', () => {

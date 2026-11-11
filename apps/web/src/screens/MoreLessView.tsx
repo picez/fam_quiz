@@ -283,6 +283,59 @@ export function MoreLessBoard({ info, reveal, me }: { info: MoreLessInfo; reveal
   );
 }
 
+/**
+ * Клітинка поля для всіх, хто не відповідає: поточна пара й вибрані тексти попередніх пар. Без правильності й значень до reveal —
+ * їх не бачить і сам гравець.
+ */
+export function MoreLessWatch({ info, question }: { info: MoreLessInfo; question: PublicQuestion }) {
+  const watch = info.watch;
+  const pairs = question.moreless?.pairs ?? [];
+  if (watch === undefined) return null;
+  const total = pairs.length;
+  const pair = pairs[watch.done];
+  const over = watch.done >= total;
+  const chooser = info.rows.find((row) => row.playerId === watch.playerId);
+  return (
+    <section className="moreless-watch">
+      {chooser !== undefined && <p className="meta moreless-watch-chooser">{t('morelessWatchPicks', { name: chooser.nickname })}</p>}
+      {over || pair === undefined ? (
+        <p className="lead moreless-done">{t('morelessDone')}</p>
+      ) : (
+        <div className="moreless-card">
+          <p className="meta moreless-counter">
+            <bdi dir="ltr">{t('morelessCounter', { n: watch.done + 1, total })}</bdi>
+          </p>
+          <h2 className="moreless-prompt" dir="auto">
+            {pair.prompt}
+          </h2>
+          <div className="moreless-options">
+            <span className="moreless-option is-static" dir="auto">
+              {pair.a}
+            </span>
+            <span className="moreless-option is-static" dir="auto">
+              {pair.b}
+            </span>
+          </div>
+        </div>
+      )}
+      {watch.picks.length > 0 && (
+        <>
+          <ol className={watch.picks.length > 6 ? 'moreless-watch-picks is-two' : 'moreless-watch-picks'}>
+            {watch.picks.map((pick, i) => {
+              const done = pairs[i];
+              return (
+                <li key={i} dir="auto">
+                  {done === undefined ? '' : `${i + 1}. ${done.prompt} — ${pick === 'a' ? done.a : done.b}`}
+                </li>
+              );
+            })}
+          </ol>
+        </>
+      )}
+    </section>
+  );
+}
+
 const MARK_KEY = { right: 'morelessMarkRight', wrong: 'morelessMarkWrong', late: 'morelessMarkLate' } as const;
 
 /**

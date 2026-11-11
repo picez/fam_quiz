@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MoreLessInfo, MoreLessPairView, PlayerMoreLess, PublicQuestion } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
-import { MORELESS_RESYNC_MS, MORELESS_TAP_GAP_MS, MoreLessBoard, MoreLessPlay, MoreLessReveal } from './MoreLessView';
+import { MORELESS_RESYNC_MS, MORELESS_TAP_GAP_MS, MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch } from './MoreLessView';
 
 const question: PublicQuestion = {
   type: 'moreless',
@@ -316,5 +316,35 @@ describe('MoreLessReveal', () => {
     rerender(<MoreLessReveal pairs={many} />);
     expect(document.querySelectorAll('.moreless-reveal > li')).toHaveLength(20);
     expect(document.querySelector('.moreless-reveal.is-two')).not.toBeNull();
+  });
+});
+
+describe('MoreLessWatch', () => {
+  const watchInfo = (done: number, picks: ('a' | 'b')[]): MoreLessInfo => ({ rows: [], pairs: null, picks: null, watch: { playerId: 'p1', done, picks } });
+
+  it('MoreLessWatch shows the current pair and the chosen texts without marks', () => {
+    const { container } = render(<MoreLessWatch info={watchInfo(2, ['a', 'b'])} question={question} />);
+    expect(screen.getByRole('heading', { name: 'Що глибше?' })).toBeTruthy();
+    expect(screen.getByText('Світязь')).toBeTruthy();
+    expect(screen.getByText('Синевир')).toBeTruthy();
+    const items = [...container.querySelectorAll('.moreless-watch-picks li')].map((li) => li.textContent);
+    expect(items).toEqual(['1. Що вище? — Говерла', '2. Що довше? — Дунай']);
+    expect(container.querySelector('.moreless-pick')).toBeNull();
+    expect(container.textContent).not.toMatch(/[✓✗]/);
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('names who is choosing from the rows, also before the first pick', () => {
+    const info: MoreLessInfo = { rows: [{ playerId: 'p1', nickname: 'Оля', done: 0, total: 3, right: null, points: null }], pairs: null, picks: null, watch: { playerId: 'p1', done: 0, picks: [] } };
+    const { container } = render(<MoreLessWatch info={info} question={question} />);
+    expect(container.querySelector('.moreless-watch-chooser')?.textContent).toBe('Вибирає Оля');
+  });
+
+  it('shows done when the row is finished and nothing without a watch', () => {
+    const { container, rerender } = render(<MoreLessWatch info={watchInfo(3, ['a', 'b', 'a'])} question={question} />);
+    expect(container.querySelector('.moreless-done')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Що глибше?' })).toBeNull();
+    rerender(<MoreLessWatch info={{ rows: [], pairs: null, picks: null }} question={question} />);
+    expect(container.firstChild).toBeNull();
   });
 });

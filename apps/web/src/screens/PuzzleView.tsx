@@ -4,6 +4,7 @@ import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { usePuzzleBoard, type PuzzleBoardModel } from '../live/usePuzzleBoard';
+import { sudokuPeers, usePencil } from '../live/sudoku-pencil';
 
 /** Після «Готово» кнопка підтвердження на мить глуха: другий дотик подвійного натиску не фіксує сітку. */
 export const PUZZLE_TAP_GAP_MS = 350;
@@ -28,6 +29,8 @@ export interface PuzzlePlayProps {
   send: Send;
   /** Кінець часу за годинником телефона (endsAt мінус зсув сервера): правки в останнє вікно пакета йдуть одразу. */
   deadline?: number | null;
+  /** Кімната й раунд: за ними олівцеві позначки судоку переживають перезавантаження сторінки (без цього — лише в пам'яті). */
+  pencil?: { room: string; round: number };
 }
 
 /** Поле, де клавіші належать самому полю. */
@@ -146,16 +149,26 @@ function filledCount(info: PlayerPuzzle, cells: string[]): { filled: number; tot
  * Тап вибирає клітинку й підсвічує її рядок, стовпець і блок; цифри — власна клавіатура 1–6 і «Стерти» (системна не відкривається),
  * фізична клавіатура теж (1–6, Backspace/Delete, стрілки). Пауза, кінець часу чи «Готово» — сітка й клавіатура вимкнені.
  */
-export function SudokuPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
+export function SudokuPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null, pencil: pencilKey }: PuzzlePlayProps) {
   const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<number | null>(null);
+  const [pencilOn, setPencilOn] = useState(false);
   const givens = question.puzzle?.kind === 'sudoku' ? question.puzzle.givens : '0'.repeat(SUDOKU_SIDE * SUDOKU_SIDE);
+  const pencil = usePencil(pencilKey?.room, `${pencilKey?.round ?? 0}:${questionIndex}:${givens}`, board.cells);
   const off = paused || timeUp || board.status === 'time_over' || closed || !info.canEdit || info.done;
   const given = (i: number) => (givens[i] ?? '0') !== '0';
   const selected = off ? null : sel;
 
   const put = (v: string) => {
     if (off || sel === null || given(sel)) return;
+    if (pencilOn) {
+      // Олівець: цифра в порожній клітинці — позначка, у заповненій — нічого; «Стерти» на порожній чистить позначки, на заповненій — стирає цифру, як без олівця.
+      const filled = (board.cells[sel] ?? '') !== '';
+      if (v === '' && filled) board.set(sel, '');
+      else if (v === '') pencil.clear(sel);
+      else if (!filled) pencil.toggle(sel, v);
+      return;
+    }
     board.set(sel, v);
   };
   const move = (dr: number, dc: number) => {
@@ -200,9 +213,7 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
   if (question.puzzle?.kind !== 'sudoku') return null;
   const peer = (i: number) => {
     if (selected === null) return false;
-    const [r, c] = [Math.floor(i / SUDOKU_SIDE), i % SUDOKU_SIDE];
-    const [sr, sc] = [Math.floor(selected / SUDOKU_SIDE), selected % SUDOKU_SIDE];
-    return r === sr || c === sc || (Math.floor(r / 2) === Math.floor(sr / 2) && Math.floor(c / 3) === Math.floor(sc / 3));
+    return i === selected || sudokuPeers(selected).includes(i);
   };
   const { filled, total } = filledCount(info, board.cells);
 
@@ -224,20 +235,30 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
             );
           }
           const value = board.cells[i] ?? '';
+          const notes = value === '' ? (pencil.marks[i] ?? '') : '';
+          const label = notes === '' ? cellLabel(row, col, value) : `${cellLabel(row, col, value)}, ${t('sudokuPencilMarks', { digits: [...notes].join(', ') })}`;
           const state = selected === i ? ' is-selected' : peer(i) ? ' is-peer' : '';
           return (
             <button
               key={i}
               type="button"
               className={`sudoku-cell${edges}${state}${byClass(info.mask, i, info.members)}`}
-              aria-label={cellLabel(row, col, value)}
+              aria-label={label}
               aria-pressed={selected === i}
               aria-disabled={off}
               onClick={() => {
                 if (!off) setSel(i);
               }}
             >
-              {value}
+              {notes === '' ? (
+                value
+              ) : (
+                <span className="sudoku-pencil" aria-hidden="true">
+                  {DIGITS.map((digit) => (
+                    <span key={digit}>{notes.includes(digit) ? digit : ''}</span>
+                  ))}
+                </span>
+              )}
             </button>
           );
         })}
@@ -252,6 +273,9 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
           ))}
           <button type="button" className="btn puzzle-key puzzle-erase" aria-disabled={off || selected === null} onClick={() => put('')}>
             {t('puzzleErase')}
+          </button>
+          <button type="button" className="btn puzzle-key puzzle-pencil" aria-pressed={pencilOn} aria-disabled={off} onClick={() => !off && setPencilOn(!pencilOn)}>
+            {t('sudokuPencil')}
           </button>
         </div>
       )}
@@ -278,6 +302,11 @@ function wordsOf(puzzle: Crossword): Word[] {
 }
 
 const ARROW: Record<Dir, string> = { across: '→', down: '↓' };
+
+/** Усі клітинки слова заповнені (кожна має літеру) — підказку тоді викреслено в списку. */
+export function wordFilled(cells: readonly number[], values: readonly string[]): boolean {
+  return cells.every((c) => (values[c] ?? '') !== '');
+}
 
 /**
  * Кросворд на телефоні: угорі активна підказка («3 ↓ …»), нижче сітка (до 12 стовпців на 320 px без прокрутки вбік), під нею
@@ -439,7 +468,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
 
   return (
     <section className={off ? 'puzzle-play crossword-play is-off' : 'puzzle-play crossword-play'}>
-      <p className="crossword-active" dir="auto">
+      <p className={activeWord !== undefined && wordFilled(activeWord.cells, board.cells) ? 'crossword-active is-filled' : 'crossword-active'} dir="auto">
         {activeWord === undefined ? (
           t('crosswordPick')
         ) : (
@@ -533,7 +562,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
                 .filter((w) => w.dir === dir)
                 .map((w) => (
                   <li key={`${w.dir}${w.number}`}>
-                    <button type="button" className="crossword-clue" aria-disabled={off} onClick={() => pick(firstEmpty(w, board.cells), w.dir)} dir="auto">
+                    <button type="button" className={wordFilled(w.cells, board.cells) ? 'crossword-clue is-filled' : 'crossword-clue'} aria-disabled={off} onClick={() => pick(firstEmpty(w, board.cells), w.dir)} dir="auto">
                       <bdi dir="ltr">{w.number}.</bdi> {w.clue}
                     </button>
                   </li>

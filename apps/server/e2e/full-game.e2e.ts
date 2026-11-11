@@ -24901,13 +24901,16 @@ async function moreLessBoard28a() {
   await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
   await olya.getByRole('button', { name: 'Порівняння, 300', ...exact }).click();
   await olya.locator('button.moreless-option').first().waitFor();
-  // Глядач клітинки бачить лише поступ того, хто вибрав.
-  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('0 / 3');
+  // Глядач клітинки (29i) бачить, хто вибирає, поточну пару й вибрані тексти — без правильності.
+  await expect.poll(() => taras.locator('.moreless-watch-chooser').textContent(), POLL).toBe('Вибирає Оля');
   expect(await taras.locator('button.moreless-option').count(), 'buttons for a viewer of the cell').toBe(0);
+  expect(await taras.locator('.moreless-watch-picks li').count(), 'no picks yet').toBe(0);
   await morelessRun28a(olya, PAIRS28A_TEAM, ['a', 'b']);
-  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
-  await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
+  await expect.poll(() => taras.locator('.moreless-watch-picks li').count(), POLL).toBe(2);
+  await expect.poll(() => stage.locator('.moreless-watch-picks li').count(), POLL).toBe(2);
+  expect(await stage.locator('.moreless-watch-chooser').textContent()).toBe('Вибирає Оля');
   expect(await morelessRow28a(stage, 'Тарас').count(), 'a row for a viewer of the cell').toBe(0);
+  expect(await stage.locator('.moreless-watch').textContent(), 'no marks before the reveal').not.toMatch(/[✓✗]/);
   await shot(taras, 'moreless28a-board-cell');
   await morelessRun28a(olya, PAIRS28A_TEAM, ['b'], 2);
   await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.score').textContent(), POLL).toBe('+600');
@@ -27570,6 +27573,123 @@ async function jigsawCrowd29c(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
+it('part 29i: jigsaw at 320 px — the last piece dropped by the edge stays on the frame and can be taken again, the preview opens full screen', async () => {
+  try {
+    await jigsawEdge29i();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Шматочок на телефоні: центр його прямокутника (центр ядра за будь-якого повороту). */
+async function pieceBoxCenter29i(page: Page, selector: string): Promise<{ x: number; y: number }> {
+  const box = (await page.locator(selector).boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+async function jigsawEdge29i() {
+  const host = await open('host29i', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', 'host29i@example.com');
+  const photo = await apiPhoto29c(host);
+  const question = jigsaw29c('j29i', 2, 3, 120, photo);
+  const data = {
+    ...makeRoundsQuiz([classicRound('c29i', [{ ...withId(single, 'c29i1'), timeLimit: 30 }], { speedBonus: false }), puzzlesRound('p29i', [question as never])], { leaderboard: 'end' }),
+    title: 'Пазл біля краю 29i',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Пазл біля краю 29i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  // Оля — телефон 320 × 568 (миша); Тарас лише приєднався, щоб запитання не закрилося, коли Оля складе.
+  const olya = await open('olya29i', 320, 568);
+  const taras = await open('taras29i', 375, 812);
+  const phones = [olya, taras];
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await click(host, 'Почати гру');
+  await afterSplash(host, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, ...phones);
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, ...phones);
+  for (const page of phones) await page.locator('.jigsaw-play .jigsaw-pile').waitFor();
+  // Найменший пазл — 3×2 (JIGSAW_MIN_PIECES = 6).
+  const g: Grid29c = { rows: 2, cols: 3 };
+
+  // ── Прев'ю 7rem — кнопка: тап відкриває ту саму обрізку на весь екран, Escape закриває. ──
+  const preview = olya.locator('.jigsaw-play .jigsaw-preview-open');
+  await preview.waitFor();
+  const previewBox = (await olya.locator('.jigsaw-play .jigsaw-preview').boundingBox())!;
+  expect(Math.round(previewBox.width), 'the preview width (7rem)').toBe(112);
+  // На 320 × 568 шапка телефона, таймер і заголовок займають ~180 px: купка й до 29i була нижче краю екрана (прокрутка вниз),
+  // а рамка — цілком на екрані, щоб було куди класти.
+  const frameBox = (await olya.locator('.jigsaw-play .jigsaw-frame').boundingBox())!;
+  const pileBox = (await olya.locator('.jigsaw-play .jigsaw-pile').boundingBox())!;
+  console.log(`jigsaw 29i: 320×568 — the frame ${Math.round(frameBox.y)}…${Math.round(frameBox.y + frameBox.height)}, the pile ${Math.round(pileBox.y)}…${Math.round(pileBox.y + pileBox.height)}, page ${await olya.evaluate('document.documentElement.scrollHeight')}`);
+  expect(frameBox.y + frameBox.height, 'the frame is on screen at 320×568').toBeLessThanOrEqual(568);
+  if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await shot(olya, 'jigsaw29i-phone-preview');
+  await preview.click();
+  const zoom = olya.locator('.image-zoom');
+  await zoom.waitFor();
+  const zoomImg = zoom.locator('img.jigsaw-zoom-img');
+  await expect.poll(() => zoomImg.evaluate((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0), POLL).toBe(true);
+  const zoomBox = (await zoomImg.boundingBox())!;
+  expect(zoomBox.x, 'the zoomed picture inside the window').toBeGreaterThanOrEqual(0);
+  expect(zoomBox.y, 'the zoomed picture inside the window').toBeGreaterThanOrEqual(0);
+  expect(zoomBox.x + zoomBox.width, 'the zoomed picture inside the window').toBeLessThanOrEqual(320);
+  expect(zoomBox.y + zoomBox.height, 'the zoomed picture inside the window').toBeLessThanOrEqual(568);
+  expect(zoomBox.width, 'the zoomed picture fills the width').toBeGreaterThan(290);
+  expect(zoomBox.width / zoomBox.height, 'the zoom keeps the 4:3 crop').toBeCloseTo(4 / 3, 1);
+  expect(await zoomImg.evaluate((img) => getComputedStyle(img).objectPosition), 'the zoom keeps the focus').toBe('50% 50%');
+  await expectNoSideScroll(olya, 'jigsaw29i-phone-zoom');
+  await olya.keyboard.press('Escape');
+  await expect.poll(() => zoom.count(), POLL).toBe(0);
+
+  // ── П'ять шматочків — на місця; останній (5, його місце — праворуч унизу) кинуто пальцем за 10 px від правого краю рамки вгорі. ──
+  for (const k of [0, 1, 2, 3, 4]) await placePiece29c(olya, g, k);
+  const last = 5;
+  const from = await pieceCenter29c(olya, last);
+  const frame = (await olya.locator('.jigsaw-play .jigsaw-frame').boundingBox())!;
+  const cellW = frame.width / g.cols;
+  const cellH = frame.height / g.rows;
+  const target = { x: frame.x + frame.width - 10, y: frame.y + cellH / 2 };
+  await olya.mouse.move(from.x, from.y);
+  await olya.mouse.down();
+  for (const point of path29c(from, target).slice(1)) await olya.mouse.move(point.x, point.y);
+  await olya.mouse.up();
+  const lying = `.jigsaw-play .jigsaw-frame .jigsaw-piece.is-loose[data-piece="${last}"]`;
+  await olya.locator(lying).waitFor();
+  expect(await olya.locator('.jigsaw-play [data-dragging]').count(), 'nothing left in the hand').toBe(0);
+  const at = await pieceBoxCenter29i(olya, lying);
+  console.log(`jigsaw 29i: the frame ${Math.round(frame.x)}…${Math.round(frame.x + frame.width)}, the piece centre ${Math.round(at.x)}, ${Math.round(at.y)}`);
+  // Ядро цілком у рамці: центр не ближче за пів клітинки до її країв.
+  expect(at.x, 'the piece core inside the frame').toBeLessThanOrEqual(frame.x + frame.width - cellW / 2 + 1);
+  expect(at.x, 'the piece core inside the frame').toBeGreaterThanOrEqual(frame.x + cellW / 2 - 1);
+  expect(at.y, 'the piece core inside the frame').toBeGreaterThanOrEqual(frame.y + cellH / 2 - 1);
+  expect(at.y, 'the piece core inside the frame').toBeLessThanOrEqual(frame.y + frame.height - cellH / 2 + 1);
+  expect(await olya.locator('.jigsaw-play .jigsaw-pile .jigsaw-piece').count(), 'the pile is empty').toBe(0);
+  expect(await olya.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest('[data-piece]')?.getAttribute('data-piece') ?? null, [at.x, at.y]), 'the piece is under the finger').toBe(String(last));
+  if (process.env.E2E_SHOTS === '1') await sleep(400);
+  await shot(olya, 'jigsaw29i-phone-edge');
+  await expectNoSideScroll(olya, 'jigsaw29i-phone-edge-noscroll');
+
+  // ── Його знову беруть: прямо й на своє місце — пазл складено. ──
+  await placePiece29c(olya, g, last);
+  await olya.getByText(/^Готово за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
+  expect(await placedCount29c(olya), 'all six pieces in the frame').toBe(6);
+  if (process.env.E2E_SHOTS === '1') await sleep(400);
+  await shot(olya, 'jigsaw29i-phone-done');
+
+  expect(problems).toEqual([]);
+}
+
 it('part 29d: spotdiff after a classic round — two uploads and circles in the editor, near taps count, three misses freeze for a second, a share of the price per find, 320 px', async () => {
   try {
     await spotdiffGame29d();
@@ -28278,5 +28398,69 @@ async function spotdiffCrowd29d(sockets: Socket[]) {
   await expectSpotdiffStageFits29d(stage, '24 players reveal');
   await shot(stage, 'spotdiff29d-24-reveal-stage');
 
+  expect(problems).toEqual([]);
+}
+
+it('part 29i: more or less on a board cell — the stage and the other phone see who chooses, the pair and the picks', async () => {
+  try {
+    await morelessWatch29i();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 300_000);
+
+async function morelessWatch29i() {
+  const host = await open('host29i', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', `host29i-${Date.now()}@example.com`);
+  const plain = (id: string, text: string, points: number) => ({ ...withPoints(withId(single, id), points), text, timeLimit: 30 });
+  const cell = moreLess28a('w1', 'Пари для Олі', PAIRS28A_TEAM, 60);
+  const round = boardRound(
+    'r29i',
+    [
+      { title: 'Порівняння', cells: [cell as never, plain('w12', 'Порівняння за 200?', 200), plain('w13', 'Порівняння за 400?', 400)] },
+      { title: 'Міста', cells: [plain('w21', 'Місто за 100?', 100), plain('w22', 'Місто за 200?', 200), plain('w23', 'Місто за 300?', 300)] },
+      { title: 'Річки', cells: [plain('w31', 'Річка за 100?', 100), plain('w32', 'Річка за 200?', 200), plain('w33', 'Річка за 300?', 300)] },
+    ],
+    { title: 'Поле 29i' },
+  );
+  const data = { ...makeRoundsQuiz([round], { leaderboard: 'end' }), title: 'Поле 29i' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Поле 29i' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29i', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya29i', 375, 812);
+  const taras = await open('taras29i', 360, 740);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, olya, taras);
+  await click(host, 'За порядком приєднання');
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, olya, taras);
+
+  await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
+  await olya.getByRole('button', { name: 'Порівняння, 300', ...exact }).click();
+  await olya.locator('button.moreless-option').first().waitFor();
+  for (const [name, page] of [['stage', stage], ['phone', taras]] as const) {
+    await page.locator('.moreless-watch').waitFor();
+    await expect.poll(() => page.locator('.moreless-watch-chooser').textContent(), POLL).toBe('Вибирає Оля');
+    expect(await page.locator('button.moreless-option').count(), `buttons for a viewer on the ${name}`).toBe(0);
+  }
+  await morelessRun28a(olya, PAIRS28A_TEAM, ['a']);
+  await expect.poll(() => taras.locator('.moreless-watch-picks li').count(), POLL).toBe(1);
+  await expect.poll(() => stage.locator('.moreless-watch-picks li').count(), POLL).toBe(1);
+  expect(await stage.locator('.moreless-watch').textContent()).not.toMatch(/[✓✗]/);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await shot(stage, 'moreless29i-watch-stage');
+  await shot(taras, 'moreless29i-watch-phone');
+  await expectNoSideScroll(taras, 'moreless29i-watch-phone-360');
   expect(problems).toEqual([]);
 }

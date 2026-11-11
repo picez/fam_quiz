@@ -518,6 +518,13 @@ export interface MoreLessPairView {
   right: number;
 }
 
+/** Клітинка поля (28a, 29i): хід того, хто відповідає, — для всіх, без правильності й значень до reveal. */
+export interface MoreLessCellWatch {
+  playerId: string;
+  done: number;
+  picks: MoreLessSide[];
+}
+
 export interface MoreLessInfo {
   /** За done спаданням, далі в порядку гравців. */
   rows: MoreLessRow[];
@@ -525,6 +532,8 @@ export interface MoreLessInfo {
   pairs: MoreLessPairView[] | null;
   /** Ведучому — вибори кожного наживо; іншим null. */
   picks: Record<string, MoreLessSide[]> | null;
+  /** Лише на клітинці поля; поза нею ключа немає. */
+  watch?: MoreLessCellWatch;
 }
 
 export interface PlayerMoreLess {
@@ -1766,8 +1775,8 @@ export interface PlayerAppeal {
   left: number;
   /** Підстави, з якими можна оскаржити зараз (усі перевірки пройдено); [] — кнопки немає. */
   reasons: AppealReason[];
-  /** Відповідь не зарахована, але: голосувати нікому чи оскаржує капітан. */
-  block: 'no_voters' | 'captain' | null;
+  /** Відповідь не зарахована, але: голосувати нікому, оскаржує капітан чи зал уже голосує за чужу апеляцію (appeal_open). */
+  block: 'no_voters' | 'captain' | 'appeal_open' | null;
   /** Відкрита апеляція, і ця людина серед виборців. */
   voter: boolean;
   /** Свій голос у відкритій апеляції; null — ще не голосувала чи не виборець. */

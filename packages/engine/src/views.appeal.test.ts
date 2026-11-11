@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
 import { addAdjustment } from './adjust';
-import { castAppealVote, openAppeal } from './appeal';
+import { appealOpen as appealOpenOf, castAppealVote, openAppeal } from './appeal';
 import { awayEnd, awayStart } from './away';
 import { lock, next, pause, removePlayer, setConnected, submitAnswer, type GameState } from './game';
 import { actAnswer } from './team-act';
@@ -128,6 +128,33 @@ describe('an open appeal', () => {
   });
 });
 
+describe('a second appellant while an appeal is open', () => {
+  it('while another appeal is open the one who can still appeal is told to wait', () => {
+    const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
+    const open = must(openAppeal(two, 'p2', 'grade', T1));
+    expect(me(open, 'p3')).toEqual({ left: 2, reasons: [], block: 'appeal_open', voter: true, vote: null });
+    expect(me(open, 'p2')).toMatchObject({ block: null, reasons: [] });
+    expect(me(open, 'p1')).toMatchObject({ block: null });
+  });
+
+  it('after the decision the one who was told to wait gets the grade button back', () => {
+    const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
+    const open = must(openAppeal(two, 'p2', 'grade', T1));
+    expect(me(open, 'p3')).toMatchObject({ block: 'appeal_open' });
+    const decided = must(castAppealVote(must(castAppealVote(open, 'p1', 1, false, T1 + 1000)), 'p3', 1, false, T1 + 1000));
+    expect(decided.appeals?.[0].outcome).toBe('no');
+    expect(me(decided, 'p3')).toEqual({ left: 2, reasons: ['grade'], block: null, voter: false, vote: null });
+  });
+
+  it('no_voters wins over appeal_open', () => {
+    const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
+    const open = must(openAppeal(two, 'p2', 'grade', T1));
+    const alone = must(setConnected(must(setConnected(open, 'p1', false, T1 + 1000)), 'p2', false, T1 + 1000));
+    expect(appealOpenOf(alone)).not.toBeNull();
+    expect(me(alone, 'p3')).toMatchObject({ block: 'no_voters', reasons: [] });
+  });
+});
+
 describe('the decision', () => {
   it('yes shows what it gave and stops the clock; the leaderboard has no card', () => {
     const s = must(castAppealVote(voted, 'p3', 1, true, T1 + 2000));
@@ -189,6 +216,15 @@ describe('team appeals', () => {
     expect(me(s0, 'm1')).toEqual({ left: 2, reasons: ['grade'], block: null, voter: false, vote: null });
     expect(me(s0, 'm2')).toEqual({ left: 2, reasons: [], block: 'captain', voter: false, vote: null });
     expect(me(s0, 'm3')).toEqual({ left: 2, reasons: [], block: null, voter: false, vote: null });
+  });
+
+  it('with another appeal open the captain is told to wait, the non-captain still sees captain', () => {
+    let s = must(next(teamGame(teamQuiz([classicRound('r1', [t100], { speedBonus: false, rules: DEFAULT_RULES })]), [['Оля', 'Петро'], ['Віра', 'Іра']]), T0, rng));
+    s = must(actAnswer(must(actAnswer(s, 'm1', WRONG, T0 + 1000)), 'm3', WRONG, T0 + 1000));
+    if (s.phase === 'question') s = must(lock(s));
+    s = must(openAppeal(must(next(s, T0 + 2000, rng)), 'm3', 'grade', T1));
+    expect(me(s, 'm1')).toMatchObject({ block: 'appeal_open', reasons: [] });
+    expect(me(s, 'm2')).toMatchObject({ block: 'captain', reasons: [] });
   });
 
   it('teammates of the appellant are not voters; the other team votes person by person, each seeing only the own vote', () => {

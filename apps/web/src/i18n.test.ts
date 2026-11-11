@@ -122,6 +122,8 @@ describe('uk golden (22a)', () => {
   const ADDED_28D_PLURALS = ['summarySudokus_few', 'summarySudokus_many', 'summaryCrosswords_few', 'summaryCrosswords_many'];
   /** 29c: пазл — назви, помилки, редактор, проблеми. Тексти гри (телефон, сцена, пульт) дописують наступні задачі. */
   const ADDED_29C = ['type_jigsaw', 'typeShort_jigsaw', 'typeHow_jigsaw', 'buffWhy_off_jigsaw', 'err_jigsaw_stale', 'err_jigsaw_done', 'err_jigsaw_piece', 'err_jigsaw_placed', 'err_jigsaw_held', 'err_jigsaw_miss', 'problemJigsawPhoto', 'problemJigsawPlace', 'problemJigsawGrid', 'problemJigsawImage', 'problemJigsawLimits', 'jigsawDefaultText', 'jigsawPhotoNeed', 'jigsawAspectLabel', 'jigsawPiecesLabel', 'jigsawPieces', 'jigsawCrop', 'jigsawCropHint', 'jigsawNewShape', 'jigsawPreviewLabel', 'jigsawTimeHint', 'jigsawHelp', 'jigsawAnswerDone', 'jigsawAnswerPart', 'summaryJigsaws_one', 'jigsawFrame', 'jigsawPile', 'jigsawPiece', 'jigsawPieceHeld', 'jigsawPreview', 'jigsawProgress', 'jigsawDoneIn', 'jigsawTimeUp', 'jigsawClosed', 'jigsawOffline', 'jigsawPercent', 'jigsawUndone', 'jigsawUndonePercent', 'jigsawSeconds', 'jigsawTablePlace', 'jigsawTableWho', 'jigsawTableTime', 'jigsawTablePoints', 'jigsawTableLabel'];
+  /** 29i: виправлення після вечірньої гри; наступні задачі дописують сюди. */
+  const ADDED_29I = ['appealWaitOther', 'morelessWatchPicks', 'drawingGuessTitle', 'drawingGuessTitleAnon', 'sudokuPencil', 'sudokuPencilMarks'];
   /** Множина 29c: форми, яких немає в мові, там і не потрібні; _one є в кожній — перевіряє ADDED_29C. */
   const ADDED_29C_PLURALS = ['summaryJigsaws_few', 'summaryJigsaws_many'];
   /** 29d: «Знайди відмінності» — назви, помилки, редактор, проблеми чернетки, тексти телефона, сцени й таблиці. */
@@ -146,6 +148,12 @@ describe('uk golden (22a)', () => {
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_28D.filter((key) => !(key in dict)), lang).toEqual([]);
   });
 
+  it('29i keys are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const key of ADDED_29I) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_29I.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
   it('29c keys are in every language', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
     for (const key of ADDED_29C) expect(ukMessages, key).toHaveProperty(key);
@@ -167,7 +175,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29I.includes(key))).toEqual([]);
   });
 });
 

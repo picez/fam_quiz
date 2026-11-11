@@ -37,11 +37,11 @@ import { ChainPlay, ChainWords } from './ChainView';
 import { WordLadderOutcome, WordLadderPlay } from './WordLadderView';
 import { TimedListBoard, TimedListOutcome, TimedListPlay, TimedListReveal } from './TimedListView';
 import { LetterWordsBest, LetterWordsBoard, LetterWordsMine, LetterWordsPlay } from './LetterWordsView';
-import { MoreLessBoard, MoreLessPlay, MoreLessReveal, useTimeRanOut } from './MoreLessView';
+import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanOut } from './MoreLessView';
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
-import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
+import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
@@ -108,6 +108,7 @@ interface Props {
 }
 
 const NO_SYNC = () => {};
+const APPEAL_BLOCK_KEY = { captain: 'appealCaptain', no_voters: 'appealNoVoters', appeal_open: 'appealWaitOther' } as const;
 
 /** Рядок про власну долю в «Вибуванні» наприкінці раунду й гри: привиду — після якого запитання вибув (якщо відомо), живому — бонус (якщо він був). */
 function survivalStateLine(own: PlayerView['me']['survival']): string | null {
@@ -865,6 +866,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // «Правда про гравця» (28b): запитання раунду — факт, варіанти — імена людей гри.
   const truthQ = view.truth !== undefined && view.truth.index !== null && question?.type === 'single';
   const truthOwn = truthQ && me.truth?.own === true;
+  const lockedTitle = question === null ? '' : drawingTitle(question, view.drawing?.drawerName ?? null);
   // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
   // Факти збираються в лобі (повна форма). Після старту — лише між запитаннями, поки раунд не роздано, і лише без факту
@@ -1073,7 +1075,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
           {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && !truthOwn && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
-            <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
+            <h1 className={questionClass(drawingTitle(question, view.drawing?.drawerName ?? null))} dir="auto">{drawingTitle(question, view.drawing?.drawerName ?? null)}</h1>
             <AwayNote away={view.away} />
             {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
             <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />
@@ -1127,9 +1129,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <SpotlightChoices removed={view.removed} question={question} spotlight={null} reveal={null} placeholder={false} />
             ) : question.type === 'moreless' ? (
               // Більше чи менше (28a): вибирає той, хто відповідає (у команді — відповідач), решта команди бачить поступ;
-              // глядач клітинки поля — лише рядок того, хто вибрав. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
+              // глядач клітинки поля бачить, хто вибирає, поточну пару й вибрані тексти — правильність лише на розкритті. Сплив час (з особистим додатковим) гасить кнопки ще до закриття.
               me.moreless === undefined ? (
-                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+                view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               ) : team !== null && !team.canAct ? (
                 <p className="lead moreless-team-watch">{t('morelessTeamWatch', { name: memberName(view, team.answererId), done: me.moreless.done, total: me.moreless.total })}</p>
               ) : (
@@ -1142,7 +1144,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Головоломки (28d): у команді одна спільна сітка, вписує будь-хто; кольори — хто з учасників що вписав.
               me.puzzle !== undefined && (
                 <>
-                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} />
+                  <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} deadline={puzzleDeadline} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
                   {/* Чужі сітки на телефоні не показуються (місце): лише скільки вже натиснули «Готово». */}
                   {view.puzzle !== undefined && (
                     <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.puzzle.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
@@ -1309,7 +1311,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'locked' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
+          {/* Малюнок: рушій ховає текст від вгадувачів, тож заголовок той самий, що на етапі запитання. */}
+          <h1 className={questionClass(lockedTitle)} dir="auto">{lockedTitle}</h1>
           <AwayNote away={view.away} />
           {/* Відповіді закрито: картинка, що проявлялася, вже повна. */}
           {question?.reveal && <RevealImage url={question.imageUrl} mode={question.reveal} stage={revealStageNow} />}
@@ -1380,7 +1383,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             // Головоломки (28d): сітка лише для перегляду; правильність — на розкритті.
             <section className="sent">
               <h2>{me.puzzle.done ? t('puzzleWaiting') : t(ranOut ? 'puzzleTimeUp' : 'puzzleClosed')}</h2>
-              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} />
+              <PuzzlePlay key={view.questionIndex} info={me.puzzle} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} closed send={send} pencil={code === '' ? undefined : { room: code, round: view.round?.index ?? 0 }} />
             </section>
           ) : question?.type === 'jigsaw' && me.jigsaw !== undefined ? (
             // Пазл (29c): рамка лише для перегляду; бали — на розкритті.
@@ -1399,7 +1402,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {me.moreless !== undefined ? (
                 <h2>{me.moreless.done >= me.moreless.total ? t('morelessDone') : t(ranOut ? 'morelessLate' : 'morelessClosed', { done: me.moreless.done, total: me.moreless.total })}</h2>
               ) : (
-                view.moreless !== undefined && <MoreLessBoard info={view.moreless} reveal={false} />
+                view.moreless !== undefined && (view.moreless.watch !== undefined ? <MoreLessWatch info={view.moreless} question={question} /> : <MoreLessBoard info={view.moreless} reveal={false} />)
               )}
             </section>
           ) : me.wordladder !== undefined && question !== null ? (
@@ -1510,7 +1513,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {appealButtonText(reason, me.appeal?.left ?? 0)}
             </button>
           ))}
-          {me.appeal?.block != null && <p className="meta appeal-block">{t(me.appeal.block === 'captain' ? 'appealCaptain' : 'appealNoVoters')}</p>}
+          {/* Виборцю відкритої апеляції «зачекайте» не потрібне: аркуш голосування вже перед ним. */}
+          {me.appeal?.block != null && !(me.appeal.block === 'appeal_open' && me.appeal.voter) && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
           {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
             <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
