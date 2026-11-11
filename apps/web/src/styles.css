@@ -20188,3 +20188,134 @@ input.sudoku-editor-cell:focus-visible {
   }
 }
 /* «Знайди відмінності»: кінець телефона */
+
+/* «Знайди відмінності»: сцена й пульт (29d). Картинки зверху (контейнер за розміром), картки гравців і таблиця — як у пазлі. */
+.spotdiff-stage:not(.is-reveal) {
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.spotdiff-stage-pics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Сцена: дві картинки поруч, кожна вписується в комірку за шириною й висотою (--ar — співвідношення сторін). */
+.spotdiff-stage .spot-pictures {
+  grid-template-columns: repeat(2, auto);
+  justify-content: center;
+  align-content: center;
+  width: auto;
+  height: 100%;
+}
+
+.spotdiff-stage .spot-pic {
+  width: min(50cqw - 0.5rem, 100cqh * var(--ar, 1.3333));
+}
+
+.spotdiff-boards-fit {
+  flex: 0 0 auto;
+  height: 22vh;
+  min-width: 0;
+  container-type: size;
+}
+
+.spotdiff-boards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+  gap: 0.6vh 0.8vw;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqh / (var(--rows, 1) * 1.7));
+}
+
+.spotdiff-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 0 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.spotdiff-card.is-done {
+  border-color: var(--accent-text);
+}
+
+.spotdiff-card-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.spotdiff-card-count,
+.spotdiff-card-spots {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.spotdiff-boards-fit.is-host {
+  height: auto;
+  container-type: normal;
+}
+
+.spotdiff-boards-fit.is-host .spotdiff-boards {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-template-rows: none;
+  height: auto;
+  font-size: 1rem;
+}
+
+.spotdiff-boards-fit.is-host .spotdiff-card {
+  flex-wrap: wrap;
+  padding: 0.3em 0.6em;
+}
+
+/* Розкриття на сцені: картинки ліворуч, таблиця праворуч. */
+.spotdiff-stage.is-reveal .spotdiff-stage-pics {
+  min-height: 0;
+}
+
+.spotdiff-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.spotdiff-legend b {
+  color: var(--amber);
+}
+
+.host-spotdiff .spotdiff-stage-pics {
+  container-type: normal;
+}
+
+.host-spotdiff .spot-pictures {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.host-spotdiff .spot-pic {
+  width: 100%;
+}
+
+.host-spotdiff .spotdiff-table {
+  margin-top: 1rem;
+}
+/* кінець: «Знайди відмінності» на сцені й пульті */

@@ -1649,6 +1649,41 @@ describe('HostScreen jigsaw (29c)', () => {
   });
 });
 
+describe('HostScreen spotdiff (29d)', () => {
+  const spots = [{ x: 0.2, y: 0.3, r: 0.05 }, { x: 0.5, y: 0.5, r: 0.06 }, { x: 0.8, y: 0.7, r: 0.04 }];
+  const sd = { original: '/uploads/0123456789abcdef0001.png', changed: '/uploads/0123456789abcdef0002.png', aspect: 4 / 3, total: 3 };
+  const full = { id: 'sd1', type: 'spotdiff', text: 'Знайдіть відмінності', imageUrl: null, video: null, timeLimit: 90, points: 300, original: sd.original, changed: sd.changed, aspect: sd.aspect, spots } as unknown as Question;
+  const publicQ = (revealSpots: typeof spots | null) => ({ ...publicOf(single), type: 'spotdiff' as const, text: 'Знайдіть відмінності', choices: [], spotdiff: { ...sd, spots: revealSpots } });
+  const b = (playerId: string, nickname: string, found: number, mine: number[], over: Record<string, unknown> = {}) => ({ playerId, nickname, found, total: 3, done: false, timeMs: null, points: null, spots: mine, ...over });
+
+  it('the host sees the circles with how many found each', () => {
+    const info = { spots, boards: [b('p1', 'Оля', 2, [0, 1]), b('p2', 'Тарас', 1, [1]), b('p3', 'Ната', 0, [])] };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 3, answeredCount: 0, question: publicQ(null), correct: full, endsAt: Date.now() + 60_000, spotdiff: info }));
+    const panel = document.querySelector<HTMLElement>('.host-spotdiff')!;
+    expect(within(panel).getByRole('heading', { name: 'Знайди відмінності' })).toBeTruthy();
+    expect(panel.querySelectorAll('.spot-ring')).toHaveLength(6);
+    expect([...panel.querySelectorAll('.spot-pic')[1].querySelectorAll('.spot-ring text')].map((el) => el.textContent)).toEqual(['1', '2', '3']);
+    expect([...panel.querySelectorAll('.spotdiff-legend li')].map((li) => li.textContent)).toEqual(['1 Знайшли: 1', '2 Знайшли: 2', '3 Знайшли: 0']);
+    expect([...panel.querySelectorAll('.spotdiff-card-spots')].map((el) => el.textContent)).toEqual(['1, 2', '2']);
+    expect(within(panel).getByText('Знайдено 2 з 3')).toBeTruthy();
+    expect(screen.getByText(/Відповіли 0 з 3/)).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+
+  it('on reveal the host sees the table too, unfound circles dashed', () => {
+    const info = { spots, boards: [b('p1', 'Оля', 2, [0, 1], { points: 200 }), b('p2', 'Тарас', 1, [1], { points: 100 })] };
+    show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: publicQ(spots), correct: full, spotdiff: info }));
+    const panel = document.querySelector<HTMLElement>('.host-spotdiff')!;
+    const rows = [...panel.querySelectorAll('.spotdiff-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Оля', 'Знайдено 2 з 3', '+200'],
+      ['2', 'Тарас', 'Знайдено 1 з 3', '+100'],
+    ]);
+    expect(panel.querySelectorAll('.spot-pic')[1].querySelectorAll('.spot-ring.is-missed')).toHaveLength(1);
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

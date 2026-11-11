@@ -447,6 +447,24 @@ describe('LiveAnswers: jigsaw (29c)', () => {
   });
 });
 
+describe('LiveAnswers: spotdiff (29d)', () => {
+  const spotdiff = { id: 's1', type: 'spotdiff', text: 'Відмінності', imageUrl: null, video: null, timeLimit: 90, points: 300, original: '/uploads/a.png', changed: '/uploads/b.png', aspect: 1.5, spots: [] } as unknown as Question;
+
+  it('live answers show finds and done', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', progress: { kind: 'spotdiff', found: 2, total: 3, done: false } }),
+      row({ id: 'p2', nickname: 'Тарас', answered: true, answer: { type: 'spotdiff', found: 3, total: 3, done: true, timeMs: 41_200 } as never, progress: { kind: 'spotdiff', found: 3, total: 3, done: true } }),
+      row({ id: 'p3', nickname: 'Ната', progress: { kind: 'spotdiff', found: 0, total: 3, done: false } }),
+    ];
+    show(rows, base({ correct: spotdiff }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers[0]).toBe('Знайдено 2 з 3');
+    expect(answers[1]).toBe('Знайдено 3 з 3 · Готово ✓');
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+    expect(within(document.querySelector('.live-waiting') as HTMLElement).getByText('Ната')).toBeTruthy();
+  });
+});
+
 describe('LiveAnswers: where the card is heading (11d)', () => {
   const sortView = (over: Partial<HostView> = {}) =>
     base({ question: { choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } } as never, ...over });

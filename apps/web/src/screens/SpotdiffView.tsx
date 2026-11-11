@@ -1,10 +1,12 @@
 import { memo, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { PlayerSpotdiff, PublicQuestion, PublicSpotdiff } from '@quiz/shared';
-import { secondsText } from '../format';
+import type { PlayerSpotdiff, PublicQuestion, PublicSpotdiff, SpotdiffBoardView, SpotdiffHostInfo, SpotdiffInfo } from '@quiz/shared';
+import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { shareOf } from '../live/spot-geometry';
 import type { Send } from '../live/types';
 import { useSpotdiff, type SpotMiss } from '../live/useSpotdiff';
+import { jigsawTablePageSize } from './JigsawView';
+import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
 /** Рух пальця понад стільки CSS px — не тап (прокрутка чи жест). */
 export const SPOT_TAP_PX = 8;
@@ -180,5 +182,114 @@ export function SpotdiffReveal({ mine, question }: { mine: PlayerSpotdiff | unde
       </p>
       <SpotdiffPictures spotdiff={spotdiff} circles={circles} />
     </div>
+  );
+}
+
+type BoardRow = SpotdiffBoardView & { spots?: number[] };
+
+/**
+ * Картки «нік · x з N» усіх гравців (команд) на сцені й пульті (29d): на сцені — рівні сторінки по черзі (puzzleGrid, puzzlePageSize,
+ * usePage, як у пазлі), на пульті — уся сітка, а в картці ще й номери знайдених кіл. Місць тут немає, лише кількість.
+ */
+export function SpotdiffBoards({ boards, reveal = false, host = false }: { boards: readonly BoardRow[]; reveal?: boolean; host?: boolean }) {
+  const size = puzzlePageSize(boards.length, reveal);
+  const page = usePage(boards.length, size, !host);
+  const shown = host ? boards : boards.slice(page * size, page * size + size);
+  const grid = puzzleGrid(shown.length, false);
+  return (
+    <div className={host ? 'spotdiff-boards-fit is-host' : grid.dense ? 'spotdiff-boards-fit is-dense' : 'spotdiff-boards-fit'}>
+      <ul className="spotdiff-boards" style={host ? undefined : ({ '--cols': grid.cols, '--rows': grid.rows } as CSSProperties)}>
+        {shown.map((board) => (
+          <li key={board.playerId} className={board.done ? 'spotdiff-card is-done' : 'spotdiff-card'} data-player={board.playerId}>
+            <span className="spotdiff-card-name" dir="auto" title={board.nickname}>
+              {board.nickname}
+            </span>
+            <span className="spotdiff-card-count">
+              {t('spotdiffFound', { found: board.found, total: board.total })}
+              {board.done && board.timeMs !== null ? ` ✓ ${t('jigsawSeconds', { time: secondsText(board.timeMs) })}` : ''}
+            </span>
+            {host && board.spots !== undefined && board.spots.length > 0 && <span className="spotdiff-card-spots">{board.spots.map((n) => n + 1).join(', ')}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Таблиця розкриття: «місце · нік · знайдено · бали» в порядку сервера; рівні результати ділять місце. Сторінки й шрифт — як у JigsawTable. */
+export function SpotdiffTable({ boards, host = false }: { boards: readonly SpotdiffBoardView[]; host?: boolean }) {
+  const places = boards.map((board, i) => {
+    let at = i;
+    while (at > 0 && boards[at - 1].found === board.found && boards[at - 1].timeMs === board.timeMs && boards[at - 1].done === board.done) at -= 1;
+    return at + 1;
+  });
+  const size = jigsawTablePageSize(boards.length);
+  const page = usePage(boards.length, size, !host);
+  const from = host ? 0 : page * size;
+  const shown = host ? boards : boards.slice(from, from + size);
+  return (
+    <table className={host ? 'jigsaw-table spotdiff-table is-host' : 'jigsaw-table spotdiff-table'} aria-label={t('spotdiffTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
+      <thead>
+        <tr>
+          <th scope="col">{t('jigsawTablePlace')}</th>
+          <th scope="col">{t('jigsawTableWho')}</th>
+          <th scope="col">{t('spotdiffTableFound')}</th>
+          <th scope="col">{t('jigsawTablePoints')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((board, i) => (
+          <tr key={board.playerId} className={board.done ? 'is-done' : 'is-undone'}>
+            <td className="rank">{places[from + i]}</td>
+            <td className="name" dir="auto">
+              {board.nickname}
+            </td>
+            <td className="jigsaw-table-time">
+              {t('spotdiffFound', { found: board.found, total: board.total })}
+              {board.done && board.timeMs !== null ? ` · ${t('jigsawSeconds', { time: secondsText(board.timeMs) })}` : ''}
+            </td>
+            <td className="score">{signed(board.points ?? 0)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * «Знайди відмінності» на сцені й пульті (29d). Зверху дві картинки: до розкриття без кіл (глядачі теж шукають), на розкритті з усіма
+ * колами; пульт бачить кола з номерами завжди й під картинками, скільки дошок знайшло кожне. Далі — картки (до розкриття) чи таблиця.
+ */
+export function SpotdiffStage({ info, spotdiff, reveal, host = false }: { info: SpotdiffInfo | SpotdiffHostInfo; spotdiff: PublicSpotdiff; reveal: boolean; host?: boolean }) {
+  const hostInfo = host && 'spots' in info ? info : null;
+  const finds = (i: number) => (hostInfo === null ? 0 : hostInfo.boards.filter((board) => board.spots.includes(i)).length);
+  const circles: SpotRing[] =
+    hostInfo !== null
+      ? hostInfo.spots.map((s, i) => ({ x: s.x, y: s.y, r: s.r, tone: null, label: String(i + 1), missed: reveal && finds(i) === 0 }))
+      : reveal
+        ? (spotdiff.spots ?? []).map((s) => ({ x: s.x, y: s.y, r: s.r, tone: null }))
+        : [];
+  return (
+    <>
+      <div className="spotdiff-stage-pics">
+        <SpotdiffPictures spotdiff={spotdiff} circles={circles} />
+        {hostInfo !== null && (
+          <ul className="spotdiff-legend">
+            {hostInfo.spots.map((_, i) => (
+              <li key={i} data-spot={i}>
+                <b>{i + 1}</b> {t('spotdiffSpotFoundBy', { count: finds(i) })}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {reveal ? (
+        <div className="jigsaw-stage-table">
+          <SpotdiffTable boards={info.boards} host={host} />
+        </div>
+      ) : (
+        <SpotdiffBoards boards={info.boards} host={host} />
+      )}
+    </>
   );
 }

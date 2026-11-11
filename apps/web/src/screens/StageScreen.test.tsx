@@ -1168,6 +1168,49 @@ describe('StageScreen final', () => {
     });
   });
 
+  describe('spotdiff (29d)', () => {
+    const spots = [{ x: 0.2, y: 0.3, r: 0.05 }, { x: 0.5, y: 0.5, r: 0.06 }, { x: 0.8, y: 0.7, r: 0.04 }];
+    const sd = { original: '/uploads/0123456789abcdef0001.png', changed: '/uploads/0123456789abcdef0002.png', aspect: 4 / 3, total: 3 };
+    const spotQ = { ...question, type: 'spotdiff' as const, text: 'Знайдіть відмінності', choices: [], timeLimit: 90, points: 300, spotdiff: { ...sd, spots: null } };
+    const spotFull = { id: 'sd1', type: 'spotdiff', text: 'Знайдіть відмінності', imageUrl: null, video: null, timeLimit: 90, points: 300, original: sd.original, changed: sd.changed, aspect: sd.aspect, spots } as unknown as Question;
+    const b = (playerId: string, nickname: string, found: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, found, total: 3, done: false, timeMs: null, points: null, ...over });
+
+    it('the stage shows counts and no circles before reveal', () => {
+      const info = { boards: [b('p1', 'Оля', 2), b('p2', 'Тарас', 3, { done: true, timeMs: 41_200 }), b('p3', 'Ната', 0)] };
+      show(view({ phase: 'question', questionIndex: 0, question: spotQ, endsAt: Date.now() + 60_000, playerCount: 3, answeredCount: 1, spotdiff: info }));
+      expect(document.querySelectorAll('.spot-pic img')).toHaveLength(2);
+      const cards = [...document.querySelectorAll('.spotdiff-card')];
+      expect(cards).toHaveLength(3);
+      expect(within(cards[0] as HTMLElement).getByText('Оля')).toBeTruthy();
+      expect(within(cards[0] as HTMLElement).getByText('Знайдено 2 з 3')).toBeTruthy();
+      expect(within(cards[1] as HTMLElement).getByText(/✓ 41,2 с/)).toBeTruthy();
+      expect(document.querySelector('.spot-ring')).toBeNull();
+      expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+      expect(document.querySelector('.spotdiff-table')).toBeNull();
+    });
+
+    it('reveal shows every circle on both pictures and the table', () => {
+      const info = { boards: [b('p2', 'Тарас', 3, { done: true, timeMs: 41_200, points: 300 }), b('p1', 'Оля', 2, { points: 200 }), b('p3', 'Ната', 0, { points: 0 })] };
+      show(view({ phase: 'reveal', questionIndex: 0, question: { ...spotQ, spotdiff: { ...sd, spots } }, reveal: spotFull, playerCount: 3, answeredCount: 3, spotdiff: info }));
+      expect(document.querySelectorAll('.spot-pic .spot-ring')).toHaveLength(6);
+      const rows = [...document.querySelectorAll('.spotdiff-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+      expect(rows).toEqual([
+        ['1', 'Тарас', 'Знайдено 3 з 3 · 41,2 с', '+300'],
+        ['2', 'Оля', 'Знайдено 2 з 3', '+200'],
+        ['3', 'Ната', 'Знайдено 0 з 3', '0'],
+      ]);
+      expect(document.querySelector('.spotdiff-card')).toBeNull();
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
+
+    it('twelve rows fit the stage', () => {
+      const info = { boards: Array.from({ length: 12 }, (_, i) => b(`p${i}`, `Гравець ${i + 1}`, 3, { done: true, timeMs: 30_000 + i, points: 300 })) };
+      show(view({ phase: 'reveal', questionIndex: 0, question: { ...spotQ, spotdiff: { ...sd, spots } }, reveal: spotFull, playerCount: 12, answeredCount: 12, spotdiff: info }));
+      expect(document.querySelectorAll('.spotdiff-table tbody tr')).toHaveLength(12);
+      expect((document.querySelector('.spotdiff-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('12');
+    });
+  });
+
   it('a timed list shows only counts while playing, then the whole list', () => {
     const listQ = { ...question, type: 'timedlist' as const, text: 'Назвіть планети', choices: [], timedlist: { total: 3, minus: null } };
     const rows = [
