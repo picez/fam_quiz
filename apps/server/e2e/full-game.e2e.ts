@@ -24901,13 +24901,16 @@ async function moreLessBoard28a() {
   await olya.getByText('Ваш хід: виберіть клітинку').waitFor();
   await olya.getByRole('button', { name: 'Порівняння, 300', ...exact }).click();
   await olya.locator('button.moreless-option').first().waitFor();
-  // Глядач клітинки бачить лише поступ того, хто вибрав.
-  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('0 / 3');
+  // Глядач клітинки (29i) бачить, хто вибирає, поточну пару й вибрані тексти — без правильності.
+  await expect.poll(() => taras.locator('.moreless-watch-chooser').textContent(), POLL).toBe('Вибирає Оля');
   expect(await taras.locator('button.moreless-option').count(), 'buttons for a viewer of the cell').toBe(0);
+  expect(await taras.locator('.moreless-watch-picks li').count(), 'no picks yet').toBe(0);
   await morelessRun28a(olya, PAIRS28A_TEAM, ['a', 'b']);
-  await expect.poll(() => morelessRow28a(taras, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
-  await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.tag').first().textContent(), POLL).toBe('2 / 3');
+  await expect.poll(() => taras.locator('.moreless-watch-picks li').count(), POLL).toBe(2);
+  await expect.poll(() => stage.locator('.moreless-watch-picks li').count(), POLL).toBe(2);
+  expect(await stage.locator('.moreless-watch-chooser').textContent()).toBe('Вибирає Оля');
   expect(await morelessRow28a(stage, 'Тарас').count(), 'a row for a viewer of the cell').toBe(0);
+  expect(await stage.locator('.moreless-watch').textContent(), 'no marks before the reveal').not.toMatch(/[✓✗]/);
   await shot(taras, 'moreless28a-board-cell');
   await morelessRun28a(olya, PAIRS28A_TEAM, ['b'], 2);
   await expect.poll(() => morelessRow28a(stage, 'Оля').locator('.score').textContent(), POLL).toBe('+600');
