@@ -1004,6 +1004,8 @@
   "drawingEraser": "Gumka",
   "drawingFull": "Rysunek jest za duży — zetrzyj coś",
   "drawingGuessButton": "Zgadnij",
+  "drawingGuessTitle": "Rysunek — zgadnij, co rysuje {name}",
+  "drawingGuessTitleAnon": "Rysunek — zgadnij, co jest rysowane",
   "drawingGuessPlaceholder": "Co to jest?",
   "drawingGuessed": "Zgadnięte!",
   "drawingHelp": "Rysuje się po kolei: za każdym razem następny gracz, w drużynach — następna drużyna. Słowo widzą tylko rysujący i pulpit prowadzącego.",

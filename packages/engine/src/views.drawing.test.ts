@@ -112,6 +112,33 @@ describe('drawing views', () => {
     }
   });
 
+  it('the drawer sees the text in a fresh view, guessers and the stage do not', () => {
+    const text = 'Що на малюнку?';
+    let s = draws(solo(), 'p1');
+    for (const phase of ['question', 'locked'] as const) {
+      if (phase === 'locked') s = must(lock(s, 5000));
+      expect(s.phase).toBe(phase);
+      expect(stageView(s).question?.text).toBe('');
+      expect(view(s, 'p2').question?.text).toBe('');
+      expect(view(s, 'p1').question?.text).toBe(text);
+      expect(hostView(s).question?.text).toBe(text);
+      const { text: _a, ...guesserRest } = view(s, 'p2').question!;
+      const { text: _b, ...drawerRest } = view(s, 'p1').question!;
+      expect(guesserRest).toEqual(drawerRest);
+    }
+    s = must(next(s, 5000));
+    expect(s.phase).toBe('reveal');
+    for (const q of [stageView(s).question, view(s, 'p2').question, view(s, 'p1').question, hostView(s).question]) expect(q?.text).toBe(text);
+  });
+
+  it('a teammate of the drawer does not see the text', () => {
+    const s = draws(teams(), 'm1');
+    expect(view(s, 'm1').question?.text).toBe('Що на малюнку?');
+    expect(view(s, 'm2').question?.text).toBe('');
+    expect(view(s, 'm3').question?.text).toBe('');
+    expect(stageView(s).question?.text).toBe('');
+  });
+
   it('other questions are unchanged', () => {
     let second = must(lock(solo(), 2000));
     for (let i = 0; i < 5 && second.plays[second.questionIndex].question.type === 'drawing'; i++) second = must(next(second, 2000));
@@ -121,6 +148,7 @@ describe('drawing views', () => {
       expect(v).not.toHaveProperty('me.drawing');
     }
     expect(JSON.stringify(stageView(second))).not.toContain('"drawing"');
+    for (const v of [stageView(second), hostView(second), view(second, 'p1'), view(second, 'p2')]) expect(v.question?.text).not.toBe('');
   });
 });
 

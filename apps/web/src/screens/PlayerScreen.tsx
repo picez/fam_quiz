@@ -41,7 +41,7 @@ import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanO
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
-import { DrawingClosed, DrawingPhone, DrawingReveal, strokesOf } from './DrawingView';
+import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
@@ -1074,7 +1074,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* 12g: над запитанням, коли я відповідаю за команду не як капітан за замовчуванням; бліц, опитування й хмара — як були. */}
           {team !== null && team.answerer && team.answererMode !== 'captain' && teamDraftOn && view.blitz === null && !truthOwn && <p className={`lead team-answerer-banner team-${teamOf(view)?.color ?? 0}`}>{t('teamYouAnswer')}</p>}
           <DebuffZone debuff={debuff} limitMs={view.limitMs} offsetMs={offsetMs} questionIndex={view.questionIndex}>
-            <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
+            <h1 className={questionClass(drawingTitle(question, view.drawing?.drawerName ?? null))} dir="auto">{drawingTitle(question, view.drawing?.drawerName ?? null)}</h1>
             <AwayNote away={view.away} />
             {/* Власна картинка точки — це основа мапи, вона вже в рамці. */}
             <RevealImage url={question.pin !== null ? null : question.imageUrl} mode={question.reveal || null} stage={revealStageNow} />

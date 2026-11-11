@@ -1028,6 +1028,8 @@
   "drawingEraser": "ممحاة",
   "drawingFull": "الرسم كبير جدًا — امسح شيئًا",
   "drawingGuessButton": "خمّن",
+  "drawingGuessTitle": "رسم — خمّن ماذا يرسم {name}",
+  "drawingGuessTitleAnon": "رسم — خمّن ما يُرسم",
   "drawingGuessPlaceholder": "ما هذا؟",
   "drawingGuessed": "أصبت!",
   "drawingHelp": "يرسم اللاعبون بالدور: في كل مرة اللاعب التالي، وفي الفرق الفريق التالي. لا يرى الكلمة إلا الرسّام ولوحة المقدّم.",

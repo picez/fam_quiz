@@ -2534,6 +2534,8 @@ const uk = {
   drawingYouDraw: 'Ви малюєте!',
   drawingDrawer: 'Малює: {name}',
   drawingGuessed: 'Вгадано!',
+  drawingGuessTitle: 'Малюнок — вгадайте, що малює {name}',
+  drawingGuessTitleAnon: 'Малюнок — вгадайте, що малюють',
   drawingMiss: 'Ні',
   drawingGuessPlaceholder: 'Що це?',
   drawingGuessButton: 'Вгадати',

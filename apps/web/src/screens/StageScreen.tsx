@@ -49,7 +49,7 @@ import { WordLadderBoard, WordLadderGoal, WordLadderPath } from './WordLadderVie
 import { TimedListBoard, TimedListReveal } from './TimedListView';
 import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsView';
 import { MoreLessBoard, MoreLessReveal, MoreLessWatch } from './MoreLessView';
-import { DrawingBoard, DrawingLive, DrawingReveal, strokesOf } from './DrawingView';
+import { DrawingBoard, DrawingLive, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
 import { SpotdiffStage } from './SpotdiffView';
@@ -326,7 +326,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       )}
       {/* На розкритті фіналу запитання не розтягується: лічильник банку й список стоять на місці, поки рядків більшає. */}
       <div className={finalReveal ? 'stage-main is-reveal' : 'stage-main'}>
-        <h1 className={questionClass(question.text)} dir="auto">{question.text}</h1>
+        <h1 className={questionClass(drawingTitle(question, view.drawing?.drawerName ?? null))} dir="auto">{drawingTitle(question, view.drawing?.drawerName ?? null)}</h1>
         {view.phase === 'question' && (
           // «Чекаємо …» висить під табло поза потоком: його поява на спільному кінці нічого не зсуває.
           <div className="stage-clock">

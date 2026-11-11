@@ -5,7 +5,8 @@ import type { DrawingInfo, PlayerDrawing, Stroke } from '@quiz/shared';
 import type { DrawingModel } from '../live/drawing';
 import { DRAW_FLUSH_MS } from '../live/pen';
 import type { Send, SendResult } from '../live/types';
-import { DRAWING_MISS_MS, DrawingBoard, DrawingGuess, DrawingPad, DrawingReveal, DrawingTeamWatch } from './DrawingView';
+import { t } from '../i18n';
+import { DRAWING_MISS_MS, DrawingBoard, DrawingGuess, DrawingPad, DrawingReveal, DrawingTeamWatch, drawingTitle } from './DrawingView';
 
 const fakeContext = () =>
   new Proxy({}, { get: (target: Record<string, unknown>, key: string) => (key in target ? target[key] : () => undefined), set: (target, key: string, value) => ((target[key] = value), true) });
@@ -297,5 +298,15 @@ describe('DrawingBoard and DrawingReveal (28c)', () => {
     cleanup();
     render(<DrawingReveal info={info({ word: 'маяк', guessers: [], guessed: 0, drawerPoints: 0 })} strokes={[]} />);
     expect(screen.getByText('Ніхто не вгадав')).toBeTruthy();
+  });
+});
+
+describe('drawingTitle (29i)', () => {
+  const q = (text: string) => ({ type: 'drawing', text }) as never;
+  it('hides the empty text behind a neutral line', () => {
+    expect(drawingTitle(q(''), 'Оля')).toBe(t('drawingGuessTitle', { name: 'Оля' }));
+    expect(drawingTitle(q(''), null)).toBe(t('drawingGuessTitleAnon'));
+    expect(drawingTitle(q('Що на малюнку?'), 'Оля')).toBe('Що на малюнку?');
+    expect(drawingTitle({ type: 'single', text: '' } as never, 'Оля')).toBe('');
   });
 });

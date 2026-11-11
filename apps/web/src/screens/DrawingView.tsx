@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import type { PublicQuestion } from '@quiz/shared';
 import { DRAWING_COLORS, DRAWING_ERASER, DRAWING_WIDTHS, LIMITS, applyDrawOp, type DrawOp, type DrawingInfo, type PlayerDrawing, type Stroke } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
@@ -8,6 +9,12 @@ import type { Send } from '../live/types';
 import { DrawingCanvas } from './DrawingCanvas';
 
 /** Скільки висить «Ні» після хибної спроби, мс. */
+/** Заголовок запитання «Малюнок»: рушій не віддає тексту вгадувачам і сцені, тож замість порожнього рядка — нейтральна підказка. */
+export function drawingTitle(question: PublicQuestion, drawerName: string | null): string {
+  if (question.type !== 'drawing' || question.text !== '') return question.text;
+  return drawerName === null ? t('drawingGuessTitleAnon') : t('drawingGuessTitle', { name: drawerName });
+}
+
 export const DRAWING_MISS_MS = 1500;
 
 const WIDTH_KEYS = ['drawingWidth_0', 'drawingWidth_1', 'drawingWidth_2'] as const;
