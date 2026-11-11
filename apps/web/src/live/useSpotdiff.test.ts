@@ -58,6 +58,59 @@ describe('useSpotdiff', () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it('the freeze grows with every miss in a row and a hit or a new question resets the count', async () => {
+    vi.useFakeTimers();
+    const results: SendResult[] = [];
+    const send = vi.fn<Send>(() => Promise.resolve(results.shift() ?? { ok: true }));
+    const miss: SendResult = { ok: false, error: 'spotdiff_miss' };
+    const freeze: SendResult = { ok: false, error: 'spotdiff_freeze' };
+    const hook = mount(send);
+    const tapWith = async (result: SendResult) => {
+      results.push(result);
+      await act(async () => hook.result.current.tap(0.5, 0.4, 288));
+    };
+    const thaw = (ms: number) => {
+      act(() => vi.advanceTimersByTime(ms - 1));
+      expect(hook.result.current.frozen).toBe(true);
+      act(() => vi.advanceTimersByTime(1));
+      expect(hook.result.current.frozen).toBe(false);
+    };
+    await tapWith(miss);
+    await tapWith(miss);
+    for (const seconds of [1, 2, 3, 4, 5, 5]) {
+      await tapWith(freeze);
+      expect(hook.result.current.frozen).toBe(true);
+      thaw(seconds * 1000);
+    }
+    // влучання обнуляє: два промахи й знову перша заморозка на секунду
+    await tapWith({ ok: true });
+    await tapWith(miss);
+    await tapWith(miss);
+    await tapWith(freeze);
+    thaw(1000);
+    await tapWith(freeze);
+    thaw(2000);
+  });
+
+  it('a new question resets the miss count', async () => {
+    vi.useFakeTimers();
+    const freeze: SendResult = { ok: false, error: 'spotdiff_freeze' };
+    const send = answering(freeze);
+    const hook = renderHook(({ q }) => useSpotdiff(infoOf(), q, send), { initialProps: { q: 0 } });
+    await act(async () => hook.result.current.tap(0.5, 0.4, 288));
+    act(() => vi.advanceTimersByTime(SPOTDIFF_FREEZE_MS));
+    await act(async () => hook.result.current.tap(0.5, 0.4, 288));
+    // друга заморозка поспіль — 2 с
+    act(() => vi.advanceTimersByTime(SPOTDIFF_FREEZE_MS));
+    expect(hook.result.current.frozen).toBe(true);
+    act(() => vi.advanceTimersByTime(SPOTDIFF_FREEZE_MS));
+    expect(hook.result.current.frozen).toBe(false);
+    hook.rerender({ q: 1 });
+    await act(async () => hook.result.current.tap(0.5, 0.4, 288));
+    act(() => vi.advanceTimersByTime(SPOTDIFF_FREEZE_MS));
+    expect(hook.result.current.frozen).toBe(false);
+  });
+
   it('a frozen answer freezes too, a found one shows nothing', async () => {
     vi.useFakeTimers();
     const found = mount(answering({ ok: false, error: 'spotdiff_found' }));

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { SPOT_MAX_WIDTH, SPOT_MIN_WIDTH, SPOTDIFF_FREEZE_MS, type PlayerSpotdiff } from '@quiz/shared';
+import { SPOT_MAX_WIDTH, SPOT_MIN_WIDTH, SPOTDIFF_FREEZE_MS, SPOTDIFF_MISSES, spotdiffFreezeMs, type PlayerSpotdiff } from '@quiz/shared';
 import type { Send, SendResult } from './types';
 
 /** Скільки живе червоний хрестик промаху. */
@@ -16,7 +16,7 @@ export interface SpotMiss {
 export interface SpotdiffModel {
   /** Власні (командні) знахідки зі зрізу: кільце з'являється, щойно зріз приносить коло. */
   found: PlayerSpotdiff['found'];
-  /** Заморозка SPOTDIFF_FREEZE_MS від ack spotdiff_freeze / spotdiff_frozen: тапи не йдуть. */
+  /** Заморозка від ack spotdiff_freeze / spotdiff_frozen (росте з кожним промахом підряд, до 5 с): тапи не йдуть. */
   frozen: boolean;
   /** Хрестики промахів, кожен живе SPOTDIFF_CROSS_MS. */
   misses: SpotMiss[];
@@ -46,6 +46,8 @@ export function useSpotdiff(info: PlayerSpotdiff, questionIndex: number, send: S
   const [misses, setMisses] = useState<SpotMiss[]>([]);
   const [offline, setOffline] = useState(false);
   const frozenNow = useRef(false);
+  /** Власні промахи підряд: влучання й нове запитання обнуляють, заморозка — ні (як на сервері). */
+  const streak = useRef(0);
   const freezeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const crossTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const nextId = useRef(1);
@@ -65,7 +67,11 @@ export function useSpotdiff(info: PlayerSpotdiff, questionIndex: number, send: S
     };
   }, []);
 
-  const freeze = () => {
+  useEffect(() => {
+    streak.current = 0;
+  }, [questionIndex]);
+
+  const freeze = (ms: number) => {
     frozenNow.current = true;
     setFrozen(true);
     if (freezeTimer.current !== null) clearTimeout(freezeTimer.current);
@@ -73,7 +79,7 @@ export function useSpotdiff(info: PlayerSpotdiff, questionIndex: number, send: S
       freezeTimer.current = null;
       frozenNow.current = false;
       if (alive.current) setFrozen(false);
-    }, SPOTDIFF_FREEZE_MS);
+    }, ms);
   };
 
   const cross = (x: number, y: number) => {
@@ -95,10 +101,21 @@ export function useSpotdiff(info: PlayerSpotdiff, questionIndex: number, send: S
       if (!alive.current) return;
       const lost = !result.ok && result.error === 'offline';
       setOffline((was) => (was === lost ? was : lost));
-      if (result.ok) return;
-      if (result.error === 'spotdiff_miss' || result.error === 'spotdiff_freeze') cross(x, y);
-      // Нова заморозка (spotdiff_freeze) стартує відлік заново; spotdiff_frozen від тапів, що вже летіли, ту, що триває, не продовжує.
-      if (result.error === 'spotdiff_freeze' || (result.error === 'spotdiff_frozen' && !frozenNow.current)) freeze();
+      if (result.ok) {
+        streak.current = 0;
+        return;
+      }
+      if (result.error === 'spotdiff_miss' || result.error === 'spotdiff_freeze') {
+        streak.current += 1;
+        cross(x, y);
+      }
+      // Нова заморозка (spotdiff_freeze) стартує відлік заново на spotdiffFreezeMs(промахи підряд); сервер заморожує від
+      // SPOTDIFF_MISSES, тож лічильник не нижчий за нього. spotdiff_frozen від тапів, що вже летіли, ту, що триває, не продовжує
+      // (а коли заморозки ще нема — SPOTDIFF_FREEZE_MS).
+      if (result.error === 'spotdiff_freeze') {
+        streak.current = Math.max(streak.current, SPOTDIFF_MISSES);
+        freeze(spotdiffFreezeMs(streak.current));
+      } else if (result.error === 'spotdiff_frozen' && !frozenNow.current) freeze(SPOTDIFF_FREEZE_MS);
     });
   };
 
