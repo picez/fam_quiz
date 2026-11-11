@@ -1364,7 +1364,7 @@ export class RoomManager {
     }
     if (identity.role === 'stage') return passed ? closedTruth(stageView(room.state)) : stageView(room.state);
     if (identity.playerId === null) return null;
-    const own = playerView(room.state, identity.playerId);
+    const own = playerView(room.state, identity.playerId, this.now());
     if (own === null) return null;
     const raw = passed ? closedTruth(own) : own;
     // Автор продовження бачить місця у своєму меню (13b).
