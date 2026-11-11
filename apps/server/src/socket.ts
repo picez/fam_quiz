@@ -60,6 +60,7 @@ import {
   moreLessPickSchema,
   jigsawHoldSchema,
   jigsawPlaceSchema,
+  spotdiffTapSchema,
   puzzleDoneSchema,
   puzzleFillSchema,
   drawGuessSchema,
@@ -468,6 +469,13 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = jigsawHoldSchema.safeParse(payloadOf(args));
       return payload.success ? manager.jigsawHold(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    // «Знайди відмінності» (29d): ack { ok: true } на влучання, spotdiff_miss / spotdiff_freeze на промах; номер запитання — в межах раунду.
+    on('player:spotdiff', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = spotdiffTapSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.spotdiffTap(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:draw', (args) => {
