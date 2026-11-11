@@ -95,11 +95,11 @@ describe('spotdiff: the engine', () => {
     expect(spotdiffOf(sure(after), 'p3')!.found).toEqual([0, 1]);
   });
 
-  it('the freeze grows with every miss in a row (1, 2, 3, 5, 5 s) and a hit resets the count', () => {
+  it('the freeze grows with every miss in a row (1, 2, 3, 4, 5, 5 s) and a hit resets the count', () => {
     let cur = fresh();
     let t = T(cur) + 1000;
     const frozenFor: number[] = [];
-    for (let k = 1; k <= 7; k++) {
+    for (let k = 1; k <= 8; k++) {
       const r = tap(cur, 'p3', MISS, t);
       cur = sure(r);
       expect(spotdiffOf(cur, 'p3')!.misses).toEqual({ p3: k });
@@ -115,8 +115,8 @@ describe('spotdiff: the engine', () => {
       expect(tap(cur, 'p3', MISS, t + ms - 1)).toEqual({ ok: false, error: 'spotdiff_frozen' });
       t += ms;
     }
-    expect(frozenFor).toEqual([1000, 2000, 3000, 4000, 5000]);
-    expect(spotdiffOf(cur, 'p3')!.misses).toEqual({ p3: 7 });
+    expect(frozenFor).toEqual([1000, 2000, 3000, 4000, 5000, 5000]);
+    expect(spotdiffOf(cur, 'p3')!.misses).toEqual({ p3: 8 });
     const reset = hit(cur, 'p3', 0, t);
     expect(spotdiffOf(reset, 'p3')!.misses).toEqual({ p3: 0 });
     const again = tap(reset, 'p3', MISS, t + 10);
