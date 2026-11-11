@@ -1140,7 +1140,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               // Пазл (29c): у команді один спільний пазл, ставить будь-хто; шматочок у пальці товариша не береться.
               me.jigsaw !== undefined && (
                 <>
-                  <JigsawPlay key={view.questionIndex} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={locked} timeUp={buffTimeOver} send={send} team={team !== null} />
+                  <JigsawPlay key={`${view.round?.index ?? 0}:${view.questionIndex}`} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={locked} timeUp={buffTimeOver} send={send} team={team !== null} />
                   {view.jigsaw !== undefined && (
                     <p className="meta puzzle-others">{t('puzzleDoneOf', { done: view.jigsaw.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
                   )}
@@ -1362,7 +1362,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             // Пазл (29c): рамка лише для перегляду; бали — на розкритті.
             <section className="sent">
               <h2>{me.jigsaw.done ? t('jigsawDoneIn', { time: secondsText(me.jigsaw.timeMs ?? 0) }) : t(ranOut ? 'jigsawTimeUp' : 'jigsawClosed')}</h2>
-              <JigsawPlay key={view.questionIndex} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={false} timeUp={false} send={send} closed />
+              <JigsawPlay key={`${view.round?.index ?? 0}:${view.questionIndex}`} info={me.jigsaw} question={question} questionIndex={view.questionIndex} actorId={me.id} paused={false} timeUp={false} send={send} closed />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">

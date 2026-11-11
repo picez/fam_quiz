@@ -4,7 +4,7 @@ import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { piecePad, piecePath } from '../live/jigsaw-shape';
 import type { Send } from '../live/types';
-import { useJigsaw, type JigsawModel } from '../live/useJigsaw';
+import { jigsawSeed, useJigsaw, type JigsawModel } from '../live/useJigsaw';
 import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
 /** Тап: рух менший за стільки пікселів і коротший за стільки мілісекунд — поворот на 90°, а не перетягування. */
@@ -224,7 +224,8 @@ export interface JigsawPlayProps {
 export function JigsawPlay({ info, question, questionIndex, actorId, paused, timeUp, send, team = false, closed = false }: JigsawPlayProps) {
   const jigsaw = question.jigsaw;
   if (jigsaw === undefined) return null;
-  return <JigsawBoard info={info} jigsaw={jigsaw} questionIndex={questionIndex} actorId={actorId} paused={paused} timeUp={timeUp} send={send} team={team} closed={closed} />;
+  // Інший пазл під тим самим номером (зріз не несе id запитання) — інше зерно: купка й шматочки на рамці з нуля.
+  return <JigsawBoard key={`${questionIndex}:${jigsawSeed(jigsaw)}`} info={info} jigsaw={jigsaw} questionIndex={questionIndex} actorId={actorId} paused={paused} timeUp={timeUp} send={send} team={team} closed={closed} />;
 }
 
 function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, send, team, closed }: Omit<JigsawPlayProps, 'question'> & { jigsaw: PublicJigsaw; team: boolean; closed: boolean }) {

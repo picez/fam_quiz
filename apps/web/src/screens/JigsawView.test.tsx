@@ -88,6 +88,18 @@ describe('JigsawPlay', () => {
     expect(slots()[index].querySelector('[data-piece]')).toBeNull();
   });
 
+  it('another jigsaw at the same question number starts afresh', () => {
+    const send = vi.fn<Send>(() => Promise.resolve<SendResult>({ ok: true }));
+    const props = { info: infoOf(), questionIndex: 2, actorId: 'p1', paused: false, timeUp: false, send };
+    const view = render(<JigsawPlay question={questionOf()} {...props} />);
+    turnTo(5, 1);
+    dragTo(pieceEl(5), 1, 1);
+    expect(document.querySelector('.jigsaw-frame [data-piece="5"].is-loose')).toBeTruthy();
+    view.rerender(<JigsawPlay question={questionOf({ photo: '/uploads/fedcba9876543210fedc.jpg', tabs: jigsawTabs(3, 4, 2) })} {...props} />);
+    expect(document.querySelector('.jigsaw-frame [data-piece="5"]')).toBeNull();
+    expect(document.querySelectorAll('.jigsaw-pile .jigsaw-piece')).toHaveLength(12);
+  });
+
   it('a tap turns a piece', () => {
     mount();
     const el = document.querySelector<HTMLElement>('.jigsaw-pile [data-rot="0"]')!;
