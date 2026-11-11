@@ -61,6 +61,33 @@ describe('JigsawPlay', () => {
     expect(screen.getByLabelText(t('jigsawFrame'))).toBeTruthy();
   });
 
+  it("a teammate's placement leaves an empty slot: the other pile pieces keep their places", () => {
+    const send = vi.fn<Send>(() => Promise.resolve<SendResult>({ ok: true }));
+    const props = { question: questionOf(), questionIndex: 2, actorId: 'p1', paused: false, timeUp: false, send, team: true };
+    const view = render(<JigsawPlay info={infoOf()} {...props} />);
+    const slots = () => [...document.querySelectorAll<HTMLElement>('.jigsaw-pile .jigsaw-slot')];
+    const where = () => new Map(slots().flatMap((slot, index) => (slot.querySelector('[data-piece]') === null ? [] : [[Number(slot.querySelector<HTMLElement>('[data-piece]')!.dataset.piece), index] as const])));
+    const before = where();
+    const first = slots()[0].querySelector<HTMLElement>('[data-piece]')!;
+    const gone = Number(first.dataset.piece);
+    view.rerender(<JigsawPlay info={infoOf({ placed: [gone], seq: 1 })} {...props} />);
+    expect(slots()).toHaveLength(12);
+    expect(slots()[0].querySelector('[data-piece]')).toBeNull();
+    const after = where();
+    expect(after.size).toBe(11);
+    for (const [piece, index] of after) expect(index, `piece ${piece}`).toBe(before.get(piece));
+  });
+
+  it('a piece dropped on the frame leaves its pile slot empty', () => {
+    mount();
+    const slots = () => [...document.querySelectorAll<HTMLElement>('.jigsaw-pile .jigsaw-slot')];
+    const index = slots().findIndex((slot) => slot.querySelector('[data-piece="5"]') !== null);
+    turnTo(5, 1);
+    dragTo(pieceEl(5), 1, 1);
+    expect(slots()).toHaveLength(12);
+    expect(slots()[index].querySelector('[data-piece]')).toBeNull();
+  });
+
   it('a tap turns a piece', () => {
     mount();
     const el = document.querySelector<HTMLElement>('.jigsaw-pile [data-rot="0"]')!;

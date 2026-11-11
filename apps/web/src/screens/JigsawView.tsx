@@ -347,6 +347,7 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
 
   const onFrame = model.loose.filter((item) => item.at !== null);
   const inPile = model.loose.filter((item) => item.at === null);
+  const pileItems = new Map(inPile.map((item) => [item.piece, item]));
   // Купка дрібніша за рамку, щоб у рядок влазило JIGSAW_PILE_PER_ROW шматочків; у пальці шматочок — справжнього розміру.
   const fullSlot = Math.max(layout.cw, layout.ch) + 2 * layout.pad;
   const slot = Math.min(fullSlot, Math.floor((width - JIGSAW_PILE_CHROME - (JIGSAW_PILE_PER_ROW - 1) * 4) / JIGSAW_PILE_PER_ROW));
@@ -376,11 +377,15 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
       </p>
       {!closed && inPile.length > 0 && (
         <div className="jigsaw-pile" role="group" aria-label={t('jigsawPile')}>
-          {inPile.map((item) => (
-            <div key={item.piece} className="jigsaw-slot" style={{ width: slot, height: slot }}>
-              {pieceEl(item, { left: (slot - layout.cw) / 2 - layout.pad, top: (slot - layout.ch) / 2 - layout.pad }, pileScale)}
-            </div>
-          ))}
+          {/* Місце на кожен шматочок купки, і на поставлені чи покладені на рамку — порожнє: інші не з'їжджають. */}
+          {model.pile.map((piece) => {
+            const item = pileItems.get(piece);
+            return (
+              <div key={piece} className={`jigsaw-slot${item === undefined ? ' is-empty' : ''}`} style={{ width: slot, height: slot }}>
+                {item !== undefined && pieceEl(item, { left: (slot - layout.cw) / 2 - layout.pad, top: (slot - layout.ch) / 2 - layout.pad }, pileScale)}
+              </div>
+            );
+          })}
         </div>
       )}
       {lifted !== undefined && drag !== null && (

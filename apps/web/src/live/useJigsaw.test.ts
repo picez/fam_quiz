@@ -51,6 +51,15 @@ describe('useJigsaw', () => {
     expect(hook.result.current.placed.size).toBe(0);
   });
 
+  it('the pile order stays whole when pieces leave it', () => {
+    const hook = mount(vi.fn<Send>());
+    const order = jigsawPile(3, 4, hook.result.current.seed, 'p1').map((item) => item.piece);
+    expect(hook.result.current.pile).toEqual(order);
+    hook.rerender({ info: infoOf({ placed: [order[0], order[3]], seq: 2 }) });
+    act(() => hook.result.current.drop(order[5], { x: 2.5, y: 0.2 }));
+    expect(hook.result.current.pile).toEqual(order);
+  });
+
   it('a snapped drop sends the round-local number', () => {
     const { send } = deferred();
     const hook = mount(send);

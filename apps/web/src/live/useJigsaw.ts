@@ -55,6 +55,11 @@ export interface JigsawModel {
   placed: ReadonlySet<number>;
   /** Ще не поставлені, у порядку купки. */
   loose: JigsawLoose[];
+  /**
+   * Уся купка в її порядку, з поставленими й тими, що лежать на рамці: місце шматочка в купці не міняється, коли інші йдуть
+   * (товариш поставив, свій кидок), тож шматочок під пальцем не з'їжджає.
+   */
+  pile: readonly number[];
   /** Шматочок у пальці (узятий grab); null — рука порожня. Товариш поставив його чи тримає — стає null. */
   holding: number | null;
   /** Коротка примітка (тримає товариш, інша відмова); null — немає. */
@@ -91,6 +96,7 @@ export function useJigsaw(info: PlayerJigsaw, jigsaw: PublicJigsaw, questionInde
   const [, bump] = useReducer((n: number) => n + 1, 0);
   const seed = useMemo(() => jigsawSeed(jigsaw), [jigsaw.rows, jigsaw.cols, jigsaw.tabs, jigsaw.photo]);
   const pile = useMemo(() => jigsawPile(jigsaw.rows, jigsaw.cols, seed, actorId), [jigsaw.rows, jigsaw.cols, seed, actorId]);
+  const order = useMemo(() => pile.map((item) => item.piece), [pile]);
   const grid = { rows: jigsaw.rows, cols: jigsaw.cols };
   const local = useRef<Map<number, { rot: number; at: { x: number; y: number } | null }> | null>(null);
   if (local.current === null) local.current = new Map(pile.map((item) => [item.piece, { rot: item.rot, at: null }]));
@@ -235,5 +241,5 @@ export function useJigsaw(info: PlayerJigsaw, jigsaw: PublicJigsaw, questionInde
 
   const placed = new Set<number>([...info.placed, ...pending.current, ...accepted.current]);
   const loose = pile.filter((item) => !placed.has(item.piece)).map((item) => ({ piece: item.piece, rot: pieces.get(item.piece)?.rot ?? item.rot, at: pieces.get(item.piece)?.at ?? null }));
-  return { placed, loose, holding, notice, status: offline ? 'offline' : '', seed, rotate, grab, drop };
+  return { placed, loose, pile: order, holding, notice, status: offline ? 'offline' : '', seed, rotate, grab, drop };
 }
