@@ -110,6 +110,12 @@ export const jigsawHoldSchema = z.object({ questionIndex: z.number().int().nonne
 export const SPOTDIFF_TAPS_PER_SECOND = 6;
 export const SPOTDIFF_MISSES = 3;
 export const SPOTDIFF_FREEZE_MS = 1000;
+export const SPOTDIFF_MAX_FREEZE_MS = 5000;
+/** Заморозка після misses промахів підряд: 0 до SPOTDIFF_MISSES, далі 1 с, 2 с, 3 с… і не більше SPOTDIFF_MAX_FREEZE_MS. */
+export function spotdiffFreezeMs(misses: number): number {
+  if (misses < SPOTDIFF_MISSES) return 0;
+  return Math.min(SPOTDIFF_MAX_FREEZE_MS, (misses - SPOTDIFF_MISSES + 1) * SPOTDIFF_FREEZE_MS);
+}
 export const spotdiffTapSchema = z
   .object({
     questionIndex: z.number().int().nonnegative(),

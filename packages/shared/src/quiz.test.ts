@@ -101,6 +101,8 @@ import {
   SPOTDIFF_TAPS_PER_SECOND,
   SPOTDIFF_MISSES,
   SPOTDIFF_FREEZE_MS,
+  SPOTDIFF_MAX_FREEZE_MS,
+  spotdiffFreezeMs,
   SPOT_MIN_ASPECT,
   SPOT_MAX_ASPECT,
 } from './index';
@@ -3095,6 +3097,8 @@ describe('spotdiff question (29d)', () => {
     expect(SPOTDIFF_TAPS_PER_SECOND).toBe(6);
     expect(SPOTDIFF_MISSES).toBe(3);
     expect(SPOTDIFF_FREEZE_MS).toBe(1000);
+    expect(SPOTDIFF_MAX_FREEZE_MS).toBe(5000);
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 10].map(spotdiffFreezeMs)).toEqual([0, 0, 0, 1000, 2000, 3000, 4000, 5000, 5000]);
     expect(valid(answerSchema, { type: 'spotdiff', found: 1, total: 3, done: false, timeMs: null })).toBe(false);
   });
 });
