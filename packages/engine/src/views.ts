@@ -352,12 +352,12 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
   };
 }
 
-/** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
 /** Фото й сітка пазла: не таємниця (телефон ріже з нього шматочки). */
 function publicJigsaw(question: Extract<Question, { type: 'jigsaw' }>): PublicJigsaw {
   return { photo: question.photo, aspect: question.aspect, focus: question.focus, rows: question.rows, cols: question.cols, tabs: question.tabs, preview: question.preview };
 }
 
+/** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
 function publicPuzzle(question: Extract<Question, { type: 'sudoku' | 'crossword' }>): PublicPuzzle {
   if (question.type === 'sudoku') return { kind: 'sudoku', givens: question.givens };
   const { layout } = question;
@@ -1619,7 +1619,6 @@ function puzzleInfo(state: GameState, forHost: boolean): PuzzleInfo | undefined 
   if (revealed) rows.sort((a, b) => (b.points ?? 0) - (a.points ?? 0) || b.filled - a.filled);
   return { kind: question.type, boards: rows, solution: forHost || revealed ? solution : null };
 }
-
 
 /** Поточний пазл з його грою (будь-який етап запитання); null поза запитанням або для інших типів. */
 function currentJigsaw(state: GameState) {
