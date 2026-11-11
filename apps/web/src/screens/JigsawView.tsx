@@ -618,8 +618,9 @@ export function JigsawTable({ info, host = false }: { info: JigsawInfo; host?: b
   const size = jigsawTablePageSize(info.boards.length);
   const page = usePage(info.boards.length, size, !host);
   const shown = host ? info.boards : info.boards.slice(page * size, page * size + size);
+  // --rows: на сцені шрифт таблиці тим менший, чим більше рядків, — уся сторінка (до JIGSAW_TABLE_PAGE) влазить у висоту комірки.
   return (
-    <table className={host ? 'jigsaw-table is-host' : 'jigsaw-table'} aria-label={t('jigsawTableLabel')}>
+    <table className={host ? 'jigsaw-table is-host' : 'jigsaw-table'} aria-label={t('jigsawTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
       <thead>
         <tr>
           <th scope="col">{t('jigsawTablePlace')}</th>

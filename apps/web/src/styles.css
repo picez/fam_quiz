@@ -19621,11 +19621,21 @@ input.sudoku-editor-cell:focus-visible {
   overflow: hidden;
 }
 
+/* Сцена: комірка таблиці — контейнер за висотою, тож шрифт можна підігнати під кількість рядків сторінки (--rows). */
+.jigsaw-stage .jigsaw-stage-table {
+  container-type: size;
+}
+
 .jigsaw-table {
   width: 100%;
   border-collapse: collapse;
   font-size: clamp(1rem, 1.7vw, 1.875rem);
   font-variant-numeric: tabular-nums;
+}
+
+/* Рядок ≈ 2,2em (рядок тексту + поля), заголовок ≈ 1,6em; запас — до 2,4em на рядок. */
+.jigsaw-stage .jigsaw-table {
+  font-size: min(clamp(1rem, 1.7vw, 1.875rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
 }
 
 .jigsaw-table th {

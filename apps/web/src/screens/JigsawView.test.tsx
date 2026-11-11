@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { jigsawTabs, type JigsawBoardView, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { jigsawTabs, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { JigsawPlay, JigsawReveal, JigsawTable, jigsawTablePageSize } from './JigsawView';
@@ -227,6 +227,13 @@ describe('jigsaw stage table (29c)', () => {
     render(<JigsawTable info={info} host />);
     expect([...document.querySelectorAll('.jigsaw-table tbody .rank')].map((td) => td.textContent)).toEqual(['1', '1', '3', '—']);
     expect(screen.getByText('Не склав · 33 %')).toBeTruthy();
+  });
+
+  it('the stage table tells its row count so the font fits twelve rows on 1600×900', () => {
+    const all = Array.from({ length: 12 }, (_, i) => i);
+    const info: JigsawInfo = { boards: Array.from({ length: 12 }, (_, i) => view(`p${i}`, `Гравець ${i + 1}`, { placed: all, done: true, timeMs: 30_000 + i, points: 300 })) };
+    render(<JigsawTable info={info} />);
+    expect((document.querySelector('.jigsaw-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('12');
   });
 
   it('long tables page evenly on the stage', () => {
