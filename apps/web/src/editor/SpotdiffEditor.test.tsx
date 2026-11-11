@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { Question } from '@quiz/shared';
+import { SPOT_DEFAULT_R, type Question } from '@quiz/shared';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
@@ -82,6 +82,30 @@ describe('SpotdiffEditor', () => {
     expect(screen.getByRole('button', { name: t('spotdiffRemove') }).hasAttribute('disabled')).toBe(false);
   });
 
+  it('a tap with a 2 px drift places a circle with the default radius', () => {
+    const { last } = view();
+    fireEvent.pointerDown(board(), { pointerId: 1, clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(board(), { pointerId: 1, clientX: 202, clientY: 100 });
+    fireEvent.pointerUp(board(), { pointerId: 1, clientX: 202, clientY: 100 });
+    expect(last().spots).toEqual([{ x: 0.5, y: 0.5, r: SPOT_DEFAULT_R }]);
+  });
+
+  it('a tap with a drift on an existing circle only selects it', () => {
+    const { calls } = view({ spots: [circle(0.5, 0.5, 0.1)] });
+    fireEvent.pointerDown(board(), { pointerId: 1, clientX: 210, clientY: 100 });
+    fireEvent.pointerMove(board(), { pointerId: 1, clientX: 212, clientY: 101 });
+    fireEvent.pointerUp(board(), { pointerId: 1, clientX: 212, clientY: 101 });
+    expect(calls).toHaveLength(0);
+    expect(screen.getByRole('button', { name: t('spotdiffRemove') }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('a 40 px drag changes the radius', () => {
+    const { last } = view({ spots: [circle(0.5, 0.5, 0.05)] });
+    fireEvent.pointerDown(board(), { pointerId: 1, clientX: 210, clientY: 100 });
+    fireEvent.pointerMove(board(), { pointerId: 1, clientX: 250, clientY: 100 });
+    expect(last().spots[0]!.r).toBeCloseTo(0.125);
+  });
+
   it('an eleventh circle is refused', () => {
     const ten = Array.from({ length: 10 }, (_, i) => circle(0.05 + i * 0.09, 0.1, 0.02));
     const { calls } = view({ spots: ten });
@@ -151,5 +175,24 @@ describe('SpotdiffEditor uploads', () => {
     const { calls } = view({ spots: [circle(0.5, 0.5)] });
     pick(t('spotdiffOriginal'));
     await waitFor(() => expect(calls.at(-1)![0]).toMatchObject({ original: OTHER, aspect: 1, changed: '', spots: [] }));
+  });
+
+  it('a new original with the same aspect keeps the circle selection', async () => {
+    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(2);
+    upload(OTHER);
+    const { calls } = view({ spots: [circle(0.5, 0.5, 0.1)] });
+    fireEvent.pointerDown(board(), { pointerId: 1, clientX: 210, clientY: 100 });
+    fireEvent.pointerUp(board(), { pointerId: 1, clientX: 210, clientY: 100 });
+    pick(t('spotdiffOriginal'));
+    await waitFor(() => expect(calls.at(-1)![0]).toMatchObject({ original: OTHER, changed: CHANGED }));
+    expect(screen.getByRole('button', { name: t('spotdiffRemove') }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('a changed picture before the original asks for the original first', async () => {
+    vi.spyOn(imageField, 'measureAspect').mockResolvedValueOnce(2);
+    upload(CHANGED);
+    view({ original: '', changed: '' });
+    pick(t('spotdiffChanged'));
+    await screen.findByText(t('spotdiffNeedOriginal'));
   });
 });

@@ -2756,6 +2756,7 @@
   "spotdiffMax": "Nie więcej niż {max} różnic.",
   "spotdiffOffline": "Brak połączenia — dotknij ponownie, gdy wróci.",
   "spotdiffOriginal": "Oryginał",
+  "spotdiffNeedOriginal": "Najpierw wgraj oryginał",
   "spotdiffRemove": "Usuń",
   "spotdiffSpotFoundBy": "Znaleźli: {count}",
   "spotdiffTableFound": "Znaleziono",

@@ -10,6 +10,7 @@ import type { SpotdiffQuestion } from './draft';
 const clampR = (r: number) => Math.min(SPOT_MAX_R, Math.max(SPOT_MIN_R, r));
 
 /** Відстань у ширинах картинки (висота ділиться на співвідношення сторін). */
+const DRAG_THRESHOLD_PX = 6;
 const dist = (aspect: number, x: number, y: number, s: { x: number; y: number }) => Math.hypot(x - s.x, (y - s.y) / aspect);
 
 /** Кола поверх картинки: viewBox у ширинах, тож кола лишаються колами при будь-якому співвідношенні. */
@@ -74,7 +75,7 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
   const [selected, setSelected] = useState<number | null>(null);
   const [full, setFull] = useState(false);
   const area = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ index: number; startX: number; startY: number } | null>(null);
+  const drag = useRef<{ index: number; px: number; py: number; moved: boolean } | null>(null);
   // Номер останнього вибору файла: запізніла відповідь вимірювання нічого не міняє.
   const request = useRef({ original: 0, changed: 0 });
 
@@ -93,11 +94,11 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
         setProblem(null);
         // Інше співвідношення робить стару пару й кола недійсними.
         const same = current.changed !== '' && aspectsMatch(current.aspect, next);
-        setSelected(null);
+        if (!same) setSelected(null);
         put(same ? { original: url, aspect: next } : { original: url, aspect: next, changed: '', spots: [] });
         return;
       }
-      if (current.original === '') return setProblem({ slot, text: t('spotdiffOriginal') });
+      if (current.original === '') return setProblem({ slot, text: t('spotdiffNeedOriginal') });
       if (!aspectsMatch(current.aspect, next)) return setProblem({ slot, text: t('spotdiffAspectMismatch') });
       setProblem(null);
       put({ changed: url });
@@ -126,7 +127,7 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
     if (hit >= 0) {
       setSelected(hit);
       setFull(false);
-      drag.current = { index: hit, startX: x, startY: y };
+      drag.current = { index: hit, px: event.clientX, py: event.clientY, moved: false };
       return;
     }
     if (current.spots.length >= SPOT_MAX_COUNT) {
@@ -136,7 +137,7 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
     setFull(false);
     circles([...current.spots, { x, y, r: SPOT_DEFAULT_R }]);
     setSelected(current.spots.length);
-    drag.current = { index: current.spots.length, startX: x, startY: y };
+    drag.current = { index: current.spots.length, px: event.clientX, py: event.clientY, moved: false };
   };
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const state = drag.current;
@@ -146,8 +147,11 @@ export function SpotdiffEditor({ question, onChange }: { question: SpotdiffQuest
     const current = latest.current.question;
     const spot = current.spots[state.index];
     if (spot === undefined) return;
-    // Тап без руху радіуса не міняє: лише справжнє перетягування.
-    if (x === state.startX && y === state.startY) return;
+    // Дрейф пальця в межах порогу — все ще тап: радіус не міняється, поки рух не вийде за поріг.
+    if (!state.moved) {
+      if (Math.hypot(event.clientX - state.px, event.clientY - state.py) <= DRAG_THRESHOLD_PX) return;
+      state.moved = true;
+    }
     const r = clampR(dist(current.aspect, x, y, spot));
     circles(current.spots.map((s, i) => (i === state.index ? { ...s, r } : s)));
   };

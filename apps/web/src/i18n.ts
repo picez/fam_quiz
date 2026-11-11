@@ -2760,6 +2760,7 @@ const uk = {
   problemSpotdiffPlace: 'Запитання {index}: «Знайди відмінності» — лише в класичному раунді чи в «Головоломках».',
   problemSpotdiffLimits: 'Запитання {index}: час має бути від {min} до {max} секунд, бали від 0 до {points}.',
   spotdiffOriginal: 'Оригінал',
+  spotdiffNeedOriginal: 'Спершу завантажте оригінал',
   spotdiffChanged: 'Зі змінами',
   spotdiffMarkHint: 'Торкніться другої картинки, щоб поставити коло на відмінності; перетягніть, щоб змінити радіус. Торкніться кола, щоб виділити його.',
   spotdiffRemove: 'Прибрати',

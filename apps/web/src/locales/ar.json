@@ -2858,6 +2858,7 @@
   "spotdiffMax": "لا أكثر من {max} اختلافات.",
   "spotdiffOffline": "لا يوجد اتصال — المس مرة أخرى عند عودته.",
   "spotdiffOriginal": "الأصلية",
+  "spotdiffNeedOriginal": "ارفع الصورة الأصلية أولاً",
   "spotdiffRemove": "إزالة",
   "spotdiffSpotFoundBy": "عثر عليها: {count}",
   "spotdiffTableFound": "المعثور عليها",
