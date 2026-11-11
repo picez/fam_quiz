@@ -520,3 +520,31 @@ describe('buildDecor: inscription font', () => {
     expect(loaded.keys[0]).not.toBe(timedOut.keys[0]);
   });
 });
+
+describe('buildDecor: partial (29a — such a snapshot is not stored)', () => {
+  afterEach(() => {
+    font.loaded = null;
+    resetSharedGeometry();
+  });
+
+  it('complete when every photo, font and sticker arrived', async () => {
+    expect((await buildDecor('grail', 'gold', yasya, 'view', stub().textures, surfaceOf('grail'))).partial).toBe(false);
+  });
+
+  it('partial when a photo did not load', async () => {
+    const built = await buildDecor('grail', 'gold', yasya, 'view', stub({ failing: [url(3)] }).textures, surfaceOf('grail'));
+    expect(built.partial).toBe(true);
+  });
+
+  it('partial when the inscription font is not ready', async () => {
+    font.loaded = false;
+    const decor: TrophyDecor = { ...yasya, photos: [], inscriptions: [{ ...yasya.inscriptions[0]!, font: 'hand' }] };
+    expect((await buildDecor('grail', 'gold', decor, 'view', stub().textures, surfaceOf('grail'))).partial).toBe(true);
+  });
+
+  it('partial when a sticker did not load', async () => {
+    const decor: TrophyDecor = { ...bare, stickers: [{ id: 'cat', place: 'front' }] };
+    expect((await buildDecor('cup', 'gold', decor, 'view', stub({ stickers: [] }).textures, surfaceOf('cup'))).partial).toBe(true);
+    expect((await buildDecor('cup', 'gold', decor, 'view', stub({ stickers: ['cat'] }).textures, surfaceOf('cup'))).partial).toBe(false);
+  });
+});

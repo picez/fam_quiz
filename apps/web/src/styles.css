@@ -3851,16 +3851,26 @@ button.shelf-cup {
   font-size: 3.75rem;
 }
 
-/* Картинка справжнього кубка (29a) — квадрат знімка; значок до знімка — того ж розміру, що й раніше. */
-.shelf-icon .trophy-picture {
-  display: block;
-  width: 4.5rem;
-  height: 4.5rem;
+/* Картинка справжнього кубка (29a): значок до знімка стоїть у такому самому квадраті, тож полиця не стрибає,
+   коли знімок приходить; на вузькому телефоні з трьома предметами квадрат не ширший за колонку. */
+.shelf-icon {
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
-.shelf-item.is-main .shelf-icon .trophy-picture {
-  width: 6rem;
-  height: 6rem;
+.shelf-icon .trophy-picture,
+.shelf-icon .trophy-picture-fallback {
+  display: grid;
+  place-items: center;
+  width: min(4.5rem, 100%);
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.shelf-item.is-main .shelf-icon .trophy-picture,
+.shelf-item.is-main .shelf-icon .trophy-picture-fallback {
+  width: min(6rem, 100%);
 }
 
 /* Статичний знімок трофея (TrophyPicture): прозоре тло, без перетягування й вибору. */
@@ -15378,9 +15388,14 @@ button.wall-tile:disabled {
   background: rgb(255 255 255 / 0.06);
 }
 
-.award-emoji .trophy-picture {
-  width: 160px;
-  height: 160px;
+/* Знімок і значок до нього — той самий квадрат у кнопці сталої висоти: картка не стрибає. */
+.award-emoji .trophy-picture,
+.award-emoji .trophy-picture-fallback {
+  display: grid;
+  place-items: center;
+  width: min(160px, 100%);
+  height: auto;
+  aspect-ratio: 1;
 }
 .award-card .trophy-card {
   width: 160px;

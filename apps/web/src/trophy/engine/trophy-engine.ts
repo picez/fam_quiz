@@ -17,7 +17,7 @@ import { reducedMotion } from '../../motion';
 import { APPEAR_SECONDS, NEUTRAL_POSE, appearancePose, type AppearancePose } from '../appearance-pose';
 import { decorSummary, fitDistance } from '../decor-layout';
 import { effectPlan, type EffectPlan } from '../effect-plan';
-import type { TrophyEngine, TrophyHandle, TrophyMount } from '../engine-types';
+import type { TrophyEngine, TrophyHandle, TrophyMount, TrophySnapshot } from '../engine-types';
 import { modelUrl, type TrophyLook } from '../trophy-meta';
 import { buildAppearanceProps, type AppearanceProps } from './appearance-props';
 import { buildDecor } from './decor-meshes';
@@ -115,13 +115,23 @@ interface Build {
   radius: number;
   /** Усе, що збірка звільняє: свої матеріали й геометрії і по одному release на кожне взяте полотно. */
   resources: { dispose(): void }[];
+  /** Оформлення неповне: збій збірки decor або щось намальовано запасним (фото, шрифт, наліпка). */
+  partial: boolean;
 }
 
 function release(built: Build): void {
   for (const resource of new Set(built.resources)) resource.dispose();
 }
 
-function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): void; onError(): void }, offscreen = false): TrophyHandle {
+/** Внутрішні події mount: знімку треба знати, чи вигляд у сцені повний. */
+interface MountEvents {
+  onReady(): void;
+  onError(): void;
+  /** Збірку поставлено в сцену; partial — оформлення неповне. */
+  onBuilt?(partial: boolean): void;
+}
+
+function mount(host: HTMLElement, options: TrophyMount, events: MountEvents, offscreen = false): TrophyHandle {
   const { look } = options;
   const canvas = document.createElement('canvas');
   canvas.className = 'trophy-canvas';
@@ -332,6 +342,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
           center: sphere.center,
           radius: frameRadius,
           resources,
+          partial: nextSpec !== null && (built === null || built.partial),
         };
       },
       () => {
@@ -391,6 +402,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
       if (replay) fresh = true;
       setState(replay ? 'playing' : (state ?? 'skipped'));
     }
+    events.onBuilt?.(next.partial);
     if (old === null) stage?.add(view);
     else stage?.invalidate(view);
   };
@@ -484,10 +496,12 @@ export const SNAPSHOT_TIMEOUT = 20_000;
 
 /**
  * Статичний знімок вигляду: той самий mount (модель, матеріал, оформлення, кадрування як у сцені), але без
- * обертання й появи, у прихованому полотні поза екраном; перший кадр — у PNG/WebP data URL з прозорим тлом,
- * після чого вигляд одразу звільняється. Збій моделі, втрата контексту чи тайм-аут — null.
+ * обертання й появи, у прихованому полотні поза екраном; перший кадр — data URL з прозорим тлом (WebP; старий Safari,
+ * що не вміє кодувати WebP, віддає PNG), після чого вигляд одразу звільняється. complete — оформлення повне (див.
+ * Build.partial): неповний знімок показують, але не зберігають. Збій моделі, втрата контексту чи тайм-аут — null.
+ * Тайм-аут не спрацьовує, поки вкладка прихована (requestAnimationFrame тоді стоїть): відлік починається знову.
  */
-function snapshot(look: TrophyLook, label: string): Promise<string | null> {
+function snapshot(look: TrophyLook, label: string): Promise<TrophySnapshot | null> {
   return new Promise((resolve) => {
     const host = document.createElement('div');
     host.setAttribute('aria-hidden', 'true');
@@ -502,6 +516,8 @@ function snapshot(look: TrophyLook, label: string): Promise<string | null> {
     document.body.append(host);
     let handle: TrophyHandle | null = null;
     let done = false;
+    let complete = false;
+    let timer: ReturnType<typeof setTimeout>;
     const finish = (url: string | null) => {
       if (done) return;
       done = true;
@@ -511,13 +527,22 @@ function snapshot(look: TrophyLook, label: string): Promise<string | null> {
         handle?.dispose();
         host.remove();
       });
-      resolve(url);
+      resolve(url === null ? null : { url, complete });
     };
-    const timer = setTimeout(() => finish(null), SNAPSHOT_TIMEOUT);
+    const arm = () => {
+      timer = setTimeout(() => {
+        if (document.hidden) arm();
+        else finish(null);
+      }, SNAPSHOT_TIMEOUT);
+    };
+    arm();
     handle = mount(
       host,
       { look, size: 'view', spin: false, interactive: false, label, appear: false },
       {
+        onBuilt: (partial) => {
+          complete = !partial;
+        },
         onReady: () => {
           const canvas = host.querySelector('canvas');
           try {

@@ -1,3 +1,4 @@
+import type { TrophySnapshot } from './engine-types';
 import { loadTrophyEngine, webglAvailable } from './loadEngine';
 import { trophyLabel, type TrophyLook } from './trophy-meta';
 
@@ -89,7 +90,23 @@ const ready = new Map<string, string>();
 /** Черга знімків: наступний починається, коли попередній закінчився (вдало чи ні). */
 let queue: Promise<unknown> = Promise.resolve();
 
-async function shoot(look: TrophyLook): Promise<string | null> {
+/**
+ * Дочекатися видимої вкладки: у прихованій requestAnimationFrame стоїть, і знімок чекав би до тайм-ауту рушія.
+ * Знімки в черзі відкладаються, доки вкладка знову не стане видимою (visibilitychange).
+ */
+function whenVisible(): Promise<void> {
+  if (typeof document === 'undefined' || !document.hidden) return Promise.resolve();
+  return new Promise((resolve) => {
+    const onChange = () => {
+      if (document.hidden) return;
+      document.removeEventListener('visibilitychange', onChange);
+      resolve();
+    };
+    document.addEventListener('visibilitychange', onChange);
+  });
+}
+
+async function shoot(look: TrophyLook): Promise<TrophySnapshot | null> {
   if (!webglAvailable()) return null;
   const engine = await loadTrophyEngine();
   if (engine?.snapshot === undefined) return null;
@@ -110,7 +127,7 @@ const storedKey = (key: string) => `${SNAPSHOT_VERSION}|${Math.min(Math.max(glob
 export const readyPicture = (look: TrophyLook): string | null => ready.get(pictureKey(look)) ?? null;
 
 /**
- * Знімок вигляду: data URL або null (без WebGL, рушій не завантажився, модель не прийшла). Спершу — пам'ять, потім
+ * Знімок вигляду: data URL (WebP, на старому Safari — PNG) або null (без WebGL, рушій не завантажився, модель не прийшла). Спершу — пам'ять, потім
  * сховище браузера (без рушія), і лише потім знімок у черзі. Рівні вигляди діляться одним знімком; null не кешується —
  * наступний показ спробує знову.
  */
@@ -121,11 +138,13 @@ export function trophyPicture(look: TrophyLook): Promise<string | null> {
   const saved = store;
   const next = (saved === null ? Promise.resolve(null) : saved.get(storedKey(key))).then((stored) => {
     if (stored !== null) return stored;
-    const shot = queue.then(() => shoot(look));
+    const shot = queue.then(whenVisible).then(() => shoot(look));
     queue = shot;
-    return shot.then((url) => {
-      if (url !== null && saved !== null) void saved.put(storedKey(key), url);
-      return url;
+    return shot.then((taken) => {
+      if (taken === null) return null;
+      // Неповний знімок (фото, шрифт чи наліпка намальовані запасними) — лише в пам'яті цього візиту.
+      if (taken.complete && saved !== null) void saved.put(storedKey(key), taken.url);
+      return taken.url;
     });
   });
   pending.set(key, next);

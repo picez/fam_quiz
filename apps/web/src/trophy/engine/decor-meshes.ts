@@ -57,6 +57,8 @@ interface Painter {
   textures: DecorTextures;
   surface: Promise<Surface>;
   taken: Texture[];
+  /** Щось намальовано запасним: фото не прийшло, шрифт напису не готовий, наліпка не завантажилась. */
+  partial: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ function paint(
   const w = Math.round(width * scale);
   const h = Math.round(height * scale);
   const key = JSON.stringify([part, kind, material, decor.frame, decor.photoStyle, data, loaded, w, h]);
+  if (loaded.includes(false)) painter.partial = true;
   const texture = textures.canvas(key, w, h, (ctx) => {
     ctx.scale(scale, scale);
     draw(ctx);
@@ -299,6 +302,7 @@ async function addSticker(group: Group, painter: Painter, sticker: PlacedSticker
     painter.textures.sticker(sticker.id).catch(() => null),
     decalGeometry(painter, `sticker-${sticker.at}`, spot),
   ]);
+  if (map === null) painter.partial = true;
   if (map === null || geometry === null) return;
   group.add(decal(`decor-sticker-${sticker.at}`, geometry, map, STICKER_LOOK));
 }
@@ -310,6 +314,7 @@ async function addSticker(group: Group, painter: Painter, sticker: PlacedSticker
  * backdrop — фото для scene.background, лише в розмірах stage і view.
  * textures — усі полотна, взяті через textures.canvas (backdrop серед них): кожне звільняти через textures.release.
  * Текстури наліпок і геометрії з userData.shared спільні й не звільняються.
+ * partial — щось намальовано запасним (фото, шрифт, наліпка): вигляд неповний, знімок такого не зберігають.
  */
 export async function buildDecor(
   kind: TrophyKind,
@@ -318,7 +323,7 @@ export async function buildDecor(
   size: TrophySize,
   textures: DecorTextures,
   surface: Promise<Surface>,
-): Promise<{ group: Group; backdrop: Texture | null; textures: Texture[] }> {
+): Promise<{ group: Group; backdrop: Texture | null; textures: Texture[]; partial: boolean }> {
   // Без плям поверхню ніхто не чекає: збій моделі обробляє той, хто її вантажив.
   surface.catch(() => {});
   const shown = shownDecor(kind, decor);
@@ -330,7 +335,7 @@ export async function buildDecor(
   // Кожна частина — своя підгрупа: порядок у сцені не залежить від того, що довантажилось першим.
   const parts = [shown.photos, ...layout.inscriptions, ...layout.stickers].map(() => new Group());
   group.add(...parts);
-  const painter: Painter = { kind, material, decor: shown, size, textures, surface, taken: [] };
+  const painter: Painter = { kind, material, decor: shown, size, textures, surface, taken: [], partial: false };
   const photos = layout.photos === null ? Promise.resolve(null) : addPhotos(parts[0]!, painter, metal);
   const results = await Promise.allSettled([
     photos,
@@ -343,5 +348,6 @@ export async function buildDecor(
     for (const texture of painter.taken) textures.release(texture);
     throw failed.reason;
   }
-  return { group, backdrop: await photos, textures: painter.taken };
+  const backdrop = await photos;
+  return { group, backdrop, textures: painter.taken, partial: painter.partial };
 }

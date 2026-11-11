@@ -33,5 +33,11 @@ export interface TrophyEngine {
    * Статичний знімок вигляду (data URL з прозорим тлом, кадрування як у сцені) через той самий спільний рендерер;
    * збій — null. Необов'язковий: підмінні рушії в тестах можуть його не мати.
    */
-  snapshot?(look: TrophyLook, label: string): Promise<string | null>;
+  snapshot?(look: TrophyLook, label: string): Promise<TrophySnapshot | null>;
+}
+
+/** Знімок трофея: url — data URL (WebP, на старому Safari — PNG); complete — оформлення намальоване повністю. */
+export interface TrophySnapshot {
+  url: string;
+  complete: boolean;
 }

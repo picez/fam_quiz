@@ -74,7 +74,7 @@ describe('ShowcaseShelf', () => {
     expect(document.querySelector('.shelf-icon img')).toBeNull();
     cleanup();
     vi.mocked(webglAvailable).mockReturnValue(true);
-    const snapshot = vi.fn(async () => 'data:image/webp;base64,CUP');
+    const snapshot = vi.fn(async () => ({ url: 'data:image/webp;base64,CUP', complete: true }));
     const mount = vi.fn();
     vi.mocked(loadTrophyEngine).mockResolvedValue({ mount, snapshot });
     open({ awards: [award('a'), award('b')] });
@@ -89,7 +89,7 @@ describe('ShowcaseShelf', () => {
 
   it('a studio trophy (decor with photos and inscriptions) and the family grail become pictures of their full look', async () => {
     vi.mocked(webglAvailable).mockReturnValue(true);
-    const snapshot = vi.fn(async (_look: unknown, _label: string) => 'data:image/webp;base64,STUDIO');
+    const snapshot = vi.fn(async (_look: unknown, _label: string) => ({ url: 'data:image/webp;base64,STUDIO', complete: true }));
     vi.mocked(loadTrophyEngine).mockResolvedValue({ mount: vi.fn(), snapshot });
     const studio: NonNullable<AwardCard['content']['trophy']> = {
       kind: 'grail',

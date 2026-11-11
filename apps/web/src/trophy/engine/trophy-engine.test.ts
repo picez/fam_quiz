@@ -7,7 +7,7 @@ import type { TrophyHandle, TrophyMount, TrophySize } from '../engine-types';
 import type { TrophyLook } from '../trophy-meta';
 import type { StageView } from './stage';
 import { domTextures } from './textures';
-import { engine } from './trophy-engine';
+import { SNAPSHOT_TIMEOUT, engine } from './trophy-engine';
 
 const fake = vi.hoisted(() => ({
   stage: null as null | {
@@ -26,6 +26,8 @@ const fake = vi.hoisted(() => ({
   surfaces: [] as Promise<import('./surface-geometry').Surface>[],
   /** Меші, які stub buildDecor кладе в групу оформлення. */
   decorMeshes: [] as (() => import('three').Mesh)[],
+  /** Що stub buildDecor каже про повноту оформлення; 'fail' — збірка decor падає. */
+  decorPartial: false as boolean | 'fail',
 }));
 
 vi.mock('./models', async (importOriginal) => {
@@ -51,9 +53,10 @@ vi.mock('./decor-meshes', async () => {
       surface: Promise<import('./surface-geometry').Surface>,
     ) => {
       fake.surfaces.push(surface);
+      if (fake.decorPartial === 'fail') throw new Error('decor');
       const group = new three.Group();
       for (const make of fake.decorMeshes) group.add(make());
-      return { group, backdrop: null, textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})) };
+      return { group, backdrop: null, textures: fake.canvasKeys.map((key) => textures.canvas(key, 4, 4, () => {})), partial: fake.decorPartial === true };
     },
   };
 });
@@ -103,6 +106,7 @@ beforeEach(() => {
   fake.canvasKeys = [];
   fake.surfaces = [];
   fake.decorMeshes = [];
+  fake.decorPartial = false;
   fake.loadModel = vi.fn(async () => model());
   fake.stage = {
     view: null,
@@ -560,11 +564,46 @@ describe('trophy engine: snapshot (29a)', () => {
     view.beforeRender!(240, 240, 0);
     expect(view.scene.children[0]!.rotation.y).toBe(0);
     view.afterDraw!();
-    await expect(pending).resolves.toBe('data:image/webp;base64,AAA');
+    await expect(pending).resolves.toEqual({ url: 'data:image/webp;base64,AAA', complete: true });
     await settle();
     expect(fake.stage!.remove).toHaveBeenCalledWith(view);
     expect(document.body.querySelector('canvas')).toBeNull();
     expect(document.body.children).toHaveLength(0);
+  });
+
+  it('a decor drawn with fallbacks or a failed decor build is marked incomplete', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:x');
+    for (const partial of [true, 'fail'] as const) {
+      fake.decorPartial = partial;
+      fake.stage!.view = null;
+      const pending = engine.snapshot!({ kind: 'cup', material: 'gold', decor: decor('spin') }, 'cup');
+      await vi.waitFor(() => expect(fake.stage!.view).not.toBeNull());
+      fake.stage!.view!.afterDraw!();
+      await expect(pending).resolves.toEqual({ url: 'data:x', complete: false });
+    }
+    // Без decor (сімейний грааль) — повний.
+    fake.stage!.view = null;
+    const plain = engine.snapshot!({ kind: 'grail', material: 'gold' }, 'grail');
+    await vi.waitFor(() => expect(fake.stage!.view).not.toBeNull());
+    fake.stage!.view!.afterDraw!();
+    await expect(plain).resolves.toEqual({ url: 'data:x', complete: true });
+  });
+
+  it('the timeout does not fire while the tab is hidden; it re-arms', async () => {
+    vi.useFakeTimers();
+    try {
+      let hidden = true;
+      vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+      let result: unknown = 'pending';
+      void engine.snapshot!({ kind: 'cup', material: 'gold' }, 'cup').then((r) => (result = r));
+      await vi.advanceTimersByTimeAsync(SNAPSHOT_TIMEOUT * 3);
+      expect(result).toBe('pending');
+      hidden = false;
+      await vi.advanceTimersByTimeAsync(SNAPSHOT_TIMEOUT);
+      expect(result).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a model that fails to load gives null', async () => {

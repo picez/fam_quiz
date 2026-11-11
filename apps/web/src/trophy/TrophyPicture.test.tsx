@@ -26,7 +26,7 @@ beforeEach(() => {
   mount.mockReset();
   webgl.mockReturnValue(true);
   load.mockResolvedValue(fakeEngine);
-  snapshot.mockResolvedValue('data:image/webp;base64,CUP');
+  snapshot.mockResolvedValue({ url: 'data:image/webp;base64,CUP', complete: true });
 });
 afterEach(cleanup);
 
@@ -126,6 +126,39 @@ describe('TrophyPicture', () => {
     }
   });
 
+  it('an incomplete snapshot (photo, font or sticker fell back) shows for this visit but is not stored', async () => {
+    const put = vi.fn(async () => {});
+    setPictureStore({ get: async () => null, put });
+    try {
+      snapshot.mockResolvedValueOnce({ url: 'data:partial', complete: false });
+      render(<TrophyPicture trophy={gold} />);
+      await flush();
+      expect((document.querySelector('img.trophy-picture') as HTMLImageElement).src).toBe('data:partial');
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      setPictureStore(null);
+    }
+  });
+
+  it('snapshots wait while the tab is hidden and start on visibilitychange', async () => {
+    let hidden = true;
+    const spy = vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    try {
+      const pending = trophyPicture(gold);
+      await flush();
+      expect(snapshot).not.toHaveBeenCalled();
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(snapshot).not.toHaveBeenCalled();
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+      await expect(pending).resolves.toBe('data:image/webp;base64,CUP');
+      expect(snapshot).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('a failed snapshot is not stored', async () => {
     const put = vi.fn(async () => {});
     setPictureStore({ get: async () => null, put });
@@ -171,7 +204,7 @@ describe('TrophyPicture', () => {
 
   it('snapshots run one at a time', async () => {
     const releases: ((url: string) => void)[] = [];
-    snapshot.mockImplementation(() => new Promise((resolve) => releases.push(resolve)));
+    snapshot.mockImplementation(() => new Promise((resolve) => releases.push((url) => resolve({ url, complete: true }))));
     const first = trophyPicture(gold);
     const second = trophyPicture({ kind: 'medal', material: 'silver' });
     await flush();
