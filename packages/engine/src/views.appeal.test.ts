@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, type Answer, type QuizSettings } from '@quiz/shared';
 import { addAdjustment } from './adjust';
-import { castAppealVote, openAppeal } from './appeal';
+import { appealOpen as appealOpenOf, castAppealVote, openAppeal } from './appeal';
 import { awayEnd, awayStart } from './away';
 import { lock, next, pause, removePlayer, setConnected, submitAnswer, type GameState } from './game';
 import { actAnswer } from './team-act';
@@ -135,6 +135,23 @@ describe('a second appellant while an appeal is open', () => {
     expect(me(open, 'p3')).toEqual({ left: 2, reasons: [], block: 'appeal_open', voter: true, vote: null });
     expect(me(open, 'p2')).toMatchObject({ block: null, reasons: [] });
     expect(me(open, 'p1')).toMatchObject({ block: null });
+  });
+
+  it('after the decision the one who was told to wait gets the grade button back', () => {
+    const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
+    const open = must(openAppeal(two, 'p2', 'grade', T1));
+    expect(me(open, 'p3')).toMatchObject({ block: 'appeal_open' });
+    const decided = must(castAppealVote(must(castAppealVote(open, 'p1', 1, false, T1 + 1000)), 'p3', 1, false, T1 + 1000));
+    expect(decided.appeals?.[0].outcome).toBe('no');
+    expect(me(decided, 'p3')).toEqual({ left: 2, reasons: ['grade'], block: null, voter: false, vote: null });
+  });
+
+  it('no_voters wins over appeal_open', () => {
+    const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
+    const open = must(openAppeal(two, 'p2', 'grade', T1));
+    const alone = must(setConnected(must(setConnected(open, 'p1', false, T1 + 1000)), 'p2', false, T1 + 1000));
+    expect(appealOpenOf(alone)).not.toBeNull();
+    expect(me(alone, 'p3')).toMatchObject({ block: 'no_voters', reasons: [] });
   });
 });
 

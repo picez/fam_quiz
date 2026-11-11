@@ -4351,6 +4351,11 @@ describe('PlayerScreen appeal (12f)', () => {
     expect(document.querySelector('.appeal-button')).toBeNull();
   });
 
+  it('29i: a voter of the open appeal is not told to wait for another one', () => {
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ block: 'appeal_open', voter: true })));
+    expect(screen.queryByText('Зал голосує за іншу апеляцію — потім зможете й ви')).toBeNull();
+  });
+
   it('says nobody can vote, or that the captain appeals, without a button', () => {
     show(revealOf({}, mine({ block: 'no_voters' })));
     expect(screen.getByText('Нема кому голосувати').classList.contains('appeal-block')).toBe(true);

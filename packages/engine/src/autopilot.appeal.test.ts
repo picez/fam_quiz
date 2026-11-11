@@ -166,6 +166,17 @@ describe('the autopilot and the appeal (12f)', () => {
     expect(atOf(s)).toBe(R + 3000 + AUTOPILOT_MS.reveal);
   });
 
+  it('the appellant is kicked mid-vote while another player can still appeal: a fresh window from the cancel', () => {
+    let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
+    s = act(s, openAppeal(s, 'p2', 'grade', R + 2000), R + 2000);
+    s = act(s, removePlayer(s, 'p2', R + 6000), R + 6000);
+    expect(s.appeals?.[0].outcome).toBe('cancelled');
+    // Старе вікно (R + appealWindow) уже майже минуло; Іра встигає подати свою апеляцію.
+    expect(atOf(s)).toBe(R + 6000 + AUTOPILOT_MS.appealWindow);
+    s = act(s, openAppeal(s, 'p3', 'grade', R + 12_000), R + 12_000);
+    expect(appealOpen(s)?.by).toBe('p3');
+  });
+
   it('a tie while someone else can still appeal: a fresh window from the decision', () => {
     let { s, R } = toReveal({ a: RIGHT, p2: WRONG, p3: WRONG });
     s = act(s, openAppeal(s, 'p2', 'grade', R + 1000), R + 1000);

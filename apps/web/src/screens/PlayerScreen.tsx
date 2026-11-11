@@ -1513,7 +1513,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               {appealButtonText(reason, me.appeal?.left ?? 0)}
             </button>
           ))}
-          {me.appeal?.block != null && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
+          {/* Виборцю відкритої апеляції «зачекайте» не потрібне: аркуш голосування вже перед ним. */}
+          {me.appeal?.block != null && !(me.appeal.block === 'appeal_open' && me.appeal.voter) && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
           {view.appeal !== null && view.appeal.outcome !== 'cancelled' && !(view.appeal.outcome === null && me.appeal?.voter === true) && (
             <AppealCard view={view.appeal} screenQuestion={view.question} size="phone" teams={view.teams !== null} offsetMs={offsetMs} />
