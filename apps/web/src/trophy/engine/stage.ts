@@ -25,6 +25,8 @@ export interface StageView {
   afterDraw?(): void;
   /** Площини відсікання цього вигляду; немає — без відсікання. */
   clippingPlanes?: readonly Plane[];
+  /** Поза екраном навмисно (знімок для TrophyPicture): малюється без IntersectionObserver. */
+  offscreen?: boolean;
 }
 
 /** Спільний порожній масив: вигляд без відсікання не лишає чужих площин у рендерері. */
@@ -111,7 +113,7 @@ export class Stage {
     }
     this.views.add(view);
     this.byCanvas.set(view.canvas, view);
-    if (this.observer === null) this.visible.add(view);
+    if (this.observer === null || view.offscreen === true) this.visible.add(view);
     else this.observer.observe(view.canvas);
     this.resizer?.observe(view.canvas);
     this.invalidate(view);

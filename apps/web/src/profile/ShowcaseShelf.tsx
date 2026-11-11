@@ -4,11 +4,13 @@ import { shelfAwards, shelfColumns, type AwardCard } from '@quiz/shared';
 import { t } from '../i18n';
 import { AkatsukiCloud } from '../motifs/Motifs';
 import { PrizeViewer, canViewPrize } from '../trophy/PrizeViewer';
-import { TROPHY_EMOJI, trophyLabel } from '../trophy/trophy-meta';
+import { TrophyPicture } from '../trophy/TrophyPicture';
+import { trophyLabel } from '../trophy/trophy-meta';
 import { downloadDiploma } from './Showcase';
 
-/** Значок нагороди на полиці: трофей, 📜 для диплома без трофея, 🎁 для лише справжнього призу. */
-const awardIcon = (award: AwardCard) => (award.content.trophy !== null ? TROPHY_EMOJI[award.content.trophy.kind] : award.content.diploma ? '📜' : '🎁');
+/** Значок нагороди на полиці: картинка справжнього трофея, 📜 для диплома без трофея, 🎁 для лише справжнього призу. */
+const awardIcon = (award: AwardCard) =>
+  award.content.trophy !== null ? <TrophyPicture trophy={award.content.trophy} /> : award.content.diploma ? '📜' : '🎁';
 
 /** Підпис нагороди: «Золотий кубок», «Диплом» чи текст справжнього призу. */
 export function awardCaption(award: AwardCard): string {

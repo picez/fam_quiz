@@ -545,3 +545,39 @@ describe('trophy engine: update in place', () => {
     expect(fake.loadModel).not.toHaveBeenCalled();
   });
 });
+
+describe('trophy engine: snapshot (29a)', () => {
+  it('renders one still frame offscreen, returns its data URL and frees the view', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/webp;base64,AAA');
+    const pending = engine.snapshot!({ kind: 'cup', material: 'gold', decor: decor('spin', 'glow') }, 'Золотий кубок');
+    await vi.waitFor(() => expect(fake.stage!.view).not.toBeNull());
+    const view = fake.stage!.view!;
+    expect(view.offscreen).toBe(true);
+    // Без обертання й появи: кадр стоїть у нейтральній позі.
+    expect(view.canvas.dataset.appearance).toBe('spin:skipped');
+    expect(view.canvas.tabIndex).toBe(-1);
+    expect(view.canvas.getAttribute('aria-label')).toBe('Золотий кубок');
+    view.beforeRender!(240, 240, 0);
+    expect(view.scene.children[0]!.rotation.y).toBe(0);
+    view.afterDraw!();
+    await expect(pending).resolves.toBe('data:image/webp;base64,AAA');
+    await settle();
+    expect(fake.stage!.remove).toHaveBeenCalledWith(view);
+    expect(document.body.querySelector('canvas')).toBeNull();
+    expect(document.body.children).toHaveLength(0);
+  });
+
+  it('a model that fails to load gives null', async () => {
+    fake.loadModel = vi.fn(async () => {
+      throw new Error('404');
+    });
+    await expect(engine.snapshot!({ kind: 'cup', material: 'gold' }, 'cup')).resolves.toBeNull();
+    await settle();
+    expect(document.body.children).toHaveLength(0);
+  });
+
+  it('without a stage (no WebGL renderer) gives null', async () => {
+    fake.stage = null;
+    await expect(engine.snapshot!({ kind: 'cup', material: 'gold' }, 'cup')).resolves.toBeNull();
+  });
+});

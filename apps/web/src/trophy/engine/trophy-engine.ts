@@ -121,7 +121,7 @@ function release(built: Build): void {
   for (const resource of new Set(built.resources)) resource.dispose();
 }
 
-function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): void; onError(): void }): TrophyHandle {
+function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): void; onError(): void }, offscreen = false): TrophyHandle {
   const { look } = options;
   const canvas = document.createElement('canvas');
   canvas.className = 'trophy-canvas';
@@ -201,6 +201,7 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
     canvas,
     scene,
     camera,
+    offscreen,
     needsFrame: () =>
       (spinning && dragging === null) || effect?.animated === true || state === 'playing' || state === 'pending',
     onLost: fail,
@@ -476,5 +477,61 @@ function mount(host: HTMLElement, options: TrophyMount, events: { onReady(): voi
   };
 }
 
+/** Сторона знімка, CSS-пікселі (Stage множить на devicePixelRatio, до 2). */
+export const SNAPSHOT_SIZE = 240;
+/** Скільки чекати першого кадру знімка, мс: модель, що не прийшла, не тримає чергу знімків вічно. */
+export const SNAPSHOT_TIMEOUT = 20_000;
+
+/**
+ * Статичний знімок вигляду: той самий mount (модель, матеріал, оформлення, кадрування як у сцені), але без
+ * обертання й появи, у прихованому полотні поза екраном; перший кадр — у PNG/WebP data URL з прозорим тлом,
+ * після чого вигляд одразу звільняється. Збій моделі, втрата контексту чи тайм-аут — null.
+ */
+function snapshot(look: TrophyLook, label: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const host = document.createElement('div');
+    host.setAttribute('aria-hidden', 'true');
+    Object.assign(host.style, {
+      position: 'fixed',
+      left: '-10000px',
+      top: '0',
+      width: `${SNAPSHOT_SIZE}px`,
+      height: `${SNAPSHOT_SIZE}px`,
+      pointerEvents: 'none',
+    });
+    document.body.append(host);
+    let handle: TrophyHandle | null = null;
+    let done = false;
+    const finish = (url: string | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      // Звільняємо після поточного кадру Stage: onReady приходить зсередини його циклу.
+      queueMicrotask(() => {
+        handle?.dispose();
+        host.remove();
+      });
+      resolve(url);
+    };
+    const timer = setTimeout(() => finish(null), SNAPSHOT_TIMEOUT);
+    handle = mount(
+      host,
+      { look, size: 'view', spin: false, interactive: false, label, appear: false },
+      {
+        onReady: () => {
+          const canvas = host.querySelector('canvas');
+          try {
+            finish(canvas === null ? null : canvas.toDataURL('image/webp'));
+          } catch {
+            finish(null);
+          }
+        },
+        onError: () => finish(null),
+      },
+      true,
+    );
+  });
+}
+
 /** Рушій трофеїв: модель у кольорі матеріалу й оформлення decor на точках кріплення форми. */
-export const engine: TrophyEngine = { mount };
+export const engine: TrophyEngine = { mount: (host, options, events) => mount(host, options, events), snapshot };

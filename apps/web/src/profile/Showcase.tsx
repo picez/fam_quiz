@@ -1,33 +1,11 @@
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 import type { AwardCard, Showcase as ShowcaseData } from '@quiz/shared';
 import { formatDate } from '../format';
 import { t } from '../i18n';
 import { diplomaFileName, renderDiploma, shareDiploma } from '../trophy/diploma';
-import { TROPHY_EMOJI, trophyLabel } from '../trophy/trophy-meta';
+import { trophyLabel } from '../trophy/trophy-meta';
 import { PrizeViewer, canViewPrize, prizeViewLabel } from '../trophy/PrizeViewer';
-import { TrophyView } from '../trophy/TrophyView';
-
-/** Скільки 3D-карток живе одночасно; решта лишається значком, доки на неї не натиснуть. */
-export const LIVE_3D_MAX = 6;
-
-/** Чи картка хоч раз була у видимій області (защіпка: 3D не перемонтовується від прокрутки). Без IntersectionObserver — ніколи. */
-function useSeen(): [React.RefObject<HTMLElement | null>, boolean] {
-  const ref = useRef<HTMLElement | null>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const node = ref.current;
-    if (node === null || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setSeen(true);
-        observer.disconnect();
-      }
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  return [ref, seen];
-}
+import { TrophyPicture } from '../trophy/TrophyPicture';
 
 /** Диплом нагороди: малює й віддає (поділитися чи завантажити); помилку кидає далі. */
 export async function downloadDiploma(award: AwardCard): Promise<void> {
@@ -42,17 +20,15 @@ export async function downloadDiploma(award: AwardCard): Promise<void> {
   await shareDiploma(blob, diplomaFileName(award.nickname));
 }
 
-function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; onLive: () => void; pin: ReactNode }): JSX.Element {
-  const [ref, seen] = useSeen();
-  const [opened, setOpened] = useState(false);
-  const show = opened || (seen && live);
-  useEffect(() => {
-    if (seen && live) onLive();
-  }, [seen, live, onLive]);
+/**
+ * Картка нагороди: статична картинка справжнього трофея (без живого 3D на сторінці); дотик картинки відкриває
+ * 3D-трофей на весь екран.
+ */
+function Award({ award, pin }: { award: AwardCard; pin: ReactNode }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  // Перегляд призу на весь екран: кнопка з видом трофея («Кубок», …) або дотик фото.
-  const [viewing, setViewing] = useState(false);
+  // Перегляд призу на весь екран: кнопка з видом трофея («Кубок», …), дотик фото чи дотик картинки трофея ('trophy').
+  const [viewing, setViewing] = useState<false | 'prize' | 'trophy'>(false);
   const { content } = award;
 
   const diploma = async () => {
@@ -68,21 +44,18 @@ function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; 
   };
 
   return (
-    <li className="award-card" ref={ref as React.RefObject<HTMLLIElement>}>
-      {content.trophy &&
-        (show ? (
-          <TrophyView trophy={content.trophy} size="card" interactive spin={false} />
-        ) : (
-          <button type="button" className="award-emoji" aria-label={trophyLabel(content.trophy)} onClick={() => setOpened(true)}>
-            {TROPHY_EMOJI[content.trophy.kind]}
-          </button>
-        ))}
+    <li className="award-card">
+      {content.trophy && (
+        <button type="button" className="award-emoji" aria-label={trophyLabel(content.trophy)} onClick={() => setViewing('trophy')}>
+          <TrophyPicture trophy={content.trophy} />
+        </button>
+      )}
       {content.engraving && <p className="engraving">{content.engraving}</p>}
       <p className="award-line">{t('awardLine', { place: award.place, quiz: award.quizTitle, date: formatDate(award.awardedAt) })}</p>
       {content.real && (
         <div className="podium-real">
           {content.real.photoUrl !== null && (
-            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing(true)}>
+            <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing('prize')}>
               <img src={content.real.photoUrl} alt="" loading="lazy" />
             </button>
           )}
@@ -92,7 +65,7 @@ function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; 
       {(content.diploma || canViewPrize(content) || pin !== null) && (
         <div className="prize-actions">
           {canViewPrize(content) && (
-            <button type="button" className="btn btn-small" onClick={() => setViewing(true)}>
+            <button type="button" className="btn btn-small" onClick={() => setViewing('prize')}>
               {prizeViewLabel(content)}
             </button>
           )}
@@ -104,7 +77,7 @@ function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; 
           {pin}
         </div>
       )}
-      {viewing && <PrizeViewer content={content} place={award.place} onClose={() => setViewing(false)} />}
+      {viewing !== false && <PrizeViewer content={content} place={award.place} trophyFirst={viewing === 'trophy'} onClose={() => setViewing(false)} />}
       {failed && (
         <p className="error" role="alert">
           {t('diplomaFailed')}
@@ -116,8 +89,6 @@ function Award({ award, live, onLive, pin }: { award: AwardCard; live: boolean; 
 
 /** Розділ «Нагороди»: null, коли немає ні титулу, ні нагород. renderPin — кнопка 📌 біля дій кожної нагороди (свої призи). */
 export function Showcase({ showcase, own, renderPin }: { showcase: ShowcaseData; own: boolean; renderPin?: (award: AwardCard) => ReactNode }): JSX.Element | null {
-  // Першим LIVE_3D_MAX побаченим карткам дозволено 3D; пізніші — значок, доки не натиснуть.
-  const [lives, setLives] = useState<string[]>([]);
   if (showcase.title === null && showcase.awards.length === 0) return null;
   return (
     <section className={own ? 'profile-section showcase is-own' : 'profile-section showcase'}>
@@ -130,13 +101,7 @@ export function Showcase({ showcase, own, renderPin }: { showcase: ShowcaseData;
       {showcase.awards.length > 0 && (
         <ul className="award-grid">
           {showcase.awards.map((award) => (
-            <Award
-              key={award.id}
-              award={award}
-              live={lives.includes(award.id) || lives.length < LIVE_3D_MAX}
-              onLive={() => setLives((list) => (list.includes(award.id) || list.length >= LIVE_3D_MAX ? list : [...list, award.id]))}
-              pin={renderPin === undefined ? null : (renderPin(award) ?? null)}
-            />
+            <Award key={award.id} award={award} pin={renderPin === undefined ? null : (renderPin(award) ?? null)} />
           ))}
         </ul>
       )}

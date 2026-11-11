@@ -3851,6 +3851,31 @@ button.shelf-cup {
   font-size: 3.75rem;
 }
 
+/* Картинка справжнього кубка (29a) — квадрат знімка; значок до знімка — того ж розміру, що й раніше. */
+.shelf-icon .trophy-picture {
+  display: block;
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+.shelf-item.is-main .shelf-icon .trophy-picture {
+  width: 6rem;
+  height: 6rem;
+}
+
+/* Статичний знімок трофея (TrophyPicture): прозоре тло, без перетягування й вибору. */
+.trophy-picture {
+  display: block;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.trophy-picture-fallback {
+  line-height: 1;
+}
+
 .shelf-caption {
   margin-block-start: 0.125rem;
   font-weight: 600;
@@ -15351,6 +15376,11 @@ button.wall-tile:disabled {
 
 .award-emoji:hover {
   background: rgb(255 255 255 / 0.06);
+}
+
+.award-emoji .trophy-picture {
+  width: 160px;
+  height: 160px;
 }
 .award-card .trophy-card {
   width: 160px;
