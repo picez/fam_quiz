@@ -205,7 +205,7 @@ export function SpotdiffBoards({ boards, reveal = false, host = false }: { board
               {board.nickname}
             </span>
             <span className="spotdiff-card-count">
-              {t('spotdiffFound', { found: board.found, total: board.total })}
+              {t('spotdiffCardCount', { found: board.found, total: board.total })}
               {board.done && board.timeMs !== null ? ` ✓ ${t('jigsawSeconds', { time: secondsText(board.timeMs) })}` : ''}
             </span>
             {host && board.spots !== undefined && board.spots.length > 0 && <span className="spotdiff-card-spots">{board.spots.map((n) => n + 1).join(', ')}</span>}

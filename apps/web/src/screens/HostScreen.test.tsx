@@ -1665,7 +1665,7 @@ describe('HostScreen spotdiff (29d)', () => {
     expect([...panel.querySelectorAll('.spot-pic')[1].querySelectorAll('.spot-ring text')].map((el) => el.textContent)).toEqual(['1', '2', '3']);
     expect([...panel.querySelectorAll('.spotdiff-legend li')].map((li) => li.textContent)).toEqual(['1 Знайшли: 1', '2 Знайшли: 2', '3 Знайшли: 0']);
     expect([...panel.querySelectorAll('.spotdiff-card-spots')].map((el) => el.textContent)).toEqual(['1, 2', '2']);
-    expect(within(panel).getByText('Знайдено 2 з 3')).toBeTruthy();
+    expect(within(panel).getByText('2 з 3')).toBeTruthy();
     expect(screen.getByText(/Відповіли 0 з 3/)).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();

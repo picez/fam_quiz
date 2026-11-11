@@ -2853,6 +2853,7 @@
   "spotdiffClosed": "أُغلق السؤال.",
   "spotdiffCount": "الاختلافات: {count} من {max}",
   "spotdiffFound": "تم العثور على {found} من {total}",
+  "spotdiffCardCount": "{found} من {total}",
   "spotdiffFrozen": "توقف لمدة ثانية.",
   "spotdiffMarkHint": "المس الصورة الثانية لوضع دائرة على اختلاف؛ اسحب لتغيير نصف القطر. المس دائرة لتحديدها.",
   "spotdiffMax": "لا أكثر من {max} اختلافات.",

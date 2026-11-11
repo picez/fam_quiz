@@ -20234,14 +20234,27 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqh / (var(--rows, 1) * 1.7));
+  /* Два рядки в картці (нік і лічильник): висота рядка сітки ділиться на ~2,9 рядка тексту. */
+  align-content: center;
+  /* Шрифт обмежений і висотою ряду (два рядки тексту), і шириною колонки (~9 em на «3 з 3 ✓ 12,3 с»). */
+  font-size: min(clamp(0.75rem, 1.6vw, 1.75rem), 100cqh / (var(--rows, 1) * 2.9), 100cqw / (var(--cols, 4) * 9));
 }
 
+/* Густа сітка (багато гравців): дрібніший шрифт, щоб «3 з 3 ✓ 12,3 с» вміщалося у вузьку колонку. */
+.spotdiff-boards-fit.is-dense .spotdiff-boards {
+  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqh / (var(--rows, 1) * 2.9));
+}
+
+/* Картка: нік зверху, лічильник під ним — у вузьких колонках (24 гравці, 8 колонок) нік не стискається до нуля. */
 .spotdiff-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15em;
+  /* Мало гравців: картка не розтягується на всю висоту ряду. */
+  max-height: 4.5em;
+  align-self: center;
   min-width: 0;
   padding: 0 0.6em;
   overflow: hidden;
@@ -20255,6 +20268,7 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .spotdiff-card-name {
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   font-weight: 700;
@@ -20263,6 +20277,9 @@ input.sudoku-editor-cell:focus-visible {
 
 .spotdiff-card-count,
 .spotdiff-card-spots {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--dim);
   font-variant-numeric: tabular-nums;
 }
@@ -20281,6 +20298,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .spotdiff-boards-fit.is-host .spotdiff-card {
   flex-wrap: wrap;
+  max-height: none;
   padding: 0.3em 0.6em;
 }
 
@@ -20304,6 +20322,8 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .host-spotdiff .spotdiff-stage-pics {
+  /* Панель пульта — колонка flex: без цього flex: 1 1 0 зі сцени стискає картинки до нуля, і вони налазять на наступну панель. */
+  flex: none;
   container-type: normal;
 }
 

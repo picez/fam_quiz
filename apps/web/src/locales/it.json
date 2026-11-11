@@ -2751,6 +2751,7 @@
   "spotdiffClosed": "La domanda è chiusa.",
   "spotdiffCount": "Differenze: {count} su {max}",
   "spotdiffFound": "Trovate {found} su {total}",
+  "spotdiffCardCount": "{found} su {total}",
   "spotdiffFrozen": "Pausa di un secondo.",
   "spotdiffMarkHint": "Tocca la seconda immagine per mettere un cerchio su una differenza; trascina per cambiare il raggio. Tocca un cerchio per selezionarlo.",
   "spotdiffMax": "Al massimo {max} differenze.",

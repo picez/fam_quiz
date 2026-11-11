@@ -1182,7 +1182,7 @@ describe('StageScreen final', () => {
       const cards = [...document.querySelectorAll('.spotdiff-card')];
       expect(cards).toHaveLength(3);
       expect(within(cards[0] as HTMLElement).getByText('Оля')).toBeTruthy();
-      expect(within(cards[0] as HTMLElement).getByText('Знайдено 2 з 3')).toBeTruthy();
+      expect(within(cards[0] as HTMLElement).getByText('2 з 3')).toBeTruthy();
       expect(within(cards[1] as HTMLElement).getByText(/✓ 41,2 с/)).toBeTruthy();
       expect(document.querySelector('.spot-ring')).toBeNull();
       expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();

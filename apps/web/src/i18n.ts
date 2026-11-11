@@ -2768,6 +2768,7 @@ const uk = {
   spotdiffAspectMismatch: 'Друга картинка має мати те саме співвідношення сторін, що й перша (з точністю до 2 %).',
   spotdiffCount: 'Відмінностей: {count} з {max}',
   spotdiffFound: 'Знайдено {found} з {total}',
+  spotdiffCardCount: '{found} з {total}',
   spotdiffFrozen: 'Пауза на секунду.',
   spotdiffAllFound: 'Усе знайдено! Чекаємо інших',
   spotdiffTimeUp: 'Час вийшов.',

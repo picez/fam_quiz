@@ -2751,6 +2751,7 @@
   "spotdiffClosed": "La pregunta está cerrada.",
   "spotdiffCount": "Diferencias: {count} de {max}",
   "spotdiffFound": "Encontradas {found} de {total}",
+  "spotdiffCardCount": "{found} de {total}",
   "spotdiffFrozen": "Pausa de un segundo.",
   "spotdiffMarkHint": "Toca la segunda imagen para poner un círculo sobre una diferencia; arrastra para cambiar el radio. Toca un círculo para seleccionarlo.",
   "spotdiffMax": "No más de {max} diferencias.",

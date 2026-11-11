@@ -2717,6 +2717,7 @@
   "spotdiffClosed": "The question is closed.",
   "spotdiffCount": "Differences: {count} of {max}",
   "spotdiffFound": "Found {found} of {total}",
+  "spotdiffCardCount": "{found} of {total}",
   "spotdiffFrozen": "One-second pause.",
   "spotdiffMarkHint": "Tap the second picture to put a circle on a difference; drag to change the radius. Tap a circle to select it.",
   "spotdiffMax": "No more than {max} differences.",

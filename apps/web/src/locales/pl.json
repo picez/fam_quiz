@@ -2751,6 +2751,7 @@
   "spotdiffClosed": "Pytanie zamknięte.",
   "spotdiffCount": "Różnic: {count} z {max}",
   "spotdiffFound": "Znaleziono {found} z {total}",
+  "spotdiffCardCount": "{found} z {total}",
   "spotdiffFrozen": "Przerwa na sekundę.",
   "spotdiffMarkHint": "Dotknij drugiego obrazka, aby zaznaczyć różnicę kółkiem; przeciągnij, aby zmienić promień. Dotknij kółka, aby je wybrać.",
   "spotdiffMax": "Nie więcej niż {max} różnic.",
