@@ -19,6 +19,7 @@ import { answerTrial, isGhost, pickDoor, survivalPlayOf, trialOpen, trialQuestio
 import { pickTeam, rollTeamDie, teamMembers, teamsOn } from '../teams';
 import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
+import { jigsawPlace } from '../jigsaw';
 import { moreLessOf, moreLessPick } from '../moreless';
 import { drawGuess, drawStroke } from '../drawing';
 import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
@@ -242,6 +243,17 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
         s = act(s, puzzleFill(s, playerId, person, roundQuestionNumber(s), cells.slice(k, k + LIMITS.puzzleBatch), now), what);
       }
       return s.phase === 'question' ? act(s, puzzleFinish(s, playerId, roundQuestionNumber(s), now), what) : s;
+    }
+    case 'jigsaw': {
+      // Бот (у командах — перший учасник) ставить шматочки на свої місця; неправильний — лише половину.
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      if (person === undefined) return state;
+      const total = question.rows * question.cols;
+      let s = state;
+      for (let k = 0; k < (wrong ? Math.floor(total / 2) : total) && s.phase === 'question'; k++) {
+        s = act(s, jigsawPlace(s, playerId, person, roundQuestionNumber(s), { piece: k, x: k % question.cols, y: Math.floor(k / question.cols), rot: 0 }, now), what);
+      }
+      return s;
     }
     case 'sort': {
       let s = state;

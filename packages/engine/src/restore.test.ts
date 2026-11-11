@@ -80,6 +80,8 @@ import {
   type DrawTurns,
   type PuzzleBoard,
   type PuzzlePlay,
+  type JigsawPlay,
+  type JigsawBoard,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -127,7 +129,10 @@ import {
   puzzlesRound,
   sudoku,
   crosswordFull,
+  jigsawQuiz,
+  jigsaw,
 } from './testing/fixtures';
+import { jigsawHold, jigsawPlace } from './jigsaw';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -333,7 +338,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -390,6 +395,8 @@ const STATE_SHAPE: Record<string, string> = {
   DrawTurns: keysOf<DrawTurns>()(['last', 'members'], true),
   PuzzlePlay: keysOf<PuzzlePlay>()(['boards', 'order'], true),
   PuzzleBoard: keysOf<PuzzleBoard>()(['cells', 'by', 'last', 'seq', 'done'], true),
+  JigsawPlay: keysOf<JigsawPlay>()(['boards', 'order'], true),
+  JigsawBoard: keysOf<JigsawBoard>()(['placed', 'by', 'held', 'doneMs', 'seq'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1194,7 +1201,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,ladder,letterwords,moreless,overtime,puzzle,question,roundIndex,sort,survey,survival,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,moreless,overtime,puzzle,question,roundIndex,sort,survey,survival,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1245,6 +1252,8 @@ const KEYS: Record<number, Record<string, string>> = {
     DrawTurns: 'last,members',
     PuzzlePlay: 'boards,order',
     PuzzleBoard: 'by,cells,done,last,seq',
+    JigsawPlay: 'boards,order',
+    JigsawBoard: 'by,doneMs,held,placed,seq',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1508,6 +1517,8 @@ function representative(): GameState[] {
   // 28d: «Головоломки» — команда вписує (PuzzleBoard.by), друга здала сітку; закрите — записи.
   const puzzling = puzzled();
   const puzzleClosed = must(lock(puzzling, T0 + 3000));
+  // 29c: «Пазл» — команда ставить шматочки (by, held), одна команда тримає шматочок.
+  const jigsawing = jigsawed();
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1556,6 +1567,7 @@ function representative(): GameState[] {
     drawPacked,
     puzzling,
     puzzleClosed,
+    jigsawing,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1597,6 +1609,13 @@ function puzzled(): GameState {
   const i = sudoku.givens.indexOf('0');
   const filled = must(puzzleFill(open, 't1', 'm2', 0, [{ i, v: sudoku.solution[i] }], T0 + 500));
   return must(puzzleFinish(filled, 't2', 0, T0 + 1000));
+}
+
+/** 29c: командний пазл — Оля поставила шматочок 0, Петро тримає 1 (Play.jigsaw, JigsawBoard.by і held). */
+function jigsawed(): GameState {
+  const open = must(next(teamGame(teamQuiz([classicRound('r1', [jigsaw])]), [['Оля', 'Петро'], ['Віра']]), T0));
+  const placed = must(jigsawPlace(open, 't1', 'm1', 0, { piece: 0, x: 0, y: 0, rot: 0 }, T0 + 500));
+  return must(jigsawHold(placed, 't1', 'm2', 0, 1, T0 + 700));
 }
 
 /** 28b: лобі «Правди про гравця» — Оля й Петро написали факти, факт Петра ведучий сховав. */
@@ -1752,6 +1771,20 @@ describe('the saved state', () => {
     expect(back.adjustments[1]).toMatchObject({ source: 'undo', undoes: { seq: 1 }, batch: 2, points: -300 });
     expect(back.adjustments).toEqual(undone.adjustments);
     expect(back.players.find((p) => p.id === 'p1')?.score).toBe(0);
+  });
+
+  it('a restored room keeps the jigsaw boards without a new version (29c)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let s = must(next(must(start(lobbyWith(jigsawQuiz(), 'Оля', 'Петро'))), T0));
+    s = must(lock(s, T0 + 1000));
+    for (let i = 0; i < 12 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'jigsaw'); i++) s = must(next(s, T0 + 2000));
+    expect(s.questionIndex).toBe(1);
+    s = must(jigsawPlace(s, 'p1', 'p1', 0, { piece: 0, x: 0, y: 0, rot: 0 }, T0 + 3000));
+    const back = roundTrip(suspend(roundTrip(s), T0 + 4000));
+    expect(back.plays[1].jigsaw?.boards.p1.placed).toEqual([0]);
+    // старий знімок без поля читається
+    const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(jigsawQuiz(), 'Оля'))), T0))), T0 + 100));
+    expect(old.plays[0].jigsaw).toBeUndefined();
   });
 
   it('an auction snapshot keeps the leader, the bid and the clock without a new version (27b)', () => {
@@ -2213,6 +2246,8 @@ describe('the saved state', () => {
       add('DrawTurns', [s.drawTurns]);
       add('PuzzlePlay', s.plays.map((p) => p.puzzle));
       add('PuzzleBoard', s.plays.flatMap((p) => Object.values(p.puzzle?.boards ?? {})));
+      add('JigsawPlay', s.plays.map((p) => p.jigsaw));
+      add('JigsawBoard', s.plays.flatMap((p) => Object.values(p.jigsaw?.boards ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

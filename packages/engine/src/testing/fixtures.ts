@@ -2,6 +2,8 @@ import {
   DEFAULT_RULES,
   DEFAULT_SETTINGS,
   generateSudoku,
+  jigsawGrid,
+  jigsawTabs,
   layoutCrossword,
   pickKeyCells,
   type CrosswordLayout,
@@ -449,6 +451,39 @@ export function puzzlesRound(id: string, questions: Question[], options: Partial
 /** Вікторина з одним раундом «Головоломки»: судоку, кросворд «увесь», кросворд з ключем «ліс». */
 export function puzzlesQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([puzzlesRound('pz', [sudoku, crosswordFull, crosswordKey])], settings);
+}
+
+const jigsawBase = { ...base, type: 'jigsaw', text: 'Складіть пазл', photo: `/uploads/${'a'.repeat(32)}.jpg`, aspect: '4:3', focus: { x: 0.5, y: 0.5 }, seed: 1, preview: true } as const;
+const grid34 = jigsawGrid(12, '4:3');
+const grid23 = jigsawGrid(6, '3:4');
+
+/** «Пазл» (29c) 3×4 (rows × cols), 120 с, 300 балів; у класичному раунді чи «Головоломках». */
+export const jigsaw = {
+  ...jigsawBase,
+  id: 'j1',
+  timeLimit: 120,
+  points: 300,
+  ...grid34,
+  tabs: jigsawTabs(grid34.rows, grid34.cols, 1),
+} satisfies Question;
+
+/** «Пазл» (29c) 6 шматочків, 60 с, 300 балів. */
+export const jigsawSmall = {
+  ...jigsawBase,
+  id: 'j2',
+  aspect: '3:4',
+  timeLimit: 60,
+  points: 300,
+  ...grid23,
+  tabs: jigsawTabs(grid23.rows, grid23.cols, 1),
+} satisfies Question;
+
+/**
+ * Вікторина «Пазл» (29c): класика з одним запитанням (30 с) → класика з пазлом 3×4 (120 с) → «Головоломки» з пазлом (60 с).
+ * Пазл стоїть після раунду, тож номер запитання в раунді (0) і індекс у plays (1 чи 2) різні.
+ */
+export function jigsawQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [jigsaw]), puzzlesRound('pz', [jigsawSmall])], settings);
 }
 
 /** Адреса картинки для запитань, що проявляються. */
