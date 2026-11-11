@@ -27651,8 +27651,7 @@ function png29d(width: number, height: number, pixel: (x: number, y: number) => 
  * Дві синтетичні картинки 800 × 600 (4:3): однаковий градієнтний фон зі смугами; у другій — кольорові квадрати в перших `count`
  * місцях SPOTS29D. Жодних справжніх фото.
  */
-function spotPngs29d(count = 3): { original: Buffer; changed: Buffer } {
-  const [width, height] = [800, 600];
+function spotPngs29d(count = 3, [width, height]: [number, number] = [800, 600]): { original: Buffer; changed: Buffer } {
   const background = (x: number, y: number): [number, number, number] => {
     const stripe = Math.floor((x + y) / 60) % 2 === 0 ? 0 : 18;
     return [Math.round(40 + (150 * x) / width) + stripe, Math.round(90 + (100 * y) / height) + stripe, 170 - stripe];
@@ -27669,8 +27668,8 @@ function spotPngs29d(count = 3): { original: Buffer; changed: Buffer } {
 }
 
 /** Картинки через API завантажень (для вікторин, зібраних без редактора): адреси /uploads/…. */
-async function apiPics29d(page: Page, count = 3): Promise<Pics29d> {
-  const pngs = spotPngs29d(count);
+async function apiPics29d(page: Page, count = 3, size?: [number, number]): Promise<Pics29d> {
+  const pngs = spotPngs29d(count, size);
   const upload = async (data: Buffer) => {
     const response = await page.request.post(`${base}/api/uploads`, { data, headers: { 'content-type': 'image/png' } });
     expect(response.ok(), await response.text()).toBe(true);
@@ -27679,9 +27678,9 @@ async function apiPics29d(page: Page, count = 3): Promise<Pics29d> {
   return { original: await upload(pngs.original), changed: await upload(pngs.changed) };
 }
 
-/** «Знайди відмінності» для API: 4:3, кола в даних місцях. */
-function spotdiff29d(id: string, spots: Spot29d[], timeLimit: number, pics: Pics29d, points = 300) {
-  return { id, text: 'Знайдіть відмінності', imageUrl: null, video: null, timeLimit, points, type: 'spotdiff' as const, original: pics.original, changed: pics.changed, aspect: 4 / 3, spots };
+/** «Знайди відмінності» для API: типово 4:3, кола в даних місцях. */
+function spotdiff29d(id: string, spots: Spot29d[], timeLimit: number, pics: Pics29d, points = 300, aspect = 4 / 3) {
+  return { id, text: 'Знайдіть відмінності', imageUrl: null, video: null, timeLimit, points, type: 'spotdiff' as const, original: pics.original, changed: pics.changed, aspect, spots };
 }
 
 /** Обидві картинки в редакторі «Знайди відмінності»: оригінал, потім зі змінами; чекає рамку з колами. */
@@ -27761,8 +27760,11 @@ const spotCount29d = (page: Page, scope: string, name: string) => spotCard29d(pa
 /** Дошки з останнього кадру сокета, де вони є. */
 const spotBoards29d = (frames: string[]) => stateViews(frames).reverse().find((view) => view.spotdiff !== undefined)!.spotdiff!.boards;
 
-/** Сцена 1600 × 900: без прокрутки; картинки, картки й таблиця цілком у вікні. */
-async function expectSpotdiffStageFits29d(stage: Page, name: string) {
+/**
+ * Сцена 1600 × 900: без прокрутки; картинки, картки й таблиця цілком у вікні. minShare — яку частку ширини вікна мають разом
+ * займати дві картинки (розкриття горизонтальних картинок: ≈ 60 %, таблиця — решта).
+ */
+async function expectSpotdiffStageFits29d(stage: Page, name: string, minShare = 0) {
   const [height, clientH, width, clientW] = (await stage.evaluate(
     '[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]',
   )) as number[];
@@ -27773,8 +27775,12 @@ async function expectSpotdiffStageFits29d(stage: Page, name: string) {
     .evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1 || box.top < -1; }).map((el) => el.className));
   expect(out, `${name}: parts outside the stage`).toEqual([]);
   const pic = (await stage.locator('.spotdiff-stage .spot-pic').first().boundingBox())!;
-  console.log(`spotdiff 29d: ${name} — a picture ${Math.round(pic.width)}×${Math.round(pic.height)}`);
-  expect(pic.width, `${name}: the stage pictures are big enough to search`).toBeGreaterThan(300);
+  const second = (await stage.locator('.spotdiff-stage .spot-pic').nth(1).boundingBox())!;
+  const share = (second.x + second.width - pic.x) / 1600;
+  console.log(`spotdiff 29d: ${name} — a picture ${Math.round(pic.width)}×${Math.round(pic.height)}, both ${Math.round(share * 100)} % of the width`);
+  // Вертикальні картинки впираються у висоту: міряємо довшу сторону.
+  expect(Math.max(pic.width, pic.height), `${name}: the stage pictures are big enough to search`).toBeGreaterThan(300);
+  expect(share, `${name}: the pictures take ${Math.round(share * 100)} % of the stage width`).toBeGreaterThanOrEqual(minShare);
 }
 
 async function spotdiffGame29d() {
@@ -27941,7 +27947,7 @@ async function spotdiffGame29d() {
   expect(await olya.locator('.spot-play .spot-pic[data-pic="original"] .spot-ring').count(), 'rings on the first picture too').toBe(2);
   await expectNoSideScroll(olya, 'spotdiff29d-phone-320');
   await find29d(olya, spots, 2, { via: 'touch' });
-  await olya.getByText(/^Усе знайдено! Чекаємо інших · [\d,]+ с$/).first().waitFor();
+  await olya.getByText(/^Усе знайдено за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   await expect.poll(() => stageCount('Оля'), POLL).toMatch(/^3 з 3 ✓ [\d,]+ с$/);
 
   // Тарас: два з трьох.
@@ -28006,13 +28012,15 @@ async function spotdiffGame29d() {
   expect(boards.map((board) => [board.nickname, board.found, board.points]), 'the reveal order and points').toEqual([['Оля', 3, 300], ['Тарас', 2, 200], ['Петро', 1, 100]]);
   const rows = await table.locator('tbody tr').evaluateAll((all) => all.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? '')));
   expect(rows.map((row) => [row[0], row[1], row[3]]), 'the reveal table').toEqual([['1', 'Оля', '+300'], ['2', 'Тарас', '+200'], ['3', 'Петро', '+100']]);
-  expect(rows[0]![2]).toMatch(/^Знайдено 3 з 3 · [\d,]+ с$/);
-  expect(rows[2]![2]).toBe('Знайдено 1 з 3');
+  expect(rows[0]![2]).toMatch(/^3 з 3 · [\d,]+ с$/);
+  expect(rows[2]![2]).toBe('1 з 3');
   await scores(['300', '200', '100']);
   await petro.locator('.spot-reveal .spot-pic[data-pic="changed"] .spot-ring').nth(2).waitFor();
   expect(await petro.locator('.spot-reveal .spot-pic[data-pic="changed"] .spot-ring.is-missed').count(), 'Petro’s missed circles are dashed').toBe(2);
   if (process.env.E2E_SHOTS === '1') await sleep(800);
-  await expectSpotdiffStageFits29d(stage, 'reveal');
+  await expectSpotdiffStageFits29d(stage, 'reveal', 0.55);
+  // Таблиця поруч з великими картинками вужча, але ніки в ній не обрізаються.
+  expect(await table.locator('td.name').evaluateAll((all) => all.filter((td) => td.scrollWidth > td.clientWidth + 1).map((td) => td.textContent)), 'cut nicknames in the reveal table').toEqual([]);
   await shot(stage, 'spotdiff29d-reveal-stage');
   await shot(olya, 'spotdiff29d-phone-320-reveal');
   for (const frames of [olyaFrames, tarasFrames, petroFrames]) expect(frames.join(NL), 'a stale refusal').not.toContain('spotdiff_stale');
@@ -28054,9 +28062,10 @@ async function spotdiffGame29d() {
 async function spotdiffTeams29d() {
   const host = await open('host29dt', 1280, 900);
   await register(host, 'host', 'Марта Ведуча', 'host29dt@example.com');
-  const pics = await apiPics29d(host);
-  const spots = SPOTS29D.map((spot) => ({ ...spot, r: 0.06 }));
-  const question = spotdiff29d('t29d', spots, 120, pics);
+  // Вертикальні картинки 450 × 800 (9 : 16): на телефоні стоять поруч навіть на 320 px.
+  const pics = await apiPics29d(host, 3, [450, 800]);
+  const spots = SPOTS29D.map((spot) => ({ ...spot, r: 0.08 }));
+  const question = spotdiff29d('t29d', spots, 120, pics, 300, 450 / 800);
   const data = {
     ...makeRoundsQuiz([classicRound('ct29d', [{ ...withId(single, 'ct1'), timeLimit: 30 }], { speedBonus: false }), classicRound('st29d', [question as never], { speedBonus: false })], {
       leaderboard: 'end',
@@ -28105,6 +28114,17 @@ async function spotdiffTeams29d() {
   for (const page of phones) await spotPic29d(page, 'changed').locator('img').waitFor();
   const stageCount = (name: string) => spotCount29d(stage, '.spotdiff-stage', name);
   await expect.poll(() => stage.locator('.spotdiff-stage .spotdiff-card').count(), POLL).toBe(2);
+  // Вертикальні картинки на 320 px: поруч, кожна на всю свою половину й цілком у вікні.
+  for (const page of [hanna, taras]) {
+    const [left, right] = await Promise.all([spotPic29d(page, 'original').boundingBox(), spotPic29d(page, 'changed').boundingBox()]);
+    const viewport = page.viewportSize()!;
+    console.log(`spotdiff 29d: tall pictures on a ${viewport.width} px phone — ${Math.round(left!.width)}×${Math.round(left!.height)} each`);
+    expect(Math.abs(left!.y - right!.y), 'tall pictures stand side by side').toBeLessThan(2);
+    expect(right!.x, 'the changed picture is to the right').toBeGreaterThan(left!.x + left!.width - 1);
+    expect(left!.width * 2, 'two tall pictures fill the phone width').toBeGreaterThan(viewport.width * 0.8);
+    expect(left!.y + left!.height, 'a tall picture fits the screen').toBeLessThanOrEqual(viewport.height);
+  }
+  await shot(hanna, 'spotdiff29d-teams-phone-320-tall');
 
   // ── Оля знаходить коло 1: кільце й у Тараса; тап Тараса по ньому — ні промаху, ні знахідки. ──
   await find29d(olya, spots, 0);
@@ -28141,19 +28161,24 @@ async function spotdiffTeams29d() {
   await expectNoSideScroll(hanna, 'spotdiff29d-teams-phone-320');
 
   // ── Перезапуск сервера посеред пошуку: знахідки на місці, телефони тапають далі. ──
+  const t0 = Date.now();
+  const mark = (what: string) => console.log(`spotdiff 29d: teams restart — ${what} at ${Date.now() - t0} ms`);
   await restart(async () => {
-    await stage.getByText(RESTARTING_TEXT, exact).waitFor();
+    mark('the server stopped');
+    await stage.getByText(RESTARTING_TEXT, exact).waitFor({ timeout: 15_000 });
   });
+  mark('the server is up');
   for (const page of [stage, ...phones, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
   restarting = false;
-  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click();
+  mark('every page is back');
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click({ timeout: 15_000 });
   for (const page of [olya, taras]) await expect.poll(() => rings29d(page), POLL).toBe(2);
   for (const page of [petro, hanna]) await expect.poll(() => rings29d(page), POLL).toBe(1);
   await expect.poll(() => stageCount('Соняшники'), POLL).toBe('2 з 3');
   await olya.locator('.spot-play .spot-pic.is-tap[data-pic="changed"]').waitFor();
   await find29d(olya, spots, 2);
   await expect.poll(() => rings29d(taras), POLL).toBe(3);
-  await taras.getByText(/^Усе знайдено! Чекаємо інших · [\d,]+ с$/).first().waitFor();
+  await taras.getByText(/^Усе знайдено за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   await expect.poll(() => stageCount('Соняшники'), POLL).toMatch(/^3 з 3 ✓/);
   await reveal28a(host);
   await stage.locator('.spotdiff-stage.is-reveal .spotdiff-table').waitFor();
