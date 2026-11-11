@@ -486,6 +486,41 @@ export function jigsawQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [jigsaw]), puzzlesRound('pz', [jigsawSmall])], settings);
 }
 
+const spotdiffBase = { ...base, type: 'spotdiff', text: 'Знайдіть відмінності', original: `/uploads/${'c'.repeat(32)}.png`, changed: `/uploads/${'d'.repeat(32)}.png`, aspect: 4 / 3 } as const;
+
+/** «Знайди відмінності» (29d): 3 кола, 4:3, 90 с, 300 балів. */
+export const spotdiff = {
+  ...spotdiffBase,
+  id: 'sd1',
+  timeLimit: 90,
+  points: 300,
+  spots: [
+    { x: 0.2, y: 0.3, r: 0.05 },
+    { x: 0.6, y: 0.5, r: 0.06 },
+    { x: 0.85, y: 0.8, r: 0.05 },
+  ],
+} satisfies Question;
+
+/** «Знайди відмінності» (29d): 2 кола, 60 с, 300 балів. */
+export const spotdiffSmall = {
+  ...spotdiffBase,
+  id: 'sd2',
+  timeLimit: 60,
+  points: 300,
+  spots: [
+    { x: 0.3, y: 0.4, r: 0.06 },
+    { x: 0.7, y: 0.6, r: 0.06 },
+  ],
+} satisfies Question;
+
+/**
+ * Вікторина «Знайди відмінності» (29d): класика з одним запитанням (30 с) → класика зі spotdiff на 3 кола (90 с) → «Головоломки» з судоку
+ * і spotdiff на 2 кола (60 с). Номер запитання в раунді й індекс у plays різні.
+ */
+export function spotdiffQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [spotdiff]), puzzlesRound('pz', [sudoku, spotdiffSmall])], settings);
+}
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

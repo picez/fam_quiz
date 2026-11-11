@@ -80,6 +80,7 @@ import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
 import { dropFromDrawing, drawingDone, openDrawing, packDrawings, scoreDrawing } from './drawing';
 import { packJigsaws, scoreJigsaw } from './jigsaw';
+import { packSpotdiffs, scoreSpotdiff } from './spotdiff';
 import { packPuzzles, scorePuzzle } from './puzzles';
 import { dealTruth, dropTruthFacts, nextTruthQuestion, truthGuessers, truthPlayFor, truthPlayOf, withTruthPoints } from './truth';
 import { scoreWordLadder } from './wordladder';
@@ -215,6 +216,8 @@ export interface Play {
   puzzle?: PuzzlePlay;
   /** Лише в запитанні «Пазл» (29c). */
   jigsaw?: JigsawPlay;
+  /** Лише в запитанні «Знайди відмінності» (29d). */
+  spotdiff?: SpotdiffPlay;
   /** Лише в запитанні-сортуванні; гравця тут немає, поки він не зробив ходу. */
   sort?: Record<string, SortProgress>;
   /** Бафи гравців на цьому запитанні; гравця тут немає, поки він не брав бафу. */
@@ -596,6 +599,28 @@ export interface JigsawBoard {
   /** Лише в командах: шматочок → хто тримає й до коли (мс сервера). Прострочене ігнорується й прибирається при наступній зміні. */
   held?: Record<string, { by: string; until: number }>;
   /** Мить, коли поставлено останній шматочок (мс від startedAt); null — ще ні. */
+  doneMs: number | null;
+  seq: number;
+}
+
+/** «Знайди відмінності» (29d): дошки поточного запитання; openQuestion спорожнює дошки минулих (запис зберігає answer). */
+export interface SpotdiffPlay {
+  boards: Record<string, SpotdiffBoard>;
+  /** Лише в командах: учасники на відкритті (колір). */
+  order?: Record<string, string[]>;
+}
+
+/** Дошка гравця (команди) у «Знайди відмінності». */
+export interface SpotdiffBoard {
+  /** Знайдені кола (індекси spots) у порядку знахідок. */
+  found: number[];
+  /** Лише в командах: хто знайшов, паралельно found. */
+  by?: string[];
+  /** Промахи підряд кожної людини (соло — ключ actorId). */
+  misses: Record<string, number>;
+  /** Мить кінця заморозки людини (мс сервера). */
+  frozenUntil: Record<string, number>;
+  /** Мить, коли знайдено останнє (мс від startedAt); null — ще ні. */
   doneMs: number | null;
   seq: number;
 }
@@ -1090,6 +1115,11 @@ function removeFromGame(state: GameState, playerId: string): Result {
       const { [playerId]: _board, ...boards } = play.jigsaw.boards;
       kept.jigsaw = { ...play.jigsaw, boards };
     }
+    // «Знайди відмінності» (29d): так само.
+    if (play.spotdiff !== undefined) {
+      const { [playerId]: _board, ...boards } = play.spotdiff.boards;
+      kept.spotdiff = { ...play.spotdiff, boards };
+    }
     // «Більше чи менше» (28a): лише відкрите запитання; закрите вже пораховане (scored), його вибори лишаються як були.
     if (play.moreless !== undefined && index === state.questionIndex && state.phase === 'question') {
       const { [playerId]: _progress, ...progress } = play.moreless.progress;
@@ -1403,6 +1433,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(isPuzzle(question) ? { puzzle: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
     // «Пазл» (29c): так само, дошка кожного гравця (команди).
     ...(question.type === 'jigsaw' ? { jigsaw: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
+    // «Знайди відмінності» (29d): так само.
+    ...(question.type === 'spotdiff' ? { spotdiff: teamsOn(state) ? { boards: {}, order: Object.fromEntries(state.players.map((p) => [p.id, teamMembers(state, p.id).map((m) => m.id)])) } : { boards: {} } } : {}),
     ...(built !== null ? { survey: { source: built.source, shown: 0 } } : {}),
     // Блеф: зерно для запасних вигадок і порядку варіантів; tick, що перемикає фазу, rng не має. Інші типи rng тут не тягнуть.
     ...(question.type === 'bluff'
@@ -1431,7 +1463,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       questionIndex: state.plays.length,
       // «Малюнок» (28c): штрихи минулих малюнків стискаються — стан кімнати не росте з кожним малюнком.
       // «Головоломки» (28d): так само сітки минулих запитань (їх зберігає запис).
-      plays: [...packJigsaws(packPuzzles(packDrawings(state.plays, -1))), play],
+      plays: [...packSpotdiffs(packJigsaws(packPuzzles(packDrawings(state.plays, -1)))), play],
       presented: present(question, shuffles(round), rng),
       startedAt: at,
       // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
@@ -1791,7 +1823,7 @@ export function lockNow(state: GameState): GameState {
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -1936,6 +1968,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'puzzle' || isPuzzle(play.question)) return fail('type_mismatch');
   // «Пазл» — лише jigsawPlace і jigsawHold (29c).
   if (answer.type === 'jigsaw' || play.question.type === 'jigsaw') return fail('type_mismatch');
+  // «Знайди відмінності» — лише spotdiffTap (29d).
+  if (answer.type === 'spotdiff' || play.question.type === 'spotdiff') return fail('type_mismatch');
   // Сортування — лише хід за ходом через sortWord.
   if (answer.type === 'sort' || play.question.type === 'sort') return fail('type_mismatch');
   // Стіна — лише вибір за вибором через guessWall.
@@ -2577,7 +2611,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
-  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'drawing' || type === 'sudoku' || type === 'crossword' || type === 'jigsaw' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'drawing' || type === 'sudoku' || type === 'crossword' || type === 'jigsaw' || type === 'spotdiff' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   // «Правда про гравця» (28b): бали автора рахує гра з оцінок вгадувачів.
   if (truthPlayOf(state)?.truth.actorId === playerId) return fail('not_allowed');
@@ -2659,7 +2693,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))))))));
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {
