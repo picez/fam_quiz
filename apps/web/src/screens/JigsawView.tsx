@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import { piecePad, piecePath } from '../live/jigsaw-shape';
 import type { Send } from '../live/types';
 import { jigsawSeed, useJigsaw, type JigsawModel } from '../live/useJigsaw';
+import { ImageZoom } from './ImageZoom';
 import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
 /** Тап: рух менший за стільки пікселів і коротший за стільки мілісекунд — поворот на 90°, а не перетягування. */
@@ -20,6 +21,23 @@ const JIGSAW_PILE_CHROME = 28;
 const FALLBACK_WIDTH = 304;
 
 type Crop = ReturnType<typeof jigsawCrop>;
+
+/**
+ * Куди лягає відпущений шматочок: «над рамкою» — центр ядра (кут + пів клітинки) строго в межах виміряної рамки, без запасу;
+ * тоді кут ядра в клітинках, округлений до 0.001 і обмежений рамкою ([0, cols − 1] × [0, rows − 1]), — шматочок біля краю
+ * лишається видно цілим, а біля свого місця прилипає (jigsawFits). null — центр поза рамкою (чи рамка нульова): назад у купку.
+ */
+export function jigsawDropAt(rect: { left: number; top: number; width: number; height: number }, cols: number, rows: number, coreLeft: number, coreTop: number): { x: number; y: number } | null {
+  if (!(rect.width > 0 && rect.height > 0 && cols > 0 && rows > 0)) return null;
+  const cellW = rect.width / cols;
+  const cellH = rect.height / rows;
+  const cx = coreLeft + cellW / 2;
+  const cy = coreTop + cellH / 2;
+  if (cx < rect.left || cx > rect.left + rect.width || cy < rect.top || cy > rect.top + rect.height) return null;
+  const round = (value: number) => Math.round(value * 1000) / 1000;
+  const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
+  return { x: clamp(round((coreLeft - rect.left) / cellW), cols - 1), y: clamp(round((coreTop - rect.top) / cellH), rows - 1) };
+}
 
 interface Layout {
   /** Рамка (CSS px). */
@@ -173,8 +191,8 @@ function Frame({ jigsaw, layout, placed, image, crop, ghost = false, children, f
   );
 }
 
-/** Готова картинка тією ж рамкою: cover + object-position = частка запасу, як jigsawCrop. */
-function PhotoImg({ jigsaw, className, alt }: { jigsaw: PublicJigsaw; className: string; alt: string }) {
+/** Готова картинка тією ж рамкою: cover + object-position = частка запасу, як jigsawCrop. style — додаткові властивості (--ar на весь екран). */
+function PhotoImg({ jigsaw, className, alt, style }: { jigsaw: PublicJigsaw; className: string; alt: string; style?: CSSProperties }) {
   const [a, b] = jigsaw.aspect.split(':');
   return (
     <img
@@ -182,7 +200,7 @@ function PhotoImg({ jigsaw, className, alt }: { jigsaw: PublicJigsaw; className:
       src={jigsaw.photo}
       alt={alt}
       draggable={false}
-      style={{ aspectRatio: `${a} / ${b}`, objectFit: 'cover', objectPosition: `${jigsaw.focus.x * 100}% ${jigsaw.focus.y * 100}%` }}
+      style={{ ...style, aspectRatio: `${a} / ${b}`, objectFit: 'cover', objectPosition: `${jigsaw.focus.x * 100}% ${jigsaw.focus.y * 100}%` }}
     />
   );
 }
@@ -238,6 +256,8 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
   const gesture = useRef<Gesture | null>(null);
   /** Шматочок у пальці: лівий верхній кут ядра відносно кореня (CSS px). */
   const [drag, setDrag] = useState<{ piece: number; x: number; y: number } | null>(null);
+  /** Прев'ю відкрито на весь екран. */
+  const [zoom, setZoom] = useState(false);
   const interactive = !closed && !paused && !timeUp && info.canPlace && !info.done;
   const heldTone = new Map(info.held.map((held) => [held.piece, held.tone]));
   const total = jigsaw.rows * jigsaw.cols;
@@ -288,31 +308,35 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
       if (Date.now() - g.t < JIGSAW_TAP_MS) model.rotate(g.piece);
       return;
     }
-    const rect = frameRef.current?.getBoundingClientRect();
     // Клітинка — з виміряної рамки (не з розрахованої розкладки): так само, як її бачить палець.
-    const cellW = rect === undefined ? 0 : rect.width / jigsaw.cols;
-    const cellH = rect === undefined ? 0 : rect.height / jigsaw.rows;
-    const margin = Math.min(cellW, cellH) / 2;
-    const over =
-      rect !== undefined && cellW > 0 && cellH > 0 && event.clientX >= rect.left - margin && event.clientX <= rect.right + margin && event.clientY >= rect.top - margin && event.clientY <= rect.bottom + margin;
-    if (!over) {
-      model.drop(g.piece, null);
-      return;
-    }
-    const round = (value: number) => Math.round(value * 1000) / 1000;
-    const x = round((event.clientX - g.offX - rect.left) / cellW);
-    const y = round((event.clientY - g.offY - rect.top) / cellH);
-    model.drop(g.piece, { x, y });
+    const rect = frameRef.current?.getBoundingClientRect();
+    model.drop(g.piece, rect === undefined ? null : jigsawDropAt(rect, jigsaw.cols, jigsaw.rows, event.clientX - g.offX, event.clientY - g.offY));
   };
 
-  const onCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+  /** Жест обірвався (pointercancel, втрачений захват, відпускання не на шматочку): лишається, де лежав, лише рука порожніє (і «тримаю» більше не йде). */
+  const cancelGesture = (pointerId: number) => {
     const g = gesture.current;
-    if (g === null || g.id !== event.pointerId) return;
+    if (g === null || g.id !== pointerId) return;
     gesture.current = null;
     setDrag(null);
-    // Лишається, де лежав: лише рука порожніє (і «тримаю» більше не йде).
     model.drop(g.piece, model.loose.find((item) => item.piece === g.piece)?.at ?? null);
   };
+  const cancelNow = useRef(cancelGesture);
+  cancelNow.current = cancelGesture;
+
+  const onCancel = (event: ReactPointerEvent<HTMLDivElement>) => cancelGesture(event.pointerId);
+
+  // Запасний вихід: елемент шматочка зник з DOM посеред жесту — його обробники мовчать, а завислий жест блокував би onDown.
+  // Після звичайного onUp тут нічого робити (gesture.current уже null).
+  useEffect(() => {
+    const onWindow = (event: PointerEvent) => cancelNow.current(event.pointerId);
+    window.addEventListener('pointerup', onWindow);
+    window.addEventListener('pointercancel', onWindow);
+    return () => {
+      window.removeEventListener('pointerup', onWindow);
+      window.removeEventListener('pointercancel', onWindow);
+    };
+  }, []);
 
   const onKey = (event: ReactKeyboardEvent<HTMLDivElement>, piece: number) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -339,6 +363,7 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
         onPointerMove={onMove}
         onPointerUp={onUp}
         onPointerCancel={onCancel}
+        onLostPointerCapture={onCancel}
         onContextMenu={(event) => event.preventDefault()}
       >
         <PieceCanvas rows={jigsaw.rows} cols={jigsaw.cols} tabs={jigsaw.tabs} piece={item.piece} layout={layout} image={image} crop={crop} />
@@ -368,8 +393,17 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
     <div ref={rootRef} className="jigsaw-play">
       <div className="jigsaw-head">
         <p className="meta jigsaw-progress">{t('jigsawProgress', { placed: model.placed.size, total })}</p>
-        {jigsaw.preview && <PhotoImg jigsaw={jigsaw} className="jigsaw-preview" alt={t('jigsawPreview')} />}
+        {jigsaw.preview && (
+          <button type="button" className="jigsaw-preview-open" aria-label={t('imageZoomOpen')} onClick={() => setZoom(true)}>
+            <PhotoImg jigsaw={jigsaw} className="jigsaw-preview" alt={t('jigsawPreview')} />
+          </button>
+        )}
       </div>
+      {jigsaw.preview && zoom && (
+        <ImageZoom url={jigsaw.photo} alt={t('jigsawPreview')} onClose={() => setZoom(false)}>
+          <PhotoImg jigsaw={jigsaw} className="image-zoom-img jigsaw-zoom-img" alt={t('jigsawPreview')} style={{ '--ar': aspectRatio(jigsaw.aspect) } as CSSProperties} />
+        </ImageZoom>
+      )}
       <Frame jigsaw={jigsaw} layout={layout} placed={model.placed} image={image} crop={crop} frameRef={frameRef}>
         {!closed && onFrame.map((item) => pieceEl(item, { left: item.at!.x * layout.cw - layout.pad, top: item.at!.y * layout.ch - layout.pad }))}
       </Frame>
