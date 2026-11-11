@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -891,6 +891,31 @@ describe('host history: answers', () => {
     expect(jig?.responses).toMatchObject([
       { nickname: 'Олена', answer: { type: 'jigsaw', placed: total, total, done: true }, accepted: true },
       { nickname: 'Тарас', answer: { type: 'jigsaw', placed: 1, total, done: false, timeMs: null }, accepted: false },
+    ]);
+  });
+
+  it('history shows found of total', async () => {
+    const scheduler = new FakeScheduler();
+    const game = await start(spotdiffQuiz(), scheduler);
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    step('lock');
+    for (let i = 0; i < 6 && !(game.room.state.phase === 'question' && game.room.state.plays[game.room.state.questionIndex].question.type === 'spotdiff'); i++) step('next');
+    const tap = (who: string, index: number) => manager.spotdiffTap(game.room, who, { questionIndex: 0, x: spotdiff.spots[index].x, y: spotdiff.spots[index].y, width: 400 });
+    expect(tap(olena, 0)).toEqual({ ok: true });
+    expect(tap(olena, 1)).toEqual({ ok: true });
+    expect(tap(taras, 2)).toEqual({ ok: true });
+    step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    const sd = result.questions.find((q) => q.question.type === 'spotdiff');
+    expect(sd?.responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'spotdiff', found: 2, total: 3, done: false, timeMs: null }, accepted: false },
+      { nickname: 'Тарас', answer: { type: 'spotdiff', found: 1, total: 3, done: false, timeMs: null }, accepted: false },
     ]);
   });
 

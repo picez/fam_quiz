@@ -40,6 +40,7 @@ import {
   withVideo,
   puzzlesQuiz,
   jigsawQuiz,
+  spotdiffQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -170,6 +171,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['duels', duelQuiz()],
   ['puzzles: a sudoku and two crosswords', puzzlesQuiz({ leaderboard: 'end' })],
   ['a jigsaw in a classic round and in puzzles', jigsawQuiz({ leaderboard: 'end' })],
+  ['a spotdiff in a classic round and in puzzles', spotdiffQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
   ...(['host', 'pick', 'random', 'dice'] as TeamForm[]).map(
@@ -341,6 +343,15 @@ describe('autopilot: scores and defaults', () => {
       for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade]).toEqual([p.question.id, id, 'correct']);
     }
     expect(state.plays.slice(1, 2).every((p) => Object.keys(p.jigsaw?.boards ?? {}).length === 0)).toBe(true);
+  });
+
+  it('spotdiff: every bot finds every circle after an earlier round, every record is correct (29d)', () => {
+    const { state } = play(spotdiffQuiz(), answering);
+    expect(state.plays.map((p) => p.question.id)).toEqual(['q1', 'sd1', 'z1', 'sd2']);
+    for (const p of state.plays.filter((p) => p.question.type === 'spotdiff')) {
+      for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points]).toEqual([p.question.id, id, 'correct', 300]);
+    }
+    expect(state.plays.slice(0, 3).every((p) => Object.keys(p.spotdiff?.boards ?? {}).length === 0)).toBe(true);
   });
 
   it('a team game: every team answers right through its captain', () => {

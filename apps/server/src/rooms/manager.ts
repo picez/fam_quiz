@@ -116,6 +116,8 @@ import {
   jigsawHoldsEnd,
   jigsawOf,
   jigsawPlace,
+  spotdiffOf,
+  spotdiffTap,
   puzzleFill,
   puzzleFinish,
   puzzleOf,
@@ -152,7 +154,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -280,6 +282,8 @@ export interface Room {
   puzzleRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:jigsaw і player:jigsaw-hold (29c): одне на людину для обох подій. Лише в пам'яті. */
   jigsawRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:spotdiff (29d): на людину. Лише в пам'яті. */
+  spotdiffRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -602,6 +606,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'moreless' ? moreLessOf(state, id) : null,
     play?.question.type === 'sudoku' || play?.question.type === 'crossword' ? puzzleOf(state, id) : null,
     play?.question.type === 'jigsaw' ? jigsawOf(state, id) : null,
+    play?.question.type === 'spotdiff' ? spotdiffOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -730,6 +735,7 @@ export class RoomManager {
       drawGuessRate: new Map(),
       puzzleRate: new Map(),
       jigsawRate: new Map(),
+      spotdiffRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -810,6 +816,7 @@ export class RoomManager {
       drawGuessRate: new Map(),
       puzzleRate: new Map(),
       jigsawRate: new Map(),
+      spotdiffRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1742,6 +1749,27 @@ export class RoomManager {
     return this.jigsawApply(room, who.id, jigsawPlace(room.state, who.id, playerId, questionIndex, move, now), now);
   }
 
+  /**
+   * Тап «Знайди відмінності» (29d): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Ack без нових полів: влучання { ok: true }, промах spotdiff_miss, третій промах поспіль spotdiff_freeze. Стан пишеться й за промаху
+   * (лічильники й заморозка мають пережити рестарт), але зріз від промаху не змінюється, тож він іде в замикальному вікні розсилки.
+   * Влучання й завершення розсилаються одразу (їх щонайбільше 10 на дошку).
+   */
+  spotdiffTap(room: Room, playerId: string, payload: { questionIndex: number; x: number; y: number; width: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.spotdiffRate, playerId, now, SPOTDIFF_TAPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    const { questionIndex, ...tap } = payload;
+    const result = spotdiffTap(room.state, who.id, playerId, questionIndex, tap, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    // Промах фази не змінює (закриває лише останнє влучання), тож для нього вистачає замикального вікна.
+    this.commit(room, result.state, now, result.outcome !== 'hit');
+    if (result.outcome === 'hit') return { ok: true };
+    return { ok: false, error: result.outcome === 'miss' ? 'spotdiff_miss' : 'spotdiff_freeze' };
+  }
+
   /** «Тримаю» учасника команди (29c): блок шматочка на 2 с для решти. Соло — без зміни. Те саме вікно частоти, що й у постановки. */
   jigsawHold(room: Room, playerId: string, payload: { questionIndex: number; piece: number }): AckResult {
     if (!this.alive(room)) return this.gone();
@@ -2231,6 +2259,7 @@ export class RoomManager {
     room.drawGuessRate.delete(playerId);
     room.puzzleRate.delete(playerId);
     room.jigsawRate.delete(playerId);
+    room.spotdiffRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {

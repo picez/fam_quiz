@@ -29,6 +29,7 @@ export * from './chain';
 export * from './timedlist';
 export * from './letterwords';
 export * from './jigsaw';
+export * from './spotdiff';
 export * from './moreless';
 export * from './drawing';
 export * from './puzzles';

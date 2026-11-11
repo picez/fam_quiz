@@ -48,3 +48,4 @@ export * from './admin';
 export * from './locale';
 export * from './lobby';
 export * from './jigsaw';
+export * from './spotdiff';

@@ -57,7 +57,7 @@ export function queueNext(state: GameState, teamId: string): string | null {
  * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
  */
 /** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). */
-const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw';
+const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff';
 
 /**
  * Хто відповідає на поточному запитанні: вибір, чинний на мить відкриття (current), інакше вибір, черга, капітан;
@@ -88,7 +88,7 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
   if (play === undefined) return null;
   if (play.blitz !== undefined) return play.buzzers?.[teamId] ?? null;
   // Головоломку (28d) вписує вся команда: номінального відповідача не приписуємо.
-  if (isPuzzle(play.question) || play.question.type === 'jigsaw') return null;
+  if (isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff') return null;
   return index === state.questionIndex ? answererOf(state, teamId) : null;
 }
 
@@ -99,7 +99,7 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
 export function freeForAllNext(state: GameState): boolean {
   if (comingRound(state)?.type === 'truth') return true;
   const coming = comingQuestion(state);
-  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question) || isPuzzle(coming.question) || coming.question.type === 'jigsaw');
+  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question) || isPuzzle(coming.question) || coming.question.type === 'jigsaw' || coming.question.type === 'spotdiff');
 }
 
 /**

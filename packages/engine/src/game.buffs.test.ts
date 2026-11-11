@@ -36,6 +36,7 @@ import {
   drawing,
   withId,
   wordladder,
+  spotdiff,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
@@ -261,6 +262,18 @@ describe('buffs', () => {
       }
     }
     expect(s.phase).toBe('question');
+    expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });
+  });
+
+  it('a spotdiff in a classic round has no buffs and no debuffs, a waiting debuff waits (29d)', () => {
+    const quiz = makeRoundsQuiz([classicRound('c1', [single4, spotdiff])], { buffs, debuffs: ['fog'] });
+    let s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0, rng0));
+    s = must(setDebuff(s, 'p2', 'fog'));
+    for (let guard = 0; guard < 10 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'spotdiff'); guard++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
+    expect(s.plays[s.questionIndex].question.type).toBe('spotdiff');
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_spotdiff');
+    expect(takeBuff(s, 'p1', 'double', T0, rng0).ok).toBe(false);
+    expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
     expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });
   });
 

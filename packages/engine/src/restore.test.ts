@@ -82,6 +82,8 @@ import {
   type PuzzlePlay,
   type JigsawPlay,
   type JigsawBoard,
+  type SpotdiffPlay,
+  type SpotdiffBoard,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -131,8 +133,11 @@ import {
   crosswordFull,
   jigsawQuiz,
   jigsaw,
+  spotdiffQuiz,
+  spotdiff,
 } from './testing/fixtures';
 import { jigsawHold, jigsawPlace } from './jigsaw';
+import { spotdiffTap, type SpotTap } from './spotdiff';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -338,7 +343,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -397,6 +402,8 @@ const STATE_SHAPE: Record<string, string> = {
   PuzzleBoard: keysOf<PuzzleBoard>()(['cells', 'by', 'last', 'seq', 'done'], true),
   JigsawPlay: keysOf<JigsawPlay>()(['boards', 'order'], true),
   JigsawBoard: keysOf<JigsawBoard>()(['placed', 'by', 'held', 'doneMs', 'seq'], true),
+  SpotdiffPlay: keysOf<SpotdiffPlay>()(['boards', 'order'], true),
+  SpotdiffBoard: keysOf<SpotdiffBoard>()(['found', 'by', 'misses', 'frozenUntil', 'doneMs', 'seq'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1201,7 +1208,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,moreless,overtime,puzzle,question,roundIndex,sort,survey,survival,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1254,6 +1261,8 @@ const KEYS: Record<number, Record<string, string>> = {
     PuzzleBoard: 'by,cells,done,last,seq',
     JigsawPlay: 'boards,order',
     JigsawBoard: 'by,doneMs,held,placed,seq',
+    SpotdiffPlay: 'boards,order',
+    SpotdiffBoard: 'by,doneMs,found,frozenUntil,misses,seq',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1519,6 +1528,8 @@ function representative(): GameState[] {
   const puzzleClosed = must(lock(puzzling, T0 + 3000));
   // 29c: «Пазл» — команда ставить шматочки (by, held), одна команда тримає шматочок.
   const jigsawing = jigsawed();
+  // 29d: «Знайди відмінності» — команда знайшла коло (by), Петро замерз (misses, frozenUntil).
+  const spotting = spotted();
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1568,6 +1579,7 @@ function representative(): GameState[] {
     puzzling,
     puzzleClosed,
     jigsawing,
+    spotting,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1616,6 +1628,19 @@ function jigsawed(): GameState {
   const open = must(next(teamGame(teamQuiz([classicRound('r1', [jigsaw])]), [['Оля', 'Петро'], ['Віра']]), T0));
   const placed = must(jigsawPlace(open, 't1', 'm1', 0, { piece: 0, x: 0, y: 0, rot: 0 }, T0 + 500));
   return must(jigsawHold(placed, 't1', 'm2', 0, 1, T0 + 700));
+}
+
+/** 29d: командний spotdiff — Оля знайшла коло 1, Петро тричі промахнувся й замерз, ще раз промахнувся після (Play.spotdiff, by, misses, frozenUntil). */
+function spotted(): GameState {
+  let s = must(next(teamGame(teamQuiz([classicRound('r1', [spotdiff])]), [['Оля', 'Петро'], ['Віра']]), T0));
+  s = spotMust(spotdiffTap(s, 't1', 'm1', 0, { x: 0.6, y: 0.5, width: 400 }, T0 + 500));
+  for (let k = 0; k < 3; k++) s = spotMust(spotdiffTap(s, 't1', 'm2', 0, { x: 0.05, y: 0.95, width: 400 }, T0 + 600 + k));
+  return spotMust(spotdiffTap(s, 't1', 'm2', 0, { x: 0.05, y: 0.95, width: 400 }, T0 + 2000));
+}
+
+function spotMust(tap: SpotTap): GameState {
+  if (!tap.ok) throw new Error(tap.error);
+  return tap.state;
 }
 
 /** 28b: лобі «Правди про гравця» — Оля й Петро написали факти, факт Петра ведучий сховав. */
@@ -1785,6 +1810,24 @@ describe('the saved state', () => {
     // старий знімок без поля читається
     const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(jigsawQuiz(), 'Оля'))), T0))), T0 + 100));
     expect(old.plays[0].jigsaw).toBeUndefined();
+  });
+
+  it('a restored room keeps the spotdiff boards without a new version (29d)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let s = must(next(must(start(lobbyWith(spotdiffQuiz(), 'Оля', 'Петро'))), T0));
+    s = must(lock(s, T0 + 1000));
+    for (let i = 0; i < 12 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'spotdiff'); i++) s = must(next(s, T0 + 2000));
+    expect(s.questionIndex).toBe(1);
+    const at = s.startedAt! + 1000;
+    s = spotMust(spotdiffTap(s, 'p1', 'p1', 0, { x: 0.6, y: 0.5, width: 400 }, at));
+    s = spotMust(spotdiffTap(s, 'p2', 'p2', 0, { x: 0.05, y: 0.95, width: 400 }, at));
+    const back = roundTrip(suspend(roundTrip(s), at + 1000));
+    expect(back.plays[1].spotdiff?.boards.p1.found).toEqual([1]);
+    expect(back.plays[1].spotdiff?.boards.p2.misses).toEqual({ p2: 1 });
+    expect(back.plays[1].spotdiff?.boards).toEqual(s.plays[1].spotdiff?.boards);
+    // старий знімок без поля читається
+    const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(spotdiffQuiz(), 'Оля'))), T0))), T0 + 100));
+    expect(old.plays[0].spotdiff).toBeUndefined();
   });
 
   it('an auction snapshot keeps the leader, the bid and the clock without a new version (27b)', () => {
@@ -2248,6 +2291,8 @@ describe('the saved state', () => {
       add('PuzzleBoard', s.plays.flatMap((p) => Object.values(p.puzzle?.boards ?? {})));
       add('JigsawPlay', s.plays.map((p) => p.jigsaw));
       add('JigsawBoard', s.plays.flatMap((p) => Object.values(p.jigsaw?.boards ?? {})));
+      add('SpotdiffPlay', s.plays.map((p) => p.spotdiff));
+      add('SpotdiffBoard', s.plays.flatMap((p) => Object.values(p.spotdiff?.boards ?? {})));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

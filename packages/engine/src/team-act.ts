@@ -64,7 +64,7 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
       // «Малюнок» (28c): вгадує будь-хто з команди, за команду.
       if (play !== undefined && play.question.type === 'drawing') return actor(team);
       // «Головоломки» (28d): одна спільна сітка команди — вписує й тисне «Готово» будь-хто.
-      if (play !== undefined && (play.question.type === 'sudoku' || play.question.type === 'crossword' || play.question.type === 'jigsaw')) return actor(team);
+      if (play !== undefined && (play.question.type === 'sudoku' || play.question.type === 'crossword' || play.question.type === 'jigsaw' || play.question.type === 'spotdiff')) return actor(team);
       const blitz = blitzPlay(state);
       // Миттєвий бліц: відповідає будь-хто, поки команди немає в черзі; повтор відхилить рушій (already_answered).
       if (blitz !== null && blitz.instant) return actor(team);

@@ -19976,3 +19976,413 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.25rem;
   margin: 0;
 }
+
+/* «Знайди відмінності»: редактор (29d). Дві картинки з колами; на 320 px одна під одною, від 640 px поруч. */
+.spotdiff-editor {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.spotdiff-uploads,
+.spotdiff-marks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .spotdiff-uploads,
+  .spotdiff-marks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.spotdiff-slot {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* Попередження про малу картинку: не помилка, картинка вже збережена. */
+.spotdiff-warning {
+  margin: 0;
+  color: var(--amber);
+}
+
+.spotdiff-editor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.spotdiff-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--panel, #1b1b22);
+  user-select: none;
+}
+
+.spotdiff-frame.is-draw {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.spotdiff-frame > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+.spotdiff-circles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.spotdiff-circles circle {
+  fill: rgb(255 255 255 / 0.12);
+  stroke: #ffd24a;
+  stroke-width: 2px;
+}
+
+.spotdiff-circles .is-selected circle {
+  stroke: #fff;
+  stroke-width: 3px;
+}
+
+.spotdiff-circles text {
+  fill: #fff;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.7);
+  stroke-width: 0.004px;
+}
+
+/* «Знайди відмінності»: телефон (29d). Дві рамки aspect; нижче 640 px одна над одною (кожна не вища за 38dvh), від 640 px поруч; вертикальні — завжди поруч. */
+.spot-play {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.spot-progress {
+  margin: 0;
+}
+
+.spot-pictures {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Вертикальні картинки (aspect < 1) на телефоні — поруч навіть на 320 px: одна над одною вони були б крихітні. Кожна якомога
+ * більша: на всю свою колонку, але не вища за ~64dvh (над ними рядок «Знайдено», під ними стан і таймер).
+ */
+.spot-play .spot-pictures.is-tall {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.spot-play .spot-pictures.is-tall .spot-pic {
+  width: min(100%, calc(64dvh * var(--ar, 0.75)));
+}
+
+.spot-pic {
+  position: relative;
+  width: min(100%, calc(38dvh * var(--ar, 1.3333)));
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--panel, #1b1b22);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.spot-pic.is-tap {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.spot-pic > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+.spot-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.spot-ring circle {
+  fill: none;
+  stroke: var(--by, var(--accent-text));
+  stroke-width: 3px;
+}
+
+.spot-ring.is-solo circle {
+  stroke: var(--accent-text);
+}
+
+.spot-ring.is-missed circle {
+  stroke: #fff;
+  stroke-dasharray: 6 4;
+  stroke-width: 2px;
+}
+
+.spot-ring text {
+  fill: #fff;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.7);
+  stroke-width: 0.004px;
+}
+
+.spot-miss line {
+  stroke: #ff3b3b;
+  stroke-width: 3px;
+  stroke-linecap: round;
+  animation: spot-miss-fade 600ms ease-out forwards;
+}
+
+@keyframes spot-miss-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.spot-pic.spot-frozen > img {
+  filter: grayscale(1) brightness(0.6);
+}
+
+/* Картинка не завантажилась: тапів немає, замість неї — підпис. */
+.spot-pic.is-broken {
+  min-height: 4rem;
+  outline: 1px dashed var(--line);
+}
+
+.spot-broken-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  color: var(--dim);
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+.spot-frozen-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0.5rem;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.8);
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .spot-pictures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .spot-pic {
+    width: min(100%, calc(70dvh * var(--ar, 1.3333)));
+  }
+
+  .spot-play .spot-pictures.is-tall .spot-pic {
+    width: min(100%, calc(70dvh * var(--ar, 0.75)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot-miss line {
+    animation: none;
+  }
+}
+/* «Знайди відмінності»: кінець телефона */
+
+/* «Знайди відмінності»: сцена й пульт (29d). Картинки зверху (контейнер за розміром), картки гравців і таблиця — як у пазлі. */
+.spotdiff-stage:not(.is-reveal) {
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.spotdiff-stage-pics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+/* Сцена: дві картинки поруч, кожна вписується в комірку за шириною й висотою (--ar — співвідношення сторін). */
+.spotdiff-stage .spot-pictures {
+  grid-template-columns: repeat(2, auto);
+  justify-content: center;
+  align-content: center;
+  width: auto;
+  height: 100%;
+}
+
+.spotdiff-stage .spot-pic {
+  width: min(50cqw - 0.5rem, 100cqh * var(--ar, 1.3333));
+}
+
+.spotdiff-boards-fit {
+  flex: 0 0 auto;
+  height: 22vh;
+  min-width: 0;
+  container-type: size;
+}
+
+.spotdiff-boards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+  gap: 0.6vh 0.8vw;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Два рядки в картці (нік і лічильник): висота рядка сітки ділиться на ~2,9 рядка тексту. */
+  align-content: center;
+  /* Шрифт обмежений і висотою ряду (два рядки тексту), і шириною колонки (~9 em на «3 з 3 ✓ 12,3 с»). */
+  font-size: min(clamp(0.75rem, 1.6vw, 1.75rem), 100cqh / (var(--rows, 1) * 2.9), 100cqw / (var(--cols, 4) * 9));
+}
+
+/* Густа сітка (багато гравців): дрібніший шрифт, щоб «3 з 3 ✓ 12,3 с» вміщалося у вузьку колонку. */
+.spotdiff-boards-fit.is-dense .spotdiff-boards {
+  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqh / (var(--rows, 1) * 2.9));
+}
+
+/* Картка: нік зверху, лічильник під ним — у вузьких колонках (24 гравці, 8 колонок) нік не стискається до нуля. */
+.spotdiff-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15em;
+  /* Мало гравців: картка не розтягується на всю висоту ряду. */
+  max-height: 4.5em;
+  align-self: center;
+  min-width: 0;
+  padding: 0 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.spotdiff-card.is-done {
+  border-color: var(--accent-text);
+}
+
+.spotdiff-card-name {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.spotdiff-card-count,
+.spotdiff-card-spots {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.spotdiff-boards-fit.is-host {
+  height: auto;
+  container-type: normal;
+}
+
+.spotdiff-boards-fit.is-host .spotdiff-boards {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-template-rows: none;
+  height: auto;
+  font-size: 1rem;
+}
+
+.spotdiff-boards-fit.is-host .spotdiff-card {
+  flex-wrap: wrap;
+  max-height: none;
+  padding: 0.3em 0.6em;
+}
+
+/* Розкриття на сцені: картинки ліворуч (разом ≈ 60 % ширини екрана, щоб кола було видно з залу), таблиця праворуч — решта. */
+.puzzle-stage.jigsaw-stage.spotdiff-stage.is-reveal {
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  column-gap: 1.5vw;
+}
+
+/* Таблиця у вужчій колонці: дрібніший шрифт, щоб ніки не обрізалися до «Та…». */
+.spotdiff-stage .jigsaw-table.spotdiff-table {
+  font-size: min(clamp(1rem, 1.25vw, 1.5rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
+.spotdiff-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.spotdiff-legend b {
+  color: var(--amber);
+}
+
+.host-spotdiff .spotdiff-stage-pics {
+  /* Панель пульта — колонка flex: без цього flex: 1 1 0 зі сцени стискає картинки до нуля, і вони налазять на наступну панель. */
+  flex: none;
+  container-type: normal;
+}
+
+.host-spotdiff .spot-pictures {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.host-spotdiff .spot-pic {
+  width: 100%;
+}
+
+.host-spotdiff .spotdiff-table {
+  margin-top: 1rem;
+}
+/* кінець: «Знайди відмінності» на сцені й пульті */

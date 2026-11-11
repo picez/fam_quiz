@@ -57,6 +57,31 @@ export function useImageUpload(onChange: (url: string | null) => void, { keepLat
   return { busy, error, pick, clearError: () => setError(null) };
 }
 
+/** Скільки чекати, поки браузер прочитає розміри щойно завантаженої картинки. */
+const MEASURE_MS = 3000;
+
+/** Справжні розміри картинки за адресою (naturalWidth × naturalHeight, px); null — не вдалося прочитати вчасно. */
+export function measureImage(url: string): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const done = (value: { width: number; height: number } | null) => {
+      window.clearTimeout(timer);
+      image.onload = null;
+      image.onerror = null;
+      resolve(value);
+    };
+    const timer = window.setTimeout(() => done(null), MEASURE_MS);
+    image.onload = () => done(image.naturalWidth > 0 && image.naturalHeight > 0 ? { width: image.naturalWidth, height: image.naturalHeight } : null);
+    image.onerror = () => done(null);
+    image.src = url;
+  });
+}
+
+/** Пропорція картинки за адресою; null — не вдалося прочитати вчасно. */
+export function measureAspect(url: string): Promise<number | null> {
+  return measureImage(url).then((size) => (size === null ? null : size.width / size.height));
+}
+
 /** Зображення до запитання: вибрати файл, побачити його, замінити або прибрати. */
 export function ImageField({ url, onChange, keepLate = false }: Props) {
   const { busy, error, pick, clearError } = useImageUpload(onChange, { keepLate });

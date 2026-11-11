@@ -7,6 +7,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { DRAWING_ERASER, DRAWING_SCALE, DRAWING_WIDTHS, type DrawOp, type DrawingEvent } from './drawing';
 import { LIFELINES, LIMITS, MORELESS_SIDES } from './quiz';
 import { DOOR_COUNT } from './survival';
+import { SPOT_MAX_WIDTH, SPOT_MIN_WIDTH } from './spotdiff';
 import { RESUME_POINTS_MAX } from './resume';
 import type { Reaction, ReactionItem } from './reactions';
 import { perkSchema } from './levels';
@@ -102,6 +103,27 @@ export const jigsawPlaceSchema = z
   })
   .strict();
 export const jigsawHoldSchema = z.object({ questionIndex: z.number().int().nonnegative(), piece: z.number().int().min(0).max(35) }).strict();
+/**
+ * «Знайди відмінності» (29d): тап (x, y — частки картинки, по якій тапнули) при ширині width (CSS px) на екрані гравця.
+ * questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає spotdiff_stale.
+ */
+export const SPOTDIFF_TAPS_PER_SECOND = 6;
+export const SPOTDIFF_MISSES = 3;
+export const SPOTDIFF_FREEZE_MS = 1000;
+export const SPOTDIFF_MAX_FREEZE_MS = 5000;
+/** Заморозка після misses промахів підряд: 0 до SPOTDIFF_MISSES, далі 1 с, 2 с, 3 с… і не більше SPOTDIFF_MAX_FREEZE_MS. */
+export function spotdiffFreezeMs(misses: number): number {
+  if (misses < SPOTDIFF_MISSES) return 0;
+  return Math.min(SPOTDIFF_MAX_FREEZE_MS, (misses - SPOTDIFF_MISSES + 1) * SPOTDIFF_FREEZE_MS);
+}
+export const spotdiffTapSchema = z
+  .object({
+    questionIndex: z.number().int().nonnegative(),
+    x: z.number().finite().min(0).max(1),
+    y: z.number().finite().min(0).max(1),
+    width: z.number().finite().min(SPOT_MIN_WIDTH).max(SPOT_MAX_WIDTH),
+  })
+  .strict();
 export const puzzleDoneSchema = z.object({ questionIndex: z.number().int().nonnegative() }).strict();
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
@@ -259,6 +281,8 @@ export interface ClientToServerEvents {
   'player:jigsaw': (payload: z.infer<typeof jigsawPlaceSchema>, ack: Ack) => void;
   /** «Пазл» (29c): учасник команди узяв шматочок; блок на JIGSAW_HOLD_MS. */
   'player:jigsaw-hold': (payload: z.infer<typeof jigsawHoldSchema>, ack: Ack) => void;
+  /** «Знайди відмінності» (29d): тап; ack ok — влучання, інакше помилка (spotdiff_miss, spotdiff_freeze, spotdiff_frozen, spotdiff_found, spotdiff_stale, spotdiff_done, time_over, too_soon). */
+  'player:spotdiff': (payload: z.infer<typeof spotdiffTapSchema>, ack: Ack) => void;
   /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
   'player:draw': (payload: DrawOp, ack: Ack) => void;
   /** «Малюнок» (28c): спроба вгадати слово; ack — лише { ok: true } чи drawing_miss, слово й відстань не повертаються. */

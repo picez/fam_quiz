@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -803,6 +803,70 @@ describe('host presence', () => {
     const started = Date.now();
     expect(await send(olena, 'player:jigsaw', { questionIndex: 0, ...spot(11) })).toEqual({ ok: true });
     await until(stage, (view) => view.jigsaw?.boards.some((b) => b.done) === true);
+    expect(Date.now() - started).toBeLessThan(150);
+  });
+
+  /** «Знайди відмінності» (29d) після першого раунду: номер у раунді 0, state.questionIndex 1. */
+  async function toSpotdiff() {
+    const created = (await startGame(ctx.app, spotdiffQuiz())).game;
+    const rig = await lobby(created);
+    const { host, stage, olena, taras } = rig;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while ((await until(olena, () => true)) && !(olena.last?.phase === 'question' && olena.last.role === 'player' && olena.last.question?.spotdiff !== undefined)) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await pause(30);
+    }
+    await until(stage, (view) => view.phase === 'question');
+    await pause(300);
+    return { ...rig, olena, taras };
+  }
+  const tapSpot = (index: number, questionIndex = 0) => ({ questionIndex, x: spotdiff.spots[index].x, y: spotdiff.spots[index].y, width: 400 });
+  const tapMiss = { questionIndex: 0, x: 0.95, y: 0.05, width: 400 };
+
+  it('taps through the socket after a classic round', async () => {
+    const { stage, olena } = await toSpotdiff();
+    const phone = olena.last;
+    if (phone?.role !== 'player') throw new Error('not a player view');
+    expect(phone.questionIndex).toBe(0);
+    expect(await send(olena, 'player:spotdiff', tapSpot(0, 1))).toEqual({ ok: false, error: 'spotdiff_stale' });
+    expect(await send(olena, 'player:spotdiff', tapSpot(0, phone.questionIndex))).toEqual({ ok: true });
+    const shown = await until(stage, (view) => view.spotdiff?.boards.some((b) => b.found === 1) === true);
+    expect(shown.spotdiff?.boards.find((b) => b.nickname === 'Олена')?.found).toBe(1);
+    expect(await send(olena, 'player:spotdiff', { ...tapSpot(1), width: 10 })).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('spotdiff events are player-only', async () => {
+    const { host, stage } = await toSpotdiff();
+    for (const who of [host, stage]) expect(await send(who, 'player:spotdiff', tapSpot(0))).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('a miss answers spotdiff_miss, three in a row freeze, and the freeze is kept', async () => {
+    const { olena } = await toSpotdiff();
+    expect(await send(olena, 'player:spotdiff', tapMiss)).toEqual({ ok: false, error: 'spotdiff_miss' });
+    expect(await send(olena, 'player:spotdiff', tapMiss)).toEqual({ ok: false, error: 'spotdiff_miss' });
+    expect(await send(olena, 'player:spotdiff', tapMiss)).toEqual({ ok: false, error: 'spotdiff_freeze' });
+    expect(await send(olena, 'player:spotdiff', tapSpot(0))).toEqual({ ok: false, error: 'spotdiff_frozen' });
+    await pause(1100);
+    expect(await send(olena, 'player:spotdiff', tapSpot(0))).toEqual({ ok: true });
+  });
+
+  it('spotdiff taps are rate limited', async () => {
+    const { olena } = await toSpotdiff();
+    for (let k = 0; k < 6; k++) expect((await send(olena, 'player:spotdiff', tapMiss)).ok).toBe(false);
+    expect(await send(olena, 'player:spotdiff', tapMiss)).toEqual({ ok: false, error: 'too_soon' });
+    await pause(1100);
+    expect(await send(olena, 'player:spotdiff', tapSpot(0))).toEqual({ ok: true });
+  });
+
+  it('a hit goes out at once', async () => {
+    const { stage, olena } = await toSpotdiff();
+    await send(olena, 'player:spotdiff', tapMiss);
+    const started = Date.now();
+    expect(await send(olena, 'player:spotdiff', tapSpot(0))).toEqual({ ok: true });
+    await until(stage, (view) => view.spotdiff?.boards.some((b) => b.found === 1) === true);
     expect(Date.now() - started).toBeLessThan(150);
   });
 

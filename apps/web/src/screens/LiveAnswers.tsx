@@ -45,6 +45,8 @@ function started(row: LiveRow): boolean {
       return progress.filled > 0 || progress.done;
     case 'jigsaw':
       return progress.placed > 0 || progress.done;
+    case 'spotdiff':
+      return progress.found > 0 || progress.done;
     case 'drawing':
       // Художника видно завжди; вгадувача — коли вгадав (спроби нікому не показуються).
       return progress.role === 'drawer' || progress.guessed;
@@ -113,6 +115,11 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
       case 'jigsaw':
         // З записом поступ уже у відповіді рядка («Склав за … с», «Не склав · 5 з 12»).
         if (answer === null) parts.push(t('jigsawProgress', { placed: progress.placed, total: progress.total }));
+        if (progress.done) parts.push(`${t('puzzleDone')} ✓`);
+        break;
+      case 'spotdiff':
+        // З записом поступ уже у відповіді рядка («Знайдено x з N»).
+        if (answer === null) parts.push(t('spotdiffFound', { found: progress.found, total: progress.total }));
         if (progress.done) parts.push(`${t('puzzleDone')} ✓`);
         break;
       case 'drawing':
@@ -314,7 +321,10 @@ export function LiveAnswers({ view, live, blitz, compact = false, tilts = NO_TIL
       : live.rows.some((row) => row.progress?.kind === 'jigsaw')
         ? // Пазл (29c): «відповіли» — ті, хто склав, як на сцені.
           live.rows.filter((row) => row.progress?.kind === 'jigsaw' && row.progress.done).length
-        : live.answered;
+        : live.rows.some((row) => row.progress?.kind === 'spotdiff')
+          ? // «Знайди відмінності» (29d): «відповіли» — ті, хто знайшов усе, як на сцені.
+            live.rows.filter((row) => row.progress?.kind === 'spotdiff' && row.progress.done).length
+          : live.answered;
   const count = !duel && (
     <p className="meta live-count">{queue ? t('blitzQueued', { count: view.blitz?.queue.length ?? 0 }) : t('answeredOf', { answered, total: live.total })}</p>
   );

@@ -13,12 +13,13 @@ function noDebuffRound(type: string | undefined): boolean {
 
 /** У раундах без дебафів (noDebuffRound) дебафів немає: на їхніх етапах, крім round_end. */
 export function debuffsOff(state: GameState): boolean {
-  return (noDebuffRound(currentRound(state)?.type) || jigsawOpen(state)) && state.phase !== 'round_end';
+  return (noDebuffRound(currentRound(state)?.type) || noDebuffQuestion(state)) && state.phase !== 'round_end';
 }
 
-/** «Пазл» (29c): поки пазл відкритий чи закритий, дебафів немає (за типом запитання, а не раунду). */
-function jigsawOpen(state: GameState): boolean {
-  return (state.phase === 'question' || state.phase === 'locked') && state.plays[state.questionIndex]?.question.type === 'jigsaw';
+/** «Пазл» (29c) і «Знайди відмінності» (29d): поки запитання відкрите чи закрите, дебафів немає (за типом запитання, а не раунду). */
+function noDebuffQuestion(state: GameState): boolean {
+  const type = state.plays[state.questionIndex]?.question.type;
+  return (state.phase === 'question' || state.phase === 'locked') && (type === 'jigsaw' || type === 'spotdiff');
 }
 
 /** «Вибування»: ціль — привид на етапах раунду (крім round_end); дебаф на нього нічого не дає. */
@@ -139,7 +140,7 @@ export function fireDebuffs(state: GameState, now: number): GameState {
   // У «Ва-банк», «Мільйонері», «Правді про гравця» й «Головоломках» дебафів немає: той, що чекає, чекає наступного раунду.
   // У «Вибуванні» дебаф діє лише на живих: той, що чекає на привида, чекає наступного раунду.
   const answering = new Set(
-    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
+    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
   );
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};

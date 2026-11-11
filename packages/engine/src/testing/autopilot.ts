@@ -20,6 +20,7 @@ import { pickTeam, rollTeamDie, teamMembers, teamsOn } from '../teams';
 import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
 import { jigsawPlace } from '../jigsaw';
+import { spotdiffTap } from '../spotdiff';
 import { moreLessOf, moreLessPick } from '../moreless';
 import { drawGuess, drawStroke } from '../drawing';
 import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
@@ -252,6 +253,19 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
       let s = state;
       for (let k = 0; k < (wrong ? Math.floor(total / 2) : total) && s.phase === 'question'; k++) {
         s = act(s, jigsawPlace(s, playerId, person, roundQuestionNumber(s), { piece: k, x: k % question.cols, y: Math.floor(k / question.cols), rot: 0 }, now), what);
+      }
+      return s;
+    }
+    case 'spotdiff': {
+      // Бот (у командах — перший учасник) тапає центри кіл при ширині 400 px; неправильний — лише перше коло.
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      if (person === undefined) return state;
+      let s = state;
+      const spots = wrong ? question.spots.slice(0, 1) : question.spots;
+      for (const spot of spots) {
+        if (s.phase !== 'question') break;
+        const tapped = spotdiffTap(s, playerId, person, roundQuestionNumber(s), { x: spot.x, y: spot.y, width: 400 }, now);
+        s = act(s, tapped.ok ? { ok: true, state: tapped.state } : tapped, what);
       }
       return s;
     }

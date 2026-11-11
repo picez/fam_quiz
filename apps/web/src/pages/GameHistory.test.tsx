@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { answerText } from '../format';
 import { auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
+
+describe('history: spotdiff (29d)', () => {
+  it('history shows found of total', () => {
+    expect(answerText({ type: 'spotdiff', found: 2, total: 3, done: false, timeMs: null } as never, null)).toBe('Знайдено 2 з 3');
+  });
+});
 
 describe('debuffLines', () => {
   it('lists purchases as «Оля купує 🌫️ Туман для гравця Петро: −200»', () => {

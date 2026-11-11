@@ -141,7 +141,16 @@ export interface JigsawAnswer {
   timeMs: number | null;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer;
+/** Запис «Знайди відмінності» (29d) гравця (команди); складає рушій, з телефона не приходить. found — знайдено кіл, total — усього, timeMs — мить останньої знахідки від відкриття (мс сервера, без пауз) або null. */
+export interface SpotdiffAnswer {
+  type: 'spotdiff';
+  found: number;
+  total: number;
+  done: boolean;
+  timeMs: number | null;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {
