@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TrophyEngine } from './engine-types';
 import { loadTrophyEngine, webglAvailable } from './loadEngine';
-import { clearTrophyPictures, trophyPicture } from './picture-cache';
+import { SNAPSHOT_VERSION, STORED_MAX, cacheStore, clearTrophyPictures, setPictureStore, trophyPicture } from './picture-cache';
 import { TrophyPicture } from './TrophyPicture';
 
 vi.mock('./loadEngine', () => ({ loadTrophyEngine: vi.fn(), webglAvailable: vi.fn() }));
@@ -94,6 +94,79 @@ describe('TrophyPicture', () => {
     expect(await trophyPicture(gold)).toBeNull();
     expect(await trophyPicture(gold)).toBe('data:image/webp;base64,CUP');
     expect(snapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('a snapshot stored by an earlier visit shows without loading the engine at all', async () => {
+    const saved = new Map<string, string>();
+    const get = vi.fn(async (key: string) => saved.get(key) ?? null);
+    const put = vi.fn(async (key: string, url: string) => void saved.set(key, url));
+    setPictureStore({ get, put });
+    try {
+      // Перший візит: знімок робить рушій і кладе в сховище з версією знімків у ключі.
+      render(<TrophyPicture trophy={gold} />);
+      await flush();
+      expect(snapshot).toHaveBeenCalledTimes(1);
+      expect(put).toHaveBeenCalledTimes(1);
+      expect(put.mock.calls[0]![0]).toContain(`${SNAPSHOT_VERSION}|`);
+      expect(put.mock.calls[0]![0]).toContain(JSON.stringify(gold));
+      // Повторний візит (пам'ять порожня): лише сховище, без WebGL-перевірки й без чанка рушія.
+      cleanup();
+      clearTrophyPictures();
+      load.mockClear();
+      webgl.mockClear();
+      snapshot.mockClear();
+      render(<TrophyPicture trophy={gold} />);
+      await flush();
+      expect((document.querySelector('img.trophy-picture') as HTMLImageElement).src).toBe('data:image/webp;base64,CUP');
+      expect(load).not.toHaveBeenCalled();
+      expect(webgl).not.toHaveBeenCalled();
+      expect(snapshot).not.toHaveBeenCalled();
+    } finally {
+      setPictureStore(null);
+    }
+  });
+
+  it('a failed snapshot is not stored', async () => {
+    const put = vi.fn(async () => {});
+    setPictureStore({ get: async () => null, put });
+    try {
+      snapshot.mockResolvedValueOnce(null);
+      expect(await trophyPicture(gold)).toBeNull();
+      expect(put).not.toHaveBeenCalled();
+    } finally {
+      setPictureStore(null);
+    }
+  });
+
+  it('the Cache API store keeps at most STORED_MAX snapshots, dropping the oldest', async () => {
+    // Мінімальний Cache API: ключі в порядку додавання, як у браузері.
+    const entries = new Map<string, string>();
+    const cache = {
+      match: async (request: Request) => (entries.has(request.url) ? new Response(entries.get(request.url)) : undefined),
+      put: async (request: Request, response: Response) => {
+        entries.delete(request.url);
+        entries.set(request.url, await response.text());
+      },
+      keys: async () => [...entries.keys()].map((url) => new Request(url)),
+      delete: async (request: Request) => entries.delete(request.url),
+    };
+    const deleted: string[] = [];
+    vi.stubGlobal('caches', {
+      open: async () => cache,
+      keys: async () => ['trophy-pictures-v0', `trophy-pictures-v${SNAPSHOT_VERSION}`, 'other'],
+      delete: async (name: string) => (deleted.push(name), true),
+    });
+    try {
+      for (let i = 0; i <= STORED_MAX; i++) await cacheStore.put(`look-${i}`, `data:${i}`);
+      expect(entries.size).toBe(STORED_MAX);
+      expect(await cacheStore.get('look-0')).toBeNull();
+      expect(await cacheStore.get(`look-${STORED_MAX}`)).toBe(`data:${STORED_MAX}`);
+      expect(await cacheStore.get('look-1')).toBe('data:1');
+      // Кеш старої версії знімків стерто, чужі кеші не чіпаємо.
+      expect(deleted).toEqual(['trophy-pictures-v0']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('snapshots run one at a time', async () => {

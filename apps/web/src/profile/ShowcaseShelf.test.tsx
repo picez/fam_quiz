@@ -87,6 +87,30 @@ describe('ShowcaseShelf', () => {
     expect(mount).not.toHaveBeenCalled();
   });
 
+  it('a studio trophy (decor with photos and inscriptions) and the family grail become pictures of their full look', async () => {
+    vi.mocked(webglAvailable).mockReturnValue(true);
+    const snapshot = vi.fn(async (_look: unknown, _label: string) => 'data:image/webp;base64,STUDIO');
+    vi.mocked(loadTrophyEngine).mockResolvedValue({ mount: vi.fn(), snapshot });
+    const studio: NonNullable<AwardCard['content']['trophy']> = {
+      kind: 'grail',
+      material: 'gold',
+      decor: {
+        photos: [{ url: `/uploads/${'a'.repeat(32)}.webp`, crop: { x: 0.5, y: 0.5, scale: 1 } }],
+        photoPlace: 'ring',
+        frame: 'gold',
+        photoStyle: 'normal',
+        inscriptions: [{ place: 'band', text: 'Чемпіонка', font: null, look: 'engraved', color: '#ffd700' }],
+        effect: { kind: 'glow' },
+        appearance: 'rise',
+        stickers: [],
+      },
+    };
+    open({ awards: [award('s', { content: { trophy: studio } }), award('g', { content: { trophy: { kind: 'grail', material: 'gold' } } })] });
+    await act(async () => {});
+    expect(snapshot.mock.calls.map(([look]) => look)).toEqual(expect.arrayContaining([studio, { kind: 'grail', material: 'gold' }]));
+    expect(document.querySelectorAll('.shelf-icon img.trophy-picture')).toHaveLength(2);
+  });
+
   it('a tap on a cup opens the full-screen viewer', () => {
     open({ awards: [award('a')] });
     fireEvent.click(screen.getByRole('button', { name: /Золотий кубок/ }));
