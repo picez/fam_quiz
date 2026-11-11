@@ -236,6 +236,18 @@ describe('sudoku pencil', () => {
     expect(notes(a)).toBe('1');
   });
 
+  it('29i: erase in the pencil mode removes the digit of a filled cell, as without the pencil', () => {
+    vi.useFakeTimers();
+    mount();
+    fireEvent.click(sudokuCell(a));
+    key('4');
+    expect(sudokuCell(a).textContent).toBe('4');
+    fireEvent.click(pencilButton());
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(sudokuCell(a).textContent).toBe('');
+    expect(pencilButton().getAttribute('aria-pressed')).toBe('true');
+  });
+
   it("a teammate's digit removes the marks of its cell and that digit from its row, column and box", () => {
     vi.useFakeTimers();
     const info = (cells: string[], seq: number) => mineOf(36, { cells, seq, members: [{ id: 'p1', nickname: 'Я', tone: 1 }, { id: 'p2', nickname: 'Він', tone: 2 }] });

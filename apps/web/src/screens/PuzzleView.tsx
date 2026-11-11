@@ -162,9 +162,11 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
   const put = (v: string) => {
     if (off || sel === null || given(sel)) return;
     if (pencilOn) {
-      // Олівець: цифра в порожній клітинці — позначка, у заповненій — нічого; «Стерти» чистить позначки.
-      if (v === '') pencil.clear(sel);
-      else if ((board.cells[sel] ?? '') === '') pencil.toggle(sel, v);
+      // Олівець: цифра в порожній клітинці — позначка, у заповненій — нічого; «Стерти» на порожній чистить позначки, на заповненій — стирає цифру, як без олівця.
+      const filled = (board.cells[sel] ?? '') !== '';
+      if (v === '' && filled) board.set(sel, '');
+      else if (v === '') pencil.clear(sel);
+      else if (!filled) pencil.toggle(sel, v);
       return;
     }
     board.set(sel, v);
@@ -301,6 +303,11 @@ function wordsOf(puzzle: Crossword): Word[] {
 
 const ARROW: Record<Dir, string> = { across: '→', down: '↓' };
 
+/** Усі клітинки слова заповнені (кожна має літеру) — підказку тоді викреслено в списку. */
+export function wordFilled(cells: readonly number[], values: readonly string[]): boolean {
+  return cells.every((c) => (values[c] ?? '') !== '');
+}
+
 /**
  * Кросворд на телефоні: угорі активна підказка («3 ↓ …»), нижче сітка (до 12 стовпців на 320 px без прокрутки вбік), під нею
  * смужка ключа (режим key), «Стерти» і згорнутий список підказок. Тап вибирає слово; повторний тап на перетині міняє напрямок;
@@ -308,10 +315,6 @@ const ARROW: Record<Dir, string> = { across: '→', down: '↓' };
  * crosswordLetter (апостроф, латиниця, цифри — повз), курсор іде на наступну клітинку слова, а з кінця — на наступне незаповнене
  * слово. Backspace стирає й відступає.
  */
-export function wordFilled(cells: readonly number[], values: readonly string[]): boolean {
-  return cells.every((c) => (values[c] ?? '') !== '');
-}
-
 export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
   const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<{ cell: number; dir: Dir } | null>(null);
