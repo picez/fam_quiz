@@ -754,7 +754,7 @@
   "round.puzzles.how.2": "Il pulsante «Fatto» sul telefono fissa la soluzione: dopo non si può più cambiare. La domanda si chiude quando tutti hanno toccato «Fatto» o quando scade il tempo.",
   "round.puzzles.how.3": "Allo scadere del tempo lo schermo mostra le griglie complete di tutti e la soluzione giusta.",
   "round.puzzles.limits.0": "Fino a {maxPuzzles} rompicapi per round, ciascuno con fino a {maxPuzzleTime} s.",
-  "round.puzzles.limits.1": "Solo sudoku, cruciverba e puzzle; sudoku e cruciverba solo qui. Senza buff, debuff e video.",
+  "round.puzzles.limits.1": "Solo sudoku, cruciverba, puzzle e «Trova le differenze»; sudoku e cruciverba solo qui. Senza buff, debuff e video.",
   "round.puzzles.points.0": "Una griglia del tutto giusta vale il prezzo della domanda; in un cruciverba con parola chiave, una parola chiave scritta giusta. Altrimenti 0, anche se manca una sola casella.",
   "round.puzzles.points.1": "In questo round non ci sono punti parziali, malus, serie né moltiplicatore. Ogni giocatore vede i propri errori solo allo scadere del tempo.",
   "round.puzzles.tip.0": "Il tempo predefinito è {defaultSudokuTime} s per un sudoku e {defaultCrosswordTime} s per un cruciverba. Per «Difficile» o parole lunghe, danne di più.",

@@ -754,7 +754,7 @@
   "round.puzzles.how.2": "The “Done” button on the phone locks in the solution — it cannot be changed after that. The question closes when everyone has tapped “Done”, or when time is up.",
   "round.puzzles.how.3": "After time is up, the stage shows everyone’s full grids and the correct solution.",
   "round.puzzles.limits.0": "Up to {maxPuzzles} puzzles in a round, each with up to {maxPuzzleTime} s.",
-  "round.puzzles.limits.1": "Only sudoku, crosswords and jigsaws, and sudoku and crosswords go only here. No buffs, debuffs or video.",
+  "round.puzzles.limits.1": "Only sudoku, crosswords, jigsaws and “Spot the difference”, and sudoku and crosswords go only here. No buffs, debuffs or video.",
   "round.puzzles.points.0": "A fully correct grid earns the question price; in a crossword with a key word, a correctly filled key word does. Otherwise 0, even if only one cell is missing.",
   "round.puzzles.points.1": "There are no partial points, minus, streaks or multiplier in this round. Players see their own mistakes only after time is up.",
   "round.puzzles.tip.0": "The default time is {defaultSudokuTime} s for a sudoku and {defaultCrosswordTime} s for a crossword. Give more for “Hard” or long words.",

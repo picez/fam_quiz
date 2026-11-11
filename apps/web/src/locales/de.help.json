@@ -754,7 +754,7 @@
   "round.puzzles.how.2": "Die Taste „Fertig“ auf dem Handy legt die Lösung fest — danach lässt sie sich nicht mehr ändern. Die Frage schließt, wenn alle „Fertig“ getippt haben oder die Zeit abläuft.",
   "round.puzzles.how.3": "Nach Ablauf der Zeit zeigt die Bühne die vollen Gitter aller und die richtige Lösung.",
   "round.puzzles.limits.0": "Bis zu {maxPuzzles} Rätsel pro Runde, jedes mit bis zu {maxPuzzleTime} s.",
-  "round.puzzles.limits.1": "Nur Sudoku, Kreuzworträtsel und Puzzles; Sudoku und Kreuzworträtsel gibt es nur hier. Ohne Buffs, Debuffs und Video.",
+  "round.puzzles.limits.1": "Nur Sudoku, Kreuzworträtsel, Puzzles und „Finde die Unterschiede“; Sudoku und Kreuzworträtsel gibt es nur hier. Ohne Buffs, Debuffs und Video.",
   "round.puzzles.points.0": "Ein vollständig richtiges Gitter bringt den Fragenpreis; im Kreuzworträtsel mit Lösungswort ein richtig eingetragenes Lösungswort. Sonst 0, auch wenn nur ein Feld fehlt.",
   "round.puzzles.points.1": "In dieser Runde gibt es keine Teilpunkte, kein Minus, keine Serien und keinen Multiplikator. Eigene Fehler sieht ein Spieler erst nach Ablauf der Zeit.",
   "round.puzzles.tip.0": "Die Standardzeit ist {defaultSudokuTime} s für ein Sudoku und {defaultCrosswordTime} s für ein Kreuzworträtsel. Für „Schwer“ oder lange Wörter gib mehr.",

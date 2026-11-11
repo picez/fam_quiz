@@ -754,7 +754,7 @@
   "round.puzzles.how.2": "Przycisk „Gotowe” na telefonie zatwierdza rozwiązanie — potem nie da się go zmienić. Pytanie zamyka się, gdy „Gotowe” nacisnęli wszyscy albo gdy skończy się czas.",
   "round.puzzles.how.3": "Po czasie ekran pokazuje pełne siatki wszystkich i poprawne rozwiązanie.",
   "round.puzzles.limits.0": "Do {maxPuzzles} łamigłówek w rundzie, czas każdej — do {maxPuzzleTime} s.",
-  "round.puzzles.limits.1": "Tylko sudoku, krzyżówki i puzzle; sudoku i krzyżówki są tylko tutaj. Bez buffów, debuffów i wideo.",
+  "round.puzzles.limits.1": "Tylko sudoku, krzyżówki, puzzle i „Znajdź różnice”; sudoku i krzyżówki są tylko tutaj. Bez buffów, debuffów i wideo.",
   "round.puzzles.points.0": "Całkowicie poprawna siatka daje cenę pytania; w krzyżówce z hasłem — poprawnie wpisane hasło. W przeciwnym razie 0, nawet gdy brakuje jednej kratki.",
   "round.puzzles.points.1": "W tej rundzie nie ma punktów częściowych, minusa, serii ani mnożnika. Swoje błędy gracz zobaczy dopiero po czasie.",
   "round.puzzles.tip.0": "Domyślny czas to {defaultSudokuTime} s na sudoku i {defaultCrosswordTime} s na krzyżówkę. Na „Trudne” albo długie słowa daj więcej.",

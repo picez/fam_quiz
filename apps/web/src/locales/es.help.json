@@ -754,7 +754,7 @@
   "round.puzzles.how.2": "El botón «Listo» del móvil fija la solución: después ya no se puede cambiar. La pregunta se cierra cuando todos han pulsado «Listo» o cuando se acaba el tiempo.",
   "round.puzzles.how.3": "Al acabar el tiempo, la pantalla muestra las cuadrículas completas de todos y la solución correcta.",
   "round.puzzles.limits.0": "Hasta {maxPuzzles} pasatiempos por ronda, cada uno con hasta {maxPuzzleTime} s.",
-  "round.puzzles.limits.1": "Solo sudokus, crucigramas y rompecabezas; sudokus y crucigramas solo aquí. Sin buffs, debuffs ni vídeo.",
+  "round.puzzles.limits.1": "Solo sudokus, crucigramas, rompecabezas y «Encuentra las diferencias»; sudokus y crucigramas solo aquí. Sin buffs, debuffs ni vídeo.",
   "round.puzzles.points.0": "Una cuadrícula del todo correcta da el precio de la pregunta; en un crucigrama con palabra clave, una palabra clave bien escrita. Si no, 0, aunque falte una sola casilla.",
   "round.puzzles.points.1": "En esta ronda no hay puntos parciales, resta, rachas ni multiplicador. Cada jugador ve sus errores solo al acabar el tiempo.",
   "round.puzzles.tip.0": "El tiempo por defecto es {defaultSudokuTime} s para un sudoku y {defaultCrosswordTime} s para un crucigrama. Para «Difícil» o palabras largas, da más.",
