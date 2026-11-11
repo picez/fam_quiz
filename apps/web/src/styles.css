@@ -20349,6 +20349,11 @@ input.sudoku-editor-cell:focus-visible {
   column-gap: 1.5vw;
 }
 
+/* Таблиця у вужчій колонці: дрібніший шрифт, щоб ніки не обрізалися до «Та…». */
+.spotdiff-stage .jigsaw-table.spotdiff-table {
+  font-size: min(clamp(1rem, 1.25vw, 1.5rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
 .spotdiff-legend {
   display: flex;
   flex-wrap: wrap;
