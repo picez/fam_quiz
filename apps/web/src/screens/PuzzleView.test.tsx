@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { generateSudoku, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleBoardView, type PuzzleInfo } from '@quiz/shared';
 import type { Send, SendResult } from '../live/types';
 import { PUZZLE_FLUSH_MS } from '../live/usePuzzleBoard';
-import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid, puzzlePageSize } from './PuzzleView';
+import { CrosswordPlay, PUZZLE_PAGE_MS, PUZZLE_TAP_GAP_MS, PuzzleBoards, PuzzleHistoryGrid, PuzzleReveal, SudokuPlay, puzzleGrid, puzzlePageSize, wordFilled } from './PuzzleView';
 
 const base: Omit<PublicQuestion, 'type' | 'puzzle'> = {
   text: 'Розв’яжіть',
@@ -294,6 +294,52 @@ describe('CrosswordPlay', () => {
     typeIn('л');
     wait(PUZZLE_FLUSH_MS);
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe('crossword filled clues', () => {
+  const clueBtn = (re: RegExp) => screen.getByText(re, { selector: 'button.crossword-clue' });
+  const filled = () => [...document.querySelectorAll('.crossword-clue.is-filled')].map((b) => b.textContent);
+
+  it('wordFilled', () => {
+    expect(wordFilled([0, 1, 2], ['а', 'б', 'в'])).toBe(true);
+    expect(wordFilled([0, 1, 2], ['а', '', 'в'])).toBe(false);
+  });
+
+  it('a clue whose cells are all filled is struck through, and plain again after an erase', () => {
+    vi.useFakeTimers();
+    render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    fireEvent.click(crosswordCell(0));
+    typeIn('лис');
+    // Курсор перейшов на слово 2; слово 1 заповнене.
+    fireEvent.click(crosswordCell(2));
+    fireEvent.click(crosswordCell(0));
+    expect(active()).toContain('Руда хитрунка');
+    expect(document.querySelector('.crossword-active')!.classList.contains('is-filled')).toBe(true);
+    expect(clueBtn(/Руда хитрунка/).classList.contains('is-filled')).toBe(true);
+    expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-filled')).toBe(false);
+    fireEvent.click(crosswordCell(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти' }));
+    expect(clueBtn(/Руда хитрунка/).classList.contains('is-filled')).toBe(false);
+    expect(document.querySelector('.crossword-active')!.classList.contains('is-filled')).toBe(false);
+  });
+
+  it("a teammate's letters count too", () => {
+    const view = render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(filled()).toEqual([]);
+    const cells = new Array<string>(12).fill('');
+    cells[0] = 'л';
+    cells[3] = 'и';
+    cells[6] = 'п';
+    cells[9] = 'а';
+    view.rerender(<CrosswordPlay info={mineOf(12, { cells, seq: 1 })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-filled')).toBe(true);
+  });
+
+  it('filled says nothing about right or wrong', () => {
+    const cells = ['х', 'х', 'х', '', '', '', '', '', '', '', '', ''];
+    render(<CrosswordPlay info={mineOf(12, { cells })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(clueBtn(/Руда хитрунка/).className).toBe('crossword-clue is-filled');
   });
 });
 

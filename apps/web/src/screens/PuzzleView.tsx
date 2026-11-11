@@ -286,6 +286,10 @@ const ARROW: Record<Dir, string> = { across: '→', down: '↓' };
  * crosswordLetter (апостроф, латиниця, цифри — повз), курсор іде на наступну клітинку слова, а з кінця — на наступне незаповнене
  * слово. Backspace стирає й відступає.
  */
+export function wordFilled(cells: readonly number[], values: readonly string[]): boolean {
+  return cells.every((c) => (values[c] ?? '') !== '');
+}
+
 export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null }: PuzzlePlayProps) {
   const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<{ cell: number; dir: Dir } | null>(null);
@@ -439,7 +443,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
 
   return (
     <section className={off ? 'puzzle-play crossword-play is-off' : 'puzzle-play crossword-play'}>
-      <p className="crossword-active" dir="auto">
+      <p className={activeWord !== undefined && wordFilled(activeWord.cells, board.cells) ? 'crossword-active is-filled' : 'crossword-active'} dir="auto">
         {activeWord === undefined ? (
           t('crosswordPick')
         ) : (
@@ -533,7 +537,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
                 .filter((w) => w.dir === dir)
                 .map((w) => (
                   <li key={`${w.dir}${w.number}`}>
-                    <button type="button" className="crossword-clue" aria-disabled={off} onClick={() => pick(firstEmpty(w, board.cells), w.dir)} dir="auto">
+                    <button type="button" className={wordFilled(w.cells, board.cells) ? 'crossword-clue is-filled' : 'crossword-clue'} aria-disabled={off} onClick={() => pick(firstEmpty(w, board.cells), w.dir)} dir="auto">
                       <bdi dir="ltr">{w.number}.</bdi> {w.clue}
                     </button>
                   </li>

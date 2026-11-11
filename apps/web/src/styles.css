@@ -19217,6 +19217,12 @@ input.sudoku-editor-cell:focus-visible {
   list-style: none;
 }
 
+.crossword-clue.is-filled,
+.crossword-active.is-filled {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
 .crossword-clue {
   width: 100%;
   min-height: 2.75rem;
