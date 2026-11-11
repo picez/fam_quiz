@@ -3,30 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { PinFrame } from '../screens/PinFrame';
 import { pinLayerSize, pinSpot } from '../screens/PinBoard';
-import { ACCEPT, useImageUpload } from './ImageField';
+import { ACCEPT, measureAspect, useImageUpload } from './ImageField';
 import { NumberField } from './QuestionEditor';
 
 type Pin = Extract<Question, { type: 'pin' }>;
-
-/** Скільки чекати, поки браузер прочитає розміри щойно завантаженої картинки. */
-const MEASURE_MS = 3000;
-
-/** Пропорція картинки за адресою; null — не вдалося прочитати вчасно. */
-function measure(url: string): Promise<number | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    const done = (value: number | null) => {
-      window.clearTimeout(timer);
-      image.onload = null;
-      image.onerror = null;
-      resolve(value);
-    };
-    const timer = window.setTimeout(() => done(null), MEASURE_MS);
-    image.onload = () => done(image.naturalWidth > 0 && image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : null);
-    image.onerror = () => done(null);
-    image.src = url;
-  });
-}
 
 const CENTER = { x: 0.5, y: 0.5 };
 
@@ -55,7 +35,7 @@ export function PinEditor({ question, onChange }: { question: Pin; onChange: (q:
   const upload = useImageUpload((url) => {
     if (url === null) return;
     const mine = started.current;
-    void measure(url).then((aspect) => {
+    void measureAspect(url).then((aspect) => {
       if (!mounted.current || mine !== request.current) return;
       if (aspect === null) return setProblem(t('pinImageFailed'));
       if (aspect < LIMITS.pinMinAspect || aspect > LIMITS.pinMaxAspect) return setProblem(t('pinAspectBad'));

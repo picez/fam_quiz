@@ -14,6 +14,9 @@ import {
   jigsawGrid,
   jigsawPieceRatio,
   jigsawTabs,
+  SPOT_MAX_COUNT,
+  SPOT_MAX_R,
+  SPOT_MIN_R,
   SUDOKU_SOURCES,
   LETTER_GOALS,
   LETTER_UNITS,
@@ -217,6 +220,24 @@ function reviveJigsaw(base: Extract<Question, { type: 'jigsaw' }>): Question {
 }
 
 /**
+ * «Знайди відмінності» з чернетки: адреси — рядки (інакше порожні), співвідношення — у межах (інакше 4:3), кола — лише валідні,
+ * затиснуті в межі, не більше десяти. Без відео, звуку, «перевертання», підказки й готової картинки.
+ */
+function reviveSpotdiff(base: Extract<Question, { type: 'spotdiff' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const url = (value: unknown) => (typeof value === 'string' ? value : '');
+  const aspect = typeof base.aspect === 'number' && Number.isFinite(base.aspect) && base.aspect >= LIMITS.pinMinAspect && base.aspect <= LIMITS.pinMaxAspect ? base.aspect : 4 / 3;
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const raw: unknown[] = Array.isArray(base.spots) ? base.spots : [];
+  const spots = raw
+    .filter(isRecord)
+    .filter((spot) => [spot.x, spot.y, spot.r].every((value) => typeof value === 'number' && Number.isFinite(value)))
+    .slice(0, SPOT_MAX_COUNT)
+    .map((spot) => ({ x: clamp(spot.x as number, 0, 1), y: clamp(spot.y as number, 0, 1), r: clamp(spot.r as number, SPOT_MIN_R, SPOT_MAX_R) }));
+  return { ...rest, imageUrl: null, video: null, original: url(base.original), changed: url(base.changed), aspect, spots };
+}
+
+/**
  * Кросворд з чернетки: слова — об'єкти з рядками (інакше чотири порожні), режим — з переліку (інакше «увесь кросворд»),
  * ключ — рядок лише в режимі ключа; розкладка — лише об'єкт зі словами й ключовими клітинками (зберігаючи, редактор її перескладе).
  */
@@ -308,6 +329,7 @@ function revive(stored: Question): Question {
   if (base.type === 'sudoku') return reviveSudoku(base);
   if (base.type === 'crossword') return reviveCrossword(base);
   if (base.type === 'jigsaw') return reviveJigsaw(base);
+  if (base.type === 'spotdiff') return reviveSpotdiff(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

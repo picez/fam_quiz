@@ -32,7 +32,7 @@ function CutLines({ question }: { question: JigsawQuestion }) {
 }
 
 /** Час пазла: міняється лише на допустиме число, а порожнє чи недопустиме при виході з поля повертається до чинного. */
-function TimeField({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+export function TimeField({ value, onChange, min = LIMITS.minJigsawTime }: { value: number; onChange: (value: number) => void; min?: number }) {
   const [raw, setRaw] = useState(String(value));
   useEffect(() => setRaw((current) => (Number(current) === value ? current : String(value))), [value]);
   return (
@@ -46,12 +46,12 @@ function TimeField({ value, onChange }: { value: number; onChange: (value: numbe
           onChange={(event) => {
             setRaw(event.target.value);
             const next = Number(event.target.value);
-            if (event.target.value.trim() !== '' && Number.isInteger(next) && next >= LIMITS.minJigsawTime && next <= LIMITS.maxPuzzleTime) onChange(next);
+            if (event.target.value.trim() !== '' && Number.isInteger(next) && next >= min && next <= LIMITS.maxPuzzleTime) onChange(next);
           }}
           onBlur={() => setRaw(String(value))}
         />
       </label>
-      <small className="meta">{t('jigsawTimeHint', { min: LIMITS.minJigsawTime, max: LIMITS.maxPuzzleTime })}</small>
+      <small className="meta">{t('jigsawTimeHint', { min, max: LIMITS.maxPuzzleTime })}</small>
     </div>
   );
 }

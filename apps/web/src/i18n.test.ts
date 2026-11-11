@@ -6,6 +6,12 @@ import en from './locales/en.json';
 import es from './locales/es.json';
 import it_ from './locales/it.json';
 import pl from './locales/pl.json';
+import arHelp from './locales/ar.help.json';
+import deHelp from './locales/de.help.json';
+import enHelp from './locales/en.help.json';
+import esHelp from './locales/es.help.json';
+import itHelp from './locales/it.help.json';
+import plHelp from './locales/pl.help.json';
 import { activateLocale, activateLocaleForTests, activeMessages, countText, errorText, t, ukMessages } from './i18n';
 
 describe('i18n', () => {
@@ -118,6 +124,9 @@ describe('uk golden (22a)', () => {
   const ADDED_29C = ['type_jigsaw', 'typeShort_jigsaw', 'typeHow_jigsaw', 'buffWhy_off_jigsaw', 'err_jigsaw_stale', 'err_jigsaw_done', 'err_jigsaw_piece', 'err_jigsaw_placed', 'err_jigsaw_held', 'err_jigsaw_miss', 'problemJigsawPhoto', 'problemJigsawPlace', 'problemJigsawGrid', 'problemJigsawImage', 'problemJigsawLimits', 'jigsawDefaultText', 'jigsawPhotoNeed', 'jigsawAspectLabel', 'jigsawPiecesLabel', 'jigsawPieces', 'jigsawCrop', 'jigsawCropHint', 'jigsawNewShape', 'jigsawPreviewLabel', 'jigsawTimeHint', 'jigsawHelp', 'jigsawAnswerDone', 'jigsawAnswerPart', 'summaryJigsaws_one', 'jigsawFrame', 'jigsawPile', 'jigsawPiece', 'jigsawPieceHeld', 'jigsawPreview', 'jigsawProgress', 'jigsawDoneIn', 'jigsawTimeUp', 'jigsawClosed', 'jigsawOffline', 'jigsawPercent', 'jigsawUndone', 'jigsawUndonePercent', 'jigsawSeconds', 'jigsawTablePlace', 'jigsawTableWho', 'jigsawTableTime', 'jigsawTablePoints', 'jigsawTableLabel'];
   /** Множина 29c: форми, яких немає в мові, там і не потрібні; _one є в кожній — перевіряє ADDED_29C. */
   const ADDED_29C_PLURALS = ['summaryJigsaws_few', 'summaryJigsaws_many'];
+  /** 29d: «Знайди відмінності» — назви, помилки, редактор, проблеми чернетки, тексти телефона, сцени й таблиці. */
+  const ADDED_29D = ['type_spotdiff', 'typeShort_spotdiff', 'typeHow_spotdiff', 'buffWhy_off_spotdiff', 'err_spotdiff_stale', 'err_spotdiff_done', 'err_spotdiff_found', 'err_spotdiff_miss', 'err_spotdiff_freeze', 'err_spotdiff_frozen', 'problemSpotdiffImages', 'problemSpotdiffSpots', 'problemSpotdiffSame', 'problemSpotdiffPlace', 'problemSpotdiffLimits', 'spotdiffOriginal', 'spotdiffChanged', 'spotdiffMarkHint', 'spotdiffRemove', 'spotdiffMax', 'spotdiffAspectMismatch', 'spotdiffCount', 'spotdiffFound', 'spotdiffFrozen', 'spotdiffAllFound', 'spotdiffTimeUp', 'spotdiffClosed', 'spotdiffOffline', 'spotdiffTableFound', 'spotdiffTableLabel', 'spotdiffSpotFoundBy', 'summarySpotdiffs_one'];
+  const ADDED_29D_PLURALS = ['summarySpotdiffs_few', 'summarySpotdiffs_many'];
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
   const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
@@ -143,9 +152,22 @@ describe('uk golden (22a)', () => {
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_29C.filter((key) => !(key in dict)), lang).toEqual([]);
   });
 
+  it('29d keys are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const key of ADDED_29D) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_29D.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
+  it('29d help page is in every language', () => {
+    const pages: Record<string, Record<string, string>> = { en: enHelp, pl: plHelp, de: deHelp, es: esHelp, it: itHelp, ar: arHelp };
+    for (const [lang, dict] of Object.entries(pages)) {
+      for (const suffix of ['title', 'what', 'how.0', 'how.3', 'points.0', 'tip.0', 'limits.0', 'limits.1']) expect(dict, lang).toHaveProperty('question.spotdiff.' + suffix);
+    }
+  });
+
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key))).toEqual([]);
   });
 });
 

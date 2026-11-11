@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
 import { newId } from './new-id';
-import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Duels } from '@quiz/shared';
+import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
 import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
 
@@ -66,6 +66,8 @@ function filled(question: Question): Question {
     case 'jigsaw':
       // Фото вантажиться окремо: без нього пазл не готовий (перевіряє тест нижче).
       return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
+    case 'spotdiff':
+      return { ...question, text, original: '/uploads/aaaaaaaaaaaaaaaaaaaa.png', changed: '/uploads/bbbbbbbbbbbbbbbbbbbb.png', spots: [{ x: 0.5, y: 0.5, r: 0.06 }] };
     default:
       return { ...question, text };
   }
@@ -387,7 +389,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2925,8 +2927,8 @@ describe('puzzles in the editor (28d)', () => {
   const puzzlesQuiz = (...questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newPuzzlesRound(), questions }] });
   const custom = (givens: string): Sudoku => ({ ...(newQuestion('sudoku') as Sudoku), level: 'custom', seed: null, givens, solution: EMPTY_SUDOKU });
 
-  it('puzzles take only sudoku, crossword and jigsaw', () => {
-    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw']);
+  it('puzzles take only sudoku, crossword, jigsaw and spotdiff', () => {
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff']);
     for (const round of ROUND_TYPES.filter((type) => type !== 'puzzles')) {
       expect(questionTypesFor(round), round).not.toContain('sudoku');
       expect(questionTypesFor(round), round).not.toContain('crossword');
@@ -3050,7 +3052,7 @@ describe('jigsaw in the editor (29c)', () => {
   it('a jigsaw lives in classic and puzzles only', () => {
     expect(questionTypesFor('classic')).toContain('jigsaw');
     expect(questionTypesFor('puzzles')).toContain('jigsaw');
-    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw']);
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff']);
     for (const round of ['blitz', 'final', 'board', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('jigsaw');
   });
 
@@ -3091,5 +3093,57 @@ describe('jigsaw in the editor (29c)', () => {
     expect(revived).toMatchObject({ aspect: '4:3', rows: 3, cols: 4, focus: { x: 1, y: 0.5 }, seed: 0, preview: true, photo: PHOTO });
     expect(revived.tabs).toHaveLength(17);
     expect(questionSchema.safeParse(cleanedQuestion(revived)).success).toBe(true);
+  });
+});
+
+describe('spotdiff in the editor (29d)', () => {
+  type Spot = Extract<Question, { type: 'spotdiff' }>;
+  const ORIGINAL = '/uploads/aaaaaaaaaaaaaaaaaaaa.png';
+  const CHANGED = '/uploads/bbbbbbbbbbbbbbbbbbbb.png';
+  const spot = (patch: Partial<Spot> = {}): Spot => ({ ...(newQuestion('spotdiff') as Spot), text: 'Знайдіть?', original: ORIGINAL, changed: CHANGED, spots: [{ x: 0.5, y: 0.5, r: 0.06 }], ...patch });
+  const inRound = (round: Round, q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...round, questions: [q] } as Round] });
+
+  it('a spotdiff lives in classic and puzzles only', () => {
+    expect(questionTypesFor('classic')).toContain('spotdiff');
+    expect(questionTypesFor('puzzles')).toContain('spotdiff');
+    for (const type of ['blitz', 'final', 'board', 'bets'] as const) expect(questionTypesFor(type), type).not.toContain('spotdiff');
+  });
+
+  it('a new spotdiff waits for pictures and circles', () => {
+    const fresh = { ...(newQuestion('spotdiff') as Spot), text: 'Знайдіть?' };
+    expect(fresh).toMatchObject({ type: 'spotdiff', original: '', changed: '', aspect: 4 / 3, spots: [], imageUrl: null, video: null, timeLimit: 90, points: 300 });
+    expect('hint' in fresh || 'audio' in fresh || 'reveal' in fresh).toBe(false);
+    expect(problemsOf(inRound(newClassicRound(), fresh))).toEqual([t('problemSpotdiffImages', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...fresh, original: ORIGINAL, changed: CHANGED }))).toEqual([t('problemSpotdiffSpots', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), spot()))).toEqual([]);
+    expect(questionSchema.safeParse(cleanedQuestion(spot())).success).toBe(true);
+  });
+
+  it('same pictures are a problem', () => {
+    expect(problemsOf(inRound(newClassicRound(), spot({ changed: ORIGINAL })))).toEqual([t('problemSpotdiffSame', { index: 1 })]);
+  });
+
+  it('the place and the timer floor are checked', () => {
+    expect(problemsOf(inRound(newPuzzlesRound(), spot()))).toEqual([]);
+    expect(problemsOf(inRound(newBlitzRound(), spot()))).toEqual([t('problemSpotdiffPlace', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), spot({ timeLimit: 24 })))).toEqual([t('problemSpotdiffLimits', { index: 1, min: LIMITS.minSpotdiffTime, max: LIMITS.maxPuzzleTime, points: LIMITS.maxPoints })]);
+    expect(problemsOf(inRound(newClassicRound(), spot({ timeLimit: LIMITS.maxPuzzleTime })))).toEqual([]);
+  });
+
+  it('a stored spotdiff is revived within limits', () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ x: i / 12, y: 0.5, r: 0.05 }));
+    const dirty = { ...spot({ spots: many }), hint: 'підказка', audio: { source: 'youtube', id: 'abcdefghijk', start: 0, duration: 10 }, imageUrl: ORIGINAL } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:spot-many', JSON.stringify(inRound(newClassicRound(), dirty)));
+    const [revived] = roundQuestions(loadDraft('spot-many')!.rounds[0]!) as [Spot];
+    expect(revived.spots).toHaveLength(10);
+    expect(revived).not.toHaveProperty('hint');
+    expect(revived).not.toHaveProperty('audio');
+    expect(revived.imageUrl).toBeNull();
+
+    const wild = { ...spot({ spots: [{ x: 2, y: -1, r: 5 }, { x: 'a', y: 0, r: 0.1 }, { x: 0.1, y: 0.1, r: 0 }] as never }), aspect: 'x', original: 7 } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:spot-wild', JSON.stringify(inRound(newClassicRound(), wild)));
+    const [fixed] = roundQuestions(loadDraft('spot-wild')!.rounds[0]!) as [Spot];
+    expect(fixed.spots).toEqual([{ x: 1, y: 0, r: 0.25 }, { x: 0.1, y: 0.1, r: 0.015 }]);
+    expect(fixed).toMatchObject({ aspect: 4 / 3, original: '' });
   });
 });

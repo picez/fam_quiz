@@ -163,6 +163,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'jigsaw':
       // Готова картинка — фото запитання на розкритті, не рядок.
       return '—';
+    case 'spotdiff':
+      // Місця відмінностей — кола на картинці, не рядок.
+      return '—';
     case 'crossword':
       // Ключове слово великими літерами або слова кросворду за порядком.
       return question.mode === 'key' && question.key !== null ? question.key.toLocaleUpperCase('uk') : question.entries.map((entry) => entry.answer).join(', ');
@@ -250,6 +253,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return answer.drew === null ? '—' : t('drawingDrewAnswer', { guessed: answer.drew.guessed, could: answer.drew.could });
     case 'jigsaw':
       return answer.done && answer.timeMs !== null ? t('jigsawAnswerDone', { time: secondsText(answer.timeMs) }) : t('jigsawUndone', { placed: answer.placed, total: answer.total });
+    case 'spotdiff':
+      return t('spotdiffFound', { found: answer.found, total: answer.total });
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
       return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });
