@@ -237,6 +237,29 @@ describe('PlayerScreen audio without a stage', () => {
   });
 });
 
+describe('PlayerScreen melody (29e)', () => {
+  const track = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 5 };
+  const melodyQuestion = (answer: string | null) => ({ ...publicQuestion, type: 'melody' as const, choices: [], melody: { id: 'q-mel', track, answer } }) as never;
+  const melodyMe = (heard: number) => ({ ...me, melody: { heard, canOpen: false, canAnswer: false, openedBy: null } }) as never;
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('a melody reveal offers listening again', () => {
+    show(view({ phase: 'reveal', questionIndex: 0, question: melodyQuestion('Щедрик'), me: melodyMe(2) }));
+    const audio = document.querySelector('.player-audio');
+    expect(audio).not.toBeNull();
+    expect((audio!.querySelector('.audio-toggle') as HTMLButtonElement).textContent).toBe(t('audioToggleAgain'));
+    expect(audio!.querySelector('audio')?.getAttribute('src')).toBe(track.url);
+  });
+
+  it('a melody question has the ladder and no question audio block', () => {
+    show(onQuestion({ question: melodyQuestion(null), me: { ...me, melody: { heard: 0, canOpen: true, canAnswer: false, openedBy: null } } as never }));
+    expect(document.querySelector('.player-audio')).toBeNull();
+    expect(document.querySelectorAll('.melody-step')).toHaveLength(5);
+    expect(screen.getByRole('button', { name: t('melodyListen', { seconds: 1 }) })).toBeTruthy();
+  });
+});
+
 describe('PlayerScreen «Прослухати» (16b)', () => {
   const clip = { source: 'file' as const, url: '/uploads/abcdef0123456789.mp3', start: 4, duration: 10 };
   const withClip = (over: Partial<PlayerView> = {}) => onQuestion({ question: { ...publicQuestion, audio: { duration: 10, clip } } as never, ...over });

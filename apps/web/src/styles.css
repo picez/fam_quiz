@@ -20932,3 +20932,116 @@ input.sudoku-editor-cell:focus-visible {
   min-height: 2.75rem;
 }
 /* «Мелодія за нотами»: кінець редактора */
+
+/* «Мелодія за нотами»: телефон (29e). Драбинка з п'яти комірок в один ряд (на 320 px — без прокрутки): відкриті — «▶ переслухати»,
+ * наступна — головна кнопка, решта неактивні; та, що грає, пульсує. Під драбинкою — частка ціни, хто з команди відкрив, рядок стану й поле. */
+.melody-play {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.melody-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.melody-steps li {
+  display: flex;
+  min-width: 0;
+}
+
+.melody-step {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.35rem 0.1rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--panel);
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* «▶ 16 с» — в один рядок: на 320 px комірка ~51 px, усередині ~44 px. */
+.melody-step-main {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.melody-step-icon {
+  margin-inline-end: 0.2em;
+}
+
+.melody-step-share {
+  color: var(--dim);
+  font-size: 0.75rem;
+}
+
+.melody-step.is-open {
+  border-color: var(--correct);
+}
+
+.melody-step.is-next {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.melody-step.is-next .melody-step-share {
+  color: var(--on-accent);
+}
+
+.melody-step.is-locked {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.melody-step.is-playing {
+  box-shadow: 0 0 0 2px var(--correct);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .melody-step.is-playing {
+    animation: melody-pulse 0.9s ease-in-out infinite alternate;
+  }
+
+  @keyframes melody-pulse {
+    from {
+      box-shadow: 0 0 0 1px var(--correct);
+    }
+    to {
+      box-shadow: 0 0 0 4px var(--correct);
+    }
+  }
+}
+
+.melody-share,
+.melody-by,
+.melody-mine {
+  margin: 0;
+  text-align: center;
+}
+
+.melody-by {
+  font-weight: 600;
+}
+
+.melody-mine {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+/* «Мелодія за нотами»: кінець телефона */

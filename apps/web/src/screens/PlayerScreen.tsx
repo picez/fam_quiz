@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
+import { clueShare, isUnscored, melodyRevealClip, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
@@ -42,6 +42,7 @@ import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
 import { MemoryPlay, MemoryReveal } from './MemoryView';
+import { MelodyPlay } from './MelodyView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
@@ -736,6 +737,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   // Сам звук вмикається лише в грі без ведучого й без сцени (11h): коли сцена відкрита, звук — її справа.
   const stageGone = useStageGone(stageOnline);
   const clip = question?.audio?.clip ?? null;
+  const melodyClip = phase === 'reveal' && question?.melody !== undefined ? melodyRevealClip(question.melody.track) : null;
   const autoAudio = view.autopilot && stageGone;
   // Власне запасне (заміна): свій фрагмент із нового програвача, час — від появи запасного (особистий годинник).
   const onSpare = me.buffs?.active?.kind === 'swap';
@@ -1185,6 +1187,23 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                     <p className="meta puzzle-others">{t(team !== null ? 'memoryTeamsDone' : 'memoryPlayersDone', { done: view.memory.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
                   )}
                 </>
+              )
+            ) : question.type === 'melody' ? (
+              // Мелодія за нотами (29e): у команді шматки спільні, відкриває й відповідає будь-хто; звук — лише з власного дотику.
+              me.melody !== undefined &&
+              question.melody !== undefined && (
+                <MelodyPlay
+                  key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.melody.id}`}
+                  info={me.melody}
+                  question={{ ...question, melody: question.melody }}
+                  questionIndex={view.questionIndex}
+                  paused={locked}
+                  live={!buffTimeOver}
+                  send={send}
+                  onSubmit={(answer) => void submit(answer)}
+                  onDraft={onDraft}
+                  answer={me.answer?.type === 'melody' ? me.answer.value : null}
+                />
               )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
@@ -1653,6 +1672,21 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       )}
 
       {/* Під полем відповіді: кнопка «Прослухати» нічого не зсуває, а main тримає запас під смугою реакцій. */}
+      {/* «Мелодія» (29e): на етапі запитання звук — драбинка; на розкритті тут 30 с треку, «Прослухати ще раз». */}
+      {melodyClip !== null && (
+        <div className="player-audio">
+          <QuestionAudio
+            key={`${view.round?.index ?? 0}:${view.questionIndex}:melody`}
+            clip={melodyClip}
+            questionKey={`${view.round?.index ?? 0}:${view.questionIndex}:melody`}
+            ready={phase === 'reveal'}
+            paused={view.paused}
+            command={null}
+            autoplay={autoAudio}
+            listen="again"
+          />
+        </div>
+      )}
       {clip !== null && (phase === 'question' || phase === 'locked' || phase === 'reveal') && (
         <div className="player-audio">
           <QuestionAudio
