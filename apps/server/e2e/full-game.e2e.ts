@@ -29180,8 +29180,8 @@ const phoneClip29e = (page: Page) => page.locator('.melody-play audio').evaluate
 
 /** Шматок почав грати, а за seconds + запас — закінчив. */
 async function chunkRuns29e(page: Page, seconds: number) {
-  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: 3000, intervals: [40] }).toBe(false);
-  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: seconds * 1000 + 3000, intervals: [100] }).toBe(true);
+  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: 3000, interval: 40 }).toBe(false);
+  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: seconds * 1000 + 3000, interval: 100 }).toBe(true);
 }
 
 /** Телефон «Мелодії»: без прокрутки вбік, драбинка в один ряд, жодний підпис не ламається посеред слова; висоти — у журнал і звіт. */
@@ -29277,8 +29277,8 @@ async function melodyGame29e() {
   // «▶ 1 с» у редакторі грає й зупиняється.
   const editorClip = () => host.locator('.melody-editor audio').evaluate((el) => (el as HTMLAudioElement).paused);
   await host.getByRole('button', { name: '▶ 1 с', ...exact }).click();
-  await expect.poll(editorClip, { timeout: 3000, intervals: [40] }).toBe(false);
-  await expect.poll(editorClip, { timeout: 2500, intervals: [100] }).toBe(true);
+  await expect.poll(editorClip, { timeout: 3000, interval: 40 }).toBe(false);
+  await expect.poll(editorClip, { timeout: 2500, interval: 100 }).toBe(true);
   await shot(host, 'melody29e-editor');
 
   // Бліц і «Головоломки»: «Мелодії» в меню немає.
