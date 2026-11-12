@@ -658,3 +658,20 @@ describe('LiveAnswers: away marks (12e)', () => {
     expect(marks).toEqual(['🙈 Оля: поза грою 4 с (1 раз)', '🙈 Петро: зараз поза грою', '🙈 поза грою 2 с (1 раз)']);
   });
 });
+
+describe('LiveAnswers: melody (29e)', () => {
+  const melody = { id: 'm1', type: 'melody', text: 'Що це за пісня?', imageUrl: null, video: null, timeLimit: 60, points: 1000, track: { source: 'file', url: '/uploads/0123456789abcdef0009.mp3', start: 0 }, accepted: ['Щедрик'] } as unknown as Question;
+
+  it('live answers show the chunk and the answer', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', answered: true, answer: { type: 'melody', value: 'Щедрик', heard: 2 } as never, progress: { kind: 'melody', heard: 2, total: 5 } }),
+      row({ id: 'p2', nickname: 'Тарас', progress: { kind: 'melody', heard: 1, total: 5 } }),
+      row({ id: 'p3', nickname: 'Петро', progress: { kind: 'melody', heard: 0, total: 5 } }),
+    ];
+    show(rows, base({ correct: melody }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers[0]).toBe('Щедрик · 2 с');
+    expect(answers[1]).toBe('🎧 1 с');
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+  });
+});

@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { MELODY_SHARES, MELODY_STEPS, melodySeconds, melodyShare, type PlayerMelody, type PublicMelody, type PublicQuestion, type SubmittedAnswer } from '@quiz/shared';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { MELODY_SHARES, MELODY_STEPS, melodySeconds, melodyShare, type MelodyInfo, type MelodyRow, type PlayerMelody, type PublicMelody, type PublicQuestion, type SubmittedAnswer } from '@quiz/shared';
+import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { useMelodyClip } from '../live/useMelodyClip';
 import { AnswerInput } from './AnswerInput';
+import { jigsawTablePageSize } from './JigsawView';
+import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
 /** Без ack так довго — обрив: шматок знову закритий, звук зупинено (як MEMORY_ACK_MS). */
 export const MELODY_ACK_MS = 5000;
@@ -155,5 +158,102 @@ function MelodyBoard({ info, question, questionIndex, paused, live, send, onSubm
         <AnswerInput question={question} onSubmit={(value) => onSubmit(value as SubmittedAnswer)} onDraft={onDraft} autoFocus={false} disabled={!info.canAnswer && pending === null} />
       )}
     </div>
+  );
+}
+
+/**
+ * Плитки «нік · 🎧 2 с» усіх гравців (команд) на сцені й пульті (29e): на якому шматку кожен зупинився і чи відповів (✓ без
+ * правильності). Звуку й назви тут немає. Сцена — рівні сторінки (puzzleGrid, puzzlePageSize, usePage) і рядок «Відповіли: x з N»;
+ * пульт (host) — уся сітка без сторінок (лічильник у нього в шапці).
+ */
+export function MelodyBoards({ rows, host = false }: { rows: readonly MelodyRow[]; host?: boolean }) {
+  const size = puzzlePageSize(rows.length, false);
+  const page = usePage(rows.length, size, !host);
+  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  const grid = puzzleGrid(shown.length, false);
+  const answered = rows.filter((row) => row.answered).length;
+  return (
+    <>
+      {!host && (
+        <p className="lead melody-answered" aria-live="polite">
+          {t('melodyPlayersAnswered', { count: answered, total: rows.length })}
+        </p>
+      )}
+      <div className={host ? 'melody-boards-fit is-host' : grid.dense ? 'melody-boards-fit is-dense' : 'melody-boards-fit'}>
+        <ul className="melody-boards" style={host ? undefined : ({ '--cols': grid.cols, '--rows': grid.rows } as CSSProperties)}>
+          {shown.map((row) => (
+            <li key={row.playerId} className={row.answered ? 'melody-board is-answered' : 'melody-board'} data-player={row.playerId}>
+              <span className="melody-board-name" dir="auto" title={row.nickname}>
+                {row.nickname}
+              </span>
+              <span className="melody-board-heard">
+                {row.heard > 0 ? t('melodyStageHeard', { seconds: melodySeconds(row.heard) }) : t('melodyStageNone')}
+                {row.answered ? ' ✓' : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Таблиця розкриття: «місце · нік · шматок · бали» у порядку сервера. Місце — лише в тих, хто відповів правильно (однаковий шматок
+ * і час — однакове місце); решта — «—». Шматок із ✓ чи ✗; без відповіді — шматок, який слухав, або «—». Сторінки й шрифт — як у JigsawTable.
+ */
+export function MelodyTable({ rows, host = false }: { rows: readonly MelodyRow[]; host?: boolean }) {
+  const places = rows.map((row, i) => {
+    let at = i;
+    while (at > 0 && row.correct === true && rows[at - 1].correct === true && rows[at - 1].heard === row.heard && rows[at - 1].timeMs === row.timeMs) at -= 1;
+    return at + 1;
+  });
+  const size = jigsawTablePageSize(rows.length);
+  const page = usePage(rows.length, size, !host);
+  const from = host ? 0 : page * size;
+  const shown = host ? rows : rows.slice(from, from + size);
+  return (
+    <table className={host ? 'jigsaw-table melody-table is-host' : 'jigsaw-table melody-table'} aria-label={t('melodyTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
+      <thead>
+        <tr>
+          <th scope="col">{t('jigsawTablePlace')}</th>
+          <th scope="col">{t('jigsawTableWho')}</th>
+          <th scope="col">{t('melodyTableChunk')}</th>
+          <th scope="col">{t('jigsawTablePoints')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {shown.map((row, i) => (
+          <tr key={row.playerId} className={row.correct === true ? 'is-done' : 'is-undone'}>
+            <td className="rank">{row.correct === true ? places[from + i] : '—'}</td>
+            <td className="name" dir="auto">
+              {row.nickname}
+            </td>
+            <td className="jigsaw-table-time">{row.heard > 0 ? `${row.answered ? (row.correct === true ? '✓ ' : '✗ ') : ''}${t('jigsawSeconds', { time: String(melodySeconds(row.heard)) })}` : '—'}</td>
+            <td className="score">{signed(row.points ?? 0)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * «Мелодія за нотами» на сцені й пульті (29e). До розкриття — плитки «нік · шматок»; на розкритті — назва (лише на сцені: пульт бачить
+ * правильну відповідь у власному рядку) і таблиця з балами. Назва береться лише з publicMelody.answer (на reveal).
+ */
+export function MelodyStage({ info, melody, reveal, host = false }: { info: MelodyInfo; melody: PublicMelody; reveal: boolean; host?: boolean }) {
+  if (!reveal) return <MelodyBoards rows={info.rows} host={host} />;
+  return (
+    <>
+      {!host && melody.answer !== null && (
+        <p className="lead melody-title" dir="auto">
+          {t('melodyRevealTitle', { title: melody.answer })}
+        </p>
+      )}
+      <div className="jigsaw-stage-table">
+        <MelodyTable rows={info.rows} host={host} />
+      </div>
+    </>
   );
 }

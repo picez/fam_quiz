@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { hallPoints, type Reaction, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
+import { hallPoints, melodyRevealClip, type Reaction, type BoardInfo, type Choice, type FinalInfo, type Question as FullQuestion, type SortTilt, type StageView, type SurvivalInfo } from '@quiz/shared';
 import { LETTERS, answerText, choiceLabel, num, correctPairs, correctText, markText, sliderNumber, sliderValueText, pinDistanceText, questionClass, orderLabelsText, questionLabel, roundLabel, seriesOf, streaksOf } from '../format';
 import { t, type TextKey } from '../i18n';
 import { stageAwayText } from '../away-text';
@@ -53,6 +53,7 @@ import { DrawingBoard, DrawingLive, DrawingReveal, drawingTitle, strokesOf } fro
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
 import { MemoryStage } from './MemoryView';
+import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthSkipped, TruthStage } from './TruthView';
@@ -248,7 +249,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         )}
         {/* Продане запитання «Аукціону» грає один переможець: «Відповіли 1 з 4» нічого не каже. */}
         {/* Малюнок (28c): «Вгадали N з M» — під полотном, разом із тим, хто малює. */}
-        {view.board === null && !(view.auction !== undefined && !view.auction.open) && question.type !== 'drawing' && (
+        {view.board === null && !(view.auction !== undefined && !view.auction.open) && question.type !== 'drawing' && view.melody === undefined && (
           <span>
             {question.type === 'chain'
               ? t('chainFinishedOf', { finished: view.answeredCount, total: view.playerCount })
@@ -356,6 +357,18 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           paused={view.paused}
           command={audioCommand}
           elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
+          splash={busy}
+        />
+      )}
+      {/* «Мелодія за нотами» (29e): до розкриття сцена мовчить; після часу трек грає тут (кнопки пульта «Ще раз / Стоп» — через command). */}
+      {question.melody !== undefined && view.phase === 'reveal' && !finalReveal && (
+        <QuestionAudio
+          key={`${view.round?.index ?? 0}:${view.questionIndex}:melody-reveal`}
+          clip={melodyRevealClip(question.melody.track)}
+          questionKey={`${view.round?.index ?? 0}:${view.questionIndex}:melody-reveal`}
+          ready={view.phase === 'reveal' && !busy && !view.paused}
+          paused={view.paused}
+          command={audioCommand}
           splash={busy}
         />
       )}
@@ -533,6 +546,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           <MemoryStage info={view.memory} memory={question.memory} reveal={view.phase === 'reveal'} />
         </section>
       )}
+      {/* «Мелодія за нотами» (29e): до розкриття — «нік · 🎧 шматок · ✓»; на розкритті — назва й таблиця з балами. */}
+      {view.melody !== undefined && question.melody !== undefined && !finalReveal && (
+        <section className={view.phase === 'reveal' ? 'puzzle-stage jigsaw-stage melody-stage is-reveal' : 'puzzle-stage jigsaw-stage melody-stage'}>
+          <MelodyStage info={view.melody} melody={question.melody} reveal={view.phase === 'reveal'} />
+        </section>
+      )}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
       {/* Рядок переможця бліцу завжди займає місце: його поява на locked не зсуває сцену. */}
       {view.sort !== null && view.round?.type === 'blitz' && (
@@ -585,7 +604,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'melody' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}

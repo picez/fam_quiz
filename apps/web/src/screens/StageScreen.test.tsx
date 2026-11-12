@@ -3136,3 +3136,51 @@ describe('StageScreen: drawing (28c)', () => {
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
   });
 });
+
+describe('StageScreen: melody (29e)', () => {
+  const track = { source: 'file' as const, url: '/uploads/0123456789abcdef0009.mp3', start: 5 };
+  const melodyQ = (answer: string | null) => ({ ...question, type: 'melody' as const, text: 'Що це за пісня?', choices: [], timeLimit: 60, points: 1000, melody: { id: 'm1', track, answer } });
+  const row = (playerId: string, nickname: string, heard: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, heard, answered: false, correct: null, points: null, timeMs: null, ...over });
+  const fullMelody = { id: 'm1', type: 'melody', text: 'Що це за пісня?', imageUrl: null, video: null, timeLimit: 60, points: 1000, track, accepted: ['Щедрик'] } as unknown as Question;
+
+  it('the stage shows chunks and no title before reveal', () => {
+    const info = { rows: [row('p1', 'Оля', 2, { answered: true }), row('p2', 'Тарас', 1), row('p3', 'Петро', 0)] };
+    show(view({ phase: 'question', questionIndex: 0, question: melodyQ(null), endsAt: Date.now() + 60_000, playerCount: 3, answeredCount: 1, melody: info }));
+    const tiles = [...document.querySelectorAll('.melody-board')].map((el) => el.textContent);
+    expect(tiles).toEqual(['Оля🎧 2 с ✓', 'Тарас🎧 1 с', 'Петроще не слухав']);
+    expect(screen.getAllByText('Відповіли: 1 з 3')).toHaveLength(1);
+    expect(screen.queryByText('Відповіли 1 з 3')).toBeNull();
+    expect(document.body.textContent).not.toContain('Щедрик');
+    expect(document.querySelector('.audio-card')).toBeNull();
+    expect(document.querySelector('audio')).toBeNull();
+  });
+
+  it('the stage plays the track after time', () => {
+    const info = { rows: [row('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 9000 }), row('p2', 'Тарас', 1, { answered: true, correct: true, points: 1000, timeMs: 3000 }), row('p3', 'Петро', 4, { answered: true, correct: false, points: 0, timeMs: 5000 })] };
+    show(view({ phase: 'reveal', questionIndex: 0, question: melodyQ('Щедрик'), reveal: fullMelody, playerCount: 3, answeredCount: 3, melody: info }));
+    expect(document.querySelector('.audio-card')).not.toBeNull();
+    expect(document.querySelector('audio')?.getAttribute('src')).toBe(track.url);
+    expect(screen.getByText('Це була «Щедрик»')).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    const rows = [...document.querySelectorAll('.melody-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Оля', '✓ 2 с', '+800'],
+      ['2', 'Тарас', '✓ 1 с', '+1000'],
+      ['—', 'Петро', '✗ 8 с', '0'],
+    ]);
+    expect(document.querySelector('.melody-board')).toBeNull();
+  });
+
+  it('twenty-four players fit the stage', () => {
+    const rows24 = Array.from({ length: 24 }, (_, i) => row(`p${i}`, `Гравець ${i + 1}`, (i % 5) + 1, { answered: i % 2 === 0 }));
+    show(view({ phase: 'question', questionIndex: 0, question: melodyQ(null), endsAt: Date.now() + 60_000, playerCount: 24, answeredCount: 12, melody: { rows: rows24 } }));
+    expect(document.querySelectorAll('.melody-board')).toHaveLength(24);
+    const grid = document.querySelector<HTMLElement>('.melody-boards')!;
+    expect(Number(grid.style.getPropertyValue('--cols')) * Number(grid.style.getPropertyValue('--rows'))).toBeGreaterThanOrEqual(24);
+    cleanup();
+    const twelve = Array.from({ length: 12 }, (_, i) => row(`p${i}`, `Гравець ${i + 1}`, 2, { answered: true, correct: true, points: 800, timeMs: 1000 + i }));
+    show(view({ phase: 'reveal', questionIndex: 0, question: melodyQ('Щедрик'), reveal: fullMelody, playerCount: 12, answeredCount: 12, melody: { rows: twelve } }));
+    expect(document.querySelectorAll('.melody-table tbody tr')).toHaveLength(12);
+    expect(document.querySelector<HTMLElement>('.melody-table')!.style.getPropertyValue('--rows')).toBe('12');
+  });
+});

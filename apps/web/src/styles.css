@@ -21045,3 +21045,101 @@ input.sudoku-editor-cell:focus-visible {
   overflow-wrap: anywhere;
 }
 /* «Мелодія за нотами»: кінець телефона */
+
+/* «Мелодія за нотами»: сцена й пульт (29e). Плитки «нік · 🎧 шматок · ✓» (без назви й звуку), на розкритті — назва й таблиця з балами. */
+.melody-stage:not(.is-reveal),
+.puzzle-stage.jigsaw-stage.melody-stage.is-reveal {
+  display: flex;
+  flex-direction: column;
+}
+
+.melody-answered {
+  margin: 0 0 1vh;
+  text-align: center;
+}
+
+.melody-title {
+  margin: 0 0 1vh;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.melody-boards-fit {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.melody-boards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+  gap: 1vh 1vw;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: min(clamp(0.75rem, 1.8vw, 2rem), 100cqw / (var(--cols, 4) * 8));
+}
+
+.melody-boards-fit.is-dense .melody-boards {
+  font-size: min(clamp(0.75rem, 1.3vw, 1.5rem), 100cqw / (var(--cols, 4) * 8));
+}
+
+.melody-board {
+  display: grid;
+  align-content: center;
+  gap: 0.2em;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.4em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.melody-board.is-answered {
+  border-color: var(--accent-text);
+}
+
+.melody-board-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.melody-board-heard {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.melody-board.is-answered .melody-board-heard {
+  color: var(--accent-text);
+}
+
+.melody-boards-fit.is-host {
+  flex: none;
+  container-type: normal;
+}
+
+.melody-boards-fit.is-host .melody-boards {
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  grid-template-rows: none;
+  height: auto;
+  font-size: 1rem;
+}
+
+.melody-stage .jigsaw-table.melody-table {
+  font-size: min(clamp(1rem, 1.25vw, 1.5rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
+.host-melody .jigsaw-table.melody-table {
+  margin-top: 1rem;
+}
+/* «Мелодія за нотами»: кінець сцени й пульта */
