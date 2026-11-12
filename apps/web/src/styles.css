@@ -19226,8 +19226,8 @@ input.sudoku-editor-cell:focus-visible {
 /* Номери на полі: білі й жирні (номер запитання), золоті (ключове слово) — червоний на чорному читався погано. */
 .crossword-play-cell .crossword-number,
 .crossword-play-cell .crossword-key-n {
-  font-size: clamp(0.5rem, 2.3vw, 0.7rem);
-  font-weight: 700;
+  font-size: clamp(0.56rem, 2.9vw, 0.75rem);
+  font-weight: 800;
 }
 
 .crossword-play-cell .crossword-number {
