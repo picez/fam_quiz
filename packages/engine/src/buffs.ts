@@ -288,6 +288,9 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       // Поле: відповідає лише той, хто вибрав клітинку, тож підглянути нема в кого.
       if (play.board !== undefined) return 'unfit_board';
       return peekTargets(state, play, playerId).length === 0 ? 'no_answers' : null;
+    case 'stealth':
+      // 29h: вмикається окремо (takeStealth), у ряді бафів запитання не береться.
+      return null;
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;

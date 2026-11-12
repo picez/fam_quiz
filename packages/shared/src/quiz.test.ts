@@ -1200,9 +1200,19 @@ describe('buffs and debuffs in the settings', () => {
     expect(valid(buffSchema, { kind: 'peek' })).toBe(true);
     expect(valid(buffSchema, { kind: 'spy' })).toBe(false);
   });
-  it('all thirteen buff kinds are known and ready', () => {
-    expect(BUFF_KINDS).toHaveLength(13);
+  it('all fourteen buff kinds are known and ready', () => {
+    expect(BUFF_KINDS).toHaveLength(14);
     expect(READY_BUFFS).toEqual([...BUFF_KINDS]);
+  });
+  it('stealth is the fourteenth buff', () => {
+    expect(BUFF_KINDS.at(-1)).toBe('stealth');
+    expect(BUFF_KINDS).toHaveLength(14);
+    expect(BUFF_KINDS.indexOf('peek')).toBe(12);
+  });
+  it('a quiz may allow stealth', () => {
+    const stealthy = quizSchema.parse(withPowers({ buffs: ['stealth'] }));
+    expect(allowedBuffs(stealthy)).toEqual(['stealth']);
+    expect(allowedBuffs(quizSchema.parse(baseQuiz))).toEqual([]);
   });
 
   const PLAYER_UUID = 'p1';

@@ -1927,12 +1927,16 @@ export interface PlayerShop {
   block: ShopBlock | null;
 }
 
+/** Стан «Прихованого нападу» у власника: можна ввімкнути, увімкнено (чекає покупки), уже витрачено. */
+export type StealthMark = 'ready' | 'armed' | 'used';
+
 /** Остання покупка дебафу в грі — для сповіщення «Оля насилає дебаф на гравця Петро»; виду немає навмисно. */
 export interface DebuffNotice {
   /** seq коригування покупки. */
   seq: number;
   at: number;
-  buyer: BlitzPlayer;
+  /** null — анонімна покупка («Прихований напад», 29h). */
+  buyer: BlitzPlayer | null;
   target: BlitzPlayer;
 }
 
@@ -2066,9 +2070,11 @@ export interface PlayerView extends BaseView {
      */
     bluff: { lie: string | null; own: string[]; pick: string | null; truth: boolean | null; fooled: number | null } | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
-    debuff: { kind: DebuffKind; since: number; by: string | null } | null;
+    debuff: { kind: DebuffKind; since: number; by: string | null; anon?: true } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
     shop: PlayerShop | null;
+    /** «Прихований напад» (29h): відсутнє — бафа в грі немає, купівлю вимкнено чи дебафів немає; бачить лише власник (у командах — уся команда). */
+    stealth?: StealthMark;
     /** null — у вікторині немає дуелей. */
     duel: PlayerDuel | null;
     /** Ряд бафів; null — у вікторині немає бафів, етап не question або гравець тут не відповідає з телефона. */
@@ -2217,7 +2223,7 @@ export interface HostLive {
 export interface HostPlayer extends LobbyPlayer {
   score: number;
   /** fired — діє в поточному запитанні; інакше чекає. */
-  debuff: { kind: DebuffKind; fired: boolean; by: string | null } | null;
+  debuff: { kind: DebuffKind; fired: boolean; by: string | null; anon?: true } | null;
 }
 
 /** Вікно мінімального часу перед кроком ведучого (11b): миті сервера; раніше за until крок не діє. */
