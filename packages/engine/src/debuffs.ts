@@ -16,10 +16,10 @@ export function debuffsOff(state: GameState): boolean {
   return (noDebuffRound(currentRound(state)?.type) || noDebuffQuestion(state)) && state.phase !== 'round_end';
 }
 
-/** «Пазл» (29c), «Знайди відмінності» (29d) і «Пам'ять» (29f): поки запитання відкрите чи закрите, дебафів немає (за типом запитання, а не раунду). */
+/** «Пазл» (29c), «Знайди відмінності» (29d), «Пам'ять» (29f) і «Мелодія за нотами» (29e): поки запитання відкрите чи закрите, дебафів немає (за типом запитання, а не раунду). */
 function noDebuffQuestion(state: GameState): boolean {
   const type = state.plays[state.questionIndex]?.question.type;
-  return (state.phase === 'question' || state.phase === 'locked') && (type === 'jigsaw' || type === 'spotdiff' || type === 'memory');
+  return (state.phase === 'question' || state.phase === 'locked') && (type === 'jigsaw' || type === 'spotdiff' || type === 'memory' || type === 'melody');
 }
 
 /** «Вибування»: ціль — привид на етапах раунду (крім round_end); дебаф на нього нічого не дає. */
@@ -140,7 +140,7 @@ export function fireDebuffs(state: GameState, now: number): GameState {
   // У «Ва-банк», «Мільйонері», «Правді про гравця» й «Головоломках» дебафів немає: той, що чекає, чекає наступного раунду.
   // У «Вибуванні» дебаф діє лише на живих: той, що чекає на привида, чекає наступного раунду.
   const answering = new Set(
-    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
+    play === undefined || isUnscored(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody' || noDebuffRound(type) ? [] : type === 'survival' ? survivalAlive(state) : answerersOf(state, play),
   );
   const connected = new Set(state.players.filter((p) => p.connected).map((p) => p.id));
   const debuffs: Record<string, DebuffState> = {};

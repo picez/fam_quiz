@@ -66,6 +66,8 @@ function filled(question: Question): Question {
     case 'jigsaw':
       // Фото вантажиться окремо: без нього пазл не готовий (перевіряє тест нижче).
       return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
+    case 'melody':
+      return { ...question, text, track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 0 }, accepted: ['Щедрик'] };
     case 'memory':
       return { ...question, text, pairs: question.pairs.map((_, i) => ({ a: { text: `Питання ${i + 1}` }, b: { text: `Відповідь ${i + 1}` } })) };
     case 'spotdiff':
@@ -391,7 +393,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -3226,5 +3228,81 @@ describe('memory in the editor (29f)', () => {
     sessionStorage.setItem('quiz:draft:mem-pic', JSON.stringify(inRound(newClassicRound(), pic)));
     const [kept] = roundQuestions(loadDraft('mem-pic')!.rounds[0]!) as [Mem];
     expect(kept.pairs[0]!.a).toEqual({ text: '', imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' });
+  });
+});
+
+describe('melody in the editor (29e)', () => {
+  type Mel = Extract<Question, { type: 'melody' }>;
+  const inRound = (round: Round, q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...round, questions: [q] } as Round] });
+  const withFile = (patch: Partial<Mel> = {}): Mel => ({ ...(newQuestion('melody') as Mel), track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 5 }, ...patch });
+
+  it('a melody lives in classic only', () => {
+    expect(questionTypesFor('classic')).toContain('melody');
+    for (const type of ['blitz', 'final', 'board', 'bets', 'puzzles'] as const) expect(questionTypesFor(type), type).not.toContain('melody');
+  });
+
+  it('a new melody waits for its track', () => {
+    const fresh = newQuestion('melody') as Mel;
+    expect(fresh).toMatchObject({ type: 'melody', timeLimit: 60, points: LIMITS.defaultPoints, video: null, text: t('melodyDefaultText'), track: { source: 'file', url: '', start: 0 }, accepted: [''] });
+    expect('hint' in fresh || 'audio' in fresh || 'reveal' in fresh).toBe(false);
+    expect(problemsOf(inRound(newClassicRound(), fresh))).toEqual([t('problemMelodyTrack', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), withFile()))).toEqual([t('problemMelodyAccepted', { index: 1 })]);
+    const done = withFile({ accepted: ['Щедрик', 'Shchedryk'] });
+    expect(problemsOf(inRound(newClassicRound(), done))).toEqual([]);
+    expect(questionSchema.safeParse(cleanedQuestion(done)).success).toBe(true);
+    // YouTube без посилання теж чернетка.
+    expect(problemsOf(inRound(newClassicRound(), { ...done, track: { source: 'youtube', id: '', start: 0 } }))).toEqual([t('problemMelodyTrack', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, track: { source: 'youtube', id: 'abcdefghijk', start: 42 } }))).toEqual([]);
+  });
+
+  it('the timer floor is 25', () => {
+    expect(minTimeOf({ type: 'melody' })).toBe(25);
+    expect(maxTimeOf({ type: 'melody' })).toBe(LIMITS.maxTime);
+    const done = withFile({ accepted: ['Щедрик'] });
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 24 }))).toEqual([t('problemMelodyLimits', { index: 1, min: LIMITS.minMelodyTime })]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 25 }))).toEqual([]);
+    expect(problemsOf(inRound(newClassicRound(), { ...done, timeLimit: 121 }))).toEqual([t('problemMelodyLimits', { index: 1, min: LIMITS.minMelodyTime })]);
+  });
+
+  it('a melody outside classic is a problem', () => {
+    expect(problemsOf(inRound(newBlitzRound(), withFile({ accepted: ['Щедрик'] })))).toEqual([t('problemMelodyPlace', { index: 1 })]);
+  });
+
+  it('text turns into a melody keeping spellings', () => {
+    const text = { ...(newQuestion('text') as Extract<Question, { type: 'text' }>), text: 'Назва?', accepted: ['Щедрик', 'Shchedryk'] };
+    const melody = changeType(text, 'melody') as Mel;
+    expect(melody).toMatchObject({ type: 'melody', text: 'Назва?', accepted: ['Щедрик', 'Shchedryk'] });
+    expect(melody.accepted).not.toBe(text.accepted);
+    const back = changeType(melody, 'text') as Extract<Question, { type: 'text' }>;
+    expect(back).toMatchObject({ type: 'text', accepted: ['Щедрик', 'Shchedryk'] });
+  });
+
+  it('cleaning trims spellings and drops the empty extras; a copy has its own track', () => {
+    const cleanedQ = cleanedQuestion(withFile({ accepted: [' Щедрик ', '', ' Shchedryk'] })) as Mel;
+    expect(cleanedQ.accepted).toEqual(['Щедрик', 'Shchedryk']);
+    const copy = duplicateQuestion(withFile({ accepted: ['Щедрик'] })) as Mel;
+    expect(copy.track).toEqual({ source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 5 });
+  });
+
+  it('a stored melody is revived within limits', () => {
+    const save = (name: string, q: unknown) => sessionStorage.setItem('quiz:draft:' + name, JSON.stringify(inRound(newClassicRound(), q as Question)));
+    const one = (name: string) => roundQuestions(loadDraft(name)!.rounds[0]!)[0] as Mel;
+    const long = 'я'.repeat(300);
+    save('mel-wild', { ...withFile(), hint: 'підказка', audio: { source: 'youtube', id: 'abcdefghijk', start: 0, duration: 10 }, track: { source: 'file', url: 'https://x/y.mp3', start: 5 }, accepted: [long, 'b', 7] });
+    const wild = one('mel-wild');
+    expect(wild.track).toEqual({ source: 'file', url: '', start: 0 });
+    expect(wild).not.toHaveProperty('hint');
+    expect(wild).not.toHaveProperty('audio');
+    expect(wild.accepted).toEqual(['я'.repeat(LIMITS.answerText), 'b', '']);
+    save('mel-tube', { ...withFile(), track: { source: 'youtube', id: 'x', start: 9 } });
+    expect(one('mel-tube').track).toEqual({ source: 'file', url: '', start: 0 });
+    save('mel-start', { ...withFile(), track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 99_999 } });
+    expect(one('mel-start').track).toEqual({ source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 0 });
+    save('mel-ok', { ...withFile(), track: { source: 'youtube', id: 'abcdefghijk', start: 42 } });
+    expect(one('mel-ok').track).toEqual({ source: 'youtube', id: 'abcdefghijk', start: 42 });
+    save('mel-many', { ...withFile(), accepted: Array.from({ length: 12 }, (_, i) => 'n' + i) });
+    expect(one('mel-many').accepted).toHaveLength(LIMITS.maxAccepted);
+    save('mel-none', { ...withFile(), accepted: [] });
+    expect(one('mel-none').accepted).toEqual(['']);
   });
 });

@@ -12,6 +12,7 @@ import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
 import type { JigsawAspect } from './jigsaw';
 import type { SpotCircle } from './spotdiff';
+import type { MelodyTrack } from './melody';
 import type { MemoryCard, MemoryGrid } from './memory';
 import type { LikesView } from './likes';
 import type { RoundBrief } from './round-brief';
@@ -123,6 +124,8 @@ export interface PublicQuestion {
   spotdiff?: PublicSpotdiff;
   /** «Пам'ять» (29f): сітка й кількість пар; самі пари — лише на reveal, seed і розкладу немає ніколи. */
   memory?: PublicMemory;
+  /** «Мелодія за нотами» (29e): джерело й початок; назва (answer) — лише на reveal. */
+  melody?: PublicMelody;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -404,6 +407,36 @@ export interface PublicSpotdiff {
   aspect: number;
   total: number;
   spots: SpotCircle[] | null;
+}
+
+/** «Мелодія за нотами» (29e): для всіх ролей однаковий. id — id запитання (ключ поля), answer — accepted[0] лише на reveal. */
+export interface PublicMelody {
+  id: string;
+  track: MelodyTrack;
+  answer: string | null;
+}
+
+/** Рядок гравця (команди) в «Мелодії»: heard 0…5; три останні поля — лише на reveal. Текстів відповідей тут немає. */
+export interface MelodyRow {
+  playerId: string;
+  nickname: string;
+  heard: number;
+  answered: boolean;
+  correct: boolean | null;
+  points: number | null;
+  timeMs: number | null;
+}
+
+export interface MelodyInfo {
+  rows: MelodyRow[];
+}
+
+/** Власний бік гравця в «Мелодії» (29e). openedBy — лише команди: нік того, хто відкрив останній шматок; соло null. */
+export interface PlayerMelody {
+  heard: number;
+  canOpen: boolean;
+  canAnswer: boolean;
+  openedBy: string | null;
 }
 
 /** «Пам'ять» (29f), усім: id запитання (ключ поля), сітка й кількість пар; pairs — лише на reveal, інакше null. */
@@ -1762,6 +1795,8 @@ interface BaseView {
   spotdiff?: SpotdiffInfo;
   /** «Пам'ять» (29f): лише на такому запитанні (question, locked, reveal); без клітинок і вмісту карток; інакше ключа немає. */
   memory?: MemoryInfo;
+  /** «Мелодія за нотами» (29e): лише на такому запитанні (question, locked, reveal); без текстів відповідей; інакше ключа немає. */
+  melody?: MelodyInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -2015,6 +2050,8 @@ export interface PlayerView extends BaseView {
     spotdiff?: PlayerSpotdiff;
     /** Власна дошка гравця (29f): лише на «Пам'яті»; інакше ключа немає. */
     memory?: PlayerMemory;
+    /** Власний бік у «Мелодії» (29e): лише на такому запитанні; інакше ключа немає. */
+    melody?: PlayerMelody;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
@@ -2119,6 +2156,7 @@ export type LiveProgress =
   | { kind: 'jigsaw'; placed: number; total: number; done: boolean }
   | { kind: 'spotdiff'; found: number; total: number; done: boolean }
   | { kind: 'memory'; pairs: number; total: number; done: boolean }
+  | { kind: 'melody'; heard: number; total: number }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -2220,6 +2258,8 @@ export interface HostView extends BaseView {
   spotdiff?: SpotdiffHostInfo;
   /** Як у BaseView, але з ходами в рядку дошки (без вмісту й місць). */
   memory?: MemoryInfo;
+  /** Як у BaseView (29e). */
+  melody?: MelodyInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */

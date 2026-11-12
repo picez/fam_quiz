@@ -85,6 +85,38 @@ export function sniffAudio(bytes: Uint8Array): AudioType | null {
   return null;
 }
 
+/** Скільки байтів після тегів шукаємо синхрослово кадру (нулі чи сміття після тега). */
+const MP3_SYNC_SEARCH = 64 * 1024;
+
+/** Заголовок кадру MPEG: 11 бітів синхронізації, версія й шар не зарезервовані (ті самі перевірки, що в sniffAudio). */
+const isMp3Frame = (bytes: Uint8Array, at: number) =>
+  bytes[at] === 0xff && (bytes[at + 1]! & 0xe0) === 0xe0 && (bytes[at + 1]! & 0x18) !== 0x08 && (bytes[at + 1]! & 0x06) !== 0;
+
+/**
+ * MP3 без тегів (29e): прибирає ID3v2 на початку (повторювано; прапор footer додає ще 10 байтів), далі шукає синхрослово першого кадру
+ * (до 64 КБ від кінця тега: нулі, сміття, не-synchsafe розмір старих тегів) і 128-байтний ID3v1 «TAG» у кінці, щоб назва й виконавець
+ * не видавали відповідь у «Мелодії». Без тегів чи коли кадру не знайдено повертає той самий масив: файл, який приймав старий sniffAudio, не ламаємо.
+ */
+export function stripMp3Tags(bytes: Uint8Array): Uint8Array {
+  let from = 0;
+  let to = bytes.length;
+  while (to - from >= 10 && startsWith(bytes.subarray(from), ascii('ID3'))) {
+    const size = ((bytes[from + 6]! & 0x7f) << 21) | ((bytes[from + 7]! & 0x7f) << 14) | ((bytes[from + 8]! & 0x7f) << 7) | (bytes[from + 9]! & 0x7f);
+    const footer = (bytes[from + 5]! & 0x10) !== 0 ? 10 : 0;
+    from = Math.min(to, from + 10 + size + footer);
+  }
+  if (to - from >= 128 && startsWith(bytes.subarray(to - 128), ascii('TAG'))) to -= 128;
+  if (from > 0) {
+    const limit = Math.min(to - 1, from + MP3_SYNC_SEARCH);
+    let at = from;
+    // FF FE / FF FF — це BOM UTF-16 із тексту тега, а не кадр: пропускаємо.
+    while (at < limit && (!isMp3Frame(bytes, at) || bytes[at + 1]! >= 0xfe)) at += 1;
+    if (at >= limit) return bytes;
+    from = at;
+  }
+  return from === 0 && to === bytes.length ? bytes : bytes.subarray(from, to);
+}
+
 /** Сховище в пам'яті: для тестів. */
 export function memoryStorage(): ImageStorage {
   const files = new Map<string, Uint8Array>();

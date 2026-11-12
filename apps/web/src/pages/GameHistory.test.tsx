@@ -222,3 +222,10 @@ describe('lettersLines', () => {
     expect(lettersLines({ letters: [...'ззщщ'], best: [] })).toEqual(['Набір: З З Щ Щ']);
   });
 });
+
+describe('history: melody (29e)', () => {
+  it('history shows the chunk', () => {
+    expect(answerText({ type: 'melody', value: 'Щедрик', heard: 2 } as never, null)).toBe('Щедрик · 2 с');
+    expect(answerText({ type: 'melody', value: 'Щедрик' } as never, null)).toBe('Щедрик');
+  });
+});

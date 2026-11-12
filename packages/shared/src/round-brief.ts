@@ -39,6 +39,8 @@ export interface RoundBrief {
   truth: { points: number; time: number } | null;
   /** «Головоломки» (28d): скільки судоку, кросвордів і пазлів і сумарний час; null поза ним. */
   puzzles: { sudoku: number; crossword: number; jigsaw: number; spotdiff: number; memory: number; time: number } | null;
+  /** Класичний раунд: скільки в ньому «Мелодій за нотами» (29e); відсутнє, коли їх немає. */
+  melodies?: number;
 }
 
 /** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction truth і puzzles null, answerModes []. */
@@ -94,7 +96,10 @@ export function roundBrief(round: Round): RoundBrief {
   if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };
-  if (round.type === 'classic') return { ...withRules, speedBonus: round.speedBonus };
+  if (round.type === 'classic') {
+    const melodies = round.questions.filter((q) => q.type === 'melody').length;
+    return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}) };
+  }
   if (round.type === 'survival') {
     return { ...withRules, speedBonus: round.speedBonus, survival: { trial: round.trial, survivors: round.survivors, bonus: round.bonus } };
   }

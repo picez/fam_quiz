@@ -129,6 +129,20 @@ describe('slider texts (10b)', () => {
   });
 });
 
+describe('melody texts (29e)', () => {
+  const melody = { ...base, type: 'melody', timeLimit: 60, track: { source: 'file', url: '/uploads/0123456789abcdef0123.mp3', start: 0 }, accepted: ['Щедрик', 'Shchedryk'] } as Question;
+
+  it('the correct text is the first spelling', () => {
+    expect(correctText(melody)).toBe('Щедрик');
+  });
+
+  it('an answer shows its value and, once known, the chunk', () => {
+    expect(answerText({ type: 'melody', value: 'Щедрик' }, melody)).toBe('Щедрик');
+    expect(answerText({ type: 'melody', value: 'Щедрик', heard: 2 }, melody)).toBe('Щедрик · 2 с');
+    expect(answerText({ type: 'melody', value: 'Щедрик', heard: 5 }, melody)).toBe('Щедрик · 16 с');
+  });
+});
+
 describe('answerText', () => {
   it('describes a player answer using the question options', () => {
     expect(answerText({ type: 'single', optionId: 'c' }, single)).toBe('Одеса');

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkAnswer, paceFactor, paysForTime, shareVerdict, surveyHits, textAccepts, textMatches, verdictOf } from './check';
 import type { Question } from '@quiz/shared';
-import { bool, clues, match, multi, numeric, order, pin, single, slider, survey, text, withReveal } from './testing/fixtures';
+import { bool, clues, match, melody, multi, numeric, order, pin, single, slider, survey, text, withReveal } from './testing/fixtures';
 
 const REJECTED = { accepted: false, accuracy: 0 };
 const FULL = { accepted: true, accuracy: 1 };
@@ -226,6 +226,19 @@ describe('«Who am I?» and pin (10c)', () => {
     expect(paceFactor(clues, 12_000, 1)).toBe(1);
     expect(paceFactor(withReveal(text), 20_000)).toBeCloseTo(0.3);
     expect(paceFactor(pin, 20_000)).toBe(1);
+  });
+});
+
+describe('«Melody» (29e)', () => {
+  it('checks the title like text, pays by the chunk, no speed bonus', () => {
+    expect(checkAnswer(melody, { type: 'melody', value: 'щедрік', heard: 1 })).toEqual(FULL);
+    expect(checkAnswer(melody, { type: 'melody', value: 'Carol of the Bells', heard: 1 })).toEqual(FULL);
+    expect(checkAnswer(melody, { type: 'melody', value: 'Шедрик', heard: 1 })).toEqual(REJECTED);
+    expect(checkAnswer(melody, { type: 'text', value: 'Щедрик' })).toEqual(REJECTED);
+    expect(paceFactor(melody, 0, 3)).toBe(0.6);
+    expect(paceFactor(melody, 50_000, 5)).toBe(0.25);
+    expect(paceFactor(melody, 50_000)).toBe(1);
+    expect(paysForTime(melody)).toBe(true);
   });
 });
 

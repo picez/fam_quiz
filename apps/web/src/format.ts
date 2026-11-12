@@ -1,4 +1,4 @@
-import { isRtl, pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
+import { isRtl, melodyHeardOf, melodySeconds, pinDistance, surveyHitsOf, surveyOrder, type Answer, type CellMark, type Choice, type LobbyPlayer, type PublicQuestion, type PublicSlider, type Question, type Round, type RoundInfo, ONLINE_MS } from '@quiz/shared';
 import { countText, t, type TextKey } from './i18n';
 import { currentLocale, intlTag } from './locales/current';
 import { agoText, decimalText, dropYearMark } from './locales/grammar';
@@ -169,6 +169,9 @@ export function correctText(question: Question, presented?: { id: string }[]): s
     case 'memory':
       // Пари — картки на розкритті, не рядок.
       return '—';
+    case 'melody':
+      // Назва — перше написання.
+      return question.accepted[0] ?? '—';
     case 'crossword':
       // Ключове слово великими літерами або слова кросворду за порядком.
       return question.mode === 'key' && question.key !== null ? question.key.toLocaleUpperCase('uk') : question.entries.map((entry) => entry.answer).join(', ');
@@ -260,6 +263,11 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return t('spotdiffFound', { found: answer.found, total: answer.total });
     case 'memory':
       return answer.done && answer.timeMs !== null ? t('memoryAnswerDone', { time: secondsText(answer.timeMs) }) : t('memoryUndone', { found: answer.pairs, total: answer.total });
+    case 'melody': {
+      // Лише значення: шматок («Щедрик · 2 с») показується, коли відомо, скільки було відкрито.
+      const heard = melodyHeardOf(answer);
+      return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: melodySeconds(heard) });
+    }
     case 'puzzle':
       // Правильність — лише ціла сітка (у кросворді з ключем — ключове слово); заповненість — для статистики.
       return answer.solved ? t('puzzleAnswerSolved') : t('puzzleAnswerPart', { filled: answer.filled, total: answer.total });

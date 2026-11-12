@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -952,6 +952,34 @@ describe('host history: answers', () => {
     ]);
     const records = game.room.state.plays[1].answers;
     expect([records[olena]?.points, records[taras]?.points]).toEqual([300, 0]);
+  });
+
+  it('history shows the melody answer and the chunk', async () => {
+    const scheduler = new FakeScheduler();
+    const game = await start(melodyQuiz(), scheduler);
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    step('lock');
+    for (let i = 0; i < 6 && !(game.room.state.phase === 'question' && game.room.state.plays[game.room.state.questionIndex].question.type === 'melody'); i++) step('next');
+    scheduler.advance(10_000);
+    for (const n of [1, 2]) expect(manager.melodyOpen(game.room, olena, { questionIndex: 0, step: n })).toEqual({ ok: true });
+    expect(manager.melodyOpen(game.room, taras, { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    expect(manager.answer(game.room, olena, { type: 'melody', value: 'Щедрик' })).toEqual({ ok: true });
+    expect(manager.answer(game.room, taras, { type: 'melody', value: 'Не те' })).toEqual({ ok: true });
+    if (game.room.state.phase === 'question') step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    const mm = result.questions.find((q) => q.question.type === 'melody');
+    expect(mm?.responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'melody', value: 'Щедрик', heard: 2 }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'melody', value: 'Не те', heard: 1 }, accepted: false },
+    ]);
+    const records = game.room.state.plays[1].answers;
+    expect([records[olena]?.points, records[taras]?.points]).toEqual([800, 0]);
   });
 
   it('history shows a solved puzzle', async () => {

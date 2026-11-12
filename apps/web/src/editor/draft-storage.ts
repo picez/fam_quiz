@@ -194,6 +194,25 @@ function reviveDrawing(base: Extract<Question, { type: 'drawing' }>): Question {
 }
 
 /**
+ * Мелодія з чернетки: трек — файл лише з AUDIO_URL, YouTube лише з YOUTUBE_ID (інакше порожній файл), start — ціле 0…maxVideoStart (інакше 0),
+ * написання — рядки до answerText, не більше maxAccepted (порожній список — одне порожнє). Без відео, звуку, «перевертання» й підказки.
+ */
+function reviveMelody(base: Extract<Question, { type: 'melody' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const raw: unknown = base.track;
+  const track = isRecord(raw) ? raw : {};
+  const start = typeof track.start === 'number' && Number.isInteger(track.start) && track.start >= 0 && track.start <= LIMITS.maxVideoStart ? track.start : 0;
+  const revived =
+    track.source === 'file' && typeof track.url === 'string' && AUDIO_URL.test(track.url)
+      ? ({ source: 'file', url: track.url, start } as const)
+      : track.source === 'youtube' && typeof track.id === 'string' && YOUTUBE_ID.test(track.id)
+        ? ({ source: 'youtube', id: track.id, start } as const)
+        : ({ source: 'file', url: '', start: 0 } as const);
+  const accepted = Array.isArray(base.accepted) ? (base.accepted as unknown[]).map((item) => (typeof item === 'string' ? item.slice(0, LIMITS.answerText) : '')) : [];
+  return { ...rest, video: null, track: revived, accepted: accepted.length === 0 ? [''] : accepted.slice(0, LIMITS.maxAccepted) };
+}
+
+/**
  * Судоку з чернетки: сітка — 36 цифр 0–6 (інакше порожня сітка ведучого), рівень і seed — з переліку й цілі (інакше «свої», без seed);
  * без відео, звуку, «перевертання» й підказки.
  */
@@ -359,6 +378,7 @@ function revive(stored: Question): Question {
   if (base.type === 'jigsaw') return reviveJigsaw(base);
   if (base.type === 'spotdiff') return reviveSpotdiff(base);
   if (base.type === 'memory') return reviveMemory(base);
+  if (base.type === 'melody') return reviveMelody(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

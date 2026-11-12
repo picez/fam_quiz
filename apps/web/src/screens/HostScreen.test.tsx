@@ -3799,3 +3799,50 @@ describe('HostScreen drawing (28c)', () => {
     expect(screen.getByText('Правильна відповідь: соняшник')).toBeTruthy();
   });
 });
+
+describe('HostScreen melody (29e)', () => {
+  const track = { source: 'file' as const, url: '/uploads/0123456789abcdef0009.mp3', start: 5 };
+  const full = { id: 'm1', type: 'melody', text: 'Що це за пісня?', imageUrl: null, video: null, timeLimit: 60, points: 1000, track, accepted: ['Щедрик'] } as unknown as Question;
+  const publicQ = (answer: string | null) => ({ ...publicOf(single), type: 'melody' as const, text: 'Що це за пісня?', choices: [], melody: { id: 'm1', track, answer } });
+  const r = (playerId: string, nickname: string, heard: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, heard, answered: false, correct: null, points: null, timeMs: null, ...over });
+
+  it('the host gets replay and stop on reveal only', async () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 }), r('p2', 'Тарас', 0, { points: 0 })] };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 1, question: publicQ(null), correct: full, endsAt: Date.now() + 60_000, melody: info }));
+    expect(document.querySelector('.host-audio')).toBeNull();
+    const tiles = [...document.querySelectorAll('.host-melody .melody-board')].map((el) => el.textContent);
+    expect(tiles).toEqual(['Оля🎧 2 с ✓', 'Тарасще не слухав']);
+    cleanup();
+    const send = show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: publicQ('Щедрик'), correct: full, melody: info }));
+    expect(document.querySelector('.host-audio')).not.toBeNull();
+    fireEvent.click(button('Програти ще раз'));
+    fireEvent.click(button('Стоп'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:audio', { action: 'stop' }));
+    expect(send).toHaveBeenCalledWith('host:audio', { action: 'replay' });
+    const rows = [...document.querySelectorAll('.host-melody .melody-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Оля', '✓ 2 с', '+800'],
+      ['—', 'Тарас', '—', '0'],
+    ]);
+  });
+
+  it('the host grades a melody answer on reveal', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: false, points: 0, timeMs: 5000 })] };
+    const responses = [
+      { playerId: 'p1', nickname: 'Оля', answer: { type: 'melody' as const, value: 'Щедрик!' }, timeMs: 5000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    ];
+    const send = show(view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Щедрик'), correct: full, melody: info, responses } as never));
+    fireEvent.click(button('Зарахувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
+  });
+
+  it('without a stage the host plays the melody track itself on reveal', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 })] };
+    render(
+      <HostScreen view={view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Щедрик'), correct: full, melody: info })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+    expect(document.querySelector('.host-audio .audio-card')).not.toBeNull();
+    expect(document.querySelector('.host-audio audio')?.getAttribute('src')).toBe(track.url);
+  });
+});

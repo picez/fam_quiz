@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { HostLive, HostView, LiveDraft, LiveRow, Question, SortTilt } from '@quiz/shared';
+import { melodySeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { answerText, num, secondsText, sliderNumber } from '../format';
@@ -49,6 +49,8 @@ function started(row: LiveRow): boolean {
       return progress.found > 0 || progress.done;
     case 'memory':
       return progress.pairs > 0 || progress.done;
+    case 'melody':
+      return progress.heard > 0;
     case 'drawing':
       // Художника видно завжди; вгадувача — коли вгадав (спроби нікому не показуються).
       return progress.role === 'drawer' || progress.guessed;
@@ -128,6 +130,10 @@ export function liveAnswerText(row: LiveRow, correct: Question | null, choices: 
         // З записом поступ уже у відповіді рядка («Усі пари за … с», «Знайдено x з N пар»).
         if (answer === null) parts.push(t('memoryProgress', { found: progress.pairs, total: progress.total }));
         if (progress.done) parts.push(`${t('puzzleDone')} ✓`);
+        break;
+      case 'melody':
+        // З відповіддю шматок уже в її тексті («Щедрик · 2 с»); без неї — лише «🎧 2 с».
+        if (answer === null && progress.heard > 0) parts.push(t('melodyStageHeard', { seconds: melodySeconds(progress.heard) }));
         break;
       case 'drawing':
         // Що вгадав вгадувач — уже у відповіді рядка.

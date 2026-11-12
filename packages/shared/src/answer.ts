@@ -11,6 +11,7 @@ export const answerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('numeric'), value: z.number().finite() }),
   z.object({ type: z.literal('slider'), value: z.number().finite() }),
+  z.object({ type: z.literal('melody'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('clues'), value: z.string().max(LIMITS.answerText).refine(isStorable, UNSTORABLE) }),
   z.object({ type: z.literal('pin'), x: z.number().finite().min(0).max(1), y: z.number().finite().min(0).max(1) }),
   z.object({ type: z.literal('poll'), optionId: id }),
@@ -160,7 +161,21 @@ export interface MemoryAnswer {
   moves: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer;
+/** Запис «Мелодії за нотами» (29e): текст з телефона й скільки шматків відкрито в мить відповіді; heard дописує рушій. */
+export interface MelodyAnswer {
+  type: 'melody';
+  value: string;
+  /** Скільки шматків відкрито в мить відповіді (1…5). */
+  heard: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer;
+
+/** Скільки шматків було відкрито в мить відповіді «Мелодії»; null — не melody або без heard. */
+export function melodyHeardOf(answer: Answer | null): number | null {
+  if (answer === null || answer.type !== 'melody') return null;
+  return 'heard' in answer && typeof answer.heard === 'number' ? answer.heard : null;
+}
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

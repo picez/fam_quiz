@@ -82,6 +82,7 @@ export const GAME_STATE_VERSION = 22;
  * 29c без нової версії: тип jigsaw і необов'язковий Play.jigsaw; старий знімок не містить ні того, ні того.
  * 29d без нової версії: тип spotdiff і необов'язковий Play.spotdiff.
  * 29f без нової версії: тип memory і необов'язковий Play.memory.
+ * 29e без нової версії: тип melody і необов'язковий Play.melody.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

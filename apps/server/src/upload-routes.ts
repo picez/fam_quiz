@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { AUDIO_LIMITS, IMAGE_LIMITS } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
-import { EXTENSIONS, isAudioName, isMediaName, sniffAudio, sniffImage, type ImageStorage, type MediaType } from './storage/images';
+import { EXTENSIONS, isAudioName, isMediaName, sniffAudio, sniffImage, stripMp3Tags, type ImageStorage, type MediaType } from './storage/images';
 
 export interface UploadDeps {
   storage: ImageStorage;
@@ -48,11 +48,17 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
       scope.post(path, { config: UPLOAD_LIMIT }, async (request, reply) => {
         const bytes = request.body;
         if (!Buffer.isBuffer(bytes)) return reply.code(400).send(kind.bad);
+        let stored: Uint8Array = bytes;
         const type = kind.sniff(bytes);
         if (type === null) return reply.code(400).send(kind.bad);
+        // 29e: теги MP3 (назва, виконавець) видають відповідь у «Мелодії» — зберігаємо без них. Якщо очищений вміст не схожий на MP3, лишаємо оригінал (як до 29e).
+        if (type === 'audio/mpeg') {
+          const cleaned = stripMp3Tags(bytes);
+          if (kind.sniff(cleaned) === 'audio/mpeg') stored = cleaned;
+        }
         const name = `${randomBytes(16).toString('hex')}.${EXTENSIONS[type]}`;
         try {
-          await storage.put(name, bytes, type);
+          await storage.put(name, stored, type);
         } catch (error) {
           console.error('Upload failed:', error instanceof Error ? error.message : error);
           return reply.code(503).send(UNAVAILABLE);

@@ -29109,6 +29109,513 @@ async function memoryCrowd29f(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
+it('part 29e: melody after a classic round — a tagged mp3 and spellings in the editor, chunks start by a tap on the phone, points by the longest chunk, no title before reveal, the track on the stage, 320 px', async () => {
+  try {
+    await melodyGame29e();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 29e: melody in teams — anyone opens a shared chunk, a teammate sees it without sound, the first answer counts, a restart keeps the chunks, 320 px', async () => {
+  try {
+    await melodyTeams29e();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 29e: melody with 24 players — the stage tiles fit 1600×900', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await melodyCrowd29e(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 600_000);
+
+const STEPS29E = [1, 2, 4, 8, 16];
+
+/** MP3 з тегами (ID3v2 «TIT2» і ID3v1 «TAG» із назвою) навколо синтетичної тиші: сервер має їх зрізати. Справжньої музики немає. */
+function taggedMp3_29e(seconds: number): Buffer {
+  const title = Buffer.from('Shchedryk', 'latin1');
+  const frame = Buffer.concat([Buffer.from('TIT2', 'latin1'), Buffer.from([0, 0, 0, title.length + 1, 0, 0, 0]), title]);
+  const size = frame.length;
+  const header = Buffer.from([0x49, 0x44, 0x33, 3, 0, 0, (size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f]);
+  const v1 = Buffer.alloc(128);
+  v1.write('TAG', 0, 'latin1');
+  v1.write('Shchedryk', 3, 'latin1');
+  v1.write('Carol', 33, 'latin1');
+  return Buffer.concat([header, frame, silentMp3(38 * seconds), v1]);
+}
+
+type Track29e = { source: 'file'; url: string; start: number } | { source: 'youtube'; id: string; start: number };
+
+function melody29e(id: string, track: Track29e, accepted: string[], timeLimit: number) {
+  return { id, text: 'Що це за пісня?', imageUrl: null, video: null, timeLimit, points: 1000, type: 'melody' as const, track, accepted };
+}
+
+/** Заливка тегованого MP3 через API ведучого: адреса вже без тегів. */
+async function uploadTagged29e(host: Page): Promise<string> {
+  const upload = await host.request.post(`${base}/api/uploads/audio`, { data: taggedMp3_29e(20), headers: { 'content-type': 'audio/mpeg' } });
+  expect(upload.status(), await upload.text()).toBe(201);
+  return ((await upload.json()) as { url: string }).url;
+}
+
+/** Комірка драбинки за секундами шматка (1, 2, 4, 8, 16). */
+const stepCell29e = (page: Page, seconds: number) => page.locator(`.melody-play .melody-step[data-step="${STEPS29E.indexOf(seconds) + 1}"]`);
+
+/** Дотик до комірки драбинки. */
+async function step29e(page: Page, seconds: number) {
+  await stepCell29e(page, seconds).click();
+}
+
+/** Стан звуку телефона: <audio> драбинки. */
+const phoneClip29e = (page: Page) => page.locator('.melody-play audio').evaluate((el) => ({ paused: (el as HTMLAudioElement).paused, currentTime: (el as HTMLAudioElement).currentTime }));
+
+/** Шматок почав грати, а за seconds + запас — закінчив. */
+async function chunkRuns29e(page: Page, seconds: number) {
+  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: 3000, interval: 40 }).toBe(false);
+  await expect.poll(async () => (await phoneClip29e(page)).paused, { timeout: seconds * 1000 + 3000, interval: 100 }).toBe(true);
+}
+
+/** Телефон «Мелодії»: без прокрутки вбік, драбинка в один ряд, жодний підпис не ламається посеред слова; висоти — у журнал і звіт. */
+async function expectMelodyFit29e(page: Page, name: string) {
+  const fit = (await page.evaluate(`(() => {
+    const cells = [...document.querySelectorAll('.melody-play .melody-step')];
+    const tops = cells.map((el) => Math.round(el.getBoundingClientRect().top));
+    const split = [];
+    for (const el of document.querySelectorAll('.melody-step-main, .melody-step-share')) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top / 4)));
+      if (lines.size > 1) split.push(el.textContent);
+      if (el.scrollWidth > el.clientWidth + 1) split.push('cut ' + el.textContent);
+    }
+    const input = document.querySelector('.melody-play input[type=text], .melody-play .typed input');
+    const submit = document.querySelector('.melody-play .typed button');
+    const bottom = (el) => (el ? Math.round(el.getBoundingClientRect().bottom) : null);
+    const last = cells[cells.length - 1].getBoundingClientRect();
+    return { scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth, scrollH: document.documentElement.scrollHeight, clientH: document.documentElement.clientHeight, innerH: innerHeight, innerW: innerWidth, tops, split, inputBottom: bottom(input), submitBottom: bottom(submit), lastRight: Math.round(last.right) };
+  })()`)) as { scrollW: number; clientW: number; scrollH: number; clientH: number; innerH: number; innerW: number; tops: number[]; split: string[]; inputBottom: number | null; submitBottom: number | null; lastRight: number };
+  console.log(`melody 29e: ${name} — scrollHeight ${fit.scrollH} vs clientHeight ${fit.clientH}, input bottom ${fit.inputBottom}, submit bottom ${fit.submitBottom} of ${fit.innerH}, ladder tops ${fit.tops.join('/')}, last cell right ${fit.lastRight} of ${fit.innerW}`);
+  expect(fit.scrollW, `${name}: horizontal scroll`).toBeLessThanOrEqual(fit.clientW);
+  expect(new Set(fit.tops).size, `${name}: the ladder is one row`).toBe(1);
+  expect(fit.lastRight, `${name}: the ladder reaches past the right edge`).toBeLessThanOrEqual(fit.innerW);
+  expect(fit.split, `${name}: a ladder label breaks`).toEqual([]);
+}
+
+/** Сцена 1600 × 900: без прокрутки, плитки й (на розкритті) таблиця з рядками видимі цілком. */
+async function expectMelodyStageFits29e(stage: Page, name: string, reveal: boolean) {
+  const [height, clientH, width, clientW] = (await stage.evaluate('[document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]')) as number[];
+  expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
+  expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
+  if (!reveal) {
+    const out = await stage.locator('.melody-stage .melody-board').evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.height < 10 || box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1; }).map((el) => el.textContent));
+    expect(out, `${name}: tiles outside the stage`).toEqual([]);
+    return;
+  }
+  const table = (await stage.locator('.melody-stage .melody-table').boundingBox())!;
+  expect(table.height, `${name}: the points table has no height`).toBeGreaterThan(40);
+  expect(table.y + table.height, `${name}: the table reaches below the stage`).toBeLessThanOrEqual(900 + 1);
+  const rows = await stage.locator('.melody-stage .melody-table tbody tr').evaluateAll((all) => all.map((el) => { const box = el.getBoundingClientRect(); return [Math.round(box.height), Math.round(box.bottom)]; }));
+  expect(rows.length, `${name}: table rows`).toBeGreaterThan(0);
+  console.log(`melody 29e: ${name} — table ${Math.round(table.height)} px, ${rows.length} rows, last row bottom ${rows[rows.length - 1]![1]}`);
+  for (const [rowHeight, bottom] of rows) {
+    expect(rowHeight, `${name}: a collapsed table row`).toBeGreaterThan(8);
+    expect(bottom, `${name}: a row below the stage`).toBeLessThanOrEqual(900 + 1);
+  }
+}
+
+const TITLE_RE29E = /щедрик|shchedryk/i;
+
+async function melodyGame29e() {
+  const host = await open('host29e', 1280, 900);
+  await register(host, 'host', 'Ірина Ведуча', 'host29e@example.com');
+  const hostFrames = socketFrames(host);
+  await host.getByRole('link', { name: 'Нова вікторина' }).click();
+  await field(host, 'Назва вікторини').fill('Мелодія 29e');
+  await host.locator('details.rules').first().locator('summary').click();
+  await select27b(host, 'Показувати рейтинг', 'end');
+  await questionText(host).fill('Скільки днів у тижні?');
+  await field(host, 'Варіант 1').fill('П’ять');
+  await field(host, 'Варіант 2').fill('Сім');
+  await field(host, 'Правильний: варіант 2').click();
+  await field(host, 'Час, с').fill('30');
+
+  // ── Раунд 2: класичний, «Мелодія»: порожній трек — проблема; файл із тегами, секунда, написання. ──
+  await click(host, '+ Раунд');
+  await click(host, 'Класичний');
+  const types = host.getByRole('group', { name: 'Тип запитання', ...exact });
+  await types.getByRole('button', { name: 'Мелодія', ...exact }).click();
+  await host.locator('.melody-editor').waitFor();
+  expect(await host.getByLabel('Відео з YouTube', exact).count(), 'a melody has no video field').toBe(0);
+  expect(await questionText(host).inputValue(), 'the default text').toBe('Що це за пісня?');
+  await expect.poll(() => field(host, 'Час, с').inputValue(), POLL).toBe('60');
+  await click(host, 'Зберегти');
+  await host.locator('.problems', { hasText: 'додайте файл або посилання на YouTube' }).waitFor();
+  await host.locator('.melody-file input[type=file]').setInputFiles({ name: 'shchedryk.mp3', mimeType: 'audio/mpeg', buffer: taggedMp3_29e(20) });
+  await host.getByText('Аудіофайл', exact).first().waitFor();
+  await field(host, 'З якої секунди').fill('2');
+  await field(host, 'Написання 1').fill('Щедрик');
+  await click(host, 'Додати написання');
+  await field(host, 'Написання 2').fill('Shchedryk');
+
+  // YouTube: посилання з t=42 дає start 42; «Файл» повертає залитий файл; секунду знову 2.
+  await host.locator('.melody-source').getByRole('button', { name: 'YouTube', ...exact }).click();
+  await field(host, 'Посилання на відео').fill('https://youtu.be/abcdefghijk?t=42');
+  await expect.poll(() => field(host, 'З якої секунди').inputValue(), POLL).toBe('42');
+  await host.locator('.melody-source').getByRole('button', { name: 'Файл', ...exact }).click();
+  await host.getByText('Аудіофайл', exact).first().waitFor();
+  await field(host, 'З якої секунди').fill('2');
+
+  // «▶ 1 с» у редакторі грає й зупиняється.
+  const editorClip = () => host.locator('.melody-editor audio').evaluate((el) => (el as HTMLAudioElement).paused);
+  await host.getByRole('button', { name: '▶ 1 с', ...exact }).click();
+  await expect.poll(editorClip, { timeout: 3000, interval: 40 }).toBe(false);
+  await expect.poll(editorClip, { timeout: 2500, interval: 100 }).toBe(true);
+  await shot(host, 'melody29e-editor');
+
+  // Бліц і «Головоломки»: «Мелодії» в меню немає.
+  await click(host, '+ Раунд');
+  await click(host, 'Бліц');
+  await types.getByRole('button', { name: 'один варіант', ...exact }).waitFor();
+  expect(await types.getByRole('button', { name: 'Мелодія', ...exact }).count(), 'a melody in the blitz menu').toBe(0);
+  await click(host, 'Видалити раунд');
+  await click(host, '+ Раунд');
+  await click(host, 'Головоломки');
+  await types.getByRole('button', { name: 'судоку', ...exact }).waitFor();
+  expect(await types.getByRole('button', { name: 'Мелодія', ...exact }).count(), 'a melody in the puzzles menu').toBe(0);
+  await click(host, 'Видалити раунд');
+  await click(host, 'Зберегти');
+  await host.getByRole('heading', { name: 'Мелодія 29e' }).waitFor();
+
+  const list = (await (await host.request.get(`${base}/api/quizzes`)).json()) as { id: string; title: string }[];
+  const quizId = list.find((entry) => entry.title === 'Мелодія 29e')!.id;
+  const stored = (await (await host.request.get(`${base}/api/quizzes/${quizId}`)).json()) as { rounds: { type: string; questions: { type: string; track?: { source: string; url: string; start: number }; accepted?: string[] }[] }[] };
+  expect(stored.rounds.map((round) => round.type)).toEqual(['classic', 'classic']);
+  const saved = stored.rounds[1]!.questions[0]!;
+  expect(saved.type).toBe('melody');
+  expect(saved.track).toMatchObject({ source: 'file', start: 2 });
+  expect(saved.track!.url).toMatch(/^\/uploads\/[0-9a-f]+\.mp3$/);
+  expect(saved.accepted).toEqual(['Щедрик', 'Shchedryk']);
+  const bytes = Buffer.from(await (await host.request.get(`${base}${saved.track!.url}`)).body());
+  expect(bytes.length, 'the uploaded file').toBeGreaterThan(1000);
+  expect(bytes.includes(Buffer.from('Shchedryk')), 'a title tag in the uploaded file').toBe(false);
+  expect(bytes.subarray(0, 3).toString('latin1'), 'an ID3v2 header kept').not.toBe('ID3');
+  expect(bytes.subarray(bytes.length - 128, bytes.length - 125).toString('latin1'), 'an ID3v1 tag kept').not.toBe('TAG');
+  const trackUrl = saved.track!.url;
+
+  // ── Гра: сцена 1600 × 900; Оля 320 × 568 (дотик), Тарас 375 × 812, Петро 360 × 740. ──
+  await click(host, 'Грати');
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29e', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  await stage.goto(stageUrl);
+  await stage.getByText(`${code.slice(0, 3)} ${code.slice(3)}`).first().waitFor();
+  const olya = await open('olya29e', 320, 568, { hasTouch: true, isMobile: true });
+  const olyaFrames = socketFrames(olya);
+  const taras = await open('taras29e', 375, 812);
+  const tarasFrames = socketFrames(taras);
+  const petro = await open('petro29e', 360, 740);
+  const petroFrames = socketFrames(petro);
+  await join(olya, code, 'Оля', false);
+  await join(taras, code, 'Тарас', false);
+  await join(petro, code, 'Петро', false);
+  await stage.getByText('Петро').waitFor();
+  const phones = [olya, taras, petro];
+
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await petro.getByRole('button', { name: /П’ять/ }).click();
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+
+  // ── Раунд 2: «Мелодія» — номер у раунді 0. ──
+  const framesFrom = { stage: stageFrames.length, host: hostFrames.length, olya: olyaFrames.length, taras: tarasFrames.length, petro: petroFrames.length };
+  for (const page of phones) await page.locator('.melody-play .melody-step').first().waitFor();
+  const shown = stateViews(olyaFrames).reverse().find((view) => view.question?.melody !== undefined)!;
+  expect(shown.questionIndex, 'the phone’s question number in the round').toBe(0);
+  expect(shown.question!.melody!.track).toMatchObject({ source: 'file', url: trackUrl, start: 2 });
+  expect(shown.question!.melody!.answer, 'the answer before reveal').toBeNull();
+  await expect.poll(() => stage.locator('.melody-stage .melody-board').count(), POLL).toBe(3);
+
+  // Петро до першого шматка: поле неактивне, підказка.
+  const answerField = (page: Page) => page.locator('.melody-play .typed input');
+  expect(await answerField(petro).isDisabled(), 'the field before the first chunk').toBe(true);
+  await petro.getByText('Спершу послухайте шматок', exact).waitFor();
+  expect(await petro.locator('.melody-step.is-next').getAttribute('aria-label')).toBe('Слухати 1 с · 100 %');
+
+  // Оля (320 px): «Слухати 1 с» — звук пішов і зупинився на 1 с від початку фрагмента.
+  expect(await olya.locator('.melody-step').count()).toBe(5);
+  await step29e(olya, 1);
+  await chunkRuns29e(olya, 1);
+  const clipOlya = await phoneClip29e(olya);
+  console.log(`melody 29e: Olya’s 1 s chunk stopped at currentTime ${clipOlya.currentTime.toFixed(2)}`);
+  expect(clipOlya.currentTime, 'the 1 s chunk from second 2').toBeGreaterThanOrEqual(2.8);
+  expect(clipOlya.currentTime, 'the 1 s chunk from second 2').toBeLessThanOrEqual(3.6);
+  await expect.poll(() => stage.locator('.melody-board', { hasText: 'Оля' }).textContent(), POLL).toContain('🎧 1 с');
+  await expect.poll(() => olya.locator('.melody-share').textContent(), POLL).toBe('Зараз: 100 % ціни');
+  await answerField(olya).fill('щедрік');
+  await expectMelodyFit29e(olya, 'melody at 320×568');
+  await shot(olya, 'melody29e-phone-320');
+  await olya.getByRole('button', { name: 'Відповісти', ...exact }).click();
+  await olya.getByText('Відповідь прийнято на шматку 1 с', exact).waitFor();
+  await expect.poll(() => stage.locator('.melody-board', { hasText: 'Оля' }).textContent(), POLL).toContain('✓');
+
+  // Тарас: 1, 2 і 4 с по черзі, переслуховує 1 с, відповідає.
+  for (const seconds of [1, 2, 4]) {
+    await step29e(taras, seconds);
+    await chunkRuns29e(taras, seconds);
+  }
+  expect(await stepCell29e(taras, 1).getAttribute('aria-label')).toBe('Переслухати 1 с · 100 %');
+  expect(await stepCell29e(taras, 8).isEnabled(), 'the 8 s chunk is next').toBe(true);
+  await step29e(taras, 1);
+  await chunkRuns29e(taras, 1);
+  await expect.poll(() => taras.locator('.melody-share').textContent(), POLL).toBe('Зараз: 60 % ціни');
+  await expect.poll(() => stage.locator('.melody-board', { hasText: 'Тарас' }).textContent(), POLL).toContain('🎧 4 с');
+  await answerField(taras).fill('Shchedryk');
+  await shot(taras, 'melody29e-phone-steps');
+  await taras.getByRole('button', { name: 'Відповісти', ...exact }).click();
+  await taras.getByText('Відповідь прийнято на шматку 4 с', exact).waitFor();
+
+  // Петро: 1 с і хибна відповідь.
+  await step29e(petro, 1);
+  await chunkRuns29e(petro, 1);
+  await expect.poll(() => answerField(petro).isDisabled(), POLL).toBe(false);
+  await answerField(petro).fill('Колядка');
+  await petro.getByRole('button', { name: 'Відповісти', ...exact }).click();
+  // Остання відповідь закриває запитання (усі відповіли): телефон показує «Чекаємо на правильну відповідь».
+  await petro.getByText('Чекаємо на правильну відповідь', exact).waitFor();
+  await expect.poll(() => stage.locator('.melody-board.is-answered').count(), POLL).toBe(3);
+
+  // До розкриття назви немає ні в кадрах, ні в DOM (свою відповідь телефон бачить, тому вона вирізається).
+  const own = (frames: string[], from: number, mine: string) => frames.slice(from).join(NL).split(`"value":"${mine}"`).join('');
+  for (const [who, text] of [
+    ['stage frames', stageFrames.slice(framesFrom.stage).join(NL)],
+    ['Petro frames', petroFrames.slice(framesFrom.petro).join(NL)],
+    ['Olya frames', own(olyaFrames, framesFrom.olya, 'щедрік')],
+    ['Taras frames', own(tarasFrames, framesFrom.taras, 'Shchedryk')],
+    ['stage DOM', await stage.locator('body').innerText()],
+    ['Petro DOM', await petro.locator('body').innerText()],
+    ['Olya DOM', await olya.locator('body').innerText()],
+    ['Taras DOM', (await taras.locator('body').innerText()).split('Shchedryk').join('')],
+  ] as const) {
+    expect(text, `the title in the ${who} before reveal`).not.toMatch(TITLE_RE29E);
+  }
+  expect(await stage.locator('.audio-card').count(), 'sound on the stage before reveal').toBe(0);
+  await expectMelodyStageFits29e(stage, 'melody question', false);
+  if (process.env.E2E_SHOTS === '1') await sleep(600);
+  await shot(stage, 'melody29e-stage');
+  await shot(host, 'melody29e-host');
+
+  // ── Розкриття. ──
+  await reveal28a(host);
+  await stage.locator('.melody-stage.is-reveal .melody-table').waitFor();
+  await expect.poll(() => stage.locator('.melody-title').textContent(), POLL).toBe('Звучала пісня «Щедрик»');
+  await scores29f(phones, [1000, 600, 0]);
+  const rows = await stage.locator('.melody-stage.is-reveal .melody-table tbody tr').evaluateAll((all) => all.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? '')));
+  expect(rows.map((row) => [row[0], row[1], row[2]])).toEqual([['1', 'Оля', '✓ 1 с'], ['2', 'Тарас', '✓ 4 с'], ['—', 'Петро', '✗ 1 с']]);
+  expect(rows.map((row) => row[3]!.replace(/\D/g, ''))).toEqual(['1000', '600', '0']);
+  const unlock = stage.getByRole('button', { name: '🔊 Увімкнути звук', ...exact });
+  if (await unlock.isVisible()) await unlock.click();
+  expect(await stage.locator('.audio-card audio').getAttribute('src'), 'the track on the stage').toBe(trackUrl);
+  await expect.poll(() => stage.locator('.audio-card').getAttribute('data-plays'), POLL).not.toBe('0');
+  await click(host, 'Стоп');
+  await expect.poll(() => stage.locator('.audio-card').getAttribute('data-state'), POLL).toBe('stopped');
+  await olya.getByRole('button', { name: '🔊 Прослухати ще раз', ...exact }).waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectMelodyStageFits29e(stage, 'melody reveal', true);
+  await shot(stage, 'melody29e-reveal-stage');
+  for (const frames of [olyaFrames, tarasFrames, petroFrames]) expect(frames.join(NL), 'a stale refusal').not.toContain('melody_stale');
+  await toWinners27c(host, stage);
+
+  expect(problems).toEqual([]);
+}
+
+async function melodyTeams29e() {
+  const host = await open('host29et', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host29et@example.com');
+  const url = await uploadTagged29e(host);
+  const question = melody29e('mt29e', { source: 'file', url, start: 2 }, ['Щедрик', 'Shchedryk'], 120);
+  const data = {
+    ...makeRoundsQuiz([classicRound('ct29e', [{ ...withId(single, 'ct1'), timeLimit: 30 }], { speedBonus: false }), classicRound('mt29e', [question as never], { speedBonus: false })], {
+      leaderboard: 'end',
+      teams: { count: 2, names: ['Соняшники', 'Маки'], answerer: 'captain' },
+    }),
+    title: 'Мелодія команд 29e',
+  };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Мелодія команд 29e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29et', 1600, 900);
+  await stage.goto(stageUrl);
+  const olya = await open('olya29et', 375, 812);
+  const taras = await open('taras29et', 320, 568, { hasTouch: true, isMobile: true });
+  const petro = await open('petro29et', 375, 812);
+  const hanna = await open('hanna29et', 360, 740);
+  const phones = [olya, taras, petro, hanna];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Соняшники'],
+    [taras, 'Тарас', 'Соняшники'],
+    [petro, 'Петро', 'Маки'],
+    [hanna, 'Ганна', 'Маки'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Соняшники'), POLL).toEqual(['Оля', 'Тарас']);
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage, ...phones);
+  await click(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  await reveal28a(host);
+  await step27a(host, 'Далі');
+  await step27a(host, 'Наступний раунд');
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage, ...phones);
+  for (const page of phones) await page.locator('.melody-play .melody-step').first().waitFor();
+  const by = (page: Page) => page.locator('.melody-by');
+  const answerField = (page: Page) => page.locator('.melody-play .typed input');
+
+  // Оля (капітан) відкриває 1 с: Тарас бачить комірку й «Оля: відкрито 1 с», звук у нього мовчить.
+  await step29e(olya, 1);
+  await chunkRuns29e(olya, 1);
+  await expect.poll(() => stepCell29e(taras, 1).getAttribute('class'), POLL).toContain('is-open');
+  await expect.poll(() => by(taras).textContent(), POLL).toBe('Оля: відкрито 1 с');
+  expect((await phoneClip29e(taras)).paused, 'a teammate’s sound stays off').toBe(true);
+  expect((await phoneClip29e(taras)).currentTime, 'a teammate’s clip is untouched').toBe(0);
+  expect(await closedChunks29e(petro), 'a rival’s ladder is untouched').toBe(0);
+  await shot(taras, 'melody29e-teams-phone');
+
+  // Тарас (не капітан) відкриває 2 с: звук грає в нього; в Олі «Тарас: відкрито 2 с».
+  await step29e(taras, 2);
+  await chunkRuns29e(taras, 2);
+  await expect.poll(() => by(olya).textContent(), POLL).toBe('Тарас: відкрито 2 с');
+  await expect.poll(() => stageTeamTile29e(stage, 'Соняшники'), POLL).toContain('🎧 2 с');
+  await expectMelodyFit29e(taras, 'melody teams at 320×568');
+  await expect.poll(() => answerField(taras).isDisabled(), POLL).toBe(false);
+
+  // Перезапуск посеред запитання: ті самі два шматки, наступний можна відкрити.
+  await restart(async () => {
+    await stage.getByText(RESTARTING_TEXT, exact).waitFor({ timeout: 15_000 });
+  });
+  for (const page of [stage, ...phones, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click({ timeout: 15_000 });
+  for (const page of [olya, taras]) {
+    await expect.poll(() => page.locator('.melody-play .melody-step.is-open').count(), POLL).toBe(2);
+    await expect.poll(() => stepCell29e(page, 4).isEnabled(), POLL).toBe(true);
+    expect(await stepCell29e(page, 4).getAttribute('aria-label'), 'the next chunk after the restart').toBe('Ще: 4 с · 60 %');
+  }
+
+  // Тарас відповідає правильно: команда має 800 (шматок 2 с), поле Олі закрите.
+  await answerField(taras).fill('щедрик');
+  await taras.getByRole('button', { name: 'Відповісти', ...exact }).click();
+  await taras.getByText('Відповідь прийнято на шматку 2 с', exact).waitFor();
+  await olya.getByText('Відповідь прийнято на шматку 2 с', exact).waitFor();
+  await expect.poll(async () => (await answerField(olya).count()) === 0 || (await answerField(olya).isDisabled()), POLL).toBe(true);
+  await expect.poll(() => stage.locator('.melody-board.is-answered').count(), POLL).toBe(1);
+  await shot(stage, 'melody29e-teams-stage');
+  await reveal28a(host);
+  await stage.locator('.melody-stage.is-reveal .melody-table').waitFor();
+  await scores29f(phones, [800, 800, 0, 0]);
+  await expectMelodyStageFits29e(stage, 'melody teams reveal', true);
+  await toWinners27c(host, stage);
+
+  // Перезапуск тестового сервера скидає його сховище в пам'яті: файл треку після нього віддає 404 (на Render файли лежать в R2).
+  problems.splice(0, problems.length, ...problems.filter((problem) => !/404 \(Not Found\) @ \S+\/uploads\//.test(problem)));
+  expect(problems).toEqual([]);
+}
+
+/** Скільки комірок драбинки відкрито. */
+const closedChunks29e = (page: Page) => page.locator('.melody-play .melody-step.is-open').count();
+/** Плитка команди на сцені. */
+const stageTeamTile29e = (stage: Page, name: string) => stage.locator('.melody-board', { hasText: name }).textContent();
+
+async function melodyCrowd29e(sockets: Socket[]) {
+  const host = await open('host29ec', 1280, 900);
+  await register(host, 'host', 'Леся Ведуча', 'host29ec@example.com');
+  const url = await uploadTagged29e(host);
+  const question = melody29e('mc29e', { source: 'file', url, start: 2 }, ['Щедрик', 'Shchedryk'], 60);
+  const data = { ...makeRoundsQuiz([classicRound('mc29e', [question as never], { speedBonus: false })], { leaderboard: 'end' }), title: 'Мелодія натовпу 29e' };
+  const saved = await host.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: 'Мелодія натовпу 29e' }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  const stage = await open('stage29ec', 1600, 900);
+  await stage.goto(stageUrl);
+  const names = [
+    'Олександра Петренко', 'Богдана Коваленко', 'Ярослав Шевченко', 'Мирослава Бондар', 'Владислав Ткаченко', 'Анастасія Мельник',
+    'Святослав Кравчук', 'Христина Олійник', 'Станіслав Лисенко', 'Катерина Руденко', 'Остап Марченко', 'Соломія Савченко',
+    'Тарас Гончаренко', 'Ірина Кузьменко', 'Максим Литвиненко', 'Вероніка Захарчук', 'Назар Поліщук', 'Злата Тимошенко',
+    'Дмитро Павленко', 'Олена Кириленко', 'Роман Мороз', 'Оксана Бойко', 'Левко Гнатюк', 'Дарина Ковальчук',
+  ];
+  const players: { nickname: string; socket: Socket }[] = [];
+  for (const nickname of names) {
+    const response = await fetch(`${base}/api/games/by-code/${code}/join`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nickname }) });
+    expect(response.status, nickname).toBe(201);
+    const { token } = (await response.json()) as { token: string };
+    const socket = connectSocket(base, { auth: { code, role: 'player', token }, transports: ['websocket'], reconnection: false });
+    sockets.push(socket);
+    await new Promise<void>((done, fail) => {
+      socket.once('connect', () => done());
+      socket.once('connect_error', fail);
+    });
+    players.push({ nickname, socket });
+  }
+  const emit = <T,>(socket: Socket, event: string, payload: unknown) => new Promise<T>((done) => socket.emit(event, payload, done));
+  await click(host, 'Почати гру');
+  await afterSplash(host, stage);
+  await step27a(host, 'Почати раунд');
+  await afterSplash(host, stage);
+  await stage.locator('.melody-stage').waitFor();
+  await expect.poll(() => stage.locator('.melody-stage .melody-board').count(), POLL).toBeGreaterThan(0);
+  // Кожен відкриває k % 6 шматків (0…5); парні відповідають: кожен четвертий (k % 4 = 2) — правильно.
+  await Promise.all(
+    players.map(async ({ nickname, socket }, k) => {
+      const opened = k % 6;
+      for (let step = 1; step <= opened; step++) expect(await emit(socket, 'player:melody', { questionIndex: 0, step }), `${nickname} opens ${step}`).toEqual({ ok: true });
+      if (opened > 0 && k % 2 === 0) expect(await emit(socket, 'player:answer', { type: 'melody', value: k % 4 === 2 ? 'Щедрик' : 'Колядка' }), `${nickname} answers`).toMatchObject({ ok: true });
+    }),
+  );
+  await expect.poll(() => stage.locator('.melody-board.is-answered').count(), POLL).toBeGreaterThan(0);
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectNoSideScroll(stage, 'melody29e-24-stage');
+  await expectMelodyStageFits29e(stage, 'melody 24 players', false);
+  const boards = await stage.locator('.melody-stage .melody-board').count();
+  console.log(`melody 29e: ${boards} tiles on a stage page for 24 players`);
+  const clipped = await stage.locator('.melody-stage .melody-board-name').evaluateAll((all) => all.filter((el) => el.getBoundingClientRect().width < 40).map((el) => el.textContent));
+  expect(clipped, 'names squeezed to nothing').toEqual([]);
+  await reveal28a(host);
+  await stage.locator('.melody-stage.is-reveal .melody-table').waitFor();
+  if (process.env.E2E_SHOTS === '1') await sleep(800);
+  await expectMelodyStageFits29e(stage, 'melody 24 players reveal', true);
+  await shot(stage, 'melody29e-24-reveal-stage');
+
+  expect(problems).toEqual([]);
+}
+
 it('part 29i: more or less on a board cell — the stage and the other phone see who chooses, the pair and the picks', async () => {
   try {
     await morelessWatch29i();

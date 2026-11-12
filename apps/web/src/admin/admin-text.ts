@@ -46,6 +46,8 @@ export function questionLines(question: Question): string[] {
         return [...question.categories.map((c) => c.text), ...question.words.map((w) => w.text)];
       case 'clues':
         return [...question.clues, ...question.accepted];
+      case 'melody':
+        return question.accepted;
       case 'wall':
         return question.groups.flatMap((group) => [group.name, ...group.tiles.map((tile) => tile.text)]);
       case 'survey':

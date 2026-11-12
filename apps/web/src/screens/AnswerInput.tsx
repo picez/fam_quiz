@@ -24,6 +24,8 @@ interface Props {
   confirm?: boolean;
   /** «Бінокль» (12h): проміжок — смуга на повзунку; вікно — наближена рамка на мапі. */
   scope?: PlayerScope | null;
+  /** Поле тексту й кнопка неактивні («Мелодія» до першого шматка, 29e); набране лишається. */
+  disabled?: boolean;
 }
 
 const NONE: string[] = [];
@@ -99,7 +101,14 @@ function MultiInput({ question, onSubmit, removed, submitLabel, onDraft }: Props
   );
 }
 
-function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft }: Props) {
+/** Тип відповіді словами: «Хто я?» і «Мелодія за нотами» відповідають, як «текст», але з власним типом. */
+function wordsAnswer(question: PublicQuestion, value: string): SubmittedAnswer {
+  if (question.type === 'clues') return { type: 'clues', value };
+  if (question.type === 'melody') return { type: 'melody', value };
+  return { type: 'text', value };
+}
+
+function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft, disabled = false }: Props) {
   const [raw, setRaw] = useState('');
   const numeric = question.type === 'numeric';
   const number = numeric ? parseNumber(raw) : null;
@@ -112,14 +121,14 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft
     if (numeric) {
       const parsed = parseNumber(next);
       onDraft(parsed === null ? null : { type: 'numeric', value: parsed });
-    } else onDraft(value === '' ? null : { type: question.type === 'clues' ? 'clues' : 'text', value });
+    } else onDraft(value === '' ? null : wordsAnswer(question, value));
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (disabled) return;
     if (numeric && number !== null) onSubmit({ type: 'numeric', value: number });
-    // «Хто я?» відповідає словами, як «текст», але з власним типом відповіді.
-    else if (!numeric && text !== '') onSubmit({ type: question.type === 'clues' ? 'clues' : 'text', value: text });
+    else if (!numeric && text !== '') onSubmit(wordsAnswer(question, text));
   };
 
   return (
@@ -134,9 +143,10 @@ function TypedInput({ question, onSubmit, submitLabel, autoFocus = true, onDraft
           maxLength={200}
           autoComplete="off"
           autoFocus={autoFocus}
+          disabled={disabled}
         />
       </label>
-      <button type="submit" className="btn btn-primary" disabled={!ready}>
+      <button type="submit" className="btn btn-primary" disabled={!ready || disabled}>
         {submitLabel ?? t('submit')}
       </button>
     </form>
@@ -223,7 +233,7 @@ function ConfirmChoice({ question, onSubmit, removed, submitLabel, onDraft }: Pr
   );
 }
 
-export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft, confirm = false, scope = null }: Props) {
+export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocus, onDraft, confirm = false, scope = null, disabled }: Props) {
   switch (question.type) {
     case 'single':
       if (confirm) return <ConfirmChoice question={question} onSubmit={onSubmit} removed={removed} submitLabel={submitLabel} onDraft={onDraft} />;
@@ -251,7 +261,8 @@ export function AnswerInput({ question, onSubmit, removed, submitLabel, autoFocu
     case 'text':
     case 'numeric':
     case 'clues':
-      return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} />;
+    case 'melody':
+      return <TypedInput question={question} onSubmit={onSubmit} submitLabel={submitLabel} autoFocus={autoFocus} onDraft={onDraft} disabled={disabled} />;
     case 'order':
       return <OrderInput question={question} onSubmit={onSubmit} onDraft={onDraft} />;
     case 'match':

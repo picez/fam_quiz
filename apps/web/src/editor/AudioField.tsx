@@ -15,12 +15,12 @@ interface Props {
   onToVideo: (video: Video) => void;
 }
 
-const ACCEPT = [...AUDIO_LIMITS.types, '.mp3', '.ogg', '.m4a'].join(',');
-const isAllowed = (file: File) =>
+export const ACCEPT = [...AUDIO_LIMITS.types, '.mp3', '.ogg', '.m4a'].join(',');
+export const isAllowed = (file: File) =>
   (AUDIO_LIMITS.types as readonly string[]).includes(file.type) || (file.type === '' && /\.(mp3|ogg|m4a)$/i.test(file.name));
 
 /** Скільки секунд триває файл: читається з метаданих; NaN, якщо браузер не відповів за 3 с. */
-function fileSeconds(file: File): Promise<number> {
+export function fileSeconds(file: File): Promise<number> {
   return new Promise((resolve) => {
     let src: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;

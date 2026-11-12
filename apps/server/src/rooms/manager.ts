@@ -114,9 +114,11 @@ import {
   moreLessPick,
   jigsawHold,
   jigsawHoldsEnd,
+  melodyOpen,
   memoryFlip,
   memoryOf,
   memoryTimersEnd,
+  melodyStartEnd,
   jigsawOf,
   jigsawPlace,
   spotdiffOf,
@@ -1806,7 +1808,7 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.holdExpiry);
     room.holdExpiry = null;
     const now = this.now();
-    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now)].filter((end): end is number => end !== null);
+    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now), melodyStartEnd(room.state, now)].filter((end): end is number => end !== null);
     if (ends.length === 0) return;
     const at = Math.min(...ends);
     room.holdExpiry = this.scheduler.setTimeout(() => {
@@ -1833,6 +1835,21 @@ export class RoomManager {
     const finished = memoryOf(result.state, who.id)?.doneMs != null && memoryOf(room.state, who.id)?.doneMs == null;
     if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
     this.watchTimers(room);
+    return { ok: true };
+  }
+
+  /**
+   * Відкриття шматка «Мелодії» (29e): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Шматок іде в розсилку одразу (товариш має бачити його без затримки, подій щонайбільше 5 на учасника); повтор відкритого — той самий стан, без розсилки.
+   */
+  melodyOpen(room: Room, playerId: string, payload: { questionIndex: number; step: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    const result = melodyOpen(room.state, who.id, playerId, payload.questionIndex, payload.step, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.state !== room.state) this.commit(room, result.state, now);
     return { ok: true };
   }
 
@@ -2446,6 +2463,8 @@ export class RoomManager {
       this.watchAuthor(room);
     }
     this.reschedule(room);
+    // 29e: зріз під заставкою перед «Мелодією» оновлюється сам, коли вона мине.
+    this.watchTimers(room);
     this.emit(room, puzzle ? { type: 'changed', puzzle: true } : { type: 'changed' });
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { clueShare, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
+import { clueShare, melodyRevealClip, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
@@ -16,6 +16,7 @@ import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
 import { MemoryStage } from './MemoryView';
+import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import { DrawingBoard, DrawingGuessers, DrawingLive, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
@@ -357,8 +358,9 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   const noWait = phase === 'question' && view.overtime.length > 0 && sharedOver;
   const debuffKinds = view.allowed.debuffs;
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
-  const clip = view.question?.audio?.clip ?? null;
-  const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
+  // «Мелодія за нотами» (29e): панель «Ще раз / Стоп» — лише на розкритті, і керує вона треком на сцені (30 с від початку фрагмента).
+  const clip = view.question?.melody !== undefined ? (view.phase === 'reveal' ? melodyRevealClip(view.question.melody.track) : null) : (view.question?.audio?.clip ?? null);
+  const canGrade = phase === 'reveal' && (correct?.type === 'text' || correct?.type === 'melody') && round?.type !== 'blitz' && !isFinal;
   // Апеляція (12f): поки зал голосує, «Далі» рушій відхиляє (appeal_open) — головна кнопка неактивна й каже «Голосує зал».
   const appealVoting = phase === 'reveal' && view.appeal?.outcome === null;
   // Зал зарахував відповідь: оцінку поверх рушій відхиляє (not_allowed), доки рядок апеляції не скасовано в «↶ Бали».
@@ -847,7 +849,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               key={`${view.round?.index ?? 0}:${view.questionIndex}`}
               clip={clip}
               questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
-              ready={phase === 'question' && !underSplash && !view.paused}
+              ready={(view.question?.melody !== undefined ? phase === 'reveal' : phase === 'question' && !underSplash) && !view.paused}
               paused={view.paused}
               command={audioCommand}
               elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
@@ -1207,6 +1209,14 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         <section className="panel host-memory">
           <h2>{t('type_memory')}</h2>
           <MemoryStage info={view.memory} memory={view.question.memory} reveal={phase === 'reveal'} host />
+        </section>
+      )}
+
+      {/* «Мелодія за нотами» (29e): хто на якому шматку й хто відповів; на розкритті — таблиця з балами. Тексти — у «Відповідях наживо». */}
+      {view.melody !== undefined && view.question?.melody !== undefined && (
+        <section className="panel host-melody">
+          <h2>{t('type_melody')}</h2>
+          <MelodyStage info={view.melody} melody={view.question.melody} reveal={phase === 'reveal'} host />
         </section>
       )}
 

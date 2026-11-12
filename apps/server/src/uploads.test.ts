@@ -224,10 +224,35 @@ describe('uploading audio', () => {
     expect(url.endsWith('.mp3')).toBe(true);
   });
 
+  it('mp3 tags are stripped on upload', async () => {
+    const ascii = (value: string) => [...value].map((c) => c.charCodeAt(0));
+    const body = [...ascii('TIT2'), 0, 0, 0, 10, 0, 0, 0, ...ascii('Shchedryk')];
+    const size = body.length;
+    const tag = Buffer.from([...ascii('ID3'), 4, 0, 0, 0, 0, (size >> 7) & 0x7f, size & 0x7f, ...body]);
+    const v1 = Buffer.concat([Buffer.from(ascii('TAG')), Buffer.from('Shchedryk'), Buffer.alloc(116)]);
+    const response = await uploadAudio(Buffer.concat([tag, silentMp3(), v1]), 'audio/mpeg');
+    expect(response.statusCode).toBe(201);
+    const { url } = response.json() as { url: string };
+    const file = await ctx.app.inject({ method: 'GET', url });
+    expect(file.rawPayload.includes('Shchedryk')).toBe(false);
+    expect(file.rawPayload.length).toBe(silentMp3().length);
+    const padded = await uploadAudio(Buffer.concat([tag, Buffer.alloc(16), silentMp3()]), 'audio/mpeg');
+    expect(padded.statusCode).toBe(201);
+    const paddedFile = await ctx.app.inject({ method: 'GET', url: (padded.json() as { url: string }).url });
+    expect(paddedFile.rawPayload.includes('Shchedryk')).toBe(false);
+    expect(paddedFile.rawPayload.length).toBe(silentMp3().length);
+    // Як до 29e: файл, який старий sniffAudio приймав, не відхиляється, навіть якщо кадрів не знайдено.
+    const bare = await uploadAudio(tag, 'audio/mpeg');
+    expect(bare.statusCode).toBe(201);
+  });
+
   it('stores ogg and m4a', async () => {
     const ogg = await uploadAudio(OGG, 'audio/ogg');
     expect(ogg.statusCode).toBe(201);
-    expect((ogg.json() as { url: string }).url).toMatch(/\.ogg$/);
+    const oggUrl = (ogg.json() as { url: string }).url;
+    expect(oggUrl).toMatch(/\.ogg$/);
+    const oggFile = await ctx.app.inject({ method: 'GET', url: oggUrl });
+    expect(Buffer.compare(oggFile.rawPayload, OGG)).toBe(0);
     const m4a = await uploadAudio(M4A, 'audio/x-m4a');
     expect(m4a.statusCode).toBe(201);
     expect((m4a.json() as { url: string }).url).toMatch(/\.m4a$/);

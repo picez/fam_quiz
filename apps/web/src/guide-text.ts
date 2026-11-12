@@ -67,6 +67,7 @@ export const TYPE_ICONS: Record<Question['type'], string> = {
   jigsaw: '🧩',
   spotdiff: '🔍',
   memory: '🃏',
+  melody: '🎵',
 };
 
 /** Значок типу запитання мовою інтерфейсу. */
