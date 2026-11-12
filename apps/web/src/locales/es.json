@@ -2498,7 +2498,7 @@
   "questBuffLast": "Es la última ronda: ya no hay dónde usar el buff",
   "questBuffNone": "Activa los buffs en el cuestionario para dar un buff",
   "questBuffNow": "Bonificación: el buff «{buff}»",
-  "questButton": "🔐 {opened}/{length}",
+  "questButton": "🔐{opened}/{length}",
   "questCodeCount": "{n} de {min}–{max}",
   "questCodeHint": "3–8 cifras o letras; las mayúsculas y los espacios no importan",
   "questCodeLabel": "Código",

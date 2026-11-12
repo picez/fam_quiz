@@ -921,7 +921,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
         {/* «Квест із кодом» (29g): пігулка не вища за рядок шапки; аркуш — портал поверх запитання. Код вводить будь-хто з команди. */}
-        {quest !== null && <QuestButton info={quest.info} mine={quest.mine} paused={view.paused} send={send} value={questText} onValue={onQuestText} />}
+        {quest !== null && <QuestButton info={quest.info} mine={quest.mine} paused={view.paused} send={send} value={questText} onValue={onQuestText} main={questBoard || (phase === 'intro' && view.round !== null)} />}
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} stealth={me.stealth} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}

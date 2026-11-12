@@ -2498,7 +2498,7 @@
   "questBuffLast": "To ostatnia runda — bonusu nie ma już gdzie użyć",
   "questBuffNone": "Włącz bonusy w quizie, aby dać bonus",
   "questBuffNow": "Premia: bonus „{buff}”",
-  "questButton": "🔐 {opened}/{length}",
+  "questButton": "🔐{opened}/{length}",
   "questCodeCount": "{n} z {min}–{max}",
   "questCodeHint": "3–8 cyfr lub liter; wielkość liter i spacje nie mają znaczenia",
   "questCodeLabel": "Kod",

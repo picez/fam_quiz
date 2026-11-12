@@ -363,7 +363,7 @@ describe('TeamWatch: code quest (29g)', () => {
     render(<PlayerScreen view={current} hostOnline offsetMs={0} send={send} />);
     // Не-капітан стежить за відповіддю — і має пігулку коду.
     expect(screen.getByText('Відповідає капітан Оля — радьте вголос')).toBeTruthy();
-    act(() => void screen.getByRole('button', { name: '🔐 0/4' }).click());
+    act(() => void screen.getByRole('button', { name: 'Квест: відкрито 0 з 4' }).click());
     fireEvent.change(screen.getByLabelText('Код'), { target: { value: 'сова' } });
     await act(async () => void screen.getByRole('button', { name: 'Відкрити скриню' }).click());
     expect(send).toHaveBeenCalledWith('player:quest', { code: 'сова' });

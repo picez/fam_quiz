@@ -5070,7 +5070,7 @@ describe('PlayerScreen code quest (29g)', () => {
     stage: 'play' as const, code: null, endsAt: null, remainingMs: null, shareNow: 0.8, rows: [], ...over,
   });
   const mineQuest = (over: object = {}) => ({ slots: ['С', null, null, null], tries: [], left: 3, canEnter: true, solved: null, ...over });
-  const pill = () => screen.getByRole('button', { name: '🔐 1/4' });
+  const pill = () => screen.getByRole('button', { name: 'Квест: відкрито 1 з 4' });
 
   it('the quest pill stays during a question', () => {
     show(onQuestion({ round, quest: quest(), me: { ...me, quest: mineQuest() } }));
@@ -5113,6 +5113,6 @@ describe('PlayerScreen code quest (29g)', () => {
 
   it('a classic round has no pill', () => {
     show(onQuestion({ round: { ...round, type: 'classic', brief: emptyBrief('classic') } }));
-    expect(screen.queryByRole('button', { name: /🔐/ })).toBeNull();
+    expect(document.querySelector('.quest-button')).toBeNull();
   });
 });

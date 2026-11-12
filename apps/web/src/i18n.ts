@@ -558,7 +558,7 @@ const uk = {
   problemQuestShort: 'Квест із кодом: запитань має бути щонайменше {length}.',
   problemQuestBuff: 'Квест із кодом: баф-бонус має бути бафом, дозволеним у вікторині, і не «Прихованим нападом».',
   problemQuestType: 'У квесті з кодом лише прості запитання: один чи кілька варіантів, так/ні, текст, число, порядок, відповідність, повзунок.',
-  questButton: '🔐 {opened}/{length}',
+  questButton: '🔐{opened}/{length}',
   questSheetTitle: 'Квест',
   questInputLabel: 'Код',
   questEnter: 'Відкрити скриню',

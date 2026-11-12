@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostQuest, PlayerQuest, QuestInfo, QuestRow } from '@quiz/shared';
 import type { Send } from '../live/types';
+import { t } from '../i18n';
 import { HostQuestPanel, QuestButton, QuestLock, QuestPanel, QuestStage, QuestStrip } from './QuestView';
 
 afterEach(cleanup);
@@ -63,6 +64,9 @@ describe('QuestPanel', () => {
     expect(field().getAttribute('autocapitalize')).toBe('characters');
     expect(field().getAttribute('autocomplete')).toBe('off');
     expect(field().maxLength).toBe(32);
+    expect(field().getAttribute('enterkeyhint')).toBe('go');
+    // Код зліва направо і в арабській.
+    expect(document.querySelector('.quest-lock-row')?.getAttribute('dir')).toBe('ltr');
     fireEvent.change(field(), { target: { value: ' сова ' } });
     await act(async () => void fireEvent.click(enter()));
     expect(send).toHaveBeenCalledWith('player:quest', { code: ' сова ' });
@@ -104,6 +108,9 @@ describe('QuestPanel', () => {
     await act(async () => void fireEvent.click(enter()));
     rerender(<QuestPanel info={info()} mine={mine({ tries: ['СОВИ'], left: 2 })} paused={false} send={send} />);
     expect(screen.getByText('Не той код')).toBeTruthy();
+    // Нове набране знімає «Не той код».
+    fireEvent.change(field(), { target: { value: 'С' } });
+    expect(document.querySelector('.quest-error')?.textContent).toBe('');
   });
 
   it('tries and share are shown', () => {
@@ -171,10 +178,16 @@ describe('QuestPanel', () => {
 describe('QuestButton', () => {
   it('the header pill opens the sheet', () => {
     const { rerender } = render(<QuestButton info={info()} mine={mine({ slots: ['С', null, 'В', 'А'] })} paused={false} send={okSend()} />);
-    const pill = screen.getByRole('button', { name: '🔐 3/4' });
+    const pill = screen.getByRole('button', { name: 'Квест: відкрито 3 з 4' });
+    expect(pill.textContent).toBe('🔐3/4');
+    expect(pill.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(pill);
+    expect(pill.getAttribute('aria-expanded')).toBe('true');
     const sheet = screen.getByRole('dialog');
+    // Фокус на «Закрити», не на полі: клавіатура не вискакує.
+    expect(document.activeElement?.textContent).toBe(t('buffHelpClose'));
+    expect(document.activeElement).not.toBe(field());
     expect(sheet.textContent).toContain('Нічний птах — символ мудрості');
     expect(sheet.querySelector('.quest-panel')).not.toBeNull();
     // Портал у body, position: fixed — поза шапкою.
@@ -183,6 +196,17 @@ describe('QuestButton', () => {
     fireEvent.change(field(), { target: { value: 'СОВА' } });
     expect((enter() as HTMLButtonElement).disabled).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('no sheet while the panel is the main content', () => {
+    const { rerender } = render(<QuestButton info={info()} mine={mine()} paused={false} send={okSend()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Квест: відкрито 0 з 4' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    // Панель стала основним вмістом — аркуш закривається; дотик його не відкриває.
+    rerender(<QuestButton info={info()} mine={mine()} paused={false} send={okSend()} main />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Квест: відкрито 0 з 4' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
@@ -208,6 +232,18 @@ describe('QuestView CSS', () => {
     // Поле й кнопка не ширші за свій рядок.
     expect(css).toMatch(/\.quest-input \{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.quest-form \{[^}]*flex-wrap:\s*wrap/);
+  });
+
+  it('the header with the pill fits 320 px', () => {
+    // Перевірено в Chrome на 320×640 з цим styles.css: капітан з «😈», «Таблиця», ❤️, 😀 і «1 200» — шапка 280 з 280, сторінка 320.
+    const css = cssSection();
+    expect(css).toMatch(/\.bar \.score \{[^}]*white-space:\s*nowrap/);
+    const narrow = /@media \(max-width: 400px\) \{([\s\S]*?)\n\}/.exec(css)![1];
+    expect(narrow).toMatch(/\.bar:has\(\.quest-button\) \{[^}]*gap:\s*0\.25rem/);
+    expect(narrow).toMatch(/\.bar:has\(\.quest-button\) \.table-button \{[^}]*padding-inline:\s*0\.4rem[^}]*border-width:\s*1px/);
+    expect(narrow).toMatch(/\.bar:has\(\.quest-button\) \.table-button\.quest-button \{[^}]*padding-inline:\s*0\.3rem/);
+    // Без пробілу після 🔐.
+    expect(t('questButton', { opened: 3, length: 4 })).toBe('🔐3/4');
   });
 });
 

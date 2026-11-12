@@ -144,6 +144,11 @@ export function BuffHelp({ kinds, autopilot = false }: { kinds: BuffKind[]; auto
  * Причина, яку телефон показує сам: зріз не знає now, тож сплив власний час рахує телефон.
  * time ніколи не замінює used, taken, answered, paused; пауза на телефоні гасить і готові кнопки.
  */
+/** 29g: лишок використань від квесту видно, лише коли він є й більший за нуль. */
+function leftShown(slot: BuffSlot): slot is BuffSlot & { left: number } {
+  return slot.left !== undefined && slot.left > 0;
+}
+
 function shownBlock(slot: BuffSlot, paused: boolean, timeOver: boolean, notStarted = false): BuffBlock | null {
   if (slot.state === 'active') return null;
   const block = slot.block;
@@ -276,15 +281,19 @@ export function BuffRow({
               type="button"
               key={slot.kind}
               className={classes.join(' ')}
-              aria-label={buffName(slot.kind, autopilot)}
+              aria-label={leftShown(slot) ? `${buffName(slot.kind, autopilot)} ×${slot.left}` : buffName(slot.kind, autopilot)}
               aria-disabled={slot.state === 'active' || block !== null}
               aria-pressed={slot.state === 'active'}
               title={buffName(slot.kind, autopilot)}
               onClick={() => tap(slot)}
             >
               <span aria-hidden="true">{BUFF_ICONS[slot.kind]}</span>
-              {/* 29g: квест видав ще використання — скільки лишилося. */}
-              {slot.left !== undefined && <span className="buff-left">×{slot.left}</span>}
+              {/* 29g: квест видав ще використання — скільки лишилося; «×0» не показуємо. */}
+              {leftShown(slot) && (
+                <span className="buff-left" aria-hidden="true">
+                  ×{slot.left}
+                </span>
+              )}
             </button>
           );
         })}

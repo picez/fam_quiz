@@ -21277,7 +21277,44 @@ input.sudoku-editor-cell:focus-visible {
 
 /* «Квест із кодом»: телефон (29g). Пігулка «🔐 3/4» у шапці — як «Таблиця», не вища за рядок; аркуш — знизу, position: fixed,
  * запитання під ним не зсувається. Комірки — менше з «2rem» і «(ширина поля − 7 проміжків) / 8», тож 8 комірок у ряд на 320 px
- * без прокрутки; поле коду й кнопка переносяться на новий рядок, коли не вміщаються. Набране — великими літерами. */
+ * без прокрутки; поле коду й кнопка переносяться на новий рядок, коли не вміщаються. Набране — великими літерами.
+ * Шапка з пігулкою на 320 px (найгірше: капітан з «😈», «Таблиця», ❤️, 😀, рахунок «1 200») — в один рядок без прокрутки вбік:
+ * пігулка вужча, рахунок не переноситься, а до 400 px проміжки й поля пігулок шапки тісніші. */
+.table-button.quest-button {
+  padding-inline: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.bar .score {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 400px) {
+  .bar:has(.quest-button) {
+    gap: 0.25rem;
+  }
+
+  .bar:has(.quest-button) .table-button {
+    padding-inline: 0.4rem;
+    border-width: 1px;
+    font-size: 0.875rem;
+  }
+
+  .bar:has(.quest-button) .table-button.quest-button {
+    padding-inline: 0.3rem;
+    font-size: 0.75rem;
+  }
+
+  .bar:has(.quest-button) .table-button:is(.shop-button, .like-button, .reaction-button) {
+    padding-inline: 0.25rem;
+  }
+
+  .bar:has(.quest-button) .score {
+    font-size: 1.0625rem;
+  }
+}
+
 .quest-sheet {
   align-items: flex-end;
   padding: 0.75rem;

@@ -855,9 +855,13 @@ describe('12h buffs on the phone', () => {
 
 describe('BuffRow: one more use from the quest (29g)', () => {
   it('a slot with left shows ×left; without the field nothing', () => {
-    row({ ...ready, slots: [{ kind: 'fifty', state: 'ready', block: null, left: 1 }, { kind: 'double', state: 'ready', block: null }] });
+    row({ ...ready, slots: [{ kind: 'fifty', state: 'ready', block: null, left: 1 }, { kind: 'double', state: 'ready', block: null }, { kind: 'shield', state: 'used', block: 'used', left: 0 }] });
     const buttons = [...document.querySelectorAll<HTMLElement>('.buff-btn')];
     expect(buttons[0].querySelector('.buff-left')?.textContent).toBe('×1');
+    expect(buttons[0].getAttribute('aria-label')).toBe('50/50 ×1');
     expect(buttons[1].querySelector('.buff-left')).toBeNull();
+    // «×0» не показуємо.
+    expect(buttons[2].querySelector('.buff-left')).toBeNull();
+    expect(buttons[2].getAttribute('aria-label')).not.toContain('×');
   });
 });

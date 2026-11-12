@@ -2576,7 +2576,7 @@
   "questBuffLast": "هذه آخر جولة — لا مكان لاستخدام التعزيز بعدها",
   "questBuffNone": "فعّل التعزيزات في الاختبار لتمنح تعزيزًا",
   "questBuffNow": "المكافأة: التعزيز «{buff}»",
-  "questButton": "🔐 {opened}/{length}",
+  "questButton": "🔐{opened}/{length}",
   "questCodeCount": "{n} من {min}–{max}",
   "questCodeHint": "3–8 أرقام أو أحرف؛ حالة الأحرف والمسافات لا تهم",
   "questCodeLabel": "الرمز",

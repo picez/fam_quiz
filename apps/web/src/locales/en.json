@@ -2472,7 +2472,7 @@
   "questBuffLast": "This is the last round — there is nowhere left to use the buff",
   "questBuffNone": "Turn on buffs in the quiz to give a buff",
   "questBuffNow": "Bonus: the “{buff}” buff",
-  "questButton": "🔐 {opened}/{length}",
+  "questButton": "🔐{opened}/{length}",
   "questCodeCount": "{n} of {min}–{max}",
   "questCodeHint": "3–8 digits or letters; case and spaces do not matter",
   "questCodeLabel": "Code",

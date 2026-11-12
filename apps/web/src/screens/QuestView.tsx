@@ -19,7 +19,8 @@ export function QuestLock({ length, slots, order, code }: { length: number; slot
   const chars = Array.from({ length }, (_, index) => (code != null ? (Array.from(code)[index] ?? null) : (slots?.[index] ?? null)));
   return (
     <div className="quest-lock" style={{ '--quest-length': String(length) } as CSSProperties}>
-      <div className="quest-lock-row">
+      {/* Код читається зліва направо в будь-якій мові (в арабській — теж). */}
+      <div className="quest-lock-row" dir="ltr">
         {chars.map((char, index) => {
           const step = order === undefined ? -1 : order.indexOf(index);
           return (
@@ -146,12 +147,14 @@ export function QuestPanel({ info, mine, paused, send, onError, value: given, on
                 autoCorrect="off"
                 spellCheck={false}
                 dir="auto"
+                enterKeyHint="go"
                 maxLength={LIMITS.maxQuestInput}
                 value={value}
                 disabled={mine.left === 0}
                 onChange={(event) => {
                   setValue(event.target.value);
                   setError(null);
+                  setWrongFrom(null);
                 }}
               />
             </label>
@@ -181,18 +184,25 @@ export function QuestPanel({ info, mine, paused, send, onError, value: given, on
   );
 }
 
-/** Пігулка шапки «🔐 {opened}/{length}»; відкриває нижній аркуш із QuestPanel (портал, position: fixed — запитання під ним не зсувається). */
-export function QuestButton({ info, mine, paused, send, value, onValue }: { info: QuestInfo; mine: PlayerQuest; paused: boolean; send: Send; value?: string; onValue?: (value: string) => void }) {
+/**
+ * Пігулка шапки «🔐{opened}/{length}»; відкриває нижній аркуш із QuestPanel (портал, position: fixed — запитання під ним не зсувається).
+ * main — панель коду вже основний вміст екрана (заставка раунду, вікно, показаний код): аркуша немає, дотик гортає до панелі.
+ */
+export function QuestButton({ info, mine, paused, send, value, onValue, main = false }: { info: QuestInfo; mine: PlayerQuest; paused: boolean; send: Send; value?: string; onValue?: (value: string) => void; main?: boolean }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const wasOpen = useRef(false);
   const opened = mine.slots.filter((slot) => slot !== null).length;
+  // Панель стала основним вмістом — аркуш закривається: двох полів «Код» не буває.
+  if (open && main) setOpen(false);
 
   useEffect(() => {
     if (open) {
       wasOpen.current = true;
-      cardRef.current?.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)')?.focus();
+      // Фокус на «Закрити», не на поле: клавіатура не вискакує сама.
+      closeRef.current?.focus();
     } else if (wasOpen.current) {
       wasOpen.current = false;
       triggerRef.current?.focus();
@@ -228,7 +238,19 @@ export function QuestButton({ info, mine, paused, send, value, onValue }: { info
 
   return (
     <>
-      <button ref={triggerRef} type="button" className="table-button quest-button" aria-haspopup="dialog" dir="ltr" onClick={() => setOpen(true)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="table-button quest-button"
+        aria-label={`${t('questSheetTitle')}: ${t('questRowOpened', { opened, length: info.length })}`}
+        aria-haspopup={main ? undefined : 'dialog'}
+        aria-expanded={main ? undefined : open}
+        dir="ltr"
+        onClick={() => {
+          if (main) document.querySelector('.app .quest-panel')?.scrollIntoView?.({ block: 'start' });
+          else setOpen(true);
+        }}
+      >
         {t('questButton', { opened, length: info.length })}
       </button>
       {open &&
@@ -237,7 +259,7 @@ export function QuestButton({ info, mine, paused, send, value, onValue }: { info
             <div ref={cardRef} className="table-card quest-card">
               <h2>{t('questSheetTitle')}</h2>
               <QuestPanel info={info} mine={mine} paused={paused} send={send} value={value} onValue={onValue} />
-              <button type="button" className="btn btn-small" onClick={() => setOpen(false)}>
+              <button ref={closeRef} type="button" className="btn btn-small" onClick={() => setOpen(false)}>
                 {t('buffHelpClose')}
               </button>
             </div>
