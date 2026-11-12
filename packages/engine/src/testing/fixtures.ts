@@ -521,6 +521,47 @@ export function spotdiffQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [spotdiff]), puzzlesRound('pz', [sudoku, spotdiffSmall])], settings);
 }
 
+/** «Пам'ять» (29f): 3×4, 6 пар «країна — столиця», одна половина — картинка (прапор), seed 42, 90 с, 300 балів. */
+export const memory = {
+  ...base,
+  id: 'mm1',
+  type: 'memory',
+  text: 'Знайдіть пари',
+  timeLimit: 90,
+  points: 300,
+  grid: '3x4',
+  seed: 42,
+  pairs: [
+    { a: { text: 'Україна' }, b: { text: 'Київ' } },
+    { a: { text: 'Польща' }, b: { text: 'Варшава' } },
+    { a: { text: 'Франція' }, b: { text: 'Париж' } },
+    { a: { text: 'Японія' }, b: { text: 'Токіо' } },
+    { a: { text: 'Канада' }, b: { text: 'Оттава' } },
+    { a: { text: 'Італія' }, b: { text: '', imageUrl: `/uploads/${'e'.repeat(32)}.png` } },
+  ],
+} satisfies Question;
+
+/** «Пам'ять» (29f): 4×4, 8 пар «число — слово», 60 с, 300 балів. */
+export const memorySmall = {
+  ...base,
+  id: 'mm2',
+  type: 'memory',
+  text: 'Знайдіть пари',
+  timeLimit: 60,
+  points: 300,
+  grid: '4x4',
+  seed: 7,
+  pairs: ['один', 'два', 'три', 'чотири', "п'ять", 'шість', 'сім', 'вісім'].map((word, i) => ({ a: { text: String(i + 1) }, b: { text: word } })),
+} satisfies Question;
+
+/**
+ * Вікторина «Пам'ять» (29f): класика з одним запитанням (30 с) → класика з memory 3×4 (90 с) → «Головоломки» з судоку
+ * і memory 4×4 (60 с). Номер запитання в раунді й індекс у plays різні.
+ */
+export function memoryQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [memory]), puzzlesRound('pz', [sudoku, memorySmall])], settings);
+}
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

@@ -41,6 +41,7 @@ import {
   puzzlesQuiz,
   jigsawQuiz,
   spotdiffQuiz,
+  memoryQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -172,6 +173,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['puzzles: a sudoku and two crosswords', puzzlesQuiz({ leaderboard: 'end' })],
   ['a jigsaw in a classic round and in puzzles', jigsawQuiz({ leaderboard: 'end' })],
   ['a spotdiff in a classic round and in puzzles', spotdiffQuiz({ leaderboard: 'end' })],
+  ['a memory in a classic round and in puzzles', memoryQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
   ...(['host', 'pick', 'random', 'dice'] as TeamForm[]).map(
@@ -352,6 +354,16 @@ describe('autopilot: scores and defaults', () => {
       for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points]).toEqual([p.question.id, id, 'correct', 300]);
     }
     expect(state.plays.slice(0, 3).every((p) => Object.keys(p.spotdiff?.boards ?? {}).length === 0)).toBe(true);
+  });
+
+  it('memory: every bot finds every pair after an earlier round, every record is correct, the fastest gets the full price (29f)', () => {
+    const { state } = play(memoryQuiz(), answering);
+    expect(state.plays.map((p) => p.question.id)).toEqual(['q1', 'mm1', 'z1', 'mm2']);
+    for (const p of state.plays.filter((p) => p.question.type === 'memory')) {
+      for (const id of ['a', 'p2', 'p3']) expect([p.question.id, id, p.answers[id]?.grade]).toEqual([p.question.id, id, 'correct']);
+      expect(Math.max(...Object.values(p.answers).map((r) => r.points))).toBe(300);
+    }
+    expect(state.plays.slice(0, 3).every((p) => Object.keys(p.memory?.boards ?? {}).length === 0)).toBe(true);
   });
 
   it('a team game: every team answers right through its captain', () => {
