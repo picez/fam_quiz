@@ -27,7 +27,7 @@ describe('undo ledger', () => {
 
   it('lists what can be undone', () => {
     expect(UNDOABLE_SOURCES).toEqual(['host', 'away', 'appeal']);
-    expect(UNDOABLE_ROUNDS).toEqual(['classic', 'blitz', 'board', 'final']);
+    expect(UNDOABLE_ROUNDS).toEqual(['classic', 'blitz', 'board', 'final', 'quest']);
   });
 
   it('the host:undo payload takes the four targets and nothing else', () => {

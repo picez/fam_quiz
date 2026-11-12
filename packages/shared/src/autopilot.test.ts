@@ -353,3 +353,25 @@ describe('puzzles round (28d)', () => {
     expect(autopilotQuiz(q)).toEqual(q);
   });
 });
+
+describe('quest round (29g)', () => {
+  const quest = (id: string, patch: object = {}) => ({
+    id, type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+    prompt: 'Птах мудрості', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+    questions: list(`${id}q`, 4, { timeLimit: 30 }), ...patch,
+  });
+  it('a plain quest needs no change', () => {
+    const q = quiz([quest('r0')]);
+    expect(autopilotCheck(q)).toEqual({ blocked: [], changed: [] });
+    expect(autopilotQuiz(q)).toEqual(q);
+  });
+  it('the hint buff and the swap spares count for a quest as for a classic round', () => {
+    const withSpares = (rounds: object[], settings: object, spares?: object[]): Quiz =>
+      quizSchema.parse({ title: 'Т', description: '', settings: { leaderboard: 'each', ...settings }, rounds, ...(spares === undefined ? {} : { spares }) });
+    expect(codes(quiz([quest('r0')], { buffs: ['hint'] }))).toEqual([{ code: 'hint', rounds: [0] }]);
+    const hinted = (id: string) => single(id, { hint: 'Річка', timeLimit: 30 });
+    const round = quest('r0', { questions: Array.from({ length: 4 }, (_, i) => hinted(`h${i}`)) });
+    expect(codes(withSpares([round], { buffs: ['hint', 'swap'] }, [single('s1')]))).toEqual([{ code: 'hint', rounds: [0] }]);
+    expect(codes(withSpares([round], { buffs: ['hint', 'swap'] }, [hinted('s1')]))).toEqual([]);
+  });
+});

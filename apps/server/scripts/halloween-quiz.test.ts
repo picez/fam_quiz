@@ -29,7 +29,7 @@ describe('the «Ніч, коли оживають тіні» Halloween quiz', ()
 
   it('uses every round type and every question type except polls and word clouds', () => {
     // «Аукціон» (27b) з'явився після цієї вікторини; сід-скрипти не змінюються.
-    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'auction' && type !== 'truth' && type !== 'puzzles'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»
+    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'auction' && type !== 'truth' && type !== 'puzzles' && type !== 'quest'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»
     expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(EXPECTED_TYPES));
   });
 

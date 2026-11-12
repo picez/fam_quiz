@@ -9,6 +9,7 @@ import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
 import { MELODY_STEP_COUNT } from './melody';
+import { questKey } from './quest';
 import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
@@ -67,6 +68,14 @@ export const LIMITS = {
   maxLadderQuestions: 15,
   maxLadderLevel: 10_000,
   ladderOptions: 4,
+  /** «Квест із кодом» (29g): довжина коду, спроби (типово й найбільше), запитань у раунді, бонус за замовчуванням, довжина введеного рядка. */
+  minQuestCode: 3,
+  maxQuestCode: 8,
+  defaultQuestTries: 3,
+  maxQuestTries: 10,
+  maxQuestQuestions: 20,
+  defaultQuestBonus: 1000,
+  maxQuestInput: 32,
   /** Ціна дебафу для гравців (9c), балів. */
   minDebuffPrice: 50,
   maxDebuffPrice: 5000,
@@ -1398,8 +1407,45 @@ export const ladderRoundSchema = z.object({
 
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
+/** Типи запитань раунду «Квест із кодом» (29g): звичайні запитання без медіа-механік. */
+export const QUEST_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'slider'] as const satisfies readonly QuestionType[];
+
+export const QUEST_BONUS_KINDS = ['points', 'buff'] as const;
+
+/** Бонус за відкриту скриню: бали (за формулою questPoints) чи ще одне використання бафа. */
+export const questBonusSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('points'), points: z.number().int().min(1).max(LIMITS.maxPoints) }),
+  /** first: null — усім, хто відкрив; N — лише першим N. */
+  z.object({ kind: z.literal('buff'), buff: z.enum(BUFF_KINDS), first: z.number().int().min(1).max(LIMITS.maxPlayers).nullable() }),
+]);
+
+export type QuestBonus = z.infer<typeof questBonusSchema>;
+
+/** «Квест із кодом» (29g): звичайні запитання й глобальне запитання, відповідь на яке — код; правильні відповіді відкривають позиції коду. */
+export const questRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('quest'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  speedBonus: z.boolean(),
+  shuffleOptions: z.boolean(),
+  rules: roundRulesSchema,
+  /** Глобальне запитання; відповідь на нього — код. */
+  prompt: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
+  /** Код, уже нормалізований (questKey), 3…8 символів — літери чи цифри. */
+  code: z.string().min(LIMITS.minQuestCode).max(LIMITS.maxQuestCode),
+  /** Порядок відкриття позицій: перестановка 0…code.length − 1; типово зліва направо. */
+  order: z.array(z.number().int().min(0).max(LIMITS.maxQuestCode - 1)).min(LIMITS.minQuestCode).max(LIMITS.maxQuestCode),
+  tries: z.number().int().min(1).max(LIMITS.maxQuestTries),
+  bonus: questBonusSchema,
+  questions: z.array(questionSchema).min(LIMITS.minQuestCode).max(LIMITS.maxQuestQuestions),
+});
+
+export type QuestRound = z.infer<typeof questRoundSchema>;
+
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'puzzles', 'wipeout', 'survival', 'ladder'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'puzzles', 'wipeout', 'survival', 'ladder', 'quest'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -1414,6 +1460,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   wipeoutRoundSchema,
   survivalRoundSchema,
   ladderRoundSchema,
+  questRoundSchema,
 ]);
 
 export type Round = z.infer<typeof roundSchema>;
@@ -1423,7 +1470,7 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Головоломках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Головоломках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» і «Квест із кодом» (29g) — як класика. */
 export function rulesOf(round: Round): RoundRules {
   return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
@@ -1658,6 +1705,19 @@ export const quizSchema = z
           ctx.addIssue({ code: 'custom', message: 'ladder_safe' });
         }
         if (new Set(round.lifelines).size !== round.lifelines.length) ctx.addIssue({ code: 'custom', message: 'ladder_lifelines' });
+      }
+      // «Квест із кодом» (29g): код нормалізований, порядок — перестановка, запитань не менше, ніж символів, лише прості типи, баф дозволений і не stealth.
+      if (round.type === 'quest') {
+        const chars = Array.from(round.code);
+        if (questKey(round.code) !== round.code) ctx.addIssue({ code: 'custom', message: 'quest_code' });
+        const sorted = [...round.order].sort((a, b) => a - b);
+        if (sorted.length !== chars.length || sorted.some((v, i) => v !== i)) ctx.addIssue({ code: 'custom', message: 'quest_order' });
+        if (round.questions.length < chars.length) ctx.addIssue({ code: 'custom', message: 'quest_short' });
+        const allowed: readonly string[] = QUEST_TYPES;
+        if (round.questions.some((q) => !allowed.includes(q.type))) ctx.addIssue({ code: 'custom', message: 'quest_type' });
+        if (round.bonus.kind === 'buff' && (round.bonus.buff === 'stealth' || !allowedBuffs(quiz).includes(round.bonus.buff))) {
+          ctx.addIssue({ code: 'custom', message: 'quest_buff' });
+        }
       }
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {

@@ -78,7 +78,7 @@ const hasVoice = (round: BoardRound): boolean =>
 function swapSpares(quiz: Quiz, round: Round): Question[] {
   if (!allowedBuffs(quiz).includes('swap')) return [];
   if (round.type === 'board' && boardSpareSource(quiz) === 'category') return round.categories.flatMap((c) => c.spares ?? []);
-  return round.type === 'classic' || round.type === 'board' ? (quiz.spares ?? []) : [];
+  return round.type === 'classic' || round.type === 'board' || round.type === 'quest' ? (quiz.spares ?? []) : [];
 }
 
 /** Зміни, яких потребує один раунд. */
@@ -88,7 +88,7 @@ function roundChanges(quiz: Quiz, round: Round, hintBuff: boolean): Set<Autopilo
   if (round.type === 'board' && hasVoice(round)) found.add('voice');
   if ((round.type === 'blitz' || round.type === 'board' || round.type === 'final' || round.type === 'bets' || round.type === 'auction') && round.check === 'manual') found.add('manual');
   if (round.type === 'ladder' && round.pick === 'host') found.add('ladder_pick');
-  if (hintBuff && (round.type === 'classic' || round.type === 'board') && [...questions, ...swapSpares(quiz, round)].some((q) => q.hint === undefined)) {
+  if (hintBuff && (round.type === 'classic' || round.type === 'board' || round.type === 'quest') && [...questions, ...swapSpares(quiz, round)].some((q) => q.hint === undefined)) {
     found.add('hint');
   }
   if (round.type === 'ladder' && round.lifelines.includes('hint') && questions.some((q) => q.hint === undefined)) found.add('hint');

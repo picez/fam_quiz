@@ -15,7 +15,7 @@ import type { SpotCircle } from './spotdiff';
 import type { MelodyTrack } from './melody';
 import type { MemoryCard, MemoryGrid } from './memory';
 import type { LikesView } from './likes';
-import type { RoundBrief } from './round-brief';
+import type { QuestBonusView, RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
 import type { Standing } from './standing';
 import type { SurvivalStatus } from './survival';
@@ -1613,6 +1613,66 @@ export interface BuffSlot {
   state: 'ready' | 'active' | 'used' | 'blocked';
   /** Причина для blocked (і 'used' для used); null для ready й active. */
   block: BuffBlock | null;
+  /** Скільки ще разів можна взяти (29g): лише коли квест видав додаткові використання цього бафа; інакше ключа немає. */
+  left?: number;
+}
+
+/** Рядок учасника в «Квесті із кодом» (29g): без символів коду — лише скільки позицій відкрито. */
+export interface QuestRow {
+  /** Учасник рушія (у командах — команда). */
+  playerId: string;
+  nickname: string;
+  /** Скільки позицій відкрито (0…length). */
+  opened: number;
+  /** Неправильних спроб. */
+  triesUsed: number;
+  /** Розв'язав: місце, після скількох розкритих запитань, бали (сума коригувань 'quest') чи виданий баф; не потрапив у перших N — points і buff null. */
+  solved: { place: number; after: number; points: number | null; buff: BuffKind | null } | null;
+}
+
+/** «Квест із кодом» (29g): зріз сцени й телефона. Код з'являється лише на stage 'shown'. */
+export interface QuestInfo {
+  prompt: string;
+  length: number;
+  tries: number;
+  /** Запитань раунду. */
+  count: number;
+  bonus: QuestBonusView;
+  stage: 'play' | 'window' | 'shown';
+  /** Лише stage 'shown'; інакше null. */
+  code: string | null;
+  /** Годинник вікна; поза вікном null. */
+  endsAt: number | null;
+  remainingMs: number | null;
+  /** Частка бонусу, якби код ввели зараз (questShare). */
+  shareNow: number;
+  /** Розв'язали — за місцем; далі решта в порядку гравців. */
+  rows: QuestRow[];
+}
+
+/** «Квест із кодом» (29g): зріз ведучого — код завжди, порядок, символи позицій і всі спроби. */
+export interface HostQuest extends QuestInfo {
+  code: string;
+  order: number[];
+  detail: {
+    playerId: string;
+    slots: (string | null)[];
+    /** by — нік людини, що ввела (лише команди). */
+    tries: { code: string; at: number; after: number; right: boolean; by: string | null }[];
+  }[];
+}
+
+/** «Квест із кодом» (29g): власний стан гравця; у командах однаковий в усіх учасників. */
+export interface PlayerQuest {
+  /** Власні позиції: символ або null. */
+  slots: (string | null)[];
+  /** Власні неправильні спроби (нормалізовані). */
+  tries: string[];
+  /** Спроб лишилося. */
+  left: number;
+  /** Етап дозволяє, не пауза, не shown, не розв'язано, left > 0. */
+  canEnter: boolean;
+  solved: { after: number; points: number | null; buff: BuffKind | null } | null;
 }
 
 export interface PlayerActiveBuff {
@@ -1771,6 +1831,8 @@ interface BaseView {
   auction?: AuctionInfo;
   /** «Правда про гравця» (28b): у вікторині з раундом truth на всіх етапах; без нього ключа немає. */
   truth?: TruthInfo;
+  /** «Квест із кодом» (29g): від intro до round_end раунду quest; поза ним ключа немає. */
+  quest?: QuestInfo;
   /** «Ва-банк»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   wipeout: WipeoutInfo | null;
   /** «Вибування»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
@@ -2001,6 +2063,8 @@ export interface PlayerView extends BaseView {
     auction?: PlayerAuction;
     /** «Правда про гравця» (28b): власний факт; без раунду truth ключа немає. */
     truth?: PlayerTruth;
+    /** «Квест із кодом» (29g): власні позиції й спроби; поза раундом quest ключа немає. */
+    quest?: PlayerQuest;
     /** Власний стан у «Ва-банк»; null поза раундом. canDecide — вікно відкрите, гравець у грі, ще не вирішив, не пауза. */
     wipeout: { status: WipeoutStatus; bank: number; decision: 'stay' | 'take' | null; canDecide: boolean } | null;
     /** Власний стан у «Вибуванні»; null поза раундом. */
@@ -2248,6 +2312,8 @@ export interface HostView extends BaseView {
   auction?: HostAuction;
   /** Як у BaseView, але з усіма фактами й автором поточного запитання. */
   truth?: HostTruth;
+  /** Як у BaseView, але з кодом завжди, порядком, позиціями й усіма спробами. */
+  quest?: HostQuest;
   /** Як у BaseView, але ведучому завжди й з усім: шлях і слова кожного наживо, і у фіналі. */
   wordladder?: WordLadderInfo;
   /** Як у BaseView, але ведучому завжди весь список з тими, хто знайшов. */

@@ -30,7 +30,7 @@ describe('the «Все на світі: десять тем» quiz', () => {
   });
 
   it('uses every round type and every question type except polls and word clouds', () => {
-    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction' && type !== 'truth' && type !== 'puzzles'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»
+    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'bets' && type !== 'auction' && type !== 'truth' && type !== 'puzzles' && type !== 'quest'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»
     expect(new Set(played(quiz).map((q) => q.type))).toEqual(new Set(EXPECTED_TYPES));
     const votes = played(quiz).filter((q) => q.type === 'poll' || q.type === 'wordcloud');
     expect(votes).toEqual([]);

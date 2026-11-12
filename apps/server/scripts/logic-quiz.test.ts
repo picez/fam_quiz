@@ -49,7 +49,7 @@ describe('the «Логіка й дедукція» quiz', () => {
 
   it('uses most round and question types, all buffs and debuffs, duels', () => {
     // «Ва-банк» не вмістився: десять раундів — межа.
-    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'wipeout' && type !== 'bets' && type !== 'auction' && type !== 'truth' && type !== 'puzzles'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»
+    expect(new Set(quiz.rounds.map((r) => r.type))).toEqual(new Set(ROUND_TYPES.filter((type) => type !== 'wipeout' && type !== 'bets' && type !== 'auction' && type !== 'truth' && type !== 'puzzles' && type !== 'quest'))); // 28b: новий тип раунду, сід-скрипти не змінюються; 28d: так само «Головоломки»; 29g: так само «Квест із кодом»
     const types = new Set(played.map((q) => q.type));
     for (const type of ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'sort', 'slider', 'clues', 'pin', 'wall', 'bluff'] as const) expect(types).toContain(type);
     expect(played.some((q) => q.reveal)).toBe(true);

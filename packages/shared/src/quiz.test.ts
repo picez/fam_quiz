@@ -76,6 +76,7 @@ import {
   letterWordSchema,
   letterCheckSchema,
   moreLessPickSchema,
+  questCodeSchema,
   drawOpSchema,
   drawGuessSchema,
   type Answer,
@@ -3329,5 +3330,107 @@ describe('melody question (29e)', () => {
 
   it('keeps the type order', () => {
     expect(QUESTION_TYPES.indexOf('melody')).toBe(QUESTION_TYPES.indexOf('memory') + 1);
+  });
+});
+
+describe('quest round (29g)', () => {
+  const q30 = (id: string, patch: object = {}) => ({ ...single, id, timeLimit: 30, ...patch });
+  const boolNo = { id: 'q-b', type: 'boolean', text: 'Говерла найвища гора України?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: false };
+  const textQ = { id: 'q-t', type: 'text', text: 'Хто написав «Кобзаря»?', imageUrl: null, video: null, timeLimit: 30, points: 1000, accepted: ['Шевченко'] };
+  const numQ = { id: 'q-n', type: 'numeric', text: 'Скільки днів у тижні?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 7, tolerance: 0 };
+  const five = [q30('q-1'), boolNo, textQ, numQ, q30('q-5')];
+  const questRound = (patch: object = {}) => ({
+    id: 'rq',
+    type: 'quest',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: DEFAULT_RULES,
+    prompt: 'Нічний птах — символ мудрості (4 літери)',
+    code: 'СОВА',
+    order: [0, 1, 2, 3],
+    tries: 3,
+    bonus: { kind: 'points', points: 1200 },
+    questions: five,
+    ...patch,
+  });
+  const quizOf = (rounds: object[], settings: object = {}) => ({ title: 'Т', description: '', settings: { ...DEFAULT_SETTINGS, ...settings }, rounds });
+  const issues = (value: unknown) => {
+    const result = quizSchema.safeParse(value);
+    return result.success ? [] : result.error.issues.map((i) => i.message);
+  };
+  const questIssues = (patch: object = {}, settings: object = {}) => issues(quizOf([questRound(patch)], settings));
+
+  it('accepts a quest round', () => {
+    expect(questIssues()).toEqual([]);
+    expect(questIssues({ code: '2007', order: [3, 2, 1, 0] })).toEqual([]);
+    expect(questIssues({ code: 'ABCDEFGH', order: [7, 6, 5, 4, 3, 2, 1, 0], questions: Array.from({ length: 8 }, (_, i) => q30(`e${i}`)) })).toEqual([]);
+    expect(questIssues({ bonus: { kind: 'buff', buff: 'fifty', first: null } }, { buffs: ['fifty'] })).toEqual([]);
+    expect(questIssues({ bonus: { kind: 'buff', buff: 'fifty', first: 2 } }, { buffs: ['fifty'] })).toEqual([]);
+    expect(questIssues({ questions: five.slice(0, 4) })).toEqual([]);
+  });
+
+  it('refuses a broken code', () => {
+    expect(valid(roundSchema, questRound({ code: 'СО', order: [0, 1] }))).toBe(false);
+    expect(valid(roundSchema, questRound({ code: 'ABCDEFGHI', order: [0, 1, 2, 3, 4, 5, 6, 7] }))).toBe(false);
+    expect(questIssues({ code: 'сова' })).toContain('quest_code');
+    expect(questIssues({ code: 'СО ВА', order: [0, 1, 2, 3, 4] })).toContain('quest_code');
+    for (const order of [[0, 0, 1, 2], [0, 1, 2], [1, 2, 3, 4]]) expect(questIssues({ order })).toContain('quest_order');
+    expect(questIssues({ questions: five.slice(0, 3) })).toContain('quest_short');
+    expect(valid(roundSchema, questRound({ tries: 0 }))).toBe(false);
+    expect(valid(roundSchema, questRound({ tries: 11 }))).toBe(false);
+    expect(valid(roundSchema, questRound({ prompt: '' }))).toBe(false);
+  });
+
+  it('a quest takes plain questions only', () => {
+    const multi = { ...single, id: 'm1', type: 'multi', timeLimit: 30, correctIds: ['b'], correctId: undefined };
+    const order = { ...orderSpare, id: 'o1', timeLimit: 30 };
+    const match = { id: 'mt', type: 'match', text: 'З’єднайте', imageUrl: null, timeLimit: 30, points: 1000, pairs: [0, 1, 2].map((i) => ({ left: { id: `a${i}`, text: `Л${i}` }, right: { id: `z${i}`, text: `П${i}` } })) };
+    const slider = { id: 's1', type: 'slider', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 30, points: 1000, min: 0, max: 100, step: 1, correct: 50, tolerance: 2, zeroBeyond: 12, unit: '%' };
+    for (const q of [multi, order, match, slider]) expect(questIssues({ questions: [...five.slice(0, 4), q] })).toEqual([]);
+    const chain = { id: 'c1', type: 'chain', text: 'Ланцюжок', imageUrl: null, video: null, timeLimit: 60, points: 1000, words: ['Форель', 'Риба', 'Океан'], hintSeconds: 5 };
+    const poll = { id: 'p1', type: 'poll', text: 'Найкраща пора року?', imageUrl: null, video: null, timeLimit: 30, points: 0, options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }] };
+    for (const q of [chain, poll]) expect(questIssues({ questions: [...five.slice(0, 4), q] })).toContain('quest_type');
+    expect(questIssues({ questions: [...five.slice(0, 4), q30('b1', { betsCut: 1 })] })).toContain('bets_cut_place');
+    expect(questIssues({ questions: [...five.slice(0, 4), q30('r1', { reveal: 'blur', imageUrl: '/uploads/abcdefabcdefabcdef.png' })] })).toContain('reveal_place');
+  });
+
+  it('a buff bonus needs an allowed buff', () => {
+    const bonus = (buff: string) => ({ kind: 'buff', buff, first: null });
+    expect(questIssues({ bonus: bonus('double') })).toContain('quest_buff');
+    expect(questIssues({ bonus: bonus('double') }, { buffs: ['fifty'] })).toContain('quest_buff');
+    expect(questIssues({ bonus: bonus('stealth') }, { buffs: ['stealth'] })).toContain('quest_buff');
+    expect(questIssues({ bonus: bonus('double') }, { buffs: ['double'] })).toEqual([]);
+  });
+
+  it('ten rounds stay the limit', () => {
+    const rounds = (n: number) => Array.from({ length: n }, (_, i) => questRound({ id: `rq${i}`, questions: five.map((q) => ({ ...q, id: `${q.id}-${i}` })) }));
+    expect(issues(quizOf(rounds(10)))).toEqual([]);
+    expect(valid(quizSchema, quizOf(rounds(11)))).toBe(false);
+  });
+
+  it('lists the type last and takes the rules from the round', () => {
+    expect(ROUND_TYPES.at(-1)).toBe('quest');
+    const parsed = roundSchema.parse(questRound({ rules: { ...DEFAULT_RULES, multiplier: 2 } }));
+    expect(rulesOf(parsed).multiplier).toBe(2);
+  });
+
+  it('the quest event is limited', () => {
+    expect(valid(questCodeSchema, { code: 'СОВА' })).toBe(true);
+    expect(valid(questCodeSchema, { code: 'я'.repeat(33) })).toBe(false);
+    expect(valid(questCodeSchema, { code: 'СОВА', extra: 1 })).toBe(false);
+    expect(valid(questCodeSchema, { code: 7 })).toBe(false);
+  });
+
+  it('the brief carries the sizes and the bonus, never the code or the prompt', () => {
+    const parsed = roundSchema.parse(questRound());
+    const brief = roundBrief(parsed);
+    expect(brief.quest).toEqual({ length: 4, tries: 3, count: 5, bonus: { kind: 'points', points: 1200 } });
+    expect(JSON.stringify(brief)).not.toContain('СОВА');
+    expect(JSON.stringify(brief)).not.toContain('Нічний птах');
+    const buff = roundBrief(roundSchema.parse(questRound({ bonus: { kind: 'buff', buff: 'fifty', first: 2 } })));
+    expect(buff.quest?.bonus).toEqual({ kind: 'buff', buff: 'fifty', first: 2 });
+    expect(emptyBrief('quest').quest).toBeNull();
+    expect(roundBrief(roundSchema.parse(round('r1', [single]))).quest).toBeNull();
   });
 });

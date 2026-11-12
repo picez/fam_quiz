@@ -90,7 +90,7 @@ describe('careerEarned', () => {
 
   it('the six new career ones earn on the threshold and not one below', () => {
     const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
-    const at = { ...base, games: 250, podium: 10, debuffsBought: 10, authorGames: 10, roundTypes: 11, questionTypes: 28 }; // 29e: новий тип; 29f: новий тип; 29d: новий тип; 29c: новий тип; 26c: новий тип; 27a: раунд bets; 27b: раунд auction; 27c: новий тип; 27d: новий тип; 28a: новий тип; 28b: новий тип раунду; 28c: новий тип; 28d: раунд puzzles, типи sudoku і crossword
+    const at = { ...base, games: 250, podium: 10, debuffsBought: 10, authorGames: 10, roundTypes: 12, questionTypes: 28 }; // 29g: новий тип раунду; 29e: новий тип; 29f: новий тип; 29d: новий тип; 29c: новий тип; 26c: новий тип; 27a: раунд bets; 27b: раунд auction; 27c: новий тип; 27d: новий тип; 28a: новий тип; 28b: новий тип раунду; 28c: новий тип; 28d: раунд puzzles, типи sudoku і crossword
     expect(careerEarned(at).filter((id) => ['veteran', 'podium_10', 'prankster', 'author_hit', 'all_rounds', 'all_types'].includes(id))).toEqual([
       'all_rounds',
       'all_types',
@@ -99,7 +99,7 @@ describe('careerEarned', () => {
       'author_hit',
       'veteran',
     ]);
-    const below = { ...base, games: 249, podium: 9, debuffsBought: 9, authorGames: 9, roundTypes: 10, questionTypes: 25 };
+    const below = { ...base, games: 249, podium: 9, debuffsBought: 9, authorGames: 9, roundTypes: 11, questionTypes: 25 };
     expect(careerEarned(below)).toEqual(['first_game', 'games_10', 'games_50', 'games_100']);
   });
 });
