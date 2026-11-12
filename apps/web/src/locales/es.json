@@ -1930,7 +1930,7 @@
   "material_wood": "Madera",
   "material_wood_f": "de madera",
   "material_wood_m": "de madera",
-  "melodyAcceptedHint": "Añade cada grafía del título que deba aceptarse: en cirílico y en alfabeto latino, completa y corta. No cuentan las mayúsculas, las comillas ni los espacios de más. La revelación mostrará el primer título.",
+  "melodyAcceptedHint": "Añade cada grafía del título que deba aceptarse: en cirílico y en alfabeto latino, completa y corta. No cuentan las mayúsculas ni los espacios de más. La revelación mostrará el primer título.",
   "melodyAnswerHeard": "{answer} · {seconds} s",
   "melodyAnswered": "Respuesta aceptada en el fragmento de {seconds} s",
   "melodyBadLink": "Esto no parece un enlace de un vídeo de YouTube.",

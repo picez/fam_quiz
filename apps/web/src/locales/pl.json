@@ -1930,7 +1930,7 @@
   "material_wood": "Drewno",
   "material_wood_f": "Drewniana",
   "material_wood_m": "Drewniany",
-  "melodyAcceptedHint": "Dodaj każdy zapis tytułu, który ma być zaliczony: cyrylicą i łacinką, pełny i skrócony. Wielkość liter, cudzysłowy i zbędne spacje nie mają znaczenia. Odkrycie pokaże pierwszy tytuł.",
+  "melodyAcceptedHint": "Dodaj każdy zapis tytułu, który ma być zaliczony: cyrylicą i łacinką, pełny i skrócony. Wielkość liter i zbędne spacje nie mają znaczenia. Odkrycie pokaże pierwszy tytuł.",
   "melodyAnswerHeard": "{answer} · {seconds} s",
   "melodyAnswered": "Odpowiedź przyjęta na fragmencie {seconds} s",
   "melodyBadLink": "To nie wygląda na link do filmu na YouTube.",

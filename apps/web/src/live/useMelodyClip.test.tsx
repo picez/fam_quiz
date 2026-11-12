@@ -185,6 +185,42 @@ describe('useMelodyClip', () => {
       expect(readout()).toBe('blocked:null');
     });
 
+    it('a new video shakes hands again, and the start second does not reload the frame', () => {
+      const view = render(<Harness track={tube} seconds={1} />);
+      const src = frame().src;
+      expect(src).not.toContain('start=12');
+      view.rerender(<Harness track={{ ...tube, start: 40 }} seconds={1} />);
+      expect(frame().src).toBe(src);
+      fireEvent.load(frame());
+      reply({ event: 'initialDelivery' });
+      view.rerender(<Harness track={{ source: 'youtube', id: 'abcdefghijk', start: 3 }} seconds={1} />);
+      expect(frame().src).toContain('embed/abcdefghijk');
+      const spy = vi.spyOn(frame().contentWindow as Window, 'postMessage');
+      fireEvent.load(frame());
+      expect(spy.mock.calls.some(([message]) => String(message).includes('listening'))).toBe(true);
+      fireEvent.click(screen.getByText('go'));
+      // Новий плеєр ще не відгукнувся: команди чекають у черзі.
+      expect(commands(spy)).toEqual([]);
+      reply({ event: 'initialDelivery' });
+      expect(commands(spy)).toEqual([
+        ['seekTo', [3, true]],
+        ['playVideo', []],
+      ]);
+    });
+
+    it('buffering in the middle of a chunk does not restart the stop timer', () => {
+      render(<Harness track={tube} seconds={2} />);
+      fireEvent.load(frame());
+      reply({ event: 'initialDelivery' });
+      fireEvent.click(screen.getByText('go'));
+      reply({ event: 'onStateChange', info: 1 });
+      act(() => void vi.advanceTimersByTime(1000));
+      reply({ event: 'onStateChange', info: 3 });
+      reply({ event: 'onStateChange', info: 1 });
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(readout()).toBe('idle:null');
+    });
+
     it('a second chunk while the video plays keeps counting', () => {
       render(<Harness track={tube} seconds={1} />);
       fireEvent.load(frame());

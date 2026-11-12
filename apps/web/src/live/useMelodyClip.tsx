@@ -38,7 +38,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     if (element !== null) lastAudio.current = element;
   };
   // Змінний стан відтворення живе в ref: таймери й події читають його без перемальовувань.
-  const run = useRef({ seconds: null as number | null, token: 0 });
+  const run = useRef({ seconds: null as number | null, token: 0, armed: false });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const yt = useRef({ ready: false, queue: [] as Command[], state: -1, block: null as ReturnType<typeof setTimeout> | null, poll: null as ReturnType<typeof setInterval> | null });
   const trackRef = useRef(track);
@@ -68,6 +68,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     (next: MelodyPlayState | null) => {
       run.current.token += 1;
       run.current.seconds = null;
+      run.current.armed = false;
       clearTimer();
       clearBlock();
       yt.current.state = 2;
@@ -87,7 +88,9 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
   /** Звук пішов: від цієї миті відлічується тривалість шматка. */
   const arm = () => {
     const seconds = run.current.seconds;
-    if (seconds === null) return;
+    // Один таймер на запуск: повторне «грає» після буферизації його не перезапускає.
+    if (seconds === null || run.current.armed) return;
+    run.current.armed = true;
     const token = run.current.token;
     clearTimer();
     timer.current = setTimeout(() => {
@@ -101,13 +104,14 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     run.current.token += 1;
     const token = run.current.token;
     run.current.seconds = seconds;
+    run.current.armed = false;
     clearTimer();
     clearBlock();
     setPlaying(seconds);
     setState('playing');
     if (current.source === 'file') {
       const element = audio.current;
-      if (element === null) return;
+      if (element === null) return halt('failed');
       element.currentTime = current.start;
       // Уже грає (новий шматок під час старого): події «playing» після перемотування може й не бути.
       if (!element.paused && element.readyState >= 3) arm();
@@ -149,11 +153,14 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
 
   // Рамка YouTube: слухаємо відповіді плеєра; до першої відповіді повторюємо «listening».
   const source = track.source;
+  const ytId = track.source === 'youtube' ? track.id : '';
   useEffect(() => {
     if (source !== 'youtube') return;
     const state = yt.current;
+    // Нова рамка (інше відео) ще не слухає: рукостискання починається заново.
     state.ready = false;
     state.queue = [];
+    state.state = -1;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
       let data: { event?: unknown; info?: unknown } | null;
@@ -191,7 +198,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
     };
     // arm читає лише ref-и й haltRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, sendNow]);
+  }, [source, ytId, sendNow]);
 
   const onFrameLoad = () => {
     const state = yt.current;
@@ -235,6 +242,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
       />
     ) : (
       <iframe
+        key={track.id}
         ref={frame}
         className="audio-only-frame"
         aria-hidden="true"
@@ -242,7 +250,7 @@ export function useMelodyClip(track: MelodyTrack, opts: { paused: boolean; live:
         title=""
         allow="autoplay; encrypted-media"
         referrerPolicy="strict-origin-when-cross-origin"
-        src={`${youtubeEmbedUrl({ id: track.id, start: track.start }, window.location.origin)}&controls=0`}
+        src={`${youtubeEmbedUrl({ id: track.id, start: 0 }, window.location.origin)}&controls=0`}
         onLoad={onFrameLoad}
       />
     );

@@ -1905,7 +1905,7 @@
   "material_wood": "Wood",
   "material_wood_f": "Wooden",
   "material_wood_m": "Wooden",
-  "melodyAcceptedHint": "Add every spelling of the title that should count: in Ukrainian and in Latin letters, full and short. Case, quotes and extra spaces are ignored. The reveal shows the first title.",
+  "melodyAcceptedHint": "Add every spelling of the title that should count: in Ukrainian and in Latin letters, full and short. Case and extra spaces are ignored. The reveal shows the first title.",
   "melodyAnswerHeard": "{answer} · {seconds} s",
   "melodyAnswered": "Answer accepted on the {seconds} s snippet",
   "melodyBadLink": "This does not look like a YouTube video link.",

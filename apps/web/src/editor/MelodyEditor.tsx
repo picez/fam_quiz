@@ -54,8 +54,10 @@ export function MelodyEditor({ question, onChange }: { question: MelodyQuestion;
     if (!mounted.current) return;
     setBusy(false);
     if (!result.ok) return setError(errorText(result.error));
-    setFileLength(Number.isFinite(seconds) && seconds > 0 ? seconds : null);
     const { question: current, onChange: emit } = latest.current;
+    // Поки файл вантажився, ведучий міг перемкнути джерело на YouTube: тоді файл відкидається.
+    if (current.track.source !== 'file') return;
+    setFileLength(Number.isFinite(seconds) && seconds > 0 ? seconds : null);
     emit({ ...current, track: { source: 'file', url: result.url, start: current.track.start } });
   };
 
@@ -64,6 +66,7 @@ export function MelodyEditor({ question, onChange }: { question: MelodyQuestion;
     clip.stop();
     setError(null);
     setBadLink(false);
+    setFileLength(null);
     setTrack(next === 'file' ? { source: 'file', url: '', start: track.start } : { source: 'youtube', id: '', start: track.start });
     if (next === 'file') setLink('');
   };
@@ -71,7 +74,15 @@ export function MelodyEditor({ question, onChange }: { question: MelodyQuestion;
   const changeLink = (value: string) => {
     setLink(value);
     const parsed = parseYouTubeLink(value);
-    if (parsed === null) return setBadLink(value.trim() !== '');
+    if (parsed === null) {
+      setBadLink(value.trim() !== '');
+      // Стерте посилання не лишає старого відео в треку.
+      if (value.trim() === '' && track.source === 'youtube' && track.id !== '') {
+        clip.stop();
+        setTrack({ source: 'youtube', id: '', start: track.start });
+      }
+      return;
+    }
     setBadLink(false);
     clip.stop();
     setTrack({ source: 'youtube', id: parsed.id, start: parsed.start });

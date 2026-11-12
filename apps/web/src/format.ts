@@ -263,9 +263,8 @@ export function answerText(answer: Answer | null, question: Question | null, pre
       return t('spotdiffFound', { found: answer.found, total: answer.total });
     case 'memory':
       return answer.done && answer.timeMs !== null ? t('memoryAnswerDone', { time: secondsText(answer.timeMs) }) : t('memoryUndone', { found: answer.pairs, total: answer.total });
-    case 'melody':
+    case 'melody': {
       // Лише значення: шматок («Щедрик · 2 с») показується, коли відомо, скільки було відкрито.
-      {
       const heard = melodyHeardOf(answer);
       return heard === null ? answer.value : t('melodyAnswerHeard', { answer: answer.value, seconds: melodySeconds(heard) });
     }

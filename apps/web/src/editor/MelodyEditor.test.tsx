@@ -105,6 +105,26 @@ describe('MelodyEditor', () => {
     expect(calls.length).toBe(before);
   });
 
+  it('an erased link clears the video id', () => {
+    const { last } = view({ track: { source: 'youtube', id: 'abcdefghijk', start: 7 } });
+    fireEvent.change(screen.getByLabelText(t('melodyLinkLabel')), { target: { value: '' } });
+    expect(last().track).toEqual({ source: 'youtube', id: '', start: 7 });
+  });
+
+  it('a file that finishes uploading after a switch to YouTube is dropped', async () => {
+    let finish: (value: unknown) => void = () => {};
+    uploadAudio.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    fileSeconds.mockResolvedValue(10);
+    const { last, calls } = view();
+    pickFile(file('song.mp3', 'audio/mpeg'));
+    fireEvent.click(screen.getByRole('button', { name: t('melodySourceYoutube') }));
+    const before = calls.length;
+    finish({ ok: true, url: '/uploads/0123456789abcdef0123.mp3' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls.length).toBe(before);
+    expect(last().track.source).toBe('youtube');
+  });
+
   it('the start field moves the chunks', () => {
     const { last } = view(withTrack);
     fireEvent.change(screen.getByLabelText(t('melodyStart')), { target: { value: '30' } });
