@@ -62,6 +62,7 @@ import {
   jigsawPlaceSchema,
   spotdiffTapSchema,
   melodyOpenSchema,
+  questCodeSchema,
   memoryFlipSchema,
   puzzleDoneSchema,
   puzzleFillSchema,
@@ -499,6 +500,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = melodyOpenSchema.safeParse(payloadOf(args));
       return payload.success ? manager.melodyOpen(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:quest', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = questCodeSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.questCode(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:draw', (args) => {

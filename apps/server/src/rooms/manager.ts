@@ -115,6 +115,7 @@ import {
   jigsawHold,
   jigsawHoldsEnd,
   melodyOpen,
+  enterQuestCode,
   memoryFlip,
   memoryOf,
   memoryTimersEnd,
@@ -1848,6 +1849,21 @@ export class RoomManager {
     if (!who.ok) return who;
     const now = this.now();
     const result = melodyOpen(room.state, who.id, playerId, payload.questionIndex, payload.step, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.state !== room.state) this.commit(room, result.state, now);
+    return { ok: true };
+  }
+
+  /**
+   * Спроба коду (29g): у командній грі — будь-хто з команди за команду; спроби спільні. Неправильна спроба теж ok (вона згоріла): вердикт — у зрізі.
+   * Вікно коду закриває годинник кімнати (nextDeadline → tick), тож після зміни стану його дедлайн переставляє commit.
+   */
+  questCode(room: Room, playerId: string, payload: { code: string }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'quest');
+    if (!who.ok) return who;
+    const now = this.now();
+    const result = enterQuestCode(room.state, who.id, playerId, payload.code, now);
     if (!result.ok) return { ok: false, error: result.error };
     if (result.state !== room.state) this.commit(room, result.state, now);
     return { ok: true };

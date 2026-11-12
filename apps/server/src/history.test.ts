@@ -1369,6 +1369,18 @@ describe('history: score adjustments', () => {
     expect(olena?.rounds).toEqual([0]);
   });
 
+  it('the quest bonus is a score source (29g)', async () => {
+    const host = await hostAccount();
+    const { gameId } = await seedGame(db, {
+      hostId: host.id,
+      startedAt: new Date(2026, 2, 3),
+      players: [{ userId: null, nickname: 'Олена', score: 800, rank: 1, adjustments: [{ seq: 1, points: 800, source: 'quest' }] }],
+    });
+    const detail = await hostGame(db, host.id, gameId);
+    expect(detail?.adjustments).toEqual([{ seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: 800, source: 'quest' }]);
+    expect(detail?.standings[0]?.breakdown).toEqual({ parts: [{ source: 'quest', plus: 800, minus: 0 }], plus: 800, minus: 0 });
+  });
+
   it('a purchase row carries the kind and the target; other rows keep their keys', async () => {
     const host = await hostAccount();
     const { gameId } = await seedGame(db, {

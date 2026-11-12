@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, blitzRound, classicRound, clues, makeQuiz, makeRoundsQuiz, single, text, withId } from '@quiz/engine/testing';
-import { AUCTION_BID_MS, defaultTeams, SPLASH_MS, type Round } from '@quiz/shared';
+import { auctionRound, blitzRound, classicRound, clues, makeQuiz, makeRoundsQuiz, single, text, withId, questQuiz, QUEST_RIGHT } from '@quiz/engine/testing';
+import { AUCTION_BID_MS, defaultTeams, QUEST_WINDOW_MS, SPLASH_MS, type Round } from '@quiz/shared';
 import { toBetsWager } from '../testing/bets-game';
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
@@ -576,5 +576,64 @@ describe('auction (27b)', () => {
     expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
     expect(next.answer(back, taras.playerId, correct)).toEqual({ ok: false, error: 'bet_skipped' });
     expect(next.answer(back, olena.playerId, correct)).toEqual({ ok: true });
+  });
+});
+
+describe('quest (29g)', () => {
+  /** Усі п'ять запитань пройдено: Оля помилилась кодом один раз, вікно коду відкрите. */
+  function windowOpen() {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const room = manager.create(questQuiz({ leaderboard: 'end' }), 'u1', 'q1');
+    manager.connect(room, HOST);
+    const ola = manager.join(room.code, 'Оля', 'u2');
+    const taras = manager.join(room.code, 'Тарас');
+    if (!ola.ok || !taras.ok) throw new Error('join');
+    for (const j of [ola, taras]) manager.connect(room, { role: 'player', playerId: j.playerId });
+    for (const type of ['start', 'next', 'lock'] as const) manager.host(room, { type });
+    for (let i = 0; i < 6 && room.state.phase !== 'intro'; i++) manager.host(room, { type: 'next' });
+    expect(manager.questCode(room, ola.playerId, { code: 'СОВИ' })).toEqual({ ok: true });
+    for (let i = 0; i < 5; i++) {
+      manager.host(room, { type: 'next' });
+      manager.answer(room, taras.playerId, QUEST_RIGHT[i]!);
+      manager.host(room, { type: 'lock' });
+      manager.host(room, { type: 'next' });
+    }
+    manager.host(room, { type: 'next' });
+    expect(room.state.quest?.stage).toBe('window');
+    return { scheduler, manager, room, ola, taras };
+  }
+
+  it('a restored room keeps the tries and the window', () => {
+    const { scheduler, manager, room, ola, taras } = windowOpen();
+    scheduler.advance(QUEST_WINDOW_MS - 12_000);
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    scheduler.advance(60_000);
+    const next = new RoomManager(scheduler, () => 0);
+    const back = next.restore(saved) as Room;
+    expect(back.state.quest?.stage).toBe('window');
+    expect(back.state.paused).toBe(true);
+    expect(back.state.remainingMs).toBe(12_000);
+    expect(back.state.quest?.tries[ola.playerId]).toMatchObject([{ code: 'СОВИ', right: false }]);
+    next.connect(back, HOST);
+    for (const j of [ola, taras]) next.connect(back, { role: 'player', playerId: j.playerId });
+    expect(next.questCode(back, ola.playerId, { code: 'СОВА' })).toEqual({ ok: false, error: 'paused' });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(scheduler.pending()).toEqual([12_000]);
+    expect(next.questCode(back, ola.playerId, { code: 'СОВА' })).toEqual({ ok: true });
+    scheduler.advance(12_000);
+    expect(back.state.quest?.stage).toBe('shown');
+  });
+
+  it('a restored room whose window ran out before the snapshot shows the code', () => {
+    const { scheduler, manager, room } = windowOpen();
+    manager.freeze();
+    scheduler.advance(QUEST_WINDOW_MS + 1_000);
+    const saved = viaJson(manager.snapshot(room));
+    expect(saved.state.quest?.stage).toBe('window');
+    const back = new RoomManager(scheduler, () => 0).restore(saved) as Room;
+    expect(back.state.quest?.stage).toBe('shown');
+    expect(back.state.phase).toBe('leaderboard');
   });
 });

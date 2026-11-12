@@ -2,8 +2,8 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import { betsMinimumNow, betsPlaying } from '@quiz/engine';
-import { auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, drawing, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
-import { AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
+import { QUEST_RIGHT, questQuiz, auctionRound, betsRound, classicRound, makeQuiz, makeRoundsQuiz, single, letterwordsRandom, moreless, drawing, text, timedlist, truthRound, withId, wordladder } from '@quiz/engine/testing';
+import { QUEST_WINDOW_MS, AUCTION_BID_MS, type AckResult, type ClientToServerEvents, type GameView, type ServerToClientEvents, type SocketAuth } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { buildApp } from './app';
 import { clientAddress, LOOKUPS_PER_MINUTE } from './socket';
@@ -291,6 +291,47 @@ describe('a server restart', () => {
     await until(olena, (view) => view.phase === 'question');
     expect(second.ctx.manager.get(started.code)?.state.plays[0].final?.wagers).toEqual({ [tarasJoin.playerId]: 300 });
     expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'bet_skipped' });
+  }, 30_000);
+
+  it('a restored room keeps the tries and the window', async () => {
+    // Точний залишок — у manager.restore.test.ts (фейковий годинник); тут — шлях через базу й сокети.
+    const db = await createTestDb();
+    const first = await boot(db, 'a');
+    const { game: started } = await startGame(first.ctx.app, questQuiz({ leaderboard: 'end' }));
+    const olenaJoin = await join(first.ctx, started.code, 'Олена');
+    const host = client(first.port, { code: started.code, role: 'host', token: started.hostToken });
+    const olena = client(first.port, { code: started.code, role: 'player', token: olenaJoin.token });
+    await until(host, (view) => view.role === 'host' && view.players.filter((p) => p.connected).length === 1);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while (olena.last?.phase !== 'intro') {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
+    expect(await send(olena, 'player:quest', { code: 'СОВИ' })).toEqual({ ok: true });
+    for (let i = 0; i < 5; i++) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await until(olena, inPhase('question'));
+      expect(await send(olena, 'player:answer', QUEST_RIGHT[i])).toEqual({ ok: true });
+      // Єдиний гравець відповів — запитання закрилось саме.
+      await until(olena, (view) => view.phase !== 'question');
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+    }
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(host, (view) => view.role === 'host' && view.quest?.stage === 'window');
+
+    await first.ctx.shutdown();
+    host.last = null;
+    const second = await boot(db, 'b', first.port);
+    const back = await until(host, (view) => view.role === 'host' && view.quest?.stage === 'window' && view.paused);
+    expect(back.role === 'host' ? back.quest?.detail.find((d) => d.tries.length > 0)?.tries.map((t) => t.code) : null).toEqual(['СОВИ']);
+    const restored = second.ctx.manager.get(started.code)!.state;
+    expect(restored.remainingMs).toBeGreaterThan(0);
+    expect(restored.remainingMs).toBeLessThanOrEqual(QUEST_WINDOW_MS);
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    expect(await send(olena, 'player:quest', { code: 'СОВА' })).toEqual({ ok: true });
   }, 30_000);
 
   it("a restored room keeps every player's list finds", async () => {
