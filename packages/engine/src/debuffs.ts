@@ -149,6 +149,8 @@ function deferCharge(state: GameState, charge: ScoreAdjustment): GameState {
  * Списати відкладені ціни (29h): на reveal — куплені до цього розкриття (afterQuestion < plays.length; куплені на самому розкритті
  * чекають наступного), на finished і з all (вхід у ставки) — усі. Коригування стає в журнал за своїм seq, з мітки покупки,
  * але в поточному раунді: стовпчик уже закритого раунду не змінюється пізніше. Нічого не настало — той самий стан.
+ * Розкриття «Ва-банку» (wipeout.dropUnstarted) не списує: дебафів у раунді немає, ціна чекає наступного розкриття чи кінця гри.
+ * Кінець гри — і end, і finishRound останнього раунду (гра скінчилася сама).
  */
 export function settleCharges(state: GameState, all = false): GameState {
   const pending = state.deferredCharges;

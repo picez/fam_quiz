@@ -483,6 +483,28 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('an anonymous price bought on the last reveal is recorded when the game finishes on its own (29h)', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([single], { speedBonus: false, buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 200 } }));
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    for (let i = 0; i < 5 && ctx.room.state.phase !== 'reveal'; i++) ctx.host('next');
+    expect(ctx.room.state.phase).toBe('reveal');
+    expect(ctx.manager.buff(ctx.room, ctx.olena, 'stealth')).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
+    const before = ctx.room.state.players.find((p) => p.id === ctx.olena)!.score;
+    for (let i = 0; i < 5 && ctx.room.state.phase !== 'finished'; i++) ctx.host('next');
+    expect(ctx.room.state.phase).toBe('finished');
+    expect(ctx.room.state.deferredCharges).toBeUndefined();
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).where(eq(scoreAdjustment.source, 'debuff'));
+    expect(rows.map((r) => [r.participantId, r.points, r.debuff])).toEqual([[ctx.olena, -200, 'fog']]);
+    const participants = await ctx.db.select().from(participant);
+    expect(participants.find((p) => p.nickname === 'Олена')?.score).toBe(before - 200);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it("a kicked player's adjustments go with the participant", async () => {
     const ctx = await setup();
     ctx.host('start');

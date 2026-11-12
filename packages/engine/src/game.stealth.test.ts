@@ -274,6 +274,22 @@ describe('the anonymous price waits for the next reveal', () => {
     expect(s.adjustments.filter((a) => a.source === 'debuff')).toHaveLength(1);
   });
 
+  it('charged when the game finishes on its own', () => {
+    // одне запитання; покупка на розкритті останнього — «Далі» одразу завершує гру (finishRound)
+    for (const phase of ['reveal'] as const) {
+      const quiz = makeRoundsQuiz([classicRound('r1', [single])], { leaderboard: 'each', buffs: ['stealth'], debuffs: ['fog'] });
+      let s = must(start(lobbyWith(quiz, 'Оля', 'Петро')));
+      for (const id of ['p1', 'p2']) s = must(adjustScore(s, id, 1000, T0));
+      s = until(must(takeStealth(s, 'p1', T0)), phase);
+      s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 300));
+      s = until(s, 'finished');
+      expect(s.phase).toBe('finished');
+      expect(scoreOf(s, 'p1'), phase).toBe(800);
+      expect(s.deferredCharges).toBeUndefined();
+      expect(s.adjustments.filter((a) => a.source === 'debuff')).toHaveLength(1);
+    }
+  });
+
   it('charged when the stakes open: the limit counts it', () => {
     const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f', withId(single, 'f1'))], { buffs: ['stealth'], debuffs: ['fog'] });
     let s = must(start(lobbyWith(quiz, 'Оля', 'Петро')));

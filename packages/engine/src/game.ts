@@ -1758,7 +1758,8 @@ function finishRound(input: GameState, now?: number): GameState {
   // Без now (старі виклики) мить коригування невідома — 0.
   const state = awardSurvivalBonus(marked === ladderStopped ? ladderStopped : withTotals(marked), now ?? 0);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
-  const finished: GameState = { ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) };
+  // «Прихований напад» (29h): гра скінчилася сама — ціни, що ще чекали розкриття, списуються, підсумки чесні.
+  const finished: GameState = settleCharges({ ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) });
   return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
 }
 
