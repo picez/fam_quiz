@@ -6,6 +6,7 @@ import type { Send } from '../live/types';
 // Vitest підміняє CSS порожнім рядком, тож стилі читаються з диска; типів node у вебі немає.
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
+import { t } from '../i18n';
 import { DebuffPanel, isSurvivalGhost, parseAdjust, PointsPanel } from './HostPlayerTools';
 
 // Тести запускаються з кореня репозиторію або з apps/web.
@@ -83,6 +84,17 @@ describe('DebuffPanel', () => {
     cleanup();
     render(<DebuffPanel player={player()} kinds={['fog']} send={okSend()} onError={vi.fn()} />);
     expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('the host does not learn the buyer', () => {
+    const anon = player({ debuff: { kind: 'fog', fired: false, by: null, anon: true } });
+    render(<DebuffPanel player={anon} kinds={['fog']} send={okSend()} onError={vi.fn()} />);
+    expect(screen.getByText('🌫️ Туман від когось · чекає')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Скасувати дебаф' })).toBeNull();
+    expect(screen.getByText(t('debuffBought'))).toBeTruthy();
+    cleanup();
+    render(<DebuffPanel player={player({ debuff: { kind: 'fog', fired: true, by: null, anon: true } })} kinds={['fog']} send={okSend()} onError={vi.fn()} />);
+    expect(screen.getByText('🌫️ Туман від когось · діє')).toBeTruthy();
   });
 
   it('the debuff panel lists six debuffs and sends the chosen one', () => {

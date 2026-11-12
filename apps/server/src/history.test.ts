@@ -4,7 +4,7 @@ import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SP
 import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
-import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
+import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, game, participant, PENALTY_ATTEMPT, user, VOTE_ATTEMPT } from './db/schema';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -1389,6 +1389,35 @@ describe('history: score adjustments', () => {
       { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: 900, source: 'host' },
       { seq: 2, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: -200, source: 'debuff', debuff: 'fog', target: 'Тарас' },
     ]);
+  });
+
+  it('history of an unfinished game hides debuff purchases (29h)', async () => {
+    const host = await hostAccount();
+    const players = [
+      {
+        userId: null,
+        nickname: 'Олена',
+        score: 700,
+        rank: 1,
+        adjustments: [{ seq: 1, points: 900 }, { seq: 2, points: -200, source: 'debuff' as const, debuff: 'fog' as const, targetNickname: 'Тарас' }, { seq: 3, points: -100, source: 'debuff' as const, debuff: 'mud' as const, targetNickname: 'Тарас' }],
+      },
+      { userId: null, nickname: 'Тарас', score: 0, rank: 2 },
+    ];
+    const live = await seedGame(db, { hostId: host.id, startedAt: new Date(2026, 2, 6), status: 'running', players });
+    const open = await hostGameWithFacts(db, host.id, live.gameId);
+    expect(open?.detail.adjustments).toEqual([{ seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: 900, source: 'host' }]);
+    expect(open?.factInput.debuffs).toEqual([]);
+    // Рахунок видно, підпису («Дебафи») немає: у розбивці покупця частини debuff немає.
+    const mine = open?.detail.standings.find((r) => r.nickname === 'Олена');
+    expect(mine?.score).toBe(700);
+    expect(mine?.breakdown.parts.map((x) => x.source)).not.toContain('debuff');
+    const done = await seedGame(db, { hostId: host.id, startedAt: new Date(2026, 2, 7), players });
+    const shown = await hostGameWithFacts(db, host.id, done.gameId);
+    expect(shown?.detail.adjustments.filter((a) => a.source === 'debuff')).toEqual([
+      expect.objectContaining({ nickname: 'Олена', debuff: 'fog', target: 'Тарас' }),
+      expect.objectContaining({ nickname: 'Олена', debuff: 'mud', target: 'Тарас' }),
+    ]);
+    expect(shown?.factInput.debuffs).toHaveLength(2);
   });
 
   it('history adjustments carry seq and source', async () => {

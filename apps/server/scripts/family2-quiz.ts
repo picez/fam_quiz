@@ -52,7 +52,7 @@ export const family2Quiz = (): Quiz => {
     settings: {
       leaderboard: 'each',
       newcomers: true,
-      buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek'],
+      buffs: ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek', 'stealth'],
       debuffs: ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud', 'flip', 'torch', 'sticky', 'noclock', 'bubbles'],
       debuffPrices: { shake: 150, fog: 250, freeze: 400, mirror: 300, guests: 250, mud: 200, flip: 300, torch: 250, sticky: 200, noclock: 350, bubbles: 200 },
       debuffShop: true,

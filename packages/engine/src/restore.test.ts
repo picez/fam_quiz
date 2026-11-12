@@ -52,6 +52,7 @@ import {
   type Play,
   type PerkHint,
   type PerkState,
+  type StealthState,
   type PlayerState,
   type ScoreAdjustment,
   type SortProgress,
@@ -165,6 +166,7 @@ import { rollTeamDie, setCaptain, setTeamForm, startTeamDice } from './teams';
 import { actAnswer, actBuzz } from './team-act';
 import { pickAnswerer, startAnswerers } from './answerer';
 import { grantPerks, usePerk } from './perks';
+import { takeStealth } from './stealth';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
@@ -345,7 +347,7 @@ const STATE_SHAPE: Record<string, string> = {
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
       'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks', 'truth',
-      'drawTurns',
+      'drawTurns', 'stealth', 'deferredCharges',
     ],
     true,
   ),
@@ -421,10 +423,11 @@ const STATE_SHAPE: Record<string, string> = {
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
-  DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by'], true),
+  DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by', 'anon'], true),
+  StealthState: keysOf<StealthState>()(['at', 'spent'], true),
   DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId'], true),
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
-  ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff', 'undoes', 'batch'], true),
+  ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff', 'undoes', 'batch', 'anon'], true),
   Splash: keysOf<Splash>()(['kind', 'at', 'until'], true),
   AwayEntry: keysOf<AwayEntry>()(['ms', 'count', 'since'], true),
   AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'resume', 'skips', 'skipPlays', 'retries'], true),
@@ -1218,7 +1221,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stepAt,teams,transitions,truth',
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
@@ -1285,10 +1288,11 @@ const KEYS: Record<number, Record<string, string>> = {
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
-    DebuffState: 'by,firedAt,kind,since',
+    DebuffState: 'anon,by,firedAt,kind,since',
+    StealthState: 'at,spent',
     DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
     DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
-    ScoreAdjustment: 'afterQuestion,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
+    ScoreAdjustment: 'afterQuestion,anon,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
     Splash: 'at,kind,until',
     AwayEntry: 'count,ms,since',
     AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
@@ -1395,6 +1399,10 @@ function representative(): GameState[] {
   const fogged = must(setDebuff(must(start(lobbyWith(buffQuiz({ debuffs: ['fog'] }), 'Оля', 'Петро'))), 'p1', 'fog'));
   // покупка: коригування з ціллю й видом, дебаф з покупцем
   const bought = must(buyDebuff(must(adjustScore(must(start(lobbyWith(buffQuiz(), 'Оля', 'Петро'))), 'p1', 500, T0)), 'p1', 'p2', 'mud', T0));
+  // 29h: «Прихований напад» — Петро ввімкнув і чекає, Оля купила анонімно: GameState.stealth, DebuffState.anon,
+  // ціна чекає розкриття в GameState.deferredCharges (ScoreAdjustment.anon).
+  const stealthy = must(adjustScore(must(start(lobbyWith(buffQuiz({ buffs: ['stealth'] }), 'Оля', 'Петро'))), 'p1', 500, T0));
+  const anonBought = must(buyDebuff(must(takeStealth(must(takeStealth(stealthy, 'p1', T0)), 'p2', T0)), 'p1', 'p2', 'mud', T0 + 10));
   const finalQuiz = makeRoundsQuiz([finalRound('f', withId(single, 'f1'))]);
   let final = must(next(must(start(lobbyWith(finalQuiz, 'Оля', 'Петро'))), T0, () => 0));
   final = must(placeWager(final, 'p1', 0, T0 + 1000, () => 0));
@@ -1581,6 +1589,7 @@ function representative(): GameState[] {
     openAt(lobbyWithSplash(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля', 'Петро'), T0),
     must(next(fogged, T0, () => 0)),
     bought,
+    anonBought,
     final,
     buzzed,
     acceptAll(buzzed, T0 + 1000),
@@ -2343,9 +2352,10 @@ describe('the saved state', () => {
       add('BuffRange', buffs.map((b) => b.range));
       add('BuffZoom', buffs.map((b) => b.zoom));
       add('DebuffState', Object.values(s.debuffs));
+      add('StealthState', Object.values(s.stealth ?? {}));
       add('DuelState', [s.duel]);
       add('DuelQuestionPlay', s.duel?.questions ?? []);
-      add('ScoreAdjustment', s.adjustments);
+      add('ScoreAdjustment', [...s.adjustments, ...(s.deferredCharges ?? [])]);
       add('Splash', [s.splash]);
       add('WallProgress', s.plays.flatMap((p) => Object.values(p.wall ?? {})));
       add('SurveyPlay', s.plays.map((p) => p.survey));

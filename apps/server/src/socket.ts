@@ -307,6 +307,14 @@ export function attachSockets(
         schedulePuzzle(room);
         return;
       }
+      if (event.only !== undefined) {
+        // 29h: зміну бачить лише власник (гравець чи його команда): ні сцена, ні пульт, ні інші телефони кадру не дістають.
+        const { only } = event;
+        members
+          .filter((s) => s.data.identity.role === 'player' && s.data.identity.playerId !== null && (s.data.identity.playerId === only || teamOf(room.state, s.data.identity.playerId) === only))
+          .forEach(push);
+        return;
+      }
       pushedNow(room);
       members.forEach(push);
       // Стан змінився — чернетка могла застаріти: пульт отримує свіжий пакет.

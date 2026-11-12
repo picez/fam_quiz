@@ -48,6 +48,7 @@ import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, overtimeOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
 import { perkHintHere, perkTimeHere } from './perks';
+import { takeStealth } from './stealth';
 import { canMemberVote } from './team-act';
 import { memberOf, teamsOn } from './teams';
 
@@ -288,6 +289,9 @@ function fitBlock(state: GameState, play: Play, playerId: string, kind: BuffKind
       // Поле: відповідає лише той, хто вибрав клітинку, тож підглянути нема в кого.
       if (play.board !== undefined) return 'unfit_board';
       return peekTargets(state, play, playerId).length === 0 ? 'no_answers' : null;
+    case 'stealth':
+      // 29h: вмикається окремо (takeStealth), у ряді бафів запитання не береться.
+      return 'unfit_type';
   }
   // Новий вид бафу без власної гілки не пройде перевірку типів.
   const unknown: never = kind;
@@ -362,6 +366,8 @@ export function peekTargets(state: GameState, play: Play, participant: string): 
 
 /** Узяти баф на поточне запитання. fifty і scope тягнуть rng; time дає гравцеві особистий час понад спільний кінець; targetId — лише для peek (без нього чи поза peekTargets — peek_target). */
 export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now: number, rng: Rng, targetId?: string): Result {
+  // «Прихований напад» (29h): не баф запитання — свій стан і свої правила (будь-коли, раз за гру).
+  if (kind === 'stealth') return takeStealth(state, playerId, now);
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
   if (buffsUsed(state, playerId).includes(kind)) return fail('buff_used');

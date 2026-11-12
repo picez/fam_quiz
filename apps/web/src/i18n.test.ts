@@ -133,6 +133,7 @@ describe('uk golden (22a)', () => {
   const ADDED_29F_PLURALS = ['summaryMemories_few', 'summaryMemories_many'];
   /** 29e: «Мелодія за нотами» — тип, помилки, проблеми чернетки, редактор, телефон, сцена й таблиця. */
   const ADDED_29E = ['type_melody', 'typeShort_melody', 'typeHow_melody', 'buffWhy_off_melody', 'err_melody_stale', 'err_melody_step', 'err_melody_unheard', 'problemMelodyTrack', 'problemMelodyAccepted', 'problemMelodyPlace', 'problemMelodyLimits', 'melodyDefaultText', 'melodySourceLabel', 'melodySourceFile', 'melodySourceYoutube', 'melodyLinkLabel', 'melodyLinkPlaceholder', 'melodyBadLink', 'melodyStart', 'melodyShortFile', 'melodyPreview', 'melodyAcceptedHint', 'melodyListen', 'melodyMore', 'melodyReplay', 'melodyStep', 'melodyShareNow', 'melodyListenFirst', 'melodyOpenedBy', 'melodyAnswered', 'melodyBlocked', 'melodyFailed', 'melodyStageNone', 'melodyStageHeard', 'melodyPlayersAnswered', 'melodyRevealTitle', 'melodyTableChunk', 'melodyTableLabel', 'melodyAnswerHeard', 'summaryMelodies_one'];
+  const ADDED_29H = ['buff_stealth', 'buffTip_stealth', 'buffGuide_stealth', 'buffWhere_stealth', 'stealthTake', 'stealthArmed', 'stealthUsed', 'debuffAnonNotice', 'debuffCastAnon', 'debuffWaitingAnon', 'debuffFiringAnon', 'powersStealthNeedsShop'];
   const ADDED_29E_PLURALS = ['summaryMelodies_few', 'summaryMelodies_many'];
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
   const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
@@ -192,7 +193,9 @@ describe('uk golden (22a)', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
     for (const key of ADDED_29E) expect(ukMessages, key).toHaveProperty(key);
     for (const key of ADDED_29E_PLURALS) expect(ukMessages, key).toHaveProperty(key);
+    for (const key of ADDED_29H) expect(ukMessages, key).toHaveProperty(key);
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_29E.filter((key) => !(key in dict)), lang).toEqual([]);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_29H.filter((key) => !(key in dict)), lang).toEqual([]);
     // Форми множини — лише в мовах, що їх мають.
     expect(pl).toHaveProperty('summaryMelodies_few');
     expect(ar).toHaveProperty('summaryMelodies_zero');
@@ -214,7 +217,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key))).toEqual([]);
   });
 });
 

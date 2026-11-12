@@ -363,7 +363,7 @@ export interface Tilt {
 /** moved — кімнату тепер веде інший процес (9b): вона пішла з пам'яті, але не закрита. */
 export type RoomEvent =
   /** puzzle — зміна лише від пакета клітинок «Головоломок» (28d): socket.ts зливає такі зрізи для кімнати в замикальному вікні. */
-  | { type: 'changed'; puzzle?: true }
+  | { type: 'changed'; puzzle?: true; only?: string }
   /** released — ведучий (автор) звільнив місце збереженої гри (13b): гравець лишається в грі, телефон іде. */
   | { type: 'kicked'; playerId: string; reason?: 'released' }
   /** saved — гру збережено (13b): рекордер пише її як «Не завершену». */
@@ -2020,9 +2020,11 @@ export class RoomManager {
   /** Гравець бере баф; targetId — ціль «Підглянути» (12h). У командній грі — той, хто відповідає (12g). */
   buff(room: Room, playerId: string, kind: BuffKind, targetId?: string): AckResult {
     if (!this.alive(room)) return this.gone();
-    const who = this.act(room, playerId, 'answerer');
+    const who = this.act(room, playerId, kind === 'stealth' ? 'captain' : 'answerer');
     if (!who.ok) return who;
-    return this.apply(room, takeBuff(room.state, who.id, kind, this.now(), this.rng, targetId));
+    const result = takeBuff(room.state, who.id, kind, this.now(), this.rng, targetId);
+    // 29h: «Прихований напад» ніхто, крім власника, не бачить — зміну чують лише його сокети.
+    return kind === 'stealth' ? this.apply(room, result, { only: who.id }) : this.apply(room, result);
   }
 
   /** Гравець купує дебаф для суперника (9c). */
@@ -2434,14 +2436,14 @@ export class RoomManager {
     room.deadline = room.pilot = room.absence = room.authorAway = room.expiry = room.holdExpiry = null;
   }
 
-  private apply(room: Room, result: Result): AckResult {
+  private apply(room: Room, result: Result, options?: { only?: string }): AckResult {
     if (!result.ok) return { ok: false, error: result.error };
-    this.commit(room, result.state);
+    this.commit(room, result.state, this.now(), false, options?.only);
     return { ok: true };
   }
 
   /** at — мить зміни для мітки кроку (11b): зараз, а для таймера — його дедлайн. puzzle — зміну дав лише пакет клітинок (28d). */
-  private commit(room: Room, state: GameState, at = this.now(), puzzle = false): void {
+  private commit(room: Room, state: GameState, at = this.now(), puzzle = false, only?: string): void {
     // Антигугл (12e): годинник виходів між кроками — на кожному кроці (дії, таймери, автопілот), у мить кроку; до stamp.
     state = awayStep(room.state, state, at, room.hidden);
     // Слова з літер (27d): роздача — до розсилки, збереження й плану автопілота; next, tick, автопілот і поле проходять тут.
@@ -2465,7 +2467,7 @@ export class RoomManager {
     this.reschedule(room);
     // 29e: зріз під заставкою перед «Мелодією» оновлюється сам, коли вона мине.
     this.watchTimers(room);
-    this.emit(room, puzzle ? { type: 'changed', puzzle: true } : { type: 'changed' });
+    this.emit(room, puzzle ? { type: 'changed', puzzle: true } : only === undefined ? { type: 'changed' } : { type: 'changed', only });
   }
 
   /** Приводить таймери кімнати у відповідність до її стану. */

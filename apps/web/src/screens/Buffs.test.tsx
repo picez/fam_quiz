@@ -727,7 +727,8 @@ describe('StageBuffs', () => {
 
 describe('12h buffs on the phone', () => {
   const all = (over: Partial<Record<BuffKind, { state: 'ready' | 'blocked'; block: BuffBlock | null }>> = {}): PlayerBuffs => ({
-    slots: BUFF_KINDS.map((kind) => ({ kind, state: 'ready' as const, block: null, ...over[kind] })),
+    // stealth (29h) — не в ряді бафів запитання: playerBuffs його викидає.
+    slots: BUFF_KINDS.filter((kind) => kind !== 'stealth').map((kind) => ({ kind, state: 'ready' as const, block: null, ...over[kind] })),
     active: null,
     peekable: [{ playerId: 'p3', nickname: 'Іра' }],
   });
@@ -736,7 +737,7 @@ describe('12h buffs on the phone', () => {
     const { container } = row(all());
     const buttons = [...container.querySelectorAll('.buff-row button')];
     expect(buttons).toHaveLength(13);
-    expect(buttons.map((button) => button.textContent)).toEqual(BUFF_KINDS.map((kind) => BUFF_ICONS[kind]));
+    expect(buttons.map((button) => button.textContent)).toEqual(BUFF_KINDS.filter((kind) => kind !== 'stealth').map((kind) => BUFF_ICONS[kind]));
     expect(buttons.slice(8).map((button) => button.textContent)).toEqual(['⚄', 'А…', '◎', '∞', '◉']);
     // Тринадцять кнопок 44 px переносяться у два рядки на 375 − 40 px: сім у рядку з проміжком 4 px.
     expect(container.querySelector('.buff-row')?.className).toContain('is-many');

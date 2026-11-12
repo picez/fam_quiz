@@ -104,9 +104,9 @@ export function DebuffPanel({ player, kinds, warded = false, send, onError }: Pa
           </button>
         ))}
       </div>
-      {current !== null && current.by !== null && <p className="meta">{t('debuffBought')}</p>}
+      {current !== null && (current.by !== null || current.anon === true) && <p className="meta">{t('debuffBought')}</p>}
       {/* Куплений дебаф не скасовується: бали вже сплачено (виправити можна «Балами»). */}
-      {current !== null && !current.fired && current.by === null && (
+      {current !== null && !current.fired && current.by === null && current.anon !== true && (
         <button type="button" className="btn btn-danger btn-small" disabled={busy} onClick={() => void run('host:undebuff', { playerId: player.id })}>
           {t('debuffCancel')}
         </button>
@@ -118,6 +118,7 @@ export function DebuffPanel({ player, kinds, warded = false, send, onError }: Pa
 /** «🌫️ Туман · чекає» / «🌫️ Туман · діє»; куплений — «🌫️ Туман від гравця Оля · чекає». */
 export function debuffTagText(debuff: NonNullable<HostPlayer['debuff']>): string {
   const vars = { icon: DEBUFF_ICONS[debuff.kind], name: debuffName(debuff.kind) };
+  if (debuff.anon === true) return t(debuff.fired ? 'debuffFiringAnon' : 'debuffWaitingAnon', vars);
   if (debuff.by !== null) return t(debuff.fired ? 'debuffFiringBy' : 'debuffWaitingBy', { ...vars, by: debuff.by });
   return t(debuff.fired ? 'debuffFiring' : 'debuffWaiting', vars);
 }

@@ -1347,6 +1347,75 @@ describe('host presence', () => {
     expect(hit.role === 'player' && hit.me.debuff).toMatchObject({ kind: 'fog', by: 'Олена' });
   });
 
+  it("stealth reaches only the owner's sockets (29h)", async () => {
+    const quiz = makeQuiz([single, text], { buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 100 } });
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    await until(olena, (v) => v.phase !== 'lobby' && v.phase !== 'guide');
+    await pause(100);
+    const others = () => [stage, host, taras].map((who) => who.states);
+    const before = others();
+    const own = olena.states;
+    expect(await send(olena, 'player:buff', { kind: 'stealth' })).toEqual({ ok: true });
+    const mine = await until(olena, (v) => v.role === 'player' && v.me.stealth === 'armed');
+    expect(mine.role === 'player' && mine.me.stealth).toBe('armed');
+    await pause(200);
+    expect(olena.states).toBeGreaterThan(own);
+    expect(others()).toEqual(before);
+    expect(taras.last?.role === 'player' && taras.last.me.stealth).toBe('ready');
+  });
+
+  it('an anonymous purchase over the socket (29h)', async () => {
+    const quiz = makeQuiz([single, text], { buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 100 } });
+    const created = (await startGame(ctx.app, quiz)).game;
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:adjust', { playerId: olenaJoin.playerId, points: 150 })).toEqual({ ok: true });
+    expect(await send(olena, 'player:buff', { kind: 'stealth' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:debuff', { targetId: tarasJoin.playerId, kind: 'fog' })).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(taras, (v) => v.role === 'player' && v.me.debuff !== null);
+    await until(host, (v) => v.role === 'host' && v.players.some((p) => p.debuff !== null && p.debuff !== undefined));
+    await pause(100);
+    const hit = taras.last;
+    expect(hit?.role === 'player' && hit.me.debuff).toMatchObject({ kind: 'fog', by: null });
+    const watch = host.last;
+    const hurt = watch?.role === 'host' ? watch.players.find((p) => p.id === tarasJoin.playerId) : undefined;
+    expect(hurt?.debuff).toMatchObject({ kind: 'fog', by: null, anon: true });
+    for (const who of [stage, host, taras]) {
+      const frame = JSON.stringify(who.last);
+      expect(frame).not.toContain('"buyer":{');
+      expect(frame).not.toContain(`"by":"${olenaJoin.playerId}"`);
+      expect(frame).not.toContain('"by":"Олена"');
+    }
+  });
+
+  it('stealth in teams — the captain only, the whole team hears it (29h)', async () => {
+    const game = (await startGame(ctx.app, makeRoundsQuiz([classicRound('r1', [text, single])], { teams: defaultTeams(2), buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 100 } }))).game;
+    const joins = [];
+    for (const name of ['Олена', 'Тарас', 'Іра', 'Марко']) joins.push(await join(game.code, name));
+    const host = open({ code: game.code, role: 'host', token: game.hostToken });
+    const stage = open({ code: game.code, role: 'stage', token: game.stageToken });
+    const [olena, taras, ira, marko] = joins.map((j) => open({ code: game.code, role: 'player', token: j.token }));
+    const view = await until(host, (v) => v.role === 'host' && (v.teams?.unassigned.filter((m) => m.connected).length ?? 0) === 4);
+    const [red, blue] = (view.teams?.teams ?? []).map((t) => t.id);
+    for (const [i, team] of [red, red, blue, blue].entries()) {
+      expect(await send(host, 'host:team-assign', { memberId: joins[i].playerId, teamId: team })).toEqual({ ok: true });
+    }
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const who of [olena, taras, ira, marko, stage, host]) await until(who, inPhase('question'));
+    await pause(100);
+    const outsiders = () => [ira, marko, stage, host].map((who) => who.states);
+    const before = outsiders();
+    expect(await send(taras, 'player:buff', { kind: 'stealth' })).toEqual({ ok: false, error: 'not_captain' });
+    expect(await send(olena, 'player:buff', { kind: 'stealth' })).toEqual({ ok: true });
+    for (const who of [olena, taras]) await until(who, (v) => v.role === 'player' && v.me.stealth === 'armed');
+    await pause(200);
+    expect(outsiders()).toEqual(before);
+  });
+
   it('vote and hint events are role-checked and validated', async () => {
     const quiz = { ...makeQuiz([single, text], { buffs: ['audience', 'hint'] }), spares: [withId(bool, 's1')] };
     const created = (await startGame(ctx.app, quiz)).game;

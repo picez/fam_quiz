@@ -399,7 +399,9 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
         .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
         .where(inGame);
   const fresh = state.adjustments
-    .filter((adjustment) => adjustment.seq > (saved ?? 0))
+    // Анонімна купівля дебафу (29h) отримує seq у мить покупки, а в журнал потрапляє при розкритті: між ними
+    // могло записатись коригування з більшим seq. Її беремо завжди; дублікат відсіє ключ (participantId, seq).
+    .filter((adjustment) => adjustment.seq > (saved ?? 0) || adjustment.anon === true)
     .map(({ playerId, seq, roundIndex, afterQuestion, points, source, debuff, target, undoes }) => ({
       participantId: playerId,
       seq,

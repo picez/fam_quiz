@@ -18,6 +18,7 @@ export const BUFF_ICONS: Record<BuffKind, string> = {
   scope: '◎',
   guard: '∞',
   peek: '◉',
+  stealth: '◐',
 };
 
 /** Значок бафу мовою інтерфейсу. */

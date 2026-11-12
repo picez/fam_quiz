@@ -226,7 +226,7 @@ describe('QuizEditor', () => {
     expect(debuffs.getAllByRole('checkbox')).toHaveLength(11);
     // 12h: без settings.debuffs — старі шість (LEGACY_DEBUFFS), нові п'ять вимкнені.
     debuffs.getAllByRole('checkbox').forEach((box, i) => expect((box as HTMLInputElement).checked).toBe(i < 6));
-    expect(buffs.getAllByRole('checkbox')).toHaveLength(13);
+    expect(buffs.getAllByRole('checkbox')).toHaveLength(14);
     buffs.getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).checked).toBe(false));
     for (const name of ['Запитання в залі', 'Підказка ведучого', 'Заміна запитання']) {
       expect((buffs.getByLabelText(new RegExp('(?<!Довідка: )' + name)) as HTMLInputElement).disabled).toBe(false);
@@ -246,7 +246,7 @@ describe('QuizEditor', () => {
     const debuffs = () => within(screen.getByRole('group', { name: t('powersDebuffs') }));
     const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
     fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
-    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(13);
+    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(14);
     // Заміна без запасних не збережеться (пул — у редакторі запасних), тож її знімаємо.
     fireEvent.click(buffs().getByLabelText(/(?<!Довідка: )Заміна запитання/));
     fireEvent.click(debuffs().getByRole('button', { name: t('powersNone') }));
@@ -262,7 +262,7 @@ describe('QuizEditor', () => {
     expect(saved(onSave).settings).toEqual({
       leaderboard: 'each',
       debuffs: ['fog'],
-      buffs: ['fifty', 'double', 'retry', 'time', 'audience', 'hint', 'risk', 'letter', 'scope', 'guard', 'peek'],
+      buffs: ['fifty', 'double', 'retry', 'time', 'audience', 'hint', 'risk', 'letter', 'scope', 'guard', 'peek', 'stealth'],
     });
   });
 
@@ -1653,12 +1653,12 @@ describe('QuizEditor hints and spares', () => {
   const buffs = () => within(screen.getByRole('group', { name: t('powersBuffs') }));
   const sparesSection = () => within(screen.getByText(t('sparesTitle'), { selector: 'summary' }).closest('details')!);
 
-  it('all thirteen buffs can be chosen; «Усі» turns on all thirteen', async () => {
+  it('all fourteen buffs can be chosen; «Усі» turns on all fourteen', async () => {
     const { onSave } = open(base());
     buffs().getAllByRole('checkbox').forEach((box) => expect((box as HTMLInputElement).disabled).toBe(false));
     expect(buffs().queryAllByText(/скоро/)).toHaveLength(0);
     fireEvent.click(buffs().getByRole('button', { name: t('powersAll') }));
-    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(13);
+    expect(buffs().getAllByRole('checkbox').filter((box) => (box as HTMLInputElement).checked)).toHaveLength(14);
     expect(screen.getByText(t('powersSwapNeedsSpares'))).toBeTruthy();
     click('Зберегти');
     await waitFor(() => expect(document.querySelector('.problems')).not.toBeNull());

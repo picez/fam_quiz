@@ -114,7 +114,7 @@ describe('PowersEditor 12h', () => {
     for (const kind of LEGACY_DEBUFFS) expect(box(debuffName(kind)).checked).toBe(true);
     for (const name of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки']) expect(box(name).checked).toBe(false);
     expect(document.querySelectorAll('.powers-list')[0].querySelectorAll('input[type="checkbox"]')).toHaveLength(11);
-    expect(document.querySelectorAll('.powers-list')[1].querySelectorAll('input[type="checkbox"]')).toHaveLength(13);
+    expect(document.querySelectorAll('.powers-list')[1].querySelectorAll('input[type="checkbox"]')).toHaveLength(14);
   });
 
   it('ticking «Липкі кнопки» adds it after the old six and shows its price field', () => {
@@ -128,7 +128,7 @@ describe('PowersEditor 12h', () => {
     expect(box('Липкі кнопки').closest('.powers-row')?.querySelector('input[type="number"]')?.getAttribute('placeholder')).toBe('200');
   });
 
-  it('«Усі» turns on eleven debuffs and thirteen buffs', () => {
+  it('«Усі» turns on eleven debuffs and fourteen buffs', () => {
     const onChange = vi.fn();
     render(<PowersEditor settings={{ leaderboard: 'each' }} spares={undefined} onChange={onChange} />);
     const [allDebuffs, allBuffs] = screen.getAllByRole('button', { name: 'Усі' });
@@ -137,7 +137,7 @@ describe('PowersEditor 12h', () => {
     expect(onChange.mock.lastCall![0].debuffs).toHaveLength(11);
     fireEvent.click(allBuffs);
     expect(onChange.mock.lastCall![0].buffs).toEqual([...BUFF_KINDS]);
-    expect(onChange.mock.lastCall![0].buffs).toHaveLength(13);
+    expect(onChange.mock.lastCall![0].buffs).toHaveLength(14);
   });
 });
 
@@ -155,5 +155,22 @@ describe('PowersEditor level bonuses (15a)', () => {
     expect(off.checked).toBe(false);
     fireEvent.click(off);
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ levelBonuses: undefined }));
+  });
+});
+
+describe('PowersEditor stealth (29h)', () => {
+  it('stealth warns without the shop or without debuffs, and not with them', () => {
+    const warn = t('powersStealthNeedsShop');
+    render(<PowersEditor settings={{ leaderboard: 'each', buffs: ['stealth'], debuffShop: false }} spares={undefined} onChange={vi.fn()} />);
+    expect(screen.getByText(warn)).toBeTruthy();
+    cleanup();
+    render(<PowersEditor settings={{ leaderboard: 'each', buffs: ['stealth'], debuffs: [] }} spares={undefined} onChange={vi.fn()} />);
+    expect(screen.getByText(warn)).toBeTruthy();
+    cleanup();
+    render(<PowersEditor settings={{ leaderboard: 'each', buffs: ['stealth'] }} spares={undefined} onChange={vi.fn()} />);
+    expect(screen.queryByText(warn)).toBeNull();
+    cleanup();
+    render(<PowersEditor settings={{ leaderboard: 'each', buffs: ['fifty'], debuffShop: false }} spares={undefined} onChange={vi.fn()} />);
+    expect(screen.queryByText(warn)).toBeNull();
   });
 });

@@ -66,6 +66,7 @@ export function drawContestant(state: GameState, rng: Rng): Result {
   if (round.pick === 'host') return fail('ladder_pick');
   const present = presentPlayers(state);
   if (present.length === 0) return fail('no_players');
+  // Видимий рахунок, без резерву відкладених цін (29h): інакше вибір «найменші бали» видав би анонімного покупця.
   const lowest = Math.min(...present.map((p) => p.score));
   const candidates = round.pick === 'lowest' ? present.filter((p) => p.score === lowest) : present;
   // Один виклик rng і без нічиєї: перебіг детермінований для тестів і e2e.

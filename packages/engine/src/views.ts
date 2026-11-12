@@ -180,6 +180,7 @@ import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
 import { resumeLobby } from './carry';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
+import { stealthMark } from './stealth';
 import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
 import { decisionOpen, decisionsShown, inWipeoutRound, wipeoutChoiceOf, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
@@ -3032,7 +3033,8 @@ function overtimeRows(state: GameState): OvertimeRow[] {
  * Прибрані 50/50 варіанти й перша відповідь другої спроби є лише тут, у зрізі самого гравця.
  */
 function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
-  const allowed = allowedBuffs(state.quiz);
+  // «Прихований напад» (29h) вмикається на аркуші «Дебафи», а не в ряді бафів запитання.
+  const allowed = allowedBuffs(state.quiz).filter((kind) => kind !== 'stealth');
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (allowed.length === 0 || play === undefined || !buffRowHere(state, play, playerId)) return null;
   const own = buffOf(play, playerId);
@@ -3221,6 +3223,19 @@ function questionPoints(byPlayer: LinesByPlayer, playerId: string, questionIndex
 
 function breakdownFor(byPlayer: LinesByPlayer, playerId: string): ScoreBreakdown {
   return breakdownOf(byPlayer.get(playerId) ?? []);
+}
+
+/** Рядки розбивки пульта: до кінця гри — без анонімних покупок дебафів (29h), щоб біля покупця не з'явилася частина «Дебафи». */
+function hostLines(state: GameState): LinesByPlayer {
+  const lines = scoreLines(state);
+  if (state.phase === 'finished' || !lines.some((line) => line.anon === true)) return scoreLinesByPlayer(state);
+  return groupByPlayer(lines.filter((line) => line.anon !== true));
+}
+
+/** Розбивки пульта за гравцями: рядки hostLines рахуються один раз на зріз. */
+function hostBreakdowns(state: GameState): Record<string, ScoreBreakdown> {
+  const lines = hostLines(state);
+  return Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(lines, p.id)]));
 }
 
 /** Групування видимих рядків: без прихованого — готові групи стану. */
@@ -3546,6 +3561,8 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       bluff: playerBluff(state, playerId),
       debuff: playerDebuff(state, playerId),
       shop: playerShop(state, playerId),
+      // «Прихований напад» (29h): лише в зрізі власника (у командах — зріз команди).
+      ...optional('stealth', stealthMark(state, playerId)),
       duel: playerDuel(state, playerId),
       buffs: playerBuffs(state, playerId),
       perks: perksView(state, playerId),
@@ -3602,14 +3619,19 @@ function liveTable(state: GameState, playerId: string): PlayerTable | null {
 }
 
 /** Власний дебаф гравця, лише поки він діє: до спрацювання гравець про нього не знає. */
-function playerDebuff(state: GameState, playerId: string): { kind: DebuffKind; since: number; by: string | null } | null {
+function playerDebuff(state: GameState, playerId: string): { kind: DebuffKind; since: number; by: string | null; anon?: true } | null {
   const debuff = activeDebuff(state, playerId);
-  return debuff === null || debuff.since === null ? null : { kind: debuff.kind, since: debuff.since, by: debuffBuyer(state, debuff.by) };
+  if (debuff === null || debuff.since === null) return null;
+  // Анонімна покупка (29h): жертва бачить вид, але не покупця.
+  return debuff.anon === true ? { kind: debuff.kind, since: debuff.since, by: null, anon: true } : { kind: debuff.kind, since: debuff.since, by: debuffBuyer(state, debuff.by) };
 }
 
-function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fired: boolean; by: string | null } | null {
+function hostDebuff(state: GameState, playerId: string): { kind: DebuffKind; fired: boolean; by: string | null; anon?: true } | null {
   const debuff = shownDebuff(state, playerId);
-  return debuff === null ? null : { kind: debuff.kind, fired: activeDebuff(state, playerId) !== null, by: debuffBuyer(state, debuff.by) };
+  if (debuff === null) return null;
+  const fired = activeDebuff(state, playerId) !== null;
+  // Анонімна покупка (29h): і ведучий не знає покупця.
+  return debuff.anon === true ? { kind: debuff.kind, fired, by: null, anon: true } : { kind: debuff.kind, fired, by: debuffBuyer(state, debuff.by) };
 }
 
 /** Нікнейм покупця дебафу; null — від ведучого або покупця вилучено. */
@@ -3699,7 +3721,7 @@ export function hostView(state: GameState): HostView {
     hints: hintRequests(state),
     standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
     firstRound: firstRound(state),
-    breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(scoreLinesByPlayer(state), p.id)])),
+    breakdowns: state.phase === 'lobby' ? {} : hostBreakdowns(state),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),

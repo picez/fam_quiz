@@ -362,7 +362,7 @@ export function DebuffZone({
         ))}
       {banner && kind !== null && (
         <p className="debuff-banner" role="status">
-          <strong>{by !== null ? t('debuffCastBy', { by, name: debuffName(kind) }) : t('debuffCast', { name: debuffName(kind) })}</strong>
+          <strong>{debuff?.anon === true ? t('debuffCastAnon', { name: debuffName(kind) }) : by !== null ? t('debuffCastBy', { by, name: debuffName(kind) }) : t('debuffCast', { name: debuffName(kind) })}</strong>
           {tip !== undefined && <span>{t(tip)}</span>}
         </p>
       )}

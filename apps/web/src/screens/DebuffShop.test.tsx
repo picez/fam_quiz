@@ -36,6 +36,40 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name }) a
 const okSend = () => vi.fn(async () => ({ ok: true as const })) as unknown as Send & ReturnType<typeof vi.fn>;
 
 describe('DebuffShop', () => {
+  it('turns stealth on from the sheet', async () => {
+    const send = okSend();
+    render(<DebuffShop shop={shop} score={250} stealth="ready" send={send} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    expect(screen.getByText('Прихований напад')).toBeTruthy();
+    fireEvent.click(button('Увімкнути'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('player:buff', { kind: 'stealth' }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+  });
+
+  it('stealth: armed is a chip, used is a disabled button, none is no row, and it shows even when buying is blocked', () => {
+    const { unmount } = render(<DebuffShop shop={shop} score={250} stealth="armed" send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    expect(screen.getByText('🥷 Наступний напад анонімний')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Увімкнути' })).toBeNull();
+    unmount();
+    cleanup();
+    const used = render(<DebuffShop shop={{ ...shop, block: 'bought' }} score={250} stealth="used" send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    expect(button('Використано').disabled).toBe(true);
+    used.unmount();
+    cleanup();
+    render(<DebuffShop shop={shop} score={250} send={okSend()} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    expect(screen.queryByText('Прихований напад')).toBeNull();
+  });
+
+  it('with stealth ready and a block, the toggle still works', () => {
+    const send = okSend();
+    render(<DebuffShop shop={{ ...shop, block: 'bought' }} score={250} stealth="ready" send={send} onError={vi.fn()} />);
+    fireEvent.click(button('Дебафи'));
+    expect(button('Увімкнути').disabled).toBe(false);
+  });
+
   it('a warded target shows 🛡', () => {
     const warded = { ...shop, targets: [{ ...shop.targets[0]!, warded: true }] };
     render(<DebuffShop shop={warded} score={250} send={okSend()} onError={vi.fn()} />);

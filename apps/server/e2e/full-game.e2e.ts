@@ -29679,3 +29679,383 @@ async function morelessWatch29i() {
   await expectNoSideScroll(taras, 'moreless29i-watch-phone-360');
   expect(problems).toEqual([]);
 }
+
+it('part 29h: stealth — turned on silently from the debuff sheet at 320 px, the next purchase is anonymous on the stage, the host and every phone, the second purchase is named, the history shows the buyer after the game', async () => {
+  try {
+    await stealthGame29h();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+it('part 29h: stealth in teams — the captain turns it on, the whole team sees the mark, the rivals see nothing, a restart keeps it, the attack is anonymous, 320 px', async () => {
+  try {
+    await stealthTeams29h();
+  } catch (error) {
+    await snapshot();
+    throw error;
+  }
+}, 600_000);
+
+/** Два класичні раунди по два запитання (≥ 25 с), баф «Прихований напад», дебафи «Туман» і «Тремтіння» по 200. */
+function stealthQuiz29h(title: string, teams: boolean) {
+  const options = [...single.options, { id: 'd', text: 'Харків' }];
+  const questions = (from: number) =>
+    [from, from + 1].map((n) => ({ ...withId(single, `s${n}`), options, text: `Запитання ${n}: столиця України?`, points: 500, timeLimit: 30 }));
+  return {
+    ...makeRoundsQuiz([classicRound('sr1', questions(1), { speedBonus: false, shuffleOptions: false }), classicRound('sr2', questions(3), { speedBonus: false, shuffleOptions: false })], {
+      leaderboard: 'each',
+      buffs: ['stealth'],
+      debuffs: ['fog', 'shake'],
+      ...(teams ? { teams: { count: 2, names: ['Соняшники', 'Маки'] } } : {}),
+    }),
+    title,
+  };
+}
+
+/** Де кадри називають покупця в полях дебафу: notice.buyer, me.debuff.by, players[].debuff.by. */
+function buyerNamed29h(frames: string[], names: string[]): string[] {
+  const found: string[] = [];
+  const walk = (value: unknown, key: string, parent: string): void => {
+    if (Array.isArray(value)) return value.forEach((item) => walk(item, key, parent));
+    if (value === null || typeof value !== 'object') {
+      if (typeof value === 'string' && ((key === 'by' && parent === 'debuff') || key === 'buyer') && names.includes(value)) found.push(`${parent}.${key}=${value}`);
+      return;
+    }
+    for (const [k, v] of Object.entries(value)) {
+      if (key === 'buyer' && (k === 'id' || k === 'nickname') && typeof v === 'string' && names.includes(v)) found.push(`buyer.${k}=${v}`);
+      walk(v, k, key);
+    }
+  };
+  for (const frame of frames) {
+    const at = frame.indexOf('[');
+    if (at < 0) continue;
+    try {
+      walk(JSON.parse(frame.slice(at)), '', '');
+    } catch {
+      /* не JSON */
+    }
+  }
+  return found;
+}
+
+/** Жоден з кадрів не називає покупця в полях дебафу (і кадри були). */
+function noBuyer29h(frames: string[], names: string[], who: string) {
+  expect(frames.length, `${who}: frames to check`).toBeGreaterThan(0);
+  expect(buyerNamed29h(frames, names), `${who}: a frame names the buyer`).toEqual([]);
+}
+
+const stealthSheet29h = (page: Page) => page.getByRole('dialog', { name: 'Дебафи для суперників' });
+const stealthNotice29h = (page: Page) => page.locator('.live-notice.is-debuff');
+
+async function openShop29h(page: Page) {
+  await page.getByRole('button', { name: 'Дебафи', ...exact }).click();
+  await stealthSheet29h(page).waitFor();
+}
+
+async function buy29h(page: Page, debuff: RegExp, target: string, cost: number) {
+  await openShop29h(page);
+  await stealthSheet29h(page).locator('.shop-item', { hasText: debuff }).click();
+  await stealthSheet29h(page).locator('.shop-target', { hasText: target }).click();
+  await stealthSheet29h(page).getByRole('button', { name: `Купити за ${cost}`, ...exact }).click();
+  await stealthSheet29h(page).waitFor({ state: 'detached' });
+}
+
+async function answer29h(page: Page) {
+  await page.getByRole('button', { name: /Київ/ }).click();
+  await page.getByText(/^(Відповідь прийнято|Чекаємо на правильну відповідь)$/).first().waitFor();
+}
+
+/** Кнопка пульта: перша доступна з переліку. */
+async function advance29h(host: Page, names: string[]) {
+  for (const until = Date.now() + 20_000; Date.now() < until; await sleep(200)) {
+    for (const name of names) {
+      const button = host.getByRole('button', { name, ...exact });
+      if ((await button.count()) > 0 && (await button.isEnabled())) return void (await button.click());
+    }
+  }
+  throw new Error(`no ${names.join(' / ')} on the host`);
+}
+
+/** Дія, після якої за секунду жоден із цих екранів не отримує кадру. */
+async function quiet29h(pages: [string, string[]][], act: () => Promise<void>) {
+  const before = pages.map(([, frames]) => frames.length);
+  await act();
+  await sleep(1000);
+  pages.forEach(([who, frames], i) => expect(frames.slice(before[i]), `${who}: frames after the toggle`).toEqual([]));
+}
+
+/** Позначка власника: один рядок, у межах екрана, без горизонтальної прокрутки. */
+async function expectMark29h(page: Page, name: string) {
+  const mark = page.locator('.stealth-mark');
+  await mark.getByText('🥷 Наступний напад анонімний', exact).waitFor();
+  const box = (await mark.boundingBox())!;
+  expect(box.height, `${name}: the mark is one line`).toBeLessThan(30);
+  expect(box.x + box.width, `${name}: the mark fits the screen`).toBeLessThanOrEqual((page.viewportSize()?.width ?? 0) + 0.5);
+  await expectNoSideScroll(page, name);
+}
+
+async function stealthGame29h() {
+  const host = await open('host29h', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host29h@example.com');
+  const TITLE = 'Прихований напад 29h';
+  const saved = await host.request.post(`${base}/api/quizzes`, { data: stealthQuiz29h(TITLE, false) });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const stage = await open('stage29h', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  const hostFrames = socketFrames(host);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  await stage.goto(stageUrl);
+  const olya = await open('olya29h', 320, 568, { hasTouch: true, isMobile: true });
+  const petro = await open('petro29h', 375, 812);
+  const taras = await open('taras29h', 360, 740);
+  const petroFrames = socketFrames(petro);
+  const tarasFrames = socketFrames(taras);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  await join(taras, code, 'Тарас', false);
+  await stage.getByText('Тарас').waitFor();
+  const phones = [olya, petro, taras];
+  const all = [stage, host, ...phones];
+  const row = (nickname: string) => host.locator('.player-row', { hasText: nickname });
+  const rowScore = async (nickname: string) => (await row(nickname).locator('.score').textContent())!;
+  const headerScore = (page: Page) => page.locator('header.bar .score');
+
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await petro.locator('h1', { hasText: 'Запитання 1:' }).waitFor();
+  await afterSplash(...all);
+  for (const page of phones) await answer29h(page);
+  await click(host, 'Показати відповідь');
+  for (const page of phones) await page.getByText('Правильно!').waitFor();
+  await click(host, 'Далі');
+  await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+  await headerScore(olya).getByText('500', exact).waitFor();
+  expect(await olya.locator('.stealth-mark').count(), 'no mark before it is on').toBe(0);
+
+  // ── Увімкнення: аркуш «😈», рядок «Прихований напад» на 320 px; ніхто, крім Олі, не отримує жодного кадру. ──
+  await openShop29h(olya);
+  const stealthRow = stealthSheet29h(olya).locator('.shop-stealth');
+  await stealthRow.getByText(/Прихований напад/).first().waitFor();
+  const turnOn = stealthRow.getByRole('button', { name: 'Увімкнути', ...exact });
+  const rowBox = (await stealthRow.boundingBox())!;
+  const buttonBox = (await turnOn.boundingBox())!;
+  expect(buttonBox.x + buttonBox.width, 'the toggle stays inside the row').toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
+  expect(rowBox.x + rowBox.width, 'the row stays on the 320 px screen').toBeLessThanOrEqual(320.5);
+  await expectNoSideScroll(olya, 'stealth29h-sheet-off-320');
+  await quiet29h(
+    [
+      ['stage', stageFrames],
+      ['host', hostFrames],
+      ['Петро', petroFrames],
+      ['Тарас', tarasFrames],
+    ],
+    async () => {
+      await turnOn.click();
+      await stealthRow.getByText('🥷 Наступний напад анонімний', exact).waitFor();
+    },
+  );
+  await shot(olya, 'stealth29h-sheet-320');
+  await expectNoSideScroll(olya, 'stealth29h-sheet-on-320');
+  expect(await stealthSheet29h(olya).locator('.shop-item').count(), 'the debuff list is intact').toBe(2);
+  await olya.keyboard.press('Escape');
+  await stealthSheet29h(olya).waitFor({ state: 'detached' });
+  await expectMark29h(olya, 'stealth29h-mark-320');
+  for (const page of [petro, taras, stage, host]) expect(await page.locator('body').innerText(), 'the mark is the owner’s only').not.toContain('Наступний напад анонімний');
+
+  // ── Покупка «Туману» для Петра: бали не рухаються до розкриття, усі називають покупця «Хтось». ──
+  const from = [stageFrames.length, hostFrames.length, petroFrames.length, tarasFrames.length];
+  await buy29h(olya, /Туман/, 'Петро', 200);
+  for (const page of [stage, host, taras]) await stealthNotice29h(page).getByText('Хтось насилає дебаф на гравця Петро', exact).waitFor();
+  for (const page of [stage, host, taras]) expect(await stealthNotice29h(page).textContent()).not.toContain('Оля');
+  expect(await stealthNotice29h(petro).count(), 'the victim gets no purchase notice').toBe(0);
+  expect(await olya.locator('.stealth-mark').count(), 'the mark is spent').toBe(0);
+  await headerScore(olya).getByText('500', exact).waitFor();
+  expect(await rowScore('Оля'), 'the price waits for the reveal').toBe('500');
+  await openShop29h(olya);
+  await stealthSheet29h(olya).locator('.shop-stealth').getByText('Використано', exact).waitFor();
+  expect(await stealthSheet29h(olya).locator('.shop-stealth button').isDisabled()).toBe(true);
+  await expectNoSideScroll(olya, 'stealth29h-sheet-used-320');
+  await olya.keyboard.press('Escape');
+  await stealthSheet29h(olya).waitFor({ state: 'detached' });
+  await stage.waitForTimeout(300);
+  await shot(stage, 'stealth29h-stage-notice');
+  await row('Петро').locator('.debuff-tag').getByText('🌫️ Туман від когось · чекає', exact).waitFor();
+  expect(await row('Петро').locator('.debuff-tag').textContent()).not.toContain('Оля');
+  await row('Петро').getByRole('button', { name: 'Дебаф', ...exact }).click();
+  await row('Петро').locator('.player-tools').waitFor();
+  expect(await host.getByRole('button', { name: 'Скасувати дебаф', ...exact }).count(), 'an anonymous debuff cannot be cancelled').toBe(0);
+  await shot(host, 'stealth29h-host-tag');
+
+  // ── Запитання 2: Петро бачить «Хтось насилає на вас: Туман»; ціна списується на розкритті. ──
+  await click(host, 'Наступне запитання');
+  await petro.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  await petro.getByText('Хтось насилає на вас: Туман', exact).waitFor();
+  expect(await petro.locator('.debuff-banner').textContent()).not.toContain('Оля');
+  await shot(petro, 'stealth29h-victim-375');
+  await afterSplash(...all);
+  for (const page of [olya, taras]) await answer29h(page);
+  expect(await rowScore('Оля'), 'still no charge before the reveal').toBe('500');
+  await reveal28a(host);
+  await olya.getByText('Правильно!').waitFor();
+  await headerScore(olya).getByText('800', exact).waitFor();
+  expect(await rowScore('Оля'), '500 + 500 − 200').toBe('800');
+  expect(await rowScore('Тарас')).toBe('1000');
+  const names = ['Оля'];
+  noBuyer29h(stageFrames.slice(from[0]!), names, 'stage');
+  noBuyer29h(hostFrames.slice(from[1]!), names, 'host');
+  noBuyer29h(petroFrames.slice(from[2]!), names, 'Петро');
+  noBuyer29h(tarasFrames.slice(from[3]!), names, 'Тарас');
+
+  // ── Історія незавершеної гри не показує покупок. ──
+  const mine = { id: ctx.manager.get(code)!.id };
+  const midGame = await (await host.request.get(`${base}/api/games/${mine.id}`)).text();
+  expect(midGame, 'an unfinished history names no purchase').not.toMatch(/"source":"debuff"/);
+  expect(midGame).not.toContain('Туман');
+
+  // ── Другий раунд: друга покупка — вже з ім’ям. ──
+  await click(host, 'Далі');
+  await advance29h(host, ['Наступний раунд']);
+  await host.getByRole('button', { name: 'Почати раунд', ...exact }).waitFor();
+  await buy29h(olya, /Тремтіння/, 'Тарас', 200);
+  for (const page of [stage, host, petro]) await stealthNotice29h(page).getByText('Оля насилає дебаф на гравця Тарас', exact).waitFor();
+  expect(await olya.locator('.stealth-mark').count()).toBe(0);
+  await click(host, 'Почати раунд');
+  await taras.getByText('Оля насилає на вас: Тремтіння екрана', exact).waitFor();
+  await afterSplash(...all);
+  for (const page of [olya, petro]) await answer29h(page);
+  await reveal28a(host);
+  await olya.getByText('Правильно!').waitFor();
+  await headerScore(olya).getByText('1100', exact).waitFor();
+  await expectNoSideScroll(olya, 'stealth29h-after-second-320');
+
+  // ── Кінець гри: історія називає обидві покупки. ──
+  await click(host, 'Далі');
+  await advance29h(host, ['Наступне запитання']);
+  await petro.locator('h1', { hasText: 'Запитання 4:' }).waitFor();
+  await afterSplash(...all);
+  for (const page of [olya, petro]) await answer29h(page);
+  await reveal28a(host);
+  await toWinners27c(host, stage);
+  await host.goto(`${base}/history`);
+  await host.getByRole('link', { name: /Прихований напад 29h/ }).first().click();
+  await host.getByText('Оля купує 🌫️ Туман для гравця Петро: −200', exact).waitFor();
+  await host.getByText('Оля купує 📳 Тремтіння екрана для гравця Тарас: −200', exact).waitFor();
+  await shot(host, 'stealth29h-history');
+
+  expect(problems).toEqual([]);
+}
+
+async function stealthTeams29h() {
+  const host = await open('host29ht', 1280, 900);
+  await register(host, 'host', 'Марта Ведуча', 'host29ht@example.com');
+  const TITLE = 'Прихований напад команд 29h';
+  const saved = await host.request.post(`${base}/api/quizzes`, { data: stealthQuiz29h(TITLE, true) });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const stage = await open('stage29ht', 1600, 900);
+  const stageFrames = socketFrames(stage);
+  const hostFrames = socketFrames(host);
+  await host.goto(`${base}/quizzes`);
+  await host.locator('.quiz-list li', { hasText: TITLE }).getByRole('button', { name: 'Грати', ...exact }).click();
+  await host.waitForURL(/\/host\/\d{6}$/);
+  const code = host.url().slice(-6);
+  const stageUrl = (await host.getByRole('link', { name: 'Відкрити сцену' }).getAttribute('href'))!;
+  await stage.goto(stageUrl);
+  const olya = await open('olya29ht', 375, 812);
+  const taras = await open('taras29ht', 320, 568, { hasTouch: true, isMobile: true });
+  const petro = await open('petro29ht', 375, 812);
+  const hanna = await open('hanna29ht', 360, 740);
+  const petroFrames = socketFrames(petro);
+  const hannaFrames = socketFrames(hanna);
+  const phones = [olya, taras, petro, hanna];
+  for (const [page, nickname, team] of [
+    [olya, 'Оля', 'Соняшники'],
+    [taras, 'Тарас', 'Соняшники'],
+    [petro, 'Петро', 'Маки'],
+    [hanna, 'Ганна', 'Маки'],
+  ] as const) {
+    await join(page, code, nickname, false);
+    await page.locator('.team-pick-grid').waitFor();
+    await pickTeamOn(page, team);
+  }
+  await expect.poll(() => stageTeam(stage, 'Соняшники'), POLL).toEqual(['Оля', 'Тарас']);
+  await expect.poll(() => stageTeam(stage, 'Маки'), POLL).toEqual(['Петро', 'Ганна']);
+  const all = [stage, host, ...phones];
+  await click(host, 'Почати гру');
+  await afterSplash(...all);
+  await click(host, 'Почати раунд');
+  await petro.locator('h1', { hasText: 'Запитання 1:' }).waitFor();
+  await afterSplash(...all);
+  await pickOption(olya, 'Київ');
+  await click(olya, 'Відповісти');
+  await olya.getByText('Відповідь прийнято', exact).waitFor();
+  await click(host, 'Показати відповідь');
+  await olya.locator('section.result').first().waitFor();
+  await click(host, 'Далі');
+  await host.getByRole('button', { name: 'Наступне запитання', ...exact }).waitFor();
+
+  // Капітан (Оля) вмикає: кнопка «😈» лише в неї, позначку бачить уся команда, суперники й сцена — жодного кадру.
+  expect(await taras.getByRole('button', { name: 'Дебафи', ...exact }).count(), 'a teammate has no shop button').toBe(0);
+  await openShop29h(olya);
+  const turnOn = stealthSheet29h(olya).locator('.shop-stealth').getByRole('button', { name: 'Увімкнути', ...exact });
+  await quiet29h(
+    [
+      ['stage', stageFrames],
+      ['host', hostFrames],
+      ['Петро', petroFrames],
+      ['Ганна', hannaFrames],
+    ],
+    async () => {
+      await turnOn.click();
+      await stealthSheet29h(olya).locator('.shop-stealth').getByText('🥷 Наступний напад анонімний', exact).waitFor();
+    },
+  );
+  await olya.keyboard.press('Escape');
+  await stealthSheet29h(olya).waitFor({ state: 'detached' });
+  await expectMark29h(olya, 'stealth29h-teams-captain-375');
+  await expectMark29h(taras, 'stealth29h-teams-mark-320');
+  for (const page of [petro, hanna, stage, host]) expect(await page.locator('body').innerText(), 'the rivals see no mark').not.toContain('Наступний напад анонімний');
+
+  // Перезапуск: позначка лишилася в обох учасників.
+  await restart(async () => {
+    await stage.getByText(RESTARTING_TEXT, exact).waitFor({ timeout: 15_000 });
+  });
+  for (const page of [stage, ...phones, host]) await page.getByText(RESTARTING_TEXT, exact).waitFor({ state: 'detached', timeout: 15_000 });
+  restarting = false;
+  await host.getByRole('button', { name: 'Продовжити', ...exact }).first().click({ timeout: 15_000 });
+  await expectMark29h(olya, 'stealth29h-teams-captain-restart-375');
+  await expectMark29h(taras, 'stealth29h-teams-restart-320');
+
+  // Покупка «Туману» для «Маків»: у Маків і на сцені — «Хтось».
+  const from = [stageFrames.length, hostFrames.length, petroFrames.length, hannaFrames.length];
+  await buy29h(olya, /Туман/, 'Маки', 200);
+  await stealthNotice29h(stage).getByText('Хтось насилає дебаф на гравця Маки', exact).waitFor();
+  await stealthNotice29h(host).getByText('Хтось насилає дебаф на гравця Маки', exact).waitFor();
+  await stealthNotice29h(taras).getByText('Хтось насилає дебаф на гравця Маки', exact).waitFor();
+  expect(await olya.locator('.stealth-mark').count()).toBe(0);
+  expect(await taras.locator('.stealth-mark').count()).toBe(0);
+  await stage.waitForTimeout(300);
+  await shot(stage, 'stealth29h-teams-stage');
+  await click(host, 'Наступне запитання');
+  await petro.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  await petro.getByText('Хтось насилає на вас: Туман', exact).waitFor();
+  expect(await petro.locator('.debuff-banner').textContent()).not.toContain('Оля');
+  await shot(petro, 'stealth29h-teams-victim-375');
+  // Товариш по команді-жертві не в тумані: йому лише «На капітані дебаф».
+  await hanna.locator('h1', { hasText: 'Запитання 2:' }).waitFor();
+  await hanna.getByText('На капітані дебаф: Туман', exact).waitFor();
+  const names = ['Оля', 'Тарас', 'Соняшники'];
+  noBuyer29h(stageFrames.slice(from[0]!), names, 'stage');
+  noBuyer29h(hostFrames.slice(from[1]!), names, 'host');
+  noBuyer29h(petroFrames.slice(from[2]!), names, 'Петро');
+  noBuyer29h(hannaFrames.slice(from[3]!), names, 'Ганна');
+  await expectNoSideScroll(taras, 'stealth29h-teams-after-320');
+
+  expect(problems).toEqual([]);
+}

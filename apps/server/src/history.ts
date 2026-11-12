@@ -631,15 +631,18 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
   const played = quiz === null ? [] : playedQuestions(quiz, row.plays, row.questionsPlayed);
   // Бали за раундами й «+ / −» (11f): з рядків answer (без голосів) і коригувань — працює й для старих ігор і зіпсованих знімків.
   const answersOf = groupBy(answers, (a) => a.participantId);
+  // 29h: до кінця гри історія не відкриває анонімного покупця — покупок дебафів у незавершеній грі не видно.
+  const visible = row.status === 'finished' ? adjustments : adjustments.filter((a) => a.source !== 'debuff');
   const adjustmentsOf = groupBy(adjustments, (a) => a.participantId);
-  const lines = (participantId: string): ScoreLine[] => [
+  const visibleOf = groupBy(visible, (a) => a.participantId);
+  const lines = (participantId: string, shown = false): ScoreLine[] => [
     ...(answersOf.get(participantId) ?? [])
       .filter((a) => a.attempt !== VOTE_ATTEMPT && a.points !== 0)
       .map((a) => ({ roundIndex: a.roundIndex, source: answerSource(quiz?.rounds[a.roundIndex]?.type), points: a.points })),
-    ...(adjustmentsOf.get(participantId) ?? []).map((a) => ({ roundIndex: a.roundIndex, source: adjustmentSource(a.source), points: a.points })),
+    ...((shown ? visibleOf : adjustmentsOf).get(participantId) ?? []).map((a) => ({ roundIndex: a.roundIndex, source: adjustmentSource(a.source), points: a.points })),
   ];
   const roundCount =
-    Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...adjustments.map((a) => a.roundIndex)) + 1;
+    Math.max(-1, ...played.map((p) => p.roundIndex), ...answers.map((a) => a.roundIndex), ...visible.map((a) => a.roundIndex)) + 1;
   // Продовжена гра (12r): пропущені раунди колонок не мають — колонки від раунду рядків 'carry'; без них від 0, як у рушія.
   const carryRounds = adjustments.filter((a) => a.source === 'carry').map((a) => a.roundIndex);
   const firstRound = carryRounds.length === 0 ? 0 : Math.max(0, Math.min(...carryRounds));
@@ -655,7 +658,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
         // Частка автора «Правди про гравця» (28b, рядок штрафу) — не відповідь.
         correct: distinct((answersOf.get(p.id) ?? []).filter((a) => a.accepted && a.attempt !== PENALTY_ATTEMPT).map((a) => a.questionIndex)),
         rounds: roundTotals(own, roundCount),
-        breakdown: breakdownOf(own),
+        breakdown: breakdownOf(lines(p.id, true)),
         ...(p.isTeam ? { members: membersOf(p.id).map((m) => m.nickname) } : {}),
       };
     })
@@ -711,7 +714,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     ];
   });
 
-  const factInput = factInputOf(quiz, played, standings, stored, adjustments, appeals);
+  const factInput = factInputOf(quiz, played, standings, stored, visible, appeals);
   const detail: GameDetail = {
     id: row.id,
     title: row.title,
@@ -727,7 +730,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     firstRound,
     questions,
     teams,
-    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({
+    adjustments: visible.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({
       seq,
       roundIndex,
       afterQuestion,

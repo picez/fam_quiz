@@ -26,7 +26,7 @@ export type DebuffKind = (typeof DEBUFF_KINDS)[number];
 export const LEGACY_DEBUFFS = ['shake', 'fog', 'freeze', 'mirror', 'guests', 'mud'] as const satisfies readonly DebuffKind[];
 
 /** Бафи: гравець бере сам на своєму телефоні, по одному кожного дозволеного на гру. 12h — ще п'ять у кінці. */
-export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek'] as const;
+export const BUFF_KINDS = ['fifty', 'double', 'retry', 'time', 'shield', 'audience', 'hint', 'swap', 'risk', 'letter', 'scope', 'guard', 'peek', 'stealth'] as const; // 29h — прихований напад у кінці
 export type BuffKind = (typeof BUFF_KINDS)[number];
 /** Усі бафи працюють (частина 8b); перевірка buff_unavailable лишається для майбутніх видів. */
 export const READY_BUFFS: readonly BuffKind[] = [...BUFF_KINDS];

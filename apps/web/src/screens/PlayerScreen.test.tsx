@@ -3859,6 +3859,23 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     expect(screen.getByText('Відповідає Петро — радьте вголос')).toBeTruthy();
   });
 
+  it('the stealth mark for the whole team', () => {
+    show(asQuestion(olya, { me: { ...baseMe, buffs, shop, stealth: 'armed' as const } }));
+    expect(document.querySelector('.stealth-mark')?.textContent).toBe('🥷 Наступний напад анонімний');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    cleanup();
+    show(asQuestion(olya, { me: { ...baseMe, buffs, shop, stealth: 'ready' as const } }));
+    expect(document.querySelector('.stealth-mark')).toBeNull();
+    cleanup();
+    show(asQuestion(olya, { me: { ...baseMe, buffs, shop: null, stealth: 'armed' as const } }));
+    expect(document.querySelector('.stealth-mark')).toBeNull();
+    cleanup();
+    show(asQuestion(petro, { me: { ...baseMe, buffs, shop, stealth: 'armed' as const } }));
+    expect(document.querySelector('.stealth-mark')).not.toBeNull();
+    expect(document.querySelector('.shop-button')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('a team debuff acts on the answerer phone; the captain gets the strip', () => {
     const me = { ...baseMe, debuff: { kind: 'mirror' as const, since: Date.now(), by: null } };
     show(asQuestion(petro, { me }));
