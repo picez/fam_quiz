@@ -29356,7 +29356,7 @@ async function melodyGame29e() {
   const answerField = (page: Page) => page.locator('.melody-play .typed input');
   expect(await answerField(petro).isDisabled(), 'the field before the first chunk').toBe(true);
   await petro.getByText('Спершу послухайте шматок', exact).waitFor();
-  expect(await petro.locator('.melody-step.is-next').getAttribute('aria-label')).toBe('Слухати 1 с');
+  expect(await petro.locator('.melody-step.is-next').getAttribute('aria-label')).toBe('Слухати 1 с · 100 %');
 
   // Оля (320 px): «Слухати 1 с» — звук пішов і зупинився на 1 с від початку фрагмента.
   expect(await olya.locator('.melody-step').count()).toBe(5);
@@ -29380,7 +29380,7 @@ async function melodyGame29e() {
     await step29e(taras, seconds);
     await chunkRuns29e(taras, seconds);
   }
-  expect(await stepCell29e(taras, 1).getAttribute('aria-label')).toBe('Переслухати 1 с');
+  expect(await stepCell29e(taras, 1).getAttribute('aria-label')).toBe('Переслухати 1 с · 100 %');
   expect(await stepCell29e(taras, 8).isEnabled(), 'the 8 s chunk is next').toBe(true);
   await step29e(taras, 1);
   await chunkRuns29e(taras, 1);
@@ -29523,7 +29523,7 @@ async function melodyTeams29e() {
   for (const page of [olya, taras]) {
     await expect.poll(() => page.locator('.melody-play .melody-step.is-open').count(), POLL).toBe(2);
     await expect.poll(() => stepCell29e(page, 4).isEnabled(), POLL).toBe(true);
-    expect(await stepCell29e(page, 4).getAttribute('aria-label'), 'the next chunk after the restart').toBe('Ще: 4 с');
+    expect(await stepCell29e(page, 4).getAttribute('aria-label'), 'the next chunk after the restart').toBe('Ще: 4 с · 60 %');
   }
 
   // Тарас відповідає правильно: команда має 800 (шматок 2 с), поле Олі закрите.
