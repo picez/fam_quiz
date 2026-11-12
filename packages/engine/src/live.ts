@@ -1,6 +1,7 @@
 import {
   allSpares,
   isUnscored,
+  MELODY_STEP_COUNT,
   surveyHitsOf,
   surveyOrder,
   type Answer,
@@ -23,6 +24,7 @@ import { chainOf } from './chain';
 import { wordLadderOf } from './wordladder';
 import { letterWordsOf } from './letterwords';
 import { moreLessOf, rightOf } from './moreless';
+import { melodyHeard } from './melody';
 import { timedListOf } from './timedlist';
 import { cluesAnswered, cluesBySelf, cluesOpenBy, cluesPaid } from './clues';
 import { currentRound, recordOf, type AnswerRecord, type BlitzPlay, type GameState, type Play } from './game';
@@ -180,6 +182,7 @@ function progressOf(state: GameState, play: Play, id: string, answer: Answer | n
     const board = play.memory?.boards[id];
     return { kind: 'memory', pairs: (board?.matched.length ?? 0) / 2, total: question.pairs.length, done: board?.doneMs != null };
   }
+  if (question.type === 'melody') return { kind: 'melody', heard: melodyHeard(play, id), total: MELODY_STEP_COUNT };
   if (question.type === 'sort') {
     const progress = sortOf(state, id);
     const head = progress.queue[0];
