@@ -3825,4 +3825,14 @@ describe('HostScreen melody (29e)', () => {
       ['—', 'Тарас', '—', '0'],
     ]);
   });
+
+  it('without a stage the host plays the melody track itself on reveal', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 })] };
+    render(
+      <HostScreen view={view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Щедрик'), correct: full, melody: info })} code="123456" stageUrl="x" joinUrl="y" send={vi.fn(async () => ({ ok: true as const }))} stageOnline={false} />,
+    );
+    expect(screen.getByText('🎵 Сцена не відкрита — звук грає тут')).toBeTruthy();
+    expect(document.querySelector('.host-audio .audio-card')).not.toBeNull();
+    expect(document.querySelector('.host-audio audio')?.getAttribute('src')).toBe(track.url);
+  });
 });

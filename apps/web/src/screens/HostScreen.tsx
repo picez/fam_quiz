@@ -849,7 +849,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               key={`${view.round?.index ?? 0}:${view.questionIndex}`}
               clip={clip}
               questionKey={`${view.round?.index ?? 0}:${view.questionIndex}`}
-              ready={phase === 'question' && !underSplash && !view.paused}
+              ready={(view.question?.melody !== undefined ? phase === 'reveal' : phase === 'question' && !underSplash) && !view.paused}
               paused={view.paused}
               command={audioCommand}
               elapsedMs={() => questionElapsedMs(view, Date.now() + offsetMs)}
