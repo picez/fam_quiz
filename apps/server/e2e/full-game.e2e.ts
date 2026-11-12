@@ -29424,7 +29424,7 @@ async function melodyGame29e() {
   // ── Розкриття. ──
   await reveal28a(host);
   await stage.locator('.melody-stage.is-reveal .melody-table').waitFor();
-  await expect.poll(() => stage.locator('.melody-title').textContent(), POLL).toBe('Це була «Щедрик»');
+  await expect.poll(() => stage.locator('.melody-title').textContent(), POLL).toBe('Звучала пісня «Щедрик»');
   await scores29f(phones, [1000, 600, 0]);
   const rows = await stage.locator('.melody-stage.is-reveal .melody-table tbody tr').evaluateAll((all) => all.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? '')));
   expect(rows.map((row) => [row[0], row[1], row[2]])).toEqual([['1', 'Оля', '✓ 1 с'], ['2', 'Тарас', '✓ 4 с'], ['—', 'Петро', '✗ 1 с']]);
