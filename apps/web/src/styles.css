@@ -20710,3 +20710,163 @@ input.sudoku-editor-cell:focus-visible {
   }
 }
 /* «Пам'ять»: кінець редактора */
+
+/* «Пам'ять»: сцена й пульт (29f). Мініатюри з кількістю пар (місць немає), на розкритті — пари списком і таблиця часу. */
+.memory-stage:not(.is-reveal) {
+  flex-direction: column;
+}
+
+.memory-boards-fit {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.memory-boards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+  gap: 1vh 1vw;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: min(clamp(0.75rem, 1.6vw, 1.75rem), 100cqw / (var(--cols, 4) * 9));
+}
+
+.memory-boards-fit.is-dense .memory-boards {
+  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqw / (var(--cols, 4) * 9));
+}
+
+.memory-board {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.15em;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.4em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.memory-board.is-done {
+  border-color: var(--accent-text);
+}
+
+.memory-board-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.memory-board-count,
+.memory-board-moves {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+/* Мініатюра сітки: квадратики, світяться перші 2 · pairs у порядку читання (кількість, не місця). */
+.memory-mini {
+  display: grid;
+  grid-template-columns: repeat(var(--mini-cols, 4), 1fr);
+  grid-template-rows: repeat(var(--mini-rows, 4), 1fr);
+  gap: 2px;
+  align-self: center;
+  justify-self: start;
+  aspect-ratio: var(--mini-cols, 4) / var(--mini-rows, 4);
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.memory-mini-cell {
+  display: block;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--paper) 14%, transparent);
+}
+
+.memory-mini-cell.is-lit {
+  background: var(--accent-text);
+}
+
+.memory-boards-fit.is-host {
+  flex: none;
+  container-type: normal;
+}
+
+.memory-boards-fit.is-host .memory-boards {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-template-rows: none;
+  height: auto;
+  font-size: 1rem;
+}
+
+.memory-boards-fit.is-host .memory-mini {
+  width: 6rem;
+}
+
+/* Розкриття на сцені: пари ліворуч, таблиця праворуч. */
+.puzzle-stage.jigsaw-stage.memory-stage.is-reveal {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  column-gap: 1.5vw;
+}
+
+.memory-pairs-box {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.memory-reveal-pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16em, 1fr));
+  gap: 0.5em 1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(0.875rem, 1.5vw, 1.75rem);
+}
+
+.memory-reveal-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.memory-reveal-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.memory-reveal-img {
+  display: block;
+  width: 100%;
+  max-height: 4em;
+  object-fit: contain;
+}
+
+.memory-reveal-arrow {
+  color: var(--amber);
+}
+
+.memory-stage .jigsaw-table.memory-table {
+  font-size: min(clamp(1rem, 1.25vw, 1.5rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
+.host-memory .jigsaw-table.memory-table {
+  margin-top: 1rem;
+}
+/* «Пам'ять»: кінець сцени й пульта */

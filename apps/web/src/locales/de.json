@@ -1929,6 +1929,8 @@
   "memoryTextPlaceholderB": "Antwort",
   "memoryTimeUp": "Die Zeit ist um.",
   "memoryUndone": "{found} von {total} Paaren gefunden",
+  "memoryCardCount": "{found} von {total}",
+  "memoryMovesCount": "Züge: {moves}",
   "menuFeed": "Neuigkeiten",
   "menuHistory": "Verlauf",
   "menuJoin": "Menü",

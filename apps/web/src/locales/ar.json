@@ -2029,6 +2029,8 @@
   "memoryTextPlaceholderB": "الجواب",
   "memoryTimeUp": "انتهى الوقت.",
   "memoryUndone": "تم العثور على {found} من {total} أزواج",
+  "memoryCardCount": "{found} من {total}",
+  "memoryMovesCount": "الحركات: {moves}",
   "menuFeed": "الجديد",
   "menuHistory": "السجل",
   "menuJoin": "القائمة",

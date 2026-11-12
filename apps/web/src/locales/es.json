@@ -1954,6 +1954,8 @@
   "memoryTextPlaceholderB": "Respuesta",
   "memoryTimeUp": "Se acabó el tiempo.",
   "memoryUndone": "Encontradas {found} de {total} parejas",
+  "memoryCardCount": "{found} de {total}",
+  "memoryMovesCount": "jugadas: {moves}",
   "menuFeed": "Novedades",
   "menuHistory": "Historial",
   "menuJoin": "Menú",

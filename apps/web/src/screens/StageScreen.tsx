@@ -52,6 +52,7 @@ import { MoreLessBoard, MoreLessReveal, MoreLessWatch } from './MoreLessView';
 import { DrawingBoard, DrawingLive, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
+import { MemoryStage } from './MemoryView';
 import { SpotdiffStage } from './SpotdiffView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthSkipped, TruthStage } from './TruthView';
@@ -233,7 +234,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
   const orderHint = orderLabels === '' ? t('orderOnPhone') : t('orderOnPhoneLabels', { labels: orderLabels });
   const sliderHint = question.slider === null ? '' : t('sliderOnPhone', { min: sliderNumber(question.slider.min, question.slider.step), max: sliderValueText(question.slider.max, question.slider) });
   const scale = reveal !== null && reveal.type === 'slider' && question.slider !== null && view.sliderMarks !== null ? { correct: reveal, slider: question.slider, marks: view.sliderMarks } : null;
-  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'moreless' ? t('morelessOnPhone') : question.type === 'drawing' || question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw' || question.type === 'spotdiff' ? null : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
+  const hint = voice ? null : question.type === 'slider' ? sliderHint : question.type === 'chain' ? t('chainOnPhone') : question.type === 'wordladder' ? t('wordLadderOnPhone') : question.type === 'timedlist' ? t('listOnPhone') : question.type === 'letterwords' ? t('lettersOnPhone') : question.type === 'moreless' ? t('morelessOnPhone') : question.type === 'drawing' || question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory' ? null : question.type === 'clues' ? t(question.clues?.self === true ? (view.teams !== null ? 'cluesOnPhoneSelfTeams' : 'cluesOnPhoneSelf') : 'cluesOnPhone') : question.type === 'pin' ? t('pinOnPhone') : question.type === 'sort' ? t('sortOnPhone') : question.type === 'wall' ? t('wallOnPhone') : question.type === 'survey' ? t('surveyOnPhone', { n: question.survey?.answers ?? 3 }) : question.type === 'wordcloud' ? t('cloudOnPhone', { words: question.cloud?.words ?? 3 }) : question.type === 'order' ? orderHint : question.type === 'match' ? t('matchOnPhone') : showChoices || question.type === 'boolean' ? null : t('typeOnPhone');
 
   return (
     <div className={view.wipeout !== null ? 'stage-question has-wipeout-side' : 'stage-question'} aria-busy={busy || undefined}>
@@ -270,6 +271,9 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
               : view.spotdiff !== undefined
               ? // «Знайди відмінності» (29d): «відповіли» — ті, хто знайшов усе.
                 t('answeredOf', { answered: view.spotdiff.boards.filter((board) => board.done).length, total: view.playerCount })
+              : view.memory !== undefined
+              ? // «Пам'ять» (29f): «відповіли» — ті, хто знайшов усі пари.
+                t('answeredOf', { answered: view.memory.boards.filter((board) => board.done).length, total: view.playerCount })
               : question.type === 'wall'
               ? t('wallFinishedOf', { finished: view.answeredCount, total: view.playerCount })
               : question.type === 'poll'
@@ -523,6 +527,12 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
           <SpotdiffStage info={view.spotdiff} spotdiff={question.spotdiff} reveal={view.phase === 'reveal'} />
         </section>
       )}
+      {/* «Пам'ять» (29f): до розкриття — мініатюри «нік · x з N пар» (лише кількість, без місць); на розкритті — усі пари й таблиця часу. */}
+      {view.memory !== undefined && question.memory !== undefined && !finalReveal && (
+        <section className={view.phase === 'reveal' ? 'puzzle-stage jigsaw-stage memory-stage is-reveal' : 'puzzle-stage jigsaw-stage memory-stage'}>
+          <MemoryStage info={view.memory} memory={question.memory} reveal={view.phase === 'reveal'} />
+        </section>
+      )}
       {view.sort !== null && view.final === null && <SortBoard sort={view.sort} reveal={view.phase === 'reveal'} />}
       {/* Рядок переможця бліцу завжди займає місце: його поява на locked не зсуває сцену. */}
       {view.sort !== null && view.round?.type === 'blitz' && (
@@ -575,7 +585,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}

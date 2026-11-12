@@ -1684,6 +1684,38 @@ describe('HostScreen spotdiff (29d)', () => {
   });
 });
 
+describe('HostScreen memory (29f)', () => {
+  const full = { id: 'm1', type: 'memory', text: 'Знайдіть пари', imageUrl: null, video: null, timeLimit: 90, points: 300, grid: '3x4', pairs: [], seed: 0 } as unknown as Question;
+  const publicQ = { ...publicOf(single), type: 'memory' as const, text: 'Знайдіть пари', choices: [], memory: { id: 'm1', grid: '3x4' as const, cols: 3, rows: 4, total: 6, pairs: null } };
+  const b = (playerId: string, nickname: string, pairs: number, moves: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, pairs, total: 6, moves, done: false, timeMs: null, points: null, ...over });
+
+  it('the host sees moves', () => {
+    const info = { boards: [b('p1', 'Оля', 2, 5), b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200 })] };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 0, question: publicQ, correct: full, endsAt: Date.now() + 60_000, memory: info }));
+    const panel = document.querySelector<HTMLElement>('.host-memory')!;
+    const olya = [...panel.querySelectorAll('.memory-board')][0] as HTMLElement;
+    expect(within(olya).getByText('2 з 6')).toBeTruthy();
+    expect(within(olya).getByText('ходи: 5')).toBeTruthy();
+    expect(olya.querySelectorAll('.memory-mini-cell.is-lit')).toHaveLength(4);
+    expect(screen.getByText(/Відповіли 1 з 2/)).toBeTruthy();
+    expect(screen.queryByText(/Правильна відповідь/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Зарахувати' })).toBeNull();
+  });
+
+  it('on reveal the host sees the pairs and a table with moves', () => {
+    const q = { ...publicQ, memory: { ...publicQ.memory, pairs: [{ a: { text: 'Україна' }, b: { text: 'Київ' } }] } };
+    const info = { boards: [b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200, points: 300 }), b('p1', 'Оля', 2, 5, { points: 0 })] };
+    show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: q, correct: full, memory: info }));
+    const panel = document.querySelector<HTMLElement>('.host-memory')!;
+    expect(panel.querySelectorAll('.memory-reveal-pair')).toHaveLength(1);
+    const rows = [...panel.querySelectorAll('.memory-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(rows).toEqual([
+      ['1', 'Тарас', '41,2 с', '9', '+300'],
+      ['—', 'Оля', '2 з 6', '5', ''],
+    ]);
+  });
+});
+
 describe('HostScreen sort', () => {
   it('the host sees the progress and the grouping and can close the sort', () => {
     const categories = [

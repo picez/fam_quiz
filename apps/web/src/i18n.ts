@@ -2833,6 +2833,8 @@ const uk = {
   memoryTableLabel: 'Хто й за який час знайшов усі пари',
   memoryAnswerDone: 'Усі пари за {time} с',
   memoryUndone: 'Знайдено {found} з {total} пар',
+  memoryCardCount: '{found} з {total}',
+  memoryMovesCount: 'ходи: {moves}',
   summaryMemories_one: '{count} «Пам’ять»',
   summaryMemories_few: '{count} «Пам’яті»',
   summaryMemories_many: '{count} «Пам’ятей»',

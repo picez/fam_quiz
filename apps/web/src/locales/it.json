@@ -1954,6 +1954,8 @@
   "memoryTextPlaceholderB": "Risposta",
   "memoryTimeUp": "Il tempo è scaduto.",
   "memoryUndone": "Trovate {found} coppie su {total}",
+  "memoryCardCount": "{found} su {total}",
+  "memoryMovesCount": "mosse: {moves}",
   "menuFeed": "Bacheca",
   "menuHistory": "Cronologia",
   "menuJoin": "Menu",

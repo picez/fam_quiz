@@ -1168,6 +1168,61 @@ describe('StageScreen final', () => {
     });
   });
 
+  describe('memory (29f)', () => {
+    const pairs: { a: { text: string }; b: { text: string; imageUrl?: string } }[] = [
+      { a: { text: 'Україна' }, b: { text: 'Київ' } },
+      { a: { text: 'Польща' }, b: { text: 'Варшава' } },
+      { a: { text: 'Франція' }, b: { text: '', imageUrl: '/uploads/0123456789abcdef0003.png' } },
+      { a: { text: 'Японія' }, b: { text: 'Токіо' } },
+      { a: { text: 'Канада' }, b: { text: 'Оттава' } },
+      { a: { text: 'Італія' }, b: { text: 'Рим' } },
+    ];
+    const memQ = (withPairs: boolean) => ({ ...question, type: 'memory' as const, text: 'Знайдіть пари', choices: [], timeLimit: 90, points: 300, memory: { id: 'm1', grid: '3x4' as const, cols: 3, rows: 4, total: 6, pairs: withPairs ? pairs : null } });
+    const full = { id: 'm1', type: 'memory', text: 'Знайдіть пари', imageUrl: null, video: null, timeLimit: 90, points: 300, grid: '3x4', pairs: [], seed: 0 } as unknown as Question;
+    const b = (playerId: string, nickname: string, pairsFound: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, pairs: pairsFound, total: 6, moves: 0, done: false, timeMs: null, points: null, ...over });
+
+    it('the stage shows counts and no cards before reveal', () => {
+      const info = { boards: [b('p1', 'Оля', 2), b('p2', 'Тарас', 6, { done: true, timeMs: 41_200 }), b('p3', 'Ната', 0)] };
+      show(view({ phase: 'question', questionIndex: 0, question: memQ(false), endsAt: Date.now() + 60_000, playerCount: 3, answeredCount: 1, memory: info }));
+      const cards = [...document.querySelectorAll('.memory-board')];
+      expect(cards).toHaveLength(3);
+      expect(within(cards[0] as HTMLElement).getByText('Оля')).toBeTruthy();
+      expect(within(cards[0] as HTMLElement).getByText('2 з 6')).toBeTruthy();
+      expect(within(cards[1] as HTMLElement).getByText(/✓ 41,2 с/)).toBeTruthy();
+      const cells = [...cards[0].querySelectorAll('.memory-mini-cell')];
+      expect(cells).toHaveLength(12);
+      expect(cells.map((c) => c.classList.contains('is-lit'))).toEqual([true, true, true, true, ...Array(8).fill(false)]);
+      expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+      expect(document.body.textContent).not.toMatch(/Київ|Україна/);
+      expect(document.querySelector('.memory-table')).toBeNull();
+      expect(document.querySelector('.memory-board-moves')).toBeNull();
+    });
+
+    it('reveal shows every pair and the table', () => {
+      const info = { boards: [b('p2', 'Тарас', 6, { done: true, timeMs: 41_200, points: 300 }), b('p4', 'Іра', 6, { done: true, timeMs: 41_200, points: 300 }), b('p1', 'Оля', 4, { points: 0 })] };
+      show(view({ phase: 'reveal', questionIndex: 0, question: memQ(true), reveal: full, playerCount: 3, answeredCount: 3, memory: info }));
+      const pairEls = [...document.querySelectorAll('.memory-reveal-pair')];
+      expect(pairEls).toHaveLength(6);
+      expect(pairEls[0].textContent).toBe('Україна↔Київ');
+      expect(pairEls[2].querySelector('img')?.getAttribute('src')).toBe('/uploads/0123456789abcdef0003.png');
+      const rows = [...document.querySelectorAll('.memory-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+      expect(rows).toEqual([
+        ['1', 'Тарас', '41,2 с', '+300'],
+        ['1', 'Іра', '41,2 с', '+300'],
+        ['—', 'Оля', '4 з 6', ''],
+      ]);
+      expect(document.querySelector('.memory-board')).toBeNull();
+      expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
+    });
+
+    it('twelve rows fit the stage', () => {
+      const info = { boards: Array.from({ length: 12 }, (_, i) => b(`p${i}`, `Гравець ${i + 1}`, 6, { done: true, timeMs: 30_000 + i, points: 300 })) };
+      show(view({ phase: 'reveal', questionIndex: 0, question: memQ(true), reveal: full, playerCount: 12, answeredCount: 12, memory: info }));
+      expect(document.querySelectorAll('.memory-table tbody tr')).toHaveLength(12);
+      expect((document.querySelector('.memory-table') as HTMLElement).style.getPropertyValue('--rows')).toBe('12');
+    });
+  });
+
   describe('spotdiff (29d)', () => {
     const spots = [{ x: 0.2, y: 0.3, r: 0.05 }, { x: 0.5, y: 0.5, r: 0.06 }, { x: 0.8, y: 0.7, r: 0.04 }];
     const sd = { original: '/uploads/0123456789abcdef0001.png', changed: '/uploads/0123456789abcdef0002.png', aspect: 4 / 3, total: 3 };

@@ -1954,6 +1954,8 @@
   "memoryTextPlaceholderB": "Odpowiedź",
   "memoryTimeUp": "Czas minął.",
   "memoryUndone": "Znaleziono {found} z {total} par",
+  "memoryCardCount": "{found} z {total}",
+  "memoryMovesCount": "ruchy: {moves}",
   "menuFeed": "Aktualności",
   "menuHistory": "Historia",
   "menuJoin": "Menu",
