@@ -1403,10 +1403,14 @@ describe('history: score adjustments', () => {
       },
       { userId: null, nickname: 'Тарас', score: 0, rank: 2 },
     ];
-    const live = await seedGame(db, { hostId: host.id, startedAt: new Date(2026, 2, 6), status: 'active', players });
+    const live = await seedGame(db, { hostId: host.id, startedAt: new Date(2026, 2, 6), status: 'running', players });
     const open = await hostGameWithFacts(db, host.id, live.gameId);
     expect(open?.detail.adjustments).toEqual([{ seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Олена', points: 900, source: 'host' }]);
     expect(open?.factInput.debuffs).toEqual([]);
+    // Рахунок видно, підпису («Дебафи») немає: у розбивці покупця частини debuff немає.
+    const mine = open?.detail.standings.find((r) => r.nickname === 'Олена');
+    expect(mine?.score).toBe(700);
+    expect(mine?.breakdown.parts.map((x) => x.source)).not.toContain('debuff');
     const done = await seedGame(db, { hostId: host.id, startedAt: new Date(2026, 2, 7), players });
     const shown = await hostGameWithFacts(db, host.id, done.gameId);
     expect(shown?.detail.adjustments.filter((a) => a.source === 'debuff')).toEqual([
