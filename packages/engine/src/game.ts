@@ -813,6 +813,8 @@ export interface ScoreAdjustment {
   undoes?: UndoTarget;
   /** Лише для source 'undo' (12a): seq першого коригування тієї самої дії (масове скасування — кілька рядків, один batch). */
   batch?: number;
+  /** Лише для source 'debuff': анонімна покупка («Прихований напад», 29h). */
+  anon?: true;
 }
 
 /** Дебаф на гравця: від ведучого або куплений іншим гравцем. */
@@ -824,6 +826,14 @@ export interface DebuffState {
   since: number | null;
   /** Хто купив (id гравця); null — наслав ведучий. */
   by: string | null;
+  /** Дебаф куплено анонімно («Прихований напад», 29h): зрізи не називають покупця. */
+  anon?: true;
+}
+
+/** «Прихований напад» (29h): коли увімкнено й seq коригування анонімної покупки; spent null — чекає покупки. */
+export interface StealthState {
+  at: number;
+  spent: number | null;
 }
 
 /** Одне запитання дуелі. */
@@ -923,6 +933,8 @@ export interface GameState {
   truth?: TruthState;
   /** «Малюнок» (28c): черга художників; ключ з'являється з першим запитанням-малюнком. */
   drawTurns?: DrawTurns;
+  /** «Прихований напад» (29h): ключ — учасник рушія (у командах — команда); без ключа — ніхто не вмикав. Вилучення гравця прибирає ключ. */
+  stealth?: Record<string, StealthState>;
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -1258,6 +1270,8 @@ function removeFromGame(state: GameState, playerId: string): Result {
   const { [playerId]: _debuff, ...kept } = state.debuffs;
   // Дебаф, куплений вилученим, лишається на цілі, але стає «від ведучого»: ведучий може його скасувати.
   const debuffs = Object.fromEntries(Object.entries(kept).map(([id, d]) => [id, d.by === playerId ? { ...d, by: null } : d]));
+  // «Прихований напад» (29h): вилучений забирає свій баф.
+  const stealth = state.stealth === undefined ? {} : { stealth: withoutStealth(state.stealth, playerId) };
   // Дуель з вилученим скасовується; якщо вилучено суперника до підсумку, той, хто оголосив, отримує право назад.
   const duel = state.duel;
   const inDuel = duel !== null && (duel.challengerId === playerId || duel.opponentId === playerId);
@@ -1276,6 +1290,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     final,
     adjustments,
     debuffs,
+    ...stealth,
     duelsDeclared,
     awaiting: state.awaiting.filter((id) => id !== playerId),
   });
@@ -1283,6 +1298,12 @@ function removeFromGame(state: GameState, playerId: string): Result {
   // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
   // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
   return ok(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null))))));
+}
+
+/** Записи «Прихованого нападу» без вилученого учасника. */
+function withoutStealth(stealth: Record<string, StealthState>, playerId: string): Record<string, StealthState> {
+  const { [playerId]: _removed, ...rest } = stealth;
+  return rest;
 }
 
 /** Гравець зникає з меж, ставок, ва-банку й порядку розкриття; якщо його вже розкрили, лічильник зменшується, щоб не перескочити сусіда. */

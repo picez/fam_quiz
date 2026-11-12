@@ -4,6 +4,7 @@ import { addAdjustment, afterQuestionNow } from './adjust';
 import { wagerRound } from './bets';
 import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
 import { spendWard, wardReady } from './perks';
+import { spendStealth, stealthReady } from './stealth';
 import { isGhost, survivalAlive } from './survival';
 
 /** Раунди без дебафів: «Ва-банк», «Мільйонер» (14a), «Правда про гравця» (28b) і «Головоломки» (28d). */
@@ -80,6 +81,7 @@ const BLOCK_ERRORS = { phase: 'wrong_phase', paused: 'paused', bought: 'debuff_b
  * debuff_bought (shopBlock), target_offline (ціль не підключена: дебаф не спрацював би), debuff_busy (на цілі вже чекає або діє дебаф), points_short (score < ціна: у мінус не можна).
  * Успіх: коригування −ціна з source 'debuff', target, debuff; дебаф цілі { kind, firedAt: null, since: null, by: buyerId }.
  * Готовий «Оберіг» цілі (15a): ціну списано, дебаф не ставиться, оберіг спрацював.
+ * Готовий «Прихований напад» покупця (29h): коригування й дебаф з anon, баф витрачено.
  */
 export function buyDebuff(state: GameState, buyerId: string, targetId: string, kind: DebuffKind, now: number): Result {
   const buyer = state.players.find((p) => p.id === buyerId);
@@ -95,10 +97,14 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   const price = debuffPrice(state.quiz, kind);
   // На дозволених етапах прихованих балів немає, тож score — справжній рахунок.
   if (buyer.score < price) return fail('points_short');
-  const charged = addAdjustment(state, buyerId, -price, now, 'debuff', { target: targetId, debuff: kind });
-  // «Оберіг» (15a): покупець бачив 🛡 і вирішив його зламати — ціну списано, дебафу немає.
+  // «Прихований напад» (29h): перша успішна покупка після ввімкнення анонімна; невдала баф не витрачає.
+  const anon = stealthReady(state, buyerId);
+  const mark = anon ? { anon: true as const } : {};
+  const added = addAdjustment(state, buyerId, -price, now, 'debuff', { target: targetId, debuff: kind, ...mark });
+  const charged = spendStealth(added, buyerId, added.adjustmentSeq);
+  // «Оберіг» (15a): покупець бачив 🛡 і вирішив його зламати — ціну списано, дебафу немає (анонімний баф теж витрачено).
   if (wardReady(charged, targetId)) return ok(spendWard(charged, targetId));
-  return ok({ ...charged, debuffs: { ...charged.debuffs, [targetId]: { kind, firedAt: null, since: null, by: buyerId } } });
+  return ok({ ...charged, debuffs: { ...charged.debuffs, [targetId]: { kind, firedAt: null, since: null, by: buyerId, ...mark } } });
 }
 
 /**
@@ -114,7 +120,8 @@ export function lastPurchase(state: GameState): DebuffNotice | null {
   return {
     seq: last.seq,
     at: last.at,
-    buyer: { playerId: buyer.id, nickname: buyer.nickname },
+    // Анонімна покупка (29h): покупця не називаємо нікому.
+    buyer: last.anon === true ? null : { playerId: buyer.id, nickname: buyer.nickname },
     target: { playerId: target.id, nickname: target.nickname },
   };
 }

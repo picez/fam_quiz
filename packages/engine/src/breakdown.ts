@@ -5,6 +5,8 @@ import { recordOf, type GameState } from './game';
 export interface PlayerScoreLine extends ScoreLine {
   playerId: string;
   questionIndex: number | null;
+  /** Анонімна покупка дебафу (29h): пульт до кінця гри цього рядка не бачить. */
+  anon?: true;
 }
 
 /** Рядки гравців за станом і вони ж, згруповані за гравцем (щоб зрізи не фільтрували всі рядки на кожен рядок таблиці). */
@@ -61,7 +63,14 @@ function cached(state: GameState): { lines: PlayerScoreLine[]; byPlayer: Map<str
   const adjustments = [...state.adjustments].sort((a, b) => a.seq - b.seq);
   for (const adjustment of adjustments) {
     if (adjustment.points === 0) continue;
-    lines.push({ playerId: adjustment.playerId, roundIndex: adjustment.roundIndex, source: adjustmentSource(adjustment.source), points: adjustment.points, questionIndex: null });
+    lines.push({
+      playerId: adjustment.playerId,
+      roundIndex: adjustment.roundIndex,
+      source: adjustmentSource(adjustment.source),
+      points: adjustment.points,
+      questionIndex: null,
+      ...(adjustment.anon === true ? { anon: true as const } : {}),
+    });
   }
   const entry = { lines, byPlayer: groupByPlayer(lines) };
   cache.set(state, entry);

@@ -27,7 +27,7 @@ export function addAdjustment(
   points: number,
   now: number,
   source: AdjustmentSource,
-  extra: Pick<ScoreAdjustment, 'target' | 'debuff' | 'undoes' | 'batch'> & { roundIndex?: number } = {},
+  extra: Pick<ScoreAdjustment, 'target' | 'debuff' | 'undoes' | 'batch' | 'anon'> & { roundIndex?: number } = {},
 ): GameState {
   const seq = state.adjustmentSeq + 1;
   // Скасування (12a) стоїть у раунді того, що скасовує; решта — у поточному.
