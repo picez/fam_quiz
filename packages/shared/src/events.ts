@@ -7,6 +7,7 @@ import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { DRAWING_ERASER, DRAWING_SCALE, DRAWING_WIDTHS, type DrawOp, type DrawingEvent } from './drawing';
 import { LIFELINES, LIMITS, MORELESS_SIDES } from './quiz';
 import { DOOR_COUNT } from './survival';
+import { MEMORY_MAX_CELLS } from './memory';
 import { SPOT_MAX_WIDTH, SPOT_MIN_WIDTH } from './spotdiff';
 import { RESUME_POINTS_MAX } from './resume';
 import type { Reaction, ReactionItem } from './reactions';
@@ -124,6 +125,14 @@ export const spotdiffTapSchema = z
     width: z.number().finite().min(SPOT_MIN_WIDTH).max(SPOT_MAX_WIDTH),
   })
   .strict();
+/**
+ * «Пам'ять» (29f): відкрити клітинку cell (cols·rows ≤ 20). questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає memory_stale.
+ * Непара показується MEMORY_SHOW_MS, у команді хід без другої картки спливає за MEMORY_TURN_MS.
+ */
+export const MEMORY_FLIPS_PER_SECOND = 4;
+export const MEMORY_SHOW_MS = 1000;
+export const MEMORY_TURN_MS = 5000;
+export const memoryFlipSchema = z.object({ questionIndex: z.number().int().nonnegative(), cell: z.number().int().min(0).max(MEMORY_MAX_CELLS - 1) }).strict();
 export const puzzleDoneSchema = z.object({ questionIndex: z.number().int().nonnegative() }).strict();
 export const moreLessPickSchema = z.object({ index: z.number().int().min(0).max(LIMITS.maxMoreLessPairs - 1), pick: z.enum(MORELESS_SIDES) });
 /** «Малюнок» (28c): операцій малювання на секунду від художника (пакет кожні 80 мс + «крок назад»), спроб вгадати на секунду, запитів повного малюнка на секунду з сокета. */
@@ -283,6 +292,8 @@ export interface ClientToServerEvents {
   'player:jigsaw-hold': (payload: z.infer<typeof jigsawHoldSchema>, ack: Ack) => void;
   /** «Знайди відмінності» (29d): тап; ack ok — влучання, інакше помилка (spotdiff_miss, spotdiff_freeze, spotdiff_frozen, spotdiff_found, spotdiff_stale, spotdiff_done, time_over, too_soon). */
   'player:spotdiff': (payload: z.infer<typeof spotdiffTapSchema>, ack: Ack) => void;
+  /** «Пам'ять» (29f): відкрити клітинку; ack ok — прийнято, інакше помилка (memory_stale, memory_done, memory_cell, memory_wait, memory_busy, memory_matched, memory_open, time_over, too_soon). Вміст картки приходить лише зрізом. */
+  'player:memory': (payload: z.infer<typeof memoryFlipSchema>, ack: Ack) => void;
   /** «Малюнок» (28c): операція художника; ack — лише ok чи помилка (drawing_stale — малюнок розійшовся, просіть draw:sync). */
   'player:draw': (payload: DrawOp, ack: Ack) => void;
   /** «Малюнок» (28c): спроба вгадати слово; ack — лише { ok: true } чи drawing_miss, слово й відстань не повертаються. */

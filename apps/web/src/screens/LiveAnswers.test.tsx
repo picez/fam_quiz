@@ -465,6 +465,24 @@ describe('LiveAnswers: spotdiff (29d)', () => {
   });
 });
 
+describe('LiveAnswers: memory (29f)', () => {
+  const memory = { id: 'm1', type: 'memory', text: 'Пам’ять', imageUrl: null, video: null, timeLimit: 90, points: 300, grid: '3x4', pairs: [], seed: 0 } as unknown as Question;
+
+  it('live answers show pairs and done', () => {
+    const rows = [
+      row({ id: 'p1', nickname: 'Оля', progress: { kind: 'memory', pairs: 2, total: 6, done: false } }),
+      row({ id: 'p2', nickname: 'Тарас', answered: true, answer: { type: 'memory', pairs: 6, total: 6, done: true, timeMs: 41_200, moves: 9 } as never, progress: { kind: 'memory', pairs: 6, total: 6, done: true } }),
+      row({ id: 'p3', nickname: 'Ната', progress: { kind: 'memory', pairs: 0, total: 6, done: false } }),
+    ];
+    show(rows, base({ correct: memory }));
+    const answers = [...document.querySelectorAll('.live-answer')].map((el) => el.textContent);
+    expect(answers[0]).toBe('Знайдено 2 з 6 пар');
+    expect(answers[1]).toBe('Усі пари за 41,2 с · Готово ✓');
+    expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
+    expect(within(document.querySelector('.live-waiting') as HTMLElement).getByText('Ната')).toBeTruthy();
+  });
+});
+
 describe('LiveAnswers: where the card is heading (11d)', () => {
   const sortView = (over: Partial<HostView> = {}) =>
     base({ question: { choices: [], sort: { categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }], total: 4, lockSeconds: 3 } } as never, ...over });

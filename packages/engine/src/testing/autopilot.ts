@@ -1,4 +1,4 @@
-import { boardCells, LIMITS, type Answer, type Question } from '@quiz/shared';
+import { boardCells, LIMITS, memoryLayout, type Answer, type Question } from '@quiz/shared';
 import { planAutopilot, pilotStep } from '../autopilot';
 import { attemptsUsed, blitzRulesOf, buzz, isInstant, nextDeadline } from '../blitz';
 import { bluffPlayOf, pickBluff, writeLie } from '../bluff';
@@ -21,6 +21,7 @@ import { listEntry, timedListOf } from '../timedlist';
 import { letterWord, letterWordsOf } from '../letterwords';
 import { jigsawPlace } from '../jigsaw';
 import { spotdiffTap } from '../spotdiff';
+import { memoryFlip } from '../memory';
 import { moreLessOf, moreLessPick } from '../moreless';
 import { drawGuess, drawStroke } from '../drawing';
 import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
@@ -266,6 +267,19 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
         if (s.phase !== 'question') break;
         const tapped = spotdiffTap(s, playerId, person, roundQuestionNumber(s), { x: spot.x, y: spot.y, width: 400 }, now);
         s = act(s, tapped.ok ? { ok: true, state: tapped.state } : tapped, what);
+      }
+      return s;
+    }
+    case 'memory': {
+      // Бот (у командах — перший учасник) відкриває пару за парою за розкладом memoryLayout; неправильний — лише половину пар.
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      if (person === undefined) return state;
+      const layout = memoryLayout(question.pairs.length, question.seed);
+      const pairs = wrong ? Math.floor(question.pairs.length / 2) : question.pairs.length;
+      let s = state;
+      for (let k = 0; k < pairs * 2 && s.phase === 'question'; k++) {
+        const flipped = memoryFlip(s, playerId, person, roundQuestionNumber(s), layout.indexOf(k), now);
+        s = act(s, flipped.ok ? { ok: true, state: flipped.state } : flipped, what);
       }
       return s;
     }

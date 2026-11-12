@@ -4,7 +4,7 @@ import { loadDraft, saveDraft } from './draft-storage';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
-import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps } from './draft';
+import { QUESTION_TYPES, boardReadiness, cellState, cloudSources, questionTypesFor, applyRoundTime, changeType, cleaned, fitCell, duplicateQuestion, firstProblem, moveItem, newBlitzRound, newBoardCategory, newBoardQuestion, newBoardRound, withDefaultMode, newClassicRound, newFinalRound, newBetsRound, newAuctionRound, newTruthRound, newPuzzlesRound, cleanedQuestion, newWipeoutRound, newSurvivalRound, newLadderRound, resizeLadder, newWipeoutQuestion, newQuestion, newQuiz, problemsOf, newDuels, newSpare, swapGaps, minTimeOf, maxTimeOf } from './draft';
 
 /** Заповнює порожні поля нового запитання так, як це зробив би користувач. */
 function filled(question: Question): Question {
@@ -66,6 +66,8 @@ function filled(question: Question): Question {
     case 'jigsaw':
       // Фото вантажиться окремо: без нього пазл не готовий (перевіряє тест нижче).
       return { ...question, text, photo: '/uploads/0123456789abcdef0123.jpg' };
+    case 'memory':
+      return { ...question, text, pairs: question.pairs.map((_, i) => ({ a: { text: `Питання ${i + 1}` }, b: { text: `Відповідь ${i + 1}` } })) };
     case 'spotdiff':
       return { ...question, text, original: '/uploads/aaaaaaaaaaaaaaaaaaaa.png', changed: '/uploads/bbbbbbbbbbbbbbbbbbbb.png', spots: [{ x: 0.5, y: 0.5, r: 0.06 }] };
     default:
@@ -389,7 +391,7 @@ describe('changeType', () => {
   it('keeps the question text, time and points', () => {
     const source = { ...newQuestion('single'), text: 'Скільки?', timeLimit: 45, points: 500 };
     // Сортування, стіна, блеф, опитування й хмара мають власні час чи бали: їх перевіряють окремі тести.
-    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff'].includes(candidate))) {
+    for (const type of QUESTION_TYPES.filter((candidate) => !['sort', 'wall', 'poll', 'wordcloud', 'bluff', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory'].includes(candidate))) {
       const changed = changeType(source, type);
       expect(changed.type).toBe(type);
       expect([changed.id, changed.text, changed.timeLimit, changed.points]).toEqual([source.id, 'Скільки?', 45, 500]);
@@ -2927,8 +2929,8 @@ describe('puzzles in the editor (28d)', () => {
   const puzzlesQuiz = (...questions: Question[]): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...newPuzzlesRound(), questions }] });
   const custom = (givens: string): Sudoku => ({ ...(newQuestion('sudoku') as Sudoku), level: 'custom', seed: null, givens, solution: EMPTY_SUDOKU });
 
-  it('puzzles take only sudoku, crossword, jigsaw and spotdiff', () => {
-    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff']);
+  it('puzzles take only sudoku, crossword, jigsaw, spotdiff and memory', () => {
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
     for (const round of ROUND_TYPES.filter((type) => type !== 'puzzles')) {
       expect(questionTypesFor(round), round).not.toContain('sudoku');
       expect(questionTypesFor(round), round).not.toContain('crossword');
@@ -3052,7 +3054,7 @@ describe('jigsaw in the editor (29c)', () => {
   it('a jigsaw lives in classic and puzzles only', () => {
     expect(questionTypesFor('classic')).toContain('jigsaw');
     expect(questionTypesFor('puzzles')).toContain('jigsaw');
-    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff']);
+    expect(questionTypesFor('puzzles')).toEqual(['sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory']);
     for (const round of ['blitz', 'final', 'board', 'bets', 'auction', 'wipeout', 'survival', 'ladder'] as const) expect(questionTypesFor(round), round).not.toContain('jigsaw');
   });
 
@@ -3152,5 +3154,77 @@ describe('spotdiff in the editor (29d)', () => {
       const [back] = roundQuestions(loadDraft('spot-aspect')!.rounds[0]!) as [Spot];
       expect(back.aspect, String(aspect)).toBe(kept);
     }
+  });
+});
+
+describe('memory in the editor (29f)', () => {
+  type Mem = Extract<Question, { type: 'memory' }>;
+  const inRound = (round: Round, q: Question): Quiz => ({ ...newQuiz(), title: 'Гра', rounds: [{ ...round, questions: [q] } as Round] });
+  const ready = (patch: Partial<Mem> = {}): Mem => {
+    const fresh = newQuestion('memory') as Mem;
+    return { ...fresh, text: 'Знайдіть?', pairs: fresh.pairs.map((_, i) => ({ a: { text: `Країна ${i + 1}` }, b: { text: `Столиця ${i + 1}` } })), ...patch };
+  };
+
+  it('a memory lives in classic and puzzles only', () => {
+    expect(questionTypesFor('classic')).toContain('memory');
+    expect(questionTypesFor('puzzles')).toContain('memory');
+    for (const type of ['blitz', 'final', 'board', 'bets'] as const) expect(questionTypesFor(type), type).not.toContain('memory');
+  });
+
+  it('a new memory waits for its pairs', () => {
+    const fresh = { ...(newQuestion('memory') as Mem), text: 'Знайдіть?' };
+    expect(fresh).toMatchObject({ type: 'memory', grid: '3x4', imageUrl: null, video: null, timeLimit: 90, points: 300 });
+    expect(fresh.pairs).toHaveLength(6);
+    expect(fresh.pairs.every((pair) => pair.a.text === '' && pair.b.text === '')).toBe(true);
+    expect(Number.isInteger(fresh.seed) && fresh.seed >= 0 && fresh.seed <= 4294967295).toBe(true);
+    expect('hint' in fresh || 'audio' in fresh || 'reveal' in fresh).toBe(false);
+    expect(problemsOf(inRound(newClassicRound(), fresh))).toEqual([t('problemMemoryPairs', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), ready()))).toEqual([]);
+    expect(questionSchema.safeParse(cleanedQuestion(ready())).success).toBe(true);
+  });
+
+  it('a repeated card is a problem', () => {
+    const q = ready();
+    const same = { ...q, pairs: q.pairs.map((pair, i) => (i === 1 ? { ...pair, a: { text: ' країна 1' } } : pair)) };
+    expect(problemsOf(inRound(newClassicRound(), same))).toEqual([t('problemMemoryDuplicate', { index: 1 })]);
+  });
+
+  it('the place and the timer floor are checked', () => {
+    expect(problemsOf(inRound(newPuzzlesRound(), ready()))).toEqual([]);
+    expect(problemsOf(inRound(newBlitzRound(), ready()))).toEqual([t('problemMemoryPlace', { index: 1 })]);
+    expect(problemsOf(inRound(newClassicRound(), ready({ timeLimit: 24 })))).toEqual([t('problemMemoryLimits', { index: 1, min: LIMITS.minMemoryTime, max: LIMITS.maxPuzzleTime, points: LIMITS.maxPoints })]);
+    expect(minTimeOf({ type: 'memory' })).toBe(25);
+    expect(maxTimeOf({ type: 'memory' })).toBe(LIMITS.maxPuzzleTime);
+  });
+
+  it('a stored memory is revived within limits', () => {
+    const nine = Array.from({ length: 9 }, (_, i) => ({ a: { text: `Q${i}` }, b: { text: `A${i}` } }));
+    const dirty = { ...ready({ pairs: nine }), hint: 'підказка', audio: { source: 'youtube', id: 'abcdefghijk', start: 0, duration: 10 }, imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:mem-nine', JSON.stringify(inRound(newClassicRound(), dirty)));
+    const [revived] = roundQuestions(loadDraft('mem-nine')!.rounds[0]!) as [Mem];
+    expect(revived.pairs).toHaveLength(6);
+    expect(revived).not.toHaveProperty('hint');
+    expect(revived).not.toHaveProperty('audio');
+    expect(revived.imageUrl).toBeNull();
+
+    const wild = { ...ready(), grid: '9x9', seed: 'x', pairs: [{ a: { text: 'я'.repeat(60) }, b: { text: 'b', imageUrl: 'https://x' } }] } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:mem-wild', JSON.stringify(inRound(newClassicRound(), wild)));
+    const [fixed] = roundQuestions(loadDraft('mem-wild')!.rounds[0]!) as [Mem];
+    expect(fixed.grid).toBe('3x4');
+    expect(fixed.pairs).toHaveLength(6);
+    expect(fixed.pairs[0]!.a.text).toHaveLength(40);
+    expect(fixed.pairs[0]!.b).not.toHaveProperty('imageUrl');
+    expect(fixed.pairs[1]).toEqual({ a: { text: '' }, b: { text: '' } });
+    expect(Number.isInteger(fixed.seed) && fixed.seed >= 0 && fixed.seed <= 4294967295).toBe(true);
+
+    const grown = { ...ready({ grid: '4x5' }), pairs: ready().pairs } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:mem-grow', JSON.stringify(inRound(newClassicRound(), grown)));
+    const [back] = roundQuestions(loadDraft('mem-grow')!.rounds[0]!) as [Mem];
+    expect(back.grid).toBe('4x5');
+    expect(back.pairs).toHaveLength(10);
+    const pic = { ...ready(), pairs: [{ a: { text: '', imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' }, b: { text: 'x' } }, ...ready().pairs.slice(1)] } as unknown as Question;
+    sessionStorage.setItem('quiz:draft:mem-pic', JSON.stringify(inRound(newClassicRound(), pic)));
+    const [kept] = roundQuestions(loadDraft('mem-pic')!.rounds[0]!) as [Mem];
+    expect(kept.pairs[0]!.a).toEqual({ text: '', imageUrl: '/uploads/aaaaaaaaaaaaaaaaaaaa.png' });
   });
 });

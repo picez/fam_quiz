@@ -12,6 +12,7 @@ import type { ResumeLobby } from './resume';
 import type { PrizesView } from './prizes';
 import type { JigsawAspect } from './jigsaw';
 import type { SpotCircle } from './spotdiff';
+import type { MemoryCard, MemoryGrid } from './memory';
 import type { LikesView } from './likes';
 import type { RoundBrief } from './round-brief';
 import type { ContinuedView } from './saved';
@@ -120,6 +121,8 @@ export interface PublicQuestion {
   jigsaw?: PublicJigsaw;
   /** Лише на запитанні «Знайди відмінності» (29d); ключа немає в інших типів. spots — лише на reveal. */
   spotdiff?: PublicSpotdiff;
+  /** «Пам'ять» (29f): сітка й кількість пар; самі пари — лише на reveal, seed і розкладу немає ніколи. */
+  memory?: PublicMemory;
   /** null для інших типів; слів і правильних категорій тут немає. */
   sort: { categories: Choice[]; total: number; lockSeconds: number } | null;
   /** null для інших типів. */
@@ -401,6 +404,61 @@ export interface PublicSpotdiff {
   aspect: number;
   total: number;
   spots: SpotCircle[] | null;
+}
+
+/** «Пам'ять» (29f), усім: id запитання (ключ поля), сітка й кількість пар; pairs — лише на reveal, інакше null. */
+export interface PublicMemory {
+  id: string;
+  grid: MemoryGrid;
+  cols: number;
+  rows: number;
+  total: number;
+  pairs: { a: MemoryCard; b: MemoryCard }[] | null;
+}
+
+/** Дошка гравця (команди) в «Пам'яті» (29f); клітинок і місць знайдених пар тут немає, лише кількість. */
+export interface MemoryBoardView {
+  playerId: string;
+  nickname: string;
+  pairs: number;
+  total: number;
+  moves: number;
+  done: boolean;
+  timeMs: number | null;
+  /** Лише на reveal; інакше null. */
+  points: number | null;
+}
+
+export interface MemoryInfo {
+  /** До reveal — порядок гравців; на reveal — знайшли все (за timeMs), далі за pairs спадно, за рівності — порядок гравців. */
+  boards: MemoryBoardView[];
+}
+
+/** Картка власної (командної) дошки гравця (29f), видима лише коли відкрита, показана як непара або знайдена. tone — '1'…'9' у командах, інакше null. */
+export interface MemoryCellView {
+  text: string;
+  imageUrl: string | null;
+  state: 'open' | 'shown' | 'matched';
+  tone: string | null;
+}
+
+/** Власна (командна) дошка гравця (29f). cells — довжина cols·rows, null — закрита картка; на reveal тут усі картки. */
+export interface PlayerMemory {
+  cells: (MemoryCellView | null)[];
+  pairs: number;
+  total: number;
+  moves: number;
+  done: boolean;
+  /** Можна відкривати: question, не пауза, не все знайдено, немає показаної непари й чужого ходу. */
+  canFlip: boolean;
+  /** Лише в командах: хід товариша. */
+  busy: { nickname: string; tone: string } | null;
+  /** Скільки ще мс показана непара. */
+  closesInMs: number | null;
+  seq: number;
+  timeMs: number | null;
+  /** Лише на reveal. */
+  result: { points: number } | null;
 }
 
 /** Дошка гравця (команди) в «Знайди відмінності» (29d); місць тут немає, лише кількість знайдених. */
@@ -1702,6 +1760,8 @@ interface BaseView {
   jigsaw?: JigsawInfo;
   /** «Знайди відмінності» (29d): лише на такому запитанні (question, locked, reveal); без місць кіл; інакше ключа немає. */
   spotdiff?: SpotdiffInfo;
+  /** «Пам'ять» (29f): лише на такому запитанні (question, locked, reveal); без клітинок і вмісту карток; інакше ключа немає. */
+  memory?: MemoryInfo;
   /** Малюнок (28c): лише на такому запитанні (question, locked, reveal); без штрихів і слова до reveal; інакше ключа немає. */
   drawing?: DrawingInfo;
   /** Прогрес сортування; null поза сортуванням, а для сцени й гравців і у фіналі. */
@@ -1953,6 +2013,8 @@ export interface PlayerView extends BaseView {
     jigsaw?: PlayerJigsaw;
     /** Власна дошка гравця (29d): лише на «Знайди відмінності»; інакше ключа немає. */
     spotdiff?: PlayerSpotdiff;
+    /** Власна дошка гравця (29f): лише на «Пам'яті»; інакше ключа немає. */
+    memory?: PlayerMemory;
     /** Власний бік у малюнку (28c): лише на такому запитанні; слово — лише художникові. */
     drawing?: PlayerDrawing;
     /** null поза сортуванням і для того, хто не відповідає тут (глядач на полі). */
@@ -2056,6 +2118,7 @@ export type LiveProgress =
   | { kind: 'puzzle'; filled: number; total: number; done: boolean }
   | { kind: 'jigsaw'; placed: number; total: number; done: boolean }
   | { kind: 'spotdiff'; found: number; total: number; done: boolean }
+  | { kind: 'memory'; pairs: number; total: number; done: boolean }
   | { kind: 'sort'; card: string | null; cardId: string | null; seq: number; sorted: number; total: number; misses: number }
   | { kind: 'wall'; found: number; groups: number; mistakes: number; locked: boolean; solved: boolean }
   | { kind: 'bluff'; stage: 'lies' | 'choice'; lie: string | null; pick: string | null }
@@ -2155,6 +2218,8 @@ export interface HostView extends BaseView {
   jigsaw?: JigsawInfo;
   /** Як у BaseView, але ведучому завжди ще й кола (місця) та номери знайдених кіл кожної дошки. */
   spotdiff?: SpotdiffHostInfo;
+  /** Як у BaseView, але з ходами в рядку дошки (без вмісту й місць). */
+  memory?: MemoryInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
   drawing?: HostDrawing;
   /** Як у BaseView, але і у фіналі. */

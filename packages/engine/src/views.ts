@@ -63,6 +63,14 @@ import {
   type JigsawInfo,
   type PlayerJigsaw,
   type PublicSpotdiff,
+  type PublicMemory,
+  type MemoryBoardView,
+  type MemoryInfo,
+  type MemoryCellView,
+  type PlayerMemory,
+  memoryCardAt,
+  memoryGridSize,
+  memoryLayout,
   type SpotdiffBoardView,
   type SpotdiffInfo,
   type SpotdiffHostInfo,
@@ -197,6 +205,8 @@ import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { spotdiffOf } from './spotdiff';
+import { memoryOf, settleMemory } from './memory';
+import { notStarted } from './splash';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -236,6 +246,12 @@ function inQuestion(state: GameState): boolean {
 function currentQuestion(state: GameState): Question | null {
   if (!inQuestion(state)) return null;
   return state.plays[state.questionIndex]?.question ?? null;
+}
+
+/** Ключ запитання для пульта; у «Пам'яті» до reveal без карток і seed (пульт часто видно залі), на reveal - пари без seed. */
+function hostKey(state: GameState, question: Question | null): Question | null {
+  if (question === null || question.type !== 'memory') return question;
+  return state.phase === 'reveal' ? { ...question, seed: 0 } : { ...question, seed: 0, pairs: question.pairs.map(() => ({ a: { text: '' }, b: { text: '' } })) };
 }
 
 /**
@@ -282,7 +298,7 @@ function withoutBluffSecrets(question: Question): Question {
 function publicAnswer<T extends Answer | null>(answer: T, revealed: boolean): T | Answer | null {
   if (answer === null) return answer;
   // «Головоломки» (28d): сітка гравця (grid) — значення, до розкриття її не бачить ніхто.
-  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw' || answer.type === 'spotdiff') return revealed ? answer : null;
+  if (answer.type === 'bluff' || answer.type === 'moreless' || answer.type === 'puzzle' || answer.type === 'jigsaw' || answer.type === 'spotdiff' || answer.type === 'memory') return revealed ? answer : null;
   return answer.type === 'survey' && !revealed ? { type: 'survey', values: answer.values } : answer;
 }
 
@@ -322,6 +338,7 @@ function publicQuestion(question: Question, presented: string[], clues: PublicCl
     ...(question.type === 'sudoku' || question.type === 'crossword' ? { puzzle: publicPuzzle(question) } : {}),
     ...(question.type === 'jigsaw' ? { jigsaw: publicJigsaw(question) } : {}),
     ...(question.type === 'spotdiff' ? { spotdiff: publicSpotdiff(question, revealed) } : {}),
+    ...(question.type === 'memory' ? { memory: publicMemory(question, revealed) } : {}),
     ...(question.type === 'wordladder'
       ? { wordladder: { start: question.path[0], target: question.path[question.path.length - 1], letters: ladderLetters(question.path[0]), maxSteps: question.maxSteps } }
       : {}),
@@ -367,6 +384,19 @@ function publicJigsaw(question: Extract<Question, { type: 'jigsaw' }>): PublicJi
 /** Дві картинки, рамка й кількість кіл; самі кола (місця) - лише на reveal, до нього вони таємні. */
 function publicSpotdiff(question: Extract<Question, { type: 'spotdiff' }>, revealed: boolean): PublicSpotdiff {
   return { original: question.original, changed: question.changed, aspect: question.aspect, total: question.spots.length, spots: revealed ? question.spots.map((s) => ({ ...s })) : null };
+}
+
+/** Сітка «Пам'яті» і кількість пар; самі пари - лише на reveal, seed (розклад) - ніколи. */
+function publicMemory(question: Extract<Question, { type: 'memory' }>, revealed: boolean): PublicMemory {
+  const { cols, rows } = memoryGridSize(question.grid);
+  return {
+    id: question.id,
+    grid: question.grid,
+    cols,
+    rows,
+    total: question.pairs.length,
+    pairs: revealed ? question.pairs.map((pair) => ({ a: { ...pair.a }, b: { ...pair.b } })) : null,
+  };
 }
 
 /** Судоку: задані цифри (вони публічні), без розв'язку. Кросворд: форма, номери, довжини й підказки, без слів і ключа. */
@@ -932,7 +962,7 @@ function hostFinal(state: GameState): HostFinal | null {
   const graded = play?.final?.graded ?? [];
   const entries = finalEntries(state, false);
   // Ланцюжок і сортування перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && play?.question.type !== 'spotdiff' && !(play !== undefined && isPuzzle(play.question));
+  const gradable = play?.question.type !== 'chain' && play?.question.type !== 'sort' && play?.question.type !== 'wordladder' && play?.question.type !== 'timedlist' && play?.question.type !== 'letterwords' && play?.question.type !== 'moreless' && play?.question.type !== 'drawing' && play?.question.type !== 'jigsaw' && play?.question.type !== 'spotdiff' && play?.question.type !== 'memory' && !(play !== undefined && isPuzzle(play.question));
   return {
     ...info,
     wagers: state.players.map((p) => ({ playerId: p.id, nickname: p.nickname, ...ownWager(open.final, p.id) })),
@@ -1023,7 +1053,7 @@ function hostBets(state: GameState): HostBets | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && play.question.type !== 'memory' && !isPuzzle(play.question);
   return {
     ...info,
     question,
@@ -1128,7 +1158,7 @@ function hostAuction(state: GameState): HostAuction | null {
   const play = state.plays[state.questionIndex];
   const graded = play?.final?.graded ?? [];
   // Ланцюжок, сортування й драбина перевіряються хід за ходом: ручної оцінки в них немає (override відмовляє).
-  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && !isPuzzle(play.question);
+  const gradable = play !== undefined && play.question.type !== 'chain' && play.question.type !== 'sort' && play.question.type !== 'wordladder' && play.question.type !== 'timedlist' && play.question.type !== 'letterwords' && play.question.type !== 'moreless' && play.question.type !== 'drawing' && play.question.type !== 'jigsaw' && play.question.type !== 'spotdiff' && play.question.type !== 'memory' && !isPuzzle(play.question);
   const answer = manual && gradable && winnerId !== null ? (recordOf(state, state.questionIndex, winnerId)?.answer ?? null) : null;
   const winner = state.players.find((p) => p.id === winnerId);
   return {
@@ -1770,6 +1800,87 @@ function playerSpotdiff(state: GameState, actorId: string): PlayerSpotdiff | und
     seq: board?.seq ?? 0,
     timeMs: board?.doneMs ?? null,
     result: state.phase === 'reveal' ? { points: record?.points ?? 0 } : null,
+  };
+}
+
+/** Поточна «Пам'ять» з її грою (будь-який етап запитання); null поза запитанням або для інших типів. */
+function currentMemory(state: GameState) {
+  if (!inQuestion(state)) return null;
+  const play = state.plays[state.questionIndex];
+  if (play === undefined || play.memory === undefined || play.question.type !== 'memory') return null;
+  return { play: { ...play, memory: play.memory }, question: play.question };
+}
+
+/**
+ * Дошки «Пам'яті» (29f) для сцени й ведучого: лише кількість знайдених пар, ходи й час; ні карток, ні місць знайдених пар.
+ * До reveal - порядок гравців; на reveal - знайшли все (за часом), далі за кількістю пар спадно, за рівності - порядок гравців.
+ */
+function memoryInfo(state: GameState): MemoryInfo | undefined {
+  const open = currentMemory(state);
+  if (open === null) return undefined;
+  const revealed = state.phase === 'reveal';
+  const boards: MemoryBoardView[] = state.players.map((player) => {
+    const board = open.play.memory.boards[player.id];
+    return {
+      playerId: player.id,
+      nickname: player.nickname,
+      pairs: (board?.matched.length ?? 0) / 2,
+      total: open.question.pairs.length,
+      moves: board?.moves ?? 0,
+      done: board?.doneMs != null,
+      timeMs: board?.doneMs ?? null,
+      points: revealed ? (recordOf(state, state.questionIndex, player.id)?.points ?? 0) : null,
+    };
+  });
+  if (revealed) boards.sort((a, b) => (a.done === b.done ? (a.done ? (a.timeMs ?? 0) - (b.timeMs ?? 0) : b.pairs - a.pairs) : a.done ? -1 : 1));
+  return { boards };
+}
+
+/**
+ * Власна (командна) сітка гравця: картку бачить лише той, чия дошка, і лише поки вона відкрита, показана як непара чи знайдена
+ * (на reveal - усі). Зріз від now: прострочена непара й хід закриті без зміни стану; без now таймери не враховуються.
+ */
+function playerMemory(state: GameState, actorId: string, memberId: string, now: number | undefined): PlayerMemory | undefined {
+  const open = currentMemory(state);
+  if (open === null) return undefined;
+  const { play, question } = open;
+  const raw = memoryOf(state, actorId);
+  const board = raw === null ? null : now === undefined ? raw : settleMemory(raw, now);
+  const record = recordOf(state, state.questionIndex, actorId);
+  const team = teamsOn(state);
+  const revealed = state.phase === 'reveal';
+  const order = play.memory.order?.[actorId];
+  const { cols, rows } = memoryGridSize(question.grid);
+  const layout = memoryLayout(question.pairs.length, question.seed);
+  const matched = board?.matched ?? [];
+  const cells: (MemoryCellView | null)[] = Array.from({ length: cols * rows }, (_, cell) => {
+    const found = matched.indexOf(cell);
+    const shown = board?.shown?.cells.includes(cell) === true;
+    const isOpen = board?.open === cell;
+    if (found < 0 && !shown && !isOpen && !revealed) return null;
+    const card = memoryCardAt(question, layout, cell);
+    const by = found >= 0 ? board?.by?.[Math.floor(found / 2)] : isOpen ? board?.turn?.by : undefined;
+    const tone = team && (found >= 0 || isOpen) ? (by === undefined ? '9' : jigsawTone(state, order, actorId, by)) : null;
+    return { text: card.text, imageUrl: card.imageUrl ?? null, state: found >= 0 ? 'matched' : isOpen ? 'open' : 'shown', tone };
+  });
+  const done = board?.doneMs != null;
+  const turn = board?.turn ?? null;
+  const other = team && turn !== null && turn.by !== memberId ? memberOf(state, turn.by) : undefined;
+  // Чужий хід блокує навіть коли учасника вже вилучено (other невідомий).
+  const foreignTurn = team && turn !== null && turn.by !== memberId;
+  const busy = other === undefined ? null : { nickname: other.nickname, tone: jigsawTone(state, order, actorId, other.id) };
+  return {
+    cells,
+    pairs: matched.length / 2,
+    total: question.pairs.length,
+    moves: board?.moves ?? 0,
+    done,
+    canFlip: state.phase === 'question' && !state.paused && !done && record === undefined && board?.shown == null && busy === null && !foreignTurn && !(now !== undefined && notStarted(state, now)),
+    busy,
+    closesInMs: board?.shown != null && now !== undefined ? board.shown.until - now : null,
+    seq: board?.seq ?? 0,
+    timeMs: board?.doneMs ?? null,
+    result: revealed ? { points: record?.points ?? 0 } : null,
   };
 }
 
@@ -2718,6 +2829,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('puzzle', puzzleInfo(state, forHost)),
     ...optional('jigsaw', jigsawInfo(state)),
     ...optional('spotdiff', spotdiffInfo(state)),
+    ...optional('memory', memoryInfo(state)),
     ...optional('drawing', drawingInfo(state, forHost)),
     chain: inFinalRound(state) ? null : chainInfo(state),
     sort: inFinalRound(state) ? null : sortInfo(state),
@@ -3131,7 +3243,8 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
     const view = own === null ? null : withDrawerText(state, playerId, own);
     const jigsaw = playerJigsaw(state, playerId, playerId, now);
     const spotdiff = playerSpotdiff(state, playerId);
-    return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
+    const memory = playerMemory(state, playerId, playerId, now);
+    return view === null ? null : { ...view, me: jigsaw === undefined && spotdiff === undefined && memory === undefined ? view.me : { ...view.me, ...optional('jigsaw', jigsaw), ...optional('spotdiff', spotdiff), ...optional('memory', memory) }, away: ownAway(state, playerId), lastAway: lastAway(state, playerId), team: null, author: authorView(state, playerId) };
   }
   const member = memberOf(state, playerId);
   if (member === undefined) return null;
@@ -3145,7 +3258,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
   return {
     ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -3496,7 +3609,7 @@ export function hostView(state: GameState): HostView {
       score: p.score,
       debuff: hostDebuff(state, p.id),
     })),
-    correct: shownQuestion(state)?.question ?? null,
+    correct: hostKey(state, shownQuestion(state)?.question ?? null),
     responses,
     blitz: hostBlitz(state),
     board: hostBoard(state),

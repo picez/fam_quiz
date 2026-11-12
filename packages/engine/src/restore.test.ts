@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SPLASH_MS, type Quiz, type QuizSettings, type ResumeSetup, type Stroke, type TeamsSettings } from '@quiz/shared';
+import { memoryLayout, SPLASH_MS, type Quiz, type QuizSettings, type ResumeSetup, type Stroke, type TeamsSettings } from '@quiz/shared';
 import { takeBuff, type BuffPlay } from './buffs';
 import { chooserOf } from './board-turns';
 import { adjustScore } from './adjust';
@@ -84,6 +84,8 @@ import {
   type JigsawBoard,
   type SpotdiffPlay,
   type SpotdiffBoard,
+  type MemoryPlay,
+  type MemoryBoard,
 } from './game';
 import { stamp } from './pacing';
 import { GAME_STATE_VERSION, READABLE_STATE_VERSIONS, suspend } from './restore';
@@ -135,9 +137,12 @@ import {
   jigsaw,
   spotdiffQuiz,
   spotdiff,
+  memoryQuiz,
+  memory,
 } from './testing/fixtures';
 import { jigsawHold, jigsawPlace } from './jigsaw';
 import { spotdiffTap, type SpotTap } from './spotdiff';
+import { memoryFlip, type MemoryFlip } from './memory';
 import { acceptAll, lobbyWith, lobbyWithSplash, must, openAt, sendBlitz } from './testing/helpers';
 import { head, right, toSort, wrong } from './testing/sort';
 import { hostView, playerView, stageView } from './views';
@@ -343,7 +348,7 @@ const STATE_SHAPE: Record<string, string> = {
   Quiz: keysOf<Quiz>()(['title', 'description', 'settings', 'rounds', 'duels', 'spares'], true),
   QuizSettings: keysOf<QuizSettings>()(['leaderboard', 'debuffs', 'buffs', 'newcomers', 'debuffPrices', 'debuffShop', 'teams', 'awayPenalty', 'levelBonuses'], true),
   PlayerState: keysOf<PlayerState>()(['id', 'nickname', 'connected', 'score', 'totalTimeMs', 'streak'], true),
-  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff'], true),
+  Play: keysOf<Play>()(['roundIndex', 'question', 'answers', 'blitz', 'extraMs', 'board', 'final', 'chain', 'wordladder', 'sort', 'buffs', 'overtime', 'clues', 'wall', 'cloudHidden', 'survey', 'bluff', 'wipeout', 'survival', 'ladder', 'buzzers', 'clueOpens', 'away', 'timedlist', 'letterwords', 'moreless', 'truth', 'drawing', 'puzzle', 'jigsaw', 'spotdiff', 'memory'], true),
   AnswerRecord: keysOf<AnswerRecord>()(
     ['answer', 'timeMs', 'accepted', 'accuracy', 'grade', 'basePoints', 'streakBonus', 'points', 'overridden', 'buff', 'spare'],
     true,
@@ -404,6 +409,10 @@ const STATE_SHAPE: Record<string, string> = {
   JigsawBoard: keysOf<JigsawBoard>()(['placed', 'by', 'held', 'doneMs', 'seq'], true),
   SpotdiffPlay: keysOf<SpotdiffPlay>()(['boards', 'order'], true),
   SpotdiffBoard: keysOf<SpotdiffBoard>()(['found', 'by', 'misses', 'frozenUntil', 'doneMs', 'seq'], true),
+  MemoryPlay: keysOf<MemoryPlay>()(['boards', 'order'], true),
+  MemoryBoard: keysOf<MemoryBoard>()(['matched', 'by', 'open', 'shown', 'turn', 'moves', 'doneMs', 'seq'], true),
+  MemoryShown: keysOf<NonNullable<MemoryBoard['shown']>>()(['cells', 'until'], true),
+  MemoryTurn: keysOf<NonNullable<MemoryBoard['turn']>>()(['by', 'until'], true),
   BuffPlay: keysOf<BuffPlay>()(['kind', 'seq', 'at', 'removed', 'retry', 'first', 'vote', 'hint', 'spare', 'peek', 'range', 'zoom'], true),
   BuffRange: keysOf<NonNullable<BuffPlay['range']>>()(['min', 'max'], true),
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
@@ -1208,7 +1217,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
-    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,timedlist,truth,wall,wipeout,wordladder',
+    Play: 'answers,away,blitz,bluff,board,buffs,buzzers,chain,cloudHidden,clueOpens,clues,drawing,extraMs,final,jigsaw,ladder,letterwords,memory,moreless,overtime,puzzle,question,roundIndex,sort,spotdiff,survey,survival,timedlist,truth,wall,wipeout,wordladder',
     AnswerRecord: 'accepted,accuracy,answer,basePoints,buff,grade,overridden,points,spare,streakBonus,timeMs',
     BoardState: 'awaySince,circle,circleNo,dice,done',
     DiceState: 'throws,tour,tourNo,waiting',
@@ -1263,6 +1272,10 @@ const KEYS: Record<number, Record<string, string>> = {
     JigsawBoard: 'by,doneMs,held,placed,seq',
     SpotdiffPlay: 'boards,order',
     SpotdiffBoard: 'by,doneMs,found,frozenUntil,misses,seq',
+    MemoryPlay: 'boards,order',
+    MemoryBoard: 'by,doneMs,matched,moves,open,seq,shown,turn',
+    MemoryShown: 'cells,until',
+    MemoryTurn: 'by,until',
     BuffPlay: 'at,first,hint,kind,peek,range,removed,retry,seq,spare,vote,zoom',
     BuffRange: 'max,min',
     BuffZoom: 'size,x,y',
@@ -1530,6 +1543,8 @@ function representative(): GameState[] {
   const jigsawing = jigsawed();
   // 29d: «Знайди відмінності» — команда знайшла коло (by), Петро замерз (misses, frozenUntil).
   const spotting = spotted();
+  // 29f: «Пам'ять» — команда знайшла пару (by), Петро показує непару (shown), Віра відкрила першу картку (turn).
+  const remembering = remembered();
   const selfOpened = must(openClue(openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [{ ...clues, cluePace: 'self' }])]), 'Оля', 'Петро'), T0), 'p1', T0 + 1000));
   return [
     teamDice,
@@ -1580,6 +1595,7 @@ function representative(): GameState[] {
     puzzleClosed,
     jigsawing,
     spotting,
+    remembering,
     wandered,
     appealed(),
     resumedCarry(),
@@ -1636,6 +1652,24 @@ function spotted(): GameState {
   s = spotMust(spotdiffTap(s, 't1', 'm1', 0, { x: 0.6, y: 0.5, width: 400 }, T0 + 500));
   for (let k = 0; k < 3; k++) s = spotMust(spotdiffTap(s, 't1', 'm2', 0, { x: 0.05, y: 0.95, width: 400 }, T0 + 600 + k));
   return spotMust(spotdiffTap(s, 't1', 'm2', 0, { x: 0.05, y: 0.95, width: 400 }, T0 + 2000));
+}
+
+/** 29f: командна «Пам'ять» — Оля знайшла пару, Петро відкрив непару (shown), Віра відкрила першу картку (turn). */
+function remembered(): GameState {
+  let s = must(next(teamGame(teamQuiz([classicRound('r1', [memory])]), [['Оля', 'Петро'], ['Віра']]), T0));
+  const layout = memoryLayout(memory.pairs.length, memory.seed);
+  const of = (pair: number) => [0, 1].map((side) => layout.indexOf(2 * pair + side));
+  const [a, b] = of(0);
+  s = flipMust(memoryFlip(s, 't1', 'm1', 0, a, T0 + 500));
+  s = flipMust(memoryFlip(s, 't1', 'm1', 0, b, T0 + 600));
+  s = flipMust(memoryFlip(s, 't1', 'm2', 0, of(1)[0], T0 + 700));
+  s = flipMust(memoryFlip(s, 't1', 'm2', 0, of(2)[0], T0 + 800));
+  return flipMust(memoryFlip(s, 't2', 'm3', 0, of(3)[0], T0 + 900));
+}
+
+function flipMust(flip: MemoryFlip): GameState {
+  if (!flip.ok) throw new Error(flip.error);
+  return flip.state;
 }
 
 function spotMust(tap: SpotTap): GameState {
@@ -1828,6 +1862,30 @@ describe('the saved state', () => {
     // старий знімок без поля читається
     const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(spotdiffQuiz(), 'Оля'))), T0))), T0 + 100));
     expect(old.plays[0].spotdiff).toBeUndefined();
+  });
+
+  it('a restored room keeps the memory boards without a new version (29f)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let s = must(next(teamGame(teamQuiz([classicRound('r1', [single]), classicRound('r2', [memory])]), [['Оля', 'Петро'], ['Віра']]), T0));
+    s = must(lock(s, T0 + 1000));
+    for (let i = 0; i < 12 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'memory'); i++) s = must(next(s, T0 + 2000));
+    expect(s.questionIndex).toBe(1);
+    const layout = memoryLayout(memory.pairs.length, memory.seed);
+    const of = (pair: number) => [0, 1].map((side) => layout.indexOf(2 * pair + side));
+    const at = s.startedAt! + 1000;
+    s = flipMust(memoryFlip(s, 't1', 'm1', 0, of(0)[0], at));
+    s = flipMust(memoryFlip(s, 't1', 'm1', 0, of(0)[1], at + 10));
+    s = flipMust(memoryFlip(s, 't1', 'm2', 0, of(1)[0], at + 20));
+    s = flipMust(memoryFlip(s, 't1', 'm2', 0, of(2)[0], at + 30));
+    s = flipMust(memoryFlip(s, 't2', 'm3', 0, of(3)[0], at + 40));
+    expect(s.plays[1].memory?.boards.t1.shown).not.toBeNull();
+    expect(s.plays[1].memory?.boards.t2.turn).not.toBeNull();
+    const back = roundTrip(suspend(roundTrip(s), at + 100));
+    expect(back.plays[1].memory?.boards.t1).toMatchObject({ matched: of(0), moves: 2, by: ['m1'] });
+    expect(back.plays[1].memory?.boards).toEqual(s.plays[1].memory?.boards);
+    // старий знімок без поля читається
+    const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(memoryQuiz(), 'Оля'))), T0))), T0 + 100));
+    expect(old.plays[0].memory).toBeUndefined();
   });
 
   it('an auction snapshot keeps the leader, the bid and the clock without a new version (27b)', () => {
@@ -2293,6 +2351,11 @@ describe('the saved state', () => {
       add('JigsawBoard', s.plays.flatMap((p) => Object.values(p.jigsaw?.boards ?? {})));
       add('SpotdiffPlay', s.plays.map((p) => p.spotdiff));
       add('SpotdiffBoard', s.plays.flatMap((p) => Object.values(p.spotdiff?.boards ?? {})));
+      add('MemoryPlay', s.plays.map((p) => p.memory));
+      const memoryBoards = s.plays.flatMap((p) => Object.values(p.memory?.boards ?? {}));
+      add('MemoryBoard', memoryBoards);
+      add('MemoryShown', memoryBoards.map((b) => b.shown));
+      add('MemoryTurn', memoryBoards.map((b) => b.turn));
       add('AutopilotState', [s.autopilot]);
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));

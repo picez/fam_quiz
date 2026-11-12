@@ -37,6 +37,7 @@ import {
   withId,
   wordladder,
   spotdiff,
+  memory,
 } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 
@@ -272,6 +273,18 @@ describe('buffs', () => {
     for (let guard = 0; guard < 10 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'spotdiff'); guard++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
     expect(s.plays[s.questionIndex].question.type).toBe('spotdiff');
     expect(buffBlock(s, 'p1', 'double')).toBe('off_spotdiff');
+    expect(takeBuff(s, 'p1', 'double', T0, rng0).ok).toBe(false);
+    expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
+    expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });
+  });
+
+  it('a memory in a classic round has no buffs and no debuffs, a waiting debuff waits (29f)', () => {
+    const quiz = makeRoundsQuiz([classicRound('c1', [single4, memory])], { buffs, debuffs: ['fog'] });
+    let s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Петро'))), T0, rng0));
+    s = must(setDebuff(s, 'p2', 'fog'));
+    for (let guard = 0; guard < 10 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'memory'); guard++) s = s.phase === 'question' ? must(lock(s)) : must(next(s, T0, rng0));
+    expect(s.plays[s.questionIndex].question.type).toBe('memory');
+    expect(buffBlock(s, 'p1', 'double')).toBe('off_memory');
     expect(takeBuff(s, 'p1', 'double', T0, rng0).ok).toBe(false);
     expect(setDebuff(s, 'p1', 'fog')).toEqual({ ok: false, error: 'not_allowed' });
     expect(s.debuffs.p2).toMatchObject({ kind: 'fog', firedAt: null });

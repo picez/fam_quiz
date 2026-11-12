@@ -20480,3 +20480,413 @@ input.sudoku-editor-cell:focus-visible {
 .stage .moreless-watch .moreless-options {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+/* «Пам'ять»: телефон (29f). Квадратні картки, cols у ряд; розмір — менше з «ширина поля / cols» і «(екран − 190px) / rows»,
+ * тож 4×5 на 320×568 вміщається без прокрутки.
+ * Закрита — сорочка; непара — червона рамка; знайдена — зелена (у командах колір учасника) і притлумлена; на розкритті
+ * невідкриті — нейтральні. */
+.memory-play {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.memory-progress,
+.memory-busy {
+  margin: 0;
+}
+
+.memory-busy {
+  color: var(--by, var(--dim));
+  font-weight: 600;
+}
+
+.memory-grid {
+  --memory-gap: 6px;
+  --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 190px) / var(--rows)));
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--memory-card));
+  gap: var(--memory-gap);
+  justify-content: center;
+  max-width: 100%;
+}
+
+.memory-card {
+  position: relative;
+  display: grid;
+  /* Одна комірка, що не росте від вмісту: висока картинка не розтягує картку. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  width: var(--memory-card);
+  height: var(--memory-card);
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  line-height: 1.15;
+  text-align: center;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: default;
+}
+
+.memory-card.is-closed {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background:
+    repeating-linear-gradient(45deg, rgb(224 37 49 / 0.14) 0 6px, transparent 6px 12px),
+    color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+
+.memory-card.is-closed:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+.memory-card.is-closed[aria-disabled='true'] {
+  opacity: 0.7;
+}
+
+.memory-card.is-pending {
+  animation: memory-flip 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes memory-flip {
+  from {
+    transform: perspective(400px) rotateY(0deg);
+  }
+  to {
+    transform: perspective(400px) rotateY(80deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-card.is-pending {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.memory-card.is-open {
+  border-color: var(--by, var(--paper));
+}
+
+.memory-card.is-shown {
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+}
+
+.memory-card.is-matched {
+  border-color: var(--by, var(--correct));
+  opacity: 0.6;
+}
+
+.memory-grid.is-reveal .memory-card.is-shown {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.memory-grid.is-reveal .memory-card.is-matched {
+  opacity: 1;
+}
+
+.memory-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* Розмір не більший за частку ширини картки: «Україна» (16 px) у картці 4×5 на 320 px (66 px) інакше розривається посеред слова. */
+.memory-card {
+  container-type: size;
+}
+
+.memory-text-l {
+  font-size: min(16px, 22cqw);
+}
+
+.memory-text-m {
+  font-size: min(13px, 20cqw);
+}
+
+.memory-text-s {
+  font-size: 11px;
+  line-height: 1.15;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+/* До 40 символів: 5 рядків по 11 px уміщаються в картку 4×5 на 320 px (~65 px), тож картка з таким текстом має менше поле. */
+.memory-text-xs {
+  font-size: 10px;
+  line-height: 1.1;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
+
+.memory-card:has(> .memory-text-xs) {
+  padding: 2px;
+}
+
+.memory-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+/* «Пам'ять»: кінець телефона */
+
+/* «Пам'ять»: редактор (29f). Кнопки сіток, пари у два стовпці «a | b», на вузькому екрані — в один. */
+.memory-editor {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.memory-grids,
+.memory-editor-row,
+.memory-half-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.memory-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.5rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--line, rgba(128, 128, 128, 0.3));
+}
+
+.memory-pair > legend {
+  padding: 0 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.memory-half {
+  display: grid;
+  gap: 0.375rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.memory-half-text {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.memory-half-image {
+  display: grid;
+  gap: 0.375rem;
+  justify-items: start;
+  min-width: 0;
+}
+
+.memory-half-image img {
+  max-width: 100%;
+  max-height: 8rem;
+  object-fit: contain;
+}
+
+@media (max-width: 480px) {
+  .memory-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* «Пам'ять»: кінець редактора */
+
+/* «Пам'ять»: сцена й пульт (29f). Мініатюри з кількістю пар (місць немає), на розкритті — пари списком і таблиця часу. */
+.memory-stage:not(.is-reveal) {
+  flex-direction: column;
+}
+
+.memory-boards-fit {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+
+.memory-boards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--rows, 1), minmax(0, 1fr));
+  gap: 1vh 1vw;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: min(clamp(0.75rem, 1.6vw, 1.75rem), 100cqw / (var(--cols, 4) * 9));
+}
+
+.memory-boards-fit.is-dense .memory-boards {
+  font-size: min(clamp(0.75rem, 1.2vw, 1.25rem), 100cqw / (var(--cols, 4) * 9));
+}
+
+.memory-board {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.15em;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.4em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.memory-board.is-done {
+  border-color: var(--accent-text);
+}
+
+/* 24 гравці: у вузькій картці «10 з 10 ✓ 5,8 с» не вміщається — рядок лічильника зменшується за шириною картки. */
+.memory-board {
+  container-type: inline-size;
+}
+
+.memory-board-count {
+  font-size: min(1em, 9.5cqw);
+}
+
+.memory-board-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.memory-board-count,
+.memory-board-moves {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+/* Мініатюра сітки: квадратики, світяться перші 2 · pairs у порядку читання (кількість, не місця). */
+.memory-mini {
+  display: grid;
+  grid-template-columns: repeat(var(--mini-cols, 4), 1fr);
+  grid-template-rows: repeat(var(--mini-rows, 4), 1fr);
+  gap: 2px;
+  align-self: center;
+  justify-self: start;
+  aspect-ratio: var(--mini-cols, 4) / var(--mini-rows, 4);
+  /* Висота від клітинки сітки (рядок 1fr), ширина — з aspect-ratio; без явної висоти мініатюра згортається до пари пікселів. */
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.memory-mini-cell {
+  display: block;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--paper) 14%, transparent);
+}
+
+.memory-mini-cell.is-lit {
+  background: var(--accent-text);
+}
+
+.memory-boards-fit.is-host {
+  flex: none;
+  container-type: normal;
+}
+
+.memory-boards-fit.is-host .memory-boards {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  grid-template-rows: none;
+  height: auto;
+  font-size: 1rem;
+}
+
+.memory-boards-fit.is-host .memory-mini {
+  width: 6rem;
+  height: auto;
+}
+
+/* Розкриття на сцені: пари ліворуч, таблиця праворуч. */
+.puzzle-stage.jigsaw-stage.memory-stage.is-reveal {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  column-gap: 1.5vw;
+}
+
+.memory-pairs-box {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.memory-reveal-pairs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16em, 1fr));
+  gap: 0.5em 1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(0.875rem, 1.5vw, 1.75rem);
+}
+
+.memory-reveal-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.memory-reveal-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.memory-reveal-img {
+  display: block;
+  width: 100%;
+  max-height: 4em;
+  object-fit: contain;
+}
+
+.memory-reveal-arrow {
+  color: var(--amber);
+}
+
+.memory-stage .jigsaw-table.memory-table {
+  font-size: min(clamp(1rem, 1.25vw, 1.5rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
+.host-memory .jigsaw-table.memory-table {
+  margin-top: 1rem;
+}
+/* «Пам'ять»: кінець сцени й пульта */

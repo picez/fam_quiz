@@ -9,6 +9,10 @@ import {
   CROSSWORD_MODES,
   DEBUFF_KINDS,
   EMPTY_SUDOKU,
+  IMAGE_URL,
+  MEMORY_GRIDS,
+  MEMORY_TEXT_MAX,
+  memoryGridSize,
   JIGSAW_ASPECTS,
   jigsawEdgeCount,
   jigsawGrid,
@@ -39,7 +43,7 @@ import {
   type Quiz,
   type Round,
 } from '@quiz/shared';
-import { QUESTION_TYPES, blankCrosswordEntry, blankMoreLessPair } from './draft';
+import { QUESTION_TYPES, blankCrosswordEntry, blankMemoryCard, blankMoreLessPair, randomSudokuSeed } from './draft';
 import { newId } from './new-id';
 
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -240,6 +244,28 @@ function reviveSpotdiff(base: Extract<Question, { type: 'spotdiff' }>): Question
 }
 
 /**
+ * «Пам'ять» з чернетки: сітка з переліку (інакше 3×4), пари доводяться до кількості сітки (зайві відкидаються, бракує — порожні),
+ * половина — текст до 40 символів або адреса картинки за IMAGE_URL (картинка лишає текст порожнім), seed — ціле (інакше новий).
+ * Без відео, звуку, «перевертання», підказки й готової картинки.
+ */
+function reviveMemory(base: Extract<Question, { type: 'memory' }>): Question {
+  const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
+  const grid = (MEMORY_GRIDS as readonly unknown[]).includes(base.grid) ? base.grid : '3x4';
+  const seed: unknown = base.seed;
+  const half = (value: unknown) => {
+    if (!isRecord(value)) return blankMemoryCard();
+    if (typeof value.imageUrl === 'string' && IMAGE_URL.test(value.imageUrl)) return { text: '', imageUrl: value.imageUrl };
+    return { text: typeof value.text === 'string' ? value.text.slice(0, MEMORY_TEXT_MAX) : '' };
+  };
+  const raw: unknown[] = Array.isArray(base.pairs) ? base.pairs : [];
+  const pairs = Array.from({ length: memoryGridSize(grid).pairs }, (_, i) => {
+    const pair = raw[i];
+    return isRecord(pair) ? { a: half(pair.a), b: half(pair.b) } : { a: blankMemoryCard(), b: blankMemoryCard() };
+  });
+  return { ...rest, imageUrl: null, video: null, grid, pairs, seed: typeof seed === 'number' && Number.isInteger(seed) && seed >= 0 && seed <= 4294967295 ? seed : randomSudokuSeed() };
+}
+
+/**
  * Кросворд з чернетки: слова — об'єкти з рядками (інакше чотири порожні), режим — з переліку (інакше «увесь кросворд»),
  * ключ — рядок лише в режимі ключа; розкладка — лише об'єкт зі словами й ключовими клітинками (зберігаючи, редактор її перескладе).
  */
@@ -332,6 +358,7 @@ function revive(stored: Question): Question {
   if (base.type === 'crossword') return reviveCrossword(base);
   if (base.type === 'jigsaw') return reviveJigsaw(base);
   if (base.type === 'spotdiff') return reviveSpotdiff(base);
+  if (base.type === 'memory') return reviveMemory(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
       ? (base.options as unknown[]).filter(isRecord).map((option) => ({

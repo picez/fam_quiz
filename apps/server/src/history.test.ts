@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { breakdownOf, DEFAULT_RULES, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz } from '@quiz/engine/testing';
+import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type Question } from '@quiz/shared';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGames, playerGames } from './history';
@@ -917,6 +917,41 @@ describe('host history: answers', () => {
       { nickname: 'Олена', answer: { type: 'spotdiff', found: 2, total: 3, done: false, timeMs: null }, accepted: false },
       { nickname: 'Тарас', answer: { type: 'spotdiff', found: 1, total: 3, done: false, timeMs: null }, accepted: false },
     ]);
+  });
+
+  it('history shows pairs of total', async () => {
+    const scheduler = new FakeScheduler();
+    const game = await start(memoryQuiz(), scheduler);
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    step('lock');
+    for (let i = 0; i < 6 && !(game.room.state.phase === 'question' && game.room.state.plays[game.room.state.questionIndex].question.type === 'memory'); i++) step('next');
+    const layout = memoryLayout(6, 42);
+    const flip = (who: string, pair: number, side: number) => expect(manager.memoryFlip(game.room, who, { questionIndex: 0, cell: layout.indexOf(2 * pair + side) })).toEqual({ ok: true });
+    for (let pair = 0; pair < 6; pair++) {
+      scheduler.advance(1100);
+      flip(olena, pair, 0);
+      flip(olena, pair, 1);
+    }
+    for (let pair = 0; pair < 4; pair++) {
+      scheduler.advance(1100);
+      flip(taras, pair, 0);
+      flip(taras, pair, 1);
+    }
+    step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    const mm = result.questions.find((q) => q.question.type === 'memory');
+    expect(mm?.responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'memory', pairs: 6, total: 6, done: true }, accepted: true },
+      { nickname: 'Тарас', answer: { type: 'memory', pairs: 4, total: 6, done: false, timeMs: null }, accepted: false },
+    ]);
+    const records = game.room.state.plays[1].answers;
+    expect([records[olena]?.points, records[taras]?.points]).toEqual([300, 0]);
   });
 
   it('history shows a solved puzzle', async () => {

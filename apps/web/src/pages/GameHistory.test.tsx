@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { answerText } from '../format';
 import { auctionLine, truthLine, carryLine, debuffLines, ladderLines, lettersLines, ladderPrizeLines, survivalBonusLines, survivalLines, wagerLine, wipeoutLines } from './GameHistory';
 
+describe('history: memory (29f)', () => {
+  it('history shows pairs of total', () => {
+    expect(answerText({ type: 'memory', pairs: 4, total: 6, done: false, timeMs: null, moves: 7 } as never, null)).toBe('Знайдено 4 з 6 пар');
+    expect(answerText({ type: 'memory', pairs: 6, total: 6, done: true, timeMs: 41_200, moves: 9 } as never, null)).toBe('Усі пари за 41,2 с');
+  });
+});
+
 describe('history: spotdiff (29d)', () => {
   it('history shows found of total', () => {
     expect(answerText({ type: 'spotdiff', found: 2, total: 3, done: false, timeMs: null } as never, null)).toBe('Знайдено 2 з 3');

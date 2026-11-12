@@ -60,6 +60,9 @@ import {
   jigsawTabs,
   SPOT_MAX_COUNT,
   SPOT_MIN_COUNT,
+  type MemoryCard,
+  memoryCardKey,
+  memoryGridSize,
   generateSudoku,
   countSudoku,
   isSudokuGrid,
@@ -97,7 +100,7 @@ export { QUESTION_TYPES, type QuestionType };
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   if (roundType === 'puzzles') return PUZZLES_ROUND_TYPES;
-  const types = roundType === 'classic' ? QUESTION_TYPES : questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing' && type !== 'jigsaw' && type !== 'spotdiff');
+  const types = roundType === 'classic' ? QUESTION_TYPES : questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing' && type !== 'jigsaw' && type !== 'spotdiff' && type !== 'memory');
   return types.filter((type) => !(PUZZLE_TYPES as readonly string[]).includes(type));
 }
 
@@ -154,6 +157,10 @@ type Sudoku = Extract<Question, { type: 'sudoku' }>;
 type Crossword = Extract<Question, { type: 'crossword' }>;
 export type JigsawQuestion = Extract<Question, { type: 'jigsaw' }>;
 export type SpotdiffQuestion = Extract<Question, { type: 'spotdiff' }>;
+export type MemoryQuestion = Extract<Question, { type: 'memory' }>;
+
+/** Порожня половина пари «Пам’яті»: текст без картинки. */
+export const blankMemoryCard = (): MemoryCard => ({ text: '' });
 
 /** Нове порожнє слово кросворду. */
 export const blankCrosswordEntry = () => ({ id: newId(), answer: '', clue: '' });
@@ -321,14 +328,14 @@ function build(common: Common, type: QuestionType): Question {
       // Типовий текст іншої головоломки (зміна типу) — як порожній: інакше кросворд лишився б «Розв’яжіть судоку».
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       const seed = randomSudokuSeed();
-      return { ...rest, text: rest.text === '' || rest.text === t('crosswordDefaultText') || rest.text === t('jigsawDefaultText') ? t('sudokuDefaultText') : rest.text, video: null, type, timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, level: 'medium', seed, ...generateSudoku(seed, 'medium') };
+      return { ...rest, text: rest.text === '' || rest.text === t('crosswordDefaultText') || rest.text === t('jigsawDefaultText') || rest.text === t('memoryDefaultText') ? t('sudokuDefaultText') : rest.text, video: null, type, timeLimit: LIMITS.defaultSudokuTime, points: LIMITS.defaultPuzzlePoints, level: 'medium', seed, ...generateSudoku(seed, 'medium') };
     }
     case 'crossword': {
       // Як судоку; чотири порожні слова, розкладки ще немає.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
       return {
         ...rest,
-        text: rest.text === '' || rest.text === t('sudokuDefaultText') || rest.text === t('jigsawDefaultText') ? t('crosswordDefaultText') : rest.text,
+        text: rest.text === '' || rest.text === t('sudokuDefaultText') || rest.text === t('jigsawDefaultText') || rest.text === t('memoryDefaultText') ? t('crosswordDefaultText') : rest.text,
         video: null,
         type,
         timeLimit: LIMITS.defaultCrosswordTime,
@@ -346,7 +353,7 @@ function build(common: Common, type: QuestionType): Question {
       const seed = randomSudokuSeed();
       return {
         ...rest,
-        text: rest.text === '' || rest.text === t('sudokuDefaultText') || rest.text === t('crosswordDefaultText') ? t('jigsawDefaultText') : rest.text,
+        text: rest.text === '' || rest.text === t('sudokuDefaultText') || rest.text === t('crosswordDefaultText') || rest.text === t('memoryDefaultText') ? t('jigsawDefaultText') : rest.text,
         imageUrl: null,
         video: null,
         type,
@@ -365,8 +372,14 @@ function build(common: Common, type: QuestionType): Question {
     case 'spotdiff': {
       // Як пазл: без відео, звуку, «перевертання» й підказки; дві картинки лежать у original і changed, imageUrl завжди null.
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
-      const stale = rest.text === t('sudokuDefaultText') || rest.text === t('crosswordDefaultText') || rest.text === t('jigsawDefaultText');
+      const stale = rest.text === t('sudokuDefaultText') || rest.text === t('crosswordDefaultText') || rest.text === t('jigsawDefaultText') || rest.text === t('memoryDefaultText');
       return { ...rest, text: stale ? '' : rest.text, imageUrl: null, video: null, type, timeLimit: LIMITS.defaultSpotdiffTime, points: LIMITS.defaultSpotdiffPoints, original: '', changed: '', aspect: 4 / 3, spots: [] };
+    }
+    case 'memory': {
+      // Як пазл: без відео, звуку, «перевертання» й підказки; картки лише в парах, imageUrl завжди null. Шість порожніх пар, нова розкладка.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = common;
+      const stale = rest.text === '' || rest.text === t('sudokuDefaultText') || rest.text === t('crosswordDefaultText') || rest.text === t('jigsawDefaultText');
+      return { ...rest, text: stale ? t('memoryDefaultText') : rest.text, imageUrl: null, video: null, type, timeLimit: LIMITS.defaultMemoryTime, points: LIMITS.defaultMemoryPoints, grid: '3x4', pairs: Array.from({ length: memoryGridSize('3x4').pairs }, () => ({ a: blankMemoryCard(), b: blankMemoryCard() })), seed: randomSudokuSeed() };
     }
     case 'bluff':
       return { ...common, video: null, type, timeLimit: LIMITS.defaultBluffTime, choiceTime: LIMITS.defaultChoiceTime, accepted: [''], lies: ['', ''] };
@@ -924,6 +937,12 @@ const cleanBody = (question: Question): Question => {
       const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
       return { ...rest, text, video: null };
     }
+    case 'memory': {
+      // Картки лише в парах: текст без пробілів по краях, не довший за поле; без відео, звуку, «перевертання» й підказки.
+      const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = question;
+      const card = (c: MemoryCard): MemoryCard => (c.imageUrl === undefined ? { text: c.text.trim() } : { text: c.text.trim(), imageUrl: c.imageUrl });
+      return { ...rest, text, video: null, pairs: question.pairs.map((pair) => ({ a: card(pair.a), b: card(pair.b) })) };
+    }
     case 'crossword': {
       // Слова й підказки без пробілів по краях, ключ лише в режимі ключа; розкладка перескладається з почищеного. Підказки для бафів немає.
       const { hint: _hint, ...rest } = question;
@@ -1075,19 +1094,21 @@ interface Place {
   jigsaw: boolean;
   /** «Знайди відмінності»: так само, лише класика й «Головоломки» (правило spotdiff_place схеми). */
   spotdiff: boolean;
+  /** «Пам’ять»: так само, лише класика й «Головоломки» (правило memory_place схеми). */
+  memory: boolean;
 }
 
-const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true };
+const ANYWHERE: Place = { reveal: true, clues: true, pin: true, wall: true, vote: true, bluff: true, survey: true, clouds: [], voice: false, sort: true, chain: true, wordladder: true, timedlist: true, letterwords: true, moreless: true, drawing: true, puzzle: false, onlyPuzzles: false, jigsaw: true, spotdiff: true, memory: true };
 /** Бліц і фінал: нічого з нового. Класика — усе, а хмари для «100 до 1» — ті, що вище. */
 const roundPlace = (quiz: Quiz, roundIndex: number, questionIndex: number): Place =>
   quiz.rounds[roundIndex].type === 'classic'
     ? { ...ANYWHERE, clouds: cloudSources(quiz, roundIndex, questionIndex).map((cloud) => cloud.id) }
-    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles' };
+    : { reveal: false, clues: false, pin: false, wall: false, vote: false, bluff: false, survey: false, clouds: null, voice: false, sort: true, chain: quiz.rounds[roundIndex].type !== 'blitz', wordladder: quiz.rounds[roundIndex].type === 'final' || quiz.rounds[roundIndex].type === 'bets' || quiz.rounds[roundIndex].type === 'auction', timedlist: false, letterwords: false, moreless: false, drawing: false, puzzle: quiz.rounds[roundIndex].type === 'puzzles', onlyPuzzles: quiz.rounds[roundIndex].type === 'puzzles', jigsaw: quiz.rounds[roundIndex].type === 'puzzles', spotdiff: quiz.rounds[roundIndex].type === 'puzzles', memory: quiz.rounds[roundIndex].type === 'puzzles' };
 /** Клітинка поля: усе — на звичайній з телефона; «Хто я?» — ще й на усній; бліц-клітинка — нічого. */
 const cellPlace = (round: BoardRound, cell: BoardCell): Place => {
   const normal = cell.kind === 'normal';
   const phone = normal && cellAnswerMode(round, cell) === 'phone';
-  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false };
+  return { reveal: phone, clues: normal, pin: phone, wall: phone, vote: false, bluff: false, survey: phone, clouds: null, voice: normal && !phone, sort: phone, chain: false, wordladder: false, timedlist: phone, letterwords: phone, moreless: phone, drawing: false, puzzle: false, onlyPuzzles: false, jigsaw: false, spotdiff: false, memory: false };
 };
 
 /** Що заважає зберегти клітинку (уже почищену); null — клітинка готова. Одне джерело для problemsOf, firstProblem і cellState. */
@@ -1149,9 +1170,9 @@ const LADDER_PROBLEMS: Record<LadderPathIssue, TextKey> = {
 const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
 /** Найбільший час запитання: головоломкам — власна межа (типові 180 і 240 с понад загальні 120). */
-export const maxTimeOf = (question: Pick<Question, 'type'>) => (isPuzzle(question) || question.type === 'jigsaw' || question.type === 'spotdiff' ? LIMITS.maxPuzzleTime : LIMITS.maxTime);
+export const maxTimeOf = (question: Pick<Question, 'type'>) => (isPuzzle(question) || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory' ? LIMITS.maxPuzzleTime : LIMITS.maxTime);
 /** Найменший час запитання: пазлу потрібно не менше LIMITS.minJigsawTime. */
-export const minTimeOf = (question: Pick<Question, 'type'>) => (question.type === 'jigsaw' ? LIMITS.minJigsawTime : question.type === 'spotdiff' ? LIMITS.minSpotdiffTime : LIMITS.minTime);
+export const minTimeOf = (question: Pick<Question, 'type'>) => (question.type === 'jigsaw' ? LIMITS.minJigsawTime : question.type === 'spotdiff' ? LIMITS.minSpotdiffTime : question.type === 'memory' ? LIMITS.minMemoryTime : LIMITS.minTime);
 
 /** Вада збереженого кросворду, яку не впіймали перевірки вище (скажімо, з імпорту) → текст проблеми. */
 const CROSSWORD_PROBLEMS = {
@@ -1169,7 +1190,8 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (isPuzzle(question) && !place.puzzle) return 'problemPuzzlePlace';
   if (question.type === 'jigsaw' && !place.jigsaw) return 'problemJigsawPlace';
   if (question.type === 'spotdiff' && !place.spotdiff) return 'problemSpotdiffPlace';
-  if (!isPuzzle(question) && question.type !== 'jigsaw' && question.type !== 'spotdiff' && place.onlyPuzzles) return 'problemPuzzlesType';
+  if (question.type === 'memory' && !place.memory) return 'problemMemoryPlace';
+  if (!isPuzzle(question) && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
   const inLimits =
     Number.isInteger(timeLimit) &&
@@ -1178,7 +1200,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
     // У «Більше чи менше» ціна — сума балів порівнянь: вона й межа за неї мають власні тексти нижче.
     (question.type === 'moreless' || (Number.isInteger(points) && points >= 0 && points <= LIMITS.maxPoints));
   // У «Словах з літер» поле балів зветься «Сума» (за одиницю).
-  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : question.type === 'jigsaw' ? 'problemJigsawLimits' : question.type === 'spotdiff' ? 'problemSpotdiffLimits' : isPuzzle(question) ? 'problemPuzzleLimits' : 'problemLimits';
+  if (!inLimits) return question.type === 'letterwords' ? 'problemLettersLimits' : question.type === 'jigsaw' ? 'problemJigsawLimits' : question.type === 'spotdiff' ? 'problemSpotdiffLimits' : question.type === 'memory' ? 'problemMemoryLimits' : isPuzzle(question) ? 'problemPuzzleLimits' : 'problemLimits';
 
   switch (question.type) {
     case 'single':
@@ -1358,6 +1380,12 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
       if (question.imageUrl !== null || question.original === '' || question.changed === '') return 'problemSpotdiffImages';
       if (question.original === question.changed) return 'problemSpotdiffSame';
       if (question.spots.length < SPOT_MIN_COUNT || question.spots.length > SPOT_MAX_COUNT) return 'problemSpotdiffSpots';
+      break;
+    }
+    case 'memory': {
+      const cards = question.pairs.flatMap((pair) => [pair.a, pair.b]);
+      if (question.pairs.length !== memoryGridSize(question.grid).pairs || cards.some((c) => (c.text.trim() !== '') === (c.imageUrl !== undefined))) return 'problemMemoryPairs';
+      if (new Set(cards.map(memoryCardKey)).size !== cards.length) return 'problemMemoryDuplicate';
       break;
     }
     case 'drawing':
@@ -1557,7 +1585,7 @@ const crosswordMissing = (question: Crossword): string[] => {
 const problemText = (key: TextKey, index: number, question?: Question) =>
   t(key, {
     index,
-    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
+    min: key === 'problemCrosswordWord' ? LIMITS.minCrosswordWord : key === 'problemCrosswordKey' ? LIMITS.minCrosswordKey : key === 'problemCrosswordCount' ? LIMITS.minCrosswordWords : key === 'problemPuzzleLimits' ? LIMITS.minTime : key === 'problemJigsawLimits' ? LIMITS.minJigsawTime : key === 'problemSpotdiffLimits' ? LIMITS.minSpotdiffTime : key === 'problemMemoryLimits' ? LIMITS.minMemoryTime : key === 'problemBluffSpares' ? LIMITS.minBluffSpares : key === 'problemBluffChoiceTime' ? LIMITS.minTime : key === 'problemListItems' ? LIMITS.minListItems : key === 'problemLettersSet' ? LIMITS.minLetterSet : key === 'problemMoreLessPairs' ? LIMITS.minMoreLessPairs : LIMITS.minAudioSeconds,
     max:
       key === 'problemCrosswordWord'
         ? LIMITS.maxCrosswordWord
@@ -1565,7 +1593,7 @@ const problemText = (key: TextKey, index: number, question?: Question) =>
         ? LIMITS.maxCrosswordKey
         : key === 'problemCrosswordCount'
         ? LIMITS.maxCrosswordWords
-        : key === 'problemPuzzleLimits' || key === 'problemJigsawLimits' || key === 'problemSpotdiffLimits'
+        : key === 'problemPuzzleLimits' || key === 'problemJigsawLimits' || key === 'problemSpotdiffLimits' || key === 'problemMemoryLimits'
         ? LIMITS.maxPuzzleTime
         : key === 'problemBluffTruthLong'
         ? LIMITS.bluffLie

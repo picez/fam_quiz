@@ -16,6 +16,7 @@ import { MoreLessEditor } from './MoreLessEditor';
 import { CrosswordEditor } from './CrosswordEditor';
 import { JigsawEditor } from './JigsawEditor';
 import { SpotdiffEditor } from './SpotdiffEditor';
+import { MemoryEditor } from './MemoryEditor';
 import { SudokuEditor } from './SudokuEditor';
 import { TimedListEditor } from './TimedListEditor';
 import { WallEditor } from './WallEditor';
@@ -820,6 +821,8 @@ function Body({ question, onChange, showPoints, cluesByHost, clouds, allowCloud,
       return <JigsawEditor question={question} onChange={onChange} />;
     case 'spotdiff':
       return <SpotdiffEditor question={question} onChange={onChange} />;
+    case 'memory':
+      return <MemoryEditor question={question} onChange={onChange} />;
     case 'wordcloud':
       return (
         <>
@@ -871,7 +874,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
 
       <div className="stage-card">
         {/* Основою точки керує PinEditor: мапа чи власна картинка. */}
-        {question.type !== 'pin' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && (
+        {question.type !== 'pin' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && (
           <ImageField
             url={question.imageUrl}
             onChange={(imageUrl) => {
@@ -899,7 +902,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             <HelpButton id="setting.reveal" />
           </div>
         )}
-        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && !isPuzzle(question) && (
+        {showVideo && question.audio === undefined && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'sort' && question.type !== 'clues' && question.type !== 'pin' && question.type !== 'wall' && question.type !== 'bluff' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <VideoField
             key={question.id}
             video={question.video}
@@ -921,7 +924,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
           />
         )}
         {/* У малюнку звуку немає: він видав би слово. У головоломках теж: сітці він ні до чого. */}
-        {showAudio && question.video === null && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && !isPuzzle(question) && (
+        {showAudio && question.video === null && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <AudioField
             audio={question.audio}
             timeLimit={question.timeLimit}
@@ -934,7 +937,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
             onToVideo={(video) => {
               const { audio: _old, reveal: _reveal, ...rest } = latest.current.question;
               // У ланцюжку, сортуванні, «Хто я?» і точці відео немає: звук просто зникає.
-              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing';
+              const noVideo = rest.type === 'jigsaw' || rest.type === 'spotdiff' || rest.type === 'memory' || rest.type === 'chain' || rest.type === 'wordladder' || rest.type === 'sort' || rest.type === 'clues' || rest.type === 'pin' || rest.type === 'wall' || rest.type === 'bluff' || rest.type === 'timedlist' || rest.type === 'letterwords' || rest.type === 'moreless' || rest.type === 'drawing';
               latest.current.onChange((noVideo ? rest : { ...rest, video }) as Question);
             }}
           />
@@ -951,7 +954,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         </label>
         {betsCut && <BetsCutField text={question.text} cut={question.betsCut} phase={betsCut === 'auction' ? 'auction' : 'bets'} onChange={(cut) => onChange({ ...question, betsCut: cut })} />}
         {/* Підказка — для бафів; у «Більше чи менше», «Малюнку» й головоломках бафів немає. */}
-        {showHint && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && !isPuzzle(question) && (
+        {showHint && question.type !== 'moreless' && question.type !== 'drawing' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && !isPuzzle(question) && (
           <label className="field hint-field">
             <span>{t('hintLabel')}</span>
             <textarea
@@ -970,9 +973,9 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
         <Body question={question} onChange={onChange} showPoints={showPoints} cluesByHost={cluesByHost} clouds={clouds} allowCloud={allowCloud} fixedOptions={fixedOptions} />
       </div>
 
-      {((showTime && question.type !== 'jigsaw' && question.type !== 'spotdiff') || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote)) && (
+      {((showTime && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory') || (showPoints && question.type !== 'sort' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && !isVote)) && (
         <div className="pair">
-          {!showTime || question.type === 'jigsaw' || question.type === 'spotdiff' ? null : question.video === null || !timeInLimits(question) ? (
+          {!showTime || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory' ? null : question.video === null || !timeInLimits(question) ? (
             <NumberField label={t(question.type === 'bluff' ? 'bluffLieTime' : 'timeLimit')} value={question.timeLimit} onChange={(timeLimit) => onChange({ ...question, timeLimit })} />
           ) : (
             <p className="meta">{t('noTimerHint')}</p>

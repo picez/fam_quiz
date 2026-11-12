@@ -591,3 +591,12 @@ describe('spotdiff facts (29d)', () => {
     expect(wholeRowQuestion(q)).toBe(true);
   });
 });
+
+describe('memory facts (29f)', () => {
+  it('a memory has no answer window', () => {
+    const q = { id: 'mm', type: 'memory', text: 'Пам', imageUrl: null, video: null, timeLimit: 90, points: 300 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBeNull();
+    expect(factLimitMs(q, { type: 'puzzles' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(q)).toBe(true);
+  });
+});

@@ -29,13 +29,16 @@ describe('roundSummary', () => {
 
   it('puzzles: the rule, then only the kinds there are, with plurals', () => {
     const rule = t('summaryPuzzles');
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 3, crossword: 0, jigsaw: 0, spotdiff: 0, time: 540 } })).toEqual([rule, '3 судоку']);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 1, crossword: 2, jigsaw: 0, spotdiff: 0, time: 600 } })).toEqual([rule, '1 судоку · 2 кросворди']);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 5, jigsaw: 0, spotdiff: 0, time: 1200 } })).toEqual([rule, '5 кросвордів']);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 1, jigsaw: 0, spotdiff: 0, time: 240 } })).toEqual([rule, '1 кросворд']);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, time: 0 } })).toEqual([rule]);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 1, crossword: 0, jigsaw: 2, spotdiff: 0, time: 360 } })).toEqual([rule, '1 судоку · 2 пазли']);
-    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 5, spotdiff: 0, time: 600 } })).toEqual([rule, '5 пазлів']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 3, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 0, time: 540 } })).toEqual([rule, '3 судоку']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 1, crossword: 2, jigsaw: 0, spotdiff: 0, memory: 0, time: 600 } })).toEqual([rule, '1 судоку · 2 кросворди']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 5, jigsaw: 0, spotdiff: 0, memory: 0, time: 1200 } })).toEqual([rule, '5 кросвордів']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 1, jigsaw: 0, spotdiff: 0, memory: 0, time: 240 } })).toEqual([rule, '1 кросворд']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 0, time: 0 } })).toEqual([rule]);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 1, crossword: 0, jigsaw: 2, spotdiff: 0, memory: 0, time: 360 } })).toEqual([rule, '1 судоку · 2 пазли']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 5, spotdiff: 0, memory: 0, time: 600 } })).toEqual([rule, '5 пазлів']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 1, spotdiff: 0, memory: 2, time: 600 } })).toEqual([rule, '1 пазл · 2 «Пам’яті»']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 1, time: 90 } })).toEqual([rule, '1 «Пам’ять»']);
+    expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 5, time: 450 } })).toEqual([rule, '5 «Пам’ятей»']);
   });
 
   it('a default classic round: everyone answers, faster is more', () => {
