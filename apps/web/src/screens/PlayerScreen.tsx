@@ -41,6 +41,7 @@ import { MoreLessBoard, MoreLessPlay, MoreLessReveal, MoreLessWatch, useTimeRanO
 import { PuzzlePlay, PuzzleReveal } from './PuzzleView';
 import { JigsawPlay, JigsawReveal } from './JigsawView';
 import { SpotdiffPlay, SpotdiffReveal } from './SpotdiffView';
+import { MemoryPlay, MemoryReveal } from './MemoryView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
 import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
@@ -388,12 +389,14 @@ function Result({ view, strokes = [] }: { view: PlayerView; strokes?: Stroke[] }
       {view.phase === 'reveal' && view.question?.jigsaw !== undefined && <JigsawReveal mine={view.me.jigsaw} question={view.question} />}
       {/* Знайди відмінності (29d): усі кола на обох картинках, свої знахідки суцільні; рядка правильної відповіді немає. */}
       {view.phase === 'reveal' && view.question?.spotdiff !== undefined && <SpotdiffReveal mine={view.me.spotdiff} question={view.question} />}
+      {/* Пам'ять (29f): уся власна сітка з усіма картками; рядка правильної відповіді немає. */}
+      {view.phase === 'reveal' && view.question?.memory !== undefined && <MemoryReveal mine={view.me.memory} question={view.question} />}
       {view.me.survival?.status === 'edge' && <p className="lead survival-edge">{t('survivalEdge')}</p>}
       <RevealDetail view={view} answer={view.me.answer} player={view.me} />
       {/* «Правда про гравця» (28b): автора вже названо поруч (TruthReveal) — рядок правильної відповіді його лише повторив би. */}
       {view.reveal !== null &&
         view.truth?.index == null &&
-        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' ? null : view.reveal.type === 'pin' ? (
+        (view.reveal.type === 'wall' || view.reveal.type === 'survey' || view.reveal.type === 'timedlist' || view.reveal.type === 'letterwords' || view.reveal.type === 'moreless' || view.reveal.type === 'drawing' || view.reveal.type === 'sudoku' || view.reveal.type === 'jigsaw' || view.reveal.type === 'spotdiff' || view.reveal.type === 'memory' ? null : view.reveal.type === 'pin' ? (
           // Точка: мапа вище; словами — лише відстань власної точки.
           view.me.answer?.type === 'pin' && <p>{answerText(view.me.answer, view.reveal)}</p>
         ) : view.reveal.type === 'slider' && view.me.answer?.type === 'slider' && view.question?.slider != null ? (
@@ -1172,6 +1175,17 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   )}
                 </>
               )
+            ) : question.type === 'memory' ? (
+              // Пам'ять (29f): у команді одна спільна сітка, хід — дві картки одного учасника; під час чужого ходу сітка неактивна.
+              me.memory !== undefined &&
+              question.memory !== undefined && (
+                <>
+                  <MemoryPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.memory.id}`} info={me.memory} question={question} questionIndex={view.questionIndex} paused={locked} timeUp={buffTimeOver} send={send} />
+                  {view.memory !== undefined && (
+                    <p className="meta puzzle-others">{t(team !== null ? 'memoryTeamsDone' : 'memoryPlayersDone', { done: view.memory.boards.filter((board) => board.done).length, total: view.playerCount })}</p>
+                  )}
+                </>
+              )
             ) : truthOwn ? (
               <TruthOwn team={team !== null} />
             ) : teamWatching ? (
@@ -1396,6 +1410,12 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             <section className="sent">
               <h2>{me.spotdiff.done ? t('spotdiffDoneIn', { time: secondsText(me.spotdiff.timeMs ?? 0) }) : t(ranOut ? 'spotdiffTimeUp' : 'spotdiffClosed')}</h2>
               <SpotdiffPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.spotdiff.changed}`} info={me.spotdiff} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} send={send} closed />
+            </section>
+          ) : question?.type === 'memory' && me.memory !== undefined && question.memory !== undefined ? (
+            // Пам'ять (29f): власна сітка лише для перегляду; бали — на розкритті.
+            <section className="sent">
+              <h2>{me.memory.done ? t('memoryDoneIn', { time: secondsText(me.memory.timeMs ?? 0) }) : t(ranOut ? 'memoryTimeUp' : 'memoryClosed')}</h2>
+              <MemoryPlay key={`${view.round?.index ?? 0}:${view.questionIndex}:${question.memory.id}`} info={me.memory} question={question} questionIndex={view.questionIndex} paused={false} timeUp={false} send={send} closed />
             </section>
           ) : question?.type === 'moreless' ? (
             <section className="sent">

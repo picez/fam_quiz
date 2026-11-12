@@ -20480,3 +20480,144 @@ input.sudoku-editor-cell:focus-visible {
 .stage .moreless-watch .moreless-options {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+/* «Пам'ять»: телефон (29f). Квадратні картки, cols у ряд; розмір — менше з «ширина поля / cols» і «(екран − 190px) / rows»,
+ * тож 4×5 на 320×568 вміщається без прокрутки.
+ * Закрита — сорочка; непара — червона рамка; знайдена — зелена (у командах колір учасника) і притлумлена; на розкритті
+ * невідкриті — нейтральні. */
+.memory-play {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.memory-progress,
+.memory-busy {
+  margin: 0;
+}
+
+.memory-busy {
+  color: var(--by, var(--dim));
+  font-weight: 600;
+}
+
+.memory-grid {
+  --memory-gap: 6px;
+  --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 190px) / var(--rows)));
+  display: grid;
+  grid-template-columns: repeat(var(--cols), var(--memory-card));
+  gap: var(--memory-gap);
+  justify-content: center;
+  max-width: 100%;
+}
+
+.memory-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--memory-card);
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0.25rem;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+  line-height: 1.15;
+  text-align: center;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: default;
+}
+
+.memory-card.is-closed {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background:
+    repeating-linear-gradient(45deg, rgb(224 37 49 / 0.14) 0 6px, transparent 6px 12px),
+    color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+
+.memory-card.is-closed:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+
+.memory-card.is-closed[aria-disabled='true'] {
+  opacity: 0.7;
+}
+
+.memory-card.is-pending {
+  animation: memory-flip 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes memory-flip {
+  from {
+    transform: perspective(400px) rotateY(0deg);
+  }
+  to {
+    transform: perspective(400px) rotateY(80deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-card.is-pending {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.memory-card.is-open {
+  border-color: var(--by, var(--paper));
+}
+
+.memory-card.is-shown {
+  border-color: var(--wrong);
+  background: color-mix(in srgb, var(--wrong) 14%, var(--surface));
+}
+
+.memory-card.is-matched {
+  border-color: var(--by, var(--correct));
+  opacity: 0.6;
+}
+
+.memory-grid.is-reveal .memory-card.is-shown {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.memory-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.memory-text-l {
+  font-size: 16px;
+}
+
+.memory-text-m {
+  font-size: 13px;
+}
+
+.memory-text-s {
+  font-size: 11px;
+}
+
+.memory-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+/* «Пам'ять»: кінець телефона */
