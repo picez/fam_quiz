@@ -562,6 +562,38 @@ export function memoryQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [memory]), puzzlesRound('pz', [sudoku, memorySmall])], settings);
 }
 
+/** «Мелодія за нотами» (29e): файл, фрагмент з 5-ї секунди, «Щедрик» трьома написаннями, 60 с, 1000 балів. */
+export const melody = {
+  ...base,
+  id: 'ml1',
+  type: 'melody',
+  text: 'Що це за пісня?',
+  timeLimit: 60,
+  points: 1000,
+  track: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5 },
+  accepted: ['Щедрик', 'Shchedryk', 'Carol of the Bells'],
+} satisfies Question;
+
+/** «Мелодія за нотами» (29e): YouTube, з 12-ї секунди, «Червона рута», 45 с, 1000 балів. */
+export const melodyYoutube = {
+  ...base,
+  id: 'ml2',
+  type: 'melody',
+  text: 'Що це за пісня?',
+  timeLimit: 45,
+  points: 1000,
+  track: { source: 'youtube', id: 'abcdefghijk', start: 12 },
+  accepted: ['Червона рута'],
+} satisfies Question;
+
+/**
+ * Вікторина «Мелодія за нотами» (29e): класика з одним запитанням (30 с) → класика з melody (файл) і melodyYoutube.
+ * Номер запитання в раунді й індекс у plays різні.
+ */
+export function melodyQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [melody, melodyYoutube])], settings);
+}
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

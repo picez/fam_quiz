@@ -239,6 +239,8 @@ function withoutPeople(plays: Play[], ids: string[]): Play[] {
       );
       kept.memory = { ...play.memory, boards };
     }
+    // «Мелодія за нотами» (29e): вилучений учасник уже не «той, хто відкрив останній».
+    if (play.melody?.by !== undefined) kept.melody = { ...play.melody, by: withoutValues(play.melody.by, ids) };
     return kept;
   });
 }

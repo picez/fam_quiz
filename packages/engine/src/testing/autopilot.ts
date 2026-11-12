@@ -22,6 +22,7 @@ import { letterWord, letterWordsOf } from '../letterwords';
 import { jigsawPlace } from '../jigsaw';
 import { spotdiffTap } from '../spotdiff';
 import { memoryFlip } from '../memory';
+import { melodyHeard, melodyOpen } from '../melody';
 import { moreLessOf, moreLessPick } from '../moreless';
 import { drawGuess, drawStroke } from '../drawing';
 import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
@@ -282,6 +283,15 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
         s = act(s, flipped.ok ? { ok: true, state: flipped.state } : flipped, what);
       }
       return s;
+    }
+    case 'melody': {
+      // Бот (у командах — перший учасник) відкриває шматки 1…k (правильний — 1, неправильний — 4) і відповідає звичайним шляхом.
+      const person = teamsOn(state) ? teamMembers(state, playerId)[0]?.id : playerId;
+      if (person === undefined) return state;
+      let s = state;
+      for (let k = melodyHeard(play, playerId) + 1; k <= (wrong ? 4 : 1) && s.phase === 'question'; k++) s = act(s, melodyOpen(s, playerId, person, roundQuestionNumber(s), k, now), what);
+      if (s.phase !== 'question') return s;
+      return act(s, submitAnswer(s, playerId, { type: 'melody', value: wrong ? 'Ой у лузі червона калина' : question.accepted[0] }, now), what);
     }
     case 'sort': {
       let s = state;

@@ -31,6 +31,7 @@ export * from './letterwords';
 export * from './jigsaw';
 export * from './spotdiff';
 export * from './memory';
+export * from './melody';
 export * from './moreless';
 export * from './drawing';
 export * from './puzzles';
