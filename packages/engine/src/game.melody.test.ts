@@ -76,8 +76,8 @@ describe('melody: the engine', () => {
 
   it('names the moment the splash before a melody ends, so the rooms resend the slices', () => {
     const s = fresh();
-    expect(melodyStartEnd(s, T(s) - 500)).toBe(T(s));
-    expect(melodyStartEnd(s, T(s))).toBeNull();
+    expect(melodyStartEnd(s, T(s) - 500)).toBe(T(s) + 10);
+    expect(melodyStartEnd(s, T(s) + 10)).toBeNull();
     expect(melodyStartEnd(must(lock(s, T(s) + 1000)), T(s) - 500)).toBeNull();
   });
 

@@ -2463,6 +2463,8 @@ export class RoomManager {
       this.watchAuthor(room);
     }
     this.reschedule(room);
+    // 29e: зріз під заставкою перед «Мелодією» оновлюється сам, коли вона мине.
+    this.watchTimers(room);
     this.emit(room, puzzle ? { type: 'changed', puzzle: true } : { type: 'changed' });
   }
 
