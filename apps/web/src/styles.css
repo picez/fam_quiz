@@ -20609,12 +20609,17 @@ input.sudoku-editor-cell:focus-visible {
   hyphens: auto;
 }
 
+/* Розмір не більший за частку ширини картки: «Україна» (16 px) у картці 4×5 на 320 px (66 px) інакше розривається посеред слова. */
+.memory-card {
+  container-type: size;
+}
+
 .memory-text-l {
-  font-size: 16px;
+  font-size: min(16px, 22cqw);
 }
 
 .memory-text-m {
-  font-size: 13px;
+  font-size: min(13px, 20cqw);
 }
 
 .memory-text-s {
@@ -20756,6 +20761,15 @@ input.sudoku-editor-cell:focus-visible {
   border-color: var(--accent-text);
 }
 
+/* 24 гравці: у вузькій картці «10 з 10 ✓ 5,8 с» не вміщається — рядок лічильника зменшується за шириною картки. */
+.memory-board {
+  container-type: inline-size;
+}
+
+.memory-board-count {
+  font-size: min(1em, 9.5cqw);
+}
+
 .memory-board-name {
   min-width: 0;
   overflow: hidden;
@@ -20781,6 +20795,8 @@ input.sudoku-editor-cell:focus-visible {
   align-self: center;
   justify-self: start;
   aspect-ratio: var(--mini-cols, 4) / var(--mini-rows, 4);
+  /* Висота від клітинки сітки (рядок 1fr), ширина — з aspect-ratio; без явної висоти мініатюра згортається до пари пікселів. */
+  height: 100%;
   max-width: 100%;
   max-height: 100%;
   min-height: 0;
@@ -20810,6 +20826,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .memory-boards-fit.is-host .memory-mini {
   width: 6rem;
+  height: auto;
 }
 
 /* Розкриття на сцені: пари ліворуч, таблиця праворуч. */
