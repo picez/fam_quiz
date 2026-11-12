@@ -13,15 +13,27 @@ export interface MemoryGridProps {
   cells: readonly (MemoryCellView | 'pending' | null)[];
   /** Тап по закритій картці; без нього — лише для перегляду. */
   onFlip?: (cell: number) => void;
+  /** Вимкнено (чужий хід, пауза, час сплив, усе знайдено): закриті картки притлумлені й aria-disabled. */
   disabled?: boolean;
+  /** Тимчасово чекаємо (картка летить, показана непара): тапи не йдуть, але без притлумлення й без aria-disabled. */
+  waiting?: boolean;
   /** Розкриття: невідкриті картки (state 'shown') — не помилка, без червоної рамки. */
   reveal?: boolean;
 }
 
-function CardFace({ cell, n }: { cell: MemoryCellView; n: number }) {
-  if (cell.imageUrl !== null) return <img className="memory-img" src={cell.imageUrl} alt={t('memoryCard', { n })} draggable={false} />;
+const STATE_LABEL = { open: 'memoryCardOpen', shown: 'memoryCardMiss', matched: 'memoryCardMatched' } as const;
+
+/** Підпис відкритої картки для читача екрана: номер, стан і вміст (для картинки — слово «Картинка»). */
+function cardLabel(cell: MemoryCellView, n: number, reveal: boolean): string {
+  const card = cell.imageUrl !== null ? t('memoryHalfImage') : cell.text;
+  // На розкритті невідкриті (shown) — не непара, а просто показана картка.
+  return t(reveal && cell.state === 'shown' ? 'memoryCardOpen' : STATE_LABEL[cell.state], { n, card });
+}
+
+function CardFace({ cell }: { cell: MemoryCellView }) {
+  if (cell.imageUrl !== null) return <img className="memory-img" src={cell.imageUrl} alt="" draggable={false} />;
   return (
-    <span className={`memory-text memory-text-${memoryTextSize(cell.text)}`} dir="auto">
+    <span className={`memory-text memory-text-${memoryTextSize(cell.text)}`} dir="auto" aria-hidden="true">
       {cell.text}
     </span>
   );
@@ -32,12 +44,13 @@ function CardFace({ cell, n }: { cell: MemoryCellView; n: number }) {
  * картка — сорочка без вмісту (номер лише в aria-label); 'pending' — «перевертання» без вмісту; відкрита, показана (непара — червона
  * рамка) чи знайдена (зелена, у командах колір tone, притлумлена) — вміст зі зрізу.
  */
-export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, reveal = false }: MemoryGridProps) {
+export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waiting = false, reveal = false }: MemoryGridProps) {
   return (
     <div className={reveal ? 'memory-grid is-reveal' : 'memory-grid'} style={{ '--cols': cols, '--rows': rows } as CSSProperties} dir="ltr">
       {cells.map((cell, i) => {
         const n = i + 1;
-        const tappable = cell === null && onFlip !== undefined && !disabled;
+        const off = disabled || onFlip === undefined;
+        const tappable = cell === null && !off && !waiting;
         if (cell === null || cell === 'pending') {
           return (
             <button
@@ -45,15 +58,15 @@ export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, reveal
               type="button"
               className={cell === null ? 'memory-card is-closed' : 'memory-card is-closed is-pending'}
               aria-label={t('memoryCardClosed', { n })}
-              aria-disabled={tappable ? undefined : 'true'}
+              aria-disabled={off ? 'true' : undefined}
               data-cell={i}
               onClick={tappable ? () => onFlip(i) : undefined}
             />
           );
         }
         return (
-          <button key={i} type="button" className={`memory-card is-${cell.state}${cell.tone === null ? '' : ` by-${cell.tone}`}`} aria-disabled="true" data-cell={i}>
-            <CardFace cell={cell} n={n} />
+          <button key={i} type="button" className={`memory-card is-${cell.state}${cell.tone === null ? '' : ` by-${cell.tone}`}`} aria-disabled="true" aria-label={cardLabel(cell, n, reveal)} data-cell={i}>
+            <CardFace cell={cell} />
           </button>
         );
       })}
@@ -83,7 +96,9 @@ export function MemoryPlay(props: MemoryPlayProps) {
 
 function MemoryBoard({ info, memory, questionIndex, paused, timeUp, send, closed = false }: MemoryPlayProps & { memory: PublicMemory }) {
   const model = useMemory(info, questionIndex, send);
-  const interactive = !closed && !paused && !timeUp && model.canFlip && !info.done;
+  // Вимкнено — надовго (чужий хід, пауза, час, усе знайдено); чекаємо — мить (картка летить, непара показана): без притлумлення.
+  const off = closed || paused || timeUp || info.done || info.busy !== null;
+  const busyText = info.busy === null ? '' : t('memoryBusy', { name: info.busy.nickname });
   const status = closed
     ? ''
     : info.done
@@ -93,17 +108,20 @@ function MemoryBoard({ info, memory, questionIndex, paused, timeUp, send, closed
         : model.offline
           ? t('memoryOffline')
           : '';
+  // Чужий хід оголошує рядок стану (видимий рядок над сіткою — лише для очей).
+  const spoken = status === '' && !closed ? busyText : '';
   return (
     <div className="memory-play">
       <p className="meta memory-progress">{t('memoryProgress', { found: info.pairs, total: info.total })}</p>
       {!closed && info.busy !== null && (
-        <p className={`meta memory-busy by-${info.busy.tone}`} dir="auto">
-          {t('memoryBusy', { name: info.busy.nickname })}
+        <p className={`meta memory-busy by-${info.busy.tone}`} dir="auto" aria-hidden="true">
+          {busyText}
         </p>
       )}
-      <MemoryGrid cols={memory.cols} rows={memory.rows} cells={model.cells} onFlip={closed ? undefined : model.flip} disabled={!interactive} />
+      <MemoryGrid cols={memory.cols} rows={memory.rows} cells={model.cells} onFlip={closed ? undefined : model.flip} disabled={off} waiting={!model.canFlip} />
       <p className="puzzle-status" role="status" aria-live="polite">
         {status}
+        {spoken !== '' && <span className="sr-only">{spoken}</span>}
       </p>
     </div>
   );

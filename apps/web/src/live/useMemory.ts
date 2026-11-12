@@ -5,10 +5,10 @@ import type { Send, SendResult } from './types';
 /** Без ack так довго — обрив: «перевертання» скасовується, рядок «немає зв'язку» (як SPOTDIFF_ACK_MS). */
 export const MEMORY_ACK_MS = 5000;
 
-/** Розмір тексту картки за довжиною: ≤ 8 символів — l, ≤ 18 — m, інакше s. */
-export function memoryTextSize(text: string): 'l' | 'm' | 's' {
+/** Розмір тексту картки за довжиною: ≤ 8 символів — l, ≤ 18 — m, ≤ 28 — s, довші (до MEMORY_TEXT_MAX = 40) — xs. */
+export function memoryTextSize(text: string): 'l' | 'm' | 's' | 'xs' {
   const length = [...text.trim()].length;
-  return length <= 8 ? 'l' : length <= 18 ? 'm' : 's';
+  return length <= 8 ? 'l' : length <= 18 ? 'm' : length <= 28 ? 's' : 'xs';
 }
 
 export type MemoryCellShown = MemoryCellView | 'pending' | null;
@@ -66,6 +66,11 @@ export function useMemory(info: PlayerMemory, questionIndex: number, send: Send)
     const timer = setTimeout(() => setExpired(info), closesInMs);
     return () => clearTimeout(timer);
   }, [info, closesInMs]);
+
+  // Новий стан дошки — зв'язок є: «немає зв'язку» гасне, не чекаючи наступного тапу.
+  useEffect(() => {
+    setOffline(false);
+  }, [info.seq]);
 
   const live = (cell: number, seq: number | undefined) => seq !== undefined && info.cells[cell] == null && info.seq <= seq;
 

@@ -88,6 +88,17 @@ describe('useMemory', () => {
     expect(hook.result.current.offline).toBe(true);
   });
 
+  it('a new board state clears offline', async () => {
+    vi.useFakeTimers();
+    const send = vi.fn<Send>(() => new Promise<SendResult>(() => undefined));
+    const hook = mount(send);
+    act(() => hook.result.current.flip(2));
+    await act(async () => vi.advanceTimersByTime(MEMORY_ACK_MS));
+    expect(hook.result.current.offline).toBe(true);
+    hook.rerender({ info: infoOf({ seq: 1 }) });
+    expect(hook.result.current.offline).toBe(false);
+  });
+
   it('a wrong pair closes locally after closesInMs', () => {
     vi.useFakeTimers();
     const send = answering({ ok: true });

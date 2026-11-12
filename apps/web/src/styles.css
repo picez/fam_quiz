@@ -20517,11 +20517,15 @@ input.sudoku-editor-cell:focus-visible {
 .memory-card {
   position: relative;
   display: grid;
+  /* Одна комірка, що не росте від вмісту: висока картинка не розтягує картку. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
   width: var(--memory-card);
+  height: var(--memory-card);
   aspect-ratio: 1;
   min-width: 0;
-  padding: 0.25rem;
+  min-height: 0;
+  padding: 4px;
   overflow: hidden;
   border: 2px solid var(--line);
   border-radius: var(--radius-small);
@@ -20591,6 +20595,10 @@ input.sudoku-editor-cell:focus-visible {
   background: var(--surface);
 }
 
+.memory-grid.is-reveal .memory-card.is-matched {
+  opacity: 1;
+}
+
 .memory-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -20613,10 +20621,26 @@ input.sudoku-editor-cell:focus-visible {
   font-size: 11px;
 }
 
+/* До 40 символів: 5 рядків по 11 px уміщаються в картку 4×5 на 320 px (~65 px), тож картка з таким текстом має менше поле. */
+.memory-text-xs {
+  font-size: 10px;
+  line-height: 1.1;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
+
+.memory-card:has(> .memory-text-xs) {
+  padding: 2px;
+}
+
 .memory-img {
   display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   pointer-events: none;
 }

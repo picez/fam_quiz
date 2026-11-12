@@ -75,6 +75,68 @@ describe('MemoryPlay', () => {
     expect(cardsEls()[0].querySelector('.memory-text-l')).toBeTruthy();
   });
 
+  it('a 40-character text fits a 4×5 card on 320 px', () => {
+    const long = 'Сполучені Штати Америки та Канада разом.';
+    expect([...long].length).toBe(40);
+    expect(memoryTextSize('Сполучені Штати Америки..')).toBe('s');
+    expect(memoryTextSize(long)).toBe('xs');
+    const cells = closed(20);
+    cells[0] = card(long, 'open');
+    mount({ question: questionOf({ grid: '4x5', cols: 4, rows: 5, total: 10 }), info: infoOf({ cells, total: 10 }) });
+    expect(cardsEls()[0].querySelector('.memory-text-xs')!.textContent).toBe(long);
+    const css = cssSection();
+    const xs = /\.memory-text-xs \{([^}]*)\}/.exec(css)![1];
+    const font = Number(/font-size:\s*([\d.]+)px/.exec(xs)![1]);
+    const lineHeight = Number(/line-height:\s*([\d.]+)/.exec(xs)![1]);
+    const lines = Number(/(?:^|[^-])line-clamp:\s*(\d+)/.exec(xs)![1]);
+    const pad = Number(/\.memory-card:has\(> \.memory-text-xs\) \{[^}]*padding:\s*([\d.]+)px/.exec(css)![1]);
+    const border = Number(/\.memory-card \{[^}]*border:\s*([\d.]+)px/.exec(css)![1]);
+    // Поле телефона 320 − 2·20 (.app), картка 4×5 — (280 − 3·6) / 4; 40 символів по ~10 у рядку — 4–5 рядків.
+    const size = Math.min((280 - 3 * 6) / 4, (568 - 190) / 5);
+    const inner = size - 2 * border - 2 * pad;
+    expect(lines).toBeGreaterThanOrEqual(5);
+    expect(lines * font * lineHeight).toBeLessThanOrEqual(inner);
+    // ~0.55 em на кириличну літеру: 40 літер на 5 рядках уміщаються в ширину.
+    expect(Math.floor(inner / (font * 0.55)) * lines).toBeGreaterThanOrEqual(40);
+  });
+
+  it('a tall picture stays inside its card', () => {
+    const css = cssSection();
+    expect(css).toMatch(/\.memory-card \{[^}]*grid-template:\s*minmax\(0, 1fr\) \/ minmax\(0, 1fr\)/);
+    expect(css).toMatch(/\.memory-card \{[^}]*height:\s*var\(--memory-card\)/);
+    expect(css).toMatch(/\.memory-card \{[^}]*min-height:\s*0/);
+    expect(css).toMatch(/\.memory-img \{[^}]*min-height:\s*0[^}]*max-height:\s*100%/);
+  });
+
+  it('open, matched and wrong cards say their state', () => {
+    const cells = closed();
+    cells[0] = card('Київ', 'matched');
+    cells[1] = card('Варшава', 'shown');
+    cells[2] = card('', 'open', null, '/uploads/0123456789abcdef0001.png');
+    mount({ info: infoOf({ cells, pairs: 1, closesInMs: 800, canFlip: false }) });
+    expect(cardsEls()[0].getAttribute('aria-label')).toBe(t('memoryCardMatched', { n: 1, card: 'Київ' }));
+    expect(cardsEls()[1].getAttribute('aria-label')).toBe(t('memoryCardMiss', { n: 2, card: 'Варшава' }));
+    expect(cardsEls()[2].getAttribute('aria-label')).toBe(t('memoryCardOpen', { n: 3, card: t('memoryHalfImage') }));
+  });
+
+  it('a flying card or a wrong pair blocks taps without dimming', async () => {
+    const send = vi.fn<Send>(() => new Promise<SendResult>(() => undefined));
+    const view = mount({ send });
+    await act(async () => fireEvent.click(cardsEls()[4]));
+    // Картка летить: інші закриті не притлумлені й не aria-disabled, але тап не йде.
+    expect(cardsEls().filter((el) => el.getAttribute('aria-disabled') === 'true')).toHaveLength(0);
+    fireEvent.click(cardsEls()[5]);
+    expect(send).toHaveBeenCalledTimes(1);
+    const cells = closed();
+    cells[1] = card('Варшава', 'shown');
+    cells[7] = card('Франція', 'shown');
+    view.rerender(<MemoryPlay info={infoOf({ cells, closesInMs: 800, canFlip: false, seq: 3 })} question={questionOf()} questionIndex={0} paused={false} timeUp={false} send={send} />);
+    const backs = cardsEls().filter((el) => el.classList.contains('is-closed'));
+    expect(backs.every((el) => el.getAttribute('aria-disabled') === null)).toBe(true);
+    fireEvent.click(backs[0]);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('a picture half shows as an image', () => {
     const cells = closed();
     cells[2] = card('', 'open', null, '/uploads/0123456789abcdef0001.png');
@@ -102,8 +164,11 @@ describe('MemoryPlay', () => {
 
   it('a teammate move disables the grid', () => {
     const { send } = mount({ info: infoOf({ busy: { nickname: 'Оля', tone: '2' }, canFlip: false }) });
-    const busy = screen.getByText(t('memoryBusy', { name: 'Оля' }));
+    const busy = document.querySelector('.memory-busy')!;
+    expect(busy.textContent).toBe(t('memoryBusy', { name: 'Оля' }));
     expect(busy.classList.contains('by-2')).toBe(true);
+    // Читач екрана чує чужий хід із рядка стану.
+    expect(screen.getByRole('status').textContent).toBe(t('memoryBusy', { name: 'Оля' }));
     expect(cardsEls().every((el) => el.getAttribute('aria-disabled') === 'true')).toBe(true);
     fireEvent.click(cardsEls()[0]);
     expect(send).not.toHaveBeenCalled();
@@ -176,6 +241,8 @@ describe('MemoryReveal', () => {
     // Невідкриті на розкритті — не помилка: без червоної рамки.
     expect(document.querySelector('.memory-grid')!.classList.contains('is-reveal')).toBe(true);
     expect(cssSection()).toMatch(/\.memory-grid\.is-reveal \.memory-card\.is-shown \{[^}]*border-color:\s*var\(--line/);
+    // Знайдені на розкритті — не притлумлені.
+    expect(cssSection()).toMatch(/\.memory-grid\.is-reveal \.memory-card\.is-matched \{[^}]*opacity:\s*1/);
     expect(screen.getByText(t('memoryProgress', { found: 1, total: 6 }))).toBeTruthy();
   });
 });
