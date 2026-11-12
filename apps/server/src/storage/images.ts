@@ -85,6 +85,23 @@ export function sniffAudio(bytes: Uint8Array): AudioType | null {
   return null;
 }
 
+/**
+ * MP3 без тегів (29e): прибирає ID3v2 на початку (повторювано; прапор footer додає ще 10 байтів) і 128-байтний ID3v1 «TAG» у кінці,
+ * щоб назва й виконавець не видавали відповідь у «Мелодії». Без тегів повертає той самий масив. Некоректний розмір тега зсуває початок
+ * не далі кінця: порожній результат sniffAudio не прийме.
+ */
+export function stripMp3Tags(bytes: Uint8Array): Uint8Array {
+  let from = 0;
+  let to = bytes.length;
+  while (to - from >= 10 && startsWith(bytes.subarray(from), ascii('ID3'))) {
+    const size = ((bytes[from + 6]! & 0x7f) << 21) | ((bytes[from + 7]! & 0x7f) << 14) | ((bytes[from + 8]! & 0x7f) << 7) | (bytes[from + 9]! & 0x7f);
+    const footer = (bytes[from + 5]! & 0x10) !== 0 ? 10 : 0;
+    from = Math.min(to, from + 10 + size + footer);
+  }
+  if (to - from >= 128 && startsWith(bytes.subarray(to - 128), ascii('TAG'))) to -= 128;
+  return from === 0 && to === bytes.length ? bytes : bytes.subarray(from, to);
+}
+
 /** Сховище в пам'яті: для тестів. */
 export function memoryStorage(): ImageStorage {
   const files = new Map<string, Uint8Array>();

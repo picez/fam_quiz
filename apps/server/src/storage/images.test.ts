@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { diskStorage, isMediaName, isStickerKey, memoryStorage, sniffAudio, sniffImage, sniffSticker } from './images';
+import { diskStorage, isMediaName, isStickerKey, memoryStorage, sniffAudio, sniffImage, sniffSticker, stripMp3Tags } from './images';
 import { r2Storage } from './r2';
 import { JPEG, PNG, WEBP } from '../testing/images';
 
@@ -182,5 +182,44 @@ describe('stickers in the storage', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('stripMp3Tags', () => {
+  const frame = () => [0xff, 0xfb, 0x90, 0x64, ...new Array<number>(413).fill(0)];
+  const frames = (n = 3) => Array.from({ length: n }, frame).flat();
+  const ascii = (value: string) => [...value].map((c) => c.charCodeAt(0));
+  const id3v2 = (title: string, flags = 0) => {
+    const body = [...ascii('TIT2'), 0, 0, 0, title.length + 1, 0, 0, 0, ...ascii(title)];
+    const size = body.length;
+    const footer = flags & 0x10 ? [...ascii('3DI'), 4, 0, flags, 0, 0, 0, 0] : [];
+    return [...ascii('ID3'), 4, 0, flags, (size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f, ...body, ...footer];
+  };
+  const id3v1 = (title: string) => [...ascii('TAG'), ...ascii(title), ...new Array<number>(125 - title.length).fill(0)];
+  const text = (bytes: ArrayLike<number>) => String.fromCharCode(...Array.from(bytes));
+
+  it('stripMp3Tags drops ID3v2 and ID3v1', () => {
+    const audio = frames();
+    const stripped = stripMp3Tags(Uint8Array.from([...id3v2('Shchedryk'), ...audio, ...id3v1('Shchedryk')]));
+    expect(stripped[0]).toBe(0xff);
+    expect(stripped[1]).toBe(0xfb);
+    expect(text(stripped)).not.toContain('Shchedryk');
+    expect(stripped.length).toBe(audio.length);
+    expect(sniffAudio(stripped)).toBe('audio/mpeg');
+  });
+
+  it('drops two ID3v2 tags in a row and a footer', () => {
+    const audio = frames();
+    expect(stripMp3Tags(Uint8Array.from([...id3v2('Carol'), ...id3v2('Bells'), ...audio])).length).toBe(audio.length);
+    expect(stripMp3Tags(Uint8Array.from([...id3v2('Carol', 0x10), ...audio])).length).toBe(audio.length);
+  });
+
+  it('returns an MP3 without tags as it is', () => {
+    const audio = Uint8Array.from(frames());
+    expect(stripMp3Tags(audio)).toBe(audio);
+  });
+
+  it('leaves nothing for a header without frames', () => {
+    expect(sniffAudio(stripMp3Tags(Uint8Array.from(id3v2('Shchedryk'))))).toBeNull();
   });
 });

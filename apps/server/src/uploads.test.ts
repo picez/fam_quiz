@@ -224,6 +224,26 @@ describe('uploading audio', () => {
     expect(url.endsWith('.mp3')).toBe(true);
   });
 
+  it('mp3 tags are stripped on upload', async () => {
+    const ascii = (value: string) => [...value].map((c) => c.charCodeAt(0));
+    const body = [...ascii('TIT2'), 0, 0, 0, 10, 0, 0, 0, ...ascii('Shchedryk')];
+    const size = body.length;
+    const tag = Buffer.from([...ascii('ID3'), 4, 0, 0, 0, 0, (size >> 7) & 0x7f, size & 0x7f, ...body]);
+    const v1 = Buffer.concat([Buffer.from(ascii('TAG')), Buffer.from('Shchedryk'), Buffer.alloc(116)]);
+    const response = await uploadAudio(Buffer.concat([tag, silentMp3(), v1]), 'audio/mpeg');
+    expect(response.statusCode).toBe(201);
+    const { url } = response.json() as { url: string };
+    const file = await ctx.app.inject({ method: 'GET', url });
+    expect(file.rawPayload.includes('Shchedryk')).toBe(false);
+    expect(file.rawPayload.length).toBe(silentMp3().length);
+    const bare = await uploadAudio(tag, 'audio/mpeg');
+    expect(bare.statusCode).toBe(400);
+    expect(bare.json()).toEqual({ error: 'bad_audio' });
+    const ogg = await uploadAudio(OGG, 'audio/ogg');
+    const kept = await ctx.app.inject({ method: 'GET', url: (ogg.json() as { url: string }).url });
+    expect(Buffer.compare(kept.rawPayload, OGG)).toBe(0);
+  });
+
   it('stores ogg and m4a', async () => {
     const ogg = await uploadAudio(OGG, 'audio/ogg');
     expect(ogg.statusCode).toBe(201);

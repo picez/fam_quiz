@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -900,6 +900,67 @@ describe('host presence', () => {
     const shown = await until(olena, (view) => view.role === 'player' && view.me.memory?.cells[cell] != null);
     expect(shown.role === 'player' ? shown.me.memory?.cells[cell] : null).toMatchObject({ state: 'open', text: 'Україна' });
     expect(await send(olena, 'player:memory', { questionIndex: 0, cell: 20 })).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  /** «Мелодія» (29e) після першого раунду: номер у раунді 0, state.questionIndex 1. */
+  async function toMelody() {
+    const created = (await startGame(ctx.app, melodyQuiz())).game;
+    const rig = await lobby(created);
+    const { host, stage, olena } = rig;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while ((await until(olena, () => true)) && !(olena.last?.phase === 'question' && olena.last.role === 'player' && olena.last.question?.melody !== undefined)) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await pause(30);
+    }
+    await until(stage, (view) => view.phase === 'question');
+    await pause(SPLASH_MS.question + 100);
+    return rig;
+  }
+
+  it('opens melody chunks through the socket after a classic round', async () => {
+    const { olena, stage } = await toMelody();
+    const phone = olena.last;
+    if (phone?.role !== 'player') throw new Error('not a player view');
+    expect(phone.questionIndex).toBe(0);
+    expect(await send(olena, 'player:melody', { questionIndex: 1, step: 1 })).toEqual({ ok: false, error: 'melody_stale' });
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 7 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.melody?.heard === 1);
+    expect(mine.role === 'player' ? mine.me.melody : null).toMatchObject({ heard: 1, canAnswer: true });
+    const seen = await until(stage, (view) => view.melody?.rows.some((row) => row.heard === 1) === true);
+    expect(seen.melody?.rows.find((row) => row.nickname === 'Олена')).toMatchObject({ heard: 1, answered: false });
+  });
+
+  it('a repeated melody chunk sends no new view', async () => {
+    const { olena } = await toMelody();
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    await until(olena, (view) => view.role === 'player' && view.me.melody?.heard === 1);
+    await pause(50);
+    const frames: unknown[] = [];
+    olena.socket.onAny((...args) => frames.push(args));
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    await pause(100);
+    expect(frames).toEqual([]);
+  });
+
+  it('a melody answer through the socket pays by the chunk', async () => {
+    const { olena, taras } = await toMelody();
+    for (const step of [1, 2, 3]) expect(await send(olena, 'player:melody', { questionIndex: 0, step })).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', { type: 'melody', value: 'Щедрик' })).toEqual({ ok: false, error: 'melody_unheard' });
+    expect(await send(olena, 'player:answer', { type: 'melody', value: 'Щедрик' })).toEqual({ ok: true });
+    expect(await send(olena, 'player:melody', { questionIndex: 0, step: 4 })).toEqual({ ok: false, error: 'already_answered' });
+  });
+
+  it('melody events are player-only and the host replay needs reveal', async () => {
+    const { host, stage } = await toMelody();
+    for (const who of [host, stage]) expect(await send(who, 'player:melody', { questionIndex: 0, step: 1 })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: false, error: 'wrong_phase' });
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    expect(await send(host, 'host:audio', { action: 'replay' })).toEqual({ ok: true });
   });
 
   it('memory events are player-only', async () => {

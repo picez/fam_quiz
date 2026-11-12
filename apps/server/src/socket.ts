@@ -61,6 +61,7 @@ import {
   jigsawHoldSchema,
   jigsawPlaceSchema,
   spotdiffTapSchema,
+  melodyOpenSchema,
   memoryFlipSchema,
   puzzleDoneSchema,
   puzzleFillSchema,
@@ -484,6 +485,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = memoryFlipSchema.safeParse(payloadOf(args));
       return payload.success ? manager.memoryFlip(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    on('player:melody', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = melodyOpenSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.melodyOpen(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:draw', (args) => {

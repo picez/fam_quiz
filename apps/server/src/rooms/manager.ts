@@ -114,6 +114,8 @@ import {
   moreLessPick,
   jigsawHold,
   jigsawHoldsEnd,
+  melodyHeard,
+  melodyOpen,
   memoryFlip,
   memoryOf,
   memoryTimersEnd,
@@ -592,7 +594,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер і ряду «Більше чи менше», вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер, ряду «Більше чи менше» і шматки «Мелодії», вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -613,6 +615,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'jigsaw' ? jigsawOf(state, id) : null,
     play?.question.type === 'spotdiff' ? spotdiffOf(state, id) : null,
     play?.question.type === 'memory' ? memoryOf(state, id) : null,
+    play !== undefined ? melodyHeard(play, id) : 0,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -1833,6 +1836,21 @@ export class RoomManager {
     const finished = memoryOf(result.state, who.id)?.doneMs != null && memoryOf(room.state, who.id)?.doneMs == null;
     if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
     this.watchTimers(room);
+    return { ok: true };
+  }
+
+  /**
+   * Відкриття шматка «Мелодії» (29e): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Шматок іде в розсилку одразу (товариш має бачити його без затримки, подій щонайбільше 5 на учасника); повтор відкритого — той самий стан, без розсилки.
+   */
+  melodyOpen(room: Room, playerId: string, payload: { questionIndex: number; step: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    const result = melodyOpen(room.state, who.id, playerId, payload.questionIndex, payload.step, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (result.state !== room.state) this.commit(room, result.state, now);
     return { ok: true };
   }
 
