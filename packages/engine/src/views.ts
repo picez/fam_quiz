@@ -10,6 +10,15 @@ import {
   type PlayerAuction,
   type HostTruth,
   type PlayerTruth,
+  type PlayerQuest,
+  type HostQuest,
+  type QuestInfo,
+  type QuestRow,
+  type QuestRound,
+  type QuestBonusView,
+  type BuffKind,
+  questSlots,
+  questShare,
   type TruthInfo,
   betMinimum,
   betsTeaser,
@@ -174,6 +183,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
+import { questAfter, questGranted, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
 import { inTruthDeck, truthCount, truthGuessers, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
@@ -189,7 +199,8 @@ import {
   buffBlock,
   buffOf,
   buffRowHere,
-  buffsUsed,
+  buffSpent,
+  questLeft,
   canVote,
   currentBuffs,
   hasAnswered,
@@ -1291,6 +1302,100 @@ function playerTruth(state: GameState, personId: string): PlayerTruth | undefine
     canWrite: truthOpen(state),
     own: open !== null && (state.phase === 'question' || state.phase === 'locked') && actor !== null && open.truth.actorId === actor,
   };
+}
+
+/** Етапи, на яких телефон може вводити код квесту (29g). */
+const QUEST_ENTER_PHASES: readonly Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
+
+/** Бали розв'язання: сума коригувань 'quest' учасника в поточному раунді; бафовий бонус — null. */
+function questPointsOf(state: GameState, actorId: string): number | null {
+  const round = questRoundOf(state);
+  if (round === null || round.bonus.kind !== 'points') return null;
+  return state.adjustments.filter((a) => a.source === 'quest' && a.playerId === actorId && a.roundIndex === state.roundIndex).reduce((sum, a) => sum + a.points, 0);
+}
+
+/** Виданий баф за розв'язання: бонус-баф і учасник потрапив у перших N (запис у questBuffs); інакше null. */
+function questBuffOf(state: GameState, actorId: string): BuffKind | null {
+  const round = questRoundOf(state);
+  if (round === null || round.bonus.kind !== 'buff') return null;
+  return questGranted(state, actorId, round.bonus.buff) > 0 ? round.bonus.buff : null;
+}
+
+/** Власні позиції учасника рушія: символи на відкритих місцях порядку автора, решта null. */
+function questSlotsOf(state: GameState, round: QuestRound, actorId: string): (string | null)[] {
+  return questSlots(round.code, round.order, questOpened(state, actorId));
+}
+
+/** Помилкові спроби учасника рушія. */
+function questWrongOf(state: GameState, actorId: string): QuestTry[] {
+  const tries = state.quest?.tries;
+  return (tries !== undefined && Object.hasOwn(tries, actorId) ? tries[actorId] : []).filter((t) => !t.right);
+}
+
+/** Для всіх ролей від intro до round_end раунду quest (і на finished, коли він останній — код тоді вже показано): без коду до stage 'shown', позиції лише кількістю. */
+function questInfo(state: GameState): QuestInfo | undefined {
+  const round = questRoundOf(state);
+  const quest = state.quest;
+  if (round === null || quest === undefined || state.phase === 'lobby' || state.phase === 'guide') return undefined;
+  const solved = questSolved(state);
+  const row = (p: GameState['players'][number]): QuestRow => {
+    const place = solved.findIndex((s) => s.actorId === p.id);
+    return {
+      playerId: p.id,
+      nickname: p.nickname,
+      opened: questOpened(state, p.id),
+      triesUsed: questWrongOf(state, p.id).length,
+      solved: place < 0 ? null : { place: place + 1, after: solved[place].after, points: questPointsOf(state, p.id), buff: questBuffOf(state, p.id) },
+    };
+  };
+  const rows = [...solved.flatMap((s) => state.players.find((p) => p.id === s.actorId) ?? []), ...state.players.filter((p) => !solved.some((s) => s.actorId === p.id))].map(row);
+  const bonus: QuestBonusView = round.bonus.kind === 'points' ? { kind: 'points', points: round.bonus.points } : { kind: 'buff', buff: round.bonus.buff, first: round.bonus.first };
+  const clock = questWindowOpen(state);
+  return {
+    prompt: round.prompt,
+    length: Array.from(round.code).length,
+    tries: round.tries,
+    count: round.questions.length,
+    bonus,
+    stage: quest.stage,
+    code: quest.stage === 'shown' ? round.code : null,
+    endsAt: clock ? state.endsAt : null,
+    remainingMs: clock ? state.remainingMs : null,
+    shareNow: questShare(questAfter(state), round.questions.length),
+    rows,
+  };
+}
+
+/** Пульт: код завжди, порядок, символи позицій і всі спроби з часом, k і (у командах) ніком того, хто ввів. */
+function hostQuest(state: GameState): HostQuest | undefined {
+  const info = questInfo(state);
+  const round = questRoundOf(state);
+  if (info === undefined || round === null) return undefined;
+  const detail = state.players.map((p) => ({
+    playerId: p.id,
+    slots: questSlotsOf(state, round, p.id),
+    tries: (Object.hasOwn(state.quest?.tries ?? {}, p.id) ? (state.quest?.tries[p.id] ?? []) : []).map((t) => ({
+      code: t.code,
+      at: t.at,
+      after: t.after,
+      right: t.right,
+      by: t.by === undefined ? null : (memberOf(state, t.by)?.nickname ?? t.by),
+    })),
+  }));
+  return { ...info, code: round.code, order: [...round.order], detail };
+}
+
+/** Телефон: власні (у командах — командні) позиції й невдалі спроби; чужих символів і спроб тут немає. */
+function playerQuest(state: GameState, actorId: string): PlayerQuest | undefined {
+  const info = questInfo(state);
+  const round = questRoundOf(state);
+  if (info === undefined || round === null || !state.players.some((p) => p.id === actorId)) return undefined;
+  const wrong = questWrongOf(state, actorId);
+  const left = Math.max(0, round.tries - wrong.length);
+  const own = info.rows.find((r) => r.playerId === actorId)?.solved ?? null;
+  const solved = own === null ? null : { after: own.after, points: own.points, buff: own.buff };
+  const open = QUEST_ENTER_PHASES.includes(state.phase) && !state.paused && state.quest?.stage !== 'shown';
+  return { slots: questSlotsOf(state, round, actorId), tries: wrong.map((t) => t.code), left, canEnter: open && solved === null && left > 0, solved };
 }
 
 /** Поточне запитання-ланцюжок із його грою; null поза запитанням або для інших типів. */
@@ -2892,6 +2997,7 @@ function base(state: GameState, forHost: boolean) {
     ...optional('bets', betsInfo(state) ?? undefined),
     ...optional('auction', auctionInfo(state) ?? undefined),
     ...optional('truth', truthInfo(state)),
+    ...optional('quest', questInfo(state)),
     wipeout: wipeoutInfo(state, forHost),
     survival: survivalInfo(state, forHost),
     ladder: ladderInfo(state, forHost),
@@ -3038,12 +3144,14 @@ function playerBuffs(state: GameState, playerId: string): PlayerBuffs | null {
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (allowed.length === 0 || play === undefined || !buffRowHere(state, play, playerId)) return null;
   const own = buffOf(play, playerId);
-  const used = buffsUsed(state, playerId);
   const slots = allowed.map((kind) => {
-    if (own?.kind === kind) return { kind, state: 'active' as const, block: null };
-    if (used.includes(kind)) return { kind, state: 'used' as const, block: 'used' as const };
+    // Додаткові використання, видані квестом (29g): ключ left є лише тоді.
+    const left = questLeft(state, playerId, kind);
+    const extra = left === null ? {} : { left };
+    if (own?.kind === kind) return { kind, state: 'active' as const, block: null, ...extra };
+    if (buffSpent(state, playerId, kind)) return { kind, state: 'used' as const, block: 'used' as const, ...extra };
     const block = buffBlock(state, playerId, kind);
-    return block === null ? { kind, state: 'ready' as const, block: null } : { kind, state: 'blocked' as const, block };
+    return block === null ? { kind, state: 'ready' as const, block: null, ...extra } : { kind, state: 'blocked' as const, block, ...extra };
   });
   // «Підглянути» (12h): кого можна вибрати — лише поки баф можна взяти (жодної причини buffBlock, зокрема паузи).
   const peekable = slots.some((slot) => slot.kind === 'peek' && slot.state === 'ready')
@@ -3347,7 +3455,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
   return {
     ...withDrawerText(state, member.id, view),
     teams: ownAnswerers(state, view.teams, teamId),
-    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerMelody(state, teamId, now)) },
+    me: { ...view.me, ...(view.me.moreless === undefined ? {} : { moreless: { ...view.me.moreless, canPick: view.me.moreless.canPick && answererOf(state, teamId) === member.id } }), answer: vote, vote: votePrompt(state, member.id), appeal: playerAppeal(state, member.id, teamId), ...optional('truth', playerTruth(state, member.id)), ...optional('quest', playerQuest(state, teamId)), ...optional('drawing', playerDrawing(state, member.id)), ...optional('jigsaw', playerJigsaw(state, teamId, member.id, now)), ...optional('spotdiff', playerSpotdiff(state, teamId)), ...optional('memory', playerMemory(state, teamId, member.id, now)), ...optional('melody', playerMelody(state, teamId, now)) },
     away: ownAway(state, member.id),
     lastAway: lastAway(state, member.id),
     team,
@@ -3545,6 +3653,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       ...optional('bets', playerBets(state, playerId) ?? undefined),
       ...optional('auction', playerAuction(state, playerId) ?? undefined),
       ...optional('truth', teamsOn(state) ? undefined : playerTruth(state, playerId)),
+      ...optional('quest', teamsOn(state) ? undefined : playerQuest(state, playerId)),
       wipeout: playerWipeout(state, playerId),
       survival: playerSurvival(state, playerId),
       ladder: playerLadder(state, playerId),
@@ -3689,7 +3798,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, drawing: _publicDrawing, spotdiff: _publicSpotdiff, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, ...shared } = base(state, true);
   return {
     ...shared,
     ...optional('spotdiff', spotdiffHostInfo(state)),
@@ -3713,6 +3822,7 @@ export function hostView(state: GameState): HostView {
     ...optional('bets', hostBets(state) ?? undefined),
     ...optional('auction', hostAuction(state) ?? undefined),
     ...optional('truth', hostTruth(state)),
+    ...optional('quest', hostQuest(state)),
     ...optional('drawing', hostDrawing(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),

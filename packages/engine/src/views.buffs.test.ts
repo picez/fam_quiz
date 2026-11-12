@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { takeBuff } from './buffs';
 import { lock, next, pause, removePlayer, start, submitAnswer, type GameState } from './game';
 import { FIRST_BUFFS, T0, toBuffCell, toBuffQuestion } from './testing/buffs';
-import { blitzRound, finalRound, makeQuiz, makeRoundsQuiz, single, single4, text } from './testing/fixtures';
+import { blitzRound, finalRound, makeQuiz, makeRoundsQuiz, questQuiz, single, single4, text } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { enterQuestCode } from './quest';
 import { hostView, playerView, stageView } from './views';
 
 const rng0 = () => 0;
@@ -179,5 +180,29 @@ describe('buff views', () => {
     const stage = stageView(s);
     expect([stage.buffs, stage.buffNotice, stage.overtime]).toEqual([[], null, []]);
     expect(hostView(s).allowed).toEqual({ debuffs: [...LEGACY_DEBUFFS], buffs: [] });
+  });
+});
+
+describe('quest buff views (29g)', () => {
+  it('a quest buff shows one more use', () => {
+    const quiz = questQuiz({ buffs: ['fifty'], leaderboard: 'end' }, { bonus: { kind: 'buff', buff: 'fifty', first: null } });
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Тарас')));
+    s = must(next(s, T0, rng0)); // класика
+    s = must(next(must(lock(s)), T0, rng0));
+    while (s.phase !== 'round_end') s = must(next(s, T0, rng0));
+    s = must(next(s, T0, rng0)); // intro quest
+    s = must(next(s, T0, rng0)); // k1
+    expect(slotsOf(s, 'p1')).toEqual([['fifty', 'ready', null]]);
+    expect(playerView(s, 'p1')?.me.buffs?.slots[0]).not.toHaveProperty('left');
+    s = take(s, 'p1', 'fifty');
+    s = toNext(must(lock(s)), T0); // k2
+    expect(slotsOf(s, 'p1')).toEqual([['fifty', 'used', 'used']]);
+    s = must(enterQuestCode(s, 'p1', 'p1', 'СОВА', T0 + 500));
+    expect(playerView(s, 'p1')?.me.buffs?.slots[0]).toEqual({ kind: 'fifty', state: 'ready', block: null, left: 1 });
+    s = take(s, 'p1', 'fifty');
+    expect(playerView(s, 'p1')?.me.buffs?.slots[0]).toMatchObject({ state: 'active', left: 0 });
+    s = toNext(must(lock(s)), T0); // k3
+    expect(playerView(s, 'p1')?.me.buffs?.slots[0]).toEqual({ kind: 'fifty', state: 'used', block: 'used', left: 0 });
+    expect(playerView(s, 'p2')?.me.buffs?.slots[0]).toEqual({ kind: 'fifty', state: 'blocked', block: 'unfit_type' });
   });
 });
