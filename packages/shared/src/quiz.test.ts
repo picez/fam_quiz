@@ -103,6 +103,8 @@ import {
   SPOTDIFF_FREEZE_MS,
   SPOTDIFF_MAX_FREEZE_MS,
   spotdiffFreezeMs,
+  melodyOpenSchema,
+  melodyHeardOf,
   memoryFlipSchema,
   MEMORY_FLIPS_PER_SECOND,
   MEMORY_SHOW_MS,
@@ -3219,5 +3221,96 @@ describe('memory question (29f)', () => {
     expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 1.5 })).toBe(false);
     expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 1, extra: 1 })).toBe(false);
     expect(valid(answerSchema, { type: 'memory', pairs: 3, total: 6, done: false, timeMs: null, moves: 4 })).toBe(false);
+  });
+});
+
+describe('melody question (29e)', () => {
+  const file = '/uploads/' + 'a'.repeat(32) + '.mp3';
+  const melQ = (patch: object = {}) => ({ id: 'ml', type: 'melody', text: 'Що це за пісня?', imageUrl: null, video: null,
+    timeLimit: 60, points: 1000, track: { source: 'file', url: file, start: 5 }, accepted: ['Щедрик', 'Shchedryk', 'Carol of the Bells'], ...patch });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a melody', () => {
+    expect(qIssues(melQ())).toEqual([]);
+    expect(qIssues(melQ({ track: { source: 'youtube', id: 'abcdefghijk', start: 30 } }))).toEqual([]);
+    expect(qIssues(melQ({ imageUrl: '/uploads/' + 'b'.repeat(32) + '.png' }))).toEqual([]);
+    expect(qIssues(melQ({ timeLimit: 25 }))).toEqual([]);
+    expect(qIssues(melQ({ timeLimit: 120 }))).toEqual([]);
+    expect(LIMITS.minMelodyTime).toBe(25);
+    expect(LIMITS.defaultMelodyTime).toBe(60);
+  });
+
+  it('refuses a broken melody', () => {
+    expect(qIssues(melQ({ video: { id: 'dQw4w9WgXcQ', start: 0 } }))).toContain('melody_video');
+    expect(qIssues(melQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('melody_video');
+    expect(qIssues(melQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('melody_video');
+    expect(qIssues(melQ({ hint: 'Подумайте' }))).toContain('melody_hint');
+    const bad = (patch: object) => valid(questionSchema, melQ(patch));
+    expect(bad({ accepted: [] })).toBe(false);
+    expect(bad({ track: { source: 'file', url: '/uploads/x.wav', start: 0 } })).toBe(false);
+    expect(bad({ track: { source: 'file', url: 'https://x/y.mp3', start: 0 } })).toBe(false);
+    expect(bad({ track: { source: 'youtube', id: 'short', start: 0 } })).toBe(false);
+    expect(bad({ track: { source: 'file', url: file, start: -1 } })).toBe(false);
+    expect(bad({ track: { source: 'file', url: file, start: 43_201 } })).toBe(false);
+    expect(bad({ timeLimit: 24 })).toBe(false);
+    expect(bad({ timeLimit: 121 })).toBe(false);
+    const { track: _track, ...noTrack } = melQ();
+    expect(valid(questionSchema, noTrack)).toBe(false);
+  });
+
+  it('a melody plays only in classic rounds', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [melQ({ id: 'mb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [melQ({ id: 'mf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...melQ({ id: 'mbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...melQ({ id: 'mau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [melQ({ id: 'mw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [melQ({ id: 'msv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [melQ({ id: 'ml2' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    const puzzles = { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [melQ({ id: 'mp' })] };
+    for (const bad of [blitzRound, final, bets, auction, wipeout, survival, ladder, puzzles]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('melody_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? melQ({ id: 'mc' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('melody_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [melQ({ id: 'mt' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('melody_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [melQ({ id: 'ms' })] })).toContain('spare_type');
+    expect(issues(quizOf([round('c', [melQ({ id: 'mc2' })])]))).toEqual([]);
+  });
+
+  it('the melody event is limited', () => {
+    for (const bad of [{ questionIndex: 7, step: 0 }, { questionIndex: 7, step: 6 }, { questionIndex: 7, step: 1.5 }, { questionIndex: -1, step: 1 }, { questionIndex: 7, step: 1, extra: 1 }]) {
+      expect(valid(melodyOpenSchema, bad)).toBe(false);
+    }
+    expect(valid(melodyOpenSchema, { questionIndex: 7, step: 5 })).toBe(true);
+  });
+
+  it('a melody answer comes from the phone without heard', () => {
+    expect(answerSchema.parse({ type: 'melody', value: 'Щедрик', heard: 1 })).toEqual({ type: 'melody', value: 'Щедрик' });
+    expect(valid(answerSchema, { type: 'melody', value: 'я'.repeat(201) })).toBe(false);
+    expect(melodyHeardOf({ type: 'melody', value: 'x', heard: 3 })).toBe(3);
+    expect(melodyHeardOf({ type: 'melody', value: 'x' } as never)).toBeNull();
+    expect(melodyHeardOf(null)).toBeNull();
+  });
+
+  it('keeps the type order', () => {
+    expect(QUESTION_TYPES.indexOf('melody')).toBe(QUESTION_TYPES.indexOf('memory') + 1);
   });
 });

@@ -600,3 +600,11 @@ describe('memory facts (29f)', () => {
     expect(wholeRowQuestion(q)).toBe(true);
   });
 });
+
+describe('melody facts (29e)', () => {
+  it('a melody keeps the answer window', () => {
+    const q = { id: 'ml', type: 'melody', text: 'Мел', imageUrl: null, video: null, timeLimit: 60, points: 1000 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBe(60_000);
+    expect(wholeRowQuestion(q)).toBe(false);
+  });
+});

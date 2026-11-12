@@ -8,6 +8,7 @@ import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
+import { MELODY_STEP_COUNT } from './melody';
 import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
@@ -244,6 +245,10 @@ export const LIMITS = {
   defaultMemoryTime: 90,
   /** Типові бали «Пам'яті»: повна ціна найшвидшому, решті — за часом. */
   defaultMemoryPoints: 300,
+  /** «Мелодія за нотами» (29e): мінімум часу, с. */
+  minMelodyTime: 25,
+  /** Типовий час «Мелодії за нотами», с. */
+  defaultMelodyTime: 60,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -353,7 +358,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -405,6 +410,12 @@ const spellings = z
   .array(z.string().trim().min(1).max(LIMITS.answerText).refine(isStorable, UNSTORABLE))
   .min(1)
   .max(LIMITS.maxAccepted);
+
+/** Трек «Мелодії за нотами» (29e): власне джерело замість загального audio. */
+const melodyTrackSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('file'), url: z.string().regex(AUDIO_URL), start: audioStart }),
+  z.object({ source: z.literal('youtube'), id: z.string().regex(YOUTUBE_ID), start: audioStart }),
+]);
 
 export const questionSchema = z
   .discriminatedUnion('type', [
@@ -703,6 +714,15 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('melody'),
+      timeLimit: z.number().int().min(LIMITS.minMelodyTime).max(LIMITS.maxTime),
+      /** Трек: файл чи YouTube і секунда початку фрагмента; шматки 1, 2, 4, 8, 16 с рахуються від неї. */
+      track: melodyTrackSchema,
+      /** Прийнятні написання назви; перше показується на розкритті. */
+      accepted: spellings,
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -849,6 +869,11 @@ export const questionSchema = z
       // Підказка недосяжна: бафи на «Знайди відмінності» вимкнено (off_spotdiff).
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'spotdiff_hint' });
       if (q.original === q.changed) ctx.addIssue({ code: 'custom', message: 'spotdiff_same' });
+    }
+    if (q.type === 'melody') {
+      // Власне джерело — track: загальне аудіо зіграло б сцені на етапі question; підказка недосяжна: бафи вимкнено (off_melody).
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'melody_video' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'melody_hint' });
     }
     if (q.type === 'memory') {
       // Загальна картинка й відео видали б пару; підказка недосяжна: бафи на «Пам'яті» вимкнено (off_memory).
@@ -1582,6 +1607,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'memory')
           : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'memory');
       if (memoryPlace) ctx.addIssue({ code: 'custom', message: 'memory_place' });
+      // «Мелодія за нотами» (29e): лише класика; жодної клітинки поля, жодного питання на виживання.
+      const melodyPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'melody')
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'melody');
+      if (melodyPlace) ctx.addIssue({ code: 'custom', message: 'melody_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

@@ -20,7 +20,7 @@ export const draftValueSchema = z
     z.object({ type: z.literal('chainWord'), word: storable(LIMITS.chainWord) }),
     z.object({ type: z.literal('lie'), text: storable(LIMITS.bluffLie) }),
   ])
-  .refine((value) => !((value.type === 'text' || value.type === 'clues') && value.value.length > DRAFT_TEXT_MAX), 'draft_too_long');
+  .refine((value) => !((value.type === 'text' || value.type === 'clues' || value.type === 'melody') && value.value.length > DRAFT_TEXT_MAX), 'draft_too_long');
 export type DraftValue = z.infer<typeof draftValueSchema>;
 
 /** Тип запитання, до якого належить чернетка (wallPick → wall, chainWord → chain, lie → bluff; решта — як відповідь). */
@@ -38,7 +38,7 @@ export function isAnswerDraft(draft: DraftValue): draft is SubmittedAnswer {
 
 /** Телефон: обрізати text / clues до DRAFT_TEXT_MAX; решта без змін. */
 export function clipDraft(draft: DraftValue): DraftValue {
-  if ((draft.type === 'text' || draft.type === 'clues') && draft.value.length > DRAFT_TEXT_MAX) {
+  if ((draft.type === 'text' || draft.type === 'clues' || draft.type === 'melody') && draft.value.length > DRAFT_TEXT_MAX) {
     return { ...draft, value: draft.value.slice(0, DRAFT_TEXT_MAX) };
   }
   return draft;
