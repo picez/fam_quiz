@@ -137,3 +137,19 @@ describe('letter icons follow the interface locale', () => {
     expect(BUFF_ICONS.letter).toBe('A…');
   });
 });
+
+describe('quest round texts', () => {
+  it('has a name, an icon and a how-it-goes line', () => {
+    expect(t(ROUND_NAMES.quest)).toBe('Квест із кодом');
+    expect(ROUND_ICONS.quest).toBe('🔐');
+    expect(roundHow(emptyBrief('quest'))[0]).toContain('код');
+  });
+
+  it('refusals of a code have texts', () => {
+    expect(errorText('quest_closed')).toBe('Код уже показано.');
+    expect(errorText('quest_solved')).toBe('Ви вже відкрили скриню.');
+    expect(errorText('quest_tries')).toBe('Спроби скінчилися.');
+    expect(errorText('quest_repeat')).toBe('Такий код уже пробували.');
+    expect(errorText('quest_length')).toContain('{length}');
+  });
+});

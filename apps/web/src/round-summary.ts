@@ -27,6 +27,14 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(mode === 'step' ? t('summaryAuctionStep', { step }) : t('summaryAuctionFree'), t(loss === 'bid' ? 'summaryAuctionLossBid' : 'summaryAuctionLossPrice'));
     return lines;
   }
+  if (brief.type === 'quest' && brief.quest !== null) {
+    const { length, tries, bonus } = brief.quest;
+    lines.push(t('summaryQuestCode', { length, tries }));
+    lines.push(bonus.kind === 'points' ? t('summaryQuestPoints', { points: bonus.points }) : bonus.first === null ? t('summaryQuestBuff', { buff: buffName(bonus.buff, autopilot) }) : t('summaryQuestBuffFirst', { buff: buffName(bonus.buff, autopilot), first: bonus.first }));
+    if (brief.speedBonus) lines.push(t('summarySpeed'));
+    lines.push(modifiers(brief, []));
+    return lines.filter((line) => line !== '');
+  }
   if (brief.type === 'truth' && brief.truth !== null) {
     lines.push(t('summaryTruth', { points: brief.truth.points }));
     return lines;

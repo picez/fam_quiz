@@ -21,6 +21,14 @@ describe('roundSummary', () => {
     ]);
   });
 
+  it('quest: the code length with the tries, then the bonus', () => {
+    const quest = { length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 } };
+    expect(roundSummary({ ...emptyBrief('quest'), quest })).toEqual(['Код із 4 символів, спроб: 3', 'Бонус до 1200 балів — чим раніше, тим більше']);
+    const buff = roundSummary({ ...emptyBrief('quest'), quest: { ...quest, bonus: { kind: 'buff' as const, buff: 'fifty' as const, first: 2 } } });
+    expect(buff[1]).toBe(`Бонус — ще один баф «${buffName('fifty')}», лише першим 2`);
+    expect(roundSummary({ ...emptyBrief('quest'), quest: { ...quest, bonus: { kind: 'buff' as const, buff: 'fifty' as const, first: null } } })[1]).toBe(`Бонус — ще один баф «${buffName('fifty')}»`);
+  });
+
   it('truth: the price of a guess and the author share', () => {
     expect(roundSummary({ ...emptyBrief('truth'), truth: { points: 300, time: 30 } })).toEqual([
       'Запитання — факти гравців; вгадали — 300, автор — частка за кожного, хто не вгадав',

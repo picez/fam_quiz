@@ -7,6 +7,11 @@ function row(participantId: string, nickname: string, score: number, rank: numbe
 }
 
 describe('breakdownLines', () => {
+  it('names the quest source «Квест»', () => {
+    const lines = breakdownLines({ parts: [{ source: 'quest', plus: 800, minus: 0 }], plus: 800, minus: 0 });
+    expect(lines.map((line) => [line.label, line.value])).toEqual([['Квест', '+800']]);
+  });
+
   it('goes in the order of the sources, plus before minus, penalties as «Помилки»', () => {
     const lines = breakdownLines({
       parts: [

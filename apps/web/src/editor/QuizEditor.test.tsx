@@ -21,7 +21,7 @@ function open(initial: Quiz = newQuiz(), result: string | null = null) {
 
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
-const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Головоломки' | 'Вибування' | 'Мільйонер') => {
+const addRound = (type: 'Класичний' | 'Бліц' | 'Фінал' | 'Ставки' | 'Аукціон' | 'Ва-банк' | 'Правда про гравця' | 'Головоломки' | 'Вибування' | 'Мільйонер' | 'Квест із кодом') => {
   click('+ Раунд');
   click(type);
 };
@@ -3198,5 +3198,81 @@ describe('QuizEditor: more or less (28a)', () => {
     click('+ Раунд');
     click('Ігрове поле');
     screen.getByRole('button', { name: 'більше чи менше' });
+  });
+});
+
+describe('QuizEditor: code quest round (29g)', () => {
+  const settingsBlock = () => screen.getAllByText('Налаштування раунду')[0];
+  const pick = (index: number) => fireEvent.click(document.querySelectorAll('.question-item')[index]!);
+  const fillQuestion = (text: string) => {
+    fill('Текст запитання', text);
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+  };
+
+  it('creates a quest round with a code, an order, tries and a bonus', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    addRound('Квест із кодом');
+    fireEvent.click(settingsBlock());
+    fill(t('questPromptLabel'), 'Нічний птах — символ мудрості (4 літери)');
+    fill(t('questCodeLabel'), 'сова');
+    expect((screen.getByLabelText(t('questCodeLabel')) as HTMLInputElement).value).toBe('СОВА');
+    expect(screen.getByText(t('questCodeCount', { n: 4, min: 3, max: 8 }))).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(t('questOrderPosition', { n: 1 })), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText(t('questOrderPosition', { n: 3 })), { target: { value: '1' } });
+    fill(t('questTriesLabel'), '2');
+    expect((screen.getByRole('option', { name: t('questBonusBuff') }) as HTMLOptionElement).disabled).toBe(true);
+    expect(screen.getByText(t('questBuffNone'))).toBeTruthy();
+    fill(t('questBonusPointsLabel'), '1200');
+    expect(screen.getByText(t('questShortHint', { length: 4 }))).toBeTruthy();
+    fillQuestion('Перше запитання');
+    pick(1);
+    fillQuestion('Друге запитання');
+    pick(2);
+    fillQuestion('Третє запитання');
+    click(t('addQuestion'));
+    fillQuestion('Четверте запитання');
+    expect(screen.queryByText(t('questShortHint', { length: 4 }))).toBeNull();
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const quiz = saved(onSave);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(quiz.rounds[1]).toMatchObject({ type: 'quest', prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [2, 1, 0, 3], tries: 2, bonus: { kind: 'points', points: 1200 } });
+    expect(roundQuestions(quiz.rounds[1])).toHaveLength(4);
+  });
+
+  it('the order resets to left to right with a new code length and with the button', () => {
+    open();
+    addRound('Квест із кодом');
+    fireEvent.click(settingsBlock());
+    fill(t('questCodeLabel'), 'сова');
+    fireEvent.change(screen.getByLabelText(t('questOrderPosition', { n: 1 })), { target: { value: '4' } });
+    expect((screen.getByLabelText(t('questOrderPosition', { n: 1 })) as HTMLSelectElement).value).toBe('4');
+    expect((screen.getByLabelText(t('questOrderPosition', { n: 4 })) as HTMLSelectElement).value).toBe('1');
+    click(t('questOrderReset'));
+    expect((screen.getByLabelText(t('questOrderPosition', { n: 1 })) as HTMLSelectElement).value).toBe('1');
+    fireEvent.change(screen.getByLabelText(t('questOrderPosition', { n: 1 })), { target: { value: '2' } });
+    fill(t('questCodeLabel'), 'совик');
+    expect((screen.getByLabelText(t('questOrderPosition', { n: 1 })) as HTMLSelectElement).value).toBe('1');
+    expect(screen.getAllByRole('combobox', { name: /^Позиція \d+$/ })).toHaveLength(5);
+  });
+
+  it('a buff bonus lists the allowed buffs and warns when the round is the last one', () => {
+    const quiz = { ...newQuiz(), settings: { ...newQuiz().settings, buffs: ['fifty', 'stealth'] as never } };
+    open(quiz);
+    addRound('Квест із кодом');
+    fireEvent.click(settingsBlock());
+    expect(screen.queryByText(t('questBuffNone'))).toBeNull();
+    expect(screen.queryByText(t('questBuffLast'))).toBeNull();
+    fireEvent.change(screen.getByLabelText(t('questBonusLabel')), { target: { value: 'buff' } });
+    expect(screen.getByText(t('questBuffLast'))).toBeTruthy();
+    const choices = within(screen.getByLabelText(t('questBonusBuffLabel'))).getAllByRole('option').map((option) => (option as HTMLOptionElement).value);
+    expect(choices).toEqual(['fifty']);
+    fireEvent.click(screen.getByLabelText(t('questBonusFirst')));
+    expect(screen.getByLabelText(t('questBonusFirstCount'))).toBeTruthy();
+    addRound('Класичний');
+    expect(screen.queryByText(t('questBuffLast'))).toBeNull();
   });
 });

@@ -77,6 +77,11 @@ import {
   pickKeyCells,
   type CrosswordLayout,
   type PuzzlesRound,
+  type QuestRound,
+  QUEST_TYPES,
+  allowedBuffs,
+  questKey,
+  questDefaultOrder,
   type LadderPathIssue,
   type QuestionType,
 } from '@quiz/shared';
@@ -103,6 +108,8 @@ export { QUESTION_TYPES, type QuestionType };
  */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
   if (roundType === 'puzzles') return PUZZLES_ROUND_TYPES;
+  // «Квест із кодом» (29g): звичайні запитання без медіа-механік.
+  if (roundType === 'quest') return QUEST_TYPES;
   const types = roundType === 'classic' ? QUESTION_TYPES : questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing' && type !== 'jigsaw' && type !== 'spotdiff' && type !== 'memory' && type !== 'melody');
   return types.filter((type) => !(PUZZLE_TYPES as readonly string[]).includes(type));
 }
@@ -728,6 +735,31 @@ export function newAuctionRound(): AuctionRound {
   return { id: newId(), type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: LIMITS.defaultBidStep, loss: 'bid', questions: [newQuestion('single')] };
 }
 
+/** Новий «Квест із кодом» (29g): порожні глобальне запитання й код, спроб 3, бонус 1000 балів, три порожні запитання; порядок позицій з'являється разом із кодом. */
+export function newQuestRound(): QuestRound {
+  return {
+    id: newId(),
+    type: 'quest',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: defaultRules(),
+    prompt: '',
+    code: '',
+    order: [],
+    tries: LIMITS.defaultQuestTries,
+    bonus: { kind: 'points', points: LIMITS.defaultQuestBonus },
+    questions: [newQuestion('single'), newQuestion('single'), newQuestion('single')],
+  };
+}
+
+/** Код «Квесту» як його вводять: нормалізований на льоту; зміна довжини скидає порядок на «зліва направо». */
+export function withQuestCode(round: QuestRound, raw: string): QuestRound {
+  const code = questKey(raw);
+  const sameLength = Array.from(code).length === round.order.length;
+  return { ...round, code, order: sameLength ? round.order : questDefaultOrder(Array.from(code).length) };
+}
+
 /** Нові «Головоломки»: одне згенероване судоку середньої складності; правил, перемішування й швидкості немає. */
 export function newPuzzlesRound(): PuzzlesRound {
   return { id: newId(), type: 'puzzles', title: '', questions: [newQuestion('sudoku')] };
@@ -1051,6 +1083,11 @@ export function cleaned(quiz: Quiz): Quiz {
     rounds: quiz.rounds.map((round) => {
       const title = round.title.trim();
       if (round.type === 'truth') return { ...round, title };
+      if (round.type === 'quest') {
+        // Код нормалізується, порядок із чужою довжиною скидається; решта — як у класиці.
+        const { code, order } = withQuestCode(round, round.code);
+        return { ...round, title, code, order, questions: round.questions.map((question) => noCut(cleanedQuestion(question))) };
+      }
       if (round.type === 'final') return { ...round, title, questions: round.questions.map((question) => inFinal(noCut(cleanedQuestion(question)))) };
       if (round.type === 'bets' || round.type === 'auction') return { ...round, title, questions: round.questions.map((question) => inFinal(cleanedQuestion(question))) };
       if (round.type === 'survival') {
@@ -1496,6 +1533,27 @@ const auctionNumbersBroken = (round: AuctionRound) => !wholeBet(round.bidStep, 1
 const truthNumbersBroken = (round: TruthRound) =>
   !Number.isInteger(round.points) || round.points < 0 || round.points > LIMITS.maxPoints || !Number.isInteger(round.timeLimit) || round.timeLimit < LIMITS.minTime || round.timeLimit > LIMITS.maxTime;
 
+/** «Квест із кодом»: що не так з кодом, порядком, бонусом чи запитаннями раунду (ключі проблем), без проблем самих запитань. */
+function questIssues(round: QuestRound, quiz: Quiz): TextKey[] {
+  const issues: TextKey[] = [];
+  const length = Array.from(round.code).length;
+  if (round.prompt.trim() === '') issues.push('problemQuestPrompt');
+  if (length < LIMITS.minQuestCode || length > LIMITS.maxQuestCode) issues.push('problemQuestCode');
+  const sorted = [...round.order].sort((a, b) => a - b);
+  if (sorted.length !== length || sorted.some((value, index) => value !== index)) issues.push('problemQuestOrder');
+  if (round.questions.length < Math.max(length, LIMITS.minQuestCode)) issues.push('problemQuestShort');
+  const allowed: readonly string[] = QUEST_TYPES;
+  if (round.questions.some((question) => !allowed.includes(question.type))) issues.push('problemQuestType');
+  if (!Number.isInteger(round.tries) || round.tries < 1 || round.tries > LIMITS.maxQuestTries) issues.push('problemRules');
+  const { bonus } = round;
+  if (bonus.kind === 'points') {
+    if (!Number.isInteger(bonus.points) || bonus.points < 1 || bonus.points > LIMITS.maxPoints) issues.push('problemRules');
+  } else if (bonus.buff === 'stealth' || !allowedBuffs(quiz).includes(bonus.buff) || (bonus.first !== null && (!Number.isInteger(bonus.first) || bonus.first < 1 || bonus.first > LIMITS.maxPlayers))) {
+    issues.push('problemQuestBuff');
+  }
+  return issues;
+}
+
 /** Де (раунд і запитання, з нуля) перша проблема, або null. */
 export function firstProblem(quiz: Quiz): ProblemPlace | null {
   const rounds = cleaned(quiz).rounds;
@@ -1521,6 +1579,7 @@ export function firstProblem(quiz: Quiz): ProblemPlace | null {
     // Налаштування ставок (числа, найбільша ставка) зламані: вказуємо на раунд, а не на запитання.
     if (current.type === 'bets' && betsSettingsBroken(current)) return { round, question: 0, cell: null };
     if (current.type === 'auction' && auctionNumbersBroken(current)) return { round, question: 0, cell: null };
+    if (current.type === 'quest' && questIssues(current, quiz).length > 0) return { round, question: 0, cell: null };
     const question = current.questions.findIndex((q, index) => problemKey(q, roundPlace(quiz, round, index)) !== null || ((current.type === 'bets' || current.type === 'auction') && q.betsCut === undefined));
     if (question !== -1) return { round, question, cell: null };
   }
@@ -1758,6 +1817,11 @@ export function problemsOf(quiz: Quiz): string[] {
       if (auctionNumbersBroken(round)) problems.push(where(t('problemRules')));
       if (round.questions.some((question) => question.betsCut === undefined)) problems.push(where(t('problemAuctionCut')));
     }
+    if (round.type === 'quest') {
+      for (const key of questIssues(round, draft)) {
+        problems.push(where(key === 'problemQuestCode' ? t(key, { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }) : key === 'problemQuestShort' ? t(key, { length: Math.max(Array.from(round.code).length, LIMITS.minQuestCode) }) : t(key)));
+      }
+    }
     if (round.type === 'wipeout') {
       if (round.questions.length < LIMITS.minWipeoutQuestions) problems.push(where(t('problemWipeoutFew', { min: LIMITS.minWipeoutQuestions })));
       if (round.questions.length > LIMITS.maxWipeoutQuestions) problems.push(where(t('problemWipeoutMany', { max: LIMITS.maxWipeoutQuestions })));
@@ -1841,6 +1905,9 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('puzzle_place')) problems.push(t('problemPuzzlePlace', { index: 1 }));
+      if (messages.includes('quest_code') || messages.includes('quest_order')) problems.push(t('problemQuestCode', { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }));
+      if (messages.includes('quest_buff')) problems.push(t('problemQuestBuff'));
+      if (messages.includes('quest_type')) problems.push(t('problemQuestType'));
       if (messages.includes('puzzles_type')) problems.push(t('problemPuzzlesType', { index: 1 }));
       if (messages.includes('spare_video')) problems.push(t('problemSpareVideo'));
       if (messages.includes('duplicate_spare_ids')) problems.push(t('problemSpareDuplicate'));
