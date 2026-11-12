@@ -49,3 +49,12 @@ export function melodyOpen(state: GameState, actorId: string, memberId: string, 
   };
   return ok(withCurrentPlay(state, { ...play, melody }));
 }
+
+/**
+ * Мить, коли спливає заставка перед «Мелодією» (29e): зрізи, збудовані під нею, мають canOpen = false, а сама заставка подій не дає —
+ * кімната шле зрізи ще раз у цю мить (watchTimers). null — запитання не melody, заставки немає чи вона вже мине.
+ */
+export function melodyStartEnd(state: GameState, now: number): number | null {
+  if (state.phase !== 'question' || state.startedAt === null || state.startedAt <= now) return null;
+  return state.plays[state.questionIndex]?.question.type === 'melody' ? state.startedAt : null;
+}

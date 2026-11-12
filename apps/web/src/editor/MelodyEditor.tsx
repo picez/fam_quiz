@@ -26,6 +26,7 @@ export function MelodyEditor({ question, onChange }: { question: MelodyQuestion;
   const [fileLength, setFileLength] = useState<number | null>(null);
   const [link, setLink] = useState(() => (track.source === 'youtube' && YOUTUBE_ID.test(track.id) ? videoLink({ id: track.id, start: track.start }) : ''));
   const [badLink, setBadLink] = useState(false);
+  const lastFile = useRef('');
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -67,7 +68,9 @@ export function MelodyEditor({ question, onChange }: { question: MelodyQuestion;
     setError(null);
     setBadLink(false);
     setFileLength(null);
-    setTrack(next === 'file' ? { source: 'file', url: '', start: track.start } : { source: 'youtube', id: '', start: track.start });
+    // Залитий файл не губиться, якщо ведучий заглянув у YouTube й повернувся.
+    if (track.source === 'file' && track.url !== '') lastFile.current = track.url;
+    setTrack(next === 'file' ? { source: 'file', url: lastFile.current, start: track.start } : { source: 'youtube', id: '', start: track.start });
     if (next === 'file') setLink('');
   };
 

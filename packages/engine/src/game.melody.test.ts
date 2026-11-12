@@ -3,7 +3,7 @@ import { DEFAULT_RULES, type Answer, type RoundRules } from '@quiz/shared';
 import { buffBlock, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { lock, next, override, pause, recordOf, removePlayer, roundQuestionNumber, submitAnswer, type GameState } from './game';
-import { melodyHeard, melodyOpen, melodyPaid } from './melody';
+import { melodyHeard, melodyOpen, melodyPaid, melodyStartEnd } from './melody';
 import { actorOf } from './team-act';
 import { FIRST_BUFFS } from './testing/buffs';
 import { classicRound, makeRoundsQuiz, melody, melodyQuiz, single, text } from './testing/fixtures';
@@ -72,6 +72,13 @@ describe('melody: the engine', () => {
     expect(again.ok && again.state).toBe(two);
     expect(melodyPaid(two.plays[1], 'p1')).toBe(2);
     expect(melodyPaid(two.plays[0], 'p1')).toBeUndefined();
+  });
+
+  it('names the moment the splash before a melody ends, so the rooms resend the slices', () => {
+    const s = fresh();
+    expect(melodyStartEnd(s, T(s) - 500)).toBe(T(s));
+    expect(melodyStartEnd(s, T(s))).toBeNull();
+    expect(melodyStartEnd(must(lock(s, T(s) + 1000)), T(s) - 500)).toBeNull();
   });
 
   it('refuses chunks out of time', () => {

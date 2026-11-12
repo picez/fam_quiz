@@ -118,6 +118,7 @@ import {
   memoryFlip,
   memoryOf,
   memoryTimersEnd,
+  melodyStartEnd,
   jigsawOf,
   jigsawPlace,
   spotdiffOf,
@@ -1807,7 +1808,7 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.holdExpiry);
     room.holdExpiry = null;
     const now = this.now();
-    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now)].filter((end): end is number => end !== null);
+    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now), melodyStartEnd(room.state, now)].filter((end): end is number => end !== null);
     if (ends.length === 0) return;
     const at = Math.min(...ends);
     room.holdExpiry = this.scheduler.setTimeout(() => {
