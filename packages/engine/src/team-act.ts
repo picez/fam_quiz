@@ -9,8 +9,9 @@ import { captainOf, duelistOf, memberOf, teamsOn } from './teams';
 /**
  * Що робить людина: від цього залежить, хто з команди має право (таблиця плану 10j).
  * answerer — той, хто відповідає за команду на поточному запитанні (12g): бафи, блеф, ланцюжок, сортування, стіна, випробування, підказки драбини.
+ * quest — код «Квесту із кодом» (29g): будь-хто з команди за команду, спроби спільні.
  */
-export type TeamAct = 'captain' | 'answer' | 'buzz' | 'vote' | 'duel' | 'self' | 'answerer';
+export type TeamAct = 'captain' | 'answer' | 'buzz' | 'vote' | 'duel' | 'self' | 'answerer' | 'quest';
 
 export type Actor = { ok: true; id: string } | { ok: false; error: ErrorCode };
 
@@ -50,6 +51,7 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
   if (team === null) return refuse('not_found');
   switch (act) {
     case 'buzz':
+    case 'quest':
       return actor(team);
     case 'duel':
       return duelistOf(state, team) === memberId ? actor(team) : refuse('not_duelist');

@@ -18,7 +18,8 @@ import { pickContestant, useLifeline } from './ladder';
 import { addPlayer, createGame, lock, next, setConnected, start, type GameState, type Rng } from './game';
 import { captainOf, dealTeams, pickTeam, rollTeamRest, setTeamForm, teamMembers } from './teams';
 import { answerAs, commit, drive } from './testing/autopilot';
-import { auctionRound, betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, single, truthRound, withId } from './testing/fixtures';
+import { auctionRound, betsRound, bluff, boardRound, classicRound, ladderQuestions, ladderRound, makeRoundsQuiz, questQuiz, single, truthRound, withId } from './testing/fixtures';
+import { questWindowOpen } from './quest';
 import { submitTruth } from './truth';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -364,6 +365,34 @@ describe('autopilot auction round (27b)', () => {
     sales.forEach((at) => expect(ends).toContain(at));
     // Бот ставить найменшу наступну за першого, хто може (автор із балами за r1).
     expect(sold).toEqual([{ a: 100 }, { a: 100 }]);
+  });
+});
+
+describe('autopilot quest round (29g)', () => {
+  it('the autopilot waits for the code window', () => {
+    const lobby = pilotLobby(questQuiz({ leaderboard: 'end' }), 'Ігор', 'Олена');
+    const started = commit(lobby, must(autopilotStart(lobby, T0, rng)), T0);
+    const opens: { at: number; endsAt: number | null }[] = [];
+    const closes: number[] = [];
+    const ends: number[] = [];
+    const { state } = drive(started, {
+      now: T0,
+      rng,
+      people: answerAs({ idle: ['p2', 'p3'] }),
+      watch: (prev, next, now) => {
+        if (questWindowOpen(next)) expect(autopilotDue(next, now)).toBeNull();
+        if (!questWindowOpen(prev) && questWindowOpen(next)) opens.push({ at: now, endsAt: next.endsAt });
+        if (questWindowOpen(prev) && !questWindowOpen(next)) closes.push(now);
+        if (prev.quest?.stage === 'shown' && prev.phase === 'leaderboard' && next.phase !== 'leaderboard') ends.push(now);
+      },
+    });
+    expect(state.phase).toBe('finished');
+    expect(opens).toHaveLength(1);
+    expect(opens[0].endsAt).toBe(opens[0].at + 30_000);
+    // Вікно закриває годинник рушія, після показу коду автопілот іде далі.
+    expect(closes).toEqual([opens[0].at + 30_000]);
+    expect(ends).toHaveLength(1);
+    expect(ends[0]).toBeGreaterThan(closes[0]);
   });
 });
 

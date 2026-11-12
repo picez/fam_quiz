@@ -37,6 +37,7 @@ import { trialOpen } from './survival';
 import { dealTeams, rollTeamRest, setTeamForm, startTeamDice, teamOf, teamsOn } from './teams';
 import { timedPlay } from './timing';
 import { decisionOpen, decisionsShown } from './wipeout';
+import { questWindowOpen } from './quest';
 
 // Гра без ведучого (11g). Кроки йдуть тими самими функціями рушія, що й кнопки ведучого; правила — план 11g.
 
@@ -230,8 +231,8 @@ function introMove(state: GameState, from: number): Move {
 }
 
 function leaderboardMove(state: GameState, from: number): Move | null {
-  // Вікно «Ва-банк» і випробування «Вибування» закриває tick рушія.
-  if (decisionOpen(state) || trialOpen(state)) return null;
+  // Вікно «Ва-банк», випробування «Вибування» і вікно коду «Квесту» (29g) закриває tick рушія.
+  if (decisionOpen(state) || trialOpen(state) || questWindowOpen(state)) return null;
   if (decisionPending(state)) return { at: from + AUTOPILOT_MS.ladderDecision, pace: null, act: (s, now) => decideLadder(s, 'host', true, now) };
   return nextAt(from + (decisionsShown(state) ? AUTOPILOT_MS.decisions : AUTOPILOT_MS.leaderboard));
 }

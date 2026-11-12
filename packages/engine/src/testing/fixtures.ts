@@ -20,6 +20,7 @@ import {
   type LadderRound,
   type Question,
   type QuestionAudio,
+  type QuestRound,
   type Quiz,
   type QuizSettings,
   type RevealMode,
@@ -786,6 +787,49 @@ export const survivalTrials: Question[] = [
   { ...bool, id: 't1', timeLimit: 15 },
   { ...single, id: 't2', timeLimit: 15 },
 ];
+
+/** «Квест із кодом» (29g): типово title '', speedBonus false, shuffleOptions false, DEFAULT_RULES, «Нічний птах — символ мудрості», код «СОВА», порядок [0, 1, 2, 3], 3 спроби, 1200 балів. */
+export function questRound(id: string, questions: Question[], options: Partial<Omit<QuestRound, 'id' | 'type' | 'questions'>> = {}): QuestRound {
+  return {
+    id,
+    type: 'quest',
+    title: '',
+    speedBonus: false,
+    shuffleOptions: false,
+    rules: DEFAULT_RULES,
+    prompt: 'Нічний птах — символ мудрості',
+    code: 'СОВА',
+    order: [0, 1, 2, 3],
+    tries: 3,
+    bonus: { kind: 'points', points: 1200 },
+    ...options,
+    questions,
+  };
+}
+
+/** П'ять запитань квесту k1…k5 на 30 с: single, multi, bool, text, numeric. */
+export const questQuestions: Question[] = [single, multi, bool, text, numeric].map((question, i) => ({ ...question, id: `k${i + 1}`, timeLimit: 30 }));
+
+/** Правильна й неправильна відповідь на k1…k5. */
+export const QUEST_RIGHT: Answer[] = [
+  { type: 'single', optionId: 'b' },
+  { type: 'multi', optionIds: ['a', 'c'] },
+  { type: 'boolean', value: true },
+  { type: 'text', value: 'Одеса' },
+  { type: 'numeric', value: 2061 },
+];
+export const QUEST_WRONG: Answer[] = [
+  { type: 'single', optionId: 'a' },
+  { type: 'multi', optionIds: ['b', 'd'] },
+  { type: 'boolean', value: false },
+  { type: 'text', value: 'Львів' },
+  { type: 'numeric', value: 3000 },
+];
+
+/** Раунд classic з одним single на 30 с, далі раунд quest з k1…k5 (options — раунду quest). */
+export function questQuiz(settings: Partial<QuizSettings> = {}, options: Partial<Omit<QuestRound, 'id' | 'type' | 'questions'>> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('r1', [{ ...single, timeLimit: 30 }]), questRound('rq', questQuestions, options)], settings);
+}
 
 /** Копія запитання з іншим id: поле збирають з однакових запитань. */
 export const withId = (question: Question, id: string): Question => ({ ...question, id });

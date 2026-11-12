@@ -101,6 +101,8 @@ import { answerPoints, finalPoints, speedFactor, streakBonus } from './score';
 import { splitBank, type BankOutcome } from './bank';
 import { closesAt, isTimed, limitMsOf, timedPlay, timeOver, timeOverFor, trimOvertime } from './timing';
 import { presentPlayers } from './present';
+import { closeQuestWindow, dropFromQuest, openQuestWindow, questRoundOf, questWindowOpen, settleQuestWindow, showQuestCode, type QuestState } from './quest';
+export type { QuestState, QuestTry } from './quest';
 import { closeDecision, decisionOpen, dropUnstarted, markWipeoutEnd, openDecision, settleDecision, submitWipeoutAnswer, wipeoutIn, withWipeoutPoints } from './wipeout';
 import {
   awardSurvivalBonus,
@@ -940,6 +942,10 @@ export interface GameState {
    * Списуються на наступному розкритті (settleCharges), на вході в ставки й на кінці гри; без ключа — нічого не чекає.
    */
   deferredCharges?: ScoreAdjustment[];
+  /** «Квест із кодом» (29g): спроби й етап вікна; ключ є лише в раунді quest від intro до round_end. */
+  quest?: QuestState;
+  /** «Квест із кодом» (29g): видані квестом додаткові використання бафів за учасником рушія; живуть до кінця гри. Без ключа — не видавали. */
+  questBuffs?: Record<string, BuffKind[]>;
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -1290,7 +1296,7 @@ function removeFromGame(state: GameState, playerId: string): Result {
     state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
   const { deferredCharges: _charges, ...uncharged } = unpicked;
-  const kicked = withTotals({
+  const kicked = dropFromQuest(withTotals({
     ...dropTruthFacts(uncharged, [playerId]),
     players: state.players.filter((p) => p.id !== playerId),
     plays,
@@ -1302,11 +1308,12 @@ function removeFromGame(state: GameState, playerId: string): Result {
     ...stealth,
     duelsDeclared,
     awaiting: state.awaiting.filter((id) => id !== playerId),
-  });
+  }), playerId);
   // Наступний у черзі, який уже відповів, перевіряється одразу; на паузі — після продовження.
   // «Ва-банк»: якщо вилучений був останнім, хто не вирішив, вікно закривається; «Вибування» — так само випробування.
   // «Мільйонер»: якщо вилучений був останнім глядачем, що не відповів, голосування залу закривається.
-  return ok(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null))))));
+  // «Квест із кодом» (29g): спроби й видані бафи вилученого зникають; якщо він був останнім, хто ще міг ввести код, вікно закривається.
+  return ok(settleQuestWindow(settleTrial(settleDecision(autoLock(settleAudience(kicked.paused ? kicked : settleQueue(kicked, null)))))));
 }
 
 /** Записи «Прихованого нападу» без вилученого учасника. */
@@ -1759,7 +1766,8 @@ function finishRound(input: GameState, now?: number): GameState {
   const state = awardSurvivalBonus(marked === ladderStopped ? ladderStopped : withTotals(marked), now ?? 0);
   const isLastRound = state.roundIndex === state.quiz.rounds.length - 1;
   // «Прихований напад» (29h): гра скінчилася сама — ціни, що ще чекали розкриття, списуються, підсумки чесні.
-  const finished: GameState = settleCharges({ ...state, phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) });
+  // «Квест із кодом» (29g): на кінці раунду код бачать усі.
+  const finished: GameState = settleCharges({ ...showQuestCode(state), phase: isLastRound ? 'finished' : 'round_end', board: clearAway(state.board) });
   return isLastRound && now !== undefined ? withSplash(finished, 'podium', now) : finished;
 }
 
@@ -1872,7 +1880,8 @@ export function withTotals(input: GameState): GameState {
       // («Ва-банк» і «Вибування» не входять: спільна формула не змінюється);
       // відповідь у додатковий час коштує не більше за ліміт, як і мовчання.
       const limitMs = limitMsOf(play);
-      if (state.quiz.rounds[play.roundIndex].type !== 'classic' || limitMs === null) continue;
+      const roundType = state.quiz.rounds[play.roundIndex].type;
+      if ((roundType !== 'classic' && roundType !== 'quest') || limitMs === null) continue;
       totalTimeMs += record ? Math.min(record.timeMs, limitMs) : limitMs;
     }
     score += adjustmentTotal(state, player.id);
@@ -2009,7 +2018,7 @@ export function skipGuide(state: GameState, now: number): Result {
 
 /** Чи раунд дає бонус за швидкість: класика й «Вибування» (бали як у класиці) з увімкненим speedBonus. */
 export function speedOn(round: Round): boolean {
-  return (round.type === 'classic' || round.type === 'survival') && round.speedBonus;
+  return (round.type === 'classic' || round.type === 'survival' || round.type === 'quest') && round.speedBonus;
 }
 
 export function submitAnswer(state: GameState, playerId: string, answer: Answer, now: number): Result {
@@ -2322,6 +2331,8 @@ export function tick(state: GameState, now: number, rng: Rng = Math.random): Gam
   if (state.phase === 'leaderboard') {
     if (state.paused || state.endsAt === null || now < state.endsAt) return state;
     if (decisionOpen(state)) return closeDecision(state);
+    // «Квест із кодом» (29g): вікно коду, що сплило, закривається — код бачать усі.
+    if (questWindowOpen(state)) return closeQuestWindow(state);
     return trialOpen(state) ? closeTrial(state) : state;
   }
   if (state.phase === 'duel') return state.paused ? state : tickDuel(state, now);
@@ -2386,15 +2397,16 @@ function unansweredIsWrong(state: GameState): GameState {
   });
 }
 
-/** Ходи раунду поля, ставки фіналу й учасник «Мільйонера» починаються з нуля; ключ ladder є лише в раунді «Мільйонер». */
+/** Ходи раунду поля, ставки фіналу й учасник «Мільйонера» починаються з нуля; ключ ladder є лише в раунді «Мільйонер», quest — лише в «Квесті із кодом» (29g). */
 function enterRound(input: GameState): GameState {
-  const { ladder: _ladder, ...state } = input;
+  const { ladder: _ladder, quest: _quest, ...state } = input;
   const type = state.quiz.rounds[state.roundIndex]?.type;
   return {
     ...state,
     board: type === 'board' ? initBoard(state) : null,
     final: type === 'final' || type === 'bets' || type === 'auction' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
     ...(type === 'ladder' ? { ladder: { contestantId: null, drawn: false } } : {}),
+    ...(type === 'quest' ? { quest: { tries: {}, stage: 'play' as const } } : {}),
   };
 }
 
@@ -2472,6 +2484,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       if (currentRound(state)?.type === 'survival') return ok(openTrialOrBoard(state, now, rng));
       // «Мільйонер»: після кожного запитання (і останнього) — драбина з рішенням чи підсумком, незалежно від налаштування leaderboard.
       if (inLadderRound(state)) return ok(settleStep(state, now));
+      // «Квест із кодом» (29g): після останнього запитання — 30 с на код (етап leaderboard з годинником).
+      if (nextQuestion(state) === undefined && questRoundOf(state) !== null) return ok(openQuestWindow(state, now));
       if (nextQuestion(state) === undefined) return ok(finishRound(state, now));
       // «Ва-банк»: драбина з вікном рішення після кожного запитання, крім останнього, незалежно від налаштування leaderboard.
       if (currentRound(state)?.type === 'wipeout') return ok(openDecision(state, now));
@@ -2490,6 +2504,9 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       }
       // «Ва-банк»: поки гравці вирішують, далі не можна; без тих, хто в грі, advance завершує раунд.
       if (decisionOpen(state)) return fail('deciding');
+      // «Квест із кодом» (29g): «Далі» у вікні показує код раніше; після показу — кінець раунду.
+      if (questWindowOpen(state)) return ok(closeQuestWindow(state));
+      if (questRoundOf(state) !== null && state.quest?.stage === 'shown') return ok(finishRound(state, now));
       // «Вибування»: відкрите випробування «Далі» закриває; інакше — наступне запитання або кінець раунду з бонусом.
       if (trialOpen(state)) return ok(closeTrial(state));
       if (currentRound(state)?.type === 'bets') return ok(questionsLeft(state) ? enterBetsWager(state) : finishRound(state, now));
@@ -2530,7 +2547,7 @@ export function pause(state: GameState, now: number): Result {
   if (state.phase === 'lobby' || state.phase === 'finished') return fail('wrong_phase');
   // Під час утримання годинник уже стоїть: пауза його не чіпає.
   if (state.phase === 'question' && state.heldAt !== null) return ok({ ...state, paused: true, pausedAt: now });
-  const leaderboardClock = state.phase === 'leaderboard' && (decisionOpen(state) || trialOpen(state));
+  const leaderboardClock = state.phase === 'leaderboard' && (decisionOpen(state) || trialOpen(state) || questWindowOpen(state));
   // «Аукціон» (27b): годинник торгу стоїть, залишок — у remainingMs.
   if (state.phase === 'wager' && auctionRoundOf(state) !== null && state.endsAt !== null) {
     const remainingMs = Math.max(0, state.endsAt - now);
@@ -2556,7 +2573,8 @@ export function resume(state: GameState, now: number): Result {
   // Апеляція (12f): кінець голосування зсувається на тривалість паузи; якщо на паузі вилучили (чи відключили) останніх,
   // хто ще не голосував, а решта проголосувала, рішення — зараз.
   const shifted = shiftAppealClock(shiftSplash(result.state, pausedAt, now - pausedAt), now - pausedAt);
-  return ok(settleTrial(settleDecision(settleAudience(settleAppeal(shifted, now)))));
+  // «Квест із кодом» (29g): якщо на паузі вилучили останніх, хто ще міг ввести код, вікно закривається.
+  return ok(settleQuestWindow(settleTrial(settleDecision(settleAudience(settleAppeal(shifted, now))))));
 }
 
 /** Антигугл (12e): відкриті інтервали виходу поточного запитання зсуваються на тривалість паузи (пауза не рахується); без змін — той самий об'єкт. */
@@ -2794,7 +2812,8 @@ function endNow(state: GameState, now?: number): Result {
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {
-    ...(stoppedType === 'bets' || stoppedType === 'auction' ? closeFinal(scored) : scored),
+    // «Квест із кодом» (29g): на кінці гри код бачать усі.
+    ...showQuestCode(stoppedType === 'bets' || stoppedType === 'auction' ? closeFinal(scored) : scored),
     phase: 'finished',
     board: clearAway(state.board),
     paused: false,

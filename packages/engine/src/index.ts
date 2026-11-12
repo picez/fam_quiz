@@ -44,6 +44,7 @@ export * from './votes';
 export * from './survey';
 export * from './bluff';
 export * from './wipeout';
+export * from './quest';
 export * from './survival';
 export * from './ladder';
 export * from './duel';

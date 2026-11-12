@@ -143,6 +143,8 @@ import {
   memory,
   melodyQuiz,
   melody,
+  questQuestions,
+  questRound,
 } from './testing/fixtures';
 import { jigsawHold, jigsawPlace } from './jigsaw';
 import { spotdiffTap, type SpotTap } from './spotdiff';
@@ -167,6 +169,7 @@ import { actAnswer, actBuzz } from './team-act';
 import { pickAnswerer, startAnswerers } from './answerer';
 import { grantPerks, usePerk } from './perks';
 import { takeStealth } from './stealth';
+import { actQuest, type QuestState, type QuestTry } from './quest';
 import { teamGame, teamLobby, teamQuiz } from './testing/teams';
 
 const HOUR = 3_600_000;
@@ -347,7 +350,7 @@ const STATE_SHAPE: Record<string, string> = {
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
       'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks', 'truth',
-      'drawTurns', 'stealth', 'deferredCharges',
+      'drawTurns', 'stealth', 'deferredCharges', 'quest', 'questBuffs',
     ],
     true,
   ),
@@ -425,6 +428,8 @@ const STATE_SHAPE: Record<string, string> = {
   BuffZoom: keysOf<NonNullable<BuffPlay['zoom']>>()(['x', 'y', 'size'], true),
   DebuffState: keysOf<DebuffState>()(['kind', 'firedAt', 'since', 'by', 'anon'], true),
   StealthState: keysOf<StealthState>()(['at', 'spent'], true),
+  QuestState: keysOf<QuestState>()(['tries', 'stage'], true),
+  QuestTry: keysOf<QuestTry>()(['code', 'at', 'after', 'by', 'right'], true),
   DuelState: keysOf<DuelState>()(['challengerId', 'opponentId', 'stage', 'returnPhase', 'categoryId', 'total', 'questions', 'winnerId'], true),
   DuelQuestionPlay: keysOf<DuelQuestionPlay>()(['questionId', 'tries', 'winnerId', 'answer', 'timeMs'], true),
   ScoreAdjustment: keysOf<ScoreAdjustment>()(['seq', 'playerId', 'points', 'roundIndex', 'afterQuestion', 'source', 'at', 'target', 'debuff', 'undoes', 'batch', 'anon'], true),
@@ -1221,7 +1226,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
@@ -1290,6 +1295,8 @@ const KEYS: Record<number, Record<string, string>> = {
     BuffZoom: 'size,x,y',
     DebuffState: 'anon,by,firedAt,kind,since',
     StealthState: 'at,spent',
+    QuestState: 'stage,tries',
+    QuestTry: 'after,at,by,code,right',
     DuelState: 'categoryId,challengerId,opponentId,questions,returnPhase,stage,total,winnerId',
     DuelQuestionPlay: 'answer,questionId,timeMs,tries,winnerId',
     ScoreAdjustment: 'afterQuestion,anon,at,batch,debuff,playerId,points,roundIndex,seq,source,target,undoes',
@@ -1621,7 +1628,25 @@ function representative(): GameState[] {
     powered(),
     perked(),
     hintPerked(),
+    ...questing(),
   ];
+}
+
+/** 29g: «Квест із кодом» — команди з виданим бафом і спробами (by) на intro, соло з відкритим вікном коду. */
+function questing(): GameState[] {
+  const bonus = { kind: 'buff', buff: 'fifty', first: null } as const;
+  const teamsQuiz = teamQuiz([questRound('rq', questQuestions, { bonus })]);
+  let team = teamGame({ ...teamsQuiz, settings: { ...teamsQuiz.settings, buffs: ['fifty'] } }, [['Оля', 'Тарас'], ['Петро']]);
+  team = must(actQuest(must(actQuest(team, 'm2', 'СОВИ', T0)), 'm1', 'СОВА', T0 + 100));
+  return [team, questWindow()];
+}
+
+/** Соло: Оля ввела хибний код, п'ять запитань без відповідей, вікно коду відкрите. */
+function questWindow(): GameState {
+  let s = must(start(lobbyWith(makeRoundsQuiz([questRound('rq', questQuestions)], { leaderboard: 'end' }), 'Оля', 'Петро')));
+  s = must(actQuest(s, 'p1', 'СОВИ', T0));
+  for (let i = 0; i < 5; i++) s = must(next(must(lock(must(next(s, T0 + i * 1000, () => 0)))), T0 + i * 1000 + 500, () => 0));
+  return must(next(s, T0 + 10_000, () => 0));
 }
 
 /** 28b: перше запитання «Правди про гравця» (Оля, Петро, Іра; факти Олі й Петра; seededRng(7)), один вгадувач уже відповів правильно. */
@@ -2302,6 +2327,28 @@ describe('the saved state', () => {
     expect(suspended.appeals).toEqual(s.appeals);
   });
 
+  it('a restored room keeps the quest', () => {
+    const s = questWindow();
+    expect(s.quest?.stage).toBe('window');
+    expect(s.endsAt).toBe(T0 + 40_000);
+    const saved = roundTrip(suspend(roundTrip(s), T0 + 15_000));
+    expect(saved.paused).toBe(true);
+    expect(saved.remainingMs).toBe(25_000);
+    expect(saved.quest).toEqual(s.quest);
+    const back = must(resume(saved, T0 + HOUR));
+    expect(back.endsAt).toBe(T0 + HOUR + 25_000);
+    expect(back.quest?.tries.p1).toEqual([{ code: 'СОВИ', at: T0, after: 0, right: false }]);
+    // Видані квестом бафи переживають JSON.
+    const team = questing()[0];
+    expect(team.questBuffs).toEqual({ t1: ['fifty'] });
+    expect(roundTrip(suspend(roundTrip(team), T0 + 1000)).questBuffs).toEqual(team.questBuffs);
+    // Старий знімок без полів читається.
+    const old = roundTrip(suspend(roundTrip(must(start(lobbyWith(makeRoundsQuiz([classicRound('r1', [single])]), 'Оля')))), T0));
+    expect('quest' in old || 'questBuffs' in old).toBe(false);
+    expect(must(resume(old, T0 + HOUR)).paused).toBe(false);
+    expect(GAME_STATE_VERSION).toBe(22);
+  });
+
   it('the state format is pinned to GAME_STATE_VERSION', () => {
     // Перелік ключів кожного типу стану: компілятор (pnpm typecheck) вимагає рівно всі ключі типу, тож нове поле
     // не пройде непоміченим, а тест порівнює перелік із KEYS поточної версії.
@@ -2353,6 +2400,8 @@ describe('the saved state', () => {
       add('BuffZoom', buffs.map((b) => b.zoom));
       add('DebuffState', Object.values(s.debuffs));
       add('StealthState', Object.values(s.stealth ?? {}));
+      add('QuestState', [s.quest]);
+      add('QuestTry', Object.values(s.quest?.tries ?? {}).flat());
       add('DuelState', [s.duel]);
       add('DuelQuestionPlay', s.duel?.questions ?? []);
       add('ScoreAdjustment', [...s.adjustments, ...(s.deferredCharges ?? [])]);
