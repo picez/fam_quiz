@@ -470,7 +470,8 @@ describe('recorder', () => {
     expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
     expect(ctx.manager.buff(ctx.room, ctx.olena, 'stealth')).toEqual({ ok: true });
     expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
-    expect(ctx.room.state.adjustments.at(-1)).toMatchObject({ source: 'debuff', playerId: ctx.olena, anon: true });
+    // ціна чекає розкриття; на кінці гри — у журналі
+    expect(ctx.room.state.deferredCharges?.at(-1)).toMatchObject({ source: 'debuff', playerId: ctx.olena, anon: true });
     ctx.host('next');
     playFirstQuestion(ctx);
     ctx.host('end');

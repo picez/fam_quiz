@@ -1,8 +1,8 @@
 import { allowedDebuffs, debuffPrice, isUnscored, type DebuffKind, type DebuffNotice, type Phase, type ShopBlock } from '@quiz/shared';
-import { addAdjustment, afterQuestionNow } from './adjust';
+import { addAdjustment, afterQuestionNow, newAdjustment } from './adjust';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { wagerRound } from './bets';
-import { currentRound, fail, ok, type DebuffState, type GameState, type Play, type Result } from './game';
+import { currentRound, fail, ok, withTotals, type DebuffState, type GameState, type Play, type Result, type ScoreAdjustment } from './game';
 import { spendWard, wardReady } from './perks';
 import { spendStealth, stealthReady } from './stealth';
 import { isGhost, survivalAlive } from './survival';
@@ -46,12 +46,12 @@ export function setDebuff(state: GameState, playerId: string, kind: DebuffKind):
 
 /**
  * Скасувати дебаф, що чекає. Немає дебафу → not_found; куплений гравцем → not_allowed (бали вже сплачено);
- * дебаф уже діє → wrong_phase.
+ * анонімний (29h) → not_allowed завжди, і коли покупця вилучено (by null); дебаф уже діє → wrong_phase.
  */
 export function cancelDebuff(state: GameState, playerId: string): Result {
   const debuff = shownDebuff(state, playerId);
   if (debuff === null) return fail('not_found');
-  if (debuff.by !== null) return fail('not_allowed');
+  if (debuff.by !== null || debuff.anon === true) return fail('not_allowed');
   if (debuff.firedAt !== null) return fail('wrong_phase');
   return ok({ ...state, debuffs: withoutKey(state.debuffs, playerId) });
 }
@@ -68,7 +68,7 @@ export function shopBlock(state: GameState, buyerId: string): ShopBlock | null {
   if (!SHOP_PHASES.includes(state.phase) || wagerRound(currentRound(state)) || debuffsOff(state)) return 'phase';
   if (state.paused) return 'paused';
   const cycle = afterQuestionNow(state);
-  const bought = state.adjustments.some((a) => a.source === 'debuff' && a.playerId === buyerId && a.afterQuestion === cycle);
+  const bought = purchases(state).some((a) => a.playerId === buyerId && a.afterQuestion === cycle);
   return bought ? 'bought' : null;
 }
 
@@ -80,8 +80,10 @@ const BLOCK_ERRORS = { phase: 'wrong_phase', paused: 'paused', bought: 'debuff_b
  * not_allowed (ціль — сам покупець, дебаф не дозволено або купівлю вимкнено settings.debuffShop), wrong_phase / paused /
  * debuff_bought (shopBlock), target_offline (ціль не підключена: дебаф не спрацював би), debuff_busy (на цілі вже чекає або діє дебаф), points_short (score < ціна: у мінус не можна).
  * Успіх: коригування −ціна з source 'debuff', target, debuff; дебаф цілі { kind, firedAt: null, since: null, by: buyerId }.
+ * points_short рахує score мінус ще не списані анонімні ціни (deferredCharges).
  * Готовий «Оберіг» цілі (15a): ціну списано, дебаф не ставиться, оберіг спрацював.
- * Готовий «Прихований напад» покупця (29h): коригування й дебаф з anon, баф витрачено.
+ * Готовий «Прихований напад» покупця (29h): коригування й дебаф з anon, баф витрачено; коригування чекає в deferredCharges
+ * наступного розкриття (settleCharges), щоб рахунок покупця не впав разом зі сповіщенням «Хтось насилає…».
  */
 export function buyDebuff(state: GameState, buyerId: string, targetId: string, kind: DebuffKind, now: number): Result {
   const buyer = state.players.find((p) => p.id === buyerId);
@@ -95,12 +97,14 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
   if (!state.players.some((p) => p.id === targetId && p.connected)) return fail('target_offline');
   if (shownDebuff(state, targetId) !== null) return fail('debuff_busy');
   const price = debuffPrice(state.quiz, kind);
-  // На дозволених етапах прихованих балів немає, тож score — справжній рахунок.
-  if (buyer.score < price) return fail('points_short');
+  // На дозволених етапах прихованих балів немає, тож score — справжній рахунок; відкладені ціни (29h) вже зарезервовано.
+  if (buyer.score - reservedPoints(state, buyerId) < price) return fail('points_short');
   // «Прихований напад» (29h): перша успішна покупка після ввімкнення анонімна; невдала баф не витрачає.
   const anon = stealthReady(state, buyerId);
   const mark = anon ? { anon: true as const } : {};
-  const added = addAdjustment(state, buyerId, -price, now, 'debuff', { target: targetId, debuff: kind, ...mark });
+  // Анонімна ціна чекає наступного розкриття (settleCharges): рахунок покупця не падає разом зі сповіщенням.
+  const fields = { target: targetId, debuff: kind, ...mark };
+  const added = anon ? deferCharge(state, newAdjustment(state, buyerId, -price, now, 'debuff', fields)) : addAdjustment(state, buyerId, -price, now, 'debuff', fields);
   const charged = spendStealth(added, buyerId, added.adjustmentSeq);
   // «Оберіг» (15a): покупець бачив 🛡 і вирішив його зламати — ціну списано, дебафу немає (анонімний баф теж витрачено).
   if (wardReady(charged, targetId)) return ok(spendWard(charged, targetId));
@@ -112,7 +116,7 @@ export function buyDebuff(state: GameState, buyerId: string, targetId: string, k
  * Старіших не шукаємо: давня покупка не має спливти після вилучення.
  */
 export function lastPurchase(state: GameState): DebuffNotice | null {
-  const last = [...state.adjustments].reverse().find((a) => a.source === 'debuff');
+  const last = purchases(state).reduce<ScoreAdjustment | undefined>((found, a) => (found === undefined || a.seq > found.seq ? a : found), undefined);
   if (last === undefined || last.target === undefined) return null;
   const buyer = state.players.find((p) => p.id === last.playerId);
   const target = state.players.find((p) => p.id === last.target);
@@ -124,6 +128,37 @@ export function lastPurchase(state: GameState): DebuffNotice | null {
     buyer: last.anon === true ? null : { playerId: buyer.id, nickname: buyer.nickname },
     target: { playerId: target.id, nickname: target.nickname },
   };
+}
+
+/** Покупки дебафів: списані й ті, що чекають розкриття (29h). */
+function purchases(state: GameState): ScoreAdjustment[] {
+  return [...state.adjustments, ...(state.deferredCharges ?? [])].filter((a) => a.source === 'debuff');
+}
+
+/** Бали гравця, зарезервовані відкладеними цінами (29h). */
+function reservedPoints(state: GameState, playerId: string): number {
+  return (state.deferredCharges ?? []).reduce((sum, a) => (a.playerId === playerId ? sum - a.points : sum), 0);
+}
+
+/** Відкласти ціну (29h): seq видано зараз, коригування стане в журнал на settleCharges. */
+function deferCharge(state: GameState, charge: ScoreAdjustment): GameState {
+  return { ...state, adjustmentSeq: charge.seq, deferredCharges: [...(state.deferredCharges ?? []), charge] };
+}
+
+/**
+ * Списати відкладені ціни (29h): на reveal — куплені до цього розкриття (afterQuestion < plays.length; куплені на самому розкритті
+ * чекають наступного), на finished і з all (вхід у ставки) — усі. Коригування стає в журнал за своїм seq, з мітки покупки,
+ * але в поточному раунді: стовпчик уже закритого раунду не змінюється пізніше. Нічого не настало — той самий стан.
+ */
+export function settleCharges(state: GameState, all = false): GameState {
+  const pending = state.deferredCharges;
+  if (pending === undefined || pending.length === 0) return state;
+  const due = all || state.phase === 'finished' ? pending : state.phase === 'reveal' ? pending.filter((a) => a.afterQuestion < state.plays.length) : [];
+  if (due.length === 0) return state;
+  const rest = pending.filter((a) => !due.includes(a));
+  const adjustments = [...state.adjustments, ...due.map((a) => ({ ...a, roundIndex: state.roundIndex }))].sort((a, b) => a.seq - b.seq);
+  const { deferredCharges: _settled, ...base } = state;
+  return withTotals(rest.length === 0 ? { ...base, adjustments } : { ...base, adjustments, deferredCharges: rest });
 }
 
 /**

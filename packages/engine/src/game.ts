@@ -89,7 +89,7 @@ import { scoreWordLadder } from './wordladder';
 import { scoreSort, shiftSortLocks } from './sort';
 import { scoreWall, wallPresent } from './wall';
 import { submitVote } from './votes';
-import { fireDebuffs, shiftDebuffClocks, spendDebuffs } from './debuffs';
+import { fireDebuffs, settleCharges, shiftDebuffClocks, spendDebuffs } from './debuffs';
 import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
@@ -935,6 +935,11 @@ export interface GameState {
   drawTurns?: DrawTurns;
   /** «Прихований напад» (29h): ключ — учасник рушія (у командах — команда); без ключа — ніхто не вмикав. Вилучення гравця прибирає ключ. */
   stealth?: Record<string, StealthState>;
+  /**
+   * «Прихований напад» (29h): ціни анонімних покупок, ще не списані з рахунку (seq уже видано в мить покупки).
+   * Списуються на наступному розкритті (settleCharges), на вході в ставки й на кінці гри; без ключа — нічого не чекає.
+   */
+  deferredCharges?: ScoreAdjustment[];
 }
 
 /** Бонуси рівня гравця на цю гру (15a): видані kinds, час «+N с»; used — індекс запитання (questionIndex), на якому бонус узято чи оберіг погасив дебаф. */
@@ -1267,8 +1272,10 @@ function removeFromGame(state: GameState, playerId: string): Result {
   const final = state.final === null ? null : dropFromFinal(state.final, playerId);
   // Запитання фіналу після вилучення саме не відкривається: ведучий тисне «Показати запитання».
   const adjustments = state.adjustments.filter((a) => a.playerId !== playerId);
+  // Відкладені ціни (29h) вилученого зникають разом з його балами.
+  const charges = (state.deferredCharges ?? []).filter((a) => a.playerId !== playerId);
   const { [playerId]: _debuff, ...kept } = state.debuffs;
-  // Дебаф, куплений вилученим, лишається на цілі, але стає «від ведучого»: ведучий може його скасувати.
+  // Дебаф, куплений вилученим, лишається на цілі, але стає «від ведучого»: ведучий може його скасувати (анонімний, 29h, — ні).
   const debuffs = Object.fromEntries(Object.entries(kept).map(([id, d]) => [id, d.by === playerId ? { ...d, by: null } : d]));
   // «Прихований напад» (29h): вилучений забирає свій баф.
   const stealth = state.stealth === undefined ? {} : { stealth: withoutStealth(state.stealth, playerId) };
@@ -1282,13 +1289,15 @@ function removeFromGame(state: GameState, playerId: string): Result {
   const unpicked: GameState =
     state.phase === 'intro' && state.ladder?.contestantId === playerId ? { ...undueled, ladder: { contestantId: null, drawn: false } } : undueled;
   // Без вилученого банк фіналу менший: бали решти перераховуються.
+  const { deferredCharges: _charges, ...uncharged } = unpicked;
   const kicked = withTotals({
-    ...dropTruthFacts(unpicked, [playerId]),
+    ...dropTruthFacts(uncharged, [playerId]),
     players: state.players.filter((p) => p.id !== playerId),
     plays,
     board,
     final,
     adjustments,
+    ...(charges.length === 0 ? {} : { deferredCharges: charges }),
     debuffs,
     ...stealth,
     duelsDeclared,
@@ -1909,7 +1918,7 @@ export function lockNow(state: GameState): GameState {
  * Внутрішня функція рушія: експортовано для sort.ts і wall.ts, не для сервера.
  */
 export function revealNow(state: GameState): GameState {
-  return withTotals({ ...lockNow(state), phase: 'reveal' });
+  return settleCharges(withTotals({ ...lockNow(state), phase: 'reveal' }));
 }
 
 /**
@@ -2421,9 +2430,10 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));
-      if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(state));
-      if (currentRound(state)?.type === 'auction') return ok(enterAuctionBidding(state, now));
-      if (state.final !== null) return ok(enterWager(state, state.final));
+      // Ставки йдуть за рахунком: відкладені ціни (29h) списуються до того, як межі стануть.
+      if (currentRound(state)?.type === 'bets') return ok(enterBetsWager(settleCharges(state, true)));
+      if (currentRound(state)?.type === 'auction') return ok(enterAuctionBidding(settleCharges(state, true), now));
+      if (state.final !== null) return ok(enterWager(settleCharges(state, true), state.final));
       // «Мільйонер»: без учасника «Далі» — жереб чи «найменші бали» (етап лишається intro); з учасником — перше запитання.
       if (inLadderRound(state) && (state.ladder?.contestantId ?? null) === null) return drawContestant(state, rng);
       // «Правда про гравця» (28b): роздача фактів (rng кімнати); порожня колода — одразу кінець раунду.
@@ -2437,12 +2447,13 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       return ok(openFinalQuestion(state, now, rng));
     case 'locked':
       if (finalPlayOf(state) !== undefined) {
-        const settled = settleFinalWithOrder({ ...state, phase: 'reveal' });
+        const settled = settleCharges(settleFinalWithOrder({ ...state, phase: 'reveal' }));
         // «Ставки» й «Аукціон»: розкриття по одному немає — ставки й виграші кожного видно одразу.
         const type = currentRound(state)?.type;
         return ok(type === 'bets' || type === 'auction' ? showAllFinal(settled) : settled);
       }
-      return ok(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' });
+      // «Прихований напад» (29h): відкладені ціни списуються разом з балами запитання.
+      return ok(settleCharges(currentRound(state)?.type === 'board' ? withTotals(unansweredIsWrong({ ...state, phase: 'reveal' })) : { ...state, phase: 'reveal' }));
     case 'reveal':
       if (state.final !== null && finalPlayOf(state) !== undefined && currentRound(state)?.type === 'final') {
         // Гравці розкриваються по одному; рейтингу між запитаннями після фіналу немає.
@@ -2793,6 +2804,7 @@ function endNow(state: GameState, now?: number): Result {
     duel: null,
   };
   // «Вибування»: кожен живий отримує бонус виживання (на finished відкрите запитання вже зараховане).
-  const closed = closeFinal(awardSurvivalBonus(stopped, now ?? 0));
+  // «Прихований напад» (29h): ціни, що ще чекали розкриття, списуються на кінці — підсумки чесні.
+  const closed = settleCharges(closeFinal(awardSurvivalBonus(stopped, now ?? 0)));
   return ok(now === undefined ? closed : withSplash(closed, 'podium', now));
 }

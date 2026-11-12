@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUFF_KINDS, defaultTeams, type QuizSettings } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { buyDebuff } from './debuffs';
-import { end, next, start, type GameState } from './game';
+import { end, lock, next, start, type GameState } from './game';
 import { takeStealth } from './stealth';
 import { classicRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
@@ -55,9 +55,13 @@ describe('stealth in views', () => {
     const opened = must(next(s, T0 + 1000, rng));
     expect(playerView(opened, 'p2').me.debuff).toEqual({ kind: 'fog', since: T0 + 1000, by: null, anon: true });
     expect(hostPlayer(opened, 'p2')?.debuff).toEqual({ kind: 'fog', fired: true, by: null, anon: true });
-    // розбивка пульта: частини «Дебафи» біля Олі немає; власна розбивка Олі її має
+    // розбивка пульта: частини «Дебафи» біля Олі немає ні до розкриття, ні після; власна розбивка Олі має її з розкриттям
     expect(hostView(s).breakdowns.p1.parts.map((p) => p.source)).not.toContain('debuff');
-    expect(playerView(s, 'p1').myBreakdown?.parts.find((p) => p.source === 'debuff')).toMatchObject({ minus: -200 });
+    expect(playerView(s, 'p1').myBreakdown?.parts.map((p) => p.source)).not.toContain('debuff');
+    const revealed = must(next(must(lock(opened)), T0 + 1500, rng));
+    expect(revealed.phase).toBe('reveal');
+    expect(hostView(revealed).breakdowns.p1.parts.map((p) => p.source)).not.toContain('debuff');
+    expect(playerView(revealed, 'p1').myBreakdown?.parts.find((p) => p.source === 'debuff')).toMatchObject({ minus: -200 });
     // нік покупця ніде в полях дебафу
     const text = JSON.stringify([stageView(s).debuffNotice, hostView(s).players.map((p) => p.debuff), playerView(opened, 'p2').me.debuff, playerView(opened, 'p3').debuffNotice]);
     expect(text).not.toContain('Оля');
@@ -65,6 +69,37 @@ describe('stealth in views', () => {
     // кінець гри — розбивка пульта повна
     const finished = must(end(s, T0 + 2000));
     expect(hostView(finished).breakdowns.p1.parts.find((p) => p.source === 'debuff')).toMatchObject({ minus: -200 });
+  });
+
+  it('the tables keep the price until the reveal', () => {
+    const asked = must(next(must(takeStealth(game(), 'p1', T0)), T0 + 100, rng));
+    const tables = (s: GameState) => ({
+      stage: [stageView(s).standings, stageView(s).players],
+      host: [hostView(s).standings, hostView(s).players.map((p) => [p.id, p.score]), hostView(s).breakdowns],
+      phones: ['p1', 'p2', 'p3'].map((id) => {
+        const view = playerView(s, id);
+        return [view.standings, view.table, view.me.score, view.myBreakdown];
+      }),
+    });
+    const bought = must(buyDebuff(asked, 'p1', 'p2', 'fog', T0 + 200));
+    expect(tables(bought)).toEqual(tables(asked));
+    const locked = must(lock(bought));
+    expect(tables(locked)).toEqual(tables(must(lock(asked))));
+    const revealed = must(next(locked, T0 + 1000, rng));
+    expect(hostPlayer(revealed, 'p1')?.score).toBe(800);
+    expect(playerView(revealed, 'p1').me.score).toBe(800);
+    const board = must(next(revealed, T0 + 2000, rng));
+    expect(board.phase).toBe('leaderboard');
+    expect(stageView(board).standings?.find((row) => row.participantId === 'p1')?.score).toBe(800);
+  });
+
+  it('teams: the target team sees no buyer', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single, withId(single, 's2')])], { teams: defaultTeams(2), leaderboard: 'each', buffs: ['stealth'], debuffs: ['fog'] });
+    let s = must(adjustScore(teamGame(quiz, [['Оля', 'Петро'], ['Тарас', 'Ася']]), 't1', 500, T0));
+    s = must(buyDebuff(must(takeStealth(s, 't1', T0)), 't1', 't2', 'fog', T0 + 10));
+    for (const id of ['m1', 'm2', 'm3', 'm4']) expect(playerView(s, id).debuffNotice?.buyer).toBeNull();
+    const opened = must(next(s, T0 + 1000, rng));
+    for (const id of ['m3', 'm4']) expect(playerView(opened, id).me.debuff).toMatchObject({ kind: 'fog', by: null, anon: true });
   });
 
   it('stealth is not in the question buff row', () => {

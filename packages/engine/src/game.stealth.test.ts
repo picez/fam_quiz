@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { defaultTeams, gameCard, type QuizSettings } from '@quiz/shared';
 import { adjustScore } from './adjust';
 import { takeBuff } from './buffs';
-import { buyDebuff, cancelDebuff, lastPurchase, setDebuff } from './debuffs';
+import { buyDebuff, cancelDebuff, lastPurchase, setDebuff, shopBlock } from './debuffs';
 import { factInput } from './facts';
 import { end, lock, next, pause, removePlayer, setConnected, start, type GameState } from './game';
 import { grantPerks, wardReady } from './perks';
 import { spendStealth, stealthOffered, stealthReady, takeStealth } from './stealth';
-import { classicRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
+import { classicRound, finalRound, makeRoundsQuiz, single, withId } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
 import { teamGame } from './testing/teams';
 
@@ -84,18 +84,27 @@ describe('an anonymous purchase', () => {
   it('an anonymous purchase names no one', () => {
     const on = must(takeStealth(game(), 'p1', T0));
     const s = must(buyDebuff(on, 'p1', 'p2', 'fog', T0 + 50));
-    const last = s.adjustments.at(-1)!;
+    // ціну відкладено до розкриття: журнал коригувань і рахунок ще ті самі
+    expect(s.adjustments).toBe(on.adjustments);
+    const last = s.deferredCharges!.at(-1)!;
     expect(last).toMatchObject({ playerId: 'p1', points: -200, source: 'debuff', target: 'p2', debuff: 'fog', anon: true });
+    expect(last.seq).toBe(s.adjustmentSeq);
     expect(s.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: 'p1', anon: true });
     expect(s.stealth?.p1.spent).toBe(last.seq);
     expect(stealthReady(s, 'p1')).toBe(false);
-    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(scoreOf(s, 'p1')).toBe(1000);
     expect(lastPurchase(s)).toEqual({ seq: last.seq, at: T0 + 50, buyer: null, target: { playerId: 'p2', nickname: 'Петро' } });
     // без бафа — як і досі
     const plain = must(buyDebuff(game(), 'p1', 'p2', 'fog', T0));
     expect(plain.adjustments.at(-1)!.anon).toBeUndefined();
     expect(plain.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: 'p1' });
     expect(lastPurchase(plain)?.buyer).toEqual({ playerId: 'p1', nickname: 'Оля' });
+  });
+
+  it('turns on not on the guide', () => {
+    const guide = must(start(lobbyWith(stealthQuiz({ newcomers: true }), 'Оля', 'Петро')));
+    expect(guide.phase).toBe('guide');
+    expect(takeStealth(guide, 'p1', T0)).toEqual({ ok: false, error: 'wrong_phase' });
   });
 
   it('lasts until the first purchase, across rounds', () => {
@@ -106,7 +115,7 @@ describe('an anonymous purchase', () => {
     expect(s.roundIndex).toBe(1);
     expect(stealthReady(s, 'p1')).toBe(true);
     s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 5000));
-    expect(s.adjustments.at(-1)!.anon).toBe(true);
+    expect(s.deferredCharges?.at(-1)!.anon).toBe(true);
     // наступний цикл: покупка вже з ім'ям
     s = until(s, 'reveal');
     s = must(buyDebuff(s, 'p1', 'p3', 'shake', T0 + 6000));
@@ -144,13 +153,17 @@ describe('an anonymous purchase', () => {
     expect(wardReady(s, 'p2')).toBe(true);
     s = must(takeStealth(s, 'p1', T0));
     s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 10));
-    expect(scoreOf(s, 'p1')).toBe(800);
-    expect(s.adjustments.at(-1)).toMatchObject({ source: 'debuff', anon: true });
+    // «Оберіг» теж бере ціну, і теж на розкритті
+    expect(scoreOf(s, 'p1')).toBe(1000);
+    expect(s.deferredCharges?.at(-1)).toMatchObject({ source: 'debuff', anon: true, points: -200 });
     expect(s.debuffs.p2).toBeUndefined();
     expect(wardReady(s, 'p2')).toBe(false);
     expect(stealthReady(s, 'p1')).toBe(false);
-    expect(s.stealth?.p1.spent).toBe(s.adjustments.at(-1)!.seq);
+    expect(s.stealth?.p1.spent).toBe(s.deferredCharges?.at(-1)!.seq);
     expect(lastPurchase(s)?.buyer).toBeNull();
+    s = until(s, 'reveal');
+    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(s.deferredCharges).toBeUndefined();
   });
 
   it('the real buyer still counts', () => {
@@ -158,6 +171,9 @@ describe('an anonymous purchase', () => {
     expect(buyDebuff(s, 'p1', 'p3', 'shake', T0)).toEqual({ ok: false, error: 'debuff_bought' });
     expect(cancelDebuff(s, 'p2')).toEqual({ ok: false, error: 'not_allowed' });
     s = must(end(s, T0 + 100));
+    // гра скінчилася раніше розкриття: ціну списано на кінці
+    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(s.deferredCharges).toBeUndefined();
     const input = factInput(s);
     expect(gameCard(input, 'p1')?.debuffs.sent).toBe(1);
     expect(gameCard(input, 'p2')?.debuffs.got).toBe(1);
@@ -168,6 +184,18 @@ describe('an anonymous purchase', () => {
     const s = must(setDebuff(on, 'p2', 'fog'));
     expect(s.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: null });
     expect(stealthReady(s, 'p1')).toBe(true);
+  });
+
+  it('an anonymous debuff cannot be cancelled, even when the buyer is gone', () => {
+    const s = must(buyDebuff(must(takeStealth(game(), 'p1', T0)), 'p1', 'p2', 'fog', T0));
+    expect(cancelDebuff(s, 'p2')).toEqual({ ok: false, error: 'not_allowed' });
+    const gone = must(removePlayer(s, 'p1'));
+    expect(gone.debuffs.p2).toEqual({ kind: 'fog', firedAt: null, since: null, by: null, anon: true });
+    expect(gone.deferredCharges).toBeUndefined();
+    expect(cancelDebuff(gone, 'p2')).toEqual({ ok: false, error: 'not_allowed' });
+    // дебаф вилученого звичайного покупця ведучий скасовує, як і досі
+    const plain = must(removePlayer(must(buyDebuff(game(), 'p1', 'p2', 'fog', T0)), 'p1'));
+    expect(cancelDebuff(plain, 'p2').ok).toBe(true);
   });
 
   it('removing a player drops their stealth', () => {
@@ -189,8 +217,89 @@ describe('teams: the captain hides the team attack', () => {
     s = must(takeStealth(s, 't1', T0));
     expect(s.stealth).toEqual({ t1: { at: T0, spent: null } });
     s = must(buyDebuff(s, 't1', 't2', 'fog', T0 + 10));
-    expect(s.adjustments.at(-1)).toMatchObject({ playerId: 't1', target: 't2', anon: true });
+    expect(s.deferredCharges?.at(-1)).toMatchObject({ playerId: 't1', target: 't2', anon: true });
     expect(s.debuffs.t2).toMatchObject({ by: 't1', anon: true });
     expect(lastPurchase(s)).toMatchObject({ buyer: null, target: { playerId: 't2' } });
+  });
+});
+
+describe('the anonymous price waits for the next reveal', () => {
+  it('bought during a question: charged on its reveal', () => {
+    let s = must(next(must(takeStealth(game(), 'p1', T0)), T0 + 100, rng));
+    expect(s.phase).toBe('question');
+    s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 200));
+    const seq = s.deferredCharges![0].seq;
+    s = must(lock(s));
+    expect(scoreOf(s, 'p1')).toBe(1000);
+    s = step(s);
+    expect(s.phase).toBe('reveal');
+    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(s.deferredCharges).toBeUndefined();
+    expect(s.adjustments.find((a) => a.seq === seq)).toMatchObject({ playerId: 'p1', points: -200, source: 'debuff', target: 'p2', anon: true, at: T0 + 200, afterQuestion: 0 });
+    // журнал іде за seq; з розкриттям — новий цикл покупок
+    expect(s.adjustments.map((a) => a.seq)).toEqual([...s.adjustments.map((a) => a.seq)].sort((a, b) => a - b));
+    expect(shopBlock(s, 'p1')).toBeNull();
+    // звичайна покупка — одразу
+    const plain = must(buyDebuff(s, 'p2', 'p3', 'shake', T0 + 300));
+    expect(scoreOf(plain, 'p2')).toBe(800);
+    expect(plain.deferredCharges).toBeUndefined();
+  });
+
+  it('bought between questions: charged on the next reveal', () => {
+    for (const phase of ['intro', 'reveal', 'leaderboard', 'round_end'] as const) {
+      let s = until(must(takeStealth(game(), 'p1', T0)), phase);
+      expect(s.phase).toBe(phase);
+      s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 300));
+      const round = s.phase === 'round_end' ? s.roundIndex + 1 : s.roundIndex;
+      s = step(s);
+      for (let i = 0; i < 10 && s.phase !== 'reveal'; i++) {
+        expect(scoreOf(s, 'p1'), `${phase} -> ${s.phase}`).toBe(1000);
+        s = step(s);
+      }
+      expect(s.phase).toBe('reveal');
+      expect(scoreOf(s, 'p1'), phase).toBe(800);
+      // у раунді, де списано: стовпчик закритого раунду не змінюється
+      expect(s.adjustments.find((a) => a.source === 'debuff')?.roundIndex, phase).toBe(round);
+      expect(s.deferredCharges).toBeUndefined();
+    }
+  });
+
+  it('charged at the end when the game ends first', () => {
+    let s = until(must(takeStealth(game(), 'p1', T0)), 'reveal');
+    s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 300));
+    expect(scoreOf(s, 'p1')).toBe(1000);
+    s = must(end(s, T0 + 400));
+    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(s.deferredCharges).toBeUndefined();
+    expect(s.adjustments.filter((a) => a.source === 'debuff')).toHaveLength(1);
+  });
+
+  it('charged when the stakes open: the limit counts it', () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [single]), finalRound('f', withId(single, 'f1'))], { buffs: ['stealth'], debuffs: ['fog'] });
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Петро')));
+    for (const id of ['p1', 'p2']) s = must(adjustScore(s, id, 1000, T0));
+    s = until(must(takeStealth(s, 'p1', T0)), 'round_end');
+    s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 300));
+    s = step(s);
+    expect(s.phase).toBe('intro');
+    expect(scoreOf(s, 'p1')).toBe(1000);
+    s = step(s);
+    expect(s.phase).toBe('wager');
+    expect(scoreOf(s, 'p1')).toBe(800);
+    expect(s.final?.limits.p1).toBe(800);
+  });
+
+  it('the reserved points count for the next purchase', () => {
+    const reserved = (score: number): GameState => {
+      let s = until(must(takeStealth(game(), 'p1', T0)), 'reveal');
+      s = must(adjustScore(s, 'p1', score - 1000, T0));
+      s = must(buyDebuff(s, 'p1', 'p2', 'fog', T0 + 300));
+      // ніби цикл покупок уже новий, а розкриття ще не було
+      return { ...s, deferredCharges: s.deferredCharges!.map((c) => ({ ...c, afterQuestion: c.afterQuestion - 1 })) };
+    };
+    expect(buyDebuff(reserved(350), 'p1', 'p3', 'fog', T0 + 400)).toEqual({ ok: false, error: 'points_short' });
+    expect(buyDebuff(reserved(400), 'p1', 'p3', 'fog', T0 + 400).ok).toBe(true);
+    // і відкладена покупка рахується в «уже купив у цьому циклі»
+    expect(buyDebuff(must(buyDebuff(must(takeStealth(game(), 'p1', T0)), 'p1', 'p2', 'fog', T0)), 'p1', 'p3', 'shake', T0)).toEqual({ ok: false, error: 'debuff_bought' });
   });
 });

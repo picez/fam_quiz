@@ -29,20 +29,22 @@ export function addAdjustment(
   source: AdjustmentSource,
   extra: Pick<ScoreAdjustment, 'target' | 'debuff' | 'undoes' | 'batch' | 'anon'> & { roundIndex?: number } = {},
 ): GameState {
-  const seq = state.adjustmentSeq + 1;
+  const adjustment = newAdjustment(state, playerId, points, now, source, extra);
+  return followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: adjustment.seq }), playerId);
+}
+
+/** Коригування з наступним seq у поточному раунді й циклі запитання (без запису в стан). */
+export function newAdjustment(
+  state: GameState,
+  playerId: string,
+  points: number,
+  now: number,
+  source: AdjustmentSource,
+  extra: Pick<ScoreAdjustment, 'target' | 'debuff' | 'undoes' | 'batch' | 'anon'> & { roundIndex?: number } = {},
+): ScoreAdjustment {
   // Скасування (12a) стоїть у раунді того, що скасовує; решта — у поточному.
   const { roundIndex = state.roundIndex, ...fields } = extra;
-  const adjustment: ScoreAdjustment = {
-    seq,
-    playerId,
-    points,
-    roundIndex,
-    afterQuestion: afterQuestionNow(state),
-    source,
-    at: now,
-    ...fields,
-  };
-  return followWagerLimit(withTotals({ ...state, adjustments: [...state.adjustments, adjustment], adjustmentSeq: seq }), playerId);
+  return { seq: state.adjustmentSeq + 1, playerId, points, roundIndex, afterQuestion: afterQuestionNow(state), source, at: now, ...fields };
 }
 
 /**

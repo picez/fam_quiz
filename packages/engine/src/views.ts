@@ -3232,6 +3232,12 @@ function hostLines(state: GameState): LinesByPlayer {
   return groupByPlayer(lines.filter((line) => line.anon !== true));
 }
 
+/** Розбивки пульта за гравцями: рядки hostLines рахуються один раз на зріз. */
+function hostBreakdowns(state: GameState): Record<string, ScoreBreakdown> {
+  const lines = hostLines(state);
+  return Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(lines, p.id)]));
+}
+
 /** Групування видимих рядків: без прихованого — готові групи стану. */
 function groupedVisible(state: GameState, seen: readonly PlayerScoreLine[]): LinesByPlayer {
   return seen === scoreLines(state) ? scoreLinesByPlayer(state) : groupByPlayer(seen);
@@ -3715,7 +3721,7 @@ export function hostView(state: GameState): HostView {
     hints: hintRequests(state),
     standings: withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)),
     firstRound: firstRound(state),
-    breakdowns: state.phase === 'lobby' ? {} : Object.fromEntries(state.players.map((p) => [p.id, breakdownFor(hostLines(state), p.id)])),
+    breakdowns: state.phase === 'lobby' ? {} : hostBreakdowns(state),
     sliderMarks: sliderMarks(state, true),
     pinMarks: pinMarks(state, true),
     cloud: hostCloud(state),

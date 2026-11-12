@@ -347,7 +347,7 @@ const STATE_SHAPE: Record<string, string> = {
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
       'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks', 'truth',
-      'drawTurns', 'stealth',
+      'drawTurns', 'stealth', 'deferredCharges',
     ],
     true,
   ),
@@ -1221,7 +1221,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
+    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
@@ -1399,7 +1399,8 @@ function representative(): GameState[] {
   const fogged = must(setDebuff(must(start(lobbyWith(buffQuiz({ debuffs: ['fog'] }), 'Оля', 'Петро'))), 'p1', 'fog'));
   // покупка: коригування з ціллю й видом, дебаф з покупцем
   const bought = must(buyDebuff(must(adjustScore(must(start(lobbyWith(buffQuiz(), 'Оля', 'Петро'))), 'p1', 500, T0)), 'p1', 'p2', 'mud', T0));
-  // 29h: «Прихований напад» — Петро ввімкнув і чекає, Оля купила анонімно: GameState.stealth, DebuffState.anon, ScoreAdjustment.anon.
+  // 29h: «Прихований напад» — Петро ввімкнув і чекає, Оля купила анонімно: GameState.stealth, DebuffState.anon,
+  // ціна чекає розкриття в GameState.deferredCharges (ScoreAdjustment.anon).
   const stealthy = must(adjustScore(must(start(lobbyWith(buffQuiz({ buffs: ['stealth'] }), 'Оля', 'Петро'))), 'p1', 500, T0));
   const anonBought = must(buyDebuff(must(takeStealth(must(takeStealth(stealthy, 'p1', T0)), 'p2', T0)), 'p1', 'p2', 'mud', T0 + 10));
   const finalQuiz = makeRoundsQuiz([finalRound('f', withId(single, 'f1'))]);
@@ -2354,7 +2355,7 @@ describe('the saved state', () => {
       add('StealthState', Object.values(s.stealth ?? {}));
       add('DuelState', [s.duel]);
       add('DuelQuestionPlay', s.duel?.questions ?? []);
-      add('ScoreAdjustment', s.adjustments);
+      add('ScoreAdjustment', [...s.adjustments, ...(s.deferredCharges ?? [])]);
       add('Splash', [s.splash]);
       add('WallProgress', s.plays.flatMap((p) => Object.values(p.wall ?? {})));
       add('SurveyPlay', s.plays.map((p) => p.survey));
