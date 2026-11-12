@@ -69,6 +69,7 @@ export function roundSummary(brief: RoundBrief, autopilot = false): string[] {
     lines.push(t('summaryClassic'));
     if (brief.speedBonus) lines.push(t('summarySpeed'));
     lines.push(modifiers(brief, []));
+    if (brief.melodies !== undefined && brief.melodies > 0) lines.push(countText('summaryMelodies', brief.melodies, { count: brief.melodies }));
   } else if (brief.type === 'blitz' && brief.instant) {
     lines.push(t('summaryBlitz'), t('summaryBlitzInstant'), modifiers(brief, []));
   } else if (brief.type === 'blitz') {

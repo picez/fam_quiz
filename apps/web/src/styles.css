@@ -20890,3 +20890,45 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1rem;
 }
 /* «Пам'ять»: кінець сцени й пульта */
+
+/* «Мелодія за нотами»: редактор (29e). Перемикач «Файл / YouTube», секунда початку, п'ять кнопок-шматків, написання. */
+.melody-editor {
+  position: relative; /* прихована рамка YouTube лежить усередині */
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.melody-source,
+.melody-previews,
+.melody-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.melody-file .meta,
+.melody-short,
+.melody-editor .meta {
+  margin: 0;
+}
+
+.melody-link {
+  min-width: 0;
+}
+
+.melody-link input {
+  width: 100%;
+  min-width: 0;
+}
+
+.melody-short {
+  color: var(--amber);
+}
+
+.melody-previews .btn {
+  min-width: 4.5rem;
+  min-height: 2.75rem;
+}
+/* «Мелодія за нотами»: кінець редактора */

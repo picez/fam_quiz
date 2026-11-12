@@ -3266,6 +3266,13 @@ describe('melody question (29e)', () => {
     expect(valid(questionSchema, noTrack)).toBe(false);
   });
 
+  it('roundBrief(classic) counts melodies only when there are some', () => {
+    const plain = quizSchema.parse(quizOf([round('r1', [single])]));
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('melodies');
+    const withMelodies = quizSchema.parse(quizOf([round('r1', [single, melQ({ id: 'm1' }), melQ({ id: 'm2' })])]));
+    expect(roundBrief(withMelodies.rounds[0]!).melodies).toBe(2);
+  });
+
   it('a melody plays only in classic rounds', () => {
     const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
       rules: { ...DEFAULT_RULES, partial: null }, questions: [melQ({ id: 'mb' })] };

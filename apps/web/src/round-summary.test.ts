@@ -41,6 +41,13 @@ describe('roundSummary', () => {
     expect(roundSummary({ ...emptyBrief('puzzles'), puzzles: { sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 5, time: 450 } })).toEqual([rule, '5 «Пам’ятей»']);
   });
 
+  it('a classic round with melodies says how they score', () => {
+    expect(roundSummary({ ...emptyBrief('classic'), melodies: 1 }).at(-1)).toBe('1 мелодія: бали за найдовшим шматком, який послухали');
+    expect(roundSummary({ ...emptyBrief('classic'), melodies: 2 }).at(-1)).toBe('2 мелодії: бали за найдовшим шматком, який послухали');
+    expect(roundSummary({ ...emptyBrief('classic'), melodies: 5 }).at(-1)).toBe('5 мелодій: бали за найдовшим шматком, який послухали');
+    expect(roundSummary(emptyBrief('classic')).join(' ')).not.toContain('мелод');
+  });
+
   it('a default classic round: everyone answers, faster is more', () => {
     expect(roundSummary({ ...emptyBrief('classic'), speedBonus: true })).toEqual([
       'Відповідають усі: бали отримує кожен, хто відповів правильно.',

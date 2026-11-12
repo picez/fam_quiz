@@ -36,6 +36,7 @@ export function draftText(draft: DraftValue, correct: Question | null, question:
       return say('draftMarks', team, { list: draft.optionIds.map(name).join(', ') });
     case 'text':
     case 'clues':
+    case 'melody':
       return say('draftTypes', team, { text: draft.value });
     case 'numeric':
       return say('draftTypes', team, { text: num(draft.value) });
