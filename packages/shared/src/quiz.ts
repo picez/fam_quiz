@@ -8,6 +8,7 @@ import { betsRoundIssue } from './bets';
 import { SUDOKU_LEVELS, sudokuIssue } from './sudoku';
 import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
+import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
 export const LIMITS = {
@@ -237,6 +238,12 @@ export const LIMITS = {
   defaultSpotdiffTime: 90,
   /** Типові бали «Знайди відмінності»: повна ціна за всі кола, частина — пропорційно. */
   defaultSpotdiffPoints: 300,
+  /** «Пам'ять» (29f): мінімум часу, с (як у пазла). */
+  minMemoryTime: 25,
+  /** Типовий час «Пам'яті», с. */
+  defaultMemoryTime: 90,
+  /** Типові бали «Пам'яті»: повна ціна найшвидшому, решті — за часом. */
+  defaultMemoryPoints: 300,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -258,6 +265,10 @@ export const IMAGE_LIMITS = {
 
 /** Адреса завантаженого зображення: лише власне сховище цього сайту. */
 export const IMAGE_URL = /^\/uploads\/[a-z0-9]{16,64}\.(jpg|png|webp)$/;
+const memoryCard = z.object({
+  text: z.string().trim().max(MEMORY_TEXT_MAX).refine(isStorable, UNSTORABLE),
+  imageUrl: z.string().regex(IMAGE_URL).optional(),
+});
 
 /** Обмеження аудіофайлів (10b). */
 export const AUDIO_LIMITS = {
@@ -342,7 +353,7 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
 /** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'bluff'] as const;
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -681,6 +692,17 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      type: z.literal('memory'),
+      timeLimit: z.number().int().min(LIMITS.minMemoryTime).max(LIMITS.maxPuzzleTime),
+      /** Сітка: 3x4 — 6 пар, 4x4 — 8, 4x5 — 10. */
+      grid: z.enum(MEMORY_GRIDS),
+      /** Пари «питання — відповідь»: кожна половина — або текст, або картинка. */
+      pairs: z.array(z.object({ a: memoryCard, b: memoryCard })).min(6).max(10),
+      /** Розклад карток (memoryLayout); «Перемішати» в редакторі дає новий. */
+      seed: z.number().int().min(0).max(2 ** 32 - 1),
+    }),
+    z.object({
+      ...base,
       type: z.literal('bluff'),
       /** Правда: перше написання — текст варіанта; решта — прийнятні написання (вигадку, що збігається, не приймуть). timeLimit — час вигадок. */
       accepted: spellings,
@@ -827,6 +849,17 @@ export const questionSchema = z
       // Підказка недосяжна: бафи на «Знайди відмінності» вимкнено (off_spotdiff).
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'spotdiff_hint' });
       if (q.original === q.changed) ctx.addIssue({ code: 'custom', message: 'spotdiff_same' });
+    }
+    if (q.type === 'memory') {
+      // Загальна картинка й відео видали б пару; підказка недосяжна: бафи на «Пам'яті» вимкнено (off_memory).
+      if (q.imageUrl !== null) ctx.addIssue({ code: 'custom', message: 'memory_image' });
+      if (q.video !== null || q.reveal !== undefined || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'memory_video' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'memory_hint' });
+      if (q.pairs.length !== memoryGridSize(q.grid).pairs) ctx.addIssue({ code: 'custom', message: 'memory_count' });
+      const cards = q.pairs.flatMap((p) => [p.a, p.b]);
+      // Картка — або текст, або картинка: підпис під картинкою підказав би пару.
+      if (cards.some((c) => (c.text !== '') === (c.imageUrl !== undefined))) ctx.addIssue({ code: 'custom', message: 'memory_card' });
+      else if (new Set(cards.map(memoryCardKey)).size !== cards.length) ctx.addIssue({ code: 'custom', message: 'memory_duplicate' });
     }
     if (q.type === 'sudoku') {
       const issue = sudokuIssue(q.givens, q.solution);
@@ -1246,7 +1279,7 @@ export function isPuzzle(question: { type: Question['type'] }): boolean {
 }
 
 /** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл і (29d) «Знайди відмінності»; isPuzzle їх не охоплює. */
-export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw', 'spotdiff'] as const satisfies readonly Question['type'][];
+export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw', 'spotdiff', 'memory'] as const satisfies readonly Question['type'][];
 
 export function fitsPuzzlesRound(question: { type: Question['type'] }): boolean {
   return (PUZZLES_ROUND_TYPES as readonly string[]).includes(question.type);
@@ -1543,6 +1576,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'spotdiff')
           : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'spotdiff');
       if (spotdiffPlace) ctx.addIssue({ code: 'custom', message: 'spotdiff_place' });
+      // «Пам'ять» (29f): так само.
+      const memoryPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'memory')
+          : round.type !== 'classic' && round.type !== 'puzzles' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'memory');
+      if (memoryPlace) ctx.addIssue({ code: 'custom', message: 'memory_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'

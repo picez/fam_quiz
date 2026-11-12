@@ -150,7 +150,17 @@ export interface SpotdiffAnswer {
   timeMs: number | null;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer;
+/** Запис «Пам'яті» (29f) гравця (команди); складає рушій, з телефона не приходить. pairs — знайдено пар, total — усього, timeMs — мить останньої пари від відкриття (мс сервера) або null, moves — ходів (двох карток). */
+export interface MemoryAnswer {
+  type: 'memory';
+  pairs: number;
+  total: number;
+  done: boolean;
+  timeMs: number | null;
+  moves: number;
+}
+
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer;
 
 /** Збіги перевіреної відповіді «100 до 1»; null — не survey або ще не перевірена (без rows). */
 export function surveyHitsOf(answer: Answer | null): (string | null)[] | null {

@@ -103,6 +103,10 @@ import {
   SPOTDIFF_FREEZE_MS,
   SPOTDIFF_MAX_FREEZE_MS,
   spotdiffFreezeMs,
+  memoryFlipSchema,
+  MEMORY_FLIPS_PER_SECOND,
+  MEMORY_SHOW_MS,
+  MEMORY_TURN_MS,
   SPOT_MIN_ASPECT,
   SPOT_MAX_ASPECT,
 } from './index';
@@ -2874,7 +2878,7 @@ describe('puzzles round (28d)', () => {
 
   it('the round brief of puzzles counts the questions', () => {
     const parsed = roundSchema.parse(puzzles([sudokuQ({ id: 'a' }), crosswordQ({ id: 'b' }), sudokuQ({ id: 'c' })]));
-    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, jigsaw: 0, spotdiff: 0, time: 180 + 240 + 180 });
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 2, crossword: 1, jigsaw: 0, spotdiff: 0, memory: 0, time: 180 + 240 + 180 });
     expect(roundBrief(roundSchema.parse(round('r', [single]))).puzzles).toBeNull();
     expect(emptyBrief('puzzles').puzzles).toBeNull();
   });
@@ -3074,7 +3078,7 @@ describe('spotdiff question (29d)', () => {
 
   it('the round brief of puzzles counts spotdiffs', () => {
     const parsed = roundSchema.parse(puzzles([spotQ({ id: 'a' }), spotQ({ id: 'b' })]));
-    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 2, time: 180 });
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 2, memory: 0, time: 180 });
   });
 
   it('old quizzes still parse', () => {
@@ -3100,5 +3104,120 @@ describe('spotdiff question (29d)', () => {
     expect(SPOTDIFF_MAX_FREEZE_MS).toBe(5000);
     expect([0, 1, 2, 3, 4, 5, 6, 7, 10].map(spotdiffFreezeMs)).toEqual([0, 0, 0, 1000, 2000, 3000, 4000, 5000, 5000]);
     expect(valid(answerSchema, { type: 'spotdiff', found: 1, total: 3, done: false, timeMs: null })).toBe(false);
+  });
+});
+
+describe('memory question (29f)', () => {
+  const flag = '/uploads/' + 'f'.repeat(32) + '.png';
+  const six = [['Україна', 'Київ'], ['Польща', 'Варшава'], ['Франція', 'Париж'], ['Японія', 'Токіо'], ['Канада', 'Оттава']];
+  const mkPairs = (n: number) => Array.from({ length: n }, (_, i) =>
+    i === 0 ? { a: { text: '', imageUrl: flag }, b: { text: 'Київ' } }
+      : { a: { text: six[i % 5][0] + i }, b: { text: six[i % 5][1] + i } });
+  const memQ = (patch: object = {}) => ({ id: 'mm', type: 'memory', text: 'Знайдіть пари', imageUrl: null, video: null,
+    timeLimit: 90, points: 300, grid: '3x4', pairs: mkPairs(6), seed: 42, ...patch });
+  const puzzles = (questions: object[]) => ({ id: 'pz', type: 'puzzles', title: 'Головоломки', questions });
+  const quizOf = (rounds: object[]) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+
+  it('accepts a memory', () => {
+    expect(QUESTION_TYPES.indexOf('memory')).toBe(QUESTION_TYPES.indexOf('spotdiff') + 1);
+    expect(qIssues(memQ())).toEqual([]);
+    expect(qIssues(memQ({ grid: '4x4', pairs: mkPairs(8) }))).toEqual([]);
+    expect(qIssues(memQ({ grid: '4x5', pairs: mkPairs(10) }))).toEqual([]);
+    expect(qIssues(memQ({ timeLimit: 25 }))).toEqual([]);
+    expect(LIMITS.minMemoryTime).toBe(25);
+    expect(LIMITS.defaultMemoryTime).toBe(90);
+    expect(LIMITS.defaultMemoryPoints).toBe(300);
+  });
+
+  it('refuses a broken memory', () => {
+    expect(qIssues(memQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg' }))).toContain('memory_image');
+    const video = { id: 'dQw4w9WgXcQ', start: 0 };
+    const audio = { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 };
+    expect(qIssues(memQ({ video }))).toContain('memory_video');
+    expect(qIssues(memQ({ audio }))).toContain('memory_video');
+    expect(qIssues(memQ({ imageUrl: '/uploads/' + 'c'.repeat(32) + '.jpg', reveal: 'blur' }))).toContain('memory_video');
+    expect(qIssues(memQ({ hint: 'Подумайте' }))).toContain('memory_hint');
+    expect(qIssues(memQ({ pairs: mkPairs(7) }))).toContain('memory_count');
+    expect(qIssues(memQ({ grid: '4x5', pairs: mkPairs(8) }))).toContain('memory_count');
+    const withFirst = (a: object) => [{ a, b: { text: 'Київ' } }, ...mkPairs(6).slice(1)];
+    expect(qIssues(memQ({ pairs: withFirst({ text: '' }) }))).toContain('memory_card');
+    expect(qIssues(memQ({ pairs: withFirst({ text: 'Київ', imageUrl: flag }) }))).toContain('memory_card');
+    const dupText = mkPairs(6);
+    dupText[0] = { a: { text: 'Київ' }, b: { text: 'Місто' } };
+    dupText[1] = { a: { text: 'Країна' }, b: { text: ' київ' } };
+    expect(qIssues(memQ({ pairs: dupText }))).toContain('memory_duplicate');
+    const dupImg = mkPairs(6);
+    dupImg[1] = { a: { text: '', imageUrl: flag }, b: { text: 'Берлін' } };
+    expect(qIssues(memQ({ pairs: dupImg }))).toContain('memory_duplicate');
+    const long = mkPairs(6);
+    long[1] = { a: { text: 'я'.repeat(41) }, b: { text: 'ок' } };
+    expect(valid(questionSchema, memQ({ pairs: long }))).toBe(false);
+    expect(valid(questionSchema, memQ({ seed: -1 }))).toBe(false);
+    expect(valid(questionSchema, memQ({ grid: '5x5' }))).toBe(false);
+    expect(valid(questionSchema, memQ({ timeLimit: 24 }))).toBe(false);
+    expect(valid(questionSchema, memQ({ timeLimit: 601 }))).toBe(false);
+    const bad = mkPairs(6);
+    bad[0] = { a: { text: '', imageUrl: 'https://x/y.png' }, b: { text: 'Київ' } };
+    expect(valid(questionSchema, memQ({ pairs: bad }))).toBe(false);
+  });
+
+  it('a memory plays only in classic and puzzles rounds', () => {
+    const blitzRound = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [memQ({ id: 'mb' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [memQ({ id: 'mf' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...memQ({ id: 'mbt' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...memQ({ id: 'mau' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [memQ({ id: 'mw' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [memQ({ id: 'msv' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [memQ({ id: 'ml' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    for (const bad of [blitzRound, final, bets, auction, wipeout, survival, ladder]) {
+      expect(issues(quizOf([round('r', [single]), bad]))).toContain('memory_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? memQ({ id: 'mc' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('memory_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [memQ({ id: 'mt' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('memory_place');
+    expect(issues({ ...quizOf([round('r', [single])]), spares: [memQ({ id: 'ms' })] })).toContain('spare_type');
+    expect(valid(duelQuestionSchema, memQ())).toBe(false);
+    expect(issues(quizOf([round('c', [memQ({ id: 'mc2' })])]))).toEqual([]);
+    expect(issues(quizOf([puzzles([memQ({ id: 'ma' })])]))).toEqual([]);
+    const sudoku = { id: 'su', type: 'sudoku', text: 'Судоку', imageUrl: null, video: null, timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium') };
+    expect(issues(quizOf([puzzles([sudoku, memQ({ id: 'mb2' })])]))).toEqual([]);
+    expect(fitsPuzzlesRound(memQ() as never)).toBe(true);
+    expect(isPuzzle(memQ() as never)).toBe(false);
+  });
+
+  it('the round brief of puzzles counts memories', () => {
+    const parsed = roundSchema.parse(puzzles([memQ({ id: 'a' }), memQ({ id: 'b' })]));
+    expect(roundBrief(parsed).puzzles).toEqual({ sudoku: 0, crossword: 0, jigsaw: 0, spotdiff: 0, memory: 2, time: 180 });
+  });
+
+  it('the memory event is limited', () => {
+    expect(MEMORY_FLIPS_PER_SECOND).toBe(4);
+    expect(MEMORY_SHOW_MS).toBe(1000);
+    expect(MEMORY_TURN_MS).toBe(5000);
+    expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 19 })).toBe(true);
+    expect(valid(memoryFlipSchema, { questionIndex: 5000, cell: 0 })).toBe(true);
+    expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 20 })).toBe(false);
+    expect(valid(memoryFlipSchema, { questionIndex: 7, cell: -1 })).toBe(false);
+    expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 1.5 })).toBe(false);
+    expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 1, extra: 1 })).toBe(false);
+    expect(valid(answerSchema, { type: 'memory', pairs: 3, total: 6, done: false, timeMs: null, moves: 4 })).toBe(false);
   });
 });
