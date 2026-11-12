@@ -2802,7 +2802,7 @@ const uk = {
   err_memory_matched: 'Ця пара вже знайдена.',
   err_memory_open: 'Ця картка вже відкрита.',
   problemMemoryPairs: 'Запитання {index}: заповніть усі пари — кожна половина має бути текстом або картинкою.',
-  problemMemoryDuplicate: 'Запитання {index}: у запитанні є однакові картки — кожна картка має бути різною.',
+  problemMemoryDuplicate: 'Запитання {index}: у запитанні є однакові картки — усі картки мають відрізнятися.',
   problemMemoryPlace: 'Запитання {index}: «Пам’ять» — лише в класичному раунді чи в «Головоломках».',
   problemMemoryLimits: 'Запитання {index}: час має бути від {min} до {max} секунд, бали від 0 до {points}.',
   memoryDefaultText: 'Знайдіть пари',

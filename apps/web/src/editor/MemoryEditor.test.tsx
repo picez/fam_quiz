@@ -69,6 +69,24 @@ describe('MemoryEditor', () => {
     expect(screen.getByLabelText(halfB(1))).toBeTruthy();
   });
 
+  it('a new empty pair after a resize opens in text mode', () => {
+    view();
+    fireEvent.click(gridButton(4, 5, 10));
+    // Пара 7: друга половина-картинка (кнопки йдуть парами a, b).
+    fireEvent.click(screen.getAllByRole('button', { name: t('memoryHalfImage') })[12]!);
+    expect(screen.queryByLabelText(`${t('memoryPairLabel', { n: 7 })}: ${t('memoryTextPlaceholderA')}`)).toBeNull();
+    fireEvent.click(gridButton(3, 4, 6));
+    fireEvent.click(gridButton(4, 5, 10));
+    expect(screen.getByLabelText(`${t('memoryPairLabel', { n: 7 })}: ${t('memoryTextPlaceholderA')}`)).toBeTruthy();
+  });
+
+  it('a pair kept by a resize keeps its picture mode', () => {
+    view();
+    fireEvent.click(screen.getAllByRole('button', { name: t('memoryHalfImage') })[0]!);
+    fireEvent.click(gridButton(4, 5, 10));
+    expect(screen.queryByLabelText(`${t('memoryPairLabel', { n: 1 })}: ${t('memoryTextPlaceholderA')}`)).toBeNull();
+  });
+
   it('text is cut at forty', () => {
     view();
     const field = screen.getByLabelText(`${t('memoryPairLabel', { n: 2 })}: ${t('memoryTextPlaceholderA')}`) as HTMLInputElement;

@@ -87,6 +87,8 @@ export function MemoryEditor({ question, onChange }: { question: MemoryQuestion;
   const setGrid = (grid: MemoryGrid) => {
     const want = memoryGridSize(grid).pairs;
     const { pairs } = latest.current.question;
+    // Режим «Картинка» відкинутих пар не переходить на нові порожні.
+    setPicked((now) => Object.fromEntries(Object.entries(now).filter(([key]) => parseInt(key, 10) < Math.min(want, pairs.length))));
     put({ grid, pairs: Array.from({ length: want }, (_, i) => pairs[i] ?? { a: blankMemoryCard(), b: blankMemoryCard() }) });
   };
   const modeOf = (index: number, side: Side, card: MemoryCard): Mode => (card.imageUrl !== undefined ? 'image' : (picked[`${index}${side}`] ?? 'text'));
