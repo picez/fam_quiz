@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import { clueShare, isUnscored, melodyRevealClip, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
+import { QUEST_WINDOW_MS, clueShare, isUnscored, melodyRevealClip, revealShare, type Answer, type Reaction, type DiceInfo, type SubmittedAnswer, type PlayerBlitz, type PlayerSurveyLine, type PlayerView, type PublicClues, type PublicQuestion, type Question, type SortTilt, type Spotlight, type Stroke } from '@quiz/shared';
 import { answerText, correctText, markText, pickedText, pinDistanceText, sliderValueText, shownChoices, num, questionClass, questionLabel, roundLabel, secondsText, signed } from '../format';
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
@@ -81,6 +81,7 @@ import { ladderOutcomeText } from './LadderStatus';
 import { Perks } from './Perks';
 import { BuffPanel, BuffRow, OvertimeLine, RetryPrompt, VoteSheet } from './Buffs';
 import { PeekSheet } from './PeekSheet';
+import { QuestButton, QuestPanel } from './QuestView';
 import { AppealCard } from './AppealCard';
 import { AppealSheet } from './AppealSheet';
 import { appealButtonText } from '../appeal-text';
@@ -881,6 +882,15 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const truthLateNeed = truthCanLate && (me.truth?.fact === '' || me.truth?.hidden === true);
   const [truthOpen, setTruthOpen] = useState(false);
   if (truthOpen && !truthCanLate) setTruthOpen(false);
+  // «Квест із кодом» (29g): пігулка весь раунд; набране в полі коду живе до кінця раунду — і в аркуші, і на весь екран.
+  const quest = view.quest !== undefined && me.quest !== undefined ? { info: view.quest, mine: me.quest } : null;
+  const questRound = view.round?.index ?? -1;
+  const [questDraft, setQuestDraft] = useState({ round: questRound, text: '' });
+  const questText = questDraft.round === questRound ? questDraft.text : '';
+  const onQuestText = (text: string) => setQuestDraft({ round: questRound, text });
+  // Вікно після запитань і показаний код — на етапі leaderboard панель замість таблиці.
+  const questBoard = phase === 'leaderboard' && quest !== null && quest.info.stage !== 'play';
+  const questPanel = quest !== null && <QuestPanel info={quest.info} mine={quest.mine} paused={view.paused} send={send} value={questText} onValue={onQuestText} />;
 
   return (
     // aria-busy: під заставкою запитання чи клітинки поле вже стоїть, але запитання ще не почалося.
@@ -910,6 +920,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         <span>{team !== null ? team.nickname : me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
+        {/* «Квест із кодом» (29g): пігулка не вища за рядок шапки; аркуш — портал поверх запитання. Код вводить будь-хто з команди. */}
+        {quest !== null && <QuestButton info={quest.info} mine={quest.mine} paused={view.paused} send={send} value={questText} onValue={onQuestText} />}
         {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} stealth={me.stealth} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
@@ -977,6 +989,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <RoundFacts round={view.round} total={view.total} />
           <RoundBriefing brief={view.round.brief} description={view.round.description} newcomers={view.newcomers} autopilot={view.autopilot} />
           {showPrizesAtIntro && view.prizes !== undefined && <PlayingFor prizes={view.prizes} size="phone" />}
+          {questPanel}
           {view.ladder !== null && me.ladder !== null && (
             <p className="lead ladder-intro" role="status">
               {view.ladder.contestant === null
@@ -1629,7 +1642,21 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         </>
       )}
 
-      {phase === 'leaderboard' && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
+      {questBoard && quest !== null && (
+        <section className="quest-window">
+          {quest.info.stage === 'window' && (
+            <>
+              <p className="lead" role="status">
+                {t('questWindow')}
+              </p>
+              <Timer view={{ endsAt: quest.info.endsAt, remainingMs: quest.info.remainingMs }} offsetMs={offsetMs} total={QUEST_WINDOW_MS} status={view.paused ? 'paused' : null} />
+            </>
+          )}
+          {questPanel}
+        </section>
+      )}
+
+      {phase === 'leaderboard' && !questBoard && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
           <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />

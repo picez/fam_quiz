@@ -283,6 +283,8 @@ export function BuffRow({
               onClick={() => tap(slot)}
             >
               <span aria-hidden="true">{BUFF_ICONS[slot.kind]}</span>
+              {/* 29g: квест видав ще використання — скільки лишилося. */}
+              {slot.left !== undefined && <span className="buff-left">×{slot.left}</span>}
             </button>
           );
         })}

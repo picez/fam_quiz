@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Answer } from '@quiz/shared';
+import { emptyBrief, type Answer } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { t } from '../i18n';
+import { PlayerScreen } from './PlayerScreen';
 import { TeamWatch, useDraftSender } from './TeamWatch';
 import { baseMe, publicQuestion, teamPlayerView } from './team-test-view';
 
@@ -350,5 +351,21 @@ describe('TeamWatch: player truth (28b)', () => {
     expect(screen.getByText('Іра')).toBeTruthy();
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(document.querySelector('.truth-names .is-draft')?.textContent).toContain('Іра');
+  });
+});
+
+describe('TeamWatch: code quest (29g)', () => {
+  it('a teammate who is not the captain sees the pill and can enter the code', async () => {
+    const send = vi.fn(async () => ({ ok: true as const })) as unknown as Send;
+    const round = { index: 0, total: 1, title: 'Квест', type: 'quest' as const, partial: false, description: '', brief: emptyBrief('quest'), times: null };
+    const quest = { prompt: 'Нічний птах — символ мудрості', length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 }, stage: 'play' as const, code: null, endsAt: null, remainingMs: null, shareNow: 1, rows: [] };
+    const current = watching(null, { round, quest, me: { ...baseMe, quest: { slots: [null, null, null, null], tries: [], left: 3, canEnter: true, solved: null } } });
+    render(<PlayerScreen view={current} hostOnline offsetMs={0} send={send} />);
+    // Не-капітан стежить за відповіддю — і має пігулку коду.
+    expect(screen.getByText('Відповідає капітан Оля — радьте вголос')).toBeTruthy();
+    act(() => void screen.getByRole('button', { name: '🔐 0/4' }).click());
+    fireEvent.change(screen.getByLabelText('Код'), { target: { value: 'сова' } });
+    await act(async () => void screen.getByRole('button', { name: 'Відкрити скриню' }).click());
+    expect(send).toHaveBeenCalledWith('player:quest', { code: 'сова' });
   });
 });

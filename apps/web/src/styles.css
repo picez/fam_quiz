@@ -21274,3 +21274,158 @@ input.sudoku-editor-cell:focus-visible {
   min-height: 2.75rem;
 }
 /* «Квест із кодом»: кінець редактора */
+
+/* «Квест із кодом»: телефон (29g). Пігулка «🔐 3/4» у шапці — як «Таблиця», не вища за рядок; аркуш — знизу, position: fixed,
+ * запитання під ним не зсувається. Комірки — менше з «2rem» і «(ширина поля − 7 проміжків) / 8», тож 8 комірок у ряд на 320 px
+ * без прокрутки; поле коду й кнопка переносяться на новий рядок, коли не вміщаються. Набране — великими літерами. */
+.quest-sheet {
+  align-items: flex-end;
+  padding: 0.75rem;
+}
+
+.quest-card {
+  width: min(100%, 26rem);
+  max-height: 85dvh;
+  padding: 0.75rem;
+}
+
+.quest-panel {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.quest-panel p {
+  margin: 0;
+}
+
+.quest-prompt {
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.quest-lock {
+  --quest-gap: 4px;
+  --quest-cell-max: 2rem;
+  --quest-cell: min(var(--quest-cell-max), calc((100cqi - 7 * var(--quest-gap)) / 8));
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
+
+.quest-lock-row {
+  display: grid;
+  grid-template-columns: repeat(var(--quest-length), var(--quest-cell));
+  gap: var(--quest-gap);
+  justify-content: center;
+}
+
+.quest-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: calc(var(--quest-cell) * 1.25);
+  border: 2px solid var(--bank);
+  border-radius: var(--radius-small);
+  background: var(--panel);
+  color: var(--bank);
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quest-cell.is-empty {
+  border-style: dashed;
+  border-color: var(--line);
+}
+
+.quest-cell-order {
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-end: 2px;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 400;
+}
+
+.quest-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.quest-field {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.quest-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.quest-enter {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+}
+
+.quest-error:empty {
+  display: none;
+}
+
+.quest-error {
+  color: var(--wrong);
+}
+
+.quest-solved,
+.quest-shown {
+  font-weight: 700;
+}
+
+.quest-verdict.is-right {
+  color: var(--correct);
+}
+
+.quest-verdict.is-wrong {
+  color: var(--wrong);
+}
+
+.quest-tries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dim);
+}
+
+.quest-window {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Ряд бафів: квест видав ще використання — «×1» у куті кнопки. */
+.buff-btn:has(.buff-left) {
+  position: relative;
+}
+
+.buff-left {
+  position: absolute;
+  inset-block-end: -0.35rem;
+  inset-inline-end: -0.35rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--buff-accent);
+  color: var(--stage);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+/* «Квест із кодом»: кінець телефона */

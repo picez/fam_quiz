@@ -852,3 +852,12 @@ describe('12h buffs on the phone', () => {
     expect(rule('.peek-options')).toMatch(/flex-wrap:\s*wrap/);
   });
 });
+
+describe('BuffRow: one more use from the quest (29g)', () => {
+  it('a slot with left shows ×left; without the field nothing', () => {
+    row({ ...ready, slots: [{ kind: 'fifty', state: 'ready', block: null, left: 1 }, { kind: 'double', state: 'ready', block: null }] });
+    const buttons = [...document.querySelectorAll<HTMLElement>('.buff-btn')];
+    expect(buttons[0].querySelector('.buff-left')?.textContent).toBe('×1');
+    expect(buttons[1].querySelector('.buff-left')).toBeNull();
+  });
+});
