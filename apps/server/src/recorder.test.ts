@@ -464,6 +464,24 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('prankster counts an anonymous purchase (29h)', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([single, text], { speedBonus: false, buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 200 } }));
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
+    expect(ctx.manager.buff(ctx.room, ctx.olena, 'stealth')).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
+    expect(ctx.room.state.adjustments.at(-1)).toMatchObject({ source: 'debuff', playerId: ctx.olena, anon: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    ctx.host('end');
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).where(eq(scoreAdjustment.source, 'debuff'));
+    expect(rows.map((r) => [r.participantId, r.debuff, r.targetNickname])).toEqual([[ctx.olena, 'fog', 'Тарас']]);
+    const facts = await store.careerFacts(ctx.db, 'olena-user');
+    expect(facts.debuffsBought).toBe(1);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it("a kicked player's adjustments go with the participant", async () => {
     const ctx = await setup();
     ctx.host('start');

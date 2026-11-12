@@ -711,7 +711,9 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     ];
   });
 
-  const factInput = factInputOf(quiz, played, standings, stored, adjustments, appeals);
+  // 29h: до кінця гри історія не відкриває анонімного покупця — покупок дебафів у незавершеній грі не видно.
+  const visible = row.status === 'finished' ? adjustments : adjustments.filter((a) => a.source !== 'debuff');
+  const factInput = factInputOf(quiz, played, standings, stored, visible, appeals);
   const detail: GameDetail = {
     id: row.id,
     title: row.title,
@@ -727,7 +729,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
     firstRound,
     questions,
     teams,
-    adjustments: adjustments.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({
+    adjustments: visible.map(({ participantId, seq, roundIndex, afterQuestion, points, source, debuff, targetNickname, undoesQuestion, undoesSeq }) => ({
       seq,
       roundIndex,
       afterQuestion,
