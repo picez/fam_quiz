@@ -1,8 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz } from '@quiz/engine/testing';
+import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
 import { answer, appeal, scoreAdjustment } from './db/schema';
@@ -868,6 +868,43 @@ describe('host presence', () => {
     expect(await send(olena, 'player:spotdiff', tapSpot(0))).toEqual({ ok: true });
     await until(stage, (view) => view.spotdiff?.boards.some((b) => b.found === 1) === true);
     expect(Date.now() - started).toBeLessThan(150);
+  });
+
+  /** «Пам'ять» (29f) після першого раунду: номер у раунді 0, state.questionIndex 1. */
+  async function toMemory() {
+    const created = (await startGame(ctx.app, memoryQuiz())).game;
+    const rig = await lobby(created);
+    const { host, stage, olena, taras } = rig;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while ((await until(olena, () => true)) && !(olena.last?.phase === 'question' && olena.last.role === 'player' && olena.last.question?.memory !== undefined)) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await pause(30);
+    }
+    await until(stage, (view) => view.phase === 'question');
+    await pause(300);
+    return { ...rig, olena, taras };
+  }
+  const memoryLayout42 = memoryLayout(6, 42);
+
+  it('memory flips through the socket after a classic round', async () => {
+    const { olena } = await toMemory();
+    const phone = olena.last;
+    if (phone?.role !== 'player') throw new Error('not a player view');
+    expect(phone.questionIndex).toBe(0);
+    const cell = memoryLayout42.indexOf(0);
+    expect(await send(olena, 'player:memory', { questionIndex: 1, cell })).toEqual({ ok: false, error: 'memory_stale' });
+    expect(await send(olena, 'player:memory', { questionIndex: phone.questionIndex, cell })).toEqual({ ok: true });
+    const shown = await until(olena, (view) => view.role === 'player' && view.me.memory?.cells[cell] != null);
+    expect(shown.role === 'player' ? shown.me.memory?.cells[cell] : null).toMatchObject({ state: 'open', text: 'Україна' });
+    expect(await send(olena, 'player:memory', { questionIndex: 0, cell: 20 })).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('memory events are player-only', async () => {
+    const { host, stage } = await toMemory();
+    for (const who of [host, stage]) expect(await send(who, 'player:memory', { questionIndex: 0, cell: 0 })).toEqual({ ok: false, error: 'forbidden' });
   });
 
   it('player:draw and player:draw-guess are player-only and validated', async () => {

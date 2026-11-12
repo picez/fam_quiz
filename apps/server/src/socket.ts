@@ -61,6 +61,7 @@ import {
   jigsawHoldSchema,
   jigsawPlaceSchema,
   spotdiffTapSchema,
+  memoryFlipSchema,
   puzzleDoneSchema,
   puzzleFillSchema,
   drawGuessSchema,
@@ -476,6 +477,13 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = spotdiffTapSchema.safeParse(payloadOf(args));
       return payload.success ? manager.spotdiffTap(room, identity.playerId, payload.data) : INVALID;
+    });
+
+    // «Пам'ять» (29f): ack { ok: true } на будь-яке прийняте відкриття; вміст картки — лише зрізом; номер запитання — в межах раунду.
+    on('player:memory', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = memoryFlipSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.memoryFlip(room, identity.playerId, payload.data) : INVALID;
     });
 
     on('player:draw', (args) => {

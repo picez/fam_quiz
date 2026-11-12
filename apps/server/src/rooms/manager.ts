@@ -114,6 +114,9 @@ import {
   moreLessPick,
   jigsawHold,
   jigsawHoldsEnd,
+  memoryFlip,
+  memoryOf,
+  memoryTimersEnd,
   jigsawOf,
   jigsawPlace,
   spotdiffOf,
@@ -154,7 +157,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -284,6 +287,8 @@ export interface Room {
   jigsawRate: Map<string, { from: number; count: number }>;
   /** Вікно частоти player:spotdiff (29d): на людину. Лише в пам'яті. */
   spotdiffRate: Map<string, { from: number; count: number }>;
+  /** Вікно частоти player:memory (29f): на людину. Лише в пам'яті. */
+  memoryRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -607,6 +612,7 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'sudoku' || play?.question.type === 'crossword' ? puzzleOf(state, id) : null,
     play?.question.type === 'jigsaw' ? jigsawOf(state, id) : null,
     play?.question.type === 'spotdiff' ? spotdiffOf(state, id) : null,
+    play?.question.type === 'memory' ? memoryOf(state, id) : null,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);
@@ -736,6 +742,7 @@ export class RoomManager {
       puzzleRate: new Map(),
       jigsawRate: new Map(),
       spotdiffRate: new Map(),
+      memoryRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -817,6 +824,7 @@ export class RoomManager {
       puzzleRate: new Map(),
       jigsawRate: new Map(),
       spotdiffRate: new Map(),
+      memoryRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -825,7 +833,7 @@ export class RoomManager {
     if (room.state.autopilot === undefined) this.hostLeft(room);
     this.commit(room, room.state);
     // Живі «тримаю» пазла (29c) зі знімка теж спливають розсилкою, а не лише після наступного руху.
-    this.watchHolds(room);
+    this.watchTimers(room);
     return room;
   }
 
@@ -1785,25 +1793,47 @@ export class RoomManager {
     if (!result.ok) return { ok: false, error: result.error };
     const finished = jigsawOf(result.state, actorId)?.doneMs != null && jigsawOf(room.state, actorId)?.doneMs == null;
     if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
-    this.watchHolds(room);
+    this.watchTimers(room);
     return { ok: true };
   }
 
   /**
-   * Блок «тримаю» спливає без жодної події (відпускання окремої події не має): у мить, коли спливає найближчий, кімната шле зрізи ще раз
-   * (зрізи будуються від now, тож товариші бачать шматочок вільним), і так до останнього живого блоку. Новий «тримаю» переносить таймер.
+   * Таймери без жодної події (29c, 29f): блок «тримаю» пазла спливає, непара «Пам'яті» закривається, хід у команді закінчується.
+   * У мить, коли спливає найближчий, кімната шле зрізи ще раз (зрізи будуються від now), і так до останнього живого таймера.
+   * Нова подія переносить таймер.
    */
-  private watchHolds(room: Room): void {
+  private watchTimers(room: Room): void {
     this.scheduler.clearTimeout(room.holdExpiry);
     room.holdExpiry = null;
-    const at = jigsawHoldsEnd(room.state, this.now());
-    if (at === null) return;
+    const now = this.now();
+    const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now)].filter((end): end is number => end !== null);
+    if (ends.length === 0) return;
+    const at = Math.min(...ends);
     room.holdExpiry = this.scheduler.setTimeout(() => {
       room.holdExpiry = null;
       if (!this.alive(room)) return;
       this.emit(room, { type: 'changed', puzzle: true });
-      this.watchHolds(room);
+      this.watchTimers(room);
     }, Math.max(0, at - this.now()));
+  }
+
+  /**
+   * Відкриття картки «Пам'яті» (29f): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
+   * Ack лише { ok: true } чи відмова; вміст картки приходить зрізом. Остання пара й зміна етапу йдуть одразу, решта — у замикальному вікні.
+   * Закриття непари й кінець ходу команди рушій не пише: їх шле watchTimers.
+   */
+  memoryFlip(room: Room, playerId: string, payload: { questionIndex: number; cell: number }): AckResult {
+    if (!this.alive(room)) return this.gone();
+    const who = this.act(room, playerId, 'answer');
+    if (!who.ok) return who;
+    const now = this.now();
+    if (!windowAllowed(room.memoryRate, playerId, now, MEMORY_FLIPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    const result = memoryFlip(room.state, who.id, playerId, payload.questionIndex, payload.cell, now);
+    if (!result.ok) return { ok: false, error: result.error };
+    const finished = memoryOf(result.state, who.id)?.doneMs != null && memoryOf(room.state, who.id)?.doneMs == null;
+    if (result.state !== room.state) this.commit(room, result.state, now, !finished && result.state.phase === room.state.phase);
+    this.watchTimers(room);
+    return { ok: true };
   }
 
   /** Повний малюнок поточного запитання (28c) для sync: при підключенні й на draw:sync. null — запитання не «Малюнок» (чи не на question/locked/reveal). */
@@ -2260,6 +2290,7 @@ export class RoomManager {
     room.puzzleRate.delete(playerId);
     room.jigsawRate.delete(playerId);
     room.spotdiffRate.delete(playerId);
+    room.memoryRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
