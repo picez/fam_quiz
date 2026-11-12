@@ -4,9 +4,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerQuest, QuestInfo } from '@quiz/shared';
+import type { HostQuest, PlayerQuest, QuestInfo, QuestRow } from '@quiz/shared';
 import type { Send } from '../live/types';
-import { QuestButton, QuestLock, QuestPanel } from './QuestView';
+import { HostQuestPanel, QuestButton, QuestLock, QuestPanel, QuestStage, QuestStrip } from './QuestView';
 
 afterEach(cleanup);
 
@@ -218,3 +218,118 @@ function cssSection(): string {
   expect(start).toBeGreaterThan(0);
   return css.slice(start, css.indexOf('/* «Квест із кодом»: кінець телефона */'));
 }
+
+const qrow = (id: string, nickname: string, opened: number, over: Partial<QuestRow> = {}): QuestRow => ({ playerId: id, nickname, opened, triesUsed: 0, solved: null, ...over });
+const won = (place: number, after: number, points: number | null, buff: NonNullable<QuestRow['solved']>['buff'] = null) => ({ place, after, points, buff });
+
+describe('QuestStage and QuestStrip (29g, stage)', () => {
+  it('the stage shows the lock and counts, not characters', () => {
+    render(<QuestStage info={info({ rows: [qrow('p2', 'Тарас', 4, { solved: won(1, 2, 800) }), qrow('p1', 'Оля', 3)] })} phase="reveal" offsetMs={0} />);
+    expect(cells()).toHaveLength(4);
+    expect(cells().every((cell) => cell.textContent === '')).toBe(true);
+    expect(screen.getByText('відкрито 3 з 4')).toBeTruthy();
+    expect(screen.getByText('відкрив скриню після 2-го запитання')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('СОВА');
+  });
+
+  it('the strip during a question is small', () => {
+    render(<QuestStrip compact info={info({ rows: [qrow('p2', 'Тарас', 4, { solved: won(1, 2, 800) }), qrow('p1', 'Оля', 3)] })} />);
+    expect(screen.getByText('🔐 Код: 4 симв. · скриню відкрили: 1')).toBeTruthy();
+    expect(screen.queryByText('Нічний птах — символ мудрості')).toBeNull();
+  });
+
+  it('the full strip has the global question and the rows', () => {
+    render(<QuestStrip info={info({ rows: [qrow('p1', 'Оля', 1)] })} />);
+    expect(screen.getByText('Нічний птах — символ мудрості')).toBeTruthy();
+    expect(screen.getByText('Оля')).toBeTruthy();
+  });
+
+  it('the intro shows the global question and an empty lock', () => {
+    render(<QuestStage info={info()} phase="intro" offsetMs={0} />);
+    expect(screen.getByText('Нічний птах — символ мудрості')).toBeTruthy();
+    expect(cells()).toHaveLength(4);
+  });
+
+  it('the window has a clock', () => {
+    render(<QuestStage info={info({ stage: 'window', endsAt: Date.now() + 30_000, rows: [qrow('p1', 'Оля', 2)] })} phase="leaderboard" offsetMs={0} />);
+    expect(screen.getByText('Останні 30 секунд, щоб ввести код')).toBeTruthy();
+    expect(document.querySelector('.quest-clock')?.textContent).toMatch(/\d/);
+  });
+
+  it('the shown code and the table', () => {
+    const rows = [qrow('p2', 'Тарас', 4, { solved: won(1, 2, 800) }), qrow('p1', 'Оля', 4, { solved: won(2, 4, 200) }), qrow('p3', 'Петро', 4, { solved: won(3, 4, null, 'fifty') }), qrow('p4', 'Іра', 1)];
+    render(<QuestStage info={info({ stage: 'shown', code: 'СОВА', rows })} phase="leaderboard" offsetMs={0} />);
+    expect(cells().map((cell) => cell.textContent)).toEqual(['С', 'О', 'В', 'А']);
+    const table = [...document.querySelectorAll('.quest-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    expect(table[0]).toEqual(['1', 'Тарас', '2', '+800']);
+    expect(table[1]).toEqual(['2', 'Оля', '4', '+200']);
+    expect(table[2][1]).toBe('Петро');
+    expect(table[2][3]).toContain('50/50');
+    expect(table[3]).toEqual(['—', 'Іра', '—', '—']);
+  });
+
+  it('the code alone on round end', () => {
+    render(<QuestStage info={info({ stage: 'shown', code: 'СОВА', rows: [qrow('p1', 'Оля', 4)] })} phase="round_end" offsetMs={0} />);
+    expect(cells().map((cell) => cell.textContent)).toEqual(['С', 'О', 'В', 'А']);
+    expect(document.querySelector('.quest-table')).toBeNull();
+  });
+
+  it('twenty-four players fit the stage', () => {
+    const rows24 = Array.from({ length: 24 }, (_, i) => qrow(`p${i}`, `Гравець ${i + 1}`, i % 5));
+    render(<QuestStage info={info({ stage: 'window', endsAt: Date.now() + 30_000, rows: rows24 })} phase="leaderboard" offsetMs={0} />);
+    expect(document.querySelectorAll('.quest-row')).toHaveLength(24);
+    const grid = document.querySelector<HTMLElement>('.quest-rows')!;
+    expect(Number(grid.style.getPropertyValue('--cols')) * Number(grid.style.getPropertyValue('--rows'))).toBeGreaterThanOrEqual(24);
+    cleanup();
+    const twelve = Array.from({ length: 12 }, (_, i) => qrow(`p${i}`, `Гравець ${i + 1}`, 4, { solved: won(i + 1, 2, 800) }));
+    render(<QuestStage info={info({ stage: 'shown', code: 'СОВА', rows: twelve })} phase="leaderboard" offsetMs={0} />);
+    expect(document.querySelectorAll('.quest-table tbody tr')).toHaveLength(12);
+    expect(document.querySelector<HTMLElement>('.quest-table')!.style.getPropertyValue('--rows')).toBe('12');
+  });
+
+  it('the table goes by pages after twelve rows', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => qrow(`p${i}`, `Гравець ${i + 1}`, 4, { solved: won(i + 1, 2, 800) }));
+    render(<QuestStage info={info({ stage: 'shown', code: 'СОВА', rows })} phase="leaderboard" offsetMs={0} />);
+    expect(document.querySelectorAll('.quest-table tbody tr')).toHaveLength(10);
+  });
+});
+
+describe('HostQuestPanel (29g)', () => {
+  const host = (over: Partial<HostQuest> = {}): HostQuest => ({
+    ...info({ rows: [qrow('p1', 'Оля', 2), qrow('p2', 'Тарас', 4, { solved: won(1, 2, 800) })] }),
+    code: 'СОВА',
+    order: [2, 0, 3, 1],
+    detail: [
+      { playerId: 'p1', slots: ['С', null, 'В', null], tries: [{ code: 'СОВИ', at: 42_000, after: 1, right: false, by: null }] },
+      { playerId: 'p2', slots: ['С', 'О', 'В', 'А'], tries: [{ code: 'СОВА', at: 90_000, after: 2, right: true, by: 'Тарас' }] },
+    ],
+    ...over,
+  });
+
+  it('the host sees the code, slots and tries', () => {
+    render(<HostQuestPanel quest={host()} send={okSend()} since={0} offsetMs={0} />);
+    const lock = document.querySelector('.quest-host-code')!;
+    expect([...lock.querySelectorAll('.quest-cell')].map((cell) => cell.firstChild?.textContent)).toEqual(['С', 'О', 'В', 'А']);
+    expect([...lock.querySelectorAll('.quest-cell-order')].map((el) => el.textContent)).toEqual(['2', '4', '1', '3']);
+    expect(screen.getByText('С · В ·')).toBeTruthy();
+    expect(screen.getByText('СОВИ · 0:42 · після 1')).toBeTruthy();
+    expect(screen.getByText('СОВА · 1:30 · після 2')).toBeTruthy();
+    expect(screen.getByText('ввів(-ла) Тарас')).toBeTruthy();
+    expect(document.querySelectorAll('.quest-try.is-wrong')).toHaveLength(1);
+  });
+
+  it('the host shows the code early', () => {
+    const send = okSend();
+    render(<HostQuestPanel quest={host({ stage: 'window', endsAt: Date.now() + 20_000 })} send={send} offsetMs={0} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Показати код' }));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+  });
+
+  it('no early button outside the window or when the main button takes it', () => {
+    render(<HostQuestPanel quest={host()} send={okSend()} offsetMs={0} />);
+    expect(screen.queryByRole('button', { name: 'Показати код' })).toBeNull();
+    cleanup();
+    render(<HostQuestPanel quest={host({ stage: 'window', endsAt: Date.now() + 20_000 })} send={okSend()} offsetMs={0} showButton={false} />);
+    expect(screen.queryByRole('button', { name: 'Показати код' })).toBeNull();
+  });
+});

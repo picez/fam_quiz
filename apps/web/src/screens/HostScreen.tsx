@@ -5,6 +5,7 @@ import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
 import { HostAuctionPanel } from './AuctionView';
+import { HostQuestPanel } from './QuestView';
 import { HostTruthFacts } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
@@ -272,7 +273,15 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // «Аукціон»: на торгу головна кнопка — «Продано» (та сама host:next).
   const auctionWager = view.auction !== undefined && phase === 'wager';
   const auctionPanel = view.auction !== undefined && (phase === 'wager' || phase === 'question' || phase === 'locked' || phase === 'reveal');
-  const main = betsWager
+  // «Квест із кодом»: панель весь раунд; у вікні головна кнопка показує код, після показу веде до кінця раунду.
+  const questPanel = view.quest !== undefined && (phase === 'intro' || phase === 'question' || phase === 'locked' || phase === 'reveal' || phase === 'leaderboard' || phase === 'round_end' || phase === 'duel');
+  const questWindow = phase === 'leaderboard' && view.quest?.stage === 'window';
+  const questShown = phase === 'leaderboard' && view.quest?.stage === 'shown';
+  const main = questWindow
+    ? { label: 'questHostShow' as const, event: 'host:next' as const }
+    : questShown
+    ? { label: 'next' as const, event: 'host:next' as const }
+    : betsWager
     ? { label: 'betsOpen' as const, event: 'host:next' as const }
     : auctionWager
     ? { label: 'auctionSold' as const, event: 'host:next' as const }
@@ -911,6 +920,10 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
 
       {view.auction !== undefined && auctionPanel && (
         <HostAuctionPanel auction={view.auction} send={send} sellButton={false} presented={view.question?.choices} offsetMs={offsetMs} onError={setError} />
+      )}
+
+      {view.quest !== undefined && questPanel && (
+        <HostQuestPanel quest={view.quest} send={send} showButton={false} offsetMs={offsetMs} paused={view.paused} onError={setError} />
       )}
 
       {phase === 'wager' && final !== null && (

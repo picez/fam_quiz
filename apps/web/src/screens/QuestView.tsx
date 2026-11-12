@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { LIMITS, type PlayerQuest, type QuestInfo } from '@quiz/shared';
+import { LIMITS, QUEST_WINDOW_MS, type HostQuest, type PlayerQuest, type QuestInfo, type QuestRow } from '@quiz/shared';
 import { buffName } from '../buff-meta';
-import { num } from '../format';
+import { num, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
+import { Timer, timerStatus } from '../live/Timer';
 import type { Send } from '../live/types';
+import { jigsawTablePageSize } from './JigsawView';
+import { puzzleGrid, usePage } from './PuzzleView';
 
 /**
  * «Квест із кодом» (29g), телефон. Код телефон не знає до показу: у комірках лише власні відкриті символи (у командах — спільні),
@@ -242,5 +245,219 @@ export function QuestButton({ info, mine, paused, send, value, onValue }: { info
           document.body,
         )}
     </>
+  );
+}
+
+/* ── Сцена й пульт (29g, задача 8). Код сцена не знає до stage 'shown': рядки несуть лише кількість відкритих позицій. ── */
+
+const solvedCount = (info: QuestInfo) => info.rows.filter((row) => row.solved !== null).length;
+
+/** Рівні сторінки: 30 при межі 24 → 15 + 15, а не повна й майже порожня. */
+function evenPage(n: number, most: number): number {
+  if (n <= most) return Math.max(1, n);
+  return Math.ceil(n / Math.ceil(n / most));
+}
+
+const QUEST_ROWS_PAGE = 24;
+const QUEST_STRIP_PAGE = 12;
+
+/** Один рядок: нік · ●●○○ · ✗✗ · ✓; повний підпис — для читача з екрана (на сцені його не видно). */
+function QuestRowItem({ row, length }: { row: QuestRow; length: number }) {
+  const text = row.solved === null ? t('questRowOpened', { opened: row.opened, length }) : row.solved.after > 0 ? t('questRowSolved', { after: row.solved.after }) : t('questRowSolvedStart');
+  return (
+    <li className={row.solved === null ? 'quest-row' : 'quest-row is-solved'} data-player={row.playerId}>
+      <span className="quest-row-name" dir="auto" title={row.nickname}>
+        {row.nickname}
+      </span>
+      <span className="quest-row-dots" aria-hidden="true" dir="ltr">
+        {Array.from({ length }, (_, i) => (i < row.opened ? '●' : '○')).join('')}
+      </span>
+      {row.triesUsed > 0 && (
+        <span className="quest-row-miss" aria-hidden="true" dir="ltr">
+          {'✗'.repeat(row.triesUsed)}
+        </span>
+      )}
+      {row.solved !== null && (
+        <span className="quest-row-win" aria-hidden="true" dir="ltr">
+          ✓ {row.solved.place}
+        </span>
+      )}
+      <span className="sr-only">{text}</span>
+    </li>
+  );
+}
+
+/** Рядки учасників сіткою: понад most — рівні сторінки по черзі (usePage), сітка за puzzleGrid. */
+export function QuestRows({ rows, length, most = QUEST_ROWS_PAGE, host = false }: { rows: readonly QuestRow[]; length: number; most?: number; host?: boolean }) {
+  const size = evenPage(rows.length, most);
+  const page = usePage(rows.length, size, !host);
+  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  const grid = puzzleGrid(shown.length, false);
+  const cols = Math.min(grid.cols, 6);
+  return (
+    <ul className={grid.dense ? 'quest-rows is-dense' : 'quest-rows'} style={{ '--cols': cols, '--rows': Math.max(1, Math.ceil(shown.length / cols)) } as CSSProperties}>
+      {shown.map((row) => (
+        <QuestRowItem key={row.playerId} row={row} length={length} />
+      ))}
+    </ul>
+  );
+}
+
+/** Смуга сцени: compact (question/locked) — один рядок без глобального запитання; повна (розкриття, таблиця між запитаннями) — з запитанням і рядками. */
+export function QuestStrip({ info, compact = false }: { info: QuestInfo; compact?: boolean }) {
+  const line = t('questStrip', { length: info.length, count: solvedCount(info) });
+  if (compact) {
+    return (
+      <p className="meta quest-strip" role="status">
+        {line}
+      </p>
+    );
+  }
+  return (
+    <section className="quest-strip is-full">
+      <p className="meta">{line}</p>
+      <p className="quest-strip-prompt" dir="auto">
+        {info.prompt}
+      </p>
+      <QuestRows rows={info.rows} length={info.length} most={QUEST_STRIP_PAGE} />
+    </section>
+  );
+}
+
+/** Бонус у клітинці таблиці: бали, баф або «—». */
+function bonusText(row: QuestRow): string {
+  if (row.solved === null) return '—';
+  if (row.solved.points !== null) return signed(row.solved.points);
+  if (row.solved.buff !== null) return buffName(row.solved.buff);
+  return '—';
+}
+
+/** Таблиця «місце · нік · після запитання · бонус» у порядку сервера (розв'язали — за місцем, далі решта); на сцені понад 12 рядків — сторінки. */
+function QuestTable({ rows, host = false }: { rows: readonly QuestRow[]; host?: boolean }) {
+  const size = jigsawTablePageSize(rows.length);
+  const page = usePage(rows.length, size, !host);
+  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  return (
+    <div className="quest-table-wrap">
+      <table className={host ? 'jigsaw-table quest-table is-host' : 'jigsaw-table quest-table'} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
+        <thead>
+          <tr>
+            <th scope="col">{t('questTablePlace')}</th>
+            <th scope="col" />
+            <th scope="col">{t('questTableAfter')}</th>
+            <th scope="col">{t('questTableBonus')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((row) => (
+            <tr key={row.playerId} className={row.solved === null ? 'is-undone' : 'is-done'}>
+              <td className="rank">{row.solved === null ? '—' : row.solved.place}</td>
+              <td className="name" dir="auto">
+                {row.nickname}
+              </td>
+              <td>{row.solved === null ? '—' : row.solved.after}</td>
+              <td className="score">{bonusText(row)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Сцена: intro — глобальне запитання й порожній замок; вікно на leaderboard — запитання, замок, годинник і рядки; shown — код у замку й таблиця
+ * (round_end — лише код, таблиця раунду йде нижче). До shown символів немає: замок порожній, рядки несуть лічильники.
+ */
+export function QuestStage({ info, phase, offsetMs, paused = false }: { info: QuestInfo; phase: string; offsetMs: number; paused?: boolean }) {
+  const shown = info.stage === 'shown' && info.code !== null;
+  const window = info.stage === 'window';
+  return (
+    <div className={`quest-stage${shown ? ' is-shown' : ''}${window ? ' is-window' : ''}${phase === 'intro' ? ' is-intro' : ''}`}>
+      <p className="lead quest-stage-prompt" dir="auto">
+        {info.prompt}
+      </p>
+      <QuestLock length={info.length} code={shown ? info.code : null} />
+      {window && (
+        <div className="quest-clock">
+          <span className="meta">{t('questWindow')}</span>
+          <Timer view={info} offsetMs={offsetMs} total={QUEST_WINDOW_MS} status={timerStatus({ paused, held: false })} />
+        </div>
+      )}
+      {phase !== 'intro' && !(shown && phase === 'round_end') && (shown ? <QuestTable rows={info.rows} /> : <QuestRows rows={info.rows} length={info.length} />)}
+    </div>
+  );
+}
+
+/** «м:сс» від початку (мс). */
+function clockText(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** Час спроби: від початку раунду (since), а без нього — година доби. */
+function timeText(at: number, since: number | undefined): string {
+  if (since !== undefined) return clockText(at - since);
+  const date = new Date(at);
+  return [date.getHours(), date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, '0')).join(':');
+}
+
+/**
+ * Пульт: код з номерами порядку над символами, у вікні — годинник і «Показати код» (host:next); учасники з позиціями, бонусом і всіма спробами
+ * (рядок, час, після якого запитання, ✓/✗, у командах — хто ввів). since — початок раунду для часу спроб; showButton=false — головна кнопка пульта.
+ */
+export function HostQuestPanel({ quest, send, onError, offsetMs, since, showButton = true, paused = false }: { quest: HostQuest; send: Send; onError?: (text: string | null) => void; offsetMs: number; since?: number; showButton?: boolean; paused?: boolean }) {
+  const window = quest.stage === 'window';
+  const detail = new Map(quest.detail.map((entry) => [entry.playerId, entry]));
+  const show = () => void send('host:next', undefined).then((result) => onError?.(result.ok ? null : errorText(result.error)));
+  return (
+    <section className="panel quest-host">
+      <h2>{t('questSheetTitle')}</h2>
+      <p className="meta" dir="auto">
+        {quest.prompt}
+      </p>
+      <div className="quest-host-code">
+        <QuestLock length={quest.length} code={quest.code} order={quest.order} />
+      </div>
+      <p className="meta">{t('questStrip', { length: quest.length, count: solvedCount(quest) })}</p>
+      {window && (
+        <div className="quest-clock">
+          <span className="meta">{t('questWindow')}</span>
+          <Timer view={quest} offsetMs={offsetMs} total={QUEST_WINDOW_MS} status={timerStatus({ paused, held: false })} />
+          {showButton && (
+            <button type="button" className="btn btn-primary" onClick={show}>
+              {t('questHostShow')}
+            </button>
+          )}
+        </div>
+      )}
+      <ul className="rows quest-host-rows">
+        {quest.rows.map((row) => {
+          const own = detail.get(row.playerId);
+          return (
+            <li key={row.playerId} className="quest-host-row">
+              <span className="name" dir="auto">
+                {row.nickname}
+              </span>
+              <span className="given quest-host-slots" dir="ltr">
+                {(own?.slots ?? []).map((slot) => slot ?? '·').join(' ')}
+              </span>
+              <span className="meta">{row.solved === null ? t('questRowOpened', { opened: row.opened, length: quest.length }) : `${row.solved.place}. ${bonusText(row)}`}</span>
+              {own !== undefined && own.tries.length > 0 && (
+                <ul className="quest-host-tries">
+                  {own.tries.map((attempt, index) => (
+                    <li key={index} className={attempt.right ? 'quest-try is-right' : 'quest-try is-wrong'}>
+                      <span dir="ltr">{t('questHostTry', { code: attempt.code, time: timeText(attempt.at, since), after: attempt.after })}</span>
+                      <span aria-hidden="true">{attempt.right ? ' ✓' : ' ✗'}</span>
+                      {attempt.by !== null && <span className="meta"> {t('questHostBy', { name: attempt.by })}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
