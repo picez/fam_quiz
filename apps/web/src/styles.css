@@ -8489,6 +8489,33 @@ label.powers-price {
   font-size: 1rem;
 }
 
+.shop-stealth {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line, currentColor);
+  border-radius: 8px;
+}
+
+.shop-stealth-chip {
+  justify-self: start;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--tip-bg);
+  font-weight: 600;
+}
+
+/* «Прихований напад» (29h): один рядок під шапкою, на 320 px — з три крапкою, без горизонтального скролу. */
+.stealth-mark {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
 .shop-block {
   padding: 0.5rem 0.75rem;
   border-inline-start: 4px solid var(--amber);

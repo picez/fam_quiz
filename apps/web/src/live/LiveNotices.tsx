@@ -104,7 +104,7 @@ export function BuffToast({ view, offsetMs, selfId }: { view: BuffToastView; off
 }
 
 /**
- * «Оля насилає дебаф на гравця Петро» — сцена, пульт і телефони; без виду дебафу; у стовпчику .live-notices.
+ * «Оля насилає дебаф на гравця Петро» (buyer null — анонімна покупка 29h: «Хтось насилає дебаф на гравця Петро») — сцена, пульт і телефони; без виду дебафу; у стовпчику .live-notices.
  * Жертві (selfId — ціль) — ні: свіжа покупка для неї означає, що дебаф чекає чи діє, а її банер сам назве покупця.
  */
 export function DebuffToast({ notice, offsetMs, selfId }: { notice: DebuffNotice | null; offsetMs: number; selfId?: string }) {
@@ -112,7 +112,7 @@ export function DebuffToast({ notice, offsetMs, selfId }: { notice: DebuffNotice
   if (shown === null || shown.target.playerId === selfId) return null;
   return (
     <div className="live-notice is-debuff" role="status" aria-live="polite">
-      {t('debuffBoughtNotice', { buyer: shown.buyer.nickname, target: shown.target.nickname })}
+      {shown.buyer === null ? t('debuffAnonNotice', { target: shown.target.nickname }) : t('debuffBoughtNotice', { buyer: shown.buyer.nickname, target: shown.target.nickname })}
     </div>
   );
 }

@@ -141,6 +141,15 @@ describe('DebuffZone', () => {
     expect(screen.getByRole('status').textContent).toContain('На вас наслано: Туман');
   });
 
+  it('the victim does not learn the buyer', () => {
+    render(
+      <DebuffZone debuff={{ kind: 'fog', since: Date.now(), by: null, anon: true }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        <AnswerInput question={single} onSubmit={() => {}} />
+      </DebuffZone>,
+    );
+    expect(screen.getByRole('status').textContent).toContain('Хтось насилає на вас: Туман');
+  });
+
   it('the target sees what was cast for three seconds', () => {
     render(<Zone kind="fog" />);
     expect(zone().dataset.debuff).toBe('fog');

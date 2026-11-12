@@ -910,7 +910,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         <span>{team !== null ? team.nickname : me.nickname}</span>
         {/* Кнопка не вища за рядок шапки: її поява не зсуває екран. */}
         <DuelButton duel={captain || me.duel === null ? me.duel : { ...me.duel, rights: null }} paused={view.paused || splashUp} send={send} onError={setError} />
-        {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} send={send} onError={setError} />}
+        {me.shop !== null && captain && <DebuffShop shop={me.shop} score={me.score} stealth={me.stealth} send={send} onError={setError} />}
         <AuthorMenu view={view} send={send} />
         {view.table !== null && <TableButton table={view.table} meId={me.id} teams={view.teams} breakdown={view.myBreakdown} />}
         {/* Лайк (17a): пігулка тієї ж висоти, що «Таблиця»; ключа немає без акаунта чи поки не прочитано. */}
@@ -919,6 +919,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
         <strong className="score" dir="ltr">{num(me.score)}</strong>
       </header>
+      {/* «Прихований напад» (29h): бачить лише власник, уся команда; на finished (shop null) — ні. */}
+      {me.stealth === 'armed' && me.shop !== null && <p className="stealth-mark">{t('stealthArmed')}</p>}
 
       {view.paused && (
         <p className={view.author !== null ? 'banner author-paused' : 'banner'} role="status">

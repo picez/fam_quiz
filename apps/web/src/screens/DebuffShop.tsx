@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import type { DebuffKind, PlayerShop } from '@quiz/shared';
+import type { DebuffKind, PlayerShop, StealthMark } from '@quiz/shared';
+import { BUFF_ICONS } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { num } from '../format';
 import { t, type TextKey } from '../i18n';
@@ -10,9 +11,9 @@ import { useGuardedSend } from '../live/useGuardedSend';
 /**
  * Кнопка «😈» у шапці телефона (ім'я «Дебафи») і аркуш покупки: крок 1 — дебаф (іконка, назва, опис з debuffGuide_*, ціна;
  * дорожчий за рахунок вимкнений з «Не вистачає балів»), крок 2 — суперник (busy вимкнений з «Уже має дебаф»), «Купити за {price}».
- * block ≠ null — список видно, кнопки вимкнені, над ними причина. Аркуш — як «Таблиця»: портал, role="dialog", Escape і дотик повз картку закривають, фокус повертається на кнопку.
+ * stealth (29h): рядок «Прихований напад» на кроці 1 — «Увімкнути» / чип «🥷 …» / «Використано»; видно й при block ≠ null. block ≠ null — список видно, кнопки вимкнені, над ними причина. Аркуш — як «Таблиця»: портал, role="dialog", Escape і дотик повз картку закривають, фокус повертається на кнопку.
  */
-export function DebuffShop({ shop, score, send, onError }: { shop: PlayerShop; score: number; send: Send; onError: (text: string | null) => void }) {
+export function DebuffShop({ shop, score, stealth, send, onError }: { shop: PlayerShop; score: number; stealth?: StealthMark; send: Send; onError: (text: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<DebuffKind | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
@@ -89,6 +90,26 @@ export function DebuffShop({ shop, score, send, onError }: { shop: PlayerShop; s
             <div ref={cardRef} className="table-card shop-card">
               <h2>{t('shopTitle')}</h2>
               {shop.block !== null && <p className="shop-block">{t(`shopBlock_${shop.block}` as TextKey)}</p>}
+              {item === undefined && stealth !== undefined && (
+                <div className="shop-stealth">
+                  <span className="shop-item-name">
+                    <span aria-hidden="true">{BUFF_ICONS.stealth}</span> {t('buff_stealth')}
+                  </span>
+                  <span className="shop-item-desc">{t('buffGuide_stealth')}</span>
+                  {stealth === 'armed' ? (
+                    <span className="shop-stealth-chip">{t('stealthArmed')}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      disabled={stealth === 'used' || busy}
+                      onClick={() => void run('player:buff', { kind: 'stealth' })}
+                    >
+                      {t(stealth === 'used' ? 'stealthUsed' : 'stealthTake')}
+                    </button>
+                  )}
+                </div>
+              )}
               {item === undefined ? (
                 <div className="shop-items">
                   {shop.items.map(({ kind: k, price }) => {

@@ -178,6 +178,7 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
             {`${BUFF_ICONS[kind]} ${buffName(kind)} — ${t(`buffTip_${kind}` as TextKey)}`}
           </p>
         ))}
+        {buffs.includes('stealth') && (!shopOn || debuffs.length === 0) && <p className="meta powers-warn">{t('powersStealthNeedsShop')}</p>}
         {buffs.includes('swap') && (spares === undefined || spares.length === 0) && !gaps?.anyCategory && (
           <p className="meta powers-warn">{t('powersSwapNeedsSpares')}</p>
         )}

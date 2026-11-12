@@ -25,6 +25,9 @@ const text = (id: HelpId) => {
   return [e.title, e.what, ...e.how, ...e.points, ...e.tip, ...(e.limits ?? [])].join(' ');
 };
 
+/** Бафи ряду запитання: «Прихований напад» (29h) вмикається в аркуші «😈» і правил запитання не має. */
+const ROW_BUFFS = BUFF_KINDS.filter((kind) => kind !== 'stealth');
+
 describe('host help', () => {
   it('every round type, question type and cell kind has an entry', () => {
     for (const type of ROUND_TYPES) filled(`round.${type}`);
@@ -97,10 +100,10 @@ describe('host help', () => {
     expect(text('setting.duels')).toContain('Бафів і дебафів у дуелі немає');
   });
 
-  it('12h: thirteen buffs and eleven debuffs, each with the rule, the exclusions and its own numbers', () => {
-    expect(BUFF_KINDS.length).toBe(13);
+  it('12h: fourteen buffs and eleven debuffs, each with the rule, the exclusions and its own numbers', () => {
+    expect(BUFF_KINDS.length).toBe(14);
     expect(DEBUFF_KINDS.length).toBe(11);
-    expect(helpIds('buffs').length).toBe(13);
+    expect(helpIds('buffs').length).toBe(14);
     expect(helpIds('debuffs').length).toBe(11);
     const has = (id: HelpId, parts: string[]) => {
       const body = text(id);
@@ -284,7 +287,7 @@ describe('host help', () => {
     expect(ladder).toContain('неспалим');
     expect(ladder).toContain('раз за драбину');
     expect(ladder).toContain('Забрати');
-    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Мільйонері');
+    for (const kind of ROW_BUFFS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Мільйонері');
     for (const kind of ['fifty', 'audience', 'hint'] as const) expect(text(`buff.${kind}`), kind).toContain('підказка драбини');
     for (const key of ['debuffShop', 'duels', 'leaderboard', 'speedBonus'] as const) expect(text(`setting.${key}`), key).toContain('Мільйонері');
     expect(text('round.wipeout')).toContain('раунд «Мільйонер»');
@@ -312,8 +315,13 @@ describe('host help', () => {
     expect(searchHelp('туман')).toEqual(['debuff.fog']);
   });
 
+  it('29h: stealth help is honest that the price is deducted later with the reveal', () => {
+    expect(text('buff.stealth')).toContain('списується пізніше, разом із загальною зміною балів на розкритті');
+    expect(text('buff.stealth')).toContain('Хтось насилає дебаф на гравця Петро');
+  });
+
   it('every buff states the once-per-game rule and where buffs do not work', () => {
-    for (const kind of BUFF_KINDS) {
+    for (const kind of ROW_BUFFS) {
       const e = helpEntry(`buff.${kind}`);
       expect(e.how[0], kind).toContain('раз за гру, не більше одного на запитання і лише до відповіді');
       expect((e.limits ?? []).join(' '), kind).toContain("Бафи не діють у бліці, на бліц-клітинках, у фіналі, у «Ва-банк», «Вибуванні» й «Мільйонері», на запитаннях «ланцюжок» і «сортування», на стіні зв'язків, опитуванні й хмарі слів та в дуелях");
@@ -429,7 +437,7 @@ describe('host help', () => {
     expect(wipeout).toContain(String(LIMITS.wipeoutDecideSeconds));
     expect(wipeout).toContain(`${LIMITS.minWipeoutQuestions}–${LIMITS.maxWipeoutQuestions}`);
     expect(wipeout).toContain('забирає банк сам');
-    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('у «Ва-банк»');
+    for (const kind of ROW_BUFFS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('у «Ва-банк»');
     for (const kind of DEBUFF_KINDS) expect(text(`debuff.${kind}`), kind).toContain('«Ва-банк»');
     for (const key of ['debuffShop', 'duels', 'leaderboard'] as const) expect(text(`setting.${key}`), key).toContain('Ва-банк');
     expect(text('round.final')).toContain('не те саме, що раунд «Ва-банк»');
@@ -444,7 +452,7 @@ describe('host help', () => {
     expect(survival).toContain('виберуться самі');
     expect(survival).toContain('ніхто не вибуває');
     expect(survival).toContain('привид');
-    for (const kind of BUFF_KINDS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Вибуванні');
+    for (const kind of ROW_BUFFS) expect((helpEntry(`buff.${kind}`).limits ?? []).join(' '), kind).toContain('Вибуванні');
     for (const key of ['debuffShop', 'duels', 'leaderboard', 'speedBonus'] as const) expect(text(`setting.${key}`), key).toContain('Вибуванні');
     expect(text('setting.spares')).toContain('питання на виживання');
     expect(text('round.classic')).toContain('«Вибування» — окремий тип раунду');

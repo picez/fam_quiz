@@ -45,7 +45,7 @@ describe('GuidePageView', () => {
   it('a page with more than eight buffs or debuffs gets two columns (is-many); a short page does not', () => {
     const many: GuideView = { page: 0, pages: [{ kind: 'buffs', buffs: [...BUFF_KINDS] }, { kind: 'debuffs', debuffs: [...DEBUFF_KINDS] }, { kind: 'buffs', buffs: ['fifty', 'double', 'risk', 'letter', 'peek'] }] };
     render(<GuidePageView guide={many} size="stage" />);
-    expect(document.querySelectorAll('.guide-item')).toHaveLength(13);
+    expect(document.querySelectorAll('.guide-item')).toHaveLength(14);
     expect(document.querySelector('.guide-items')?.classList.contains('is-many')).toBe(true);
     cleanup();
     render(<GuidePageView guide={{ ...many, page: 1 }} size="stage" />);
