@@ -2021,7 +2021,7 @@
   "melodyPlayersAnswered": "أجاب {count} من {total}",
   "melodyPreview": "▶ {seconds} ث",
   "melodyReplay": "أعد الاستماع {seconds} ث",
-  "melodyRevealTitle": "كان «{title}»",
+  "melodyRevealTitle": "الأغنية: «{title}»",
   "melodyShareNow": "الآن: {share} % من السعر",
   "melodyShortFile": "الملف أقصر من {need} ث — سيُقتطع آخر المقاطع.",
   "melodySourceFile": "ملف",

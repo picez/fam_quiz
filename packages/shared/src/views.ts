@@ -409,7 +409,6 @@ export interface PublicSpotdiff {
   spots: SpotCircle[] | null;
 }
 
-/** «Пам'ять» (29f), усім: id запитання (ключ поля), сітка й кількість пар; pairs — лише на reveal, інакше null. */
 /** «Мелодія за нотами» (29e): для всіх ролей однаковий. id — id запитання (ключ поля), answer — accepted[0] лише на reveal. */
 export interface PublicMelody {
   id: string;
@@ -440,6 +439,7 @@ export interface PlayerMelody {
   openedBy: string | null;
 }
 
+/** «Пам'ять» (29f), усім: id запитання (ключ поля), сітка й кількість пар; pairs — лише на reveal, інакше null. */
 export interface PublicMemory {
   id: string;
   grid: MemoryGrid;

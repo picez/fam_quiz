@@ -1197,7 +1197,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                   info={me.melody}
                   question={{ ...question, melody: question.melody }}
                   questionIndex={view.questionIndex}
-                  paused={locked}
+                  paused={locked || view.held}
                   live={!buffTimeOver}
                   send={send}
                   onSubmit={(answer) => void submit(answer)}

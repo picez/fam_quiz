@@ -3160,7 +3160,7 @@ describe('StageScreen: melody (29e)', () => {
     show(view({ phase: 'reveal', questionIndex: 0, question: melodyQ('Щедрик'), reveal: fullMelody, playerCount: 3, answeredCount: 3, melody: info }));
     expect(document.querySelector('.audio-card')).not.toBeNull();
     expect(document.querySelector('audio')?.getAttribute('src')).toBe(track.url);
-    expect(screen.getByText('Це була «Щедрик»')).toBeTruthy();
+    expect(screen.getByText('Звучала пісня «Щедрик»')).toBeTruthy();
     expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();
     const rows = [...document.querySelectorAll('.melody-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
     expect(rows).toEqual([

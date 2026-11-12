@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SPLASH_MS, emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
+import { MELODY_SHARES, SPLASH_MS, emptyBrief, type BlitzRow, type PlayerActiveBuff, type PlayerBlitz, PlayerView, Question, RoundInfo } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { errorText, t } from '../i18n';
 import { STAGE_GONE_MS } from '../live/useStageGone';
@@ -256,7 +256,12 @@ describe('PlayerScreen melody (29e)', () => {
     show(onQuestion({ question: melodyQuestion(null), me: { ...me, melody: { heard: 0, canOpen: true, canAnswer: false, openedBy: null } } as never }));
     expect(document.querySelector('.player-audio')).toBeNull();
     expect(document.querySelectorAll('.melody-step')).toHaveLength(5);
-    expect(screen.getByRole('button', { name: t('melodyListen', { seconds: 1 }) })).toBeTruthy();
+    expect(screen.getByRole('button', { name: `${t('melodyListen', { seconds: 1 })} · ${Math.round(MELODY_SHARES[0] * 100)} %` })).toBeTruthy();
+  });
+
+  it('a held clock keeps the melody ladder silent', () => {
+    show(onQuestion({ held: true, question: melodyQuestion(null), me: { ...me, melody: { heard: 0, canOpen: true, canAnswer: false, openedBy: null } } as never }));
+    expect((document.querySelector('.melody-step[data-step="1"]') as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

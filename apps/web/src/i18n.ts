@@ -2874,7 +2874,7 @@ const uk = {
   melodyStageNone: 'ще не слухав',
   melodyStageHeard: '🎧 {seconds} с',
   melodyPlayersAnswered: 'Відповіли: {count} з {total}',
-  melodyRevealTitle: 'Це була «{title}»',
+  melodyRevealTitle: 'Звучала пісня «{title}»',
   melodyTableChunk: 'шматок',
   melodyTableLabel: 'Результати «Мелодії за нотами»',
   melodyAnswerHeard: '{answer} · {seconds} с',

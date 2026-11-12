@@ -360,7 +360,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
   // У бліці оцінка остаточна: змінювати її на reveal не можна.
   // «Мелодія за нотами» (29e): панель «Ще раз / Стоп» — лише на розкритті, і керує вона треком на сцені (30 с від початку фрагмента).
   const clip = view.question?.melody !== undefined ? (view.phase === 'reveal' ? melodyRevealClip(view.question.melody.track) : null) : (view.question?.audio?.clip ?? null);
-  const canGrade = phase === 'reveal' && correct?.type === 'text' && round?.type !== 'blitz' && !isFinal;
+  const canGrade = phase === 'reveal' && (correct?.type === 'text' || correct?.type === 'melody') && round?.type !== 'blitz' && !isFinal;
   // Апеляція (12f): поки зал голосує, «Далі» рушій відхиляє (appeal_open) — головна кнопка неактивна й каже «Голосує зал».
   const appealVoting = phase === 'reveal' && view.appeal?.outcome === null;
   // Зал зарахував відповідь: оцінку поверх рушій відхиляє (not_allowed), доки рядок апеляції не скасовано в «↶ Бали».

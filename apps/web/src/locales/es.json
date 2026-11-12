@@ -1946,7 +1946,7 @@
   "melodyPlayersAnswered": "Han respondido: {count} de {total}",
   "melodyPreview": "▶ {seconds} s",
   "melodyReplay": "Volver a escuchar {seconds} s",
-  "melodyRevealTitle": "Era «{title}»",
+  "melodyRevealTitle": "La canción: «{title}»",
   "melodyShareNow": "Ahora: {share} % del precio",
   "melodyShortFile": "El archivo dura menos de {need} s: los últimos fragmentos se recortarán.",
   "melodySourceFile": "Archivo",

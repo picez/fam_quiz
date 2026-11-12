@@ -236,6 +236,15 @@ describe('stripMp3Tags', () => {
     expect(stripMp3Tags(junk)).toBe(junk);
   });
 
+  it('skips a UTF-16 BOM (FF FE, FF FF) when looking for the frame sync', () => {
+    const audio = frames();
+    for (const bom of [[0xff, 0xfe], [0xff, 0xff]]) {
+      const stripped = stripMp3Tags(Uint8Array.from([...id3v2('Shchedryk'), ...bom, 0x53, 0x00, ...audio]));
+      expect(stripped.length).toBe(audio.length);
+      expect(stripped[1]).toBe(0xfb);
+    }
+  });
+
   it('drops ID3v1 without ID3v2', () => {
     const audio = frames();
     const stripped = stripMp3Tags(Uint8Array.from([...audio, ...id3v1('Shchedryk')]));

@@ -249,7 +249,10 @@ describe('uploading audio', () => {
   it('stores ogg and m4a', async () => {
     const ogg = await uploadAudio(OGG, 'audio/ogg');
     expect(ogg.statusCode).toBe(201);
-    expect((ogg.json() as { url: string }).url).toMatch(/\.ogg$/);
+    const oggUrl = (ogg.json() as { url: string }).url;
+    expect(oggUrl).toMatch(/\.ogg$/);
+    const oggFile = await ctx.app.inject({ method: 'GET', url: oggUrl });
+    expect(Buffer.compare(oggFile.rawPayload, OGG)).toBe(0);
     const m4a = await uploadAudio(M4A, 'audio/x-m4a');
     expect(m4a.statusCode).toBe(201);
     expect((m4a.json() as { url: string }).url).toMatch(/\.m4a$/);

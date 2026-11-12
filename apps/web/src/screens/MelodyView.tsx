@@ -47,7 +47,7 @@ export function MelodySteps({ heard, canOpen, playing, onPlay }: MelodyStepsProp
         const next = !opened && canOpen && step === heard + 1;
         const pressed = opened || next ? playing === step : undefined;
         const className = `melody-step${opened ? ' is-open' : next ? ' is-next' : ' is-locked'}${playing === step ? ' is-playing' : ''}`;
-        const label = opened ? t('melodyReplay', { seconds }) : next ? t(step === 1 ? 'melodyListen' : 'melodyMore', { seconds }) : t('melodyStep', { seconds, share });
+        const label = opened ? `${t('melodyReplay', { seconds })} · ${share} %` : next ? `${t(step === 1 ? 'melodyListen' : 'melodyMore', { seconds })} · ${share} %` : t('melodyStep', { seconds, share });
         return (
           <li key={step}>
             <button type="button" className={className} aria-label={label} aria-pressed={pressed} disabled={!opened && !next} data-step={step} onClick={() => onPlay(step)}>
@@ -98,6 +98,9 @@ function MelodyBoard({ info, question, questionIndex, paused, live, send, onSubm
   sendNow.current = send;
   const stopNow = useRef(clip.stop);
   stopNow.current = clip.stop;
+  // Звук гасимо за запізнілою відмовою лише тоді, коли грає саме той шматок: інший, переслуханий пізніше, не чіпаємо.
+  const playingNow = useRef(clip.playing);
+  playingNow.current = clip.playing;
 
   useEffect(() => {
     alive.current = true;
@@ -126,7 +129,7 @@ function MelodyBoard({ info, question, questionIndex, paused, live, send, onSubm
     setError(null);
     void withTimeout(sendNow.current('player:melody', { questionIndex, step })).then((result) => {
       if (!alive.current || result.ok) return;
-      stopNow.current();
+      if (playingNow.current === MELODY_STEPS[step - 1]) stopNow.current();
       setPendingStep((now) => (now === step ? null : now));
       setError(errorText(result.error));
     });
@@ -139,11 +142,11 @@ function MelodyBoard({ info, question, questionIndex, paused, live, send, onSubm
     <div className="melody-play">
       {clip.element}
       <MelodySteps heard={heard} canOpen={canOpen} playing={playingStep} onPlay={onPlay} />
-      <p className="meta melody-share" aria-live="polite">
+      <p className="meta melody-share">
         {shareLine}
       </p>
       {info.openedBy !== null && info.heard >= 1 && (
-        <p className="meta melody-by" dir="auto" aria-live="polite">
+        <p className="meta melody-by" dir="auto">
           {t('melodyOpenedBy', { name: info.openedBy, seconds: melodySeconds(info.heard) })}
         </p>
       )}

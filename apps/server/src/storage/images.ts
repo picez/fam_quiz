@@ -109,7 +109,8 @@ export function stripMp3Tags(bytes: Uint8Array): Uint8Array {
   if (from > 0) {
     const limit = Math.min(to - 1, from + MP3_SYNC_SEARCH);
     let at = from;
-    while (at < limit && !isMp3Frame(bytes, at)) at += 1;
+    // FF FE / FF FF — це BOM UTF-16 із тексту тега, а не кадр: пропускаємо.
+    while (at < limit && (!isMp3Frame(bytes, at) || bytes[at + 1]! >= 0xfe)) at += 1;
     if (at >= limit) return bytes;
     from = at;
   }

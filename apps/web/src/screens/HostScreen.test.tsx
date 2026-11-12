@@ -3826,6 +3826,16 @@ describe('HostScreen melody (29e)', () => {
     ]);
   });
 
+  it('the host grades a melody answer on reveal', () => {
+    const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: false, points: 0, timeMs: 5000 })] };
+    const responses = [
+      { playerId: 'p1', nickname: 'Оля', answer: { type: 'melody' as const, value: 'Щедрик!' }, timeMs: 5000, accepted: false, grade: 'wrong' as const, streakBonus: 0, away: [], awayPenalty: false, silent: false, points: 0, overridden: false, buff: null, spare: null, clue: null },
+    ];
+    const send = show(view({ phase: 'reveal', questionIndex: 0, playerCount: 1, answeredCount: 1, question: publicQ('Щедрик'), correct: full, melody: info, responses } as never));
+    fireEvent.click(button('Зарахувати'));
+    expect(send).toHaveBeenCalledWith('host:override', { playerId: 'p1', grade: 'correct' });
+  });
+
   it('without a stage the host plays the melody track itself on reveal', () => {
     const info = { rows: [r('p1', 'Оля', 2, { answered: true, correct: true, points: 800, timeMs: 5000 })] };
     render(

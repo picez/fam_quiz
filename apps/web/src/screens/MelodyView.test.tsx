@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 // @ts-expect-error node:fs без @types/node
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PlayerMelody, PublicMelody, PublicQuestion } from '@quiz/shared';
+import { MELODY_SHARES, MELODY_STEPS, type PlayerMelody, type PublicMelody, type PublicQuestion } from '@quiz/shared';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 
@@ -56,26 +56,29 @@ function mount(over: { info?: PlayerMelody; send?: ReturnType<typeof vi.fn<Send>
   return { send, onSubmit, ...view };
 }
 
+/** aria-label відкритої чи наступної комірки: дія й частка ціни. */
+const lab = (key: 'melodyReplay' | 'melodyListen' | 'melodyMore', seconds: number) => `${t(key, { seconds })} · ${Math.round(MELODY_SHARES[MELODY_STEPS.indexOf(seconds as never)] * 100)} %`;
+
 const cells = () => [...document.querySelectorAll<HTMLButtonElement>('.melody-step')];
 
 describe('MelodyPlay', () => {
   it('the first tap plays and sends the round-local number', async () => {
     const { send } = mount();
     expect(cells()).toHaveLength(5);
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: t('melodyListen', { seconds: 1 }) })));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: lab('melodyListen', 1) })));
     expect(clip.play).toHaveBeenCalledWith(1);
     expect(send).toHaveBeenCalledWith('player:melody', { questionIndex: 0, step: 1 });
     expect(calls).toEqual(['play:1', 'send']);
     // Поки ack немає, шматок уже відкритий локально.
-    expect(cells()[0].getAttribute('aria-label')).toBe(t('melodyReplay', { seconds: 1 }));
+    expect(cells()[0].getAttribute('aria-label')).toBe(lab('melodyReplay', 1));
   });
 
   it('only the next chunk can be opened', async () => {
     const { send } = mount({ info: infoOf({ heard: 2, canAnswer: true }) });
     const all = cells();
-    expect(all[0].getAttribute('aria-label')).toBe(t('melodyReplay', { seconds: 1 }));
-    expect(all[1].getAttribute('aria-label')).toBe(t('melodyReplay', { seconds: 2 }));
-    expect(all[2].getAttribute('aria-label')).toBe(t('melodyMore', { seconds: 4 }));
+    expect(all[0].getAttribute('aria-label')).toBe(lab('melodyReplay', 1));
+    expect(all[1].getAttribute('aria-label')).toBe(lab('melodyReplay', 2));
+    expect(all[2].getAttribute('aria-label')).toBe(lab('melodyMore', 4));
     expect(all[2].disabled).toBe(false);
     expect(all[3].disabled).toBe(true);
     expect(all[4].disabled).toBe(true);
@@ -86,12 +89,28 @@ describe('MelodyPlay', () => {
 
   it('a refused chunk stops the sound', async () => {
     const send = vi.fn<Send>(() => Promise.resolve<SendResult>({ ok: false, error: 'time_over' }));
+    clip.playing = 1;
     mount({ send });
     await act(async () => fireEvent.click(cells()[0]));
     expect(clip.play).toHaveBeenCalledWith(1);
     expect(clip.stop).toHaveBeenCalled();
-    expect(cells()[0].getAttribute('aria-label')).toBe(t('melodyListen', { seconds: 1 }));
+    expect(cells()[0].getAttribute('aria-label')).toBe(lab('melodyListen', 1));
     expect(screen.getByText(errorText('time_over'))).toBeTruthy();
+  });
+
+  it('a late refusal leaves another chunk playing', async () => {
+    const send = vi.fn<Send>(() => Promise.resolve<SendResult>({ ok: false, error: 'time_over' }));
+    clip.playing = 2;
+    mount({ send });
+    await act(async () => fireEvent.click(cells()[0]));
+    expect(clip.stop).not.toHaveBeenCalled();
+  });
+
+  it('share and opener lines are not live regions', () => {
+    mount({ info: infoOf({ heard: 2, canAnswer: true, openedBy: 'Тарас' }) });
+    expect(document.querySelector('.melody-share')?.hasAttribute('aria-live')).toBe(false);
+    expect(document.querySelector('.melody-by')?.hasAttribute('aria-live')).toBe(false);
+    expect(document.querySelector('.melody-status')?.getAttribute('role')).toBe('status');
   });
 
   it('the answer waits for a chunk', () => {
@@ -126,8 +145,8 @@ describe('MelodyPlay', () => {
   it('after the answer only replays', () => {
     mount({ info: infoOf({ heard: 3, canOpen: false, canAnswer: false }), answer: 'Щедрик' });
     expect(screen.getByText(t('melodyAnswered', { seconds: 4 }))).toBeTruthy();
-    expect(screen.queryByRole('button', { name: t('melodyMore', { seconds: 8 }) })).toBeNull();
-    expect(cells()[2].getAttribute('aria-label')).toBe(t('melodyReplay', { seconds: 4 }));
+    expect(screen.queryByRole('button', { name: lab('melodyMore', 8) })).toBeNull();
+    expect(cells()[2].getAttribute('aria-label')).toBe(lab('melodyReplay', 4));
     expect(cells()[3].disabled).toBe(true);
     // Поле відповіді вже не потрібне.
     expect(screen.queryByRole('textbox')).toBeNull();
@@ -166,9 +185,9 @@ describe('MelodyPlay', () => {
     const send = vi.fn<Send>(() => new Promise<SendResult>(() => undefined));
     const view = mount({ send });
     await act(async () => fireEvent.click(cells()[0]));
-    expect(cells()[0].getAttribute('aria-label')).toBe(t('melodyReplay', { seconds: 1 }));
+    expect(cells()[0].getAttribute('aria-label')).toBe(lab('melodyReplay', 1));
     view.rerender(<MelodyPlay info={infoOf()} question={questionOf({ id: 'q-other' })} questionIndex={0} paused={false} live send={send} onSubmit={vi.fn()} />);
-    expect(cells()[0].getAttribute('aria-label')).toBe(t('melodyListen', { seconds: 1 }));
+    expect(cells()[0].getAttribute('aria-label')).toBe(lab('melodyListen', 1));
   });
 });
 

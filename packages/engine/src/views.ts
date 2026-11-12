@@ -394,12 +394,12 @@ function publicSpotdiff(question: Extract<Question, { type: 'spotdiff' }>, revea
   return { original: question.original, changed: question.changed, aspect: question.aspect, total: question.spots.length, spots: revealed ? question.spots.map((s) => ({ ...s })) : null };
 }
 
-/** Сітка «Пам'яті» і кількість пар; самі пари - лише на reveal, seed (розклад) - ніколи. */
 /** «Мелодія» (29e): джерело й start усім, назва (accepted[0]) - лише на reveal; решта написань - ніколи. */
 function publicMelody(question: Extract<Question, { type: 'melody' }>, revealed: boolean): PublicMelody {
   return { id: question.id, track: question.track, answer: revealed ? (question.accepted[0] ?? null) : null };
 }
 
+/** Сітка «Пам'яті» і кількість пар; самі пари - лише на reveal, seed (розклад) - ніколи. */
 function publicMemory(question: Extract<Question, { type: 'memory' }>, revealed: boolean): PublicMemory {
   const { cols, rows } = memoryGridSize(question.grid);
   return {
