@@ -5,7 +5,7 @@ import { JIGSAW_HOLD_REFRESH_MS, jigsawTabs, type JigsawBoardView, type JigsawIn
 import { t } from '../i18n';
 import { piecePad } from '../live/jigsaw-shape';
 import type { Send, SendResult } from '../live/types';
-import { JigsawPlay, JigsawReveal, JigsawTable, jigsawDropAt, jigsawTablePageSize } from './JigsawView';
+import { JigsawPlay, JigsawReveal, JigsawTable, jigsawDropAt, jigsawTablePageSize, pileRows } from './JigsawView';
 
 const JIGSAW: PublicJigsaw = { photo: '/uploads/0123456789abcdef0123.jpg', aspect: '4:3', focus: { x: 0.5, y: 0.5 }, rows: 3, cols: 4, tabs: jigsawTabs(3, 4, 1), preview: false };
 const infoOf = (over: Partial<PlayerJigsaw> = {}): PlayerJigsaw => ({ placed: [], held: [], done: false, canPlace: true, seq: 0, timeMs: null, result: null, ...over });
@@ -77,6 +77,33 @@ describe('JigsawPlay', () => {
     const after = where();
     expect(after.size).toBe(11);
     for (const [piece, index] of after) expect(index, `piece ${piece}`).toBe(before.get(piece));
+  });
+
+  it('a pile row emptied completely disappears, the rows below move up', () => {
+    const send = vi.fn<Send>(() => Promise.resolve<SendResult>({ ok: true }));
+    const props = { question: questionOf(), questionIndex: 2, actorId: 'p1', paused: false, timeUp: false, send, team: true };
+    const view = render(<JigsawPlay info={infoOf()} {...props} />);
+    const rows = () => [...document.querySelectorAll<HTMLElement>('.jigsaw-pile .jigsaw-pile-row')];
+    const piecesOf = (row: HTMLElement) => [...row.querySelectorAll<HTMLElement>('[data-piece]')].map((el) => Number(el.dataset.piece));
+    expect(rows()).toHaveLength(3);
+    const top = piecesOf(rows()[0]);
+    const second = piecesOf(rows()[1]);
+    // Три з чотирьох — рядок лишається з порожніми місцями.
+    view.rerender(<JigsawPlay info={infoOf({ placed: top.slice(0, 3), seq: 1 })} {...props} />);
+    expect(rows()).toHaveLength(3);
+    // Останній — рядок зникає, другий стає першим.
+    view.rerender(<JigsawPlay info={infoOf({ placed: top, seq: 2 })} {...props} />);
+    expect(rows()).toHaveLength(2);
+    expect(piecesOf(rows()[0])).toEqual(second);
+  });
+
+  it('pileRows splits the pile in order', () => {
+    expect(pileRows([5, 1, 9, 2, 7, 3], 4)).toEqual([
+      [5, 1, 9, 2],
+      [7, 3],
+    ]);
+    expect(pileRows([], 4)).toEqual([]);
+    expect(pileRows([1, 2], 0)).toEqual([[1], [2]]);
   });
 
   it('a piece dropped on the frame leaves its pile slot empty', () => {

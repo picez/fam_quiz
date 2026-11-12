@@ -18977,7 +18977,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .crossword-key-n {
   inset-inline-end: 0.1rem;
-  color: var(--amber);
+  color: var(--bank);
 }
 
 .crossword-editor-lists {
@@ -19163,7 +19163,7 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0;
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
-  border-inline-start: 3px solid var(--amber);
+  border-inline-start: 3px solid var(--voice);
   background: var(--surface);
   font-weight: 700;
 }
@@ -19213,17 +19213,29 @@ input.sudoku-editor-cell:focus-visible {
   background: transparent;
 }
 
+/* Слово вибраного запитання: фіолетова заливка й рамка — видно здалеку й не плутається з червоною клітинкою курсора. */
 .crossword-play-cell.is-word {
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  background: color-mix(in srgb, var(--voice) 30%, var(--surface));
+  border-color: var(--voice);
 }
 
 .crossword-play-cell.is-key {
-  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 5px var(--amber);
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 5px var(--bank);
 }
 
+/* Номери на полі: білі й жирні (номер запитання), золоті (ключове слово) — червоний на чорному читався погано. */
 .crossword-play-cell .crossword-number,
 .crossword-play-cell .crossword-key-n {
-  font-size: clamp(0.45rem, 2vw, 0.6rem);
+  font-size: clamp(0.5rem, 2.3vw, 0.7rem);
+  font-weight: 700;
+}
+
+.crossword-play-cell .crossword-number {
+  color: var(--paper);
+}
+
+.crossword-play-cell .crossword-key-n {
+  color: var(--bank);
 }
 
 /* Поле системної клавіатури: невидиме, але в DOM і під сіткою (фокус не стрибає, сторінка не прокручується). 16 px — iOS не збільшує. */
@@ -19291,6 +19303,12 @@ input.sudoku-editor-cell:focus-visible {
   color: var(--paper);
   font: inherit;
   text-align: start;
+}
+
+/* Вибране запитання у списку — тим самим фіолетовим, що й його слово на полі. */
+.crossword-clue.is-active {
+  border-inline-start: 3px solid var(--voice);
+  background: color-mix(in srgb, var(--voice) 22%, transparent);
 }
 
 /* Хто з команди вписав клітинку: колір учасника (маска '1'…'9'). */
@@ -20040,8 +20058,8 @@ input.sudoku-editor-cell:focus-visible {
 
 .jigsaw-pile {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: 0.25rem;
   width: 100%;
   max-height: 34vh;
@@ -20052,6 +20070,13 @@ input.sudoku-editor-cell:focus-visible {
   box-sizing: border-box;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* Рядок купки: порожні місця тримають шматочки на своїх місцях; повністю порожній рядок не рендериться. */
+.jigsaw-pile-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
 }
 
 .jigsaw-slot {

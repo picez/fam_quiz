@@ -479,6 +479,16 @@ describe('crossword filled clues', () => {
     expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-filled')).toBe(true);
   });
 
+  it('the chosen clue is marked in the list', () => {
+    render(<CrosswordPlay info={mineOf(12)} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);
+    expect(document.querySelectorAll('.crossword-clue.is-active')).toHaveLength(0);
+    fireEvent.click(clueBtn(/Дерево з запашним цвітом/));
+    expect(clueBtn(/Дерево з запашним цвітом/).classList.contains('is-active')).toBe(true);
+    expect(clueBtn(/Дерево з запашним цвітом/).getAttribute('aria-current')).toBe('true');
+    expect(clueBtn(/Руда хитрунка/).classList.contains('is-active')).toBe(false);
+    expect(document.querySelectorAll('.crossword-play-cell.is-word').length).toBeGreaterThan(0);
+  });
+
   it('filled says nothing about right or wrong', () => {
     const cells = ['х', 'х', 'х', '', '', '', '', '', '', '', '', ''];
     render(<CrosswordPlay info={mineOf(12, { cells })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={vi.fn<Send>()} />);

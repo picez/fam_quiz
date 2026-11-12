@@ -17,6 +17,14 @@ export const JIGSAW_FRAME_MAX_VH = 0.45;
 /** Шматочків у рядку купки (не менше); поля купки й смуга прокрутки (CSS px). */
 export const JIGSAW_PILE_PER_ROW = 4;
 const JIGSAW_PILE_CHROME = 28;
+
+/** Купка по рядках з perRow місць (порядок купки не змінюється). */
+export function pileRows(pile: readonly number[], perRow: number): number[][] {
+  const size = Math.max(1, Math.floor(perRow));
+  const rows: number[][] = [];
+  for (let i = 0; i < pile.length; i += size) rows.push(pile.slice(i, i + size));
+  return rows;
+}
 /** Ширина, доки розкладку ще не виміряно (і в jsdom): телефон 320 px мінус поля. */
 const FALLBACK_WIDTH = 304;
 
@@ -378,6 +386,8 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
   const fullSlot = Math.max(layout.cw, layout.ch) + 2 * layout.pad;
   const slot = Math.min(fullSlot, Math.floor((width - JIGSAW_PILE_CHROME - (JIGSAW_PILE_PER_ROW - 1) * 4) / JIGSAW_PILE_PER_ROW));
   const pileScale = slot / fullSlot;
+  // Скільки місць влазить у рядок купки: на телефоні JIGSAW_PILE_PER_ROW, на широкому екрані (slot = fullSlot) — більше.
+  const perRow = Math.max(JIGSAW_PILE_PER_ROW, Math.floor((width - JIGSAW_PILE_CHROME + 4) / (slot + 4)));
   const lifted = drag === null ? undefined : model.loose.find((item) => item.piece === drag.piece);
   const status = info.done
     ? t('jigsawDoneIn', { time: secondsText(info.timeMs ?? 0) })
@@ -412,15 +422,22 @@ function JigsawBoard({ info, jigsaw, questionIndex, actorId, paused, timeUp, sen
       </p>
       {!closed && inPile.length > 0 && (
         <div className="jigsaw-pile" role="group" aria-label={t('jigsawPile')}>
-          {/* Місце на кожен шматочок купки, і на поставлені чи покладені на рамку — порожнє: інші не з'їжджають. */}
-          {model.pile.map((piece) => {
-            const item = pileItems.get(piece);
-            return (
-              <div key={piece} className={`jigsaw-slot${item === undefined ? ' is-empty' : ''}`} style={{ width: slot, height: slot }}>
-                {item !== undefined && pieceEl(item, { left: (slot - layout.cw) / 2 - layout.pad, top: (slot - layout.ch) / 2 - layout.pad }, pileScale)}
+          {/* Місце на кожен шматочок купки, і на поставлені чи покладені на рамку — порожнє: інші в рядку не з'їжджають.
+              Рядок, з якого забрали всі шматочки, зникає — нижні рядки підтягуються вгору. */}
+          {pileRows(model.pile, perRow)
+            .filter((row) => row.some((piece) => pileItems.has(piece)))
+            .map((row) => (
+              <div key={row[0]} className="jigsaw-pile-row">
+                {row.map((piece) => {
+                  const item = pileItems.get(piece);
+                  return (
+                    <div key={piece} className={`jigsaw-slot${item === undefined ? ' is-empty' : ''}`} style={{ width: slot, height: slot }}>
+                      {item !== undefined && pieceEl(item, { left: (slot - layout.cw) / 2 - layout.pad, top: (slot - layout.ch) / 2 - layout.pad }, pileScale)}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            ))}
         </div>
       )}
       {lifted !== undefined && drag !== null && (

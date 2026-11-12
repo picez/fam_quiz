@@ -562,7 +562,14 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
                 .filter((w) => w.dir === dir)
                 .map((w) => (
                   <li key={`${w.dir}${w.number}`}>
-                    <button type="button" className={wordFilled(w.cells, board.cells) ? 'crossword-clue is-filled' : 'crossword-clue'} aria-disabled={off} onClick={() => pick(firstEmpty(w, board.cells), w.dir)} dir="auto">
+                    <button
+                      type="button"
+                      className={`crossword-clue${wordFilled(w.cells, board.cells) ? ' is-filled' : ''}${activeWord?.dir === w.dir && activeWord.number === w.number ? ' is-active' : ''}`}
+                      aria-current={activeWord?.dir === w.dir && activeWord.number === w.number ? 'true' : undefined}
+                      aria-disabled={off}
+                      onClick={() => pick(firstEmpty(w, board.cells), w.dir)}
+                      dir="auto"
+                    >
                       <bdi dir="ltr">{w.number}.</bdi> {w.clue}
                     </button>
                   </li>
