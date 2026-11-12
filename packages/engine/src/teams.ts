@@ -232,6 +232,13 @@ function withoutPeople(plays: Play[], ids: string[]): Play[] {
     const kept: Play = { ...play, answers };
     if (play.buffs !== undefined) kept.buffs = ids.reduce((buffs, id) => dropBallots(buffs, id), play.buffs);
     if (play.buzzers !== undefined) kept.buzzers = withoutValues(play.buzzers, ids);
+    // «Пам'ять» (29f): хід вилученого учасника знімається разом з відкритою карткою - команда не чекає його до кінця ходу.
+    if (play.memory !== undefined) {
+      const boards = Object.fromEntries(
+        Object.entries(play.memory.boards).map(([actor, b]) => (b.turn == null || !ids.includes(b.turn.by) ? [actor, b] : [actor, { ...b, turn: null, open: null }])),
+      );
+      kept.memory = { ...play.memory, boards };
+    }
     return kept;
   });
 }

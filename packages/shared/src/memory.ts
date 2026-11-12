@@ -51,6 +51,7 @@ export function memoryCardKey(card: MemoryCard): string {
   return 't:' + card.text.normalize('NFC').trim().toLocaleLowerCase('uk');
 }
 
+/** Бали за швидкість: найшвидший отримує base. max(1, …) і на fastestMs, і на ownMs - щоб нульовий час не дав ні нуля, ні ділення на нуль. */
 export function memoryPoints(base: number, fastestMs: number, ownMs: number): number {
   return Math.round((base * Math.max(1, fastestMs)) / Math.max(1, ownMs));
 }

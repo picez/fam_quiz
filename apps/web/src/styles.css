@@ -20624,6 +20624,9 @@ input.sudoku-editor-cell:focus-visible {
 
 .memory-text-s {
   font-size: 11px;
+  line-height: 1.15;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
 }
 
 /* До 40 символів: 5 рядків по 11 px уміщаються в картку 4×5 на 320 px (~65 px), тож картка з таким текстом має менше поле. */

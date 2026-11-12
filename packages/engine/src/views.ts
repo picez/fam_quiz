@@ -206,6 +206,7 @@ import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { spotdiffOf } from './spotdiff';
 import { memoryOf, settleMemory } from './memory';
+import { notStarted } from './splash';
 import { puzzleSize, puzzleSolution, puzzleSolved, scoredCells } from './puzzles';
 import { lastSortMove, sortAudience, sortMarks, sortOf, sortSeq, sortsHere } from './sort';
 import { wallOf, wallsHere } from './wall';
@@ -1865,6 +1866,8 @@ function playerMemory(state: GameState, actorId: string, memberId: string, now: 
   const done = board?.doneMs != null;
   const turn = board?.turn ?? null;
   const other = team && turn !== null && turn.by !== memberId ? memberOf(state, turn.by) : undefined;
+  // Чужий хід блокує навіть коли учасника вже вилучено (other невідомий).
+  const foreignTurn = team && turn !== null && turn.by !== memberId;
   const busy = other === undefined ? null : { nickname: other.nickname, tone: jigsawTone(state, order, actorId, other.id) };
   return {
     cells,
@@ -1872,7 +1875,7 @@ function playerMemory(state: GameState, actorId: string, memberId: string, now: 
     total: question.pairs.length,
     moves: board?.moves ?? 0,
     done,
-    canFlip: state.phase === 'question' && !state.paused && !done && record === undefined && board?.shown == null && busy === null,
+    canFlip: state.phase === 'question' && !state.paused && !done && record === undefined && board?.shown == null && busy === null && !foreignTurn && !(now !== undefined && notStarted(state, now)),
     busy,
     closesInMs: board?.shown != null && now !== undefined ? board.shown.until - now : null,
     seq: board?.seq ?? 0,

@@ -207,7 +207,7 @@ export function MemoryPairs({ pairs }: { pairs: readonly { a: MemoryCard; b: Mem
 
 /**
  * Таблиця розкриття: «місце · нік · час · бали» (на пульті ще «ходи») в порядку сервера. Місце — лише в тих, хто знайшов усе (однаковий
- * час — однакове місце); решта — «—», у стовпці часу в них «x з N», балів немає. Сторінки й шрифт — як у JigsawTable.
+ * час — однакове місце); решта — «—», у стовпці часу в них «x з N», балів 0 (як у JigsawTable). Сторінки й шрифт — як у JigsawTable.
  */
 export function MemoryTable({ boards, host = false }: { boards: readonly MemoryBoardView[]; host?: boolean }) {
   const places = boards.map((board, i) => {
@@ -239,7 +239,7 @@ export function MemoryTable({ boards, host = false }: { boards: readonly MemoryB
             </td>
             <td className="jigsaw-table-time">{board.done && board.timeMs !== null ? t('jigsawSeconds', { time: secondsText(board.timeMs) }) : t('memoryCardCount', { found: board.pairs, total: board.total })}</td>
             {host && <td className="memory-table-moves">{board.moves}</td>}
-            <td className="score">{board.done ? signed(board.points ?? 0) : ''}</td>
+            <td className="score">{signed(board.points ?? 0)}</td>
           </tr>
         ))}
       </tbody>

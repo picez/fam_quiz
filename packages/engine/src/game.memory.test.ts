@@ -85,9 +85,10 @@ describe('memory: the engine', () => {
     expect(missed.ok && missed.outcome).toBe('miss');
     const shown = sure(missed);
     expect(memoryOf(shown, 'p3')).toMatchObject({ open: null, shown: { cells: [a, b], until: t + 1000 }, moves: 1 });
+    const before = JSON.stringify(memoryOf(shown, 'p3'));
     const early = flip(shown, 'p3', cellsOf(2)[0], t + 999);
     expect(early).toEqual({ ok: false, error: 'memory_wait' });
-    expect(memoryOf(shown, 'p3')).toBe(memoryOf(shown, 'p3'));
+    expect(JSON.stringify(memoryOf(shown, 'p3'))).toBe(before);
     expect(memoryTimersEnd(shown, t)).toBe(t + 1000);
     expect(memoryTimersEnd(shown, t + 1000)).toBeNull();
     const after = flip(shown, 'p3', cellsOf(2)[0], t + 1000);

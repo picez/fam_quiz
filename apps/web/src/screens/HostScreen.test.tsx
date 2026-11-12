@@ -1711,7 +1711,7 @@ describe('HostScreen memory (29f)', () => {
     const rows = [...panel.querySelectorAll('.memory-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
     expect(rows).toEqual([
       ['1', 'Тарас', '41,2 с', '9', '+300'],
-      ['—', 'Оля', '2 з 6', '5', ''],
+      ['—', 'Оля', '2 з 6', '5', '0'],
     ]);
   });
 });

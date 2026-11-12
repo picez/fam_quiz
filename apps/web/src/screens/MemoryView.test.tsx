@@ -96,6 +96,14 @@ describe('MemoryPlay', () => {
     const inner = size - 2 * border - 2 * pad;
     expect(lines).toBeGreaterThanOrEqual(5);
     expect(lines * font * lineHeight).toBeLessThanOrEqual(inner);
+    // 19–28 символів (s): 4 рядки по 11 px з інтерліньяжем 1.15 у картці зі стандартним полем.
+    const s = /\.memory-text-s \{([^}]*)}/.exec(css)![1];
+    const sFont = Number(/font-size:\s*([\d.]+)px/.exec(s)![1]);
+    const sLine = Number(/line-height:\s*([\d.]+)/.exec(s)![1]);
+    const sLines = Number(/(?:^|[^-])line-clamp:\s*(\d+)/.exec(s)![1]);
+    const padS = Number(/\.memory-card \{[^}]*padding:\s*([\d.]+)px/.exec(css)![1]);
+    expect(sLines).toBeGreaterThanOrEqual(4);
+    expect(sLines * sFont * sLine).toBeLessThanOrEqual(size - 2 * border - 2 * padS);
     // ~0.55 em на кириличну літеру: 40 літер на 5 рядках уміщаються в ширину.
     expect(Math.floor(inner / (font * 0.55)) * lines).toBeGreaterThanOrEqual(40);
   });

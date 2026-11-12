@@ -521,7 +521,7 @@ export function spotdiffQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [spotdiff]), puzzlesRound('pz', [sudoku, spotdiffSmall])], settings);
 }
 
-/** «Пам'ять» (29f): 3×4, 6 пар «країна — столиця», одна половина — картинка (прапор), seed 42, 90 с, 300 балів. */
+/** «Пам'ять» (29f): 3×4, 5 пар «країна — столиця» і шоста «Італія — картинка» (картка без тексту, лише зображення), seed 42, 90 с, 300 балів. */
 export const memory = {
   ...base,
   id: 'mm1',

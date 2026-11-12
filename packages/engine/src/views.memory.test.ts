@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { memoryLayout } from '@quiz/shared';
-import { lock, next, pause, type GameState } from './game';
+import { lock, next, pause, removePlayer, type GameState } from './game';
 import { memoryFlip, type MemoryFlip } from './memory';
 import { hostView, playerView, stageView } from './views';
 import { classicRound, memory, memoryQuiz } from './testing/fixtures';
@@ -150,6 +150,33 @@ describe('memory views', () => {
     expect(later.cells[first]).toBeNull();
     expect(later.busy).toBeNull();
     expect(later.canFlip).toBe(true);
+  });
+
+  it('a removed teammate hands the move back and a foreign turn blocks flips', () => {
+    const s0 = teamStart();
+    const t = T(s0);
+    const s = flip(s0, 't1', cellsOf(0)[0], t + 1000, 'm1');
+    expect(mine(s, 'm2', t + 1500).canFlip).toBe(false);
+    const gone = must(removePlayer(s, 'm1', t + 1600));
+    const after = mine(gone, 'm2', t + 1700);
+    expect(after.cells.every((c) => c === null)).toBe(true);
+    expect(after.busy).toBeNull();
+    expect(after.canFlip).toBe(true);
+    // the move stays with an unknown person (should have been dropped) - the card still cannot be flipped
+    const board = s.plays[s.questionIndex].memory!.boards.t1;
+    const ghost: GameState = {
+      ...s,
+      plays: s.plays.map((play, i) => (i === s.questionIndex ? { ...play, memory: { ...play.memory!, boards: { ...play.memory!.boards, t1: { ...board, turn: { ...board.turn!, by: 'ghost' } } } } } : play)),
+    };
+    const blocked = mine(ghost, 'm2', t + 1700);
+    expect(blocked.busy).toBeNull();
+    expect(blocked.canFlip).toBe(false);
+  });
+
+  it('no flips during the intro', () => {
+    const s0 = fresh();
+    expect(mine(s0, 'p1', T(s0) - 1).canFlip).toBe(false);
+    expect(mine(s0, 'p1', T(s0)).canFlip).toBe(true);
   });
 
   it('reveal ranks by time', () => {

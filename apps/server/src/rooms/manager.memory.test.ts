@@ -120,13 +120,15 @@ describe('memory (29f) in the room manager', () => {
     expect(after?.[wrong[1]]).toBeNull();
   });
 
-  it('memory flips are rate limited per person', () => {
-    const { scheduler, manager, room, people } = memoryRoom(['Олена', 'Тарас']);
-    const [olena, taras] = people;
-    // Повтор тієї самої відкритої картки не змінює стан, але рахується у вікні частоти.
+  it('memory flips are rate limited per person, not per team', () => {
+    const { scheduler, manager, room, people } = memoryRoom(['Олена', 'Тарас', 'Іван', 'Марія'], true);
+    const [olena, taras, ivan] = people;
+    // Олена та Іван - в одній команді; повтор тієї самої відкритої картки не змінює стан, але рахується у вікні частоти.
     expect(flip(manager, room, olena, 0)).toEqual({ ok: true });
     for (let k = 1; k < MEMORY_FLIPS_PER_SECOND; k++) expect(flip(manager, room, olena, 0)).toEqual({ ok: false, error: 'memory_open' });
     expect(flip(manager, room, olena, 1)).toEqual({ ok: false, error: 'too_soon' });
+    // Товариш по команді має власне вікно: його відмова - від ходу Олени, а не від частоти.
+    expect(flip(manager, room, ivan, 1)).toEqual({ ok: false, error: 'memory_busy' });
     expect(flip(manager, room, taras, 1)).toEqual({ ok: true });
     scheduler.advance(1000);
     expect(flip(manager, room, olena, 1)).not.toEqual({ ok: false, error: 'too_soon' });

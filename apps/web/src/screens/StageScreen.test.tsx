@@ -1209,7 +1209,7 @@ describe('StageScreen final', () => {
       expect(rows).toEqual([
         ['1', 'Тарас', '41,2 с', '+300'],
         ['1', 'Іра', '41,2 с', '+300'],
-        ['—', 'Оля', '4 з 6', ''],
+        ['—', 'Оля', '4 з 6', '0'],
       ]);
       expect(document.querySelector('.memory-board')).toBeNull();
       expect(screen.queryByText(/Правильна відповідь:/)).toBeNull();

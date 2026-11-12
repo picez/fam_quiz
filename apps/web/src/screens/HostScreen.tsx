@@ -1195,16 +1195,18 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {/* «Знайди відмінності» (29d): те, що на сцені, і кола з номерами та кількістю знахідок — пульту завжди. Оцінювати нічого. */}
-      {view.memory !== undefined && view.question?.memory !== undefined && (
-        <section className="panel host-memory">
-          <h2>{t('type_memory')}</h2>
-          <MemoryStage info={view.memory} memory={view.question.memory} reveal={phase === 'reveal'} host />
-        </section>
-      )}
       {view.spotdiff !== undefined && view.question?.spotdiff !== undefined && (
         <section className="panel host-spotdiff">
           <h2>{t('type_spotdiff')}</h2>
           <SpotdiffStage info={view.spotdiff} spotdiff={view.question.spotdiff} reveal={phase === 'reveal'} host />
+        </section>
+      )}
+
+      {/* «Пам'ять» (29f): те, що на сцені, і таблиця з ходами — пульту завжди. Оцінювати нічого. */}
+      {view.memory !== undefined && view.question?.memory !== undefined && (
+        <section className="panel host-memory">
+          <h2>{t('type_memory')}</h2>
+          <MemoryStage info={view.memory} memory={view.question.memory} reveal={phase === 'reveal'} host />
         </section>
       )}
 

@@ -58,6 +58,7 @@ export type BuffBlock =
   | 'off_jigsaw'
   /** «Знайди відмінності»: бафів немає (29d). */
   | 'off_spotdiff'
+  /** «Пам'ять»: бафів немає (29f). */
   | 'off_memory'
   | 'unfit_type' | 'unfit_options' | 'unfit_timer' | 'unfit_penalty' | 'unfit_manual' | 'unfit_voice'
   | 'no_voters' | 'spares_out' | 'not_started'
@@ -221,6 +222,7 @@ export type ErrorCode =
   | 'jigsaw_stale' | 'jigsaw_done' | 'jigsaw_piece' | 'jigsaw_placed' | 'jigsaw_held' | 'jigsaw_miss'
   /** «Знайди відмінності» (29d): тап не для поточного запитання; усе знайдено; уже знайдене коло; промах; промах, що заморозив; тап під час заморозки. */
   | 'spotdiff_stale' | 'spotdiff_done' | 'spotdiff_found' | 'spotdiff_miss' | 'spotdiff_freeze' | 'spotdiff_frozen'
+  /** «Пам'ять» (29f): подія не для поточного запитання; дошку закрито; клітинки немає; непара ще показана; хід тримає товариш; пару вже знайдено; картка вже відкрита. */
   | 'memory_stale' | 'memory_done' | 'memory_cell' | 'memory_wait' | 'memory_busy' | 'memory_matched' | 'memory_open'
   | 'duel_used'
   | 'duel_busy'
