@@ -505,6 +505,48 @@ describe('recorder', () => {
     expect(ctx.errors).toEqual([]);
   });
 
+  it('career debuff purchases count finished games only (29h)', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([single], { speedBonus: false, debuffs: ['fog'], debuffPrices: { fog: 200 } }));
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    for (let i = 0; i < 5 && ctx.room.state.phase !== 'reveal'; i++) ctx.host('next');
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).where(eq(scoreAdjustment.source, 'debuff'));
+    expect(rows).toHaveLength(1);
+    expect((await store.careerFacts(ctx.db, 'olena-user')).debuffsBought).toBe(0);
+    ctx.host('end');
+    await ctx.saved();
+    expect((await store.careerFacts(ctx.db, 'olena-user')).debuffsBought).toBe(1);
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('a late anonymous purchase survives a newer adjustment written before the reveal (29h)', async () => {
+    const ctx = await setup(undefined, 5000, 30, makeQuiz([single], { speedBonus: false, buffs: ['stealth'], debuffs: ['fog'], debuffPrices: { fog: 200 } }));
+    ctx.host('start');
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.olena, points: 300 })).toEqual({ ok: true });
+    ctx.host('next');
+    playFirstQuestion(ctx);
+    for (let i = 0; i < 5 && ctx.room.state.phase !== 'reveal'; i++) ctx.host('next');
+    expect(ctx.room.state.phase).toBe('reveal');
+    expect(ctx.manager.buff(ctx.room, ctx.olena, 'stealth')).toEqual({ ok: true });
+    expect(ctx.manager.buyDebuff(ctx.room, ctx.olena, ctx.taras, 'fog')).toEqual({ ok: true });
+    // інше коригування з більшим seq потрапляє в базу раніше за рядок покупки
+    expect(ctx.manager.host(ctx.room, { type: 'adjust', playerId: ctx.taras, points: 50 })).toEqual({ ok: true });
+    await ctx.saved();
+    for (let i = 0; i < 5 && ctx.room.state.phase !== 'finished'; i++) ctx.host('next');
+    expect(ctx.room.state.phase).toBe('finished');
+    await ctx.saved();
+    const rows = await ctx.db.select().from(scoreAdjustment).where(eq(scoreAdjustment.source, 'debuff'));
+    expect(rows.map((r) => [r.participantId, r.points, r.debuff])).toEqual([[ctx.olena, -200, 'fog']]);
+    const score = ctx.room.state.players.find((p) => p.id === ctx.olena)!.score;
+    const participants = await ctx.db.select().from(participant);
+    expect(participants.find((p) => p.nickname === 'Олена')?.score).toBe(score);
+    expect(ctx.errors).toEqual([]);
+  });
+
   it("a kicked player's adjustments go with the participant", async () => {
     const ctx = await setup();
     ctx.host('start');

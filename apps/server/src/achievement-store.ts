@@ -91,7 +91,11 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
     .select({ n: count(), inGame: inSplit(participant.gameId) })
     .from(scoreAdjustment)
     .innerJoin(participant, eq(participant.id, scoreAdjustment.participantId))
-    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff')));
+    // Лише завершені ігри: купівля посеред гри не має видавати автора достроково.
+    .innerJoin(game, eq(game.id, participant.gameId))
+    .where(
+      and(eq(participant.userId, userId), isNull(participant.teamId), eq(scoreAdjustment.source, 'debuff'), eq(game.status, 'finished')),
+    );
   // Ігри вікторин користувача, хоч хто їх вів; ігри видалених вікторин не рахуються.
   const [authored] = await db
     .select({ n: count(), inGame: inSplit(game.id) })

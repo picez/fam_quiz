@@ -3869,6 +3869,11 @@ describe('PlayerScreen: who answers for the team (12g)', () => {
     cleanup();
     show(asQuestion(olya, { me: { ...baseMe, buffs, shop: null, stealth: 'armed' as const } }));
     expect(document.querySelector('.stealth-mark')).toBeNull();
+    cleanup();
+    show(asQuestion(petro, { me: { ...baseMe, buffs, shop, stealth: 'armed' as const } }));
+    expect(document.querySelector('.stealth-mark')).not.toBeNull();
+    expect(document.querySelector('.shop-button')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('a team debuff acts on the answerer phone; the captain gets the strip', () => {

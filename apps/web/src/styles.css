@@ -8493,7 +8493,7 @@ label.powers-price {
   display: grid;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--line, currentColor);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 
