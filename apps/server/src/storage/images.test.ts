@@ -219,7 +219,27 @@ describe('stripMp3Tags', () => {
     expect(stripMp3Tags(audio)).toBe(audio);
   });
 
-  it('leaves nothing for a header without frames', () => {
-    expect(sniffAudio(stripMp3Tags(Uint8Array.from(id3v2('Shchedryk'))))).toBeNull();
+  it('finds the frame sync after zeros or junk behind the tag', () => {
+    const audio = frames();
+    const stripped = stripMp3Tags(Uint8Array.from([...id3v2('Shchedryk'), ...new Array<number>(16).fill(0), ...audio]));
+    expect(stripped.length).toBe(audio.length);
+    expect(text(stripped)).not.toContain('Shchedryk');
+  });
+
+  it('keeps the original when no frame follows the tags or the tag size is too big', () => {
+    const header = Uint8Array.from(id3v2('Shchedryk'));
+    expect(stripMp3Tags(header)).toBe(header);
+    const big = Uint8Array.from([...ascii('ID3'), 3, 0, 0, 0x7f, 0x7f, 0x7f, 0x7f, ...frames(2)]);
+    expect(() => stripMp3Tags(big)).not.toThrow();
+    expect(sniffAudio(stripMp3Tags(big))).toBe('audio/mpeg');
+    const junk = Uint8Array.from([...id3v2('Carol'), ...ascii('ID3abc')]);
+    expect(stripMp3Tags(junk)).toBe(junk);
+  });
+
+  it('drops ID3v1 without ID3v2', () => {
+    const audio = frames();
+    const stripped = stripMp3Tags(Uint8Array.from([...audio, ...id3v1('Shchedryk')]));
+    expect(stripped.length).toBe(audio.length);
+    expect(text(stripped)).not.toContain('Shchedryk');
   });
 });

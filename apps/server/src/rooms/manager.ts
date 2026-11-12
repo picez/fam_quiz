@@ -114,7 +114,6 @@ import {
   moreLessPick,
   jigsawHold,
   jigsawHoldsEnd,
-  melodyHeard,
   melodyOpen,
   memoryFlip,
   memoryOf,
@@ -594,7 +593,7 @@ function draftStage(state: GameState): DraftStage | null {
 
 /**
  * Відбиток того, що гравець (команда, людина) вже подав на поточному запитанні: відповідь, спроби й черга бліцу,
- * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер, ряду «Більше чи менше» і шматки «Мелодії», вигадка й вибір блефу.
+ * відповідь поля, випробування, поступ ланцюжка, стіни, драбини, списку, слів з літер і ряду «Більше чи менше», вигадка й вибір блефу.
  */
 function answerStamp(state: GameState, id: string): string {
   const play = state.plays[state.questionIndex];
@@ -615,7 +614,6 @@ function answerStamp(state: GameState, id: string): string {
     play?.question.type === 'jigsaw' ? jigsawOf(state, id) : null,
     play?.question.type === 'spotdiff' ? spotdiffOf(state, id) : null,
     play?.question.type === 'memory' ? memoryOf(state, id) : null,
-    play !== undefined ? melodyHeard(play, id) : 0,
     bluff !== undefined && Object.hasOwn(bluff.lies, id) ? bluff.lies[id] : null,
     bluff !== undefined && Object.hasOwn(bluff.picks, id) ? bluff.picks[id] : null,
   ]);

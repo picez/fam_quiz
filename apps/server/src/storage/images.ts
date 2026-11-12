@@ -85,10 +85,17 @@ export function sniffAudio(bytes: Uint8Array): AudioType | null {
   return null;
 }
 
+/** Скільки байтів після тегів шукаємо синхрослово кадру (нулі чи сміття після тега). */
+const MP3_SYNC_SEARCH = 64 * 1024;
+
+/** Заголовок кадру MPEG: 11 бітів синхронізації, версія й шар не зарезервовані (ті самі перевірки, що в sniffAudio). */
+const isMp3Frame = (bytes: Uint8Array, at: number) =>
+  bytes[at] === 0xff && (bytes[at + 1]! & 0xe0) === 0xe0 && (bytes[at + 1]! & 0x18) !== 0x08 && (bytes[at + 1]! & 0x06) !== 0;
+
 /**
- * MP3 без тегів (29e): прибирає ID3v2 на початку (повторювано; прапор footer додає ще 10 байтів) і 128-байтний ID3v1 «TAG» у кінці,
- * щоб назва й виконавець не видавали відповідь у «Мелодії». Без тегів повертає той самий масив. Некоректний розмір тега зсуває початок
- * не далі кінця: порожній результат sniffAudio не прийме.
+ * MP3 без тегів (29e): прибирає ID3v2 на початку (повторювано; прапор footer додає ще 10 байтів), далі шукає синхрослово першого кадру
+ * (до 64 КБ від кінця тега: нулі, сміття, не-synchsafe розмір старих тегів) і 128-байтний ID3v1 «TAG» у кінці, щоб назва й виконавець
+ * не видавали відповідь у «Мелодії». Без тегів чи коли кадру не знайдено повертає той самий масив: файл, який приймав старий sniffAudio, не ламаємо.
  */
 export function stripMp3Tags(bytes: Uint8Array): Uint8Array {
   let from = 0;
@@ -99,6 +106,13 @@ export function stripMp3Tags(bytes: Uint8Array): Uint8Array {
     from = Math.min(to, from + 10 + size + footer);
   }
   if (to - from >= 128 && startsWith(bytes.subarray(to - 128), ascii('TAG'))) to -= 128;
+  if (from > 0) {
+    const limit = Math.min(to - 1, from + MP3_SYNC_SEARCH);
+    let at = from;
+    while (at < limit && !isMp3Frame(bytes, at)) at += 1;
+    if (at >= limit) return bytes;
+    from = at;
+  }
   return from === 0 && to === bytes.length ? bytes : bytes.subarray(from, to);
 }
 

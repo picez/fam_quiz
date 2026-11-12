@@ -109,5 +109,9 @@ describe('melody (29e) in the room manager', () => {
     const phone = next.identify(room.code, 'player', olena.token)?.identity as Identity;
     expect(meOf(next, back, { identity: phone })?.heard).toBe(2);
     expect(back.state.plays[1].melody).toEqual(room.state.plays[1].melody);
+    expect(next.melodyOpen(back, olena.playerId, { questionIndex: 0, step: 3 })).toEqual({ ok: false, error: 'paused' });
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    expect(next.melodyOpen(back, olena.playerId, { questionIndex: 0, step: 3 })).toEqual({ ok: true });
+    expect(meOf(next, back, { identity: phone })?.heard).toBe(3);
   });
 });

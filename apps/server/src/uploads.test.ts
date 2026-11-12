@@ -236,12 +236,14 @@ describe('uploading audio', () => {
     const file = await ctx.app.inject({ method: 'GET', url });
     expect(file.rawPayload.includes('Shchedryk')).toBe(false);
     expect(file.rawPayload.length).toBe(silentMp3().length);
+    const padded = await uploadAudio(Buffer.concat([tag, Buffer.alloc(16), silentMp3()]), 'audio/mpeg');
+    expect(padded.statusCode).toBe(201);
+    const paddedFile = await ctx.app.inject({ method: 'GET', url: (padded.json() as { url: string }).url });
+    expect(paddedFile.rawPayload.includes('Shchedryk')).toBe(false);
+    expect(paddedFile.rawPayload.length).toBe(silentMp3().length);
+    // Як до 29e: файл, який старий sniffAudio приймав, не відхиляється, навіть якщо кадрів не знайдено.
     const bare = await uploadAudio(tag, 'audio/mpeg');
-    expect(bare.statusCode).toBe(400);
-    expect(bare.json()).toEqual({ error: 'bad_audio' });
-    const ogg = await uploadAudio(OGG, 'audio/ogg');
-    const kept = await ctx.app.inject({ method: 'GET', url: (ogg.json() as { url: string }).url });
-    expect(Buffer.compare(kept.rawPayload, OGG)).toBe(0);
+    expect(bare.statusCode).toBe(201);
   });
 
   it('stores ogg and m4a', async () => {

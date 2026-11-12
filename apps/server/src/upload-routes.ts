@@ -49,13 +49,12 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
         const bytes = request.body;
         if (!Buffer.isBuffer(bytes)) return reply.code(400).send(kind.bad);
         let stored: Uint8Array = bytes;
-        let type = kind.sniff(bytes);
+        const type = kind.sniff(bytes);
         if (type === null) return reply.code(400).send(kind.bad);
-        // 29e: теги MP3 (назва, виконавець) видають відповідь у «Мелодії» — зберігаємо без них, і вміст має лишитися MP3.
+        // 29e: теги MP3 (назва, виконавець) видають відповідь у «Мелодії» — зберігаємо без них. Якщо очищений вміст не схожий на MP3, лишаємо оригінал (як до 29e).
         if (type === 'audio/mpeg') {
-          stored = stripMp3Tags(bytes);
-          type = kind.sniff(stored);
-          if (type !== 'audio/mpeg') return reply.code(400).send(kind.bad);
+          const cleaned = stripMp3Tags(bytes);
+          if (kind.sniff(cleaned) === 'audio/mpeg') stored = cleaned;
         }
         const name = `${randomBytes(16).toString('hex')}.${EXTENSIONS[type]}`;
         try {
