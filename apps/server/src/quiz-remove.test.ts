@@ -141,6 +141,12 @@ describe('removeQuestion', () => {
     expect(round.type === 'quest' && round.questions.length).toBe(4);
   });
 
+  it('the code length of a quest counts code points (29g)', () => {
+    // «𝐀𝐁𝐂» — 3 символи, але 6 одиниць UTF-16: 4 запитання з 5 лишаються.
+    const quiz = makeRoundsQuiz([questRound('m', questQuestions, { code: '𝐀𝐁𝐂', order: [0, 1, 2] }), classicRound('r2', [withId(text, 'q3')])]);
+    expect(ok(remove(quiz, 'k1')).effect).toBe('question');
+  });
+
   it('a five-step ladder next to a classic round goes whole', () => {
     const quiz = makeRoundsQuiz([ladderRound('m'), classicRound('r2', [withId(text, 'q3')])]);
     const result = ok(remove(quiz, 'l2'));

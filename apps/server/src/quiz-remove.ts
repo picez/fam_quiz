@@ -53,7 +53,7 @@ function removeFromRound(round: Round, id: string): RoundChange | null {
   if (index === -1) return null;
   const questions = without(round.questions, id);
   // «Квест із кодом» (29g): запитань не менше, ніж символів у коді.
-  const least = round.type === 'quest' ? round.code.length : MIN_QUESTIONS[round.type];
+  const least = round.type === 'quest' ? Array.from(round.code).length : MIN_QUESTIONS[round.type];
   if (questions.length < least) return { round: null, effect: 'round' };
   if (round.type === 'ladder') {
     // Рівень належить сходинці: іде разом із нею; неспалимі вище зсуваються вниз, а та, що стала верхньою, зникає (схема: не верхня).

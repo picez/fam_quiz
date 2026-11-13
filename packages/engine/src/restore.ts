@@ -84,7 +84,7 @@ export const GAME_STATE_VERSION = 22;
  * 29f без нової версії: тип memory і необов'язковий Play.memory.
  * 29e без нової версії: тип melody і необов'язковий Play.melody.
  * 29h без нової версії: баф stealth, необов'язкові GameState.stealth, GameState.deferredCharges (ціни анонімних покупок до розкриття), DebuffState.anon і ScoreAdjustment.anon.
- * 29g без нової версії: раунд quest, необов'язкові GameState.quest і GameState.questBuffs, значення AdjustmentSource 'quest'.
+ * 29g без нової версії: раунд quest, необов'язкові GameState.quest і GameState.questBuffs, значення AdjustmentSource 'quest' (його можна скасувати), необов'язковий QuestTry.n.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

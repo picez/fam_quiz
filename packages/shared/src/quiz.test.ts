@@ -112,6 +112,8 @@ import {
   MEMORY_TURN_MS,
   SPOT_MIN_ASPECT,
   SPOT_MAX_ASPECT,
+  QUESTION_TYPES as ALL_QUESTION_TYPES,
+  QUEST_TYPES,
 } from './index';
 
 const single = {
@@ -3393,6 +3395,133 @@ describe('quest round (29g)', () => {
     for (const q of [chain, poll]) expect(questIssues({ questions: [...five.slice(0, 4), q] })).toContain('quest_type');
     expect(questIssues({ questions: [...five.slice(0, 4), q30('b1', { betsCut: 1 })] })).toContain('bets_cut_place');
     expect(questIssues({ questions: [...five.slice(0, 4), q30('r1', { reveal: 'blur', imageUrl: '/uploads/abcdefabcdefabcdef.png' })] })).toContain('reveal_place');
+  });
+
+  it('every other question type is refused in a quest', () => {
+    const b = { imageUrl: null, video: null, points: 1000 };
+    const tile = (k: string, ...words: string[]) => words.map((text, i) => ({ id: `${k}${i}`, text }));
+    const crossEntries = ['калина', 'лелека', 'вишня', 'соняшник'].map((answer, i) => ({ id: `w${i}`, answer, clue: `Підказка ${i}` }));
+    const crossLaid = layoutCrossword(crossEntries);
+    if (!crossLaid.ok) throw new Error('not laid out');
+    const grid = jigsawGrid(12, '4:3');
+    const samples: Record<string, object> = {
+      chain: { ...b, type: 'chain', text: 'Ланцюжок', timeLimit: 60, words: ['Форель', 'Риба', 'Океан'], hintSeconds: 5 },
+      wordladder: { ...b, type: 'wordladder', text: 'Від ПОЛЕ до ТАРА', timeLimit: 90, path: ['ПОЛЕ', 'ПОЛА', 'ПОРА', 'ПАРА', 'ТАРА'], maxSteps: 8 },
+      sort: {
+        ...b,
+        type: 'sort',
+        text: 'Розсортуйте',
+        timeLimit: 60,
+        points: 100,
+        categories: [{ id: 'c1', text: 'Овочі' }, { id: 'c2', text: 'Фрукти' }],
+        words: [{ id: 'w1', text: 'Морква', categoryId: 'c1' }, { id: 'w2', text: 'Яблуко', categoryId: 'c2' }, { id: 'w3', text: 'Буряк', categoryId: 'c1' }, { id: 'w4', text: 'Груша', categoryId: 'c2' }],
+        lockSeconds: 3,
+      },
+      clues: { ...b, type: 'clues', text: 'Хто я?', timeLimit: 30, clues: ['Я народився 1814 року.', 'Я був кріпаком.', 'Я художник.'], accepted: ['Шевченко'], interval: 5 },
+      pin: { ...b, type: 'pin', text: 'Де Київ?', timeLimit: 30, map: 'world', aspect: 2, target: { x: 0.5, y: 0.5 }, fullRadius: 3, zeroRadius: 15 },
+      wall: {
+        ...b,
+        type: 'wall',
+        text: 'Стіна',
+        timeLimit: 90,
+        mistakes: 3,
+        groups: [
+          { id: 'gr', name: 'Річки', tiles: tile('r', 'Дніпро', 'Десна', 'Рось', 'Псел') },
+          { id: 'gm', name: 'Гори', tiles: tile('m', 'Говерла', 'Петрос', 'Піп Іван', 'Бребенескул') },
+          { id: 'gl', name: 'Озера', tiles: tile('l', 'Світязь', 'Синевир', 'Ялпуг', 'Кагул') },
+          { id: 'gi', name: 'Острови', tiles: tile('i', 'Хортиця', 'Джарилгач', 'Зміїний', 'Бірючий') },
+        ],
+      },
+      poll: { ...b, type: 'poll', text: 'Найкраща пора року?', timeLimit: 30, points: 0, options: [{ id: 'a', text: 'Весна' }, { id: 'b', text: 'Літо' }] },
+      wordcloud: { ...b, type: 'wordcloud', text: 'З чим асоціюється Київ?', timeLimit: 30, points: 0, words: 3 },
+      survey: {
+        ...b,
+        type: 'survey',
+        text: 'Назвіть фрукт',
+        timeLimit: 45,
+        answers: 3,
+        rows: ['Яблуко', 'Банан', 'Полуниця', 'Кавун'].map((text, i) => ({ id: `r${i}`, text, popularity: 30 - i * 5, accepted: [] })),
+      },
+      timedlist: {
+        ...b,
+        type: 'timedlist',
+        text: 'Назвіть планети',
+        timeLimit: 90,
+        points: 100,
+        minus: 50,
+        items: ['Меркурій', 'Венера', 'Земля', 'Марс', 'Юпітер'].map((text, i) => ({ id: `i${i}`, text, accepted: [] })),
+      },
+      letterwords: { ...b, type: 'letterwords', text: 'Складіть слова', timeLimit: 90, points: 20, set: { kind: 'fixed', letters: 'морквасті' }, goal: 'most', per: 'word' },
+      moreless: {
+        ...b,
+        type: 'moreless',
+        text: 'Більше чи менше',
+        timeLimit: 60,
+        points: 400,
+        pairs: [
+          { id: 'm1', prompt: 'Що вище?', a: { text: 'Говерла', value: '2061 м' }, b: { text: 'Ейфелева вежа', value: '330 м' }, correct: 'a', points: 100 },
+          { id: 'm2', prompt: 'Що довше?', a: { text: 'Рейн', value: '1233 км' }, b: { text: 'Дунай', value: '2850 км' }, correct: 'b', points: 100 },
+          { id: 'm3', prompt: 'Що глибше?', a: { text: 'Світязь', value: '58 м' }, b: { text: 'Синевир', value: '22 м' }, correct: 'a', points: 200 },
+        ],
+      },
+      drawing: { ...b, type: 'drawing', text: 'Намалюйте рослину', timeLimit: 60, points: 100, accepted: ['соняшник'] },
+      sudoku: { ...b, type: 'sudoku', text: 'Судоку', timeLimit: 180, points: 300, level: 'medium', seed: 3, ...generateSudoku(3, 'medium') },
+      crossword: { ...b, type: 'crossword', text: 'Кросворд', timeLimit: 240, points: 300, mode: 'full', entries: crossEntries, key: null, layout: crossLaid.layout },
+      jigsaw: {
+        ...b,
+        type: 'jigsaw',
+        text: 'Складіть пазл',
+        timeLimit: 120,
+        points: 300,
+        photo: `/uploads/${'a'.repeat(32)}.jpg`,
+        aspect: '4:3',
+        focus: { x: 0.5, y: 0.5 },
+        ...grid,
+        seed: 1,
+        tabs: jigsawTabs(grid.rows, grid.cols, 1),
+        preview: true,
+      },
+      spotdiff: {
+        ...b,
+        type: 'spotdiff',
+        text: 'Знайдіть відмінності',
+        timeLimit: 90,
+        points: 300,
+        original: `/uploads/${'a'.repeat(32)}.jpg`,
+        changed: `/uploads/${'b'.repeat(32)}.jpg`,
+        aspect: 4 / 3,
+        spots: [{ x: 0.2, y: 0.2, r: 0.05 }, { x: 0.5, y: 0.5, r: 0.05 }, { x: 0.8, y: 0.8, r: 0.05 }],
+      },
+      memory: {
+        ...b,
+        type: 'memory',
+        text: 'Знайдіть пари',
+        timeLimit: 90,
+        points: 300,
+        grid: '3x4',
+        seed: 42,
+        pairs: ['Київ', 'Варшава', 'Париж', 'Токіо', 'Оттава', 'Рим'].map((text, i) => ({ a: { text: `Країна ${i}` }, b: { text } })),
+      },
+      melody: { ...b, type: 'melody', text: 'Що це за пісня?', timeLimit: 60, track: { source: 'file', url: `/uploads/${'a'.repeat(32)}.mp3`, start: 5 }, accepted: ['Щедрик'] },
+      bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
+    };
+    const others = ALL_QUESTION_TYPES.filter((type) => !(QUEST_TYPES as readonly string[]).includes(type));
+    expect(others.filter((type) => !(type in samples))).toEqual([]);
+    for (const type of others) {
+      const q = { ...samples[type], id: `x-${type}` };
+      expect(valid(questionSchema, q), type).toBe(true);
+      expect(questIssues({ questions: [...five.slice(0, 4), q] }), type).toContain('quest_type');
+    }
+  });
+
+  it('the code length counts code points, not UTF-16 units', () => {
+    const astral = '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇';
+    expect(astral.length).toBe(16);
+    const eight = Array.from({ length: 8 }, (_, i) => q30(`e${i}`));
+    expect(questIssues({ code: astral, order: [0, 1, 2, 3, 4, 5, 6, 7], questions: eight })).toEqual([]);
+    expect(valid(roundSchema, questRound({ code: '𝐀𝐁', order: [0, 1] }))).toBe(false);
+    expect(valid(roundSchema, questRound({ code: '𝐀𝐁𝐂', order: [0, 1, 2] }))).toBe(true);
+    expect(valid(roundSchema, questRound({ code: `${astral}𝐈`, order: [0, 1, 2, 3, 4, 5, 6, 7] }))).toBe(false);
   });
 
   it('a buff bonus needs an allowed buff', () => {

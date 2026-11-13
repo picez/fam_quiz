@@ -1981,7 +1981,9 @@ export function autoLock(state: GameState, now: number | null = null): GameState
 
 /** Перший раунд: те, що start робив до 8d (стан intro першого раунду вже готовий), плюс заставка раунду. */
 function enterFirstRound(state: GameState, now?: number): GameState {
-  return roundSplash({ ...state, phase: 'intro', guidePage: 0 }, now);
+  // «Квест із кодом» (29g) першим раундом: час спроб іде від входу в раунд, а не від «Почати гру» перед «Як грати».
+  const quest = state.quest !== undefined && now !== undefined ? { quest: { ...state.quest, startedAt: now } } : {};
+  return roundSplash({ ...state, ...quest, phase: 'intro', guidePage: 0 }, now);
 }
 
 /**
@@ -2439,7 +2441,8 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (state.phase === 'guide') {
     return ok(state.guidePage + 1 < guidePages(state.quiz).length ? { ...state, guidePage: state.guidePage + 1 } : enterFirstRound(state, now));
   }
-  if (duelDue(state)) return ok(beginDuel(state, now));
+  // «Квест із кодом» (29g): дуель, оголошена у вікні коду, чекає — «Далі» спершу закриває вікно (інакше дуель стерла б його годинник).
+  if (duelDue(state) && !questWindowOpen(state)) return ok(beginDuel(state, now));
   switch (state.phase) {
     case 'intro':
       if (currentRound(state)?.type === 'board') return dicePending(state.board) ? fail('dice_pending') : ok(enterBoard(state, now));

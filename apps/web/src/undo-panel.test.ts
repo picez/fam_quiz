@@ -19,6 +19,10 @@ describe('undoRowText', () => {
   it('marks the points the hall gave by an appeal (12f)', () => {
     expect(undoRowText(row({ kind: 'appeal', points: 150, target: { seq: 5 } }))).toBe('Оля +150 (апеляція)');
   });
+
+  it('marks the code quest bonus (29g)', () => {
+    expect(undoRowText(row({ kind: 'quest', points: 1200, target: { seq: 6 } }))).toBe('Оля +1200 (квест)');
+  });
 });
 
 describe('activePlayers', () => {
@@ -141,5 +145,18 @@ describe('historyUndoLines, the appeal (12f)', () => {
       { seq: 2, text: '↶ Скасовано: Оля −150 (апеляція)', returned: true },
       { seq: 3, text: '↶ Повернуто: Оля +150 (апеляція)', returned: false },
     ]);
+  });
+});
+
+describe('historyUndoLines, the code quest bonus (29g)', () => {
+  it('says the undone points were the quest bonus', () => {
+    const game = {
+      questions: [{ index: 0, roundIndex: 0 }],
+      adjustments: [
+        { seq: 1, roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: 1200, source: 'quest' },
+        { seq: 2, roundIndex: 0, afterQuestion: 0, nickname: 'Оля', points: -1200, source: 'undo', undoes: { seq: 1 } },
+      ],
+    } as unknown as Pick<GameDetail, 'adjustments' | 'questions'>;
+    expect(historyUndoLines(game, 0)).toEqual([{ seq: 2, text: '↶ Скасовано: Оля −1200 (квест)', returned: false }]);
   });
 });

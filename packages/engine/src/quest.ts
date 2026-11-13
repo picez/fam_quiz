@@ -1,7 +1,9 @@
-import { QUEST_WINDOW_MS, questKey, questPoints, type BuffKind, type Phase, type QuestRound } from '@quiz/shared';
+import { QUEST_WINDOW_MS, questKey, questPoints, undoAnswerKey, undoLedger, type BuffKind, type Phase, type QuestRound } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; звертання лише під час виклику функцій (як auction.ts).
 import { addAdjustment } from './adjust';
 import { appealPassedGradeAt } from './appeal';
+import { awayPenaltyOpen } from './away';
+import { presentPlayers } from './present';
 import { currentRound, fail, ok, type GameState, type Result } from './game';
 import { actorOf } from './team-act';
 import { teamsOn } from './teams';
@@ -16,6 +18,8 @@ export interface QuestTry {
   after: number;
   by?: string;
   right: boolean;
+  /** Лише в правильній спробі: порядковий номер розв'язання в раунді (тай-брейк місця за однакової миті). */
+  n?: number;
 }
 
 /** «Квест із кодом» (29g): ключ є лише в раунді quest від intro до round_end. */
@@ -53,11 +57,16 @@ export function questAfter(state: GameState): number {
   return revealedIndexes(state).length;
 }
 
-/** Відкрито позицій (0…length): розкриті запитання раунду з оцінкою «правильно» чи з прийнятою апеляцією на оцінку. */
+/**
+ * Відкрито позицій (0…length): розкриті запитання раунду з оцінкою «правильно» чи з прийнятою апеляцією на оцінку;
+ * відповідь, яку ведучий скасував, чи бали, зняті штрафом за вихід, позиції не відкривають.
+ */
 export function questOpened(state: GameState, actorId: string): number {
   const round = questRoundOf(state);
   if (round === null) return 0;
+  const ledger = undoLedger(state.adjustments.map((a) => ({ seq: a.seq, who: a.playerId, source: a.source, undoes: a.undoes })));
   const right = revealedIndexes(state).filter((index) => {
+    if (ledger.answers.has(undoAnswerKey(actorId, index)) || awayPenaltyOpen(state, actorId, index)) return false;
     const answers = state.plays[index].answers;
     const record = Object.hasOwn(answers, actorId) ? answers[actorId] : undefined;
     return record?.grade === 'correct' || appealPassedGradeAt(state, actorId, index);
@@ -71,14 +80,19 @@ function triesOf(state: GameState, actorId: string): QuestTry[] {
   return tries !== undefined && Object.hasOwn(tries, actorId) ? tries[actorId] : [];
 }
 
-/** Розв'язання раунду за місцем: за миттю правильної спроби, за рівності — порядком у журналі спроб. */
-export function questSolved(state: GameState): { actorId: string; at: number; after: number }[] {
-  const solved = Object.entries(state.quest?.tries ?? {}).flatMap(([actorId, tries]) => {
+/** Правильні спроби раунду: учасник і сама спроба. */
+function rightTries(state: GameState): { actorId: string; right: QuestTry }[] {
+  return Object.entries(state.quest?.tries ?? {}).flatMap(([actorId, tries]) => {
     const right = tries.find((t) => t.right);
-    return right === undefined ? [] : [{ actorId, at: right.at, after: right.after }];
+    return right === undefined ? [] : [{ actorId, right }];
   });
-  // sort стабільний: за рівності лишається порядок ключів журналу.
-  return solved.sort((a, b) => a.at - b.at);
+}
+
+/** Розв'язання раунду за місцем: за миттю правильної спроби, за рівності — порядком розв'язання (n), як і місце бафа. */
+export function questSolved(state: GameState): { actorId: string; at: number; after: number }[] {
+  return rightTries(state)
+    .sort((a, b) => a.right.at - b.right.at || (a.right.n ?? 0) - (b.right.n ?? 0))
+    .map(({ actorId, right }) => ({ actorId, at: right.at, after: right.after }));
 }
 
 /** Розв'язав або вичерпав спроби. */
@@ -89,9 +103,10 @@ export function questDone(state: GameState, actorId: string): boolean {
   return tries.some((t) => t.right) || tries.filter((t) => !t.right).length >= round.tries;
 }
 
-/** Усі учасники рушія розв'язали або вичерпали спроби (порожня гра — ні). */
+/** Усі присутні учасники рушія розв'язали або вичерпали спроби (як presentPlayers у «Ва-банку»; без присутніх — ні). */
 function allDone(state: GameState): boolean {
-  return state.players.length > 0 && state.players.every((p) => questDone(state, p.id));
+  const present = presentPlayers(state);
+  return present.length > 0 && present.every((p) => questDone(state, p.id));
 }
 
 /** Стан зі stage. */
@@ -147,7 +162,8 @@ export function enterQuestCode(state: GameState, actorId: string, memberId: stri
   if (tries.some((t) => t.code === code)) return fail('quest_repeat');
   const right = code === round.code;
   const after = questAfter(state);
-  const entry: QuestTry = { code, at: now, after, ...(teamsOn(state) ? { by: memberId } : {}), right };
+  const n = right ? Math.max(0, ...rightTries(state).map((t) => t.right.n ?? 0)) + 1 : undefined;
+  const entry: QuestTry = { code, at: now, after, ...(teamsOn(state) ? { by: memberId } : {}), right, ...(n === undefined ? {} : { n }) };
   const place = questSolved(state).length + 1;
   const recorded: GameState = { ...state, quest: { ...quest, tries: { ...quest.tries, [actorId]: [...tries, entry] } } };
   const rewarded = right ? reward(recorded, round, actorId, after, place, now) : recorded;

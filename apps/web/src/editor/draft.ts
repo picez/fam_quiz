@@ -1905,7 +1905,8 @@ export function problemsOf(quiz: Quiz): string[] {
       if (messages.includes('survival_trial_media')) problems.push(t('problemSurvivalTrialMedia'));
       if (messages.includes('spare_type')) problems.push(t('problemSpareType'));
       if (messages.includes('puzzle_place')) problems.push(t('problemPuzzlePlace', { index: 1 }));
-      if (messages.includes('quest_code') || messages.includes('quest_order')) problems.push(t('problemQuestCode', { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }));
+      if (messages.includes('quest_code')) problems.push(t('problemQuestCode', { min: LIMITS.minQuestCode, max: LIMITS.maxQuestCode }));
+      if (messages.includes('quest_order')) problems.push(t('problemQuestOrder'));
       if (messages.includes('quest_buff')) problems.push(t('problemQuestBuff'));
       if (messages.includes('quest_type')) problems.push(t('problemQuestType'));
       if (messages.includes('puzzles_type')) problems.push(t('problemPuzzlesType', { index: 1 }));

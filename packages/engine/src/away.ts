@@ -209,6 +209,11 @@ function openRowsOf(state: GameState, source: 'appeal' | 'away', participant: st
   return own.filter((a) => !ledger.adjustments.has(a.seq));
 }
 
+/** Штраф 'away' учасника під запитанням q діє (є нескасований рядок): бали відповіді знято. */
+export function awayPenaltyOpen(state: GameState, participant: string, q: number): boolean {
+  return openRowsOf(state, 'away', participant, q).length > 0;
+}
+
 /** Сума нескасованих коригувань 'appeal' (12f) учасника під запитанням q; appeal.ts реекспортує її як appealAdjustmentTotal. */
 export function awayAppealTotal(state: GameState, participant: string, q: number): number {
   return openRowsOf(state, 'appeal', participant, q).reduce((sum, a) => sum + a.points, 0);

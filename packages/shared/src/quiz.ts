@@ -1433,8 +1433,11 @@ export const questRoundSchema = z.object({
   rules: roundRulesSchema,
   /** Глобальне запитання; відповідь на нього — код. */
   prompt: z.string().trim().min(1).max(LIMITS.questionText).refine(isStorable, UNSTORABLE),
-  /** Код, уже нормалізований (questKey), 3…8 символів — літери чи цифри. */
-  code: z.string().min(LIMITS.minQuestCode).max(LIMITS.maxQuestCode),
+  /** Код, уже нормалізований (questKey), 3…8 символів (code points, як Array.from у грі) — літери чи цифри. */
+  code: z.string().refine((code) => {
+    const length = Array.from(code).length;
+    return length >= LIMITS.minQuestCode && length <= LIMITS.maxQuestCode;
+  }, 'quest_code_length'),
   /** Порядок відкриття позицій: перестановка 0…code.length − 1; типово зліва направо. */
   order: z.array(z.number().int().min(0).max(LIMITS.maxQuestCode - 1)).min(LIMITS.minQuestCode).max(LIMITS.maxQuestCode),
   tries: z.number().int().min(1).max(LIMITS.maxQuestTries),

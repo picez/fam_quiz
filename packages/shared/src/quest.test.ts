@@ -10,6 +10,9 @@ describe('quest logic', () => {
     expect(questKey('paris')).toBe('PARIS');
     expect(questKey('ґанок')).toBe('ҐАНОК');
     expect(questKey('')).toBe('');
+    // Комбіновані знаки (\p{M}) лишаються: голосні деванагарі, огласовки арабської.
+    expect(questKey('नमस्ते')).toBe('नमस्ते');
+    expect(questKey('مَرْحَبًا')).toBe('مَرْحَبًا');
     expect(questKey('й')).toBe('Й');
   });
 

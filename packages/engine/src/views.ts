@@ -1,4 +1,5 @@
 import {
+  undoLedger,
   allowedBuffs,
   isPuzzle,
   crosswordNumbers,
@@ -183,7 +184,7 @@ import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePo
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
-import { questAfter, questGranted, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
+import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
 import { inTruthDeck, truthCount, truthGuessers, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
@@ -1307,18 +1308,20 @@ function playerTruth(state: GameState, personId: string): PlayerTruth | undefine
 /** Етапи, на яких телефон може вводити код квесту (29g). */
 const QUEST_ENTER_PHASES: readonly Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
 
-/** Бали розв'язання: сума коригувань 'quest' учасника в поточному раунді; бафовий бонус — null. */
+/** Бали розв'язання: сума нескасованих ведучим коригувань 'quest' учасника в поточному раунді; бафовий бонус — null. */
 function questPointsOf(state: GameState, actorId: string): number | null {
   const round = questRoundOf(state);
   if (round === null || round.bonus.kind !== 'points') return null;
-  return state.adjustments.filter((a) => a.source === 'quest' && a.playerId === actorId && a.roundIndex === state.roundIndex).reduce((sum, a) => sum + a.points, 0);
+  const undone = undoLedger(state.adjustments.map((a) => ({ seq: a.seq, who: a.playerId, source: a.source, undoes: a.undoes }))).adjustments;
+  return state.adjustments
+    .filter((a) => a.source === 'quest' && a.playerId === actorId && a.roundIndex === state.roundIndex && !undone.has(a.seq))
+    .reduce((sum, a) => sum + a.points, 0);
 }
 
-/** Виданий баф за розв'язання: бонус-баф і учасник потрапив у перших N (запис у questBuffs); інакше null. */
-function questBuffOf(state: GameState, actorId: string): BuffKind | null {
-  const round = questRoundOf(state);
-  if (round === null || round.bonus.kind !== 'buff') return null;
-  return questGranted(state, actorId, round.bonus.buff) > 0 ? round.bonus.buff : null;
+/** Баф за розв'язання цього раунду: бонус-баф і місце (1-базове) серед перших N (first null — усім); інакше null. */
+function questBuffOf(round: QuestRound, place: number): BuffKind | null {
+  if (round.bonus.kind !== 'buff') return null;
+  return round.bonus.first === null || place <= round.bonus.first ? round.bonus.buff : null;
 }
 
 /** Власні позиції учасника рушія: символи на відкритих місцях порядку автора, решта null. */
@@ -1345,7 +1348,7 @@ function questInfo(state: GameState): QuestInfo | undefined {
       nickname: p.nickname,
       opened: questOpened(state, p.id),
       triesUsed: questWrongOf(state, p.id).length,
-      solved: place < 0 ? null : { place: place + 1, after: solved[place].after, points: questPointsOf(state, p.id), buff: questBuffOf(state, p.id) },
+      solved: place < 0 ? null : { place: place + 1, after: solved[place].after, points: questPointsOf(state, p.id), buff: questBuffOf(round, place + 1) },
     };
   };
   const rows = [...solved.flatMap((s) => state.players.find((p) => p.id === s.actorId) ?? []), ...state.players.filter((p) => !solved.some((s) => s.actorId === p.id))].map(row);

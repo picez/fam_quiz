@@ -107,8 +107,8 @@ function allRowsOf(state: GameState): Line[] {
     if (question !== null && !visible(state, question)) continue;
     const line: Line = {
       row: {
-        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)», бали апеляції (12f) — «(апеляція)»; решта як у балів ведучого.
-        kind: adjustment.source === 'away' ? 'away' : adjustment.source === 'appeal' ? 'appeal' : 'host',
+        // Штраф за вихід (12e) — окремий рядок «(вихід із гри)», бали апеляції (12f) — «(апеляція)», бонус квесту (29g) — «(код квесту)»; решта як у балів ведучого.
+        kind: adjustment.source === 'away' ? 'away' : adjustment.source === 'appeal' ? 'appeal' : adjustment.source === 'quest' ? 'quest' : 'host',
         playerId: adjustment.playerId,
         nickname: name,
         points: adjustment.points,

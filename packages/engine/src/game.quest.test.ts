@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULES, questSlots, type Answer, type QuizSettings, type QuestRound } from '@quiz/shared';
+import { addAdjustment } from './adjust';
 import { takeBuff } from './buffs';
-import { endRound, lock, next, override, pause, removePlayer, resume, start, submitAnswer, tick, type GameState } from './game';
+import { answerDuel, declareDuel, duelQuestionOf, pickDuelCategory } from './duel';
+import { endRound, lock, next, override, pause, removePlayer, resume, setConnected, start, submitAnswer, tick, type GameState } from './game';
 import { actQuest, enterQuestCode, questAfter, questDone, questOpened, questSolved, questWindowOpen } from './quest';
-import { QUEST_RIGHT, QUEST_WRONG, classicRound, makeRoundsQuiz, questQuestions, questQuiz, questRound, single4 } from './testing/fixtures';
-import { lobbyWith, must } from './testing/helpers';
+import { QUEST_RIGHT, QUEST_WRONG, classicRound, makeRoundsQuiz, questQuestions, questQuiz, questRound, single4, duels } from './testing/fixtures';
+import { undoPanel, undoScore } from './undo';
+import { hostView, playerView } from './views';
+import { lobbyWith, lobbyWithGuide, must } from './testing/helpers';
 import { teamGame, teamQuiz } from './testing/teams';
 
 const T = 1_000_000;
@@ -348,5 +352,95 @@ describe('quest round (29g): teams and removal', () => {
     s = must(removePlayer(s, OLA));
     expect(s.quest?.tries).toEqual({ [TARAS]: [{ code: 'ЛИСА', at: T, after: 0, right: false }] });
     expect(s.questBuffs).toEqual({});
+  });
+});
+
+describe('quest round (29g): final review', () => {
+  it('a duel declared in the code window waits: «Далі» first shows the code, then the duel, then the round ends', () => {
+    const quiz = { ...makeRoundsQuiz([questRound('rq', questQuestions), classicRound('r2', [single4])], { leaderboard: 'end' }), duels };
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Тарас', 'Петро')));
+    s = must(next(playAll(s, T), T + 60_000, rng));
+    expect(questWindowOpen(s)).toBe(true);
+    s = must(declareDuel(s, OLA, TARAS));
+    expect(s.endsAt).toBe(T + 90_000);
+    s = must(next(s, T + 61_000, rng));
+    expect(s.phase).toBe('leaderboard');
+    expect(s.quest?.stage).toBe('shown');
+    s = must(next(s, T + 62_000, rng));
+    expect(s.phase).toBe('duel');
+    s = must(pickDuelCategory(s, OLA, 'dc1', T + 63_000, rng));
+    while (s.duel?.stage !== 'result') {
+      s = must(answerDuel(s, OLA, duelQuestionOf(s)?.accepted[0] ?? '', T + 64_000));
+      s = must(next(s, T + 64_000, rng));
+    }
+    s = must(next(s, T + 65_000, rng));
+    expect(s.phase).toBe('round_end');
+  });
+
+  it('an undone answer closes its symbol again; so does a penalty for leaving', () => {
+    let s = toQuest(lobby());
+    s = play(s, { [OLA]: 'right', [TARAS]: 'right' }, T);
+    expect(questOpened(s, OLA)).toBe(1);
+    s = must(next(s, T + 5000, rng)); // друге запитання: перше вже можна скасувати
+    s = must(undoScore(s, { question: s.questionIndex - 1, playerId: OLA }, T + 6000));
+    expect(questOpened(s, OLA)).toBe(0);
+    expect(playerView(s, OLA)?.me.quest?.slots).toEqual([null, null, null, null]);
+    expect(questOpened(s, TARAS)).toBe(1);
+    // Штраф за вихід знімає бали відповіді — символ теж закривається.
+    const penalized = addAdjustment(s, TARAS, -1000, T + 6500, 'away', { roundIndex: s.roundIndex });
+    expect(questOpened(penalized, TARAS)).toBe(0);
+  });
+
+  it('the host can undo a points bonus; the row shows it as a quest bonus', () => {
+    let s = toQuest(lobby());
+    s = must(code(s, OLA, 'СОВА', T));
+    const row = undoPanel(s)?.rounds[0].loose[0];
+    expect(row).toMatchObject({ kind: 'quest', playerId: OLA, points: 1200, undoneBy: null });
+    s = must(undoScore(s, row!.target, T + 1000));
+    expect(s.players.find((p) => p.id === OLA)?.score).toBe(0);
+    expect(undoPanel(s)?.rounds[0].loose[0].undoneBy).not.toBeNull();
+    expect(hostView(s).quest?.rows.find((r) => r.playerId === OLA)?.solved?.points).toBe(0);
+  });
+
+  it('a buff bonus in the row follows the place in this round, not buffs from an earlier quest', () => {
+    const buff = { bonus: { kind: 'buff' as const, buff: 'fifty' as const, first: 1 } };
+    const quiz = makeRoundsQuiz([questRound('rq', questQuestions, buff), questRound('rq2', questQuestions.map((q) => ({ ...q, id: `${q.id}-2` })), buff)], { leaderboard: 'end', buffs: ['fifty'] });
+    let s = must(start(lobbyWith(quiz, 'Оля', 'Тарас')));
+    s = must(code(s, OLA, 'СОВА', T));
+    s = must(next(playAll(s, T), T + 60_000, rng));
+    while (s.phase !== 'intro') s = must(next(s, T + 61_000, rng));
+    s = must(code(s, TARAS, 'СОВА', T + 62_000));
+    s = must(code(s, OLA, 'СОВА', T + 63_000));
+    const rows = hostView(s).quest?.rows ?? [];
+    expect(rows.map((r) => [r.playerId, r.solved?.place, r.solved?.buff])).toEqual([
+      [TARAS, 1, 'fifty'],
+      [OLA, 2, null],
+    ]);
+  });
+
+  it('the window closes at once when everyone present is done; a player who left does not hold it', () => {
+    let s = toQuest(lobby());
+    s = must(setConnected(s, PETRO, false, T));
+    s = must(code(s, OLA, 'СОВА', T));
+    s = must(code(s, TARAS, 'СОВА', T));
+    s = must(next(playAll(s, T), T + 60_000, rng));
+    expect(s.quest?.stage).toBe('shown');
+  });
+
+  it('two solves at the same moment keep the order they were entered in', () => {
+    let s = toQuest(lobby({}, {}));
+    s = must(code(s, TARAS, 'ЛИСА', T)); // Тарас перший у журналі спроб
+    s = must(code(s, OLA, 'СОВА', T + 1000));
+    s = must(code(s, TARAS, 'СОВА', T + 1000));
+    expect(questSolved(s).map((x) => x.actorId)).toEqual([OLA, TARAS]);
+  });
+
+  it('a quest first round starts its clock when the round is entered, after «Як грати»', () => {
+    const quiz = makeRoundsQuiz([questRound('rq', questQuestions)], { leaderboard: 'end' });
+    let s = must(start(lobbyWithGuide(quiz, 'Оля', 'Тарас'), T));
+    expect(s.phase).toBe('guide');
+    while (s.phase === 'guide') s = must(next(s, T + 50_000, rng));
+    expect(s.phase).toBe('intro');
+    expect(s.quest?.startedAt).toBe(T + 50_000);
   });
 });

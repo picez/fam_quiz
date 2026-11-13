@@ -1374,8 +1374,8 @@ export interface UndoQuestion {
 }
 
 export interface UndoRow {
-  /** away — штраф за вихід, ціль { seq }; appeal — рішення залу, ціль { seq }. */
-  kind: 'answer' | 'host' | 'away' | 'appeal';
+  /** away — штраф за вихід, ціль { seq }; appeal — рішення залу, ціль { seq }; quest — бонус за код «Квесту із кодом» (29g), ціль { seq }. */
+  kind: 'answer' | 'host' | 'away' | 'appeal' | 'quest';
   playerId: string;
   nickname: string;
   /** Бали рядка, як їх нараховано (без скасування). */
