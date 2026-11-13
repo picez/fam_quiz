@@ -15381,9 +15381,9 @@ async function appealQueue29k(sockets: Socket[]) {
   expect(await own.isDisabled(), 'the second appeal button is disabled during the vote').toBe(false);
   expect(await appealButton(petro).count(), 'two appeal buttons on the phone').toBe(1);
   await shot(petro, 'p29k-phone-vote-and-file');
-  // Петро подає свою під час голосування за Олину: «розглянуть наступною».
+  // Петро подає свою під час голосування за Олину: «розглянуть після поточної».
   await own.click();
-  await expect.poll(() => textOf(sheet(petro).locator('p.appeal-queued')), POLL).toBe('Вашу апеляцію розглянуть наступною');
+  await expect.poll(() => textOf(sheet(petro).locator('p.appeal-queued')), POLL).toBe('Вашу апеляцію розглянуть після поточної');
   await expect.poll(() => appealButton(petro).count(), POLL).toBe(0);
   await expectNoSideScroll(petro, 'p29k-phone-queued');
   await shot(petro, 'p29k-phone-queued');
@@ -15416,7 +15416,7 @@ async function appealQueue29k(sockets: Socket[]) {
   expect(problems).toEqual([]);
 }
 
-it('part 29k: the appeal queue with the bot host — Петро files his appeal from the vote sheet while the hall votes on Оля, sees «Вашу апеляцію розглянуть наступною», his appeal opens right after Оля’s tie, the bot waits for it and moves on appealShown after the last decision', async () => {
+it('part 29k: the appeal queue with the bot host — Петро files his appeal from the vote sheet while the hall votes on Оля, sees «Вашу апеляцію розглянуть після поточної», his appeal opens right after Оля’s tie, the bot waits for it and moves on appealShown after the last decision', async () => {
   const sockets: Socket[] = [];
   try {
     await appealQueue29k(sockets);
@@ -28969,7 +28969,8 @@ async function memoryGame29f() {
 async function memoryTeams29f() {
   const host = await open('host29ft', 1280, 900);
   await register(host, 'host', 'Марта Ведуча', 'host29ft@example.com');
-  const question = memory29f('t29f', '4x5', textPairs29f(10), 120, 2911);
+  // 29k: назва запитання на два-три рядки на 320 px — сітка 4×5 усе одно вміщається (розмір картки міряється в рантаймі).
+  const question = { ...memory29f('t29f', '4x5', textPairs29f(10), 120, 2911), text: 'Знайдіть усі пари «країна — столиця» якнайшвидше, відкриваючи по дві картки за раз, і не забудьте, що ходить уся команда' };
   const q = { pairs: question.pairs as Pair29f[], seed: question.seed };
   const data = {
     ...makeRoundsQuiz([classicRound('ct29f', [{ ...withId(single, 'ct1'), timeLimit: 30 }], { speedBonus: false }), classicRound('mt29f', [question as never], { speedBonus: false })], {

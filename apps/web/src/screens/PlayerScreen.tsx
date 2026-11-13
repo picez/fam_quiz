@@ -1498,7 +1498,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'reveal' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>
           <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />

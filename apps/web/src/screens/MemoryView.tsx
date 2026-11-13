@@ -1,8 +1,9 @@
-import type { CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import type { MemoryBoardView, MemoryCard, MemoryCellView, MemoryInfo, PlayerMemory, PublicMemory, PublicQuestion } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
+import { memoryCardSize } from '../live/memorySize';
 import { memoryTextSize, useMemory } from '../live/useMemory';
 import { jigsawTablePageSize } from './JigsawView';
 import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
@@ -47,8 +48,46 @@ function CardFace({ cell }: { cell: MemoryCellView }) {
  * рамка) чи знайдена (зелена, у командах колір tone, притлумлена) — вміст зі зрізу.
  */
 export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waiting = false, reveal = false }: MemoryGridProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<number | null>(null);
+  // Міряємо фактичне місце: від верху сітки до низу вікна (мінус рядок стану під нею й нижній відступ екрана), а не гадаємо
+  // висоту обв'язки — назва запитання може займати кілька рядків.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.parentElement;
+    if (el === null || el === undefined || parent === null || parent === undefined) return;
+    const measure = () => {
+      const width = parent.clientWidth;
+      if (width <= 0) return; // без розмітки (тести) лишається CSS
+      const box = el.getBoundingClientRect();
+      const viewport = window.visualViewport?.height ?? window.innerHeight;
+      const app = el.closest('.app');
+      const padBottom = app === null ? 0 : parseFloat(getComputedStyle(app).paddingBottom) || 0;
+      const below = Math.max(0, parent.getBoundingClientRect().bottom - box.bottom);
+      const gap = parseFloat(getComputedStyle(el).getPropertyValue('--memory-gap')) || 6;
+      // scrollY: коли сторінку вже прокрутили, верх сітки зсунувся, а місце — ні.
+      const top = box.top + window.scrollY;
+      const next = memoryCardSize({ width, height: viewport - top - below - padBottom, cols, rows, gap });
+      setFit((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    for (const node of [document.body, el.closest('.app'), parent]) if (node !== null) observer?.observe(node);
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
+  }, [cols, rows]);
   return (
-    <div className={reveal ? 'memory-grid is-reveal' : 'memory-grid'} style={{ '--cols': cols, '--rows': rows } as CSSProperties} dir="ltr">
+    <div
+      ref={ref}
+      className={reveal ? 'memory-grid is-reveal' : 'memory-grid'}
+      style={{ '--cols': cols, '--rows': rows, ...(fit === null ? {} : { '--memory-card': `${fit}px` }) } as CSSProperties}
+      dir="ltr"
+    >
       {cells.map((cell, i) => {
         const n = i + 1;
         const off = disabled || onFlip === undefined;

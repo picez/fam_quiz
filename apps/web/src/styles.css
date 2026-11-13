@@ -21182,6 +21182,16 @@ input.sudoku-editor-cell:focus-visible {
   .app.player .memory-grid {
     --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 205px - (var(--rows) - 1) * var(--memory-gap)) / var(--rows)));
   }
+
+  /* 29k: справжній розмір картки міряє MemoryView (від верху сітки до низу вікна, не менше 52 px). Щоб довга назва не з'їдала місце,
+   * тут вона — щонайбільше три рядки (повний текст — у title заголовка). */
+  .app.player:has(.memory-play) .question {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
 }
 
 /* «Мелодія за нотами»: сцена й пульт (29e). Плитки «нік · 🎧 шматок · ✓» (без назви й звуку), на розкритті — назва й таблиця з балами. */
