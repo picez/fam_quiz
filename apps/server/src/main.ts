@@ -122,6 +122,8 @@ const { app, shutdown } = await buildApp({
   // За проксі (наприклад, на Render) задайте TRUST_PROXY=1 (кількість проксі), інакше всі клієнти
   // ділять одне обмеження частоти.
   trustProxy: proxyTrust(process.env.TRUST_PROXY),
+  // Стиснення кадрів WebSocket (30c) увімкнено; SOCKET_DEFLATE=off вимикає, якщо бракує пам'яті.
+  socketDeflate: process.env.SOCKET_DEFLATE !== 'off',
   storage,
   stickerFixtures,
   webRoot: existsSync(built) ? built : undefined,
