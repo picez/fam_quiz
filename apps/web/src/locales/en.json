@@ -290,6 +290,7 @@
   "appealNoVoters": "No one to vote",
   "appealPassedHint": "The room has already accepted it — to change the mark, undo the points in “↶ Points” once you've moved on",
   "appealPausedHint": "Paused: you can vote after the pause",
+  "appealQueued": "Your appeal is next in line",
   "appealResultAway": "⚖️ Penalty lifted",
   "appealResultHost": "⚖️ Accepted by the host",
   "appealResultKept": "⚖️ Stays as it was · {count}",

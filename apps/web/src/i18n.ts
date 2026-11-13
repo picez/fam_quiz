@@ -3140,6 +3140,7 @@ const uk = {
   appealNoVoters: 'Нема кому голосувати',
   morelessWatchPicks: 'Вибирає {name}',
   appealWaitOther: 'Зал голосує за іншу апеляцію — потім зможете й ви',
+  appealQueued: 'Вашу апеляцію розглянуть наступною',
   appealCaptain: 'Оскаржує капітан',
   appealTitle: '⚖️ {name} оскаржує',
   appealTitleTeam: '⚖️ Команда «{name}» оскаржує',

@@ -290,6 +290,7 @@
   "appealNoVoters": "Niemand kann abstimmen",
   "appealPassedHint": "Der Saal hat schon gewertet – um die Wertung zu ändern, nimm die Punkte in „↶ Punkte“ zurück, sobald es weitergeht",
   "appealPausedHint": "Pause: abstimmen kannst du danach",
+  "appealQueued": "Dein Einspruch kommt als Nächstes dran",
   "appealResultAway": "⚖️ Strafe aufgehoben",
   "appealResultHost": "⚖️ Vom Spielleiter gewertet",
   "appealResultKept": "⚖️ Bleibt wie es war · {count}",

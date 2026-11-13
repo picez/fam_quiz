@@ -4,7 +4,7 @@ import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { blitzRound, bool as boolQ, boardRound, classicRound, duels as duelPool, finalRound, ladderRound, makeQuiz, makeRoundsQuiz, match as matchQ, multi, numeric as numericQ, order, puzzlesRound, single, survivalRound, text as textQ, truthRound, wipeoutRound, withId, withPoints, withVideo } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, countSudoku, crosswordCells, generateSudoku, jigsawTabs, layoutCrossword, levelOf, memoryCardAt, memoryLayout, pickKeyCells, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type CrosswordLayout, type PublicPuzzle, type SudokuLevel, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
+import { ACHIEVEMENT_XP, AUTOPILOT_MS, DEFAULT_RULES, LIMITS, LOCALES, SPLASH_MS, STICKERS, TROPHY_KINDS, TROPHY_MATERIALS, achievementRarity, countSudoku, crosswordCells, generateSudoku, jigsawTabs, layoutCrossword, levelOf, memoryCardAt, memoryLayout, pickKeyCells, quizSchema, stickerPath, xpForLevel, type AchievementsPage, type CrosswordLayout, type PublicPuzzle, type SudokuLevel, type PushPayload, type OwnLevel, type ReactionItem, type PlayerView, type PrizeContent, type StageView, type StateMeta } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { PIN_PLACES } from '../scripts/pin-places';
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
@@ -15329,6 +15329,104 @@ it('part 12f: the player appeal — Оля appeals «Шевченко» from a 3
     throw error;
   }
 });
+
+/** 29k: черга апеляцій у грі з ведучим-ботом — автор Марта (сокет), Оля й Петро на телефонах 375. */
+async function appealQueue29k(sockets: Socket[]) {
+  const author = await open('author29k', 1280, 900);
+  await register(author, 'host', 'Марта Черга', 'author29k@example.com');
+  const common = { imageUrl: null, video: null, timeLimit: 60 };
+  const q1 = { ...common, id: 'k1', type: 'text' as const, text: 'Хто написав «Заповіт»?', points: 200, accepted: ['Тарас Шевченко'] };
+  const q2 = { ...common, id: 'k2', type: 'boolean' as const, text: 'Дунай впадає в Чорне море', points: 100, correct: true };
+  const data = {
+    ...makeRoundsQuiz([classicRound('r1', [q1, q2] as never, { title: 'Розминка', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES })], { leaderboard: 'each' }),
+    title: 'Черга апеляцій 29k',
+  };
+  const saved = await author.request.post(`${base}/api/quizzes`, { data });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  const room = await createAutopilot(author, ((await saved.json()) as { id: string }).id);
+  const { code } = room;
+  const marta = await pilotSocket(sockets, code, room.token, 'Марта');
+  const olya = await open('olya29k', 375, 812);
+  const petro = await open('petro29k', 375, 812);
+  await join(olya, code, 'Оля', false);
+  await join(petro, code, 'Петро', false);
+  const phones = [olya, petro];
+
+  const textOf = async (locator: Locator) => squash(await locator.first().textContent({ timeout: 500 }).catch(() => null)) || null;
+  const sheet = (page: Page) => page.locator('section.appeal-sheet');
+  const appealButton = (page: Page) => page.locator('button.appeal-button');
+  const answerText = async (page: Page, text: string) => {
+    await page.getByLabel('Ваша відповідь', exact).fill(text);
+    await click(page, 'Відповісти');
+  };
+
+  expect(await marta.emit('host:start')).toEqual({ ok: true });
+  await afterSplash(...phones);
+  await olya.getByText('Хто написав «Заповіт»?', exact).waitFor({ timeout: 60_000 });
+  await afterSplash(...phones);
+
+  // 1. Марта правильно, Оля «Шевченко», Петро «Франко»: на розкритті кнопка в обох.
+  expect(await marta.emit('player:answer', { type: 'text', value: 'Тарас Шевченко' })).toEqual({ ok: true });
+  await answerText(olya, 'Шевченко');
+  await answerText(petro, 'Франко');
+  await expect.poll(() => textOf(appealButton(olya)), { timeout: 15_000 }).toBe('⚖️ Оскаржити (лишилось 2)');
+  await expect.poll(() => textOf(appealButton(petro)), POLL).toBe('⚖️ Оскаржити (лишилось 2)');
+
+  // 2. Оля оскаржує; Петро бачить аркуш голосу, а в ньому — свою кнопку: вона активна.
+  await appealButton(olya).click();
+  await sheet(petro).waitFor();
+  await petro.getByRole('heading', { name: '⚖️ Оля оскаржує', ...exact }).waitFor();
+  const own = sheet(petro).locator('button.appeal-button');
+  await expect.poll(() => textOf(own), POLL).toBe('⚖️ Оскаржити (лишилось 2)');
+  expect(await own.isDisabled(), 'the second appeal button is disabled during the vote').toBe(false);
+  expect(await appealButton(petro).count(), 'two appeal buttons on the phone').toBe(1);
+  await shot(petro, 'p29k-phone-vote-and-file');
+  // Петро подає свою під час голосування за Олину: «розглянуть наступною».
+  await own.click();
+  await expect.poll(() => textOf(sheet(petro).locator('p.appeal-queued')), POLL).toBe('Вашу апеляцію розглянуть наступною');
+  await expect.poll(() => appealButton(petro).count(), POLL).toBe(0);
+  await expectNoSideScroll(petro, 'p29k-phone-queued');
+  await shot(petro, 'p29k-phone-queued');
+
+  // 3. Голоси за Олину: Марта «ні», Петро «так» — нічия; Петрова апеляція відкривається одразу.
+  expect(await marta.emit('player:appeal-vote', { appealId: 1, yes: false })).toEqual({ ok: true });
+  await sheet(petro).getByRole('button', { name: 'Так', ...exact }).click();
+  const second = await frame(marta, (v) => v.appeal?.id === 2 && v.appeal.outcome === null);
+  expect(second.view.phase).toBe('reveal');
+  await sheet(olya).waitFor();
+  await olya.getByRole('heading', { name: '⚖️ Петро оскаржує', ...exact }).waitFor();
+  await expect.poll(() => sheet(petro).count(), POLL).toBe(0);
+  await expect.poll(() => textOf(petro.locator('section.appeal-card.is-phone p.appeal-hall')), POLL).toBe('⚖️ Зал голосує…');
+
+  // 4. Бот не йде далі, поки зал голосує за другу: 5 с — та сама фаза.
+  await sleep(5000);
+  expect(marta.frames.slice(second.index).every((f) => f.view.phase === 'reveal'), 'the bot moved on during the second appeal').toBe(true);
+
+  // 5. Марта й Оля «так» — Петрові +200; оскаржити більше нікому, тож за appealShown бот іде далі.
+  expect(await marta.emit('player:appeal-vote', { appealId: 2, yes: true })).toEqual({ ok: true });
+  await sheet(olya).getByRole('button', { name: 'Так', ...exact }).click();
+  const decided = await frame(marta, (v) => v.appeal?.id === 2 && v.appeal.outcome === 'yes', second.index);
+  await expect.poll(() => textOf(petro.locator('p.appeal-result')), POLL).toBe('⚖️ Зараховано! +200');
+  const moved = await frame(marta, (v) => v.phase !== 'reveal', decided.index, 30_000);
+  expectGap(moved.at - decided.at, AUTOPILOT_MS.appealShown, 'the bot after the last appeal');
+  const appeals = marta.frames.slice(0, moved.index).filter((f) => f.view.appeal !== null).map((f) => `${f.view.appeal!.id}:${f.view.appeal!.outcome ?? 'open'}`);
+  // Рішення першої й відкриття другої — один кадр: між ними гра не стоїть без апеляції.
+  expect([...new Set(appeals)]).toEqual(['1:open', '2:open', '2:yes']);
+
+  expect(problems).toEqual([]);
+}
+
+it('part 29k: the appeal queue with the bot host — Петро files his appeal from the vote sheet while the hall votes on Оля, sees «Вашу апеляцію розглянуть наступною», his appeal opens right after Оля’s tie, the bot waits for it and moves on appealShown after the last decision', async () => {
+  const sockets: Socket[] = [];
+  try {
+    await appealQueue29k(sockets);
+  } catch (error) {
+    await snapshot();
+    throw error;
+  } finally {
+    for (const socket of sockets) socket.close();
+  }
+}, 300_000);
 
 function resumeQuestions12r() {
   const common = { imageUrl: null, video: null, timeLimit: 30 };

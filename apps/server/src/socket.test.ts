@@ -2235,7 +2235,7 @@ describe('appeals over real sockets (12f)', () => {
     expect(await send(olena, 'player:appeal-vote', { appealId: 1, yes: true })).toEqual({ ok: false, error: 'vote_closed' });
     expect(await send(olena, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'appeal_unfit' });
     expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: true });
-    expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'appeal_open' });
+    expect(await send(taras, 'player:appeal', { reason: 'grade' })).toEqual({ ok: false, error: 'appeal_unfit' });
     expect(await send(host, 'host:next')).toEqual({ ok: false, error: 'appeal_open' });
     const voter = await until(olena, (view) => view.role === 'player' && view.me.appeal?.voter === true);
     expect(voter.appeal).toMatchObject({ outcome: null, yes: 0, no: 0, waiting: 1 });

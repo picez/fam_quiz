@@ -12997,6 +12997,13 @@ button.wall-tile:disabled {
   text-align: center;
 }
 
+/* 29k: своя апеляція в черзі — «Вашу апеляцію розглянуть наступною» (під результатом чи в аркуші голосу). */
+.appeal-queued {
+  margin: 0;
+  text-align: center;
+  color: var(--appeal-accent);
+}
+
 /* Картка апеляції: у потоці під результатом (телефон); сцена й пульт задають свої розміри поверх. */
 .appeal-card {
   display: flex;

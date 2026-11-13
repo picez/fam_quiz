@@ -294,6 +294,7 @@
   "appealNoVoters": "لا يوجد من يصوّت",
   "appealPassedHint": "احتسبها الجمهور بالفعل؛ لتغيير التقييم ألغِ النقاط في «↶ النقاط» عندما تنتقل إلى التالي",
   "appealPausedHint": "إيقاف مؤقت: يمكن التصويت بعده",
+  "appealQueued": "سيُنظر في اعتراضك بعد هذا مباشرة",
   "appealResultAway": "⚖️ أُزيلت الغرامة",
   "appealResultHost": "⚖️ احتسبها المقدّم",
   "appealResultKept": "⚖️ تبقى كما كانت · {count}",

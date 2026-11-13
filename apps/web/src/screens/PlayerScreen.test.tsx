@@ -4411,6 +4411,29 @@ describe('PlayerScreen appeal (12f)', () => {
     expect(document.querySelector('.appeal-button')).toBeNull();
   });
 
+  it('29k: a second player votes on the open appeal and can file his own from the sheet — it queues', async () => {
+    const send = show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ voter: true, reasons: ['grade'] })));
+    const sheet = document.querySelector('section.appeal-sheet') as HTMLElement;
+    expect(sheet).not.toBeNull();
+    const buttons = screen.getAllByRole('button', { name: '⚖️ Оскаржити (лишилось 2)' });
+    expect(buttons).toHaveLength(1);
+    expect(sheet.contains(buttons[0])).toBe(true);
+    expect((buttons[0] as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => void fireEvent.click(buttons[0]));
+    expect(send).toHaveBeenCalledWith('player:appeal', { reason: 'grade' });
+  });
+
+  it('29k: once queued the phone says «next», in the sheet for a voter and on the screen otherwise', () => {
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ left: 1, voter: true, queued: true })));
+    const note = screen.getByText('Вашу апеляцію розглянуть наступною');
+    expect(document.querySelector('section.appeal-sheet')?.contains(note)).toBe(true);
+    expect(document.querySelector('.appeal-button')).toBeNull();
+    cleanup();
+    show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ left: 1, queued: true })));
+    expect(document.querySelector('section.appeal-sheet')).toBeNull();
+    expect(screen.getByText('Вашу апеляцію розглянуть наступною').classList.contains('appeal-queued')).toBe(true);
+  });
+
   it('gives a voter the bottom sheet instead of the card', () => {
     show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ voter: true })));
     expect(document.querySelector('section.appeal-sheet')).not.toBeNull();

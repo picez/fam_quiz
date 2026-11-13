@@ -932,6 +932,11 @@ export interface GameState {
   autopilot?: AutopilotState;
   /** Апеляції гри (12f) у порядку відкриття; немає ключа — не було жодної. Голоси (votes) у зрізи не йдуть. */
   appeals?: Appeal[];
+  /**
+   * Черга апеляцій (29k): подані, поки зал голосує за іншу, у порядку подачі; перша відкривається одразу після рішення відкритої.
+   * Без ключа — черга порожня (і стан до 29k). Записи чужого розкриття не діють і зникають з наступним рішенням.
+   */
+  appealQueue?: QueuedAppeal[];
   /** Бонуси рівня гравців на цю гру (15a): id гравця → видача; ключ є, лише коли хтось має бонус. Без ключа — бонусів немає (і стан до 15a). */
   perks?: Record<string, PerkState>;
   /** «Правда про гравця» (28b): ключ є лише у вікторині з раундом truth (createGame). */
@@ -988,6 +993,17 @@ export interface Appeal {
   outcome: AppealOutcome | null;
   /** seq коригування 'appeal', якщо рішення його дописало. */
   adjustmentSeq?: number;
+}
+
+/** Апеляція в черзі (29k): відкриється (openAppeal без перевірки відкритої) після рішення тієї, за яку голосують. */
+export interface QueuedAppeal {
+  /** Учасник рушія: соло-гравець чи команда. */
+  by: string;
+  /** Індекс оскарженого запитання в plays. */
+  questionIndex: number;
+  reason: AppealReason;
+  /** Мить подачі. */
+  at: number;
 }
 
 /** Гра без ведучого (11g): автор, наступний крок, пауза. Пояснення полів — у плані 11g, «Стан». */
@@ -2720,7 +2736,7 @@ export function override(state: GameState, playerId: string, grade: Grade, now?:
   // Апеляція grade, яку зал підтримав (12f): оцінка поверх неї порахувала б бали двічі. Спершу скасувати рядок апеляції.
   if (appealPassedGrade(state, target)) return fail('not_allowed');
   const result = overrideGrade(state, playerId, grade, now);
-  return result.ok ? ok(closeAppealByHost(result.state, target, grade)) : result;
+  return result.ok ? ok(closeAppealByHost(result.state, target, grade, now)) : result;
 }
 
 function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: number): Result {

@@ -291,6 +291,7 @@
   "appealNoVoters": "Nie ma komu głosować",
   "appealPassedHint": "Publiczność już zaliczyła — żeby zmienić ocenę, cofnij punkty w „↶ Punkty”, gdy przejdziesz dalej",
   "appealPausedHint": "Pauza: głosować można po niej",
+  "appealQueued": "Twoja apelacja zostanie rozpatrzona jako następna",
   "appealResultAway": "⚖️ Karę zdjęto",
   "appealResultHost": "⚖️ Zaliczone przez prowadzącego",
   "appealResultKept": "⚖️ Zostaje bez zmian · {count}",

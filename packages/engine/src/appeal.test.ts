@@ -295,12 +295,13 @@ describe('limits', () => {
     expect(appealsLeft(s, 'p1')).toBe(2);
   });
 
-  it('one open appeal at a time; after the decision another player may appeal', () => {
+  it('one open appeal at a time; another player may appeal after the decision (or queue before it, 29k)', () => {
     const both = toReveal(DEFAULT_RULES, {}, [WRONG, WRONG, RIGHT]);
     expect(appealPossible(both)).toBe(true);
     let s = must(openAppeal(both, 'p1', 'grade', T1));
-    expect(appealPossible(s)).toBe(false);
-    expect(openAppeal(s, 'p2', 'grade', T1)).toEqual(err('appeal_open'));
+    // Петро ще може подати — у чергу.
+    expect(appealPossible(s)).toBe(true);
+    expect(must(openAppeal(s, 'p2', 'grade', T1)).appealQueue).toHaveLength(1);
     s = decideAppeal(s, T1 + 30_000);
     s = must(openAppeal(s, 'p2', 'grade', T1 + 31_000));
     expect(appealOpen(s)).toMatchObject({ id: 2, by: 'p2' });
@@ -400,9 +401,9 @@ describe('the away reason', () => {
 describe('review cases (12f)', () => {
   const stripped = (s: GameState, id: string): GameState => ({ ...s, players: s.players.filter((p) => p.id !== id) });
 
-  it('error order: appeal_open before appeal_unfit, appeals_used before no_voters', () => {
+  it('error order: with an appeal open an unfit one is appeal_unfit (29k queue), appeals_used before no_voters', () => {
     const s = must(openAppeal(reveal, 'p1', 'grade', T1));
-    expect(openAppeal(s, 'p3', 'grade', T1)).toEqual(err('appeal_open'));
+    expect(openAppeal(s, 'p3', 'grade', T1)).toEqual(err('appeal_unfit'));
     const used = (q: number, id: number) => ({ id, by: 'p1', questionIndex: q, reason: 'grade' as const, openedAt: 0, endsAt: 0, votes: {}, outcome: 'no' as const });
     let alone: GameState = { ...reveal, appeals: [used(5, 1), used(6, 2)] };
     alone = must(setConnected(must(setConnected(alone, 'p2', false, T1)), 'p3', false, T1));

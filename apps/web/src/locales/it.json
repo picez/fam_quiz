@@ -291,6 +291,7 @@
   "appealNoVoters": "Non c'è nessuno che voti",
   "appealPassedHint": "Il pubblico l'ha già accettata: per cambiare la valutazione, annulla i punti in «↶ Punti» quando passi oltre",
   "appealPausedHint": "Pausa: si potrà votare dopo",
+  "appealQueued": "Il tuo ricorso sarà esaminato subito dopo",
   "appealResultAway": "⚖️ Penalità tolta",
   "appealResultHost": "⚖️ Accettata dal conduttore",
   "appealResultKept": "⚖️ Resta com'era · {count}",

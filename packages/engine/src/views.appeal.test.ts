@@ -129,24 +129,29 @@ describe('an open appeal', () => {
 });
 
 describe('a second appellant while an appeal is open', () => {
-  it('while another appeal is open the one who can still appeal is told to wait', () => {
+  it('while another appeal is open the one who can still appeal keeps the button (29k: the appeal queues)', () => {
     const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
     const open = must(openAppeal(two, 'p2', 'grade', T1));
-    expect(me(open, 'p3')).toEqual({ left: 2, reasons: [], block: 'appeal_open', voter: true, vote: null });
+    expect(me(open, 'p3')).toEqual({ left: 2, reasons: ['grade'], block: null, voter: true, vote: null });
     expect(me(open, 'p2')).toMatchObject({ block: null, reasons: [] });
     expect(me(open, 'p1')).toMatchObject({ block: null });
+    const queued = must(openAppeal(open, 'p3', 'grade', T1 + 500));
+    expect(me(queued, 'p3')).toEqual({ left: 1, reasons: [], block: null, voter: true, vote: null, queued: true });
   });
 
-  it('after the decision the one who was told to wait gets the grade button back', () => {
+  it('after the decision the queued appeal opens; without filing the button stays', () => {
     const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
     const open = must(openAppeal(two, 'p2', 'grade', T1));
-    expect(me(open, 'p3')).toMatchObject({ block: 'appeal_open' });
     const decided = must(castAppealVote(must(castAppealVote(open, 'p1', 1, false, T1 + 1000)), 'p3', 1, false, T1 + 1000));
     expect(decided.appeals?.[0].outcome).toBe('no');
     expect(me(decided, 'p3')).toEqual({ left: 2, reasons: ['grade'], block: null, voter: false, vote: null });
+    const queued = must(openAppeal(open, 'p3', 'grade', T1 + 500));
+    const next2 = must(castAppealVote(must(castAppealVote(queued, 'p1', 1, false, T1 + 1000)), 'p3', 1, false, T1 + 1000));
+    expect(stageView(next2).appeal).toMatchObject({ id: 2, by: { playerId: 'p3' }, outcome: null });
+    expect(me(next2, 'p3')).toEqual({ left: 1, reasons: [], block: null, voter: false, vote: null });
   });
 
-  it('no_voters wins over appeal_open', () => {
+  it('no_voters wins over the queue button', () => {
     const two = must(next(answered(start(), [RIGHT, WRONG, WRONG]), T0 + 1500, rng));
     const open = must(openAppeal(two, 'p2', 'grade', T1));
     const alone = must(setConnected(must(setConnected(open, 'p1', false, T1 + 1000)), 'p2', false, T1 + 1000));
@@ -218,13 +223,18 @@ describe('team appeals', () => {
     expect(me(s0, 'm3')).toEqual({ left: 2, reasons: [], block: null, voter: false, vote: null });
   });
 
-  it('with another appeal open the captain is told to wait, the non-captain still sees captain', () => {
+  it('with another appeal open the captain still has the button (29k queue), the non-captain sees captain; queued — the whole team sees it', () => {
     let s = must(next(teamGame(teamQuiz([classicRound('r1', [t100], { speedBonus: false, rules: DEFAULT_RULES })]), [['Оля', 'Петро'], ['Віра', 'Іра']]), T0, rng));
     s = must(actAnswer(must(actAnswer(s, 'm1', WRONG, T0 + 1000)), 'm3', WRONG, T0 + 1000));
     if (s.phase === 'question') s = must(lock(s));
     s = must(openAppeal(must(next(s, T0 + 2000, rng)), 'm3', 'grade', T1));
-    expect(me(s, 'm1')).toMatchObject({ block: 'appeal_open', reasons: [] });
+    expect(me(s, 'm1')).toMatchObject({ block: null, reasons: ['grade'] });
     expect(me(s, 'm2')).toMatchObject({ block: 'captain', reasons: [] });
+    expect(openAppeal(s, 'm2', 'grade', T1 + 500)).toEqual({ ok: false, error: 'not_captain' });
+    s = must(openAppeal(s, 'm1', 'grade', T1 + 500));
+    expect(s.appealQueue?.map((q) => q.by)).toEqual([s.teams?.members.find((m) => m.id === 'm1')?.teamId]);
+    expect(me(s, 'm1')).toMatchObject({ queued: true, reasons: [] });
+    expect(me(s, 'm2')).toMatchObject({ queued: true, reasons: [] });
   });
 
   it('teammates of the appellant are not voters; the other team votes person by person, each seeing only the own vote', () => {
