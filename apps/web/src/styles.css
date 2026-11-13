@@ -8526,6 +8526,8 @@ label.powers-price {
 .shop-targets {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Рядки — за вмістом: інакше в стиснутому прокручуваному списку рядки ділять висоту порівну й картки налазять одна на одну. */
+  grid-auto-rows: max-content;
   gap: 0.5rem;
 }
 
