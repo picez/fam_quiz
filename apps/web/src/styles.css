@@ -21549,7 +21549,7 @@ input.sudoku-editor-cell:focus-visible {
 
 .quest-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5em;
   min-width: 0;
   padding: 0.3em 0.6em;
@@ -21566,9 +21566,11 @@ input.sudoku-editor-cell:focus-visible {
 .quest-row-name {
   flex: 1 1 8ch;
   min-width: 6ch;
-  overflow: hidden;
   font-weight: 700;
-  text-overflow: ellipsis;
+  line-height: 1.15;
+  /* Довгий нік переноситься на другий рядок, а не обрізається: плитка росте вниз (на сцені під рядками є запас висоти). */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .quest-row-dots {
