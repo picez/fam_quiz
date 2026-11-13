@@ -18,7 +18,6 @@ const uk = {
   nicknameHint: 'Від 2 до 20 символів',
   defaultNickname: 'Гравець',
   enterGame: 'Увійти в гру',
-  gameTitle: 'Гра «{title}»',
   // Спільне
   paused: 'Пауза',
   waitingHost: 'Чекаємо на ведучого',
@@ -3708,7 +3707,6 @@ const uk = {
   adminDeleteAward: 'Прибрати нагороду',
   adminDeleteAwardConfirm: 'Прибрати нагороду за «{quiz}» з вітрини? Скасувати не можна.',
   adminBack: 'До списку',
-  adminLoadError: 'Не вдалося завантажити.',
   adminSearchQuizzes: 'Пошук за назвою чи автором',
   adminAuthor: 'Автор: {name}',
   adminAuthorBanned: 'автора заблоковано',

@@ -266,9 +266,6 @@ export type PinMap = (typeof PIN_MAPS)[number];
 /** Пропорції вбудованих мап = viewBox їхніх SVG (2000×1000, 1600×1200, 1600×1100). */
 export const PIN_MAP_ASPECT: Record<PinMap, number> = { world: 2, europe: 4 / 3, ukraine: 16 / 11 };
 
-/** Розміри стіни: 3×3 або 4×4 (груп = плиток у групі). */
-export const WALL_SIZES = [3, 4] as const;
-
 const share01 = z.number().finite().min(0).max(1);
 
 /** Обмеження для зображень у запитаннях. */
@@ -1409,8 +1406,6 @@ export type LadderRound = z.infer<typeof ladderRoundSchema>;
 
 /** Типи запитань раунду «Квест із кодом» (29g): звичайні запитання без медіа-механік. */
 export const QUEST_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'slider'] as const satisfies readonly QuestionType[];
-
-export const QUEST_BONUS_KINDS = ['points', 'buff'] as const;
 
 /** Бонус за відкриту скриню: бали (за формулою questPoints) чи ще одне використання бафа. */
 export const questBonusSchema = z.discriminatedUnion('kind', [

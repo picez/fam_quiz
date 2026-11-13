@@ -6,3 +6,4 @@ dist/
 .superpowers/
 apps/server/uploads/
 **/e2e/artifacts/
+.playwright-mcp/

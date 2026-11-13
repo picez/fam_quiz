@@ -17,7 +17,6 @@ export const PUSH_HOSTS = [
   'notify.windows.com',
 ] as const;
 export const PUSH_KINDS = ['reminder', 'opened', 'cancelled'] as const;
-export type PushKind = (typeof PUSH_KINDS)[number];
 
 export type PushPayload =
   | { kind: 'reminder'; eventId: string; title: string; startsAt: string; locale?: Locale }

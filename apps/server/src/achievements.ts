@@ -70,11 +70,6 @@ export function winStreak(games: PlayedGame[]): number {
   return best;
 }
 
-/** Сума points рядків учасника в раунді (зі штрафними й коригуваннями). */
-export function roundPoints(player: TablePlayer, roundIndex: number): number {
-  return player.rows.filter((row) => row.roundIndex === roundIndex).reduce((sum, row) => sum + row.points, 0);
-}
-
 /** Бали учасника в раунді гри: без ставок дуелей, купівель дебафів і перенесених балів (12r) — це не гра раунду, хоч рядок і лягає в нього. */
 function roundPointsOfPlay(player: TablePlayer, roundIndex: number): number {
   return player.rows

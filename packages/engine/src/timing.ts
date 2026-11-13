@@ -3,8 +3,6 @@ import type { GameState, Play, Result } from './game';
 
 const fail = (error: ErrorCode): Result => ({ ok: false, error });
 
-/** Крок кнопок ведучого «−15 с» / «+15 с». */
-export const TIME_STEP_S = 15;
 /** Після «−15 с» на таймері лишається не менше. */
 export const MIN_REMAINING_MS = 5_000;
 /** Після «+15 с» на таймері лишається не більше. */

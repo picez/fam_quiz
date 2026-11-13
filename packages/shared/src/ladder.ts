@@ -39,11 +39,3 @@ export function hallPoints(level: number): number {
   return Math.round(level / 10);
 }
 
-/** Підсумок драбини для зрізів і історії. */
-export interface LadderOutcomeInfo {
-  kind: LadderOutcomeKind;
-  /** Скільки сходинок пройдено. */
-  passed: number;
-  /** Виграш учасника. */
-  points: number;
-}

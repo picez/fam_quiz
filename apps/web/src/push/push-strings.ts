@@ -36,7 +36,3 @@ export function pushStringsFor(locale: unknown): (key: PushStringKey, vars?: Rec
   const dict = PUSH_STRINGS[pushLocale(locale)];
   return (key, vars = {}) => (dict[key] ?? pushStrings[key]).replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match);
 }
-
-export function pushString(key: PushStringKey, vars: Record<string, string> = {}): string {
-  return pushStrings[key].replace(/\{(\w+)\}/g, (match, name: string) => vars[name] ?? match);
-}

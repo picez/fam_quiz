@@ -26,13 +26,9 @@ export const EXTENSIONS: Record<MediaType, string> = {
   'audio/mp4': 'm4a',
 };
 
-const IMAGE_NAME = /^[a-z0-9]{16,64}\.(jpg|png|webp)$/;
 const MEDIA_NAME = /^[a-z0-9]{16,64}\.(jpg|png|webp|mp3|ogg|m4a)$/;
 const STICKER_KEY = /^stickers\/[A-Za-z][A-Za-z0-9]{0,39}\.(gif|png)$/;
 const AUDIO_NAME = /^[a-z0-9]{16,64}\.(mp3|ogg|m4a)$/;
-
-/** Чи годиться назва зображення: лише така форма не може вказати за межі сховища. */
-export const isImageName = (name: string) => IMAGE_NAME.test(name);
 
 /** Назва файлу сховища: зображення або аудіо. */
 export const isMediaName = (name: string) => MEDIA_NAME.test(name);

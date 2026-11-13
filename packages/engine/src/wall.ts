@@ -69,11 +69,6 @@ export function wallsHere(state: GameState, play: Play, playerId: string): boole
   return play.board === undefined || play.board.kind !== 'normal' || play.board.chooserId === playerId;
 }
 
-/** Чи гравець закінчив: є запис (склав, замкнув або закрито запитання). */
-export function wallDone(state: GameState, playerId: string): boolean {
-  return recordOf(state, state.questionIndex, playerId) !== undefined;
-}
-
 /** Бали за found груп: класика — answerPoints, поле — boardPoints; accuracy = wallShare. */
 export function wallPoints(state: GameState, play: Play, found: number): number {
   const groups = play.question.type === 'wall' ? play.question.groups.length : 0;
