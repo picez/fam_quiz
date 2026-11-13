@@ -3,11 +3,11 @@ import { SCORE_SOURCES, adjustmentSource, answerSource, breakdownOf, roundTotals
 
 describe('score sources', () => {
   it('lists the sources in breakdown order', () => {
-    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth']);
+    expect([...SCORE_SOURCES]).toEqual(['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest']);
   });
 
   it('classifies answer rows by round type', () => {
-    for (const type of ['classic', 'blitz', 'board', 'survival', 'ladder'] as const) expect(answerSource(type)).toBe('answers');
+    for (const type of ['classic', 'blitz', 'board', 'survival', 'ladder', 'quest'] as const) expect(answerSource(type)).toBe('answers');
     expect(answerSource('final')).toBe('final');
     expect(answerSource('wipeout')).toBe('wipeout');
     expect(answerSource('truth')).toBe('truth');
@@ -17,7 +17,7 @@ describe('score sources', () => {
   });
 
   it('maps adjustment sources to themselves', () => {
-    for (const source of ['carry', 'host', 'undo', 'away', 'appeal', 'duel', 'debuff', 'survival', 'ladder'] as const) expect(adjustmentSource(source)).toBe(source);
+    for (const source of ['carry', 'host', 'undo', 'away', 'appeal', 'duel', 'debuff', 'survival', 'ladder', 'quest'] as const) expect(adjustmentSource(source)).toBe(source);
   });
 });
 

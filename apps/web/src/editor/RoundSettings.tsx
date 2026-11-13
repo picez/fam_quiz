@@ -1,10 +1,11 @@
 import { useId, useState } from 'react';
-import { betsMinimums, LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type Round, type RoundRules } from '@quiz/shared';
+import { betsMinimums, LADDER_PICKS, LADDER_PRESETS, LIFELINES, LIMITS, SURVIVAL_TYPES, ladderPresetSafe, boardCells, cellAnswerMode, roundBrief, rulesOf, type BlitzRoundRules, type BuffKind, type Round, type RoundRules } from '@quiz/shared';
 import { ROUND_NAMES } from '../guide-text';
 import { HelpButton } from '../help/HelpButton';
 import { t } from '../i18n';
 import { RoundBriefing } from '../screens/RoundBriefing';
 import { applyRoundTime, withDefaultMode } from './draft';
+import { QuestSettings } from './QuestSettings';
 import { SparesEditor } from './SparesEditor';
 
 interface Props {
@@ -17,6 +18,10 @@ interface Props {
   /** Керований стан розгортання (щоб редактор міг відкрити налаштування з помилкою). */
   open?: boolean;
   onToggle?: (open: boolean) => void;
+  /** Дозволені у вікторині бафи (для баф-бонусу «Квесту»). */
+  buffs?: readonly BuffKind[];
+  /** Раунд останній у вікторині. */
+  lastRound?: boolean;
 }
 
 /** З якої довжини лічильник опису жовтіє (11a). */
@@ -37,7 +42,7 @@ const toMultiplier = (value: string): RoundRules['multiplier'] => (value === '3'
  * Налаштування одного раунду: назва, опис для гравців, перемішування варіантів і правила підрахунку (штраф, серії, множник);
  * класичному додатково бали за швидкість і «частково», бліцу — вікно відповіді, спроби й спосіб перевірки, полю — спосіб відповіді й перевірки та «частково». В кінці — попередній перегляд заставки з поясненням правил. Згорнуті, доки їх не відкриють.
  */
-export function RoundSettings({ round, index, total = 0, onChange, open, onToggle }: Props) {
+export function RoundSettings({ round, index, total = 0, onChange, open, onToggle, buffs = [], lastRound = false }: Props) {
   const countId = useId();
   const fieldId = useId();
   const descriptionLength = (round.description ?? '').length;
@@ -61,7 +66,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
   const seriesPlus = round.type === 'blitz' ? (round.rules.streakPlus ?? null) : null;
   const seriesMinus = round.type === 'blitz' ? (round.rules.streakMinus ?? null) : null;
   const setPartial = (partial: number | null) => {
-    if (round.type === 'classic' || round.type === 'board' || round.type === 'survival') onChange({ ...round, rules: { ...round.rules, partial } });
+    if (round.type === 'classic' || round.type === 'board' || round.type === 'survival' || round.type === 'quest') onChange({ ...round, rules: { ...round.rules, partial } });
   };
 
   return (
@@ -118,7 +123,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
         </button>
       </div>
       )}
-      {(round.type === 'classic' || round.type === 'survival') && (
+      {(round.type === 'classic' || round.type === 'survival' || round.type === 'quest') && (
         <div className="with-help">
           <label className="check">
             <input type="checkbox" checked={round.speedBonus} onChange={(event) => onChange({ ...round, speedBonus: event.target.checked })} />
@@ -296,6 +301,7 @@ export function RoundSettings({ round, index, total = 0, onChange, open, onToggl
           <p className="meta">{t('auctionSettingsNote')}</p>
         </>
       )}
+      {round.type === 'quest' && <QuestSettings round={round} buffs={buffs} lastRound={lastRound} onChange={onChange} />}
       {round.type === 'blitz' && (
         <>
           <label className="field">

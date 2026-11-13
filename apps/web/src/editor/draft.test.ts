@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { loadDraft, saveDraft } from './draft-storage';
+import { newQuestRound, withQuestCode } from './draft';
+import { QUEST_TYPES, type QuestRound } from '@quiz/shared';
 import { newId } from './new-id';
 import { DEFAULT_RULES, LADDER_PRESETS, LIFELINES, LIMITS, ladderPresetSafe, type LadderRound, duelShortfall, duelThreshold, WIPEOUT_TYPES, SURVIVAL_TYPES, rulesOf, boardCells, quizSchema, roundSchema, questionSchema, isPuzzle, ROUND_TYPES, EMPTY_SUDOKU, generateSudoku, layoutCrossword, pickKeyCells, questionsOf, roundQuestions, type BoardRound, type ClassicRound, type Question, type Quiz, type Round, type Duels } from '@quiz/shared';
 import { t } from '../i18n';
@@ -3304,5 +3306,65 @@ describe('melody in the editor (29e)', () => {
     expect(one('mel-many').accepted).toHaveLength(LIMITS.maxAccepted);
     save('mel-none', { ...withFile(), accepted: [] });
     expect(one('mel-none').accepted).toEqual(['']);
+  });
+});
+
+describe('quest round (29g)', () => {
+  const asQuiz = (round: Round, buffs?: string[]): Quiz => ({ ...newQuiz(), title: 'Гра', settings: { ...newQuiz().settings, ...(buffs === undefined ? {} : { buffs: buffs as never }) }, rounds: [round] });
+  const fillQuestions = (round: QuestRound, count: number): QuestRound => ({ ...round, questions: Array.from({ length: count }, () => filled(newQuestion('single'))) });
+
+  it('a new quest round has the agreed defaults and asks for a question and a code', () => {
+    const round = newQuestRound();
+    expect(round).toMatchObject({ type: 'quest', prompt: '', code: '', order: [], tries: 3, bonus: { kind: 'points', points: 1000 }, speedBonus: false, shuffleOptions: false });
+    expect(round.questions).toHaveLength(3);
+    const problems = problemsOf(asQuiz(round));
+    expect(problems.some((text) => text.includes(t('problemQuestPrompt')))).toBe(true);
+    expect(problems.some((text) => text.includes(t('problemQuestCode', { min: 3, max: 8 })))).toBe(true);
+  });
+
+  it('a code typed as «сова» is normalized and the order follows its length', () => {
+    const round = withQuestCode(newQuestRound(), 'сова');
+    expect(round.code).toBe('СОВА');
+    expect(round.order).toEqual([0, 1, 2, 3]);
+    const longer = withQuestCode({ ...round, order: [2, 1, 0, 3] }, 'СОВИК');
+    expect(longer.order).toEqual([0, 1, 2, 3, 4]);
+    expect(withQuestCode({ ...round, order: [2, 1, 0, 3] }, ' со-ва ').order).toEqual([2, 1, 0, 3]);
+    expect(cleaned(asQuiz({ ...newQuestRound(), code: 'сова' })).rounds[0]).toMatchObject({ code: 'СОВА', order: [0, 1, 2, 3] });
+  });
+
+  it('a broken order, too few questions and a buff that is not allowed are problems', () => {
+    const base = { ...withQuestCode(newQuestRound(), 'сова'), prompt: 'Нічний птах — символ мудрості' };
+    const ok = fillQuestions(base, 4);
+    expect(problemsOf(asQuiz(ok))).toEqual([]);
+    expect(problemsOf(asQuiz({ ...ok, order: [0, 0, 1, 2] })).some((text) => text.includes(t('problemQuestOrder')))).toBe(true);
+    expect(problemsOf(asQuiz(fillQuestions(base, 3))).some((text) => text.includes(t('problemQuestShort', { length: 4 })))).toBe(true);
+    const buff: QuestRound = { ...ok, bonus: { kind: 'buff', buff: 'fifty', first: null } };
+    expect(problemsOf(asQuiz(buff)).some((text) => text.includes(t('problemQuestBuff')))).toBe(true);
+    expect(problemsOf(asQuiz(buff, ['fifty']))).toEqual([]);
+    expect(problemsOf(asQuiz({ ...ok, bonus: { kind: 'buff', buff: 'stealth', first: null } }, ['stealth'])).some((text) => text.includes(t('problemQuestBuff')))).toBe(true);
+  });
+
+  it('the question types are the quest ones and a full draft passes the schema', () => {
+    expect(questionTypesFor('quest')).toEqual(QUEST_TYPES);
+    const round = fillQuestions({ ...withQuestCode(newQuestRound(), 'сова'), prompt: 'Нічний птах — символ мудрості', order: [2, 1, 0, 3] }, 4);
+    const quiz = cleaned(asQuiz(round));
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    expect(firstProblem(asQuiz(round))).toBeNull();
+    expect(firstProblem(asQuiz({ ...round, prompt: '' }))).toEqual({ round: 0, question: 0, cell: null });
+    const wrongType = { ...round, questions: [...round.questions.slice(1), filled(newQuestion('chain'))] };
+    expect(problemsOf(asQuiz(wrongType)).some((text) => text.includes(t('problemQuestType')))).toBe(true);
+  });
+
+  it('a stored quest is revived within limits', () => {
+    const stored = { ...newQuestRound(), code: ' со-ва ', order: [5, 1], tries: 99, bonus: { kind: 'points', points: -5 } };
+    saveDraft('quest-revive', { ...newQuiz(), rounds: [stored as never] });
+    const round = loadDraft('quest-revive')!.rounds[0];
+    expect(round).toMatchObject({ type: 'quest', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1000 } });
+    saveDraft('quest-buff', { ...newQuiz(), rounds: [{ ...stored, bonus: { kind: 'buff', buff: 'nope', first: 2 } } as never] });
+    expect((loadDraft('quest-buff')!.rounds[0] as QuestRound).bonus).toEqual({ kind: 'points', points: 1000 });
+    saveDraft('quest-keep', { ...newQuiz(), rounds: [{ ...stored, code: 'PARIS', order: [4, 3, 2, 1, 0], tries: 2, bonus: { kind: 'buff', buff: 'fifty', first: 2 } } as never] });
+    expect(loadDraft('quest-keep')!.rounds[0]).toMatchObject({ code: 'PARIS', order: [4, 3, 2, 1, 0], tries: 2, bonus: { kind: 'buff', buff: 'fifty', first: 2 } });
+    saveDraft('quest-first', { ...newQuiz(), rounds: [{ ...stored, bonus: { kind: 'buff', buff: 'fifty', first: 0 } } as never] });
+    expect((loadDraft('quest-first')!.rounds[0] as QuestRound).bonus).toEqual({ kind: 'buff', buff: 'fifty', first: null });
   });
 });

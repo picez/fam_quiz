@@ -5,10 +5,10 @@ import type { RoundType } from './quiz';
 export type UndoTarget = { question: number } | { seq: number };
 
 /** Джерела коригувань, які ведучий може скасувати. 'undo' — окремо («Повернути»). */
-export const UNDOABLE_SOURCES: readonly AdjustmentSource[] = ['host', 'away', 'appeal'];
+export const UNDOABLE_SOURCES: readonly AdjustmentSource[] = ['host', 'away', 'appeal', 'quest'];
 
 /** Раунди, відповіді яких скасовуються; у «Ва-банк», «Вибуванні» й «Мільйонері» бали йдуть через банки й приховані бали. */
-export const UNDOABLE_ROUNDS: readonly RoundType[] = ['classic', 'blitz', 'board', 'final'];
+export const UNDOABLE_ROUNDS: readonly RoundType[] = ['classic', 'blitz', 'board', 'final', 'quest'];
 
 /** Рядок журналу для undoLedger: who — ключ гравця (id у рушії, нікнейм в історії). */
 export interface UndoEntry {

@@ -240,6 +240,8 @@ export const duelAnswerSchema = z.object({
 });
 /** «Правда про гравця» (28b): факт про себе; рушій зводить пробіли й міряє довжину (порожній прибирає). */
 export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText * 2).refine(isStorable, UNSTORABLE) });
+/** «Квест із кодом» (29g): спроба коду — сирий рядок, нормалізує й перевіряє рушій. */
+export const questCodeSchema = z.object({ code: z.string().max(LIMITS.maxQuestInput) }).strict();
 /** Ведучий ховає чи повертає факт гравця (28b). */
 export const truthHideSchema = z.object({ playerId, hidden: z.boolean() });
 /** Командна гра (10j): учасник вибирає команду в лобі. */
@@ -345,6 +347,8 @@ export interface ClientToServerEvents {
   'player:duel-answer': (payload: z.infer<typeof duelAnswerSchema>, ack: Ack) => void;
   /** «Правда про гравця»: написати чи змінити свій факт ('' — прибрати). */
   'player:truth': (payload: z.infer<typeof truthFactSchema>, ack: Ack) => void;
+  /** «Квест із кодом» (29g): спроба коду будь-коли в раунді. Помилки: wrong_phase, paused, not_found, quest_closed, quest_solved, quest_tries, quest_length, quest_repeat. Неправильна спроба теж ok (вона згоріла). */
+  'player:quest': (payload: z.infer<typeof questCodeSchema>, ack: Ack) => void;
   /** Командна гра: вибір команди в лобі (спосіб «гравці обирають самі»). */
   'player:team': (payload: z.infer<typeof teamPickSchema>, ack: Ack) => void;
   /** Командна гра: кидок кубика формування в лобі. */

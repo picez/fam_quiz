@@ -6,6 +6,7 @@ import { stageAwayText } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { BetsResults, BetsStage, BetsStrip } from './BetsView';
 import { AuctionResults, AuctionStage, AuctionStrip } from './AuctionView';
+import { QuestStage, QuestStrip } from './QuestView';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { ChoiceFace, choicesClass } from './ChoiceFace';
 import { MatchColumns, PairList } from './MatchView';
@@ -300,6 +301,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       <StageAnswerers view={view} />
       {(view.phase === 'question' || view.phase === 'locked') && view.bets !== undefined && <BetsStrip bets={view.bets} />}
       {(view.phase === 'question' || view.phase === 'locked') && view.auction !== undefined && <AuctionStrip auction={view.auction} />}
+      {(view.phase === 'question' || view.phase === 'locked') && view.quest !== undefined && <QuestStrip info={view.quest} compact />}
       {view.wipeout !== null && view.wipeout.current >= 0 && (
         <p className="meta wipeout-strip">
           {t('wipeoutStageStrip', { index: view.wipeout.current + 1, total: view.wipeout.ladder.length, price: num(view.wipeout.ladder[view.wipeout.current] ?? 0) })}
@@ -342,6 +344,7 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
       </div>
       {view.phase === 'reveal' && view.bets !== undefined && <BetsResults bets={view.bets} players={view.players} />}
       {view.phase === 'reveal' && view.auction !== undefined && <AuctionResults auction={view.auction} />}
+      {view.phase === 'reveal' && view.quest !== undefined && <QuestStrip info={view.quest} />}
       {finalReveal && view.final !== null && <FinalReveal final={view.final} question={reveal} presented={view.question?.choices} />}
       {question.clues !== null && !finalReveal && (
         <CluesList clues={question.clues} offsetMs={offsetMs} all={reveal?.type === 'clues' ? reveal.clues : undefined} big />
@@ -647,6 +650,7 @@ function Intro({ view, showPrizes }: { view: StageView; showPrizes: boolean }) {
       {/* Поле з описом: на широкому екрані опис і правила ліворуч, кидки й розклад праворуч (як у «Мільйонері»). */}
       {view.board !== null ? <div className="board-intro-main">{head}</div> : head}
       {view.round.type === 'wipeout' && view.wipeout !== null && <WipeoutLadder info={view.wipeout} size="stage" players={false} />}
+      {view.round.type === 'quest' && view.quest !== undefined && <QuestStage info={view.quest} phase="intro" offsetMs={0} />}
       {view.round.type === 'survival' && view.survival !== null && (
         <>
           <p className="lead survival-target">
@@ -1045,8 +1049,11 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'leaderboard' && view.wipeout !== null && <WipeoutBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.survival !== null && <SurvivalBetween view={view} offsetMs={offsetMs} />}
       {phase === 'leaderboard' && view.ladder !== null && <LadderBetween view={view} />}
+      {phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play' && <QuestStage info={view.quest} phase="leaderboard" offsetMs={offsetMs} paused={view.paused} />}
+      {phase === 'leaderboard' && view.quest !== undefined && view.quest.stage === 'play' && <QuestStrip info={view.quest} />}
+      {phase === 'round_end' && view.quest !== undefined && view.quest.stage === 'shown' && <QuestStage info={view.quest} phase="round_end" offsetMs={offsetMs} />}
       {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
-      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && (
+      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && !(phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play') && (
         <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}

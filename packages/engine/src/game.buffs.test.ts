@@ -22,6 +22,8 @@ import {
   multi,
   numeric,
   order,
+  questQuestions,
+  questRound,
   single,
   single4,
   sortQ,
@@ -363,5 +365,15 @@ describe('buffs', () => {
     const plain = startRound(lobbyWith(makeQuiz([single4]), 'Оля'), T0, rng0);
     // 12h: без settings.debuffs — старі шість; нові п'ять лише явним вибором.
     for (const kind of DEBUFF_KINDS) expect(setDebuff(plain, 'p1', kind).ok, kind).toBe((LEGACY_DEBUFFS as readonly string[]).includes(kind));
+  });
+});
+
+describe('quest round buffs (29g)', () => {
+  it('quest questions allow buffs', () => {
+    const quiz = makeRoundsQuiz([questRound('rq', questQuestions)], { buffs: ['fifty'] });
+    const s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Тарас'))), T0, () => 0));
+    expect(s.plays[s.questionIndex].question.type).toBe('single');
+    expect(buffBlock(s, 'p1', 'fifty', T0 + 500)).toBeNull();
+    expect(takeBuff(s, 'p1', 'fifty', T0 + 500, () => 0).ok).toBe(true);
   });
 });

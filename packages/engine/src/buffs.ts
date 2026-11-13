@@ -48,6 +48,7 @@ import { normalizeText } from './normalize';
 import { grantOvertime, isTimed, limitMsOf, overtimeOf, timeOverFor } from './timing';
 import { notStarted } from './splash';
 import { perkHintHere, perkTimeHere } from './perks';
+import { questGranted } from './quest';
 import { takeStealth } from './stealth';
 import { canMemberVote } from './team-act';
 import { memberOf, teamsOn } from './teams';
@@ -100,6 +101,20 @@ export function buffOf(play: Play | undefined, playerId: string): BuffPlay | nul
 /** Бафи, які гравець уже використав у грі, у порядку журналу. */
 export function buffsUsed(state: GameState, playerId: string): BuffKind[] {
   return state.plays.flatMap((play) => buffOf(play, playerId)?.kind ?? []);
+}
+
+/** Баф вичерпано: використано стільки разів, скільки дозволено, — один раз за гру плюс кожне використання, видане квестом (29g). */
+export function buffSpent(state: GameState, actorId: string, kind: BuffKind): boolean {
+  const used = buffsUsed(state, actorId).filter((k) => k === kind).length;
+  return used >= 1 + questGranted(state, actorId, kind);
+}
+
+/** Скільки ще разів можна взяти баф, якщо квест (29g) видавав його учасникові; null — не видавав. */
+export function questLeft(state: GameState, actorId: string, kind: BuffKind): number | null {
+  const granted = questGranted(state, actorId, kind);
+  if (granted === 0) return null;
+  const used = buffsUsed(state, actorId).filter((k) => k === kind).length;
+  return Math.max(0, 1 + granted - used);
 }
 
 /** Скільки варіантів прибирає 50/50; 0 — не діє (unfit_options або не той тип). multi: ⌈неправильних/2⌉, але один неправильний лишається. */
@@ -339,7 +354,7 @@ export function answerLimitMs(play: Play, playerId: string): number | null {
  * Причини not_started і time видно лише з now (зрізи без часу їх не показують — заставку й сплив час рахує телефон).
  */
 export function buffBlock(state: GameState, playerId: string, kind: BuffKind, now?: number): BuffBlock | null {
-  if (buffsUsed(state, playerId).includes(kind)) return 'used';
+  if (buffSpent(state, playerId, kind)) return 'used';
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return 'elsewhere';
   const place = placeBlock(state, play, playerId);
@@ -370,7 +385,7 @@ export function takeBuff(state: GameState, playerId: string, kind: BuffKind, now
   if (kind === 'stealth') return takeStealth(state, playerId, now);
   if (!state.players.some((p) => p.id === playerId)) return fail('not_found');
   if (!allowedBuffs(state.quiz).includes(kind)) return fail('not_allowed');
-  if (buffsUsed(state, playerId).includes(kind)) return fail('buff_used');
+  if (buffSpent(state, playerId, kind)) return fail('buff_used');
   const play = state.phase === 'question' ? state.plays[state.questionIndex] : undefined;
   if (play === undefined) return fail('wrong_phase');
   const place = placeBlock(state, play, playerId);

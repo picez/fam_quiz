@@ -10,6 +10,8 @@ import {
   ladderQuestions,
   ladderRound,
   makeRoundsQuiz,
+  questQuestions,
+  questRound,
   single,
   single4,
   survivalQuestions,
@@ -124,6 +126,25 @@ describe('removeQuestion', () => {
     ]);
     const round = ok(remove(quiz, 'l6')).quiz.rounds[0]!;
     expect(round.type === 'ladder' && round.safe).toEqual([1]);
+  });
+
+  it('removing a quest question below the code length removes the round (29g)', () => {
+    const four = questQuestions.slice(0, 4);
+    const quiz = makeRoundsQuiz([questRound('m', four, { code: 'СОВА', order: [0, 1, 2, 3] }), classicRound('r2', [withId(text, 'q3')])]);
+    const result = ok(remove(quiz, 'k1'));
+    expect(result.effect).toBe('round');
+    expect(result.quiz.rounds.map((r) => r.id)).toEqual(['r2']);
+    const five = makeRoundsQuiz([questRound('m', questQuestions, { code: 'СОВА', order: [0, 1, 2, 3] }), classicRound('r2', [withId(text, 'q3')])]);
+    const kept = ok(remove(five, 'k1'));
+    expect(kept.effect).toBe('question');
+    const round = kept.quiz.rounds[0]!;
+    expect(round.type === 'quest' && round.questions.length).toBe(4);
+  });
+
+  it('the code length of a quest counts code points (29g)', () => {
+    // «𝐀𝐁𝐂» — 3 символи, але 6 одиниць UTF-16: 4 запитання з 5 лишаються.
+    const quiz = makeRoundsQuiz([questRound('m', questQuestions, { code: '𝐀𝐁𝐂', order: [0, 1, 2] }), classicRound('r2', [withId(text, 'q3')])]);
+    expect(ok(remove(quiz, 'k1')).effect).toBe('question');
   });
 
   it('a five-step ladder next to a classic round goes whole', () => {

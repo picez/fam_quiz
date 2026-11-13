@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, questQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -2703,5 +2703,50 @@ describe('level perks over sockets (15a)', () => {
     expect(await send(olena, 'player:perk', { kind: 'ward' })).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:perk')).toEqual({ ok: false, error: 'invalid_payload' });
     expect(await send(olena, 'player:perk', { kind: 'time' })).toEqual({ ok: false, error: 'not_allowed' });
+  });
+});
+
+describe('quest code over sockets (29g)', () => {
+  /** Після першого (класичного) раунду — intro раунду quest. */
+  async function toQuest() {
+    const rig = await lobby((await startGame(ctx.app, questQuiz({ leaderboard: 'end' }))).game);
+    const { host, olena } = rig;
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(host, 'host:lock')).toEqual({ ok: true });
+    while (!(olena.last?.phase === 'intro')) {
+      expect(await send(host, 'host:next')).toEqual({ ok: true });
+      await pause(30);
+    }
+    return rig;
+  }
+
+  it('a code goes through the socket at any moment of the round', async () => {
+    const { olena, taras, stage } = await toQuest();
+    expect(await send(olena, 'player:quest', { code: 'сова' })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.quest?.solved !== null && view.me.quest?.solved !== undefined);
+    expect(mine.role === 'player' ? mine.me.quest?.solved : null).toMatchObject({ points: 1200 });
+    const seen = await until(stage, (view) => view.quest?.rows.some((row) => row.solved !== null) === true);
+    expect(seen.quest?.rows.find((row) => row.nickname === 'Олена')?.solved).toMatchObject({ place: 1 });
+    expect(JSON.stringify(seen)).not.toContain('СОВА');
+    expect(await send(taras, 'player:quest', { code: 7 })).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(taras, 'player:quest', { code: 'x'.repeat(40) })).toEqual({ ok: false, error: 'invalid_payload' });
+  });
+
+  it('a wrong code burns a try and is acked; a wrong length is refused', async () => {
+    const { olena } = await toQuest();
+    expect(await send(olena, 'player:quest', { code: 'СОВИ' })).toEqual({ ok: true });
+    const mine = await until(olena, (view) => view.role === 'player' && view.me.quest?.left === 2);
+    expect(mine.role === 'player' ? mine.me.quest?.tries : null).toEqual(['СОВИ']);
+    expect(await send(olena, 'player:quest', { code: 'СОВ' })).toEqual({ ok: false, error: 'quest_length' });
+  });
+
+  it('is refused in a classic round', async () => {
+    const { host, olena } = await lobby((await startGame(ctx.app, questQuiz())).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:quest', { code: 'сова' })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });

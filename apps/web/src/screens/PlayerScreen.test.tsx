@@ -5062,3 +5062,57 @@ describe('PlayerScreen player truth (28b)', () => {
     expect(screen.getByText(t('truthSkipped'))).toBeTruthy();
   });
 });
+
+describe('PlayerScreen code quest (29g)', () => {
+  const round: RoundInfo = { index: 0, total: 2, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
+  const quest = (over: object = {}) => ({
+    prompt: 'Нічний птах — символ мудрості', length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 },
+    stage: 'play' as const, code: null, endsAt: null, remainingMs: null, shareNow: 0.8, rows: [], ...over,
+  });
+  const mineQuest = (over: object = {}) => ({ slots: ['С', null, null, null], tries: [], left: 3, canEnter: true, solved: null, ...over });
+  const pill = () => screen.getByRole('button', { name: 'Квест: відкрито 1 з 4' });
+
+  it('the quest pill stays during a question', () => {
+    show(onQuestion({ round, quest: quest(), me: { ...me, quest: mineQuest() } }));
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+    expect(pill().closest('header')).not.toBeNull();
+    fireEvent.click(pill());
+    expect(screen.getByRole('dialog', { name: 'Квест' })).toBeTruthy();
+    // Аркуш поверх: поле відповіді запитання на місці.
+    expect(screen.getByRole('button', { name: /Київ/ })).toBeTruthy();
+  });
+
+  it('the code typed in the sheet survives closing it', () => {
+    show(onQuestion({ round, quest: quest(), me: { ...me, quest: mineQuest() } }));
+    fireEvent.click(pill());
+    fireEvent.change(screen.getByLabelText('Код'), { target: { value: 'СО' } });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(pill());
+    expect((screen.getByLabelText('Код') as HTMLInputElement).value).toBe('СО');
+  });
+
+  it('on the round intro the quest panel is the main content', () => {
+    show(view({ phase: 'intro', round, quest: quest(), me: { ...me, quest: mineQuest() } }));
+    expect(document.querySelector('main .quest-panel, .app > .quest-panel, .quest-panel')?.closest('[role="dialog"]')).toBeNull();
+    expect(screen.getByText('Нічний птах — символ мудрості')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Відкрити скриню' })).toBeTruthy();
+  });
+
+  it('in the window the panel replaces the table, with the clock', () => {
+    const standings = [{ playerId: 'p1', nickname: 'Олена', score: 10, rank: 1 }] as never;
+    show(view({ phase: 'leaderboard', round, standings, quest: quest({ stage: 'window', endsAt: Date.now() + 30_000 }), me: { ...me, quest: mineQuest() } }));
+    expect(screen.getByText(t('questWindow'))).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Відкрити скриню' })).toBeTruthy();
+    expect(document.querySelector('.standings')).toBeNull();
+  });
+
+  it('after the window the code is shown', () => {
+    show(view({ phase: 'leaderboard', round, standings: [] as never, quest: quest({ stage: 'shown', code: 'СОВА' }), me: { ...me, quest: mineQuest({ canEnter: false }) } }));
+    expect(screen.getByText('Код: СОВА')).toBeTruthy();
+  });
+
+  it('a classic round has no pill', () => {
+    show(onQuestion({ round: { ...round, type: 'classic', brief: emptyBrief('classic') } }));
+    expect(document.querySelector('.quest-button')).toBeNull();
+  });
+});

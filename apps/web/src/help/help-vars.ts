@@ -1,4 +1,4 @@
-import { APPEAL_MS, APPEALS_PER_GAME, AUDIO_LIMITS, AUTOPILOT_MS, AWAY_MS, DEFAULT_ANSWER_WINDOW, LIMITS, PACE_MS, REVEAL_MIN_SHARE, SUDOKU_GIVENS, type Locale } from '@quiz/shared';
+import { QUEST_WINDOW_MS, APPEAL_MS, APPEALS_PER_GAME, AUDIO_LIMITS, AUTOPILOT_MS, AWAY_MS, DEFAULT_ANSWER_WINDOW, LIMITS, PACE_MS, REVEAL_MIN_SHARE, SUDOKU_GIVENS, type Locale } from '@quiz/shared';
 import { currentLocale } from '../locales/current';
 import { decimalText } from '../locales/grammar';
 
@@ -19,6 +19,9 @@ const LIMIT_KEYS = [
   'defaultMemoryTime',
   'defaultSpotdiffTime',
   'defaultSudokuTime',
+  'defaultQuestTries',
+  'maxQuestCode',
+  'minQuestCode',
   'drawGuess',
   'ladderOptions',
   'maxAccepted',
@@ -136,6 +139,7 @@ export function helpVars(locale?: Locale): Record<string, string> {
   vars.autopilotIntroChars = String(AUTOPILOT_MS.introChars);
   vars.appealsPerGame = String(APPEALS_PER_GAME);
   vars.audioMaxMb = String(AUDIO_LIMITS.maxBytes / 1024 / 1024);
+  vars.questWindowSeconds = seconds(QUEST_WINDOW_MS, key);
   vars.defaultAnswerWindow = String(DEFAULT_ANSWER_WINDOW);
   vars.maxBoardCells = String(LIMITS.maxCategories * LIMITS.maxCategoryQuestions);
   vars.revealMinShare = String(Math.round(REVEAL_MIN_SHARE * 100));

@@ -10,6 +10,8 @@ export type Grade = 'correct' | 'partial' | 'wrong';
 export type AdjustmentSource = 'host' | 'duel' | 'debuff' | 'survival'
   /** Виграш драбини (10i). */
   | 'ladder'
+  /** Бонус за код квесту (29g). */
+  | 'quest'
   /** Скасування балів ведучим (12a): мінус те, що скасовано; «Повернути» — скасування скасування. */
   | 'undo'
   /** Штраф за вихід із гри (12e): мінус бали запитання; запитання — afterQuestion − 1. */
@@ -177,6 +179,8 @@ export type ErrorCode =
   | 'truth_own'
   /** «Правда про гравця»: факт задовгий (28b). */
   | 'truth_text'
+  /** «Квест із кодом» (29g): код уже показано / уже розв'язано / спроби вичерпано / не та довжина (не згоряє) / такий рядок уже пробували (не згоряє). */
+  | 'quest_closed' | 'quest_solved' | 'quest_tries' | 'quest_length' | 'quest_repeat'
   /** «Ва-банк»: гравці ще вибирають «Далі» чи «Забрати» (10g). */
   | 'deciding'
   | 'time_over'

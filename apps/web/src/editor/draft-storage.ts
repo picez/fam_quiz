@@ -2,6 +2,10 @@ import {
   ANSWER_MODES,
   AUDIO_URL,
   BUFF_KINDS,
+  questDefaultOrder,
+  questKey,
+  type QuestBonus,
+  type QuestRound,
   teamsSettingsSchema,
   CELL_KINDS,
   CELL_MARKS,
@@ -510,6 +514,31 @@ function looksLikeQuiz(value: unknown): value is Quiz {
   );
 }
 
+const wholeIn = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+
+/** «Квест із кодом» зі сховища: усе в межах — код нормалізований, порядок — перестановка, спроби й бонус типові, якщо зіпсовані. */
+function reviveQuest(round: QuestRound, questions: QuestRound['questions']): QuestRound {
+  const code = questKey(typeof round.code === 'string' ? round.code : '').slice(0, LIMITS.maxQuestCode);
+  const length = Array.from(code).length;
+  const order = Array.isArray(round.order) && round.order.length === length && [...round.order].sort((a, b) => a - b).every((value, index) => value === index) ? round.order : questDefaultOrder(length);
+  const raw = round.bonus as Partial<QuestBonus> | undefined;
+  const bonus: QuestBonus =
+    raw?.kind === 'buff' && (BUFF_KINDS as readonly string[]).includes(raw.buff as string)
+      ? { kind: 'buff', buff: raw.buff as Extract<QuestBonus, { kind: 'buff' }>['buff'], first: wholeIn(raw.first, 1, LIMITS.maxPlayers) ? raw.first : null }
+      : { kind: 'points', points: raw?.kind === 'points' && wholeIn(raw.points, 1, LIMITS.maxPoints) ? raw.points : LIMITS.defaultQuestBonus };
+  return {
+    ...round,
+    speedBonus: round.speedBonus ?? false,
+    shuffleOptions: round.shuffleOptions ?? false,
+    prompt: typeof round.prompt === 'string' ? round.prompt : '',
+    code,
+    order,
+    tries: wholeIn(round.tries, 1, LIMITS.maxQuestTries) ? round.tries : LIMITS.defaultQuestTries,
+    bonus,
+    questions,
+  };
+}
+
 /** Незбережена чернетка цієї вікторини (id не задано для нової) або null. */
 export function loadDraft(id: string | undefined): Quiz | null {
   try {
@@ -532,6 +561,7 @@ export function loadDraft(id: string | undefined): Quiz | null {
         if (round.type === 'truth') return { ...round, points: round.points ?? LIMITS.defaultPoints, timeLimit: round.timeLimit ?? LIMITS.defaultTime };
         const questions = round.questions.map(revive);
         if (round.type === 'blitz' || round.type === 'wipeout' || round.type === 'ladder' || round.type === 'puzzles') return { ...round, questions };
+        if (round.type === 'quest') return reviveQuest(round, questions);
         if (round.type === 'auction') return { ...round, bidStep: round.bidStep ?? LIMITS.defaultBidStep, questions };
         if (round.type === 'bets') return { ...round, betMax: round.betMax ?? null, questions };
         if (round.type === 'survival') return { ...round, questions, trials: round.trials.map(revive) };

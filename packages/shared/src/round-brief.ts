@@ -1,4 +1,8 @@
+import type { BuffKind } from './game';
 import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type AuctionBidMode, type AuctionLoss, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
+
+/** Бонус квесту для сцени й телефона (29g): без коду й порядку. */
+export type QuestBonusView = { kind: 'points'; points: number } | { kind: 'buff'; buff: BuffKind; first: number | null };
 
 /** Налаштування раунду, від яких залежать бали; з цього клієнт складає пояснення для гравців. */
 export interface RoundBrief {
@@ -39,6 +43,8 @@ export interface RoundBrief {
   truth: { points: number; time: number } | null;
   /** «Головоломки» (28d): скільки судоку, кросвордів і пазлів і сумарний час; null поза ним. */
   puzzles: { sudoku: number; crossword: number; jigsaw: number; spotdiff: number; memory: number; time: number } | null;
+  /** «Квест із кодом» (29g): довжина коду, спроби, запитань, бонус; null поза ним. Без коду, порядку й глобального запитання. */
+  quest: { length: number; tries: number; count: number; bonus: QuestBonusView } | null;
   /** Класичний раунд: скільки в ньому «Мелодій за нотами» (29e); відсутнє, коли їх немає. */
   melodies?: number;
 }
@@ -66,6 +72,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     auction: null,
     truth: null,
     puzzles: null,
+    quest: null,
   };
 }
 
@@ -99,6 +106,10 @@ export function roundBrief(round: Round): RoundBrief {
   if (round.type === 'classic') {
     const melodies = round.questions.filter((q) => q.type === 'melody').length;
     return { ...withRules, speedBonus: round.speedBonus, ...(melodies > 0 ? { melodies } : {}) };
+  }
+  if (round.type === 'quest') {
+    const bonus: QuestBonusView = round.bonus.kind === 'points' ? { kind: 'points', points: round.bonus.points } : { kind: 'buff', buff: round.bonus.buff, first: round.bonus.first };
+    return { ...withRules, speedBonus: round.speedBonus, quest: { length: Array.from(round.code).length, tries: round.tries, count: round.questions.length, bonus } };
   }
   if (round.type === 'survival') {
     return { ...withRules, speedBonus: round.speedBonus, survival: { trial: round.trial, survivors: round.survivors, bonus: round.bonus } };

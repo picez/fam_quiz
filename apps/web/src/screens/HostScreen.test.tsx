@@ -3846,3 +3846,56 @@ describe('HostScreen melody (29e)', () => {
     expect(document.querySelector('.host-audio audio')?.getAttribute('src')).toBe(track.url);
   });
 });
+
+describe('HostScreen: code quest (29g)', () => {
+  const questRound: RoundInfo = { index: 0, total: 1, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
+  const quest = (over: object = {}) => ({
+    prompt: 'Нічний птах — символ мудрості', length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 }, stage: 'play' as const, endsAt: null, remainingMs: null, shareNow: 1,
+    code: 'СОВА', order: [0, 1, 2, 3], since: 1000,
+    rows: [{ playerId: 'p1', nickname: 'Олена', opened: 1, triesUsed: 0, solved: null }],
+    detail: [{ playerId: 'p1', slots: ['С', null, null, null], tries: [] }],
+    ...over,
+  });
+
+  it('the host panel stays all round', () => {
+    const phases: HostView['phase'][] = ['intro', 'question', 'reveal'];
+    for (const phase of phases) {
+      show(view({ phase, round: questRound, questionIndex: 0, question: publicOf(single), correct: single, quest: quest() }));
+      expect(document.querySelector('.quest-host'), phase).not.toBeNull();
+      expect([...document.querySelectorAll('.quest-host-code .quest-cell')].map((cell) => cell.firstChild?.textContent).join('')).toBe('СОВА');
+      cleanup();
+    }
+    show(view({ phase: 'leaderboard', round: questRound, questionIndex: 4, quest: quest({ stage: 'window', endsAt: Date.now() + 20_000 }) }));
+    expect(document.querySelector('.quest-host')).not.toBeNull();
+    cleanup();
+    show(during('question', single));
+    expect(document.querySelector('.quest-host')).toBeNull();
+  });
+
+  it('the main button shows the code in the window and then goes on', () => {
+    const send = show(view({ phase: 'leaderboard', round: questRound, questionIndex: 4, quest: quest({ stage: 'window', endsAt: Date.now() + 20_000 }) }));
+    expect(screen.getAllByRole('button', { name: 'Показати код' })).toHaveLength(1);
+    fireEvent.click(button('Показати код'));
+    expect(send).toHaveBeenCalledWith('host:next', undefined);
+    cleanup();
+    show(view({ phase: 'leaderboard', round: questRound, questionIndex: 4, quest: quest({ stage: 'shown' }) }));
+    expect(screen.queryByRole('button', { name: 'Показати код' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Наступне запитання' })).toBeNull();
+  });
+});
+
+describe('HostScreen: code quest attempt times (29g)', () => {
+  it('attempt times count from the round start', () => {
+    const questRound: RoundInfo = { index: 0, total: 1, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
+    show(view({
+      phase: 'reveal', round: questRound, questionIndex: 0, question: publicOf(single), correct: single,
+      quest: {
+        prompt: 'П', length: 4, tries: 3, count: 5, bonus: { kind: 'points', points: 1200 }, stage: 'play', endsAt: null, remainingMs: null, shareNow: 1,
+        code: 'СОВА', order: [0, 1, 2, 3], since: 1000,
+        rows: [{ playerId: 'p1', nickname: 'Олена', opened: 1, triesUsed: 1, solved: null }],
+        detail: [{ playerId: 'p1', slots: ['С', null, null, null], tries: [{ code: 'СОВИ', at: 43_000, after: 1, right: false, by: null }] }],
+      },
+    }));
+    expect(screen.getByText('СОВИ · 0:42 · після 1')).toBeTruthy();
+  });
+});

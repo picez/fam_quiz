@@ -37,6 +37,8 @@ export function stepKey(state: GameState): string {
     state.board?.done,
     state.ladder?.contestantId,
     decisionOpen(state),
+    // «Квест із кодом» (29g): вікно коду й показ коду — окремі кроки на тому самому leaderboard.
+    state.quest?.stage,
   ]
     .map((part) => (part === undefined ? '' : String(part)))
     .join('|');

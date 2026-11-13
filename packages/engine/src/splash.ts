@@ -31,13 +31,13 @@ export function questionSplashMs(kind: SplashKind, board?: BoardPlay, transition
 
 /**
  * Заставка перед запитанням: бліц-клітинка поля — blitz; інша клітинка (board задано) — cell;
- * класика, фінал, «Ставки», «Аукціон», «Правда про гравця», «Головоломки», «Ва-банк», «Вибування» й «Мільйонер» — question; бліц-раунд — null.
+ * класика, фінал, «Ставки», «Аукціон», «Правда про гравця», «Головоломки», «Ва-банк», «Вибування», «Мільйонер» і «Квест із кодом» — question; бліц-раунд — null.
  */
 export function questionSplashKind(state: GameState, board?: BoardPlay): SplashKind | null {
   if (board?.kind === 'blitz') return 'blitz';
   if (board !== undefined) return 'cell';
   const type = state.quiz.rounds[state.roundIndex]?.type;
-  return type === 'classic' || type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'puzzles' || type === 'wipeout' || type === 'survival' || type === 'ladder'
+  return type === 'classic' || type === 'final' || type === 'bets' || type === 'auction' || type === 'truth' || type === 'puzzles' || type === 'wipeout' || type === 'survival' || type === 'ladder' || type === 'quest'
     ? 'question'
     : null;
 }

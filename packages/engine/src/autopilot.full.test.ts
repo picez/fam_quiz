@@ -43,6 +43,7 @@ import {
   spotdiffQuiz,
   memoryQuiz,
   melodyQuiz,
+  questQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
 import { teamQuiz } from './testing/teams';
@@ -176,6 +177,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['a spotdiff in a classic round and in puzzles', spotdiffQuiz({ leaderboard: 'end' })],
   ['a memory in a classic round and in puzzles', memoryQuiz({ leaderboard: 'end' })],
   ['a file and a YouTube melody in a classic round', melodyQuiz({ leaderboard: 'end' })],
+  ['a quest round after a classic one', questQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
   ...(['host', 'pick', 'random', 'dice'] as TeamForm[]).map(
@@ -278,6 +280,16 @@ describe('autopilot: scores and defaults', () => {
     expect(second.wipeout?.auto).toEqual(['a', 'p2', 'p3']);
     // Банк після двох сходинок: 100 + 200.
     for (const p of state.players) expect(p.score).toBe(300);
+  });
+
+  it('quest: the first bot opens the chest after the second reveal, the second in the window after a wrong try, the third never (29g)', () => {
+    const { state } = play(questQuiz({ leaderboard: 'end' }), answering);
+    const bonus = (id: string) => state.adjustments.filter((a) => a.source === 'quest' && a.playerId === id).map((a) => a.points);
+    expect(bonus('a')).toEqual([800]);
+    expect(bonus('p2')).toEqual([200]);
+    expect(bonus('p3')).toEqual([]);
+    expect(state.quest?.tries.p2?.map((t) => t.right)).toEqual([false, true]);
+    expect(state.quest?.stage).toBe('shown');
   });
 
   it('survival with a trial question: the wrong one is on the edge, fails the trial and is out', () => {

@@ -3184,3 +3184,39 @@ describe('StageScreen: melody (29e)', () => {
     expect(document.querySelector<HTMLElement>('.melody-table')!.style.getPropertyValue('--rows')).toBe('12');
   });
 });
+
+describe('StageScreen: code quest (29g)', () => {
+  const round: RoundInfo = { index: 0, total: 1, title: 'Квест', type: 'quest', partial: false, description: '', brief: emptyBrief('quest'), times: null };
+  const quest = (over: object = {}) => ({
+    prompt: 'Нічний птах — символ мудрості', length: 4, tries: 3, count: 5, bonus: { kind: 'points' as const, points: 1200 }, stage: 'play' as const, code: null, endsAt: null, remainingMs: null, shareNow: 1,
+    rows: [{ playerId: 'p1', nickname: 'Оля', opened: 2, triesUsed: 0, solved: null }, { playerId: 'p2', nickname: 'Тарас', opened: 4, triesUsed: 1, solved: { place: 1, after: 2, points: 800, buff: null } }],
+    ...over,
+  });
+  const open: StageView['question'] = { ...question, timeLimit: 25 };
+
+  it('a quest round shows the strip over the question and the code after the window', () => {
+    const first = show(view({ phase: 'question', round, questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000, quest: quest() }));
+    expect(screen.getByText('🔐 Код: 4 симв. · скриню відкрили: 1')).toBeTruthy();
+    expect(screen.queryByText('Нічний птах — символ мудрості')).toBeNull();
+    first.unmount();
+    const intro = show(view({ phase: 'intro', round, quest: quest() }));
+    expect(screen.getByText('Нічний птах — символ мудрості')).toBeTruthy();
+    expect(document.querySelectorAll('.quest-cell')).toHaveLength(4);
+    intro.unmount();
+    const reveal = show(view({ phase: 'reveal', round, questionIndex: 0, question: open, reveal: full, quest: quest() }));
+    expect(screen.getByText('Нічний птах — символ мудрості')).toBeTruthy();
+    reveal.unmount();
+    const window = show(view({ phase: 'leaderboard', round, questionIndex: 4, standings: [], quest: quest({ stage: 'window', endsAt: Date.now() + 30000 }) }));
+    expect(screen.getByText('Останні 30 секунд, щоб ввести код')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('СОВА');
+    window.unmount();
+    show(view({ phase: 'leaderboard', round, questionIndex: 4, standings: [], quest: quest({ stage: 'shown', code: 'СОВА' }) }));
+    expect([...document.querySelectorAll('.quest-cell')].map((cell) => cell.textContent)).toEqual(['С', 'О', 'В', 'А']);
+    expect(document.querySelector('.quest-table')).not.toBeNull();
+  });
+
+  it('a classic round has no quest parts', () => {
+    show(view({ phase: 'question', questionIndex: 0, question: open, endsAt: Date.now() + 25000, limitMs: 25000 }));
+    expect(document.querySelector('.quest-strip')).toBeNull();
+  });
+});

@@ -5,7 +5,7 @@ export type RemoveResult =
   | { ok: false; error: 'not_found' | 'last_question' };
 
 /** Найменше запитань раунду за схемою; менше — раунд іде цілком. «Правда про гравця» (28b) запитань у вікторині не має. */
-const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board' | 'truth'>, number> = {
+const MIN_QUESTIONS: Record<Exclude<Round['type'], 'board' | 'truth' | 'quest'>, number> = {
   classic: 1,
   blitz: 1,
   final: 1,
@@ -52,7 +52,9 @@ function removeFromRound(round: Round, id: string): RoundChange | null {
   const index = round.questions.findIndex((q) => q.id === id);
   if (index === -1) return null;
   const questions = without(round.questions, id);
-  if (questions.length < MIN_QUESTIONS[round.type]) return { round: null, effect: 'round' };
+  // «Квест із кодом» (29g): запитань не менше, ніж символів у коді.
+  const least = round.type === 'quest' ? Array.from(round.code).length : MIN_QUESTIONS[round.type];
+  if (questions.length < least) return { round: null, effect: 'round' };
   if (round.type === 'ladder') {
     // Рівень належить сходинці: іде разом із нею; неспалимі вище зсуваються вниз, а та, що стала верхньою, зникає (схема: не верхня).
     const levels = round.levels.filter((_, i) => i !== index);

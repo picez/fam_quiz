@@ -1,4 +1,4 @@
-import { LIMITS, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
+import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Question, type Quiz, type QuizLikes, type Round } from '@quiz/shared';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
@@ -12,6 +12,7 @@ import {
   newAuctionRound,
   newTruthRound,
   newPuzzlesRound,
+  newQuestRound,
   newBetsRound,
   newFinalRound,
   newWipeoutQuestion,
@@ -112,7 +113,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
             ? LIMITS.maxLadderQuestions
             : round.type === 'puzzles'
               ? LIMITS.maxPuzzles
-              : LIMITS.maxQuestions) &&
+              : round.type === 'quest'
+                ? LIMITS.maxQuestQuestions
+                : LIMITS.maxQuestions) &&
     total < LIMITS.maxQuizQuestions;
   const setAwayPenalty = (on: boolean) => {
     const { awayPenalty: _off, ...rest } = settings;
@@ -178,7 +181,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
   const addRound = (type: Round['type']) => {
     const fresh =
-      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'puzzles' ? newPuzzlesRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : newClassicRound();
+      type === 'blitz' ? newBlitzRound() : type === 'board' ? newBoardRound() : type === 'final' ? newFinalRound() : type === 'bets' ? newBetsRound() : type === 'auction' ? newAuctionRound() : type === 'truth' ? newTruthRound() : type === 'puzzles' ? newPuzzlesRound() : type === 'wipeout' ? newWipeoutRound() : type === 'survival' ? newSurvivalRound() : type === 'ladder' ? newLadderRound() : type === 'quest' ? newQuestRound() : newClassicRound();
     setRounds([...rounds, fresh]);
     selectRound(rounds.length);
   };
@@ -360,7 +363,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
         onMove={moveRound}
         onRemove={removeRound}
       />
-      <RoundSettings round={round} index={ri + 1} total={total} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
+      <RoundSettings round={round} index={ri + 1} total={total} buffs={allowedBuffs(quiz)} lastRound={ri === rounds.length - 1} onChange={setRound} open={settingsOpen} onToggle={setSettingsOpen} />
 
       <div className="editor-grid">
         <aside className="editor-side">

@@ -10,7 +10,7 @@ export const AWAY_EVENTS_PER_SECOND = 4;
 /** Найдовший вихід, який телефон може заявити в одному звіті, мс. */
 export const AWAY_REPORT_MAX_MS = 3_600_000;
 /** Раунди, де діє штраф за вихід; у «Ва-банк», «Вибуванні» й «Мільйонері» — лише позначка. */
-export const AWAY_PENALTY_ROUNDS: readonly RoundType[] = ['classic', 'blitz', 'board', 'final'];
+export const AWAY_PENALTY_ROUNDS: readonly RoundType[] = ['classic', 'blitz', 'board', 'final', 'quest'];
 
 /** Позначка людини на поточному запитанні для пульта (12e): ms — закритий час без відкритого інтервалу; out — зараз поза грою. */
 export interface AwayMark {

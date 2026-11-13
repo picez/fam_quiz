@@ -21200,3 +21200,478 @@ input.sudoku-editor-cell:focus-visible {
   margin-top: 1rem;
 }
 /* «Мелодія за нотами»: кінець сцени й пульта */
+
+/* «Квест із кодом»: редактор раунду (29g). Рамка налаштувань, ряд комірок коду з номером порядку під кожною, «Лише першим» з числом. Лише редактор: телефон, сцена й пульт мають власні секції. */
+.quest-settings {
+  border: 0;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.quest-settings .quest-prompt {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.quest-settings .quest-code {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.quest-settings .quest-order {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.quest-settings .quest-order-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quest-settings .quest-order-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: 3.5rem;
+}
+
+.quest-settings .quest-order-char {
+  display: grid;
+  place-items: center;
+  min-height: 3rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.25));
+  border-radius: 0.5rem;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.quest-settings .quest-order-cell select {
+  min-height: 2.75rem;
+}
+
+.quest-settings .quest-first {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.quest-settings .quest-first input[type='number'] {
+  width: 5rem;
+  min-height: 2.75rem;
+}
+/* «Квест із кодом»: кінець редактора */
+
+/* «Квест із кодом»: телефон (29g). Пігулка «🔐 3/4» у шапці — як «Таблиця», не вища за рядок; аркуш — знизу, position: fixed,
+ * запитання під ним не зсувається. Комірки — менше з «2rem» і «(ширина поля − 7 проміжків) / 8», тож 8 комірок у ряд на 320 px
+ * без прокрутки; поле коду й кнопка переносяться на новий рядок, коли не вміщаються. Набране — великими літерами.
+ * Шапка з пігулкою на 320 px (найгірше: капітан з «😈», «Таблиця», ❤️, 😀, рахунок «1 200») — в один рядок без прокрутки вбік:
+ * пігулка вужча, рахунок не переноситься, а до 400 px проміжки й поля пігулок шапки тісніші. */
+.table-button.quest-button {
+  padding-inline: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.bar .score {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 400px) {
+  .bar:has(.quest-button) {
+    gap: 0.25rem;
+  }
+
+  .bar:has(.quest-button) .table-button {
+    padding-inline: 0.4rem;
+    border-width: 1px;
+    font-size: 0.875rem;
+  }
+
+  .bar:has(.quest-button) .table-button.quest-button {
+    padding-inline: 0.3rem;
+    font-size: 0.75rem;
+  }
+
+  .bar:has(.quest-button) .table-button:is(.shop-button, .like-button, .reaction-button) {
+    padding-inline: 0.25rem;
+  }
+
+  .bar:has(.quest-button) .score {
+    font-size: 1.0625rem;
+  }
+}
+
+.quest-sheet {
+  align-items: flex-end;
+  padding: 0.75rem;
+}
+
+.quest-card {
+  width: min(100%, 26rem);
+  max-height: 85dvh;
+  padding: 0.75rem;
+}
+
+.quest-panel {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.quest-panel p {
+  margin: 0;
+}
+
+.quest-prompt {
+  font-size: 1.125rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.quest-lock {
+  --quest-gap: 4px;
+  --quest-cell-max: 2rem;
+  --quest-cell: min(var(--quest-cell-max), calc((100cqi - 7 * var(--quest-gap)) / 8));
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
+
+.quest-lock-row {
+  display: grid;
+  grid-template-columns: repeat(var(--quest-length), var(--quest-cell));
+  gap: var(--quest-gap);
+  justify-content: center;
+}
+
+.quest-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: calc(var(--quest-cell) * 1.25);
+  border: 2px solid var(--bank);
+  border-radius: var(--radius-small);
+  background: var(--panel);
+  color: var(--bank);
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quest-cell.is-empty {
+  border-style: dashed;
+  border-color: var(--line);
+}
+
+.quest-cell-order {
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-end: 2px;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 400;
+}
+
+.quest-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.quest-field {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+
+.quest-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.quest-enter {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+}
+
+.quest-error:empty {
+  display: none;
+}
+
+.quest-error {
+  color: var(--wrong);
+}
+
+.quest-solved,
+.quest-shown {
+  font-weight: 700;
+}
+
+.quest-verdict.is-right {
+  color: var(--correct);
+}
+
+.quest-verdict.is-wrong {
+  color: var(--wrong);
+}
+
+.quest-tries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dim);
+}
+
+.quest-window {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* Ряд бафів: квест видав ще використання — «×1» у куті кнопки. */
+.buff-btn:has(.buff-left) {
+  position: relative;
+}
+
+.buff-left {
+  position: absolute;
+  inset-block-end: -0.35rem;
+  inset-inline-end: -0.35rem;
+  padding: 0 0.2rem;
+  border-radius: 999px;
+  background: var(--buff-accent);
+  color: var(--stage);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+/* «Квест із кодом»: кінець телефона */
+
+/* «Квест із кодом»: сцена й пульт (29g). Замок із порожніх комірок і лічильники (код сцена не знає до показу), годинник вікна, таблиця бонусів; пульт — код із порядком, позиції й усі спроби. */
+.quest-stage {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vh;
+  width: min(100%, 90rem);
+  min-width: 0;
+  min-height: 0;
+  margin: 0 auto;
+}
+
+/* Заставка раунду: запитання й замок під описом, нічого не розтягується. */
+.quest-stage.is-intro,
+.quest-stage.is-shown:not(:has(.quest-table-wrap)) {
+  flex: none;
+}
+
+.quest-stage-prompt {
+  margin: 0;
+  max-width: 60rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.quest-stage .quest-lock {
+  --quest-cell-max: clamp(2.5rem, 6vw, 6rem);
+  flex: none;
+  max-width: 60rem;
+}
+
+.quest-stage .quest-cell {
+  font-size: clamp(1.75rem, 4vw, 4rem);
+}
+
+.quest-stage.is-shown .quest-cell {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+
+.quest-clock {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.quest-stage .quest-clock .flap {
+  font-size: clamp(1.25rem, 4.5vh, 2.5rem);
+}
+
+/* Рядки учасників: сітка з --cols стовпців, один рядок тексту на плитку; на сцені займають решту висоти й не прокручуються. */
+.quest-rows {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  flex: 1 1 0;
+  align-content: start;
+  gap: 1vh 1vw;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  font-size: clamp(0.8rem, 1.3vw, 1.4rem);
+}
+
+.quest-strip .quest-rows {
+  font-size: clamp(0.75rem, 1.1vw, 1.2rem);
+}
+
+.quest-rows.is-dense {
+  font-size: clamp(0.7rem, 1.2vw, 1.3rem);
+}
+
+.quest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 0.3em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  white-space: nowrap;
+}
+
+.quest-row.is-solved {
+  border-color: var(--accent-text);
+}
+
+.quest-row-name {
+  flex: 1 1 8ch;
+  min-width: 6ch;
+  font-weight: 700;
+  line-height: 1.15;
+  /* Довгий нік переноситься на другий рядок, а не обрізається: плитка росте вниз (на сцені під рядками є запас висоти). */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.quest-row-dots {
+  flex: none;
+  font-size: 0.7em;
+  color: var(--bank);
+  letter-spacing: 0.05em;
+}
+
+.quest-row-miss {
+  flex: none;
+  font-size: 0.7em;
+  color: var(--wrong);
+}
+
+.quest-row-win {
+  flex: none;
+  color: var(--accent-text);
+  font-weight: 800;
+}
+
+/* Смуга над запитанням і під розкриттям: у повному вигляді запитання й рядки в обмеженій висоті. */
+.quest-strip {
+  margin: 0;
+  text-align: center;
+}
+
+.quest-strip.is-full {
+  display: grid;
+  gap: 0.5vh;
+  width: 100%;
+}
+
+.quest-strip.is-full .meta {
+  margin: 0;
+}
+
+.quest-strip-prompt {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.6vw, 1.6rem);
+  overflow-wrap: anywhere;
+}
+
+.quest-strip .quest-rows {
+  flex: none;
+}
+
+/* Таблиця «місце · нік · після запитання · бонус»: комірка — контейнер за висотою (шрифт підганяється під --rows), мусить мати висоту. */
+.quest-table-wrap {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 60rem;
+  margin-inline: auto;
+  overflow: hidden;
+  container-type: size;
+}
+
+.quest-stage .jigsaw-table.quest-table {
+  font-size: min(clamp(1rem, 1.7vw, 1.875rem), 100cqh / (var(--rows, 1) * 2.4 + 2));
+}
+
+.jigsaw-table.quest-table .score {
+  white-space: nowrap;
+}
+
+.quest-host-code {
+  margin: 0.5rem 0;
+}
+
+.quest-host .quest-lock {
+  --quest-cell-max: 2.75rem;
+}
+
+.quest-host .quest-clock {
+  justify-content: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.quest-host-row {
+  flex-wrap: wrap;
+}
+
+.quest-host-slots {
+  letter-spacing: 0.15em;
+}
+
+.quest-host-tries {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 0 0 0 1rem;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.quest-try.is-wrong {
+  color: var(--wrong);
+}
+
+.quest-try.is-right {
+  color: var(--accent-text);
+}
+/* «Квест із кодом»: кінець сцени й пульта */

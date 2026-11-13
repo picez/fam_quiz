@@ -29,6 +29,7 @@ import { puzzleFill, puzzleFinish, puzzleSolution } from '../puzzles';
 import { guessWall } from '../wall';
 import { ladderWord, wordLadderOf } from '../wordladder';
 import { decideWipeout, decisionOpen, wipeoutIn } from '../wipeout';
+import { enterQuestCode, questAfter, questDone, questRoundOf, questWindowOpen } from '../quest';
 
 // Наскрізні ігри без ведучого (11g, задача 5): драйвер, що імітує сервер, і «люди» з телефонами.
 
@@ -337,6 +338,30 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
 /** Кубик i-го в черзі: різні грані (2, 4, 6, …), щоб тур не повторювався без кінця. */
 const face = (i: number): Rng => () => (((i + 1) * 0.29) % 1);
 
+/** Хибний код тієї самої довжини: останній символ замінено. */
+function wrongCode(code: string): string {
+  const chars = Array.from(code);
+  const last = chars.pop() ?? '';
+  return [...chars, last === 'И' ? 'Я' : 'И'].join('');
+}
+
+/** Коди «Квесту» (29g) від перших двох гравців (у командах — від першої людини команди). */
+function questCodes(state: GameState, ids: string[], now: number, act: Act): GameState {
+  const round = questRoundOf(state);
+  if (round === null || state.paused || state.quest?.stage === 'shown') return state;
+  let s = state;
+  const memberOf = (id: string) => (teamsOn(s) ? (teamMembers(s, id)[0]?.id ?? id) : id);
+  const [first, second] = s.players.map((p) => p.id);
+  if (first !== undefined && ids.includes(first) && !questDone(s, first) && questAfter(s) >= 2) {
+    s = act(s, enterQuestCode(s, first, memberOf(first), round.code, now), `${first} enters the code`);
+  }
+  if (second !== undefined && ids.includes(second) && questWindowOpen(s) && !questDone(s, second) && (s.endsAt === null || now < s.endsAt)) {
+    const tried = (s.quest?.tries[second] ?? []).length > 0;
+    s = act(s, enterQuestCode(s, second, memberOf(second), tried ? round.code : wrongCode(round.code), now), `${second} enters a code`);
+  }
+  return s;
+}
+
 /** Перша незіграна клітинка поточного поля. */
 function firstCell(state: GameState): string | null {
   const round = currentRound(state);
@@ -383,6 +408,8 @@ export function answerAs(config: Answering = {}): People {
       }
       return s;
     }
+    // «Квест із кодом» (29g): перший гравець вводить код правильно після 2-го розкриття; другий — у вікні спершу хибний, потім правильний; решта не вводить.
+    s = questCodes(s, ids, now, act);
     switch (s.phase) {
       case 'lobby': {
         const teams = s.teams;

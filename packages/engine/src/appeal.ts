@@ -44,8 +44,13 @@ export function lastAppeal(state: GameState): Appeal | null {
  * Тоді ведучий оцінку не змінює: рядок 'appeal' = «правильно» − запис, і нова оцінка порахувала б бали двічі.
  */
 export function appealPassedGrade(state: GameState, participant: string): boolean {
+  return appealPassedGradeAt(state, participant, state.questionIndex);
+}
+
+/** Як appealPassedGrade, але для запитання журналу questionIndex (29g: позиції квесту за розкритими запитаннями раунду). */
+export function appealPassedGradeAt(state: GameState, participant: string, questionIndex: number): boolean {
   const passed = (state.appeals ?? []).find(
-    (a) => a.by === participant && a.questionIndex === state.questionIndex && a.reason === 'grade' && a.outcome === 'yes' && a.adjustmentSeq !== undefined,
+    (a) => a.by === participant && a.questionIndex === questionIndex && a.reason === 'grade' && a.outcome === 'yes' && a.adjustmentSeq !== undefined,
   );
   return passed !== undefined && !ledgerOf(state).adjustments.has(passed.adjustmentSeq!);
 }
