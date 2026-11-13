@@ -5,6 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
 import { achievementsPage, awardGame, careerFacts, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
+import { setErrorReporter } from './log';
 import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
 import * as history from './history';
 import { publicProfile, setFollow } from './profiles';
@@ -528,13 +529,14 @@ describe('catch-up of lost awards beyond players (12i)', () => {
     await db.update(profile).set({ achievementsSyncedAt: new Date('2026-09-25T00:00:00Z') }).where(eq(profile.userId, me));
     await db.delete(userAchievement).where(eq(userAchievement.userId, me));
     vi.mocked(games.loadAchievementGames).mockRejectedValueOnce(new Error('snapshot unreadable'));
-    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const reported = vi.fn();
+    const unhook = setErrorReporter(reported);
     try {
       const page = await achievementsPage(db, me, true);
       expect(page?.items.find((i) => i.id === 'first_game')?.earned).toBe(true);
-      expect(quiet).toHaveBeenCalled();
+      expect(reported).toHaveBeenCalled();
     } finally {
-      quiet.mockRestore();
+      unhook();
     }
   });
 });

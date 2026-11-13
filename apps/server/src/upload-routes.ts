@@ -3,6 +3,7 @@ import { AUDIO_LIMITS, IMAGE_LIMITS } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { EXTENSIONS, isAudioName, isMediaName, sniffAudio, sniffImage, stripMp3Tags, type ImageStorage, type MediaType } from './storage/images';
+import { reportError } from './log';
 
 export interface UploadDeps {
   storage: ImageStorage;
@@ -60,7 +61,7 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
         try {
           await storage.put(name, stored, type);
         } catch (error) {
-          console.error('Upload failed:', error instanceof Error ? error.message : error);
+          reportError(error, { where: 'upload' });
           return reply.code(503).send(UNAVAILABLE);
         }
         return reply.code(201).send({ url: `/uploads/${name}` });
@@ -105,7 +106,7 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
     try {
       media = await load(name);
     } catch (error) {
-      console.error('Upload read failed:', error instanceof Error ? error.message : error);
+      reportError(error, { where: 'upload-read' });
       return reply.code(503).send(UNAVAILABLE);
     }
     if (media === null) return reply.code(404).send(NOT_FOUND);

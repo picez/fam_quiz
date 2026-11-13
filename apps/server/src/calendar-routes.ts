@@ -18,6 +18,7 @@ import {
 import type { Db } from './db/client';
 import { getQuiz } from './quizzes';
 import type { RoomManager } from './rooms/manager';
+import { reportError } from './log';
 
 export interface CalendarNotify {
   opened(eventId: string): void;
@@ -71,7 +72,7 @@ export async function registerCalendarRoutes(app: FastifyInstance, deps: Calenda
     try {
       fn?.();
     } catch (error) {
-      console.error('Сповіщення календаря не вдалося:', error);
+      reportError(error, { where: 'calendar-notify' });
     }
   };
 

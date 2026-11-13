@@ -14,6 +14,7 @@ import { SURVIVAL_RIGHT, SURVIVAL_WRONG, TRIAL_RIGHT, TRIAL_WRONG } from './test
 import { LADDER_RIGHT } from './testing/ladder-game';
 import { WIPEOUT_RIGHT } from './testing/wipeout-game';
 import { nounsOf } from './wordladder/nouns';
+import { rateOf } from './rooms/manager';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -2475,9 +2476,9 @@ describe('player:pick-answerer over sockets (12g)', () => {
     }
     expect(await send(olena, 'player:pick-answerer', { memberId: tarasId, scope: 'round' })).toEqual({ ok: false, error: 'too_soon' });
     const room = ctx.manager.get(game.code)!;
-    expect(room.pickRate.has(olenaId)).toBe(true);
+    expect(rateOf(room, 'pick').has(olenaId)).toBe(true);
     expect(await send(host, 'host:kick', { playerId: olenaId })).toEqual({ ok: true });
-    expect(room.pickRate.has(olenaId)).toBe(false);
+    expect(rateOf(room, 'pick').has(olenaId)).toBe(false);
   });
 });
 

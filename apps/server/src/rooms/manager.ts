@@ -167,6 +167,7 @@ import { levelsView, perkGrants } from './levels';
 import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
 import type { Scheduler } from './scheduler';
+import { log, reportError } from '../log';
 import { lazyNouns, type NounDictionary } from '../wordladder/nouns';
 import { dealOf, letterIndexOf, pickLetters } from '../letterwords/deal';
 
@@ -174,6 +175,8 @@ export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
 /** «Правда про гравця» (28b): понад стільки фактів за секунду від людини — too_soon. */
 export const TRUTH_PER_SECOND = 2;
+/** Через скільки після збою таймера кроку (дедлайн, автопілот) кімната пробує ще раз (30a). */
+export const TIMER_RETRY_MS = 1000;
 export const FINISHED_TTL_MS = 30 * 60_000;
 /** Кімната-автопілот без жодного гравця на зв'язку стільки часу (у грі) → «Завершити гру» (11g). */
 export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
@@ -225,8 +228,8 @@ export interface Room {
    * пульту — лише через liveDrafts і лише з «наживо» (socket.ts).
    */
   drafts: Map<string, Draft>;
-  /** Вікно частоти player:draft (12b): людина → початок вікна й кількість подій у ньому. Лише в пам'яті. */
-  draftRate: Map<string, { from: number; count: number }>;
+  /** Вікна частоти подій (30a): вид → людина → вікно (rateAllowed). Лише в пам'яті. */
+  rates: Map<RateKind, Map<string, RateWindow>>;
   /**
    * Останні нахили картки сортування (11d): id того, хто сортує (гравця чи команди), → нахил. Лише в пам'яті:
    * не в стані гри, не в збереженій кімнаті; після перезапуску порожньо. Хід, пауза, нове запитання й вилучення стирають.
@@ -236,20 +239,12 @@ export interface Room {
   audioSeq: number;
   /** Номер слайда каруселі «Нагороди гри» (12d): у пам'яті кімнати, у знімок не йде. */
   awardsSeq: number;
-  /** Реакції (13a): людина → мить останньої прийнятої реакції. Лише в пам'яті. */
-  reactRate: Map<string, number>;
   /** Реакції (13a): лічильник; стартує з Date.now(). Лише в пам'яті. */
   reactionSeq: number;
   /** Антигугл (12e): люди, чий телефон сказав «пішов»; повернення чи розрив прибирає. Лише в пам'яті. */
   hidden: Set<string>;
   /** Антигугл (12e): людина → останній розрив (dropAt) і повернення (backAt, null — ще без зв'язку); звіт повернення прибирає. Лише в пам'яті. */
   gaps: Map<string, AwayGap>;
-  /** Вікно частоти player:away (12e), як draftRate. Лише в пам'яті. */
-  awayRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:appeal-vote (12f), як draftRate. Лише в пам'яті. */
-  appealRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:pick-answerer (12g), як appealRate. Лише в пам'яті. */
-  pickRate: Map<string, { from: number; count: number }>;
   /**
    * Люди з прийнятим «пішов» (12e), чиє наступне «повернувся» частоти не рахує: одне на кожен прийнятий вихід — відмова в поверненні
    * додала б вигаданий час, а решта повернень рахується, тож ними не засипати. Розрив не прибирає (телефон міг повернутися без зв'язку).
@@ -272,26 +267,6 @@ export interface Room {
   levels: Map<string, NickLevel>;
   /** Лайки (17a): власник вікторини й прочитані вподобання акаунтів кімнати. Лише в пам'яті; заповнює attachLikes. */
   likes: RoomLikes;
-  /** Вікно частоти player:like (17a), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
-  likeRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:list (27c) і player:letters (27d), як draftRate: людина → початок вікна й кількість. Лише в пам'яті. */
-  listRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:moreless (28a), окреме від listRate, щоб вибори не з'їдали вікно слів. Лише в пам'яті. */
-  moreLessRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:truth (28b), як draftRate. Лише в пам'яті. */
-  truthRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:draw (28c): операції художника. Лише в пам'яті. */
-  drawRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:draw-guess (28c), окреме від drawRate: спроби вгадати. Лише в пам'яті. */
-  drawGuessRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:puzzle (28d): пакети клітинок людини (у команді — кожного учасника окремо). «Готово» його не рахує. Лише в пам'яті. */
-  puzzleRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:jigsaw і player:jigsaw-hold (29c): одне на людину для обох подій. Лише в пам'яті. */
-  jigsawRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:spotdiff (29d): на людину. Лише в пам'яті. */
-  spotdiffRate: Map<string, { from: number; count: number }>;
-  /** Вікно частоти player:memory (29f): на людину. Лише в пам'яті. */
-  memoryRate: Map<string, { from: number; count: number }>;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -429,11 +404,57 @@ const GONE: AckResult = { ok: false, error: 'game_not_found' };
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 
-/** Вікно частоти на секунду (як pickAllowed): понад limit подій від людини за вікно — ні; вікно сплило — нове з цією подією. */
-function windowAllowed(rates: Map<string, { from: number; count: number }>, personId: string, now: number, limit: number): boolean {
+/** Види вікон частоти (30a): кожен вид — своє вікно на людину, зі своєю межею (RATE_LIMITS). */
+export type RateKind = 'draft' | 'react' | 'away' | 'appeal' | 'pick' | 'like' | 'list' | 'moreLess' | 'truth' | 'draw' | 'drawGuess' | 'puzzle' | 'jigsaw' | 'spotdiff' | 'memory';
+/** Вікно частоти: початок і кількість прийнятих подій у ньому. */
+export interface RateWindow {
+  from: number;
+  count: number;
+}
+
+/**
+ * Межі вікон (30a; значення — ті самі, що були в окремих полях Room): max подій від людини за windowMs.
+ * Реакція (13a) — одна за REACTION_GAP_MS; лайк (17a) — LIKE_RATE; список і слова з літер (27c, 27d) ділять вікно list;
+ * постановки й «тримаю» пазла (29c) ділять вікно jigsaw.
+ */
+const RATE_LIMITS: Record<RateKind, { max: number; windowMs: number }> = {
+  draft: { max: DRAFTS_PER_SECOND, windowMs: 1000 },
+  react: { max: 1, windowMs: REACTION_GAP_MS },
+  away: { max: AWAY_EVENTS_PER_SECOND, windowMs: 1000 },
+  appeal: { max: APPEAL_VOTES_PER_SECOND, windowMs: 1000 },
+  pick: { max: ANSWERER_PICKS_PER_SECOND, windowMs: 1000 },
+  like: { max: LIKE_RATE.max, windowMs: LIKE_RATE.windowMs },
+  list: { max: LIST_WORDS_PER_SECOND, windowMs: 1000 },
+  moreLess: { max: MORELESS_PICKS_PER_SECOND, windowMs: 1000 },
+  truth: { max: TRUTH_PER_SECOND, windowMs: 1000 },
+  draw: { max: DRAW_OPS_PER_SECOND, windowMs: 1000 },
+  drawGuess: { max: DRAW_GUESSES_PER_SECOND, windowMs: 1000 },
+  puzzle: { max: PUZZLE_BATCHES_PER_SECOND, windowMs: 1000 },
+  jigsaw: { max: JIGSAW_MOVES_PER_SECOND, windowMs: 1000 },
+  spotdiff: { max: SPOTDIFF_TAPS_PER_SECOND, windowMs: 1000 },
+  memory: { max: MEMORY_FLIPS_PER_SECOND, windowMs: 1000 },
+};
+
+/** Вікна, що зникають разом із вилученим гравцем (як і до 30a: лайки, реакції й слова лишаються до кінця вікна). */
+const CLEARED_ON_REMOVE: readonly RateKind[] = ['draft', 'away', 'appeal', 'pick', 'moreLess', 'truth', 'draw', 'drawGuess', 'puzzle', 'jigsaw', 'spotdiff', 'memory'];
+
+/** Вікна кімнати одного виду (створюються за першої потреби). */
+export function rateOf(room: Room, kind: RateKind): Map<string, RateWindow> {
+  let rates = room.rates.get(kind);
+  if (rates === undefined) {
+    rates = new Map();
+    room.rates.set(kind, rates);
+  }
+  return rates;
+}
+
+/** Вікно частоти (30a, одне на всі види): понад межу виду від людини за вікно — ні (відмова вікна не займає); вікно сплило — нове з цією подією. */
+function rateAllowed(room: Room, kind: RateKind, personId: string, now: number): boolean {
+  const { max, windowMs } = RATE_LIMITS[kind];
+  const rates = rateOf(room, kind);
   const rate = rates.get(personId);
-  if (rate === undefined || now - rate.from >= 1000) rates.set(personId, { from: now, count: 1 });
-  else if (rate.count + 1 > limit) return false;
+  if (rate === undefined || now - rate.from >= windowMs) rates.set(personId, { from: now, count: 1 });
+  else if (rate.count + 1 > max) return false;
   else rate.count += 1;
   return true;
 }
@@ -559,7 +580,7 @@ export interface RoomManagerOptions {
   transitions?: boolean;
   /** Мінімальний час перед кроками ведучого (11b); типово вимкнено, справжній сервер (main.ts) вмикає. */
   pacing?: boolean;
-  /** Журнал кроку автопілота, який рушій відхилив (11g); типово console.warn. */
+  /** Журнал кроку автопілота, який рушій відхилив (11g); типово log.warn (30a). */
   warn?: (message: string) => void;
   /** Словник драбини; типово lazyNouns() — файл читається при першому слові. */
   nouns?: NounDictionary;
@@ -639,7 +660,7 @@ export class RoomManager {
     this.rng = rng;
     this.transitions = options.transitions ?? false;
     this.pacing = options.pacing ?? false;
-    this.warn = options.warn ?? ((message) => console.warn(message));
+    this.warn = options.warn ?? ((message) => log.warn(message));
     this.nouns = options.nouns ?? lazyNouns();
   }
 
@@ -717,17 +738,13 @@ export class RoomManager {
       holdExpiry: null,
       expiryPhase: null,
       drafts: new Map(),
-      draftRate: new Map(),
+      rates: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
-      reactRate: new Map(),
       reactionSeq: Date.now(),
       hidden: new Set(),
       gaps: new Map(),
-      awayRate: new Map(),
-      appealRate: new Map(),
-      pickRate: new Map(),
       awayCredit: new Set(),
       checkpoint: null,
       continued: null,
@@ -736,16 +753,6 @@ export class RoomManager {
       titles: new Map(),
       levels: new Map(),
       likes: { mine: new Map() },
-      likeRate: new Map(),
-      listRate: new Map(),
-      moreLessRate: new Map(),
-      truthRate: new Map(),
-      drawRate: new Map(),
-      drawGuessRate: new Map(),
-      puzzleRate: new Map(),
-      jigsawRate: new Map(),
-      spotdiffRate: new Map(),
-      memoryRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -799,17 +806,13 @@ export class RoomManager {
       holdExpiry: null,
       expiryPhase: null,
       drafts: new Map(),
-      draftRate: new Map(),
+      rates: new Map(),
       tilts: new Map(),
       audioSeq: Date.now(),
       awardsSeq: Date.now(),
-      reactRate: new Map(),
       reactionSeq: Date.now(),
       hidden: new Set(),
       gaps: new Map(),
-      awayRate: new Map(),
-      appealRate: new Map(),
-      pickRate: new Map(),
       awayCredit: new Set(),
       checkpoint: checkpointOf(saved.checkpoint),
       continued: continuedOf(saved.continued),
@@ -818,16 +821,6 @@ export class RoomManager {
       titles: new Map(),
       levels: new Map(),
       likes: { mine: new Map() },
-      likeRate: new Map(),
-      listRate: new Map(),
-      moreLessRate: new Map(),
-      truthRate: new Map(),
-      drawRate: new Map(),
-      drawGuessRate: new Map(),
-      puzzleRate: new Map(),
-      jigsawRate: new Map(),
-      spotdiffRate: new Map(),
-      memoryRate: new Map(),
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -1006,10 +999,7 @@ export class RoomManager {
     }
     // Вікно частоти рахує й дотик без зміни (той самий стан нижче): повтор теж займає місце у вікні.
     const now = this.now();
-    const rate = room.likeRate.get(by);
-    if (rate === undefined || now - rate.from >= LIKE_RATE.windowMs) room.likeRate.set(by, { from: now, count: 1 });
-    else if (rate.count + 1 > LIKE_RATE.max) return { ok: false, error: 'like_rate' };
-    else rate.count += 1;
+    if (!rateAllowed(room, 'like', by, now)) return { ok: false, error: 'like_rate' };
     if (mine.has(key) === payload.liked) return { ok: true };
     if (payload.liked) mine.add(key);
     else mine.delete(key);
@@ -1234,7 +1224,7 @@ export class RoomManager {
     room.hidden.delete(personId);
     room.gaps.delete(personId);
     room.awayCredit.delete(personId);
-    room.awayRate.delete(personId);
+    room.rates.get('away')?.delete(personId);
     let base = room.state;
     const play = base.plays[base.questionIndex];
     // Лише соло: запис команди спільний для всіх її людей.
@@ -1355,9 +1345,7 @@ export class RoomManager {
       return { ok: false, error: 'sticker_locked' };
     }
     const now = this.now();
-    const last = room.reactRate.get(by);
-    if (last !== undefined && now - last < REACTION_GAP_MS) return { ok: false, error: 'too_soon' };
-    room.reactRate.set(by, now);
+    if (!rateAllowed(room, 'react', by, now)) return { ok: false, error: 'too_soon' };
     const reaction: Reaction = {
       seq: ++room.reactionSeq,
       by,
@@ -1496,10 +1484,7 @@ export class RoomManager {
       if (draft.type === 'lie' && state.plays[state.questionIndex]?.bluff?.stage !== 'lies') return { ok: false, error: 'wrong_phase' };
     }
     const now = this.now();
-    const rate = room.draftRate.get(playerId);
-    if (rate === undefined || now - rate.from >= 1000) room.draftRate.set(playerId, { from: now, count: 1 });
-    else if (rate.count + 1 > DRAFTS_PER_SECOND) return { ok: false, error: 'too_soon' };
-    else rate.count += 1;
+    if (!rateAllowed(room, 'draft', playerId, now)) return { ok: false, error: 'too_soon' };
     const live = this.liveDraft(room, id);
     if (draft === null) {
       if (live === null || live.draft === null) return { ok: true };
@@ -1537,10 +1522,7 @@ export class RoomManager {
     // Повернення в рахунок прийнятого виходу — без частоти; delete лише тоді, коли воно справді повернення.
     const free = !away && room.awayCredit.delete(personId);
     if (!free) {
-      const rate = room.awayRate.get(personId);
-      if (rate === undefined || now - rate.from >= 1000) room.awayRate.set(personId, { from: now, count: 1 });
-      else if (rate.count + 1 > AWAY_EVENTS_PER_SECOND) return { ok: false, error: 'too_soon' };
-      else rate.count += 1;
+      if (!rateAllowed(room, 'away', personId, now)) return { ok: false, error: 'too_soon' };
     }
     let next: GameState;
     if (away) {
@@ -1581,10 +1563,7 @@ export class RoomManager {
     if (!this.alive(room)) return this.gone();
     if (truthPassed(room)) return { ok: false, error: 'truth_closed' };
     const now = this.now();
-    const rate = room.truthRate.get(playerId);
-    if (rate === undefined || now - rate.from >= 1000) room.truthRate.set(playerId, { from: now, count: 1 });
-    else if (rate.count + 1 > TRUTH_PER_SECOND) return { ok: false, error: 'too_soon' };
-    else rate.count += 1;
+    if (!rateAllowed(room, 'truth', playerId, now)) return { ok: false, error: 'too_soon' };
     return this.apply(room, submitTruth(room.state, playerId, text, now));
   }
 
@@ -1607,10 +1586,7 @@ export class RoomManager {
     const state = room.state;
     if (teamsOn(state) && memberOf(state, playerId) !== undefined) {
       const now = this.now();
-      const rate = room.pickRate.get(playerId);
-      if (rate === undefined || now - rate.from >= 1000) room.pickRate.set(playerId, { from: now, count: 1 });
-      else if (rate.count + 1 > ANSWERER_PICKS_PER_SECOND) return { ok: false, error: 'too_soon' };
-      else rate.count += 1;
+      if (!rateAllowed(room, 'pick', playerId, now)) return { ok: false, error: 'too_soon' };
     }
     return this.apply(room, pickAnswerer(room.state, playerId, memberId, scope));
   }
@@ -1701,7 +1677,7 @@ export class RoomManager {
     const who = this.act(room, personId, 'self');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.drawRate, personId, now, DRAW_OPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'draw', personId, now)) return { ok: false, error: 'too_soon' };
     const result = drawStroke(room.state, personId, op, now);
     if (!result.ok) return { ok: false, error: result.error };
     if (result.state !== room.state) this.sketch(room, result.state, op);
@@ -1715,7 +1691,7 @@ export class RoomManager {
   drawGuess(room: Room, personId: string, text: string): AckResult {
     if (!this.alive(room)) return this.gone();
     const now = this.now();
-    if (!windowAllowed(room.drawGuessRate, personId, now, DRAW_GUESSES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'drawGuess', personId, now)) return { ok: false, error: 'too_soon' };
     return this.apply(room, drawGuess(room.state, personId, text, now));
   }
 
@@ -1730,7 +1706,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.puzzleRate, playerId, now, PUZZLE_BATCHES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'puzzle', playerId, now)) return { ok: false, error: 'too_soon' };
     const result = puzzleFill(room.state, who.id, playerId, questionIndex, cells, now);
     if (!result.ok) return { ok: false, error: result.error };
     if (result.state !== room.state) this.commit(room, result.state, this.now(), true);
@@ -1747,7 +1723,7 @@ export class RoomManager {
 
   /**
    * Шматочок «Пазла» (29c): у командній грі — будь-який учасник за команду. Номер запитання — в межах раунду (його перевіряє рушій).
-   * Ack лише { ok: true } чи відмова. Частота — одне вікно jigsawRate на постановки й «тримаю». Зміна йде commit з прапорцем puzzle:
+   * Ack лише { ok: true } чи відмова. Частота — одне вікно jigsaw на постановки й «тримаю». Зміна йде commit з прапорцем puzzle:
    * розсилка зрізів зливається в замикальному вікні, а завершення (останній шматочок) рушій закриває одразу, тож воно виходить без очікування.
    */
   jigsawPlace(room: Room, playerId: string, payload: { questionIndex: number; piece: number; x: number; y: number; rot: number }): AckResult {
@@ -1755,7 +1731,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.jigsawRate, playerId, now, JIGSAW_MOVES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'jigsaw', playerId, now)) return { ok: false, error: 'too_soon' };
     const { questionIndex, ...move } = payload;
     return this.jigsawApply(room, who.id, jigsawPlace(room.state, who.id, playerId, questionIndex, move, now), now);
   }
@@ -1771,7 +1747,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.spotdiffRate, playerId, now, SPOTDIFF_TAPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'spotdiff', playerId, now)) return { ok: false, error: 'too_soon' };
     const { questionIndex, ...tap } = payload;
     const result = spotdiffTap(room.state, who.id, playerId, questionIndex, tap, now);
     if (!result.ok) return { ok: false, error: result.error };
@@ -1787,7 +1763,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.jigsawRate, playerId, now, JIGSAW_MOVES_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'jigsaw', playerId, now)) return { ok: false, error: 'too_soon' };
     return this.jigsawApply(room, who.id, jigsawHold(room.state, who.id, playerId, payload.questionIndex, payload.piece, now), now);
   }
 
@@ -1812,12 +1788,12 @@ export class RoomManager {
     const ends = [jigsawHoldsEnd(room.state, now), memoryTimersEnd(room.state, now), melodyStartEnd(room.state, now)].filter((end): end is number => end !== null);
     if (ends.length === 0) return;
     const at = Math.min(...ends);
-    room.holdExpiry = this.scheduler.setTimeout(() => {
+    room.holdExpiry = this.timer(room, 'hold', Math.max(0, at - this.now()), () => {
       room.holdExpiry = null;
       if (!this.alive(room)) return;
       this.emit(room, { type: 'changed', puzzle: true });
       this.watchTimers(room);
-    }, Math.max(0, at - this.now()));
+    });
   }
 
   /**
@@ -1830,7 +1806,7 @@ export class RoomManager {
     const who = this.act(room, playerId, 'answer');
     if (!who.ok) return who;
     const now = this.now();
-    if (!windowAllowed(room.memoryRate, playerId, now, MEMORY_FLIPS_PER_SECOND)) return { ok: false, error: 'too_soon' };
+    if (!rateAllowed(room, 'memory', playerId, now)) return { ok: false, error: 'too_soon' };
     const result = memoryFlip(room.state, who.id, playerId, payload.questionIndex, payload.cell, now);
     if (!result.ok) return { ok: false, error: result.error };
     const finished = memoryOf(result.state, who.id)?.doneMs != null && memoryOf(room.state, who.id)?.doneMs == null;
@@ -1887,11 +1863,7 @@ export class RoomManager {
 
   /** Понад MORELESS_PICKS_PER_SECOND виборів на секунду від людини (28a) — ні. Вікно своє, як у wordAllowed, але окреме. */
   private pickAllowed(room: Room, playerId: string, now: number): boolean {
-    const rate = room.moreLessRate.get(playerId);
-    if (rate === undefined || now - rate.from >= 1000) room.moreLessRate.set(playerId, { from: now, count: 1 });
-    else if (rate.count + 1 > MORELESS_PICKS_PER_SECOND) return false;
-    else rate.count += 1;
-    return true;
+    return rateAllowed(room, 'moreLess', playerId, now);
   }
 
   /**
@@ -1899,11 +1871,7 @@ export class RoomManager {
    * Частота — на людину (у команді кожен учасник має своє вікно), як у чернеток; вікно спільне, бо запитання одне за раз.
    */
   private wordAllowed(room: Room, playerId: string, now: number): boolean {
-    const rate = room.listRate.get(playerId);
-    if (rate === undefined || now - rate.from >= 1000) room.listRate.set(playerId, { from: now, count: 1 });
-    else if (rate.count + 1 > LIST_WORDS_PER_SECOND) return false;
-    else rate.count += 1;
-    return true;
+    return rateAllowed(room, 'list', playerId, now);
   }
 
   /**
@@ -2076,10 +2044,7 @@ export class RoomManager {
     const known = teamsOn(state) ? memberOf(state, personId) !== undefined : state.players.some((p) => p.id === personId);
     if (!known) return { ok: false, error: 'not_found' };
     const now = this.now();
-    const rate = room.appealRate.get(personId);
-    if (rate === undefined || now - rate.from >= 1000) room.appealRate.set(personId, { from: now, count: 1 });
-    else if (rate.count + 1 > APPEAL_VOTES_PER_SECOND) return { ok: false, error: 'too_soon' };
-    else rate.count += 1;
+    if (!rateAllowed(room, 'appeal', personId, now)) return { ok: false, error: 'too_soon' };
     return this.apply(room, castAppealVote(room.state, personId, appealId, yes, now));
   }
 
@@ -2312,20 +2277,9 @@ export class RoomManager {
     for (const id of room.drafts.keys()) {
       if (!removed.state.players.some((p) => p.id === id) && memberOf(removed.state, id) === undefined) room.drafts.delete(id);
     }
-    room.draftRate.delete(playerId);
+    for (const kind of CLEARED_ON_REMOVE) room.rates.get(kind)?.delete(playerId);
     room.hidden.delete(playerId);
     room.gaps.delete(playerId);
-    room.awayRate.delete(playerId);
-    room.appealRate.delete(playerId);
-    room.pickRate.delete(playerId);
-    room.moreLessRate.delete(playerId);
-    room.truthRate.delete(playerId);
-    room.drawRate.delete(playerId);
-    room.drawGuessRate.delete(playerId);
-    room.puzzleRate.delete(playerId);
-    room.jigsawRate.delete(playerId);
-    room.spotdiffRate.delete(playerId);
-    room.memoryRate.delete(playerId);
     room.awayCredit.delete(playerId);
     // Нахил вилученого гравця (чи команди, що зникла з ним) теж.
     for (const sorterId of room.tilts.keys()) {
@@ -2344,10 +2298,10 @@ export class RoomManager {
     if (phase === 'lobby' || phase === 'finished') return;
     if (!paused) this.apply(room, pause(room.state, this.now()));
     this.scheduler.clearTimeout(room.absence);
-    room.absence = this.scheduler.setTimeout(() => {
+    room.absence = this.timer(room, 'absence', HOST_ABSENCE_MS, () => {
       room.absence = null;
       if (this.alive(room)) this.autosave(room);
-    }, HOST_ABSENCE_MS);
+    });
   }
 
   /**
@@ -2362,10 +2316,10 @@ export class RoomManager {
       return;
     }
     if (room.absence !== null) return;
-    room.absence = this.scheduler.setTimeout(() => {
+    room.absence = this.timer(room, 'empty', AUTOPILOT_EMPTY_MS, () => {
       room.absence = null;
       if (this.alive(room)) this.autosave(room);
-    }, AUTOPILOT_EMPTY_MS);
+    });
   }
 
   /**
@@ -2388,10 +2342,10 @@ export class RoomManager {
       return;
     }
     if (room.authorAway !== null) return;
-    room.authorAway = this.scheduler.setTimeout(() => {
+    room.authorAway = this.timer(room, 'author-away', HOST_ABSENCE_MS, () => {
       room.authorAway = null;
       if (this.alive(room)) this.apply(room, authorResume(room.state, this.now()));
-    }, HOST_ABSENCE_MS);
+    });
   }
 
   /** Ручне збереження (host 'save', author 'save'): hostUserId null → not_allowed; lobby/finished чи checkpoint null → wrong_phase; інакше закрити з saved. */
@@ -2495,7 +2449,7 @@ export class RoomManager {
     // таймер ще не доходив, обробляється одразу: інакше її пропустила б зміна стану перед таймером.
     const at = nextDeadline(room.state, room.tickedTo);
     if (at !== null) {
-      room.deadline = this.scheduler.setTimeout(() => {
+      room.deadline = this.timer(room, 'deadline', Math.max(0, at - this.now()), () => {
         room.deadline = null;
         // Справжній таймер може спрацювати на мілісекунду раніше; цей дедлайн однаково настав.
         room.tickedTo = Math.max(this.now(), at);
@@ -2503,14 +2457,14 @@ export class RoomManager {
         // Навіть без змін стану (відповідь у черзі чекає на ведучого) таймер ставиться на наступну мить.
         if (ticked !== room.state) this.commit(room, ticked, room.tickedTo);
         else this.reschedule(room);
-      }, Math.max(0, at - this.now()));
+      });
     }
 
     this.scheduler.clearTimeout(room.pilot);
     room.pilot = null;
     const pilotAt = room.state.autopilot?.at ?? null;
     if (pilotAt !== null) {
-      room.pilot = this.scheduler.setTimeout(() => {
+      room.pilot = this.timer(room, 'pilot', Math.max(0, pilotAt - this.now()), () => {
         room.pilot = null;
         room.tickedTo = Math.max(this.now(), pilotAt);
         // Спершу дедлайни рушія до цієї миті, потім крок автопілота; pilotTry скидає at (чи ставить повтор), нову мить ставить planAutopilot у commit.
@@ -2522,7 +2476,7 @@ export class RoomManager {
         if (error !== null) this.warn(`Автопілот ${room.code}: крок у фазі ${ticked.phase} відхилено (${error}), повтор.`);
         if (stepped !== room.state) this.commit(room, stepped, room.tickedTo);
         else this.reschedule(room);
-      }, Math.max(0, pilotAt - this.now()));
+      });
     }
 
     if (room.expiryPhase === phase) return;
@@ -2530,7 +2484,41 @@ export class RoomManager {
     this.scheduler.clearTimeout(room.expiry);
     room.expiry = null;
     const ttl = phase === 'lobby' ? LOBBY_TTL_MS : phase === 'finished' ? FINISHED_TTL_MS : null;
-    if (ttl !== null) room.expiry = this.scheduler.setTimeout(() => this.close(room), ttl);
+    if (ttl !== null) room.expiry = this.timer(room, 'expiry', ttl, () => this.close(room));
+  }
+
+  /**
+   * Таймер кімнати (30a): виняток у колбеку не йде вгору (там він поклав би процес), а в журнал з кодом кімнати.
+   * Стан кімнати лишається тим, що був до збою: рушій чистий, тож невдалий крок просто не застосовано.
+   * Дедлайн, автопілот і сам повтор ще й повторюються через TIMER_RETRY_MS (recover): інакше кімната без таймера застигла б.
+   */
+  private timer(room: Room, what: string, ms: number, fn: () => void): unknown {
+    const step = what === 'deadline' || what === 'pilot' || what === 'retry';
+    return this.scheduler.setTimeout(() => {
+      // Крок таймера міг устигнути зсунути tickedTo (і навіть room.state посеред commit): відкат, щоб повтор обробив ту саму мить.
+      const { state, tickedTo } = room;
+      try {
+        fn();
+      } catch (error) {
+        reportError(error, { where: 'room-timer', room: room.code, what });
+        if (!step) return;
+        room.state = state;
+        room.tickedTo = tickedTo;
+        this.recover(room);
+      }
+    }, ms);
+  }
+
+  /** Після збою таймера кроку (30a): за TIMER_RETRY_MS ще раз привести таймери до стану (reschedule) — не частіше, ніж раз на цей проміжок. */
+  private recover(room: Room): void {
+    if (!this.alive(room)) return;
+    this.scheduler.clearTimeout(room.deadline);
+    this.scheduler.clearTimeout(room.pilot);
+    room.pilot = null;
+    room.deadline = this.timer(room, 'retry', TIMER_RETRY_MS, () => {
+      room.deadline = null;
+      if (this.alive(room)) this.reschedule(room);
+    });
   }
 
   private close(room: Room): void {
@@ -2539,8 +2527,15 @@ export class RoomManager {
     this.emit(room, { type: 'closed' });
   }
 
+  /** Кожен слухач — окремо (30a): збій одного (запис, розсилка) не забирає подію в решти й не валить дію, що її породила. */
   private emit(room: Room, event: RoomEvent): void {
-    for (const listener of this.listeners) listener(room, event);
+    for (const listener of this.listeners) {
+      try {
+        listener(room, event);
+      } catch (error) {
+        reportError(error, { where: 'room-listener', room: room.code, what: event.type });
+      }
+    }
   }
 
   private newCode(): string {

@@ -4,6 +4,7 @@ import { liveRoom } from '../db/schema';
 import { releaseStalePrizes } from '../prizes';
 import { abandonRooms, parkInterrupted } from '../saved-games';
 import { isSavedRoom, type Room, type RoomManager } from './manager';
+import { guarded, log, reportError } from '../log';
 
 export const SAVE_DELAY_MS = 1000;
 /**
@@ -81,8 +82,8 @@ export class RoomStore {
     this.clock = options.now ?? null;
     this.saveDelayMs = options.saveDelayMs ?? SAVE_DELAY_MS;
     this.drawingSaveDelayMs = options.drawingSaveDelayMs ?? Math.max(this.saveDelayMs, DRAWING_SAVE_DELAY_MS);
-    this.onError = options.onError ?? ((error) => console.error('Не вдалося зберегти кімнату:', error));
-    this.onWarning = options.onWarning ?? ((message) => console.warn(message));
+    this.onError = options.onError ?? ((error) => reportError(error, { where: 'store' }));
+    this.onWarning = options.onWarning ?? ((message) => log.warn(message));
     manager.onEvent((room, event) => {
       if (event.type === 'changed') this.schedule(room);
       // Штрихи (28c) змінюють room.state без changed: без цього малюнок не пережив би перезапуску.
@@ -247,10 +248,10 @@ export class RoomStore {
     let done = () => {};
     this.track(new Promise<void>((resolve) => (done = resolve)));
     const handle = setTimeout(
-      () => {
+      guarded({ where: 'store', room: room.code, what: 'save' }, () => {
         entry.timer = null;
         this.save(room).finally(done);
-      },
+      }),
       sketch ? this.drawingSaveDelayMs : this.saveDelayMs,
     );
     handle.unref();
@@ -263,7 +264,7 @@ export class RoomStore {
       await this.enqueue(room, () => this.write(room, this.me));
     } catch (error) {
       this.onError(error);
-      setTimeout(() => this.schedule(room), RETRY_MS).unref();
+      setTimeout(guarded({ where: 'store', room: room.code, what: 'retry' }, () => this.schedule(room)), RETRY_MS).unref();
     }
   }
 

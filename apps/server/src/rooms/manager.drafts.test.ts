@@ -3,7 +3,7 @@ import { bluff, boardRound, chain, classicRound, makeQuiz, makeRoundsQuiz, multi
 import { GAME_STATE_VERSION } from '@quiz/engine';
 import { defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
-import { RoomManager, type Identity, type Room, type RoomEvent } from './manager';
+import { RoomManager, rateOf, type Identity, type Room, type RoomEvent } from './manager';
 
 const HOST: Identity = { role: 'host', playerId: null };
 const STAGE: Identity = { role: 'stage', playerId: null };
@@ -186,7 +186,7 @@ describe('solo live drafts (12b)', () => {
     expect(manager.draft(room, olena.playerId, { type: 'multi', optionIds: ['a'] })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'kick', playerId: olena.playerId })).toEqual({ ok: true });
     expect(room.drafts.has(olena.playerId)).toBe(false);
-    expect(room.draftRate.has(olena.playerId)).toBe(false);
+    expect(rateOf(room, 'draft').has(olena.playerId)).toBe(false);
     expect(manager.liveDrafts(room).drafts).toEqual([]);
   });
 
