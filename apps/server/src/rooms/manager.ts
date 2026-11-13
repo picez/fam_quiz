@@ -2497,12 +2497,15 @@ export class RoomManager {
    * Дія з відкатом (30a): виняток посеред дії (зокрема посеред commit, коли room.state і checkpoint уже присвоєні, а розсилки
    * й запису ще не було) повертає room.state, tickedTo і checkpoint до знімка перед дією й переводить таймери на відновлений стан;
    * сам виняток іде далі — його журналює той, хто викликав (обробник сокета, таймер). Рушій чистий, тож іншого стану немає.
+   * Якщо room.state устиг змінитися, відновлений стан розсилається ще раз (changed): хтось міг побачити проміжний.
    */
   guard<T>(room: Room, fn: () => T): T {
     const { state, tickedTo, checkpoint } = room;
     try {
       return fn();
     } catch (error) {
+      // Стан устиг змінитися (збій посеред commit чи після нього): клієнти могли бачити проміжний — після відкату розсилка ще раз.
+      const dirty = room.state !== state;
       room.state = state;
       room.tickedTo = tickedTo;
       room.checkpoint = checkpoint;
@@ -2515,6 +2518,8 @@ export class RoomManager {
           reportError(again, { where: 'room-rollback', room: room.code });
           this.recover(room);
         }
+        // emit сам ловить збої слухачів, тож розсилка не кидає.
+        if (dirty) this.emit(room, { type: 'changed' });
       }
       throw error;
     }
@@ -2561,7 +2566,8 @@ export class RoomManager {
     room.deadline = room.pilot = null;
     if (!this.alive(room) || room.state.paused) return;
     try {
-      this.guard(room, () => this.apply(room, pause(room.state, this.now())));
+      // Автопілот — пауза автора (hold 'author'): автор знімає її сам, а без нього на зв'язку watchAuthor зніме за HOST_ABSENCE_MS.
+      this.guard(room, () => this.apply(room, (room.state.autopilot !== undefined ? authorPause : pause)(room.state, this.now())));
     } catch (again) {
       reportError(again, { where: 'room-timer', room: room.code, what: 'pause' });
     }

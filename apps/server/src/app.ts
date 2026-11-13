@@ -101,8 +101,9 @@ export async function buildApp(options: AppOptions) {
   // тому 5xx пише хук onError нижче.
   const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT, loggerInstance: log as FastifyBaseLogger, logController: new LogController({ disableRequestLogging: true }) });
   // Помилки 5xx (30a): у reportError з маршрутом, без IP і тіла запиту; відповідь — звичайна відповідь Fastify на помилку.
-  app.addHook('onError', async (request, _reply, error) => {
-    const status = (error as { statusCode?: number }).statusCode ?? 500;
+  // Хук іде після обробника помилок, тож код відповіді вже стоїть; власні обробники (upload-routes) звітують самі.
+  app.addHook('onError', async (request, reply, error) => {
+    const status = reply.statusCode >= 400 ? reply.statusCode : ((error as { statusCode?: number }).statusCode ?? 500);
     if (status >= 500) reportError(error, { where: 'http', event: `${request.method} ${request.routeOptions.url ?? 'unknown'}` });
   });
   if (store !== null) app.addHook('onClose', async () => store.stop());

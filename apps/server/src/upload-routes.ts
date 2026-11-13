@@ -38,6 +38,8 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
         if (error.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(kind.tooLarge);
         if (error.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE') return reply.code(400).send(kind.bad);
         if (error.statusCode === 429) return reply.code(429).send({ error: 'too_many' });
+        // Тіло відповіді — не помилка, тож хук onError (app.ts) її не побачить: звіт тут (30a).
+        reportError(error, { where: 'http', event: `POST ${path}` });
         return reply.code(500).send({ error: 'unknown' });
       });
 

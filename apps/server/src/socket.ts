@@ -451,13 +451,13 @@ export function attachSockets(
       joined.delete(socket);
       if (joined.size === 0 && byRoom.get(room) === joined) byRoom.delete(room);
       try {
-        manager.disconnect(room, identity);
+        manager.guard(room, () => manager.disconnect(room, identity));
       } catch (error) {
         reportError(error, { ...context, event: 'disconnect' });
       }
     });
     try {
-      manager.connect(room, identity);
+      manager.guard(room, () => manager.connect(room, identity));
       // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу —
       // раніше за перший зріз: клієнт зі скинутою моделлю, побачивши в зрізі rev, інакше попросив би draw:sync удруге.
       const sketch = manager.drawSnapshot(room);

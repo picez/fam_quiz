@@ -126,6 +126,26 @@ describe('room timers survive an exception (30a)', () => {
     expect(manager.guard(room, () => 7)).toBe(7);
   });
 
+  it('guard re-broadcasts the restored state when the state had changed, and stays quiet when it had not', () => {
+    const { manager, room } = playing();
+    const before = room.state;
+    const seen: { event: RoomEvent; state: unknown }[] = [];
+    manager.onEvent((target, event) => seen.push({ event, state: target.state }));
+    expect(() =>
+      manager.guard(room, () => {
+        throw new Error('early');
+      }),
+    ).toThrow('early');
+    expect(seen).toEqual([]);
+    expect(() =>
+      manager.guard(room, () => {
+        room.state = { ...room.state, paused: true };
+        throw new Error('late');
+      }),
+    ).toThrow('late');
+    expect(seen).toEqual([{ event: { type: 'changed' }, state: before }]);
+  });
+
   it('a listener that throws does not stop the others and does not fail the action', () => {
     const reports = capture();
     const { manager, room, olena } = playing();

@@ -32,6 +32,12 @@ describe('HTTP 5xx (30a)', () => {
       throw new Error('boom');
     });
     ctx.app.get('/api/test-bad', async (_request, reply) => reply.code(400).send({ error: 'bad' }));
+    ctx.app.get('/api/test-thrown-4xx', async () => {
+      throw Object.assign(new Error('nope'), { statusCode: 422 });
+    });
+    ctx.app.get('/api/test-thrown-503', async () => {
+      throw Object.assign(new Error('down'), { statusCode: 503 });
+    });
     const response = await ctx.app.inject({ method: 'GET', url: '/api/test-boom/42', remoteAddress: '203.0.113.7' });
     expect(response.statusCode).toBe(500);
     expect(reports).toHaveLength(1);
@@ -41,5 +47,11 @@ describe('HTTP 5xx (30a)', () => {
     // 4xx — не збій сервера.
     expect((await ctx.app.inject({ method: 'GET', url: '/api/test-bad' })).statusCode).toBe(400);
     expect(reports).toHaveLength(1);
+    // Кинута помилка з кодом 4xx — теж не збій; з кодом 5xx — збій.
+    expect((await ctx.app.inject({ method: 'GET', url: '/api/test-thrown-4xx' })).statusCode).toBe(422);
+    expect(reports).toHaveLength(1);
+    expect((await ctx.app.inject({ method: 'GET', url: '/api/test-thrown-503' })).statusCode).toBe(503);
+    expect(reports).toHaveLength(2);
+    expect(reports[1].context).toEqual({ where: 'http', event: 'GET /api/test-thrown-503' });
   });
 });
