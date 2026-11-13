@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { AppealView, PlayerAppeal, PublicQuestion } from '@quiz/shared';
-import { appealAsk, appealCountText, appealPresented, appealTitle } from '../appeal-text';
+import { appealAsk, appealButtonText, appealCountText, appealPresented, appealTitle } from '../appeal-text';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useGuardedSend } from '../live/useGuardedSend';
@@ -75,6 +75,13 @@ export function AppealSheet({
           })}
         </p>
       )}
+      {/* Черга (29k): поки зал голосує за чужу апеляцію, виборець подає свою тут же — її розглянуть наступною. */}
+      {mine.reasons.map((reason) => (
+        <button key={reason} type="button" className="btn appeal-button" disabled={guard.busy} onClick={() => void guard.run('player:appeal', { reason })}>
+          {appealButtonText(reason, mine.left)}
+        </button>
+      ))}
+      {mine.queued === true && <p className="meta appeal-queued">{t('appealQueued')}</p>}
     </section>
   );
 }

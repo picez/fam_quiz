@@ -68,7 +68,7 @@ describe('player:appeal and player:appeal-vote in a room (12f)', () => {
     const { manager, room, olya, petro } = atReveal();
     expect(manager.appeal(room, petro, 'grade')).toEqual({ ok: false, error: 'appeal_unfit' });
     expect(manager.appeal(room, olya, 'grade')).toEqual({ ok: true });
-    expect(manager.appeal(room, olya, 'grade')).toEqual({ ok: false, error: 'appeal_open' });
+    expect(manager.appeal(room, olya, 'grade')).toEqual({ ok: false, error: 'appeal_unfit' });
     expect(manager.appealVote(room, olya, 1, true)).toEqual({ ok: false, error: 'vote_denied' });
     expect(manager.appealVote(room, petro, 2, true)).toEqual({ ok: false, error: 'vote_closed' });
     expect(manager.appealVote(room, 'nobody', 1, true)).toEqual({ ok: false, error: 'not_found' });
@@ -219,5 +219,70 @@ describe('appeals in an autopilot room (12f)', () => {
     expect(room.state.phase).toBe('reveal');
     scheduler.advance(1);
     expect(room.state.phase).toBe('leaderboard');
+  });
+
+  it('29k: Іра files while the hall votes on Петро; the bot waits for both appeals in turn, then moves on', () => {
+    const scheduler = new FakeScheduler();
+    const manager = new RoomManager(scheduler, () => 0.5);
+    const created = manager.createAutopilot(makeQuiz([single, text], { leaderboard: 'each' }), 'u1', 'q1', 'Оля');
+    if (!created.ok) throw new Error(created.error);
+    const { room } = created;
+    const olya = created.playerId;
+    manager.connect(room, { role: 'player', playerId: olya });
+    const petro = enter(manager, room, 'Петро');
+    const ira = enter(manager, room, 'Іра');
+    expect(manager.author(room, olya, { type: 'start' })).toEqual({ ok: true });
+    for (let i = 0; i < 40 && room.state.phase !== 'question'; i++) scheduler.advance(1000);
+    expect(manager.answer(room, olya, right)).toEqual({ ok: true });
+    expect(manager.answer(room, petro, wrong)).toEqual({ ok: true });
+    expect(manager.answer(room, ira, wrong)).toEqual({ ok: true });
+    scheduler.advance(AUTOPILOT_MS.locked);
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(1000);
+    expect(manager.appeal(room, petro, 'grade')).toEqual({ ok: true });
+    scheduler.advance(5000);
+    const iraView = manager.view(room, { role: 'player', playerId: ira });
+    expect(iraView?.role === 'player' && iraView.me.appeal).toMatchObject({ reasons: ['grade'], voter: true });
+    expect(manager.appeal(room, ira, 'grade')).toEqual({ ok: true });
+    const queuedView = manager.view(room, { role: 'player', playerId: ira });
+    expect(queuedView?.role === 'player' && queuedView.me.appeal).toMatchObject({ reasons: [], queued: true });
+    scheduler.advance(APPEAL_MS.vote - 5000);
+    expect(room.state.appeals?.[0].outcome).toBe('tie');
+    expect(room.state.appeals?.[1]).toMatchObject({ by: ira, outcome: null });
+    // Друга апеляція йде свої 30 с: бот не рушає.
+    scheduler.advance(APPEAL_MS.vote - 1);
+    expect(room.state.phase).toBe('reveal');
+    expect(room.state.appeals?.[1].outcome).toBeNull();
+    scheduler.advance(1);
+    expect(room.state.appeals?.[1].outcome).toBe('tie');
+    scheduler.advance(AUTOPILOT_MS.appealShown - 1);
+    expect(room.state.phase).toBe('reveal');
+    scheduler.advance(1);
+    expect(room.state.phase).toBe('leaderboard');
+  });
+});
+
+describe('the appeal queue in a hosted room (29k)', () => {
+  it('a queued appeal is saved with the room and opens after the first decision once resumed', () => {
+    const { scheduler, manager, room, olya, petro, ira, host } = atReveal();
+    // Петро й Іра відповіли правильно; ведучий ставить Петрові «неправильно», щоб і він міг оскаржити.
+    expect(host({ type: 'override', playerId: petro, grade: 'wrong' })).toEqual({ ok: true });
+    expect(manager.appeal(room, olya, 'grade')).toEqual({ ok: true });
+    expect(manager.appealVote(room, ira, 1, false)).toEqual({ ok: true });
+    expect(manager.appeal(room, petro, 'grade')).toEqual({ ok: true });
+    expect(host({ type: 'next' })).toEqual({ ok: false, error: 'appeal_open' });
+    scheduler.advance(10_000);
+    const saved = viaJson(manager.snapshot(room));
+    manager.freeze();
+    expect(saved.stateVersion).toBe(GAME_STATE_VERSION);
+    const next = new RoomManager(scheduler, () => 0.5);
+    const back = next.restore(saved) as Room;
+    expect(back.state.appealQueue).toEqual([expect.objectContaining({ by: petro })]);
+    next.connect(back, HOST);
+    expect(next.host(back, { type: 'resume' })).toEqual({ ok: true });
+    scheduler.advance(APPEAL_MS.vote - 10_000);
+    expect(back.state.appeals?.[0].outcome).toBe('no');
+    expect(back.state.appeals?.[1]).toMatchObject({ by: petro, outcome: null });
+    expect(next.host(back, { type: 'next' })).toEqual({ ok: false, error: 'appeal_open' });
   });
 });

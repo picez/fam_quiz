@@ -27,6 +27,7 @@ import {
   type AnswererPick,
   type AnswererTurn,
   type Appeal,
+  type QueuedAppeal,
   type Attempt,
   type AwayEntry,
   type BlitzPlay,
@@ -349,7 +350,7 @@ const STATE_SHAPE: Record<string, string> = {
     [
       'quiz', 'phase', 'roundIndex', 'questionIndex', 'players', 'plays', 'presented', 'startedAt', 'endsAt', 'paused', 'remainingMs',
       'pausedAt', 'board', 'heldAt', 'final', 'adjustments', 'adjustmentSeq', 'buffSeq', 'debuffs', 'duel', 'duelsDeclared', 'duelUsed',
-      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'perks', 'truth',
+      'sparesUsed', 'transitions', 'splash', 'guidePage', 'awaiting', 'ladder', 'teams', 'stepAt', 'autopilot', 'appeals', 'appealQueue', 'perks', 'truth',
       'drawTurns', 'stealth', 'deferredCharges', 'quest', 'questBuffs',
     ],
     true,
@@ -438,6 +439,7 @@ const STATE_SHAPE: Record<string, string> = {
   AutopilotState: keysOf<AutopilotState>()(['authorId', 'at', 'left', 'hold', 'starting', 'resume', 'skips', 'skipPlays', 'retries'], true),
   ResumeSetup: keysOf<ResumeSetup>()(['roundIndex', 'points'], true),
   Appeal: keysOf<Appeal>()(['id', 'by', 'questionIndex', 'reason', 'openedAt', 'endsAt', 'votes', 'outcome', 'adjustmentSeq', 'yes', 'no'], true),
+  QueuedAppeal: keysOf<QueuedAppeal>()(['by', 'questionIndex', 'reason', 'at'], true),
   PerkState: keysOf<PerkState>()(['kinds', 'timeMs', 'used'], true),
   PerkUsed: keysOf<PerkState['used']>()(['time', 'hint', 'ward'], true),
   PerkHint: keysOf<PerkHint>()(['q', 'text'], true),
@@ -1226,7 +1228,7 @@ const KEYS: Record<number, Record<string, string>> = {
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
   },
   22: {
-    GameState: 'adjustmentSeq,adjustments,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
+    GameState: 'adjustmentSeq,adjustments,appealQueue,appeals,autopilot,awaiting,board,buffSeq,debuffs,deferredCharges,drawTurns,duel,duelUsed,duelsDeclared,endsAt,final,guidePage,heldAt,ladder,paused,pausedAt,perks,phase,players,plays,presented,quest,questBuffs,questionIndex,quiz,remainingMs,roundIndex,sparesUsed,splash,startedAt,stealth,stepAt,teams,transitions,truth',
     Quiz: 'description,duels,rounds,settings,spares,title',
     QuizSettings: 'awayPenalty,buffs,debuffPrices,debuffShop,debuffs,leaderboard,levelBonuses,newcomers,teams',
     PlayerState: 'connected,id,nickname,score,streak,totalTimeMs',
@@ -1305,6 +1307,7 @@ const KEYS: Record<number, Record<string, string>> = {
     AutopilotState: 'at,authorId,hold,left,resume,retries,skipPlays,skips,starting',
     ResumeSetup: 'points,roundIndex',
     Appeal: 'adjustmentSeq,by,endsAt,id,no,openedAt,outcome,questionIndex,reason,votes,yes',
+    QueuedAppeal: 'at,by,questionIndex,reason',
     PerkState: 'kinds,timeMs,used',
     PerkUsed: 'hint,time,ward',
     PerkHint: 'q,text',
@@ -1355,6 +1358,16 @@ function appealed(): GameState {
   s = must(next(s, T0 + 2000, () => 0));
   s = must(castAppealVote(must(castAppealVote(must(openAppeal(s, 'p1', 'grade', T0 + 3000)), 'p2', 1, true, T0 + 4000)), 'p3', 1, true, T0 + 5000));
   return must(castAppealVote(must(openAppeal(s, 'p2', 'grade', T0 + 6000)), 'p3', 2, false, T0 + 7000));
+}
+
+/** 29k: усі троє «Одеська»; Оля оскаржила, Петро подав свою, поки зал голосує, — GameState.appealQueue. */
+function appealQueued(): GameState {
+  const t100 = { ...text, points: 100 };
+  const wrong = { type: 'text', value: 'Одеська' } as const;
+  let s = openAt(lobbyWith(makeRoundsQuiz([classicRound('r1', [t100], { speedBonus: false })]), 'Оля', 'Петро', 'Іра'), T0, () => 0);
+  for (const id of ['p1', 'p2', 'p3']) s = must(submitAnswer(s, id, wrong, T0 + 1000));
+  s = must(next(s, T0 + 2000, () => 0));
+  return must(openAppeal(must(castAppealVote(must(openAppeal(s, 'p1', 'grade', T0 + 3000)), 'p3', 1, true, T0 + 4000)), 'p2', 'grade', T0 + 5000));
 }
 
 /** 12r: гра продовжена з другого раунду — Оля 42 434, Петро −150: рядки 'carry'. */
@@ -1623,6 +1636,7 @@ function representative(): GameState[] {
     listening,
     wandered,
     appealed(),
+    appealQueued(),
     resumedCarry(),
     answering(),
     powered(),
@@ -2327,6 +2341,24 @@ describe('the saved state', () => {
     expect(suspended.appeals).toEqual(s.appeals);
   });
 
+  it('the appeal queue (29k) survives the round trip and suspend; after resume the queued appeal opens on the decision', () => {
+    const s = appealQueued();
+    expect(s.appealQueue).toEqual([{ by: 'p2', questionIndex: 0, reason: 'grade', at: T0 + 5000 }]);
+    expect(roundTrip(s)).toEqual(s);
+    const suspended = roundTrip(suspend(roundTrip(s), T0 + 8000));
+    expect(suspended.appealQueue).toEqual(s.appealQueue);
+    const back = must(resume(suspended, T0 + HOUR));
+    const endsAt = back.appeals?.[0].endsAt ?? 0;
+    expect(endsAt).toBe(T0 + 33_000 + HOUR - 8000);
+    const decided = tick(back, endsAt);
+    expect(decided.appeals?.[0].outcome).toBe('yes');
+    expect(decided.appeals?.[1]).toMatchObject({ id: 2, by: 'p2', outcome: null, openedAt: endsAt });
+    expect('appealQueue' in decided).toBe(false);
+    // Стан без черги (до 29k) читається як був.
+    expect('appealQueue' in appealed()).toBe(false);
+    expect(GAME_STATE_VERSION).toBe(22);
+  });
+
   it('a restored room keeps the quest', () => {
     const s = questWindow();
     expect(s.quest?.stage).toBe('window');
@@ -2454,6 +2486,7 @@ describe('the saved state', () => {
       add('ResumeSetup', [s.autopilot?.resume]);
       add('AwayEntry', s.plays.flatMap((p) => Object.values(p.away ?? {})));
       add('Appeal', s.appeals ?? []);
+      add('QueuedAppeal', s.appealQueue ?? []);
       add('PerkState', Object.values(s.perks ?? {}));
       add('PerkUsed', Object.values(s.perks ?? {}).map((p) => p.used));
       add('PerkHint', Object.values(s.perks ?? {}).map((p) => p.used.hint));

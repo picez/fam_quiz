@@ -286,7 +286,7 @@ export function dropMember(state: GameState, memberId: string, now?: number): Re
   if (member === undefined) return fail('not_found');
   const team = member.teamId;
   if (state.phase !== 'lobby' && team !== null && state.players.some((p) => p.id === team) && teamMembers(state, team).length === 1) {
-    return removePlayer(state, team);
+    return removePlayer(state, team, now);
   }
   const members = state.teams.members.filter((m) => m.id !== memberId);
   const left = withTeams(

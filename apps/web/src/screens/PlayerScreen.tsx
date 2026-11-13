@@ -706,6 +706,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const resumeGuard = useGuardedSend(send, setError);
   const likeGuard = useGuardedSend(send, setError);
   const appealGuard = useGuardedSend(send, setError);
+  // Аркуш голосу за відкриту апеляцію (12f) перед цим виборцем; у ньому ж — своя кнопка в чергу й «розглянуть наступною» (29k).
+  const appealSheetUp = phase === 'reveal' && view.appeal !== null && view.appeal.outcome === null && me.appeal?.voter === true;
   // Командна гра: керує той, хто має право діяти за команду; капітан один — його телефон бере крамницю й дуель.
   const team = view.team;
   const acting = team === null || team.canAct;
@@ -911,7 +913,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         <VoteSheet key={view.questionIndex} prompt={me.vote} question={question} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
       )}
       {/* Голос за апеляцію (12f) — теж нижній аркуш position: fixed над розкриттям. */}
-      {phase === 'reveal' && view.appeal !== null && view.appeal.outcome === null && me.appeal?.voter === true && (
+      {appealSheetUp && view.appeal !== null && me.appeal !== null && (
         <AppealSheet view={view.appeal} screenQuestion={view.question} mine={me.appeal} teams={view.teams !== null} paused={view.paused} offsetMs={offsetMs} send={send} onError={setError} />
       )}
       {/* Заставка — шар position: fixed над розкладкою етапу, що вже стоїть: поява й зникнення нічого не зсувають. */}
@@ -1496,7 +1498,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'reveal' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')} dir="auto">{question?.text}</h1>
+          <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>
           <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />
@@ -1562,11 +1564,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {/* Слова з літер (27d) — так само: «правильно» означає лише «хоч одне слово». */}
           {/* Більше чи менше (28a): «правильно» — лише весь ряд, частка нічого не каже; таблиця вже показує, скільки вгадали кожне. */}
           {view.own?.reveal != null && question?.type !== 'timedlist' && question?.type !== 'letterwords' && question?.type !== 'moreless' && question?.type !== 'drawing' && <OwnRevealLine fact={view.own.reveal} team={view.team !== null} />}
-          {me.appeal?.reasons.map((reason) => (
-            <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
-              {appealButtonText(reason, me.appeal?.left ?? 0)}
-            </button>
-          ))}
+          {/* Виборець відкритої апеляції подає свою (29k: у чергу) і бачить «розглянуть наступною» в аркуші голосування — тут їх немає. */}
+          {!appealSheetUp &&
+            me.appeal?.reasons.map((reason) => (
+              <button key={reason} type="button" className="btn appeal-button" disabled={appealGuard.busy} onClick={() => void appealGuard.run('player:appeal', { reason })}>
+                {appealButtonText(reason, me.appeal?.left ?? 0)}
+              </button>
+            ))}
+          {!appealSheetUp && me.appeal?.queued === true && <p className="meta appeal-queued">{t('appealQueued')}</p>}
           {/* Виборцю відкритої апеляції «зачекайте» не потрібне: аркуш голосування вже перед ним. */}
           {me.appeal?.block != null && !(me.appeal.block === 'appeal_open' && me.appeal.voter) && <p className="meta appeal-block">{t(APPEAL_BLOCK_KEY[me.appeal.block])}</p>}
           {/* Виборець відкритої апеляції бачить аркуш, решта — картку; скасована апеляція картки не має. */}
