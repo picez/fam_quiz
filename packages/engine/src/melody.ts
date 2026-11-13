@@ -56,5 +56,7 @@ export function melodyOpen(state: GameState, actorId: string, memberId: string, 
  */
 export function melodyStartEnd(state: GameState, now: number): number | null {
   if (state.phase !== 'question' || state.startedAt === null || state.startedAt <= now) return null;
-  return state.plays[state.questionIndex]?.question.type === 'melody' ? state.startedAt + 10 : null;
+  // «Пам'ять» (29f) так само: canFlip = false під заставкою.
+  const type = state.plays[state.questionIndex]?.question.type;
+  return type === 'melody' || type === 'memory' ? state.startedAt + 10 : null;
 }
