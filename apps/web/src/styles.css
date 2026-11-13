@@ -21098,6 +21098,85 @@ input.sudoku-editor-cell:focus-visible {
 }
 /* «Мелодія за нотами»: кінець телефона */
 
+/* Найменший телефон (320 × 568 і подібні): на «Пазлі», «Пам'яті» й «Мелодії» обв'язка гравця щільніша — менші відступи між блоками,
+ * дрібніший підпис запитання й табло, нижчий заголовок, менше прев'ю пазла, рядок «хто ходить» поруч із лічильником пар. Так без
+ * прокрутки видно рамку пазла з першим рядом купки, усю сітку «Пам'яті» 4×5 (навіть у команді) і кнопку «Відповісти» «Мелодії».
+ * Ширші й вищі екрани цього не бачать. */
+@media (max-width: 400px) and (max-height: 600px) {
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) {
+    gap: 0.5rem;
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .debuff-content {
+    gap: 0.5rem;
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .team-bar {
+    min-height: 1.5rem;
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .question-head {
+    gap: 0.5rem;
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .question-meta .meta {
+    font-size: 0.75rem;
+    line-height: 1.25;
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .question-head .flap {
+    font-size: 1.125rem;
+  }
+
+  .app.player:has(.jigsaw-play, .memory-play, .melody-play) .question {
+    font-size: 1.125rem;
+  }
+
+  .app.player .jigsaw-play,
+  .app.player .melody-play {
+    gap: 0.375rem;
+  }
+
+  .app.player .jigsaw-preview {
+    width: 5rem;
+  }
+
+  /* Лічильник пар і «Оля ходить» — в один рядок; сітка й рядок стану — на всю ширину. */
+  .app.player .memory-play {
+    gap: 0.375rem;
+  }
+
+  .app.player .memory-play:has(> .memory-busy) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.375rem 0.75rem;
+  }
+
+  .app.player .memory-play:has(> .memory-busy) > :not(.memory-progress, .memory-busy) {
+    flex: 0 0 100%;
+  }
+
+  .app.player .memory-progress {
+    flex: none;
+  }
+
+  .app.player .memory-busy {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Над сіткою — щонайбільше ~200 px обв'язки (шапка, команда, підпис, заголовок, лічильник), тож картка — менша з «ширина / cols» і
+   * «(екран − 205 px − проміжки) / rows»: 4×5 на 320 × 568 — ~64 px, текст до 40 символів у ній уміщається. */
+  .app.player .memory-grid {
+    --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 205px - (var(--rows) - 1) * var(--memory-gap)) / var(--rows)));
+  }
+}
+
 /* «Мелодія за нотами»: сцена й пульт (29e). Плитки «нік · 🎧 шматок · ✓» (без назви й звуку), на розкритті — назва й таблиця з балами. */
 .melody-stage:not(.is-reveal),
 .puzzle-stage.jigsaw-stage.melody-stage.is-reveal {

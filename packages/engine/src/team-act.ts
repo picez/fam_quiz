@@ -89,7 +89,7 @@ function withBuzzer(state: GameState, team: string, memberId: string): GameState
   return withPlay(state, { ...play, buzzers: { ...play.buzzers, [team]: memberId } });
 }
 
-/** Відповідь людини: соло — submitAnswer; командна — actorOf(…, 'answer'); миттєвий бліц пише buzzers; голоси — під id людини. */
+/** Відповідь людини: соло — submitAnswer; командна — actorOf(…, 'answer'); миттєвий бліц і мелодія пишуть buzzers; голоси — під id людини. */
 export function actAnswer(state: GameState, memberId: string, answer: Answer, now: number): Result {
   // Поза запитанням — wrong_phase для всіх, а не not_captain для некапітана (як у submitAnswer).
   if (state.phase !== 'question') return fail('wrong_phase');
@@ -98,8 +98,10 @@ export function actAnswer(state: GameState, memberId: string, answer: Answer, no
   const result = submitAnswer(state, who.id, answer, now);
   if (!result.ok || !teamsOn(state) || who.id === memberId) return result;
   // Миттєвий бліц: відповідь стала натиском команди — відповідав той, хто її подав.
+  // «Мелодія за нотами» (29e): відповідає будь-хто з команди — так само пишемо, хто подав (для запису, answeredByOf).
   const blitz = blitzPlay(state);
-  return blitz !== null && blitz.instant ? ok(withBuzzer(result.state, who.id, memberId)) : result;
+  const melody = state.plays[state.questionIndex]?.question.type === 'melody';
+  return (blitz !== null && blitz.instant) || melody ? ok(withBuzzer(result.state, who.id, memberId)) : result;
 }
 
 /** Натиск людини: соло — buzz; командна — buzz(команда) і buzzers[команда] = людина. */

@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, truthRound, wordladder } from '@quiz/engine/testing';
-import { DEFAULT_RULES, defaultTeams, isUnscored, SPLASH_MS, packStrokes, unpackStrokes, type Question, type Quiz } from '@quiz/shared';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, duels, finalRound, makeQuiz, makeRoundsQuiz, numeric, poll, cloud, wall, single, survey, surveyCloud, text, survivalQuestions, survivalRound, survivalTrials, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, letterwordsRandom, moreless, drawing, timedlist, truthRound, wordladder, melody, memory } from '@quiz/engine/testing';
+import { DEFAULT_RULES, defaultTeams, isUnscored, memoryLayout, SPLASH_MS, packStrokes, unpackStrokes, type Question, type Quiz } from '@quiz/shared';
 import type { Db } from './db/client';
 import * as store from './achievement-store';
 import { answer, appeal, game, participant, PENALTY_ATTEMPT, scoreAdjustment, user, userAchievement, VOTE_ATTEMPT } from './db/schema';
@@ -2243,6 +2243,46 @@ describe('recorder: debuff, clue and answerer columns (12i)', () => {
     const votes = rows.filter((r) => r[1] === 2);
     expect(votes).toHaveLength(4);
     for (const vote of votes) expect(vote[3]).toBeNull();
+    expect(ctx.errors).toEqual([]);
+  });
+
+  it('teams: melody — the member who sent the answer; memory — the member who finished the board (unfinished — the last who found)', async () => {
+    const quiz = makeRoundsQuiz([classicRound('r1', [melody, memory])], { teams: defaultTeams(2) });
+    const ctx = await recordedTeamGame(quiz);
+    const { manager, room, members, scheduler } = ctx;
+    const [red, blue] = ctx.teams;
+    toQuestion(manager, room);
+    scheduler.advance(10_000);
+    expect(manager.melodyOpen(room, members['Оля'], { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    expect(manager.melodyOpen(room, members['Віра'], { questionIndex: 0, step: 1 })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Петро'], { type: 'melody', value: 'Щедрик' })).toEqual({ ok: true });
+    expect(manager.answer(room, members['Ігор'], { type: 'melody', value: 'Не те' })).toEqual({ ok: true });
+    if (room.state.phase === 'question') manager.host(room, { type: 'lock' });
+    toQuestion(manager, room);
+    expect(room.state.plays[room.state.questionIndex].question.type).toBe('memory');
+    scheduler.advance(10_000);
+    const layout = memoryLayout(memory.pairs.length, memory.seed);
+    const match = (who: string, pair: number) => {
+      scheduler.advance(1100);
+      for (const side of [0, 1]) expect(manager.memoryFlip(room, members[who], { questionIndex: 1, cell: layout.indexOf(2 * pair + side) })).toEqual({ ok: true });
+    };
+    for (let pair = 0; pair < memory.pairs.length; pair++) match(pair === memory.pairs.length - 1 ? 'Петро' : 'Оля', pair);
+    match('Ігор', 0);
+    match('Віра', 1);
+    match('Ігор', 2);
+    toEnd(manager, room);
+    await ctx.recorder.idle();
+    const name = (id: string | null) => (id === null ? null : id === red ? 'Червоні' : id === blue ? 'Сині' : Object.entries(members).find(([, m]) => m === id)?.[0]);
+    const rows = (await rowsOf(ctx.db)).filter((a) => a.participantId === red || a.participantId === blue).map((a) => [name(a.participantId), a.questionIndex, a.accepted, name(a.answeredBy)]);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        ['Червоні', 0, true, 'Петро'],
+        ['Сині', 0, false, 'Ігор'],
+        ['Червоні', 1, true, 'Петро'],
+        ['Сині', 1, false, 'Ігор'],
+      ]),
+    );
+    expect(rows).toHaveLength(4);
     expect(ctx.errors).toEqual([]);
   });
 

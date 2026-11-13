@@ -27622,17 +27622,19 @@ async function jigsawEdge29i() {
   // Найменший пазл — 3×2 (JIGSAW_MIN_PIECES = 6).
   const g: Grid29c = { rows: 2, cols: 3 };
 
-  // ── Прев'ю 7rem — кнопка: тап відкриває ту саму обрізку на весь екран, Escape закриває. ──
+  // ── Прев'ю — кнопка: тап відкриває ту саму обрізку на весь екран, Escape закриває. На 320 × 568 воно 5rem (29j), ширше — 7rem. ──
   const preview = olya.locator('.jigsaw-play .jigsaw-preview-open');
   await preview.waitFor();
   const previewBox = (await olya.locator('.jigsaw-play .jigsaw-preview').boundingBox())!;
-  expect(Math.round(previewBox.width), 'the preview width (7rem)').toBe(112);
-  // На 320 × 568 шапка телефона, таймер і заголовок займають ~180 px: купка й до 29i була нижче краю екрана (прокрутка вниз),
-  // а рамка — цілком на екрані, щоб було куди класти.
+  expect(Math.round(previewBox.width), 'the preview width (5rem at 320×568)').toBe(80);
+  expect(Math.round((await taras.locator('.jigsaw-play .jigsaw-preview').boundingBox())!.width), 'the preview width (7rem at 375×812)').toBe(112);
+  // На 320 × 568 до 29j купка була нижче краю екрана (прокрутка вниз); щільніша обв'язка гравця тримає на екрані рамку й перший ряд купки.
   const frameBox = (await olya.locator('.jigsaw-play .jigsaw-frame').boundingBox())!;
   const pileBox = (await olya.locator('.jigsaw-play .jigsaw-pile').boundingBox())!;
-  console.log(`jigsaw 29i: 320×568 — the frame ${Math.round(frameBox.y)}…${Math.round(frameBox.y + frameBox.height)}, the pile ${Math.round(pileBox.y)}…${Math.round(pileBox.y + pileBox.height)}, page ${await olya.evaluate('document.documentElement.scrollHeight')}`);
+  const firstRow = (await olya.locator('.jigsaw-play .jigsaw-pile-row').first().boundingBox())!;
+  console.log(`jigsaw 29i: 320×568 — the frame ${Math.round(frameBox.y)}…${Math.round(frameBox.y + frameBox.height)}, the pile ${Math.round(pileBox.y)}…${Math.round(pileBox.y + pileBox.height)}, the first pile row bottom ${Math.round(firstRow.y + firstRow.height)}, page ${await olya.evaluate('document.documentElement.scrollHeight')}`);
   expect(frameBox.y + frameBox.height, 'the frame is on screen at 320×568').toBeLessThanOrEqual(568);
+  expect(firstRow.y + firstRow.height, 'the first pile row is on screen at 320×568').toBeLessThanOrEqual(568);
   if (process.env.E2E_SHOTS === '1') await sleep(600);
   await shot(olya, 'jigsaw29i-phone-preview');
   await preview.click();
@@ -28509,7 +28511,7 @@ async function toneOf29f(page: Page, cell: number): Promise<string> {
 }
 
 /** Телефон у справжньому PlayerScreen: без горизонтальної прокрутки, сітка цілком у вікні; висоти сторінки й вікна — у журнал. */
-async function expectMemoryFit29f(page: Page, name: string, { inView = true }: { inView?: boolean } = {}) {
+async function expectMemoryFit29f(page: Page, name: string) {
   const fit = (await page.evaluate(`(() => {
     const grid = document.querySelector('.memory-grid');
     const box = grid.getBoundingClientRect();
@@ -28527,9 +28529,9 @@ async function expectMemoryFit29f(page: Page, name: string, { inView = true }: {
   console.log(`memory 29f: ${name} — scrollHeight ${fit.docScrollH} vs clientHeight ${fit.docClientH} (body ${fit.bodyScrollH} vs ${fit.bodyClientH}), grid bottom ${Math.round(fit.gridBottom)} of ${fit.innerH}, card ${fit.card} px, scrollWidth ${fit.scrollW} vs ${fit.clientW}; lowest ${fit.lowest}; above the grid ${fit.above}`);
   expect(fit.scrollW, `${name}: horizontal scroll`).toBeLessThanOrEqual(fit.clientW);
   // Сама сітка цілком у вікні; сторінка ж гортається ще на «Гравців завершило…» і запас під нижню смугу (спільна рамка PlayerScreen): це в звіті.
-  // inView: false — сітка 4×5 на 320×568 не вміщається разом із шапкою PlayerScreen (див. звіт): міряємо лише цифри й що картки не менші за 60 px.
-  if (inView) expect(fit.gridBottom, `${name}: the grid reaches below the screen`).toBeLessThanOrEqual(fit.innerH);
-  else expect(fit.card, `${name}: cards stay a tap target`).toBeGreaterThanOrEqual(60);
+  // 29j: на 320×568 щільніша обв'язка гравця — уся сітка 4×5 (і в команді) у вікні, картки не менші за 52 px.
+  expect(fit.gridBottom, `${name}: the grid reaches below the screen`).toBeLessThanOrEqual(fit.innerH);
+  expect(fit.card, `${name}: cards stay a tap target`).toBeGreaterThanOrEqual(52);
   expect(fit.right, `${name}: the grid reaches past the right edge`).toBeLessThanOrEqual(fit.innerW);
   expect(fit.cut, `${name}: card texts cut`).toEqual([]);
 }
@@ -28933,7 +28935,7 @@ async function memoryTeams29f() {
   await sleep(500);
   expect(await taras.getByRole('button', { name: `Картка ${cell(1, 0) + 1}, закрита`, ...exact }).count(), 'a teammate’s tap while Olya moves').toBe(1);
   expect(await taras.locator('.memory-card.is-open').count()).toBe(1);
-  await expectMemoryFit29f(taras, 'memory 4×5 at 320×568, a card open', { inView: false });
+  await expectMemoryFit29f(taras, 'memory 4×5 at 320×568, a card open');
   // Суперники мають свою сітку: Петро картки Олі не бачить.
   expect(await closedCount29f(petro), 'a rival grid is untouched').toBe(20);
 
@@ -29010,7 +29012,7 @@ async function memoryTeams29f() {
   for (let pair = 3; pair < 10; pair++) await match29f(olya, q, pair);
   await taras.getByText(/^Усі пари знайдено за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   await expect.poll(() => stageCount('Соняшники'), POLL).toMatch(/^10 з 10 ✓ [\d,]+ с$/);
-  await expectMemoryFit29f(taras, 'memory 4×5 at 320×568, all found', { inView: false });
+  await expectMemoryFit29f(taras, 'memory 4×5 at 320×568, all found');
   await reveal28a(host);
   await stage.locator('.memory-stage.is-reveal .memory-table').waitFor();
   expect(await stage.locator('.memory-stage.is-reveal .memory-reveal-pair').count()).toBe(10);
@@ -29208,6 +29210,8 @@ async function expectMelodyFit29e(page: Page, name: string) {
   expect(new Set(fit.tops).size, `${name}: the ladder is one row`).toBe(1);
   expect(fit.lastRight, `${name}: the ladder reaches past the right edge`).toBeLessThanOrEqual(fit.innerW);
   expect(fit.split, `${name}: a ladder label breaks`).toEqual([]);
+  // 29j: на 320×568 кнопка «Відповісти» видна без прокрутки (і в команді).
+  if (fit.innerH <= 568 && fit.submitBottom !== null) expect(fit.submitBottom, `${name}: «Відповісти» below the screen`).toBeLessThanOrEqual(fit.innerH);
 }
 
 /** Сцена 1600 × 900: без прокрутки, плитки й (на розкритті) таблиця з рядками видимі цілком. */

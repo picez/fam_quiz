@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { Answer, Phase, Quiz } from '@quiz/shared';
+import { memoryLayout, type Answer, type Phase, type Quiz } from '@quiz/shared';
 import { activePick, answeredByOf, answererOf, nextAnswerer, pickAnswerer, queueNext, shownAnswerer, startAnswerers, upcomingPick } from './answerer';
 import { pickCell } from './board';
 import { chooserOf } from './board-turns';
 import { lock, next, pause, start, type GameState } from './game';
 import { pickContestant } from './ladder';
+import { melodyOpen } from './melody';
+import { memoryFlip } from './memory';
 import { trialOpen } from './survival';
 import { actAnswer, actorOf } from './team-act';
 import { dropMember, memberConnected } from './teams';
@@ -14,13 +16,17 @@ import {
   boardRound,
   classicRound,
   cloud,
+  jigsaw,
   ladderRound,
   makeRoundsQuiz,
+  melody,
+  memory,
   poll,
   puzzlesRound,
   single,
   sudoku,
   sortQ,
+  spotdiff,
   survivalQuestions,
   survivalRound,
   survivalTrials,
@@ -591,5 +597,87 @@ describe('answerer: who answered, for the recorder (12i)', () => {
     const s = toNextQuestion(game(teamQuiz(ROUNDS)));
     expect(answeredByOf(s, 0, 't1')).toBe('m1');
     expect(answeredByOf(s, 0, 't2')).toBe('m4');
+  });
+
+  it('melody: the member who sent the answer, also after the game moves on; a team without an answer — null', () => {
+    let s = toNextQuestion(game(teamQuiz([classicRound('c1', [melody, withId(single, 'q2')])], 2, 'captain')));
+    const t = s.startedAt! + 1000;
+    s = must(melodyOpen(s, 't1', 'm1', 0, 1, t));
+    // Петро (не капітан) відповідає за «Соняшники»
+    s = must(actAnswer(s, 'm2', { type: 'melody', value: 'Щедрик' }, t + 100));
+    expect(s.plays[0].answers.t1).toMatchObject({ accepted: true });
+    expect(answeredByOf(s, 0, 't1')).toBe('m2');
+    expect(answeredByOf(s, 0, 't2')).toBeNull();
+    // повтор іншим учасником відхилено — відповідач не змінюється
+    expect(actAnswer(s, 'm3', { type: 'melody', value: 'Щедрик' }, t + 200)).toEqual({ ok: false, error: 'already_answered' });
+    s = toNextQuestion(s);
+    expect(s.questionIndex).toBe(1);
+    expect(answeredByOf(s, 0, 't1')).toBe('m2');
+  });
+
+  it('melody: an old snapshot without the answer member — null, as before', () => {
+    let s = toNextQuestion(game(teamQuiz([classicRound('c1', [melody])], 2, 'captain')));
+    const t = s.startedAt! + 1000;
+    s = must(actAnswer(must(melodyOpen(s, 't1', 'm1', 0, 1, t)), 'm2', { type: 'melody', value: 'Щедрик' }, t + 100));
+    const { buzzers: _buzzers, ...old } = s.plays[0];
+    expect(answeredByOf({ ...s, plays: [old] }, 0, 't1')).toBeNull();
+  });
+
+  // Дошку завершує той, хто зробив останню дію (остання пара, шматочок, відмінність): він і «відповідач» рядка.
+  // Незавершена дошка — останній, хто щось знайшов чи поставив; ніхто нічого — null.
+  const boardsGame = () => toNextQuestion(game(teamQuiz([classicRound('c1', [memory, jigsaw, spotdiff, withId(single, 'q4')])], 2, 'captain')));
+  const memoryBoard = (by: string[], done: boolean) => ({ matched: by.flatMap((_, i) => [2 * i, 2 * i + 1]), by, open: null, shown: null, turn: null, moves: by.length, doneMs: done ? 5000 : null, seq: 1 });
+  const jigsawBoard = (by: string[], done: boolean) => ({ placed: by.map((_, i) => i), by, held: {}, doneMs: done ? 5000 : null, seq: 1 });
+  const spotdiffBoard = (by: string[], done: boolean) => ({ found: by.map((_, i) => i), by, misses: {}, frozenUntil: {}, doneMs: done ? 5000 : null, seq: 1 });
+
+  it('memory, jigsaw, spot-the-difference: the member who finished the board; unfinished — the last who found; nothing found — null', () => {
+    let s = boardsGame();
+    const at = (state: GameState, patch: Partial<GameState['plays'][number]>): GameState => ({
+      ...state,
+      plays: state.plays.map((p, i) => (i === state.questionIndex ? { ...p, ...patch } : p)),
+    });
+    expect(s.plays[s.questionIndex].question.type).toBe('memory');
+    let m = at(s, { memory: { boards: { t1: memoryBoard(['m1', 'm3', 'm2'], true), t2: memoryBoard(['m5', 'm4'], false) } } });
+    expect(answeredByOf(m, s.questionIndex, 't1')).toBe('m2');
+    expect(answeredByOf(m, s.questionIndex, 't2')).toBe('m4');
+    m = at(s, { memory: { boards: { t1: memoryBoard([], false) } } });
+    expect(answeredByOf(m, s.questionIndex, 't1')).toBeNull();
+    expect(answeredByOf(m, s.questionIndex, 't2')).toBeNull();
+
+    s = toNextQuestion(s);
+    expect(s.plays[s.questionIndex].question.type).toBe('jigsaw');
+    const j = at(s, { jigsaw: { boards: { t1: jigsawBoard(['m2', 'm1'], true), t2: jigsawBoard(['m4', 'm5'], false) } } });
+    expect(answeredByOf(j, s.questionIndex, 't1')).toBe('m1');
+    expect(answeredByOf(j, s.questionIndex, 't2')).toBe('m5');
+
+    s = toNextQuestion(s);
+    expect(s.plays[s.questionIndex].question.type).toBe('spotdiff');
+    const d = at(s, { spotdiff: { boards: { t1: spotdiffBoard(['m1', 'm3'], true), t2: spotdiffBoard([], false) } } });
+    expect(answeredByOf(d, s.questionIndex, 't1')).toBe('m3');
+    expect(answeredByOf(d, s.questionIndex, 't2')).toBeNull();
+  });
+
+  it('memory: a real board — the teammate who found the last pair; once the next question packs the boards — null (the row is already written)', () => {
+    let s = toNextQuestion(game(teamQuiz([classicRound('c1', [memory, withId(single, 'q2')])], 2, 'captain')));
+    const layout = memoryLayout(memory.pairs.length, memory.seed);
+    const t = s.startedAt! + 1000;
+    for (let pair = 0; pair < memory.pairs.length; pair++) {
+      const member = pair === memory.pairs.length - 1 ? 'm3' : 'm1';
+      const [a, b] = [layout.indexOf(2 * pair), layout.indexOf(2 * pair + 1)];
+      for (const cell of [a, b]) {
+        const flip = memoryFlip(s, 't1', member, 0, cell, t + pair * 10);
+        if (!flip.ok) throw new Error(flip.error);
+        s = flip.state;
+      }
+    }
+    expect(s.plays[0].answers.t1).toMatchObject({ accepted: true });
+    expect(answeredByOf(s, 0, 't1')).toBe('m3');
+    s = toNextQuestion(s);
+    expect(answeredByOf(s, 0, 't1')).toBeNull();
+  });
+
+  it('a solo board has no by: null', () => {
+    const solo = toNextQuestion(must(start(lobbyWith(makeRoundsQuiz([classicRound('c1', [memory])]), 'Оля', 'Петро'))));
+    expect(answeredByOf(solo, 0, 'p1')).toBeNull();
   });
 });
