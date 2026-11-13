@@ -2766,4 +2766,32 @@ describe('lighter snapshots (30c)', () => {
     expect(all.map((client) => client.states)).toEqual(before);
     for (const client of all) expect(typeof client.last?.endsAt).toBe('number');
   });
+
+  const extensions = (tracked: Tracked) =>
+    (tracked.socket.io.engine.transport as unknown as { ws?: { extensions?: string } }).ws?.extensions ?? '';
+
+  it('negotiates permessage-deflate on the websocket (30c)', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single, text]))).game;
+    const { host, olena } = await lobby(created);
+    await until(olena, inPhase('lobby'));
+    expect(extensions(host)).toContain('permessage-deflate');
+    expect(extensions(olena)).toContain('permessage-deflate');
+  });
+
+  it('SOCKET_DEFLATE=off keeps frames uncompressed and the lobby still arrives (30c)', async () => {
+    const plain = await buildApp({ db, auth: TEST_AUTH, socketDeflate: false });
+    await plain.app.listen({ port: 0, host: '127.0.0.1' });
+    const plainUrl = `http://127.0.0.1:${(plain.app.server.address() as AddressInfo).port}`;
+    try {
+      const created = (await startGame(plain.app, makeQuiz([single, text]))).game;
+      const socket: Client = connect(plainUrl, { auth: { code: created.code, role: 'host', token: created.hostToken }, transports: ['websocket'], reconnection: false });
+      sockets.push(socket);
+      const view = await new Promise<GameView>((resolve) => socket.on('state', resolve));
+      expect(view.phase).toBe('lobby');
+      const ws = (socket.io.engine.transport as unknown as { ws?: { extensions?: string } }).ws;
+      expect(ws?.extensions ?? '').toBe('');
+    } finally {
+      await plain.app.close();
+    }
+  });
 });

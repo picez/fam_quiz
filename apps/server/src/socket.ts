@@ -117,6 +117,11 @@ const UNCOUNTED_EVENTS: ReadonlySet<string> = new Set(['player:draw', 'player:so
  * 64 КБ — із запасом у десятки разів; довше повідомлення socket.io відкидає й закриває з'єднання (клієнт перепідключиться).
  */
 export const MAX_MESSAGE_BYTES = 64 * 1024;
+/**
+ * Стиснення кадрів WebSocket (30c): зріз — повторюваний JSON, а контекст між кадрами (типовий у ws) кодує незмінні частини
+ * попереднього зрізу посиланнями — наступний зріз важить сотню байтів замість кількох KB. Малі події (< 1 KB) — без стиснення.
+ */
+export const SOCKET_DEFLATE = { threshold: 1024 } as const;
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
@@ -153,6 +158,8 @@ function payloadOf(args: unknown[]): unknown {
 export interface SocketOptions {
   /** Як у Fastify: true — довіряти X-Forwarded-For повністю, число — кількість проксі перед сервером. */
   trustProxy?: boolean | number;
+  /** Стиснення кадрів (30c); типово увімкнено, вимикач — SOCKET_DEFLATE=off. */
+  deflate?: boolean;
   lookupsPerMinute?: number;
   /** Найкоротша пауза між пакетами host:drafts (12b); типово HOST_DRAFTS_MS. */
   draftsGapMs?: number;
@@ -185,7 +192,11 @@ export function attachSockets(
   locate: (code: string) => Promise<Located>,
   options: SocketOptions = {},
 ): GameServer {
-  const io: GameServer = new Server(server, { serveClient: false, maxHttpBufferSize: MAX_MESSAGE_BYTES });
+  const io: GameServer = new Server(server, {
+    serveClient: false,
+    maxHttpBufferSize: MAX_MESSAGE_BYTES,
+    perMessageDeflate: options.deflate === false ? false : SOCKET_DEFLATE,
+  });
   const perSecond = options.eventsPerSecond ?? SOCKET_EVENTS_PER_SECOND;
   /**
    * Сокети кімнати (30a): локальний покажчик замість перебору всіх сокетів процесу на кожну розсилку. Сокет потрапляє сюди,
