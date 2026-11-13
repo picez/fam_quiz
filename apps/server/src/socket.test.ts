@@ -2751,3 +2751,19 @@ describe('quest code over sockets (29g)', () => {
     expect(await send(olena, 'player:quest', { code: 'сова' })).toEqual({ ok: false, error: 'wrong_phase' });
   });
 });
+
+describe('lighter snapshots (30c)', () => {
+  it('an idle timed question sends no state: the clock counts from endsAt on the client', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([{ ...single, timeLimit: 30 }, text]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    for (const client of [host, stage, olena, taras]) await until(client, inPhase('question'));
+    await pause(300);
+    const all = [host, stage, olena, taras];
+    const before = all.map((client) => client.states);
+    await pause(2500);
+    expect(all.map((client) => client.states)).toEqual(before);
+    for (const client of all) expect(typeof client.last?.endsAt).toBe('number');
+  });
+});
