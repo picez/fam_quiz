@@ -2794,4 +2794,39 @@ describe('lighter snapshots (30c)', () => {
       await plain.app.close();
     }
   });
+
+  it('does not send a socket a state identical to the last one it got (30c)', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single, text]))).game;
+    const { host, stage, olena, taras } = await lobby(created);
+    await pause(200);
+    const all = [host, stage, olena, taras];
+    const counts = () => all.map((client) => client.states);
+    const before = counts();
+    const room = ctx.manager.get(created.code)!;
+    const emit = (ctx.manager as unknown as { emit(room: unknown, event: { type: 'changed' }): void }).emit.bind(ctx.manager);
+    emit(room, { type: 'changed' });
+    emit(room, { type: 'changed' });
+    // Кругообіг підтвердження: усе, що сервер надіслав до нього, уже прийшло.
+    expect(await send(host, 'host:team-deal')).toEqual(expect.objectContaining({ ok: false }));
+    expect(counts()).toEqual(before);
+
+    // Справжня зміна (новий гравець) — зрізи надходять; новий сокет отримує свій перший зріз одразу.
+    const iraJoin = await join(created.code, 'Ірина');
+    const ira = open({ code: created.code, role: 'player', token: iraJoin.token });
+    await until(ira, inPhase('lobby'));
+    await until(host, (view) => view.role === 'host' && view.players.length === 3);
+    expect(ira.states).toBeGreaterThanOrEqual(1);
+    counts().forEach((count, i) => expect(count).toBeGreaterThan(before[i]));
+  });
+
+  it('a reconnecting socket gets a full state even if nothing changed (30c)', async () => {
+    const created = (await startGame(ctx.app, makeQuiz([single, text]))).game;
+    const { olena, olenaJoin } = await lobby(created);
+    await pause(200);
+    olena.socket.close();
+    const again = open({ code: created.code, role: 'player', token: olenaJoin.token });
+    const view = await until(again, inPhase('lobby'));
+    expect(view.role).toBe('player');
+    expect(again.states).toBe(1);
+  });
 });

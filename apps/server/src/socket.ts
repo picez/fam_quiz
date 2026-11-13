@@ -87,6 +87,8 @@ interface SocketData {
   identity: Identity;
   /** Пульт: увімкнено «наживо» (12b); типово false — веб оголошує свій вибір одразу після підключення. */
   watch: boolean;
+  /** Останній надісланий зріз цього сокета разом із hostOnline і stageOnline (30c): однаковий не шлемо. Лише цей сокет. */
+  lastState?: string;
 }
 
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
@@ -259,11 +261,12 @@ export function attachSockets(
     try {
       const view = manager.view(room, identity);
       if (view !== null) {
-        socket.emit('state', view, {
-          serverNow: manager.now(),
-          hostOnline: manager.hostOnline(room),
-          stageOnline: manager.stageOnline(room),
-        });
+        const meta = { serverNow: manager.now(), hostOnline: manager.hostOnline(room), stageOnline: manager.stageOnline(room) };
+        // 30c: зріз, однаковий з попереднім для цього ж сокета, не шлемо (serverNow не порівнюємо — він різний завжди).
+        const key = JSON.stringify([view, meta.hostOnline, meta.stageOnline]);
+        if (socket.data.lastState === key) return;
+        socket.data.lastState = key;
+        socket.emit('state', view, meta);
       }
     } catch (error) {
       reportError(error, { where: 'socket-push', room: room.code, role: identity.role });
