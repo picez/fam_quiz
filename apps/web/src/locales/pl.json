@@ -1222,6 +1222,7 @@
   "err_request_approved": "Prośba jest już potwierdzona.",
   "err_request_rejected": "Prowadzący już odrzucił prośbę.",
   "err_restarting": "Serwer się restartuje. Spróbuj za kilka sekund.",
+  "err_internal": "Na serwerze wystąpił błąd, akcja nie została wykonana. Spróbuj jeszcze raz.",
   "err_resume_invalid": "Sprawdź rundę i punkty.",
   "err_room_full": "W pokoju jest już maksymalna liczba graczy.",
   "err_self_follow": "Nie można dodać siebie do znajomych.",
