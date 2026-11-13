@@ -10,6 +10,7 @@ import type { SavedGameData } from './rooms/continuation';
 import type { Room, RoomManager } from './rooms/manager';
 import { prizeOutcome } from './rooms/prizes';
 import { creditGame } from './xp-store';
+import { guarded, reportError } from './log';
 
 /** Транзакція бази. */
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -524,7 +525,7 @@ const MAX_RETRY_DELAY_MS = 60_000;
 export function attachRecorder(
   manager: RoomManager,
   db: Db,
-  onError: (error: unknown) => void = (error) => console.error('Не вдалося зберегти гру:', error),
+  onError: (error: unknown) => void = (error) => reportError(error, { where: 'recorder' }),
   retryMs = 5000,
   maxRetries = 30,
 ): Recorder {
@@ -674,7 +675,7 @@ export function attachRecorder(
           }
           return;
         }
-        const timer = setTimeout(() => record(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry' }, () => record(room)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {
@@ -711,7 +712,7 @@ export function attachRecorder(
           failures.delete(room.id);
           return;
         }
-        const timer = setTimeout(() => persistSaved(room, saved), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry-saved' }, () => persistSaved(room, saved)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {
@@ -735,7 +736,7 @@ export function attachRecorder(
           failures.delete(room.id);
           return;
         }
-        const timer = setTimeout(() => releaseLater(room), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
+        const timer = setTimeout(guarded({ where: 'recorder', room: room.code, what: 'retry-release' }, () => releaseLater(room)), Math.min(retryMs * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS));
         timer.unref();
       })
       .then(() => {

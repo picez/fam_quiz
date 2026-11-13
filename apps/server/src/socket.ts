@@ -80,6 +80,7 @@ import type { HostAction } from './rooms/manager';
 import { Server, type Socket } from 'socket.io';
 import type { Identity, Room, RoomManager } from './rooms/manager';
 import type { Located } from './rooms/store';
+import { guarded, reportError } from './log';
 
 interface SocketData {
   room: Room;
@@ -96,6 +97,26 @@ const ROOM_CODE = /^\d{6}$/;
 const FORBIDDEN: AckResult = { ok: false, error: 'forbidden' };
 const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
+/** Обробник події впав (30a): дію не виконано, стан кімнати — той, що був до неї. */
+const INTERNAL: AckResult = { ok: false, error: 'internal' };
+/** Загальний ліміт сокета вичерпано (30a); окремо від too_soon спецлімітів і темпу гри. */
+const RATE_LIMITED: AckResult = { ok: false, error: 'rate_limited' };
+/**
+ * Загальний ліміт подій одного сокета (30a): не більше стількох за вікно 1000 мс; понад — rate_limited без виклику обробника й без розсилки.
+ * Чесний телефон шле кілька подій на секунду; спецліміти подій (чернетки, «Пазл», «Пам'ять», …) лишаються своїми й суворішими.
+ */
+export const SOCKET_EVENTS_PER_SECOND = 20;
+/**
+ * Потоки, що законно частіші за загальний ліміт і мають власний дросель на сервері: операції художника (DRAW_OPS_PER_SECOND = 25)
+ * і нахил картки сортування (SORT_TILT_GAP_MS = 80 мс). У загальне вікно вони не рахуються.
+ */
+const UNCOUNTED_EVENTS: ReadonlySet<string> = new Set(['player:draw', 'player:sort-tilt']);
+/**
+ * Найбільше повідомлення від клієнта (30a; maxHttpBufferSize socket.io, типово 1 МБ). Найбільша законна подія — операція художника
+ * «Малюнка» (28c): до LIMITS.drawBatch = 64 точок, тобто 128 чисел до 1000, менше 1 КБ; решта подій — кілька сотень байтів.
+ * 64 КБ — із запасом у десятки разів; довше повідомлення socket.io відкидає й закриває з'єднання (клієнт перепідключиться).
+ */
+export const MAX_MESSAGE_BYTES = 64 * 1024;
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
@@ -104,7 +125,12 @@ const SIMPLE_HOST_ACTIONS = ['lock', 'next', 'pause', 'resume', 'end-round', 'en
 /** Клієнт міг не передати функцію підтвердження або передати на її місці що завгодно. */
 function reply(args: unknown[], result: AckResult): void {
   const ack = args.at(-1);
-  if (typeof ack === 'function') ack(result);
+  if (typeof ack !== 'function') return;
+  try {
+    ack(result);
+  } catch (error) {
+    reportError(error, { where: 'socket-ack' });
+  }
 }
 
 /**
@@ -132,6 +158,8 @@ export interface SocketOptions {
   draftsGapMs?: number;
   /** Найкоротша пауза між зрізами кімнати від пакетів клітинок «Головоломок» (28d); типово PUZZLE_PUSH_MS. */
   puzzleGapMs?: number;
+  /** Загальний ліміт подій сокета за секунду (30a); типово SOCKET_EVENTS_PER_SECOND. */
+  eventsPerSecond?: number;
 }
 
 /** Вікно злиття зрізів від пакетів клітинок (28d): телефон шле пакет раз на 250 мс, тож на кімнату — не частіше. */
@@ -157,7 +185,15 @@ export function attachSockets(
   locate: (code: string) => Promise<Located>,
   options: SocketOptions = {},
 ): GameServer {
-  const io: GameServer = new Server(server, { serveClient: false });
+  const io: GameServer = new Server(server, { serveClient: false, maxHttpBufferSize: MAX_MESSAGE_BYTES });
+  const perSecond = options.eventsPerSecond ?? SOCKET_EVENTS_PER_SECOND;
+  /**
+   * Сокети кімнати (30a): локальний покажчик замість перебору всіх сокетів процесу на кожну розсилку. Сокет потрапляє сюди,
+   * лише коли з'єднання прийнято (connection), і виходить на disconnect; кімната сокета не змінюється.
+   */
+  const byRoom = new Map<Room, Set<GameSocket>>();
+  /** Знімок: розсилка може розірвати з'єднання (disconnect змінює покажчик посеред перебору). */
+  const roomSockets = (room: Room): GameSocket[] => [...(byRoom.get(room) ?? [])];
   const trust = options.trustProxy ?? false;
   const allowed = options.lookupsPerMinute ?? LOOKUPS_PER_MINUTE;
   /** Пошуки в базі за адресою у поточному вікні; вікно спливає — лічильник з нуля. */
@@ -175,6 +211,16 @@ export function attachSockets(
   };
 
   io.use(async (socket, next) => {
+    try {
+      await handshake(socket, next);
+    } catch (error) {
+      // Збій під час рукостискання (30a): клієнт перепідключиться пізніше, процес живий.
+      reportError(error, { where: 'socket-handshake' });
+      next(new Error('restarting'));
+    }
+  });
+
+  async function handshake(socket: GameSocket, next: (error?: Error) => void): Promise<void> {
     const auth = socketAuthSchema.safeParse(socket.handshake.auth);
     if (!auth.success) return next(new Error('unauthorized'));
     // Коди кімнат — шість цифр: інший рядок не існує, і базу за ним не питаємо.
@@ -194,25 +240,29 @@ export function attachSockets(
     socket.data.room = found.room;
     socket.data.identity = found.identity;
     next();
-  });
+  }
 
+  /** Зріз одному сокету; збій зрізу (30a) — у журнал, а розсилка іде далі іншим сокетам. */
   const push = (socket: GameSocket) => {
     const { room, identity } = socket.data;
-    const view = manager.view(room, identity);
-    if (view !== null) {
-      socket.emit('state', view, {
-        serverNow: manager.now(),
-        hostOnline: manager.hostOnline(room),
-        stageOnline: manager.stageOnline(room),
-      });
+    try {
+      const view = manager.view(room, identity);
+      if (view !== null) {
+        socket.emit('state', view, {
+          serverNow: manager.now(),
+          hostOnline: manager.hostOnline(room),
+          stageOnline: manager.stageOnline(room),
+        });
+      }
+    } catch (error) {
+      reportError(error, { where: 'socket-push', room: room.code, role: identity.role });
     }
   };
 
   const gap = options.draftsGapMs ?? HOST_DRAFTS_MS;
   /** Пакети живих виборів (12b) за кімнатою: мить останнього й таймер наступного. */
   const batches = new Map<Room, { last: number; timer: ReturnType<typeof setTimeout> | null }>();
-  const watchers = (room: Room) =>
-    [...io.sockets.sockets.values()].filter((s) => s.data.room === room && s.data.identity.role === 'host' && s.data.watch);
+  const watchers = (room: Room) => roomSockets(room).filter((s) => s.data.identity.role === 'host' && s.data.watch);
   const flushDrafts = (room: Room, to: GameSocket[]) => {
     const batch = manager.liveDrafts(room);
     for (const s of to) s.emit('host:drafts', batch);
@@ -235,20 +285,22 @@ export function attachSockets(
       flushDrafts(room, to);
       return;
     }
-    entry.timer = setTimeout(() => {
-      entry.timer = null;
-      if (manager.get(room.code) !== room) return dropDrafts(room);
-      const later = watchers(room);
-      if (later.length === 0) return;
-      entry.last = Date.now();
-      flushDrafts(room, later);
-    }, wait);
+    entry.timer = setTimeout(
+      guarded({ where: 'socket-timer', room: room.code, what: 'drafts' }, () => {
+        entry.timer = null;
+        if (manager.get(room.code) !== room) return dropDrafts(room);
+        const later = watchers(room);
+        if (later.length === 0) return;
+        entry.last = Date.now();
+        flushDrafts(room, later);
+      }),
+      wait,
+    );
   };
 
   const puzzleGap = options.puzzleGapMs ?? PUZZLE_PUSH_MS;
   /** Зрізи від пакетів клітинок (28d) за кімнатою: мить останньої розсилки й таймер замикальної. */
   const puzzlePushes = new Map<Room, { last: number; timer: ReturnType<typeof setTimeout> | null }>();
-  const roomSockets = (room: Room) => [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
   const dropPuzzle = (room: Room) => {
     const entry = puzzlePushes.get(room);
     if (entry?.timer) clearTimeout(entry.timer);
@@ -274,13 +326,16 @@ export function attachSockets(
       scheduleDrafts(room);
       return;
     }
-    entry.timer = setTimeout(() => {
-      entry.timer = null;
-      if (manager.get(room.code) !== room) return dropPuzzle(room);
-      entry.last = Date.now();
-      roomSockets(room).forEach(push);
-      scheduleDrafts(room);
-    }, wait);
+    entry.timer = setTimeout(
+      guarded({ where: 'socket-timer', room: room.code, what: 'puzzle' }, () => {
+        entry.timer = null;
+        if (manager.get(room.code) !== room) return dropPuzzle(room);
+        entry.last = Date.now();
+        roomSockets(room).forEach(push);
+        scheduleDrafts(room);
+      }),
+      wait,
+    );
   };
 
   manager.onEvent((room, event) => {
@@ -288,10 +343,10 @@ export function attachSockets(
       // Чернетка капітана — решті команди автора зрізом (10j): ні автору, ні сцені, ні іншим командам.
       // Соло-чернетка нікому, крім пульта, — без перебору сокетів.
       if (event.teammates) {
-        [...io.sockets.sockets.values()]
+        roomSockets(room)
           .filter((socket) => {
             const { role, playerId } = socket.data.identity;
-            return socket.data.room === room && role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.id;
+            return role === 'player' && playerId !== null && playerId !== event.by && teamOf(room.state, playerId) === event.id;
           })
           .forEach(push);
       }
@@ -301,7 +356,7 @@ export function attachSockets(
     }
     // Лайк (17a) — справа attachLikes; телефони дізнаються з наступного changed. Без перебору сокетів.
     if (event.type === 'like') return;
-    const members = [...io.sockets.sockets.values()].filter((socket) => socket.data.room === room);
+    const members = roomSockets(room);
     if (event.type === 'changed') {
       if (event.puzzle === true) {
         // Пакет клітинок (28d): ack уже синхронний, тож зрізи кімнати зливаються в замикальному вікні.
@@ -388,22 +443,59 @@ export function attachSockets(
       return;
     }
     socket.data.watch = false;
-    manager.connect(room, identity);
-    // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу —
-    // раніше за перший зріз: клієнт зі скинутою моделлю, побачивши в зрізі rev, інакше попросив би draw:sync удруге.
-    const sketch = manager.drawSnapshot(room);
-    if (sketch !== null) socket.emit('drawing', sketch);
-    push(socket);
-    // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде (пульт — лише з «наживо»).
-    for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
-    socket.on('disconnect', () => manager.disconnect(room, identity));
+    const joined = byRoom.get(room) ?? new Set<GameSocket>();
+    byRoom.set(room, joined);
+    joined.add(socket);
+    const context = { where: 'socket', room: room.code, role: identity.role };
+    socket.on('disconnect', () => {
+      joined.delete(socket);
+      if (joined.size === 0 && byRoom.get(room) === joined) byRoom.delete(room);
+      try {
+        manager.guard(room, () => manager.disconnect(room, identity));
+      } catch (error) {
+        reportError(error, { ...context, event: 'disconnect' });
+      }
+    });
+    try {
+      manager.guard(room, () => manager.connect(room, identity));
+      // Малюнок (28c): зрізи несуть лише метадані, тож щойно підключений (і перепідключений) отримує всі штрихи одразу —
+      // раніше за перший зріз: клієнт зі скинутою моделлю, побачивши в зрізі rev, інакше попросив би draw:sync удруге.
+      const sketch = manager.drawSnapshot(room);
+      if (sketch !== null) socket.emit('drawing', sketch);
+      push(socket);
+      // Щойно підключений бачить і нахил, що вже діє: палець може стояти, тож нового нахилу не буде (пульт — лише з «наживо»).
+      for (const tilt of manager.liveTilts(room)) if (seesTilt(socket, room, tilt)) socket.emit('sort:tilt', tilt.tilt);
+    } catch (error) {
+      reportError(error, { ...context, event: 'connect' });
+    }
+
+    /** Загальне вікно частоти сокета (30a): початок і кількість подій у ньому. */
+    let budget = { from: -Infinity, count: 0 };
+    const withinBudget = (event: string): boolean => {
+      if (UNCOUNTED_EVENTS.has(event)) return true;
+      const now = Date.now();
+      if (now - budget.from >= 1000) budget = { from: now, count: 0 };
+      if (budget.count >= perSecond) return false;
+      budget.count += 1;
+      return true;
+    };
 
     // Обробники приймають довільні аргументи: типи подій описують чесного клієнта, а не будь-якого.
+    // Обгортка (30a): спершу загальний ліміт сокета, потім обробник; виняток обробника — у журнал і ack internal, а не вгору
+    // (там він поклав би процес). Стан кімнати manager.guard повертає до знімка перед дією.
     const on = (event: keyof ClientToServerEvents, handler: (args: unknown[]) => AckResult) => {
-      (socket as unknown as { on(event: string, listener: (...args: unknown[]) => void): void }).on(
-        event,
-        (...args) => reply(args, handler(args)),
-      );
+      (socket as unknown as { on(event: string, listener: (...args: unknown[]) => void): void }).on(event, (...args) => {
+        if (!withinBudget(event)) return reply(args, RATE_LIMITED);
+        let result: AckResult;
+        try {
+          // Відкат (manager.guard): збій посеред дії не лишає нового стану без розсилки й запису, а клієнт бачить «не виконано».
+          result = manager.guard(room, () => handler(args));
+        } catch (error) {
+          reportError(error, { ...context, event });
+          result = INTERNAL;
+        }
+        reply(args, result);
+      });
     };
     const isHost = identity.role === 'host';
     // Хто доходить до обробників host:*: пульт; у грі без ведучого — і гравець (manager.author відповідає not_allowed чужим і зайвим діям).

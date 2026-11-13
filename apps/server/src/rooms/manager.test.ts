@@ -12,6 +12,7 @@ import {
   LOBBY_TTL_MS,
   PACE_GRACE_MS,
   RoomManager,
+  rateOf,
   type Identity,
   type Room,
   type RoomEvent,
@@ -807,11 +808,11 @@ describe('drawing (28c)', () => {
     const { manager, room, olya, taras } = drawingRoom();
     expect(manager.draw(room, olya.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: true });
     expect(manager.drawGuess(room, olya.playerId, 'маяк')).toEqual({ ok: false, error: 'drawing_own' });
-    expect(room.drawRate.has(olya.playerId)).toBe(true);
-    expect(room.drawGuessRate.has(olya.playerId)).toBe(true);
+    expect(rateOf(room, 'draw').has(olya.playerId)).toBe(true);
+    expect(rateOf(room, 'drawGuess').has(olya.playerId)).toBe(true);
     expect(manager.host(room, { type: 'kick', playerId: olya.playerId })).toEqual({ ok: true });
-    expect(room.drawRate.has(olya.playerId)).toBe(false);
-    expect(room.drawGuessRate.has(olya.playerId)).toBe(false);
+    expect(rateOf(room, 'draw').has(olya.playerId)).toBe(false);
+    expect(rateOf(room, 'drawGuess').has(olya.playerId)).toBe(false);
     expect(room.state.plays[0].drawing?.drawerId).toBeNull();
     expect(manager.draw(room, taras.playerId, { op: 'begin', c: 0, w: 0, p: [1, 1] })).toEqual({ ok: false, error: 'drawing_not_drawer' });
   });

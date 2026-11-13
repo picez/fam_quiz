@@ -1,6 +1,7 @@
 import type { Db } from './db/client';
 import type { Room, RoomManager } from './rooms/manager';
 import { roomLevels } from './xp-store';
+import { reportError } from './log';
 
 /**
  * Рівні акаунтів у кімнаті (15a), як attachTitles: на changed акаунти room.playerUsers, яких ця кімната ще не питала, → roomLevels → manager.setLevels.
@@ -9,7 +10,7 @@ import { roomLevels } from './xp-store';
 export function attachLevels(
   manager: RoomManager,
   db: Db,
-  onError: (error: unknown) => void = (error) => console.error('Не вдалося прочитати рівні:', error),
+  onError: (error: unknown) => void = (error) => reportError(error, { where: 'levels' }),
 ): { idle(): Promise<void> } {
   const asked = new WeakMap<Room, Set<string>>();
   const pending = new Set<Promise<void>>();

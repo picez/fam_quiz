@@ -3,6 +3,7 @@ import { AUDIO_LIMITS, IMAGE_LIMITS } from '@quiz/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
 import { EXTENSIONS, isAudioName, isMediaName, sniffAudio, sniffImage, stripMp3Tags, type ImageStorage, type MediaType } from './storage/images';
+import { reportError } from './log';
 
 export interface UploadDeps {
   storage: ImageStorage;
@@ -37,6 +38,8 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
         if (error.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(kind.tooLarge);
         if (error.code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE') return reply.code(400).send(kind.bad);
         if (error.statusCode === 429) return reply.code(429).send({ error: 'too_many' });
+        // Тіло відповіді — не помилка, тож хук onError (app.ts) її не побачить: звіт тут (30a).
+        reportError(error, { where: 'http', event: `POST ${path}` });
         return reply.code(500).send({ error: 'unknown' });
       });
 
@@ -60,7 +63,7 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
         try {
           await storage.put(name, stored, type);
         } catch (error) {
-          console.error('Upload failed:', error instanceof Error ? error.message : error);
+          reportError(error, { where: 'upload' });
           return reply.code(503).send(UNAVAILABLE);
         }
         return reply.code(201).send({ url: `/uploads/${name}` });
@@ -105,7 +108,7 @@ export async function registerUploadRoutes(app: FastifyInstance, deps: UploadDep
     try {
       media = await load(name);
     } catch (error) {
-      console.error('Upload read failed:', error instanceof Error ? error.message : error);
+      reportError(error, { where: 'upload-read' });
       return reply.code(503).send(UNAVAILABLE);
     }
     if (media === null) return reply.code(404).send(NOT_FOUND);

@@ -1,7 +1,7 @@
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { joinSchema, type CodeInfo } from '@quiz/shared';
-import Fastify from 'fastify';
+import Fastify, { LogController, type FastifyBaseLogger } from 'fastify';
 import { CODE_LIMIT, registerAccountRoutes } from './account-routes';
 import { createAuth, type AuthOptions } from './auth';
 import type { Db } from './db/client';
@@ -31,6 +31,7 @@ import { registerUploadRoutes } from './upload-routes';
 import { registerWordLadderRoutes } from './wordladder-routes';
 import { registerLetterWordsRoutes } from './letterwords-routes';
 import { lazyNouns, type NounDictionary } from './wordladder/nouns';
+import { log, reportError } from './log';
 
 export interface AppOptions {
   db: Db;
@@ -87,7 +88,7 @@ export async function buildApp(options: AppOptions) {
     try {
       return await store.locate(code);
     } catch (error) {
-      console.error('Не вдалося знайти кімнату в базі:', error);
+      log.error({ err: error, room: code }, 'Не вдалося знайти кімнату в базі');
       return 'restarting';
     }
   };
@@ -95,7 +96,16 @@ export async function buildApp(options: AppOptions) {
   const maxRooms = options.maxRooms ?? DEFAULT_MAX_ROOMS;
   // Fastify приймає й кількість проксі; з об'єднаним типом його оголошення вибирають не той вид сервера.
   const trustProxy = (options.trustProxy ?? false) as boolean;
-  const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT });
+  // Журнал (30a): той самий pino, що й у решти сервера (log.ts), рівень з LOG_LEVEL. Запити по одному не журналюються
+  // (статика й опитування socket.io засипали б журнал). disableRequestLogging вимикає й власний журнал помилок Fastify,
+  // тому 5xx пише хук onError нижче.
+  const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT, loggerInstance: log as FastifyBaseLogger, logController: new LogController({ disableRequestLogging: true }) });
+  // Помилки 5xx (30a): у reportError з маршрутом, без IP і тіла запиту; відповідь — звичайна відповідь Fastify на помилку.
+  // Хук іде після обробника помилок, тож код відповіді вже стоїть; власні обробники (upload-routes) звітують самі.
+  app.addHook('onError', async (request, reply, error) => {
+    const status = reply.statusCode >= 400 ? reply.statusCode : ((error as { statusCode?: number }).statusCode ?? 500);
+    if (status >= 500) reportError(error, { where: 'http', event: `${request.method} ${request.routeOptions.url ?? 'unknown'}` });
+  });
   if (store !== null) app.addHook('onClose', async () => store.stop());
   await app.register(rateLimit, { global: false });
 
@@ -127,7 +137,7 @@ export async function buildApp(options: AppOptions) {
   await registerFeedRoutes(app, { db: options.db, currentUser });
   await registerWordLadderRoutes(app, { nouns, currentUser });
   await registerLetterWordsRoutes(app, { nouns, currentUser });
-  const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => console.error(message, error) });
+  const push = options.push === undefined ? null : createPushService({ db: options.db, ...options.push, log: (message, error) => log.error({ err: error }, message) });
   const notifiers = [options.calendarNotify, push?.calendarNotify].filter((n): n is CalendarNotify => n !== undefined);
   const calendarNotify: CalendarNotify | undefined =
     notifiers.length === 0
@@ -138,7 +148,7 @@ export async function buildApp(options: AppOptions) {
         };
   await registerPushRoutes(app, { db: options.db, service: push, currentUser });
   await registerCalendarRoutes(app, { db: options.db, manager, maxRooms, currentUser, notify: calendarNotify });
-  const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => console.error('Нагадування не вдалося:', error));
+  const stopReminders = push === null ? () => undefined : startPushReminders(push, undefined, (error) => reportError(error, { where: 'push-reminders' }));
   const stopPrune = startFeedPrune(options.db);
   await registerSavedGameRoutes(app, { db: options.db, manager, locate, currentUser, maxRooms, gate });
 

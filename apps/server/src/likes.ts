@@ -1,6 +1,7 @@
 import type { Db } from './db/client';
 import { roomLikes, saveLike, type LikeChange } from './like-store';
 import type { Room, RoomManager } from './rooms/manager';
+import { reportError } from './log';
 
 /**
  * Лайки кімнати (17a), як attachLevels:
@@ -13,7 +14,7 @@ import type { Room, RoomManager } from './rooms/manager';
 export function attachLikes(
   manager: RoomManager,
   db: Db,
-  onError: (error: unknown) => void = (error) => console.error('Не вдалося записати чи прочитати лайки:', error),
+  onError: (error: unknown) => void = (error) => reportError(error, { where: 'likes' }),
 ): { idle(): Promise<void> } {
   const asked = new WeakMap<Room, Set<string>>();
   const queues = new WeakMap<Room, Promise<void>>();

@@ -1,6 +1,7 @@
 import type { Db } from './db/client';
 import { currentTitles } from './prizes';
 import type { Room, RoomManager } from './rooms/manager';
+import { reportError } from './log';
 
 /**
  * Титули акаунтів у кімнаті (14a). На changed: акаунти room.playerUsers, яких ця кімната ще не питала, → currentTitles → manager.setTitles.
@@ -9,7 +10,7 @@ import type { Room, RoomManager } from './rooms/manager';
 export function attachTitles(
   manager: RoomManager,
   db: Db,
-  onError: (error: unknown) => void = (error) => console.error('Не вдалося прочитати титули:', error),
+  onError: (error: unknown) => void = (error) => reportError(error, { where: 'titles' }),
 ): { idle(): Promise<void> } {
   const asked = new WeakMap<Room, Set<string>>();
   const pending = new Set<Promise<void>>();

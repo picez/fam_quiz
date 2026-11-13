@@ -22,13 +22,14 @@ import type { Db } from './db/client';
 import { game, participant, profile, quiz, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { capXp, gameXp, kyivDay, type XpAward } from './xp-rules';
+import { reportError } from './log';
 
 /** Скільки ігор ретро й наздоганяння читає за раз. */
 const BATCH = 20;
 
 const KNOWN: ReadonlySet<string> = new Set(ACHIEVEMENTS);
 
-const logError = (error: unknown) => console.error('Не вдалося нарахувати досвід:', error);
+const logError = (error: unknown) => reportError(error, { where: 'xp' });
 
 /** Автор вікторини гри; вікторину видалено (чи її не було) — ведучий гри, що й був автором: правило author діє й далі. */
 const authorOf = sql<string>`coalesce(${quiz.ownerId}, ${game.hostId})`;

@@ -25,7 +25,7 @@ import { ANSWERER_PICKS_PER_SECOND, defaultTeams, type AckResult, type AnswererM
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { startTeamGame } from '../testing/team-game';
 import { TRIAL_RIGHT } from '../testing/survival-game';
-import { RoomManager, type Identity, type Room } from './manager';
+import { RoomManager, rateOf, type Identity, type Room } from './manager';
 
 const HOST: Identity = { role: 'host', playerId: null };
 const RIGHT = { type: 'single', optionId: 'b' } as const;
@@ -249,15 +249,15 @@ describe('player:pick-answerer in a room (12g)', () => {
     expect(manager.pickAnswerer(room, marko, nata, 'question')).toEqual({ ok: true });
     scheduler.advance(1000);
     expect(manager.pickAnswerer(room, olya, petro, 'question')).toEqual({ ok: true });
-    expect(room.pickRate.has(olya)).toBe(true);
+    expect(rateOf(room, 'pick').has(olya)).toBe(true);
     expect(manager.host(room, { type: 'kick', playerId: olya })).toEqual({ ok: true });
-    expect(room.pickRate.has(olya)).toBe(false);
+    expect(rateOf(room, 'pick').has(olya)).toBe(false);
   });
 
   it('a stranger opens no rate window', () => {
     const { manager, room } = teamRoom([classicRound('r1', [single])], 'chosen');
     expect(manager.pickAnswerer(room, 'nobody', null, 'question')).toEqual({ ok: false, error: 'not_found' });
-    expect(room.pickRate.has('nobody')).toBe(false);
+    expect(rateOf(room, 'pick').has('nobody')).toBe(false);
   });
 });
 

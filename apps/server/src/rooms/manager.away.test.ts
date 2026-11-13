@@ -3,7 +3,7 @@ import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testi
 import { AWAY_EVENTS_PER_SECOND, AWAY_MS, defaultTeams, SPLASH_MS, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { startTeamGame } from '../testing/team-game';
-import { RoomManager, type Identity, type Room, type RoomEvent } from './manager';
+import { RoomManager, rateOf, type Identity, type Room, type RoomEvent } from './manager';
 
 const HOST: Identity = { role: 'host', playerId: null };
 const right = { type: 'single', optionId: 'b' } as const;
@@ -451,6 +451,6 @@ describe('player:away in a room (12e)', () => {
     expect(manager.host(room, { type: 'kick', playerId: olena.playerId })).toEqual({ ok: true });
     expect(room.hidden.has(olena.playerId)).toBe(false);
     expect(room.gaps.has(olena.playerId)).toBe(false);
-    expect(room.awayRate.has(olena.playerId)).toBe(false);
+    expect(rateOf(room, 'away').has(olena.playerId)).toBe(false);
   });
 });

@@ -1222,6 +1222,8 @@
   "err_request_approved": "La solicitud ya está confirmada.",
   "err_request_rejected": "El presentador ya ha rechazado la solicitud.",
   "err_restarting": "El servidor se está reiniciando. Prueba dentro de unos segundos.",
+  "err_internal": "Ha habido un error en el servidor y la acción no se ha hecho. Inténtalo otra vez.",
+  "err_rate_limited": "Demasiadas acciones seguidas: espera un segundo.",
   "err_resume_invalid": "Revisa la ronda y los puntos.",
   "err_room_full": "La sala ya tiene el máximo de jugadores.",
   "err_self_follow": "No puedes añadirte a ti mismo como amigo.",

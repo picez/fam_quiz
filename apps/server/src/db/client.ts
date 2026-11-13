@@ -4,13 +4,14 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import pg from 'pg';
 import * as schema from './schema';
+import { log } from '../log';
 
 /** База, однакова для node-postgres у роботі та PGlite у тестах. */
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export const MIGRATIONS = resolve(import.meta.dirname, '../../drizzle');
 
-const logError = (error: Error) => console.error('Database connection error:', error.message);
+const logError = (error: Error) => log.error({ err: error }, 'Database connection error');
 
 export function createPool(url: string, onError: (error: Error) => void = logError): pg.Pool {
   const pool = new pg.Pool({ connectionString: url });

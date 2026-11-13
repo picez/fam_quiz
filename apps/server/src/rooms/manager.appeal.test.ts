@@ -4,7 +4,7 @@ import { GAME_STATE_VERSION } from '@quiz/engine';
 import { APPEAL_MS, APPEAL_VOTES_PER_SECOND, AUTOPILOT_MS, defaultTeams, type Quiz } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { startTeamGame } from '../testing/team-game';
-import { RoomManager, isSavedRoom, type Identity, type Room } from './manager';
+import { RoomManager, isSavedRoom, rateOf, type Identity, type Room } from './manager';
 
 const HOST: Identity = { role: 'host', playerId: null };
 const right = { type: 'single', optionId: 'b' } as const;
@@ -121,14 +121,14 @@ describe('player:appeal and player:appeal-vote in a room (12f)', () => {
     expect(manager.appeal(room, olya, 'grade')).toEqual({ ok: true });
     for (let i = 0; i < APPEAL_VOTES_PER_SECOND; i++) expect(manager.appealVote(room, petro, 1, i % 2 === 0)).toEqual({ ok: true });
     expect(manager.appealVote(room, petro, 1, true)).toEqual({ ok: false, error: 'too_soon' });
-    expect(room.appealRate.get(petro)?.count).toBe(APPEAL_VOTES_PER_SECOND);
+    expect(rateOf(room, 'appeal').get(petro)?.count).toBe(APPEAL_VOTES_PER_SECOND);
     scheduler.advance(1000);
     expect(manager.appealVote(room, petro, 1, true)).toEqual({ ok: true });
     expect(host({ type: 'kick', playerId: petro })).toEqual({ ok: true });
-    expect(room.appealRate.has(petro)).toBe(false);
+    expect(rateOf(room, 'appeal').has(petro)).toBe(false);
     // Голос вилученого — not_found, і вікно частоти для нього не заводиться.
     expect(manager.appealVote(room, petro, 1, true)).toEqual({ ok: false, error: 'not_found' });
-    expect(room.appealRate.has(petro)).toBe(false);
+    expect(rateOf(room, 'appeal').has(petro)).toBe(false);
   });
 
   it('in a team game the captain appeals and members of the other team vote one by one', () => {

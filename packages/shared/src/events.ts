@@ -21,7 +21,8 @@ import type { GameView } from './views';
 
 export type Role = 'host' | 'stage' | 'player';
 
-export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found' | 'restarting';
+/** internal (30a) — обробник події сервера впав; стан гри лишився тим, що був до події. rate_limited (30a) — вичерпано загальний ліміт подій сокета. */
+export type ServerErrorCode = 'unauthorized' | 'forbidden' | 'invalid_payload' | 'game_not_found' | 'restarting' | 'internal' | 'rate_limited';
 
 /** index — з list_repeat (27c): номер уже знайденого пункту (від 1); з moreless_stale (28a): скільки порівнянь сервер уже має (done). */
 export type AckResult = { ok: true } | { ok: false; error: ErrorCode | ServerErrorCode; index?: number };

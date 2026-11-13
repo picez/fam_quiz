@@ -18,6 +18,7 @@ import { ADJUSTMENT_ATTEMPT, follow, game, participant, PENALTY_ATTEMPT, profile
 import { gameAchievements } from './game-achievements';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { ensureProfile } from './profiles';
+import { reportError } from './log';
 
 /** Скільки ігор доповнення історії читає за раз. */
 const BATCH = 20;
@@ -313,7 +314,7 @@ export async function syncAchievements(
     if (loaded !== undefined && who !== null) for (const id of gameAchievements(loaded, who)) want(id, at.earnedAt, at.gameId);
   }
   // Наздоганяння ніколи не ламає читання: збій — у журнал, а мітка все одно переходить за ці ігри (інакше вічні повтори).
-  const onError = options.onError ?? ((error: unknown) => console.error('Не вдалося наздогнати ачівки:', error));
+  const onError = options.onError ?? ((error: unknown) => reportError(error, { where: 'achievements-sync' }));
   let missed: { gameId: string; earnedAt: Date }[] = [];
   if (synced && at === null) {
     try {
@@ -367,7 +368,7 @@ export async function syncAchievements(
 export async function awardGame(
   db: Db,
   gameId: string,
-  onError: (error: unknown) => void = (error) => console.error('Не вдалося видати ачівки:', error),
+  onError: (error: unknown) => void = (error) => reportError(error, { where: 'achievements-award' }),
 ): Promise<Map<string, AchievementId[]>> {
   const awarded = new Map<string, AchievementId[]>();
   const [loaded] = await loadAchievementGames(db, [gameId]);
