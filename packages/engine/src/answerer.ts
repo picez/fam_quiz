@@ -80,16 +80,29 @@ export function answererOf(state: GameState, teamId: string): string | null {
 }
 
 /**
+ * Хто з команди завершив дошку «Пам'яті», «Пазла» чи «Знайди відмінності»: останній у by (остання пара, шматочок, відмінність).
+ * «Автор» дошки — той, хто її завершив, а не той, хто зробив найбільше: однозначно й без нічиїх. Незавершена дошка (0 балів) —
+ * так само останній, хто щось знайшов чи поставив (як неправильна відповідь у командах зараховується тому, хто її дав);
+ * ніхто нічого — null. Дошки минулих запитань openQuestion спорожнює — тоді null (рекордер уже записав відповідача, coalesce).
+ */
+function boardFinisher(play: Play, teamId: string): string | null {
+  const by = play.memory?.boards[teamId]?.by ?? play.jigsaw?.boards[teamId]?.by ?? play.spotdiff?.boards[teamId]?.by;
+  return by?.at(-1) ?? null;
+}
+
+/**
  * Людина команди teamId, що відповідала на запитання index (12i, для запису): бліц — хто натиснув (play.buzzers);
- * поточне запитання — answererOf; давніше — null (рекордер уже записав його раніше).
+ * «Мелодія за нотами» (29e) — хто надіслав відповідь (play.buzzers, пише actAnswer); «Пам'ять», «Пазл», «Знайди відмінності» —
+ * хто завершив дошку (boardFinisher); поточне запитання — answererOf; давніше — null (рекордер уже записав його раніше).
+ * Старий знімок мелодії без buzzers — null, як і до цього.
  */
 export function answeredByOf(state: GameState, index: number, teamId: string): string | null {
   const play = state.plays[index];
   if (play === undefined) return null;
-  if (play.blitz !== undefined) return play.buzzers?.[teamId] ?? null;
+  if (play.blitz !== undefined || play.question.type === 'melody') return play.buzzers?.[teamId] ?? null;
+  if (play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory') return boardFinisher(play, teamId);
   // Головоломку (28d) вписує вся команда: номінального відповідача не приписуємо.
-  // «Мелодія за нотами» (29e): відповідає будь-хто з команди — номінального відповідача теж немає.
-  if (isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody') return null;
+  if (isPuzzle(play.question)) return null;
   return index === state.questionIndex ? answererOf(state, teamId) : null;
 }
 
