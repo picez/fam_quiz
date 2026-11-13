@@ -2548,7 +2548,7 @@ export class RoomManager {
   /**
    * Збій таймера кроку (30a): перший — у reportError, наступні — попередження; повтор через 1, 2, 4, … с (до TIMER_RETRY_MAX_MS).
    * На TIMER_FAILURES_TO_PAUSE-му збої поспіль — пауза кімнати й один reportError, повторів більше немає: ведучий (автор) знімає
-   * паузу сам, і тоді крок пробується знову. Успішний крок скидає лічильник.
+   * паузу сам, і тоді крок пробується знову з чистим лічильником. Успішний крок теж скидає лічильник.
    */
   private stepFailed(room: Room, what: string, error: unknown): void {
     const failures = (this.timerFailures.get(room) ?? 0) + 1;
@@ -2559,8 +2559,9 @@ export class RoomManager {
       this.recover(room, Math.min(TIMER_RETRY_MS * 2 ** (failures - 1), TIMER_RETRY_MAX_MS));
       return;
     }
-    if (failures === TIMER_FAILURES_TO_PAUSE) reportError(error, { where: 'room-timer', room: room.code, what: `${what}: paused after ${failures} failures` });
-    else log.warn({ err: error, room: room.code, what, failures }, 'Таймер кроку не вдався після паузи');
+    reportError(error, { where: 'room-timer', room: room.code, what: `${what}: paused after ${failures} failures` });
+    // Після зняття паузи крок знову має повні TIMER_FAILURES_TO_PAUSE спроб із повторами.
+    this.timerFailures.delete(room);
     this.scheduler.clearTimeout(room.deadline);
     this.scheduler.clearTimeout(room.pilot);
     room.deadline = room.pilot = null;

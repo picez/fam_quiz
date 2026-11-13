@@ -109,6 +109,25 @@ describe('room timers survive an exception (30a)', () => {
     expect(room.state.phase).toBe('locked');
   });
 
+  it('after the host lifts the failure pause, a new failure is retried again instead of pausing at once', () => {
+    capture();
+    const { scheduler, manager, room } = playing();
+    vi.mocked(engine.tick).mockImplementation(() => {
+      throw new Error('always');
+    });
+    scheduler.advance(20_000 + 15 * TIMER_RETRY_MS);
+    expect(room.state.paused).toBe(true);
+    expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    const calls = vi.mocked(engine.tick).mock.calls.length;
+    // Дедлайн уже минув, тож крок пробується одразу; збій — знову повтор через TIMER_RETRY_MS, а не миттєва пауза.
+    for (let ms = 0; ms < 20_000 && vi.mocked(engine.tick).mock.calls.length === calls; ms += 10) scheduler.advance(10);
+    expect(vi.mocked(engine.tick).mock.calls.length).toBe(calls + 1);
+    expect(room.state.paused).toBe(false);
+    vi.mocked(engine.tick).mockImplementation(realTick);
+    scheduler.advance(TIMER_RETRY_MS);
+    expect(room.state.phase).toBe('locked');
+  });
+
   it('guard rolls back state, tickedTo and checkpoint and rethrows', () => {
     const { manager, room } = playing();
     const { state, tickedTo, checkpoint } = room;
