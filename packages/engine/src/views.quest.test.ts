@@ -228,3 +228,13 @@ describe('quest views (29g): host and teams', () => {
     expect(stageView(s).quest?.rows.map((r) => r.nickname)).toContain('Червоні');
   });
 });
+
+describe('quest views (29g): attempt times', () => {
+  it('the host gets the moment the round was entered, an old snapshot gets null', () => {
+    const s = scene();
+    expect(s.quest?.startedAt).toBe(T);
+    expect(hostView(s).quest?.since).toBe(T);
+    const { startedAt: _startedAt, ...old } = s.quest!;
+    expect(hostView({ ...s, quest: old }).quest?.since).toBeNull();
+  });
+});

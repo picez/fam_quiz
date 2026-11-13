@@ -313,9 +313,10 @@ describe('QuestStage and QuestStrip (29g, stage)', () => {
   it('twenty-four players fit the stage', () => {
     const rows24 = Array.from({ length: 24 }, (_, i) => qrow(`p${i}`, `Гравець ${i + 1}`, i % 5));
     render(<QuestStage info={info({ stage: 'window', endsAt: Date.now() + 30_000, rows: rows24 })} phase="leaderboard" offsetMs={0} />);
-    expect(document.querySelectorAll('.quest-row')).toHaveLength(24);
+    expect(document.querySelectorAll('.quest-row')).toHaveLength(12);
     const grid = document.querySelector<HTMLElement>('.quest-rows')!;
-    expect(Number(grid.style.getPropertyValue('--cols')) * Number(grid.style.getPropertyValue('--rows'))).toBeGreaterThanOrEqual(24);
+    expect(Number(grid.style.getPropertyValue('--cols'))).toBeLessThanOrEqual(4);
+    expect(Number(grid.style.getPropertyValue('--cols')) * Number(grid.style.getPropertyValue('--rows'))).toBeGreaterThanOrEqual(12);
     cleanup();
     const twelve = Array.from({ length: 12 }, (_, i) => qrow(`p${i}`, `Гравець ${i + 1}`, 4, { solved: won(i + 1, 2, 800) }));
     render(<QuestStage info={info({ stage: 'shown', code: 'СОВА', rows: twelve })} phase="leaderboard" offsetMs={0} />);
@@ -335,6 +336,7 @@ describe('HostQuestPanel (29g)', () => {
     ...info({ rows: [qrow('p1', 'Оля', 2), qrow('p2', 'Тарас', 4, { solved: won(1, 2, 800) })] }),
     code: 'СОВА',
     order: [2, 0, 3, 1],
+    since: 0,
     detail: [
       { playerId: 'p1', slots: ['С', null, 'В', null], tries: [{ code: 'СОВИ', at: 42_000, after: 1, right: false, by: null }] },
       { playerId: 'p2', slots: ['С', 'О', 'В', 'А'], tries: [{ code: 'СОВА', at: 90_000, after: 2, right: true, by: 'Тарас' }] },
@@ -343,7 +345,7 @@ describe('HostQuestPanel (29g)', () => {
   });
 
   it('the host sees the code, slots and tries', () => {
-    render(<HostQuestPanel quest={host()} send={okSend()} since={0} offsetMs={0} />);
+    render(<HostQuestPanel quest={host()} send={okSend()} since={host().since ?? undefined} offsetMs={0} />);
     const lock = document.querySelector('.quest-host-code')!;
     expect([...lock.querySelectorAll('.quest-cell')].map((cell) => cell.firstChild?.textContent)).toEqual(['С', 'О', 'В', 'А']);
     expect([...lock.querySelectorAll('.quest-cell-order')].map((el) => el.textContent)).toEqual(['2', '4', '1', '3']);

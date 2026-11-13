@@ -1654,6 +1654,8 @@ export interface QuestInfo {
 export interface HostQuest extends QuestInfo {
   code: string;
   order: number[];
+  /** Мить входу в раунд (час спроб рахується від неї); null — старий знімок. */
+  since: number | null;
   detail: {
     playerId: string;
     slots: (string | null)[];

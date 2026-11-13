@@ -74,7 +74,7 @@ describe('quest round (29g): state', () => {
     const classic = must(start(lobbyState));
     expect('quest' in classic).toBe(false);
     const intro = toQuest(lobbyState);
-    expect(intro.quest).toEqual({ tries: {}, stage: 'play' });
+    expect(intro.quest).toEqual({ tries: {}, stage: 'play', startedAt: T });
     // Раунд quest не останній: після нього ще класика — ключа немає.
     const quiz = makeRoundsQuiz([questRound('rq', questQuestions), classicRound('r2', [single4])], { leaderboard: 'end' });
     let s = must(next(must(start(lobbyWith(quiz, 'Оля', 'Тарас'))), T, rng));

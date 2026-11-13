@@ -2004,7 +2004,7 @@ export function start(state: GameState, now?: number, resume?: ResumeSetup): Res
     formed = teamed.state;
   }
   if (formed.players.length === 0) return fail('no_players');
-  const ready = enterRound({ ...formed, roundIndex: resume?.roundIndex ?? 0 });
+  const ready = enterRound({ ...formed, roundIndex: resume?.roundIndex ?? 0 }, now);
   const carried = resume === undefined ? ready : withCarry(ready, resume, now ?? 0);
   return ok(newcomersOn(state.quiz) ? { ...carried, phase: 'guide', guidePage: 0 } : enterFirstRound(carried, now));
 }
@@ -2398,7 +2398,7 @@ function unansweredIsWrong(state: GameState): GameState {
 }
 
 /** Ходи раунду поля, ставки фіналу й учасник «Мільйонера» починаються з нуля; ключ ladder є лише в раунді «Мільйонер», quest — лише в «Квесті із кодом» (29g). */
-function enterRound(input: GameState): GameState {
+function enterRound(input: GameState, now?: number): GameState {
   const { ladder: _ladder, quest: _quest, ...state } = input;
   const type = state.quiz.rounds[state.roundIndex]?.type;
   return {
@@ -2406,7 +2406,7 @@ function enterRound(input: GameState): GameState {
     board: type === 'board' ? initBoard(state) : null,
     final: type === 'final' || type === 'bets' || type === 'auction' ? { limits: {}, wagers: {}, allIn: [], order: [], shown: 0, split: false } : null,
     ...(type === 'ladder' ? { ladder: { contestantId: null, drawn: false } } : {}),
-    ...(type === 'quest' ? { quest: { tries: {}, stage: 'play' as const } } : {}),
+    ...(type === 'quest' ? { quest: { tries: {}, stage: 'play' as const, ...(now === undefined ? {} : { startedAt: now }) } } : {}),
   };
 }
 
@@ -2514,7 +2514,7 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
       return ok(advance(state, now, rng));
     case 'round_end':
       // Нова серія в новому раунді починається з нуля.
-      return ok(roundSplash(withTotals(enterRound({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 })), now));
+      return ok(roundSplash(withTotals(enterRound({ ...state, phase: 'intro', roundIndex: state.roundIndex + 1 }, now)), now));
     default:
       return fail('wrong_phase');
   }

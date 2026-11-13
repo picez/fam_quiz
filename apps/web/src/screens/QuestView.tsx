@@ -280,8 +280,8 @@ function evenPage(n: number, most: number): number {
   return Math.ceil(n / Math.ceil(n / most));
 }
 
-const QUEST_ROWS_PAGE = 24;
-const QUEST_STRIP_PAGE = 12;
+const QUEST_ROWS_PAGE = 16;
+const QUEST_STRIP_PAGE = 8;
 
 /** Один рядок: нік · ●●○○ · ✗✗ · ✓; повний підпис — для читача з екрана (на сцені його не видно). */
 function QuestRowItem({ row, length }: { row: QuestRow; length: number }) {
@@ -315,7 +315,7 @@ export function QuestRows({ rows, length, most = QUEST_ROWS_PAGE, host = false }
   const page = usePage(rows.length, size, !host);
   const shown = host ? rows : rows.slice(page * size, page * size + size);
   const grid = puzzleGrid(shown.length, false);
-  const cols = Math.min(grid.cols, 6);
+  const cols = Math.min(grid.cols, 4);
   return (
     <ul className={grid.dense ? 'quest-rows is-dense' : 'quest-rows'} style={{ '--cols': cols, '--rows': Math.max(1, Math.ceil(shown.length / cols)) } as CSSProperties}>
       {shown.map((row) => (
@@ -393,14 +393,14 @@ function QuestTable({ rows, host = false }: { rows: readonly QuestRow[]; host?: 
  */
 export function QuestStage({ info, phase, offsetMs, paused = false }: { info: QuestInfo; phase: string; offsetMs: number; paused?: boolean }) {
   const shown = info.stage === 'shown' && info.code !== null;
-  const window = info.stage === 'window';
+  const inWindow = info.stage === 'window';
   return (
-    <div className={`quest-stage${shown ? ' is-shown' : ''}${window ? ' is-window' : ''}${phase === 'intro' ? ' is-intro' : ''}`}>
+    <div className={`quest-stage${shown ? ' is-shown' : ''}${inWindow ? ' is-window' : ''}${phase === 'intro' ? ' is-intro' : ''}`}>
       <p className="lead quest-stage-prompt" dir="auto">
         {info.prompt}
       </p>
       <QuestLock length={info.length} code={shown ? info.code : null} />
-      {window && (
+      {inWindow && (
         <div className="quest-clock">
           <span className="meta">{t('questWindow')}</span>
           <Timer view={info} offsetMs={offsetMs} total={QUEST_WINDOW_MS} status={timerStatus({ paused, held: false })} />
@@ -429,7 +429,7 @@ function timeText(at: number, since: number | undefined): string {
  * (рядок, час, після якого запитання, ✓/✗, у командах — хто ввів). since — початок раунду для часу спроб; showButton=false — головна кнопка пульта.
  */
 export function HostQuestPanel({ quest, send, onError, offsetMs, since, showButton = true, paused = false }: { quest: HostQuest; send: Send; onError?: (text: string | null) => void; offsetMs: number; since?: number; showButton?: boolean; paused?: boolean }) {
-  const window = quest.stage === 'window';
+  const inWindow = quest.stage === 'window';
   const detail = new Map(quest.detail.map((entry) => [entry.playerId, entry]));
   const show = () => void send('host:next', undefined).then((result) => onError?.(result.ok ? null : errorText(result.error)));
   return (
@@ -442,7 +442,7 @@ export function HostQuestPanel({ quest, send, onError, offsetMs, since, showButt
         <QuestLock length={quest.length} code={quest.code} order={quest.order} />
       </div>
       <p className="meta">{t('questStrip', { length: quest.length, count: solvedCount(quest) })}</p>
-      {window && (
+      {inWindow && (
         <div className="quest-clock">
           <span className="meta">{t('questWindow')}</span>
           <Timer view={quest} offsetMs={offsetMs} total={QUEST_WINDOW_MS} status={timerStatus({ paused, held: false })} />

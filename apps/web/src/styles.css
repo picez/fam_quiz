@@ -21536,7 +21536,11 @@ input.sudoku-editor-cell:focus-visible {
   padding: 0;
   overflow: hidden;
   list-style: none;
-  font-size: clamp(0.8rem, 1.5vw, 1.6rem);
+  font-size: clamp(0.8rem, 1.3vw, 1.4rem);
+}
+
+.quest-strip .quest-rows {
+  font-size: clamp(0.75rem, 1.1vw, 1.2rem);
 }
 
 .quest-rows.is-dense {
@@ -21560,8 +21564,8 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .quest-row-name {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 8ch;
+  min-width: 6ch;
   overflow: hidden;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -21569,12 +21573,14 @@ input.sudoku-editor-cell:focus-visible {
 
 .quest-row-dots {
   flex: none;
+  font-size: 0.7em;
   color: var(--bank);
   letter-spacing: 0.05em;
 }
 
 .quest-row-miss {
   flex: none;
+  font-size: 0.7em;
   color: var(--wrong);
 }
 
@@ -21594,8 +21600,6 @@ input.sudoku-editor-cell:focus-visible {
   display: grid;
   gap: 0.5vh;
   width: 100%;
-  max-height: 24vh;
-  overflow: hidden;
 }
 
 .quest-strip.is-full .meta {
@@ -21618,6 +21622,8 @@ input.sudoku-editor-cell:focus-visible {
   width: 100%;
   min-width: 0;
   min-height: 0;
+  max-width: 60rem;
+  margin-inline: auto;
   overflow: hidden;
   container-type: size;
 }

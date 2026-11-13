@@ -24,6 +24,8 @@ export interface QuestState {
   tries: Record<string, QuestTry[]>;
   /** play — запитання раунду; window — 30 с після запитань (етап leaderboard з годинником); shown — код показано всім. */
   stage: 'play' | 'window' | 'shown';
+  /** Мить входу в раунд (для часу спроб на пульті); у старому знімку немає. */
+  startedAt?: number;
 }
 
 /** Етапи, на яких можна ввести код. */

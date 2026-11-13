@@ -1382,7 +1382,7 @@ function hostQuest(state: GameState): HostQuest | undefined {
       by: t.by === undefined ? null : (memberOf(state, t.by)?.nickname ?? t.by),
     })),
   }));
-  return { ...info, code: round.code, order: [...round.order], detail };
+  return { ...info, code: round.code, order: [...round.order], since: state.quest?.startedAt ?? null, detail };
 }
 
 /** Телефон: власні (у командах — командні) позиції й невдалі спроби; чужих символів і спроб тут немає. */

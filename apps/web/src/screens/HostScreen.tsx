@@ -923,7 +923,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       )}
 
       {view.quest !== undefined && questPanel && (
-        <HostQuestPanel quest={view.quest} send={send} showButton={false} offsetMs={offsetMs} paused={view.paused} onError={setError} />
+        <HostQuestPanel quest={view.quest} send={send} showButton={false} since={view.quest.since ?? undefined} offsetMs={offsetMs} paused={view.paused} onError={setError} />
       )}
 
       {phase === 'wager' && final !== null && (
