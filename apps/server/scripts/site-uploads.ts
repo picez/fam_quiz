@@ -49,7 +49,12 @@ export async function uploadImages(
     for (const [key, source] of Object.entries(await sources())) {
       // «file:<шлях>» — локальний файл (намальовані картинки logic, фото граалю), інакше — адреса в мережі.
       const local = source.startsWith('file:');
-      const image = local ? null : await fetch(source, { headers: UA });
+      let image = local ? null : await fetch(source, { headers: UA });
+      // Сховище Wikimedia теж обмежує частоту (429): чекаємо й пробуємо ще.
+      for (let attempt = 1; image?.status === 429 && attempt <= 8; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));
+        image = await fetch(source, { headers: UA });
+      }
       const type = local ? localType(source) : (image!.headers.get('content-type')?.split(';')[0] ?? '');
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(type) || (image && !image.ok)) {
         console.warn(`Skip ${key}: ${image?.status ?? 'file'} ${type}`);

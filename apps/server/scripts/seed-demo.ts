@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -41,6 +41,7 @@ import { funQuiz } from './fun-quiz';
 import { halloweenQuiz } from './halloween-quiz';
 import { mixQuiz } from './mix-quiz';
 import { quickQuiz } from './quick-quiz';
+import { MEGA_FILES, MEGA_IMAGES, megaQuiz } from './mega-quiz';
 import { MIX2_PHOTOS, mix2Quiz } from './mix2-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
@@ -99,7 +100,14 @@ async function wideSources(map: Record<string, string>): Promise<Record<string, 
     const api = title.startsWith('File:')
       ? `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&iiprop=url&iiurlwidth=1280&format=json&titles=${encodeURIComponent(title)}`
       : `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&pithumbsize=1280&format=json&redirects=1&titles=${encodeURIComponent(title)}`;
-    const body = (await (await fetch(api, { headers: UA })).json()) as {
+    let response = await fetch(api, { headers: UA });
+    // Wikimedia обмежує частоту запитів: на 429 чекаємо й пробуємо ще.
+    for (let attempt = 1; response.status === 429 && attempt <= 8; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));
+      response = await fetch(api, { headers: UA });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const body = (await response.json()) as {
       query: { pages: Record<string, { thumbnail?: { source: string }; imageinfo?: { thumburl?: string; url: string }[] }> };
     };
     const page = Object.values(body.query.pages)[0];
@@ -118,7 +126,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -196,6 +204,17 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       if (!site) throw new Error('The mix2 quiz needs SITE_URL: its jigsaw photos are required');
       const urls = await uploadImages(site, db, Object.keys(MIX2_PHOTOS), () => wideSources(MIX2_PHOTOS));
       return mix2Quiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'mega': {
+      if (!site) throw new Error('The mega quiz needs SITE_URL: its pictures are required');
+      const files = Object.fromEntries(MEGA_FILES.map((key) => [key, `file:${join(import.meta.dirname, 'mega', 'img', `${key}.png`)}`]));
+      const keys = [...MEGA_FILES, ...Object.keys(MEGA_IMAGES)];
+      const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(MEGA_IMAGES)) }));
+      return megaQuiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
