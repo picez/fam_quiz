@@ -47,6 +47,8 @@ export interface AppOptions {
    * Число означає кількість проксі перед сервером; true довіряє заголовку повністю.
    */
   trustProxy?: boolean | number;
+  /** Стиснення кадрів WebSocket (30c); типово увімкнено, false вимикає. */
+  socketDeflate?: boolean;
   /** Скільки кімнат може існувати одночасно. */
   maxRooms?: number;
   /** Де лежать зображення до запитань; без нього вони живуть у пам'яті процесу. */
@@ -196,7 +198,7 @@ export async function buildApp(options: AppOptions) {
     return reply.code(404).send({ error: 'not_found' });
   });
 
-  const io = attachSockets(app.server, manager, locate, { trustProxy: options.trustProxy });
+  const io = attachSockets(app.server, manager, locate, { trustProxy: options.trustProxy, deflate: options.socketDeflate });
   // Відкриті WebSocket-з'єднання (і довгі опитування) не дали б HTTP-серверу завершитись. io.close()
   // закриває й транспорти engine.io, і рукостискання в польоті; не чекаємо на нього: він сам чекає на
   // закриття HTTP-сервера, яке Fastify зробить після цього хука.

@@ -87,6 +87,8 @@ interface SocketData {
   identity: Identity;
   /** Пульт: увімкнено «наживо» (12b); типово false — веб оголошує свій вибір одразу після підключення. */
   watch: boolean;
+  /** Останній надісланий зріз цього сокета разом із hostOnline і stageOnline (30c): однаковий не шлемо. Лише цей сокет. */
+  lastState?: string;
 }
 
 export type GameServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
@@ -117,6 +119,11 @@ const UNCOUNTED_EVENTS: ReadonlySet<string> = new Set(['player:draw', 'player:so
  * 64 КБ — із запасом у десятки разів; довше повідомлення socket.io відкидає й закриває з'єднання (клієнт перепідключиться).
  */
 export const MAX_MESSAGE_BYTES = 64 * 1024;
+/**
+ * Стиснення кадрів WebSocket (30c): зріз — повторюваний JSON, а контекст між кадрами (типовий у ws) кодує незмінні частини
+ * попереднього зрізу посиланнями — наступний зріз важить сотню байтів замість кількох KB. Малі події (< 1 KB) — без стиснення.
+ */
+export const SOCKET_DEFLATE = { threshold: 1024 } as const;
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
@@ -153,6 +160,8 @@ function payloadOf(args: unknown[]): unknown {
 export interface SocketOptions {
   /** Як у Fastify: true — довіряти X-Forwarded-For повністю, число — кількість проксі перед сервером. */
   trustProxy?: boolean | number;
+  /** Стиснення кадрів (30c); типово увімкнено, вимикач — SOCKET_DEFLATE=off. */
+  deflate?: boolean;
   lookupsPerMinute?: number;
   /** Найкоротша пауза між пакетами host:drafts (12b); типово HOST_DRAFTS_MS. */
   draftsGapMs?: number;
@@ -185,7 +194,11 @@ export function attachSockets(
   locate: (code: string) => Promise<Located>,
   options: SocketOptions = {},
 ): GameServer {
-  const io: GameServer = new Server(server, { serveClient: false, maxHttpBufferSize: MAX_MESSAGE_BYTES });
+  const io: GameServer = new Server(server, {
+    serveClient: false,
+    maxHttpBufferSize: MAX_MESSAGE_BYTES,
+    perMessageDeflate: options.deflate === false ? false : SOCKET_DEFLATE,
+  });
   const perSecond = options.eventsPerSecond ?? SOCKET_EVENTS_PER_SECOND;
   /**
    * Сокети кімнати (30a): локальний покажчик замість перебору всіх сокетів процесу на кожну розсилку. Сокет потрапляє сюди,
@@ -248,11 +261,12 @@ export function attachSockets(
     try {
       const view = manager.view(room, identity);
       if (view !== null) {
-        socket.emit('state', view, {
-          serverNow: manager.now(),
-          hostOnline: manager.hostOnline(room),
-          stageOnline: manager.stageOnline(room),
-        });
+        const meta = { serverNow: manager.now(), hostOnline: manager.hostOnline(room), stageOnline: manager.stageOnline(room) };
+        // 30c: зріз, однаковий з попереднім для цього ж сокета, не шлемо (serverNow не порівнюємо — він різний завжди).
+        const key = JSON.stringify([view, meta.hostOnline, meta.stageOnline]);
+        if (socket.data.lastState === key) return;
+        socket.data.lastState = key;
+        socket.emit('state', view, meta);
       }
     } catch (error) {
       reportError(error, { where: 'socket-push', room: room.code, role: identity.role });
