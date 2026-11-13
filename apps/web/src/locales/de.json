@@ -1215,6 +1215,7 @@
   "err_request_rejected": "Der Spielleiter hat die Anfrage schon abgelehnt.",
   "err_restarting": "Der Server startet neu. Versuch es in ein paar Sekunden.",
   "err_internal": "Auf dem Server ist ein Fehler aufgetreten, die Aktion wurde nicht ausgeführt. Versuch es nochmal.",
+  "err_rate_limited": "Zu viele Aktionen hintereinander — warte eine Sekunde.",
   "err_resume_invalid": "Prüfe Runde und Punkte.",
   "err_room_full": "Im Raum sind schon die meisten möglichen Spieler.",
   "err_self_follow": "Du kannst dich nicht selbst als Freund hinzufügen.",

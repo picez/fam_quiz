@@ -99,9 +99,10 @@ const NOT_ALLOWED: AckResult = { ok: false, error: 'not_allowed' };
 const INVALID: AckResult = { ok: false, error: 'invalid_payload' };
 /** Обробник події впав (30a): дію не виконано, стан кімнати — той, що був до неї. */
 const INTERNAL: AckResult = { ok: false, error: 'internal' };
-const TOO_SOON: AckResult = { ok: false, error: 'too_soon' };
+/** Загальний ліміт сокета вичерпано (30a); окремо від too_soon спецлімітів і темпу гри. */
+const RATE_LIMITED: AckResult = { ok: false, error: 'rate_limited' };
 /**
- * Загальний ліміт подій одного сокета (30a): не більше стількох за вікно 1000 мс; понад — too_soon без виклику обробника й без розсилки.
+ * Загальний ліміт подій одного сокета (30a): не більше стількох за вікно 1000 мс; понад — rate_limited без виклику обробника й без розсилки.
  * Чесний телефон шле кілька подій на секунду; спецліміти подій (чернетки, «Пазл», «Пам'ять», …) лишаються своїми й суворішими.
  */
 export const SOCKET_EVENTS_PER_SECOND = 20;
@@ -481,13 +482,14 @@ export function attachSockets(
 
     // Обробники приймають довільні аргументи: типи подій описують чесного клієнта, а не будь-якого.
     // Обгортка (30a): спершу загальний ліміт сокета, потім обробник; виняток обробника — у журнал і ack internal, а не вгору
-    // (там він поклав би процес). Стан кімнати лишається тим, що був: рушій чистий, невдалий результат просто не застосовано.
+    // (там він поклав би процес). Стан кімнати manager.guard повертає до знімка перед дією.
     const on = (event: keyof ClientToServerEvents, handler: (args: unknown[]) => AckResult) => {
       (socket as unknown as { on(event: string, listener: (...args: unknown[]) => void): void }).on(event, (...args) => {
-        if (!withinBudget(event)) return reply(args, TOO_SOON);
+        if (!withinBudget(event)) return reply(args, RATE_LIMITED);
         let result: AckResult;
         try {
-          result = handler(args);
+          // Відкат (manager.guard): збій посеред дії не лишає нового стану без розсилки й запису, а клієнт бачить «не виконано».
+          result = manager.guard(room, () => handler(args));
         } catch (error) {
           reportError(error, { ...context, event });
           result = INTERNAL;

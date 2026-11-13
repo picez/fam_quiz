@@ -175,8 +175,12 @@ export const HOST_ABSENCE_MS = 10 * 60_000;
 export const LOBBY_TTL_MS = 2 * 60 * 60_000;
 /** «Правда про гравця» (28b): понад стільки фактів за секунду від людини — too_soon. */
 export const TRUTH_PER_SECOND = 2;
-/** Через скільки після збою таймера кроку (дедлайн, автопілот) кімната пробує ще раз (30a). */
+/** Через скільки після першого збою таймера кроку (дедлайн, автопілот) кімната пробує ще раз (30a); далі пауза подвоюється. */
 export const TIMER_RETRY_MS = 1000;
+/** Найдовша пауза між повторами збійного таймера кроку (30a). */
+export const TIMER_RETRY_MAX_MS = 60_000;
+/** Після стількох збоїв таймера кроку поспіль кімната стає на паузу, а повтори припиняються до дії ведучого (30a). */
+export const TIMER_FAILURES_TO_PAUSE = 5;
 export const FINISHED_TTL_MS = 30 * 60_000;
 /** Кімната-автопілот без жодного гравця на зв'язку стільки часу (у грі) → «Завершити гру» (11g). */
 export const AUTOPILOT_EMPTY_MS = 30 * 60_000;
@@ -654,6 +658,8 @@ export class RoomManager {
   private reserved = new Set<string>();
   private isFrozen = false;
   private readonly listeners = new Set<RoomListener>();
+  /** Збої таймера кроку поспіль (30a): для наростаючої паузи повторів і паузи кімнати. Лише в пам'яті. */
+  private readonly timerFailures = new WeakMap<Room, number>();
 
   constructor(scheduler: Scheduler, rng: () => number = Math.random, options: RoomManagerOptions = {}) {
     this.scheduler = scheduler;
@@ -2488,34 +2494,86 @@ export class RoomManager {
   }
 
   /**
-   * Таймер кімнати (30a): виняток у колбеку не йде вгору (там він поклав би процес), а в журнал з кодом кімнати.
-   * Стан кімнати лишається тим, що був до збою: рушій чистий, тож невдалий крок просто не застосовано.
-   * Дедлайн, автопілот і сам повтор ще й повторюються через TIMER_RETRY_MS (recover): інакше кімната без таймера застигла б.
+   * Дія з відкатом (30a): виняток посеред дії (зокрема посеред commit, коли room.state і checkpoint уже присвоєні, а розсилки
+   * й запису ще не було) повертає room.state, tickedTo і checkpoint до знімка перед дією й переводить таймери на відновлений стан;
+   * сам виняток іде далі — його журналює той, хто викликав (обробник сокета, таймер). Рушій чистий, тож іншого стану немає.
+   */
+  guard<T>(room: Room, fn: () => T): T {
+    const { state, tickedTo, checkpoint } = room;
+    try {
+      return fn();
+    } catch (error) {
+      room.state = state;
+      room.tickedTo = tickedTo;
+      room.checkpoint = checkpoint;
+      if (this.alive(room)) {
+        try {
+          this.reschedule(room);
+          this.watchTimers(room);
+        } catch (again) {
+          // Таймери не стали на відновлений стан: повтор із наростаючою паузою.
+          reportError(again, { where: 'room-rollback', room: room.code });
+          this.recover(room);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Таймер кімнати (30a): виняток у колбеку не йде вгору (там він поклав би процес), а в журнал з кодом кімнати; стан — відкат guard.
+   * Дедлайн, автопілот і сам повтор ще й повторюються (recover): інакше кімната без таймера застигла б.
    */
   private timer(room: Room, what: string, ms: number, fn: () => void): unknown {
     const step = what === 'deadline' || what === 'pilot' || what === 'retry';
     return this.scheduler.setTimeout(() => {
-      // Крок таймера міг устигнути зсунути tickedTo (і навіть room.state посеред commit): відкат, щоб повтор обробив ту саму мить.
-      const { state, tickedTo } = room;
       try {
-        fn();
+        this.guard(room, fn);
+        if (what !== 'retry' && step) this.timerFailures.delete(room);
       } catch (error) {
-        reportError(error, { where: 'room-timer', room: room.code, what });
-        if (!step) return;
-        room.state = state;
-        room.tickedTo = tickedTo;
-        this.recover(room);
+        if (!step) {
+          reportError(error, { where: 'room-timer', room: room.code, what });
+          return;
+        }
+        this.stepFailed(room, what, error);
       }
     }, ms);
   }
 
-  /** Після збою таймера кроку (30a): за TIMER_RETRY_MS ще раз привести таймери до стану (reschedule) — не частіше, ніж раз на цей проміжок. */
-  private recover(room: Room): void {
+  /**
+   * Збій таймера кроку (30a): перший — у reportError, наступні — попередження; повтор через 1, 2, 4, … с (до TIMER_RETRY_MAX_MS).
+   * На TIMER_FAILURES_TO_PAUSE-му збої поспіль — пауза кімнати й один reportError, повторів більше немає: ведучий (автор) знімає
+   * паузу сам, і тоді крок пробується знову. Успішний крок скидає лічильник.
+   */
+  private stepFailed(room: Room, what: string, error: unknown): void {
+    const failures = (this.timerFailures.get(room) ?? 0) + 1;
+    this.timerFailures.set(room, failures);
+    if (failures < TIMER_FAILURES_TO_PAUSE) {
+      if (failures === 1) reportError(error, { where: 'room-timer', room: room.code, what });
+      else log.warn({ err: error, room: room.code, what, failures }, 'Таймер кроку знову не вдався');
+      this.recover(room, Math.min(TIMER_RETRY_MS * 2 ** (failures - 1), TIMER_RETRY_MAX_MS));
+      return;
+    }
+    if (failures === TIMER_FAILURES_TO_PAUSE) reportError(error, { where: 'room-timer', room: room.code, what: `${what}: paused after ${failures} failures` });
+    else log.warn({ err: error, room: room.code, what, failures }, 'Таймер кроку не вдався після паузи');
+    this.scheduler.clearTimeout(room.deadline);
+    this.scheduler.clearTimeout(room.pilot);
+    room.deadline = room.pilot = null;
+    if (!this.alive(room) || room.state.paused) return;
+    try {
+      this.guard(room, () => this.apply(room, pause(room.state, this.now())));
+    } catch (again) {
+      reportError(again, { where: 'room-timer', room: room.code, what: 'pause' });
+    }
+  }
+
+  /** Після збою таймера кроку (30a): за delayMs ще раз привести таймери до стану (reschedule). */
+  private recover(room: Room, delayMs = TIMER_RETRY_MS): void {
     if (!this.alive(room)) return;
     this.scheduler.clearTimeout(room.deadline);
     this.scheduler.clearTimeout(room.pilot);
     room.pilot = null;
-    room.deadline = this.timer(room, 'retry', TIMER_RETRY_MS, () => {
+    room.deadline = this.timer(room, 'retry', delayMs, () => {
       room.deadline = null;
       if (this.alive(room)) this.reschedule(room);
     });

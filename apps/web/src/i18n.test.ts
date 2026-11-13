@@ -124,7 +124,7 @@ describe('uk golden (22a)', () => {
   const ADDED_29C = ['type_jigsaw', 'typeShort_jigsaw', 'typeHow_jigsaw', 'buffWhy_off_jigsaw', 'err_jigsaw_stale', 'err_jigsaw_done', 'err_jigsaw_piece', 'err_jigsaw_placed', 'err_jigsaw_held', 'err_jigsaw_miss', 'problemJigsawPhoto', 'problemJigsawPlace', 'problemJigsawGrid', 'problemJigsawImage', 'problemJigsawLimits', 'jigsawDefaultText', 'jigsawPhotoNeed', 'jigsawAspectLabel', 'jigsawPiecesLabel', 'jigsawPieces', 'jigsawCrop', 'jigsawCropHint', 'jigsawNewShape', 'jigsawPreviewLabel', 'jigsawTimeHint', 'jigsawHelp', 'jigsawAnswerDone', 'jigsawAnswerPart', 'summaryJigsaws_one', 'jigsawFrame', 'jigsawPile', 'jigsawPiece', 'jigsawPieceHeld', 'jigsawPreview', 'jigsawProgress', 'jigsawDoneIn', 'jigsawTimeUp', 'jigsawClosed', 'jigsawOffline', 'jigsawPercent', 'jigsawUndone', 'jigsawUndonePercent', 'jigsawSeconds', 'jigsawTablePlace', 'jigsawTableWho', 'jigsawTableTime', 'jigsawTablePoints', 'jigsawTableLabel'];
   /** 29i: виправлення після вечірньої гри; наступні задачі дописують сюди. */
   /** 30a: збій обробника на сервері (ack internal). */
-  const ADDED_30A = ['err_internal'];
+  const ADDED_30A = ['err_internal', 'err_rate_limited'];
   const ADDED_29I = ['appealWaitOther', 'appealQueued', 'err_appeal_queued', 'morelessWatchPicks', 'drawingGuessTitle', 'drawingGuessTitleAnon', 'sudokuPencil', 'sudokuPencilMarks'];
   /** Множина 29c: форми, яких немає в мові, там і не потрібні; _one є в кожній — перевіряє ADDED_29C. */
   const ADDED_29C_PLURALS = ['summaryJigsaws_few', 'summaryJigsaws_many'];

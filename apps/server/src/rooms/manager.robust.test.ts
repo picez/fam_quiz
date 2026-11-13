@@ -3,7 +3,7 @@ import { makeQuiz, single, text } from '@quiz/engine/testing';
 import * as engine from '@quiz/engine';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { log, setErrorReporter, type ErrorContext } from '../log';
-import { RoomManager, TIMER_RETRY_MS, type Identity, type Room, type RoomEvent } from './manager';
+import { RoomManager, TIMER_FAILURES_TO_PAUSE, TIMER_RETRY_MS, type Identity, type Room, type RoomEvent } from './manager';
 
 // Рушій чистий; щоб перевірити запобіжник таймера (30a), tick можна підмінити на «кидає один раз».
 vi.mock('@quiz/engine', async (original) => {
@@ -75,24 +75,55 @@ describe('room timers survive an exception (30a)', () => {
     expect(room.state.phase).toBe('reveal');
   });
 
-  it('a timer that keeps throwing is retried at most once per TIMER_RETRY_MS, and the host can still act', () => {
+  it('a timer that keeps throwing backs off 1, 2, 4, 8 s, then pauses the room and reports once more', () => {
     const reports = capture();
     const { scheduler, manager, room } = playing();
     vi.mocked(engine.tick).mockImplementation(() => {
       throw new Error('always');
     });
     try {
-      scheduler.advance(20_000 + 5 * TIMER_RETRY_MS);
-      // Перший збій і п'ять повторів — не більше.
-      expect(reports.length).toBeLessThanOrEqual(6);
-      expect(reports.length).toBeGreaterThanOrEqual(5);
+      scheduler.advance(20_000);
+      expect(vi.mocked(engine.tick)).toHaveBeenCalledTimes(1);
+      // Повтори: через 1 с, потім 2, 4, 8 — кожен наступний не раніше.
+      for (const [wait, calls] of [[TIMER_RETRY_MS, 2], [2 * TIMER_RETRY_MS, 3], [4 * TIMER_RETRY_MS, 4]] as const) {
+        scheduler.advance(wait - 1);
+        expect(vi.mocked(engine.tick)).toHaveBeenCalledTimes(calls - 1);
+        scheduler.advance(1);
+        expect(vi.mocked(engine.tick)).toHaveBeenCalledTimes(calls);
+      }
+      expect(room.state.paused).toBe(false);
+      scheduler.advance(8 * TIMER_RETRY_MS);
+      expect(vi.mocked(engine.tick)).toHaveBeenCalledTimes(TIMER_FAILURES_TO_PAUSE);
+      // П'ятий збій поспіль: пауза, повторів більше немає; у reportError — лише перший і п'ятий.
+      expect(room.state.paused).toBe(true);
+      expect(reports.map((report) => report.context.what)).toEqual(['deadline', `deadline: paused after ${TIMER_FAILURES_TO_PAUSE} failures`]);
+      scheduler.advance(600_000);
+      expect(vi.mocked(engine.tick)).toHaveBeenCalledTimes(TIMER_FAILURES_TO_PAUSE);
       expect(manager.get(room.code)).toBe(room);
-      // Ведучий може зрушити застряглу кімнату сам.
-      expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
-      expect(room.state.phase).toBe('locked');
     } finally {
       vi.mocked(engine.tick).mockImplementation(realTick);
     }
+    // Ведучий знімає паузу — крок пробується знову й тепер проходить.
+    expect(manager.host(room, { type: 'resume' })).toEqual({ ok: true });
+    scheduler.advance(20_000);
+    expect(room.state.phase).toBe('locked');
+  });
+
+  it('guard rolls back state, tickedTo and checkpoint and rethrows', () => {
+    const { manager, room } = playing();
+    const { state, tickedTo, checkpoint } = room;
+    expect(() =>
+      manager.guard(room, () => {
+        room.state = { ...room.state, paused: true };
+        room.tickedTo = tickedTo + 5000;
+        room.checkpoint = null;
+        throw new Error('boom');
+      }),
+    ).toThrow('boom');
+    expect(room.state).toBe(state);
+    expect(room.tickedTo).toBe(tickedTo);
+    expect(room.checkpoint).toBe(checkpoint);
+    expect(manager.guard(room, () => 7)).toBe(7);
   });
 
   it('a listener that throws does not stop the others and does not fail the action', () => {

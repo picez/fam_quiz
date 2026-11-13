@@ -97,8 +97,14 @@ export async function buildApp(options: AppOptions) {
   // Fastify приймає й кількість проксі; з об'єднаним типом його оголошення вибирають не той вид сервера.
   const trustProxy = (options.trustProxy ?? false) as boolean;
   // Журнал (30a): той самий pino, що й у решти сервера (log.ts), рівень з LOG_LEVEL. Запити по одному не журналюються
-  // (статика й опитування socket.io засипали б журнал); помилки 5xx Fastify пише сам.
+  // (статика й опитування socket.io засипали б журнал). disableRequestLogging вимикає й власний журнал помилок Fastify,
+  // тому 5xx пише хук onError нижче.
   const app = Fastify({ trustProxy, bodyLimit: BODY_LIMIT, loggerInstance: log as FastifyBaseLogger, logController: new LogController({ disableRequestLogging: true }) });
+  // Помилки 5xx (30a): у reportError з маршрутом, без IP і тіла запиту; відповідь — звичайна відповідь Fastify на помилку.
+  app.addHook('onError', async (request, _reply, error) => {
+    const status = (error as { statusCode?: number }).statusCode ?? 500;
+    if (status >= 500) reportError(error, { where: 'http', event: `${request.method} ${request.routeOptions.url ?? 'unknown'}` });
+  });
   if (store !== null) app.addHook('onClose', async () => store.stop());
   await app.register(rateLimit, { global: false });
 

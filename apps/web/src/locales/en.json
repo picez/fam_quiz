@@ -1215,6 +1215,7 @@
   "err_request_rejected": "The host has already declined the request.",
   "err_restarting": "The server is restarting. Try again in a few seconds.",
   "err_internal": "Something went wrong on the server, the action was not done. Try again.",
+  "err_rate_limited": "Too many actions in a row — wait a second.",
   "err_resume_invalid": "Check the round and the points.",
   "err_room_full": "The room already has the maximum number of players.",
   "err_self_follow": "You can't add yourself as a friend.",

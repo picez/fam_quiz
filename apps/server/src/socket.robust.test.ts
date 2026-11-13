@@ -123,6 +123,27 @@ describe('a handler that throws (30a)', () => {
     await Promise.all([until(host, inPhase('locked')), until(stage, inPhase('locked')), until(taras, inPhase('locked'))]);
   });
 
+  it('a handler that throws after the state was assigned (mid-commit) rolls the state back, and the same action then works', async () => {
+    const { game, host, olena } = await lobby();
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    const room = ctx.manager.get(game.code)!;
+    const before = room.state;
+    const checkpoint = room.checkpoint;
+    vi.spyOn(ctx.manager, 'answer').mockImplementationOnce((target) => {
+      // Як збій посеред commit: новий стан і контрольна точка вже присвоєні, розсилки й запису ще не було.
+      target.state = { ...target.state, paused: true };
+      target.checkpoint = { state: target.state, at: 1 };
+      throw new Error('mid-commit');
+    });
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: false, error: 'internal' });
+    expect(room.state).toBe(before);
+    expect(room.checkpoint).toBe(checkpoint);
+    expect(await send(olena, 'player:answer', correct)).toEqual({ ok: true });
+    expect(room.state.paused).toBe(false);
+  });
+
   it('a slice that fails for one socket is reported, and the others still get theirs', async () => {
     const { game, host, stage, olena, taras } = await lobby();
     const view = ctx.manager.view.bind(ctx.manager);
@@ -140,16 +161,16 @@ describe('a handler that throws (30a)', () => {
 });
 
 describe('the per-socket event limit (30a)', () => {
-  it(`refuses the ${SOCKET_EVENTS_PER_SECOND + 1}th event within a second with too_soon, and accepts again a second later`, async () => {
+  it(`refuses the ${SOCKET_EVENTS_PER_SECOND + 1}th event within a second with rate_limited, and accepts again a second later`, async () => {
     const { olena, host } = await lobby();
     const burst = await Promise.all(Array.from({ length: SOCKET_EVENTS_PER_SECOND + 1 }, () => send(olena, 'player:buzz')));
     // У лобі натискання відхиляє рушій — але жодне з перших двадцяти не відхилене лімітом.
-    expect(burst.slice(0, SOCKET_EVENTS_PER_SECOND).filter((result) => !result.ok && result.error === 'too_soon')).toEqual([]);
-    expect(burst[SOCKET_EVENTS_PER_SECOND]).toEqual({ ok: false, error: 'too_soon' });
+    expect(burst.slice(0, SOCKET_EVENTS_PER_SECOND).filter((result) => !result.ok && result.error === 'rate_limited')).toEqual([]);
+    expect(burst[SOCKET_EVENTS_PER_SECOND]).toEqual({ ok: false, error: 'rate_limited' });
     // Ліміт — на сокет: інші сокети кімнати не зачеплено.
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     await pause(1050);
-    expect(await send(olena, 'player:buzz')).not.toEqual({ ok: false, error: 'too_soon' });
+    expect(await send(olena, 'player:buzz')).not.toEqual({ ok: false, error: 'rate_limited' });
   });
 
   it('drawing operations and sort tilts have their own limits and do not use the socket budget', async () => {
@@ -157,7 +178,7 @@ describe('the per-socket event limit (30a)', () => {
     const op = { op: 'begin', c: 0, w: 0, p: [10, 10, 20, 20] };
     await Promise.all(Array.from({ length: 30 }, () => send(olena, 'player:draw', op)));
     await Promise.all(Array.from({ length: 30 }, () => send(olena, 'player:sort-tilt', { wordId: 'w', categoryId: null, amount: 0 })));
-    expect(await send(olena, 'player:buzz')).not.toEqual({ ok: false, error: 'too_soon' });
+    expect(await send(olena, 'player:buzz')).not.toEqual({ ok: false, error: 'rate_limited' });
   });
 });
 
