@@ -214,6 +214,7 @@ export function openAppeal(state: GameState, personId: string, reason: AppealRea
   const open = appealOpen(state);
   // Захист: відкрита апеляція чужого розкриття черги не приймає (next її скасує).
   if (open !== null && !onItsReveal(state, open)) return fail('appeal_open');
+  if (appealQueued(state, by)) return fail('appeal_queued');
   if (!appealReasons(state, by).includes(reason)) return fail('appeal_unfit');
   if (appealsLeft(state, by) <= 0) return fail('appeals_used');
   if (appealVoters(state, by).length === 0) return fail('no_voters');
@@ -242,7 +243,7 @@ function withOpened(state: GameState, by: string, reason: AppealReason, now: num
  * Відкритої апеляції немає → перша придатна з черги поточного розкриття відкривається з миттю now (29k);
  * неприйнятні (уже не та підстава, ліміт, нікому голосувати, учасника немає) і записи чужого розкриття зникають.
  */
-function openQueued(state: GameState, now: number): GameState {
+export function openQueued(state: GameState, now: number): GameState {
   if (appealOpen(state) !== null || state.appealQueue === undefined) return state;
   let rest = appealQueueOf(state);
   let s = withQueue(state, rest);
@@ -357,7 +358,8 @@ export function dropFromAppeals(state: GameState, removedId: string, now?: numbe
   const kept = queue.filter((e) => state.players.some((p) => p.id === e.by));
   const base = kept.length === queue.length ? state : withQueue(state, kept);
   const open = appealOpen(base);
-  if (open === null) return base;
+  // Відкриту вже скасувало вилучення раніше (останній учасник команди йде через removePlayer команди): далі — черга.
+  if (open === null) return now === undefined ? base : openQueued(base, now);
   if (!base.players.some((p) => p.id === open.by)) {
     const cancelled = withAppeal(base, closedAs(base, open, 'cancelled'));
     return now === undefined ? cancelled : openQueued(cancelled, now);

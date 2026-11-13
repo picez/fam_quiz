@@ -51,7 +51,7 @@ import {
 import { adjustmentTotal } from './adjust';
 import { startAnswerers } from './answerer';
 import { resumeError, withCarry } from './carry';
-import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, settleAppeal, shiftAppealClock } from './appeal';
+import { appealOpen, appealPassedGrade, cancelAppeal, closeAppealByHost, closeDueAppeal, dropFromAppeals, openQueued, settleAppeal, shiftAppealClock } from './appeal';
 import {
   answerLimitMs,
   applyBuff,
@@ -2445,6 +2445,12 @@ export function next(state: GameState, now: number, rng: Rng = Math.random): Res
   if (appeal !== null) {
     if (state.phase === 'reveal' && appeal.questionIndex === state.questionIndex) return fail('appeal_open');
     return next(cancelAppeal(state), now, rng);
+  }
+  // Черга апеляцій (29k) без відкритої — запобіжник: «Далі» спершу відкриває чергову (гра стоїть, як під час голосування);
+  // неприйнятні записи й записи чужого розкриття зникають, і тоді гра йде далі.
+  if (state.appealQueue !== undefined) {
+    const queued = openQueued(state, now);
+    return appealOpen(queued) !== null ? ok(queued) : next(queued, now, rng);
   }
   // Дуель вклинюється між кроками гри: оголошена стартує замість кроку, після підсумку гра йде далі.
   if (state.phase === 'duel') return advanceDuel(state, now, rng);

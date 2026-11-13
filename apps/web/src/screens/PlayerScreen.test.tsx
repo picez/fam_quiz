@@ -4425,13 +4425,13 @@ describe('PlayerScreen appeal (12f)', () => {
 
   it('29k: once queued the phone says «next», in the sheet for a voter and on the screen otherwise', () => {
     show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ left: 1, voter: true, queued: true })));
-    const note = screen.getByText('Вашу апеляцію розглянуть наступною');
+    const note = screen.getByText('Вашу апеляцію розглянуть після поточної');
     expect(document.querySelector('section.appeal-sheet')?.contains(note)).toBe(true);
     expect(document.querySelector('.appeal-button')).toBeNull();
     cleanup();
     show(revealOf({ appeal: { ...open, by: { playerId: 'p2', nickname: 'Тарас' } } }, mine({ left: 1, queued: true })));
     expect(document.querySelector('section.appeal-sheet')).toBeNull();
-    expect(screen.getByText('Вашу апеляцію розглянуть наступною').classList.contains('appeal-queued')).toBe(true);
+    expect(screen.getByText('Вашу апеляцію розглянуть після поточної').classList.contains('appeal-queued')).toBe(true);
   });
 
   it('gives a voter the bottom sheet instead of the card', () => {

@@ -7,6 +7,8 @@ import { suspend } from './restore';
 import { playerView } from './views';
 import { classicRound, makeRoundsQuiz, single, text, withId, withPoints } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
+import { teamGame, teamQuiz } from './testing/teams';
+import { actAnswer } from './team-act';
 
 // Черга апеляцій (29k): поки зал голосує за одну, інший гравець подає свою — вона відкривається одразу після рішення.
 
@@ -39,8 +41,8 @@ describe('the appeal queue (29k)', () => {
     expect(appealOpen(queued)).toMatchObject({ id: 1, by: 'p1' });
     expect(queued.appeals).toHaveLength(1);
     expect(queued.appealQueue).toEqual([{ by: 'p2', questionIndex: 0, reason: 'grade', at: T1 + 2000 }]);
-    // одна апеляція на запитання: удруге — appeal_unfit
-    expect(openAppeal(queued, 'p2', 'grade', T1 + 3000)).toEqual({ ok: false, error: 'appeal_unfit' });
+    // одна апеляція на запитання: удруге — appeal_queued
+    expect(openAppeal(queued, 'p2', 'grade', T1 + 3000)).toEqual({ ok: false, error: 'appeal_queued' });
     // черга рахується в ліміт, як відкрита
     expect(appealsLeft(queued, 'p2')).toBe(1);
   });
@@ -198,5 +200,45 @@ describe('the appeal queue with the autopilot host (29k)', () => {
     s = plan(s, tick(s, second), second);
     // Віра ще може оскаржити: вікно 8 с від останнього рішення.
     expect(atOf(s)).toBe(second + AUTOPILOT_MS.appealWindow);
+  });
+});
+
+describe('the appeal queue when a whole appellant team leaves (29k, fix round 1)', () => {
+  /** t1 — лише Оля (m1), t2 — Віра й Іра (m2, m3, правильно), t3 — лише Петро (m4); t1 і t3 «Одеська». */
+  function teamReveal(): GameState {
+    const quiz = teamQuiz([classicRound('r1', [t100, withId(t100, 't2')], { speedBonus: false, rules: DEFAULT_RULES })], 3);
+    let s = must(next(teamGame(quiz, [['Оля'], ['Віра', 'Іра'], ['Петро']]), T0, rng));
+    s = must(actAnswer(must(actAnswer(must(actAnswer(s, 'm1', WRONG, T0 + 1000)), 'm2', RIGHT, T0 + 1000)), 'm4', WRONG, T0 + 1000));
+    if (s.phase === 'question') s = must(lock(s));
+    return must(next(s, T0 + 2000, rng));
+  }
+
+  it('removing the only member of the appellant team opens the queued appeal; «Далі» still waits', () => {
+    let s = must(openAppeal(teamReveal(), 'm1', 'grade', T1));
+    s = must(openAppeal(s, 'm4', 'grade', T1 + 500));
+    expect(appealOpen(s)?.by).toBe('t1');
+    expect(s.appealQueue?.map((q) => q.by)).toEqual(['t3']);
+    s = must(removePlayer(s, 'm1', T1 + 1000));
+    expect(s.players.some((p) => p.id === 't1')).toBe(false);
+    expect(s.appeals?.[0].outcome).toBe('cancelled');
+    expect(appealOpen(s)).toMatchObject({ id: 2, by: 't3', openedAt: T1 + 1000 });
+    expect(s.appealQueue).toBeUndefined();
+    expect(next(s, T1 + 2000, rng)).toEqual({ ok: false, error: 'appeal_open' });
+  });
+
+  it('a queue without an open appeal never lets «Далі» skip it: next opens the queued one first', () => {
+    const queued = must(openAppeal(must(openAppeal(toReveal(), 'p1', 'grade', T1)), 'p2', 'grade', T1 + 2000));
+    // Стан, якого рушій сам не дає: відкриту закрито, а черга лишилась.
+    const orphan: GameState = { ...queued, appeals: queued.appeals?.map((a) => ({ ...a, votes: {}, yes: 0, no: 0, outcome: 'tie' as const })) };
+    expect(appealOpen(orphan)).toBeNull();
+    const opened = must(next(orphan, T1 + 3000, rng));
+    expect(opened.phase).toBe('reveal');
+    expect(appealOpen(opened)).toMatchObject({ by: 'p2', openedAt: T1 + 3000 });
+    expect(next(opened, T1 + 4000, rng)).toEqual({ ok: false, error: 'appeal_open' });
+  });
+
+  it('filing again while queued is appeal_queued', () => {
+    const queued = must(openAppeal(must(openAppeal(toReveal(), 'p1', 'grade', T1)), 'p2', 'grade', T1 + 2000));
+    expect(openAppeal(queued, 'p2', 'grade', T1 + 3000)).toEqual({ ok: false, error: 'appeal_queued' });
   });
 });
