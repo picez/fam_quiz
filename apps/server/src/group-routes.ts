@@ -1,4 +1,5 @@
 import {
+  ACHIEVEMENT_INFO,
   groupInputSchema,
   groupInviteSchema,
   groupItemInputSchema,
@@ -7,12 +8,16 @@ import {
   groupUsesSchema,
   type GroupRole,
 } from '@quiz/shared';
+import { and, count, eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
 import type { CurrentUser } from './account-routes';
+import { syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
+import { groupItem, userAchievement } from './db/schema';
 import { createItem, deleteItem, listItems, updateItem } from './group-items';
 import { markUses } from './group-uses';
+import { reportError } from './log';
 import {
   acceptInvite,
   cancelInvite,
@@ -74,6 +79,25 @@ function fail(reply: FastifyReply, error: string) {
 }
 
 type GroupParams = { Params: { id: string } };
+
+/**
+ * «📜 Літописець» (12l) — одразу після запису, щоб ачівка не прийшла «у грі» з її датою й id:
+ * дата — мить запису, без гри. Збій лише в журнал: запис уже збережено.
+ */
+async function chroniclerAfterRecord(db: Db, userId: string, at: Date): Promise<void> {
+  try {
+    const [written] = await db.select({ n: count() }).from(groupItem).where(eq(groupItem.authorId, userId));
+    if (Number(written?.n ?? 0) < (ACHIEVEMENT_INFO.chronicler.goal ?? Infinity)) return;
+    const [has] = await db
+      .select({ id: userAchievement.achievementId })
+      .from(userAchievement)
+      .where(and(eq(userAchievement.userId, userId), eq(userAchievement.achievementId, 'chronicler')));
+    if (has !== undefined) return;
+    await syncAchievements(db, userId, null, { now: at });
+  } catch (error) {
+    reportError(error, { where: 'group-chronicler' });
+  }
+}
 
 export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps): Promise<void> {
   const { db, currentUser } = deps;
@@ -225,8 +249,10 @@ export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps)
     if (ok === null) return reply;
     const body = groupItemInputSchema.safeParse(request.body);
     if (!body.success) return invalid(reply, body.error);
-    const created = await createItem(db, ok.groupId, ok.user.id, body.data, now());
+    const at = now();
+    const created = await createItem(db, ok.groupId, ok.user.id, body.data, at);
     if (!created.ok) return fail(reply, created.error);
+    await chroniclerAfterRecord(db, ok.user.id, at);
     return reply.code(201).send(created.item);
   });
 

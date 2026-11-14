@@ -292,7 +292,7 @@ describe('reading', () => {
 });
 
 describe('achievements page', () => {
-  it('own: all 70 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
+  it('own: all 71 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
     const me = 'store-page';
     await addUser(me, 'Яна');
     await playGame(me, new Date('2026-09-12T18:00:00Z'));
@@ -630,7 +630,7 @@ describe('career counters and the history refill of 12j', () => {
 });
 
 describe('hiding anti-achievements (12j)', () => {
-  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 54', async () => {
+  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 55', async () => {
     const me = 'store-hide';
     await addUser(me, 'Ліна');
     await read(me);
@@ -644,12 +644,12 @@ describe('hiding anti-achievements (12j)', () => {
     const theirs = await achievementsPage(db, me, false);
     expect(theirs?.items.map((i) => i.id)).toEqual(['first_game']);
     expect(theirs?.earned).toBe(1);
-    expect(theirs?.total).toBe(54);
+    expect(theirs?.total).toBe(55);
     expect(theirs).not.toHaveProperty('hideAnti');
 
     const own = await achievementsPage(db, me, true);
     expect(own?.hideAnti).toBe(true);
-    expect(own?.total).toBe(70);
+    expect(own?.total).toBe(71);
     expect(own?.items.filter((i) => i.earned).map((i) => i.id)).toEqual(expect.arrayContaining(['first_game', 'in_debt']));
 
     const other = 'store-hide-not';
@@ -658,7 +658,7 @@ describe('hiding anti-achievements (12j)', () => {
     expect([...(await antiHidden(db, [me, other, 'store-nobody']))]).toEqual([me]);
     expect(await antiHidden(db, [])).toEqual(new Set());
     expect(await setHideAnti(db, me, false)).toBe(false);
-    expect((await achievementsPage(db, me, false))?.total).toBe(70);
+    expect((await achievementsPage(db, me, false))?.total).toBe(71);
   });
 });
 
@@ -677,5 +677,41 @@ describe('awardedIn (12j)', () => {
     ]);
     expect(await awardedIn(db, gameId)).toEqual(new Map([[me, ['first_game', 'in_debt']]]));
     expect(await awardedIn(db, '00000000-0000-4000-8000-000000000000')).toEqual(new Map());
+  });
+});
+
+describe('«Літописець» from group records (12l)', () => {
+  async function groupOf(ownerId: string, name: string) {
+    const { familyGroup, groupMember } = await import('./db/schema');
+    const [group] = await db
+      .insert(familyGroup)
+      .values({ name, emoji: '🌻', inviteCode: `c${Math.random().toString(36).slice(2, 11)}`.slice(0, 10) })
+      .returning();
+    await db.insert(groupMember).values({ groupId: group.id, userId: ownerId, role: 'owner', joinedAt: new Date() });
+    return group.id;
+  }
+  async function records(groupId: string, authorId: string, count: number) {
+    const { groupItem } = await import('./db/schema');
+    await db.insert(groupItem).values(Array.from({ length: count }, (_, i) => ({ groupId, authorId, kind: 'fact' as const, text: `Родинна дрібниця №${i + 1}` })));
+  }
+
+  it('20 records in two groups earn it; 3 records show progress; deleting records later keeps it', async () => {
+    const { groupItem } = await import('./db/schema');
+    const petro = 'store-chronicler';
+    await addUser(petro, 'Петро');
+    await read(petro);
+    const first = await groupOf(petro, 'Родина Квіткових');
+    const second = await groupOf(petro, 'Друзі з двору');
+    await records(first, petro, 3);
+    expect((await achievementsPage(db, petro, true))?.items.find((i) => i.id === 'chronicler')).toMatchObject({ earned: false, progress: { current: 3, goal: 20 } });
+
+    await records(first, petro, 10);
+    await records(second, petro, 7);
+    await read(petro);
+    expect((await achievementsPage(db, petro, true))?.items.find((i) => i.id === 'chronicler')).toMatchObject({ earned: true, progress: null });
+
+    await db.delete(groupItem).where(eq(groupItem.authorId, petro));
+    await read(petro);
+    expect((await achievementsPage(db, petro, true))?.items.find((i) => i.id === 'chronicler')?.earned).toBe(true);
   });
 });

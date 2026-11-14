@@ -72,4 +72,5 @@ export const ACHIEVEMENT_ICONS: Record<AchievementId, string> = {
   risky: '🎲',
   peeker: '👀',
   chosen_one: '🌟',
+  chronicler: '📜',
 };

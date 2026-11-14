@@ -42,8 +42,8 @@ describe('achievement texts', () => {
     expect(joke('sort_clean')).toBe('Усе по поличках, як у бабусі в комоді.');
   });
 
-  it('70 achievements; anti-achievements joke about the situation, never mock the player (12j)', () => {
-    expect(ACHIEVEMENTS).toHaveLength(70);
+  it('71 achievements; anti-achievements joke about the situation, never mock the player (12j)', () => {
+    expect(ACHIEVEMENTS).toHaveLength(71);
     expect(ANTI_ACHIEVEMENTS).toHaveLength(16);
     for (const id of ANTI_ACHIEVEMENTS) {
       for (const text of [name(id), joke(id), hint(id)]) expect(text.trim(), id).not.toBe('');
@@ -55,6 +55,13 @@ describe('achievement texts', () => {
     expect(hint('chosen_one')).toBe('Відповідати за команду за вибором капітана чи чергою — і влучити');
     expect(ACHIEVEMENT_ICONS.in_debt).toBe('🕳️');
     expect(ACHIEVEMENT_ICONS.chosen_one).toBe('🌟');
+  });
+
+  it('12l: «📜 Літописець» for 20 group records', () => {
+    expect(name('chronicler')).toBe('Літописець');
+    expect(hint('chronicler')).toBe('Написати 20 записів у групах');
+    expect(joke('chronicler')).toBe('Двадцять історій записано. Родина пишається (і трохи боїться).');
+    expect(ACHIEVEMENT_ICONS.chronicler).toBe('📜');
   });
 });
 

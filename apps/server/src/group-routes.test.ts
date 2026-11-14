@@ -284,3 +284,27 @@ describe('group record uses route (12l)', () => {
     expect(forPetro[0].uses).toMatchObject([{ quizId, title: 'Родинна розминка', mine: false }]);
   });
 });
+
+describe('«Літописець» right after the 20th record (12l)', () => {
+  it('19 records give nothing; the 20th through the route earns it, dated at the record and not tied to a game', async () => {
+    const { and, eq } = await import('drizzle-orm');
+    const { userAchievement } = await import('./db/schema');
+    const { petro, id } = await family();
+    await db.insert(groupItem).values(Array.from({ length: 18 }, (_, i) => ({ groupId: id, authorId: petro.id, kind: 'fact' as const, text: `Родинна дрібниця №${i + 1}` })));
+    const row = async () =>
+      (await db.select().from(userAchievement).where(and(eq(userAchievement.userId, petro.id), eq(userAchievement.achievementId, 'chronicler'))))[0];
+
+    expect((await call('POST', `/api/groups/${id}/items`, petro.cookie, { ...record, text: 'Родинна дрібниця №19' })).statusCode).toBe(201);
+    expect(await row()).toBeUndefined();
+
+    const before = Date.now();
+    const twentieth = await call('POST', `/api/groups/${id}/items`, petro.cookie, { ...record, text: 'Родинна дрібниця №20' });
+    expect(twentieth.statusCode).toBe(201);
+    const created = new Date((twentieth.json() as GroupItem).createdAt);
+    const earned = await row();
+    expect(earned).toBeDefined();
+    expect(earned.gameId).toBeNull();
+    expect(earned.earnedAt?.getTime()).toBe(created.getTime());
+    expect(created.getTime()).toBeGreaterThanOrEqual(before - 1);
+  });
+});
