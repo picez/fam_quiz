@@ -1,4 +1,4 @@
-import { LIMITS, rulesOf, seededRng, type BluffAnswer, type Question } from '@quiz/shared';
+import { familyExtraMs, familyOn, LIMITS, rulesOf, seededRng, type BluffAnswer, type Question } from '@quiz/shared';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import {
@@ -102,12 +102,14 @@ export function startChoice(state: GameState, now: number): GameState {
   const options: BluffOption[] = shuffle([...lies, truth, ...spares], rng).map((o, index) => ({ id: `b${index + 1}`, ...o, removed: false }));
   // Зміни ведучого «±15 с» і особистий додатковий час фази вигадок у вибір не переходять.
   const { overtime: _overtime, ...kept } = play;
-  const choice = withCurrentPlay(state, { ...kept, extraMs: 0, bluff: { ...play.bluff, stage: 'choice', options } });
   const choiceMs = question.choiceTime * 1000;
-  if (state.paused) return { ...choice, remainingMs: choiceMs, startedAt: null, endsAt: null };
+  // Сімейна гра (31): надбавка вибору — у наявному extraMs, як «+15 с» ведучого; форма стану та сама.
+  const extra = familyOn(state.quiz) ? familyExtraMs(choiceMs) : 0;
+  const choice = withCurrentPlay(state, { ...kept, extraMs: extra, bluff: { ...play.bluff, stage: 'choice', options } });
+  if (state.paused) return { ...choice, remainingMs: choiceMs + extra, startedAt: null, endsAt: null };
   // Посеред заставки запитання вибір стартує після неї.
   const from = Math.max(now, state.startedAt ?? now);
-  return { ...choice, startedAt: from, endsAt: from + choiceMs, remainingMs: null };
+  return { ...choice, startedAt: from, endsAt: from + choiceMs + extra, remainingMs: null };
 }
 
 /** autoLock для блефу: lies — час сплив або всі присутні написали (лише з now) → startChoice; choice — час сплив або всі присутні вибрали → lockNow. */

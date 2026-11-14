@@ -177,6 +177,7 @@ import {
   surveyHitsOf,
   surveyOrder,
   newcomersOn,
+  familyOn,
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
@@ -3029,6 +3030,8 @@ function base(state: GameState, forHost: boolean) {
     overtime: overtimeRows(state),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
+    // Сімейна гра (31): ключ лише коли ввімкнено — фікстури звичайних ігор не змінюються.
+    ...(familyOn(state.quiz) ? { family: true as const } : {}),
     teams: teamsView(state),
     // Бонуси рівнів (15a): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден бонус не пасує (переважає 'off').
     ...levelBonusesView(state),
