@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { QUESTION_TYPES, type QuestionType } from './question-types';
 import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
@@ -13,6 +14,8 @@ import { questKey } from './quest';
 import { clamp01 } from './numbers';
 import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
+
+export * from './question-types';
 
 export const LIMITS = {
   questionText: 300,
@@ -364,8 +367,6 @@ const options = z.array(option).min(LIMITS.minOptions).max(LIMITS.maxOptions);
 
 const hasDuplicates = (ids: string[]) => new Set(ids).size !== ids.length;
 
-/** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
-export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'bluff'] as const;
 export const LETTER_GOALS = ['most', 'longest'] as const;
 export const LETTER_UNITS = ['word', 'letter'] as const;
 /** Сторони порівняння «Більше чи менше» (28a). */
@@ -395,7 +396,6 @@ const crosswordLayoutSchema = z.object({
     .max(LIMITS.maxCrosswordWords),
   keyCells: z.array(z.number().int().min(0).max(LIMITS.maxCrosswordSide ** 2 - 1)).max(LIMITS.maxCrosswordKey),
 });
-export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 /** Хто відкриває підказки «Хто я?» (12c): таймер (на усній клітинці — ведучий) або кожен гравець сам. */
 export const CLUE_PACES = ['timer', 'self'] as const;
