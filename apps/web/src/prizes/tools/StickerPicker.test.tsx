@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { EMPTY_DECOR, STICKERS, type Inscription, type StickerPlace, type TrophyDecor, type TrophyKind } from '@quiz/shared';
+import { EMPTY_DECOR, STICKER_PACKS, STICKERS, STICKERS_BY_PACK, type Inscription, type StickerPlace, type TrophyDecor, type TrophyKind } from '@quiz/shared';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StickerPicker } from './StickerPicker';
@@ -57,18 +57,18 @@ describe('StickerPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('locked stickers show their level and cannot be picked', () => {
+  it('34: a locked pack is one line with its level and no sticker buttons; open ones pick', () => {
     show('medal', decorOf({}), { level: 1 });
     fireEvent.click(addButton());
     const grid = within(dialog()).getByRole('group', { name: 'Наліпка' });
-    const nyaa = first('nyaa');
-    const cell = within(grid).getByRole('button', { name: `${nyaa.id} 🔒 з рівня 3` }) as HTMLButtonElement;
-    expect(cell.disabled).toBe(true);
-    expect(cell.querySelector('[aria-hidden="true"]')!.textContent).toBe('🔒 3');
-    expect(cell.querySelector('.sr-only:last-child')!.textContent).toBe('🔒 з рівня 3');
-    // Закриті наліпки не вантажать свої gif.
-    expect(cell.querySelector('img')).toBeNull();
-    expect(within(grid).queryByAltText(nyaa.id)).toBeNull();
+    const baking = within(grid).getByRole('group', { name: 'Пекарня — відкриється з рівня 32' });
+    expect(within(baking).queryAllByRole('button')).toHaveLength(0);
+    expect(baking.querySelector('.sticker-pack-locked')!.textContent).toContain('🔒');
+    const food = STICKERS_BY_PACK.food.find((s) => s.series !== 'nya')!;
+    expect(within(grid).queryByRole('button', { name: food.id })).toBeNull();
+    expect(within(grid).getByText('Смаколики — відкриється з рівня 3')).toBeTruthy();
+    // Закриті наліпки, крім чотирьох у попередньому перегляді, не вантажать свої gif.
+    expect(grid.querySelectorAll('.sticker-pack-locked img').length).toBeLessThanOrEqual(4 * STICKER_PACKS.length);
     expect((within(grid).getByRole('button', { name: first('nya').id }) as HTMLButtonElement).disabled).toBe(false);
   });
 

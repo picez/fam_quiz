@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import { EMPTY_DECOR, STICKERS, xpForLevel } from '@quiz/shared';
+import { EMPTY_DECOR, STICKERS, STICKERS_BY_PACK, xpForLevel, type StickerPackId } from '@quiz/shared';
 import type { PrizeContent, PrizeItem, PrizePlacesInfo, TrophyDecor } from '@quiz/shared';
 import { buildApp } from './app';
 import type { Db } from './db/client';
-import { game, user, xpEntry } from './db/schema';
+import { game, user, userAchievement, xpEntry } from './db/schema';
 import { createPrize } from './prizes';
 import { TEST_AUTH, signUp, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
@@ -292,6 +292,8 @@ describe('level locks over HTTP (25c)', () => {
     ({ ...EMPTY_DECOR, inscriptions: [{ place, text: 'Ася', font, look: 'engraved', color: '#3a2a0e' }] }) as TrophyDecor;
   const prizeWith = (name: string, decor: TrophyDecor) => content(name, { trophy: { kind: 'cup', material: 'gold', decor } });
   const stickerOf = (series: string) => STICKERS.find((s) => s.series === series)!.id;
+  /** Наліпка набору поза давньою серією nya (її мають усі, 34). */
+  const packSticker = (pack: StickerPackId) => STICKERS_BY_PACK[pack].find((s) => s.series !== 'nya')!.id;
   const ownerId = async (email: string) => (await db.select({ id: user.id }).from(user).where(eq(user.email, email)))[0]!.id;
 
   it('a locked font or sticker is refused', async () => {
@@ -300,8 +302,21 @@ describe('level locks over HTTP (25c)', () => {
     expect(mono.statusCode).toBe(409);
     expect(mono.json()).toEqual({ error: 'decor_locked' });
     expect((await call('POST', '/api/me/prizes', cookie, prizeWith('B', withFont('hand')))).statusCode).toBe(201);
-    const sticker = { ...EMPTY_DECOR, stickers: [{ id: stickerOf('nyaa'), place: 'front' as const }] };
+    const sticker = { ...EMPTY_DECOR, stickers: [{ id: packSticker('food'), place: 'front' as const }] };
     expect((await call('POST', '/api/me/prizes', cookie, prizeWith('C', sticker))).statusCode).toBe(409);
+  });
+
+  it('34: a mischief sticker opens early with «Капості»', async () => {
+    const { cookie, email } = await signUp(ctx.app, 'Пустунка');
+    const userId = await ownerId(email);
+    const at = new Date('2026-10-22T10:00:00Z');
+    await db.insert(xpEntry).values({ userId, source: 'game', amount: xpForLevel(5), counted: true, day: '2026-10-22', at, createdAt: at });
+    const sticker = { ...EMPTY_DECOR, stickers: [{ id: packSticker('mischief'), place: 'front' as const }] };
+    const locked = await call('POST', '/api/me/prizes', cookie, prizeWith('D', sticker));
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json()).toEqual({ error: 'decor_locked' });
+    await db.insert(userAchievement).values({ userId, achievementId: 'prankster', earnedAt: at });
+    expect((await call('POST', '/api/me/prizes', cookie, prizeWith('D', sticker))).statusCode).toBe(201);
   });
 
   it('level unlocks', async () => {

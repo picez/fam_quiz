@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import { isAnti, STICKERS, xpForLevel, type AchievementId } from '@quiz/shared';
 import { buildApp } from './app';
-import { follow, profile, user, xpEntry } from './db/schema';
+import { follow, profile, user, userAchievement, xpEntry } from './db/schema';
 import { awardPrizes, createPrize, reservePlaces } from './prizes';
 import { seedGame } from './testing/history-rows';
 import { TEST_AUTH, signUp } from './testing/accounts';
@@ -301,11 +301,11 @@ describe('favorite stickers (13a)', () => {
   });
 
   it('start empty, keep order, drop unknown and duplicate ids', async () => {
-    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [] });
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [], packs: [], legacyLevel: null });
     const put = await request('PUT', '/api/me/stickers', olena.cookie, { favorites: [b, a, 'nope', b] });
     expect(put.statusCode).toBe(200);
     expect(put.json()).toEqual({ favorites: [b, a] });
-    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [b, a] });
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toMatchObject({ favorites: [b, a] });
   });
 
   it('refuse a bad body', async () => {
@@ -317,11 +317,17 @@ describe('favorite stickers (13a)', () => {
 
   it('drop an id that left the manifest when reading', async () => {
     await db.update(profile).set({ favoriteStickers: ['gone', a] }).where(eq(profile.userId, olenaId));
-    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toEqual({ favorites: [a] });
+    expect((await request('GET', '/api/me/stickers', olena.cookie)).json()).toMatchObject({ favorites: [a] });
   });
 
   it('are separate for each player', async () => {
-    expect((await request('GET', '/api/me/stickers', taras.cookie)).json()).toEqual({ favorites: [] });
+    expect((await request('GET', '/api/me/stickers', taras.cookie)).json()).toMatchObject({ favorites: [] });
+  });
+
+  it('34: tell the achievement packs and the inherited level', async () => {
+    await db.insert(userAchievement).values({ userId: tarasId, achievementId: 'night_owl', earnedAt: new Date() }).onConflictDoNothing();
+    await db.update(profile).set({ stickersLegacyLevel: 4 }).where(eq(profile.userId, tarasId));
+    expect((await request('GET', '/api/me/stickers', taras.cookie)).json()).toEqual({ favorites: [], packs: ['spooky'], legacyLevel: 4 });
   });
 });
 
@@ -363,7 +369,7 @@ describe('wearing looks (15a)', () => {
     await db.insert(xpEntry).values({ userId: tarasId, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
     const worn = await request('PUT', '/api/me/looks', taras.cookie, { ...none, color: 'sky' });
     expect(worn.statusCode).toBe(200);
-    expect(worn.json()).toEqual({ looks: { ...none, color: 'sky', photo: null, font: null } });
+    expect(worn.json()).toEqual({ looks: { ...none, color: 'sky', photo: null, font: null, effect: null } });
     const shown = await request('GET', `/api/profiles/${tarasId}`);
     expect(shown.json().level.looks.color).toBe('sky');
   });
@@ -378,6 +384,10 @@ describe('wearing looks (15a)', () => {
     const locked = await request('PUT', '/api/me/looks', taras.cookie, { ...none, photo: 'aura' });
     expect(locked.statusCode).toBe(409);
     expect(locked.json()).toEqual({ error: 'look_locked' });
+  });
+
+  it('34: refuses an unknown nick effect', async () => {
+    expect((await request('PUT', '/api/me/looks', taras.cookie, { ...none, effect: 'smoke' })).statusCode).toBe(400);
   });
 });
 

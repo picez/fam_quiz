@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, ANTI_ACHIEVEMENTS } from './achievements';
 import {
-  COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LOOK_IDS, NICK_COLORS, NICK_FONTS, PHOTO_FRAMES, PROFILE_BADGES,
-  achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards, perkSchema, perksFor,
-  stickerOpen, stickerSeriesOpen, trophyUnlockLevel, xpForLevel,
+  COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LEVEL_REWARDS_TOP, LOOK_IDS, NICK_COLORS, NICK_EFFECTS, NICK_FONTS, NICK_FRAMES,
+  PHOTO_FRAMES, PROFILE_BADGES, achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards,
+  packLevel, perkSchema, perksFor, stickerOpen, stickerPacksOpen, trophyUnlockLevel, xpForLevel,
 } from './levels';
+import { STICKER_PACKS, STICKERS_BY_PACK } from './sticker-packs';
 import { TROPHY_KINDS, TROPHY_MATERIALS } from './prizes';
-import { STICKERS, STICKER_SERIES } from './stickers';
 
 describe('level curve', () => {
   it('has the anchor values and grows', () => {
@@ -28,11 +28,11 @@ describe('level curve', () => {
 });
 
 describe('rewards', () => {
-  it('keeps the 30 old rewards on their levels', () => {
+  it('keeps the old rewards on their levels, sticker rows now open packs', () => {
     const OLD: [number, object][] = [
-      [1, { kind: 'stickers', series: 'nya' }], [2, { kind: 'color', id: 'sky' }], [3, { kind: 'stickers', series: 'nyaa' }],
-      [4, { kind: 'badge', id: '⭐' }], [5, { kind: 'perk', perk: 'time' }], [6, { kind: 'stickers', series: 'nyas' }],
-      [7, { kind: 'color', id: 'mint' }], [8, { kind: 'frame', id: 'bronze' }], [9, { kind: 'stickers', series: 'other' }],
+      [1, { kind: 'stickers', pack: 'basic' }], [2, { kind: 'color', id: 'sky' }], [3, { kind: 'stickers', pack: 'food' }],
+      [4, { kind: 'badge', id: '⭐' }], [5, { kind: 'perk', perk: 'time' }], [6, { kind: 'stickers', pack: 'party' }],
+      [7, { kind: 'color', id: 'mint' }], [8, { kind: 'frame', id: 'bronze' }], [9, { kind: 'stickers', pack: 'cozy' }],
       [10, { kind: 'perk', perk: 'hint' }], [11, { kind: 'color', id: 'sun' }], [12, { kind: 'frame', id: 'silver' }],
       [13, { kind: 'badge', id: '🎯' }], [14, { kind: 'color', id: 'coral' }], [15, { kind: 'perk', perk: 'ward' }],
       [16, { kind: 'frame', id: 'gold' }], [17, { kind: 'badge', id: '🧠' }], [18, { kind: 'color', id: 'violet' }],
@@ -69,19 +69,44 @@ describe('rewards', () => {
       }
     }
   });
-  it('levels are sorted, within 1..30 and each has a reward', () => {
+  it('levels are sorted, within 1..40 and each has a reward', () => {
     const levels = LEVEL_REWARDS.map((r) => r.level);
     expect(levels).toEqual([...levels].sort((x, y) => x - y));
     expect(Math.min(...levels)).toBeGreaterThanOrEqual(1);
-    expect(Math.max(...levels)).toBeLessThanOrEqual(30);
-    for (let n = 1; n <= 30; n++) expect(levels).toContain(n);
+    expect(LEVEL_REWARDS_TOP).toBe(40);
+    expect(Math.max(...levels)).toBe(LEVEL_REWARDS_TOP);
+    for (let n = 1; n <= 40; n++) expect(levels).toContain(n);
+  });
+  it('34: levels 31–40 exactly, effects 18 and 27, packs once each', () => {
+    const TOP: [number, object][] = [
+      [31, { kind: 'effect', id: 'flame' }], [31, { kind: 'badge', id: '🦋' }],
+      [32, { kind: 'photo', id: 'sunflowers' }], [32, { kind: 'stickers', pack: 'baking' }],
+      [33, { kind: 'effect', id: 'frost' }], [33, { kind: 'frame', id: 'glacier' }],
+      [34, { kind: 'photo', id: 'waves' }], [34, { kind: 'badge', id: '🪐' }],
+      [35, { kind: 'effect', id: 'stardust' }],
+      [36, { kind: 'stickers', pack: 'spooky' }], [36, { kind: 'photo', id: 'constellation' }],
+      [37, { kind: 'effect', id: 'bolt' }],
+      [38, { kind: 'stickers', pack: 'mischief' }],
+      [39, { kind: 'stickers', pack: 'extra' }],
+      [40, { kind: 'effect', id: 'shimmer' }], [40, { kind: 'frame', id: 'aurora' }], [40, { kind: 'badge', id: '🌠' }],
+    ];
+    expect(LEVEL_REWARDS.filter((r) => r.level > 30).map((r) => [r.level, r.reward])).toEqual(TOP);
+    expect(lookLevel('effect', 'light')).toBe(18);
+    expect(lookLevel('effect', 'sparks')).toBe(27);
+    const PACKS = { basic: 1, food: 3, party: 6, cozy: 9, animals: 12, everyday: 15, winter: 19, love: 23, hugs: 28, baking: 32, spooky: 36, mischief: 38, extra: 39 };
+    for (const pack of STICKER_PACKS) {
+      expect(LEVEL_REWARDS.filter((r) => r.reward.kind === 'stickers' && r.reward.pack === pack).map((r) => r.level), pack).toEqual([PACKS[pack]]);
+      expect(packLevel(pack)).toBe(PACKS[pack]);
+    }
   });
   it('counts', () => {
-    expect(PHOTO_FRAMES).toHaveLength(12);
+    expect(PHOTO_FRAMES).toHaveLength(15);
     expect(NICK_FONTS).toHaveLength(8);
     expect(NICK_COLORS).toHaveLength(13);
-    expect(PROFILE_BADGES).toHaveLength(36);
-    for (const list of [PHOTO_FRAMES, NICK_FONTS, NICK_COLORS, PROFILE_BADGES]) expect(new Set(list).size).toBe(list.length);
+    expect(NICK_FRAMES).toHaveLength(8);
+    expect(NICK_EFFECTS).toHaveLength(7);
+    expect(PROFILE_BADGES).toHaveLength(39);
+    for (const list of [PHOTO_FRAMES, NICK_FONTS, NICK_COLORS, NICK_FRAMES, NICK_EFFECTS, PROFILE_BADGES]) expect(new Set(list).size).toBe(list.length);
     expect(PROFILE_BADGES.some((b) => /\p{Regional_Indicator}|🏳|🏴/u.test(b))).toBe(false);
   });
   it('lookLevel', () => {
@@ -93,10 +118,15 @@ describe('rewards', () => {
     expect(lookLevel('badge', '🌻')).toBe(1);
     expect(lookLevel('color', 'sky')).toBe(2);
     expect(lookLevel('font', 'comic')).toBe(Infinity);
+    expect(lookLevel('effect', 'flame')).toBe(31);
+    expect(lookLevel('frame', 'aurora')).toBe(40);
+    expect(lookLevel('photo', 'sunflowers')).toBe(32);
+    expect(lookLevel('badge', '🦋')).toBe(31);
   });
   it('nextRewards', () => {
-    expect(nextRewards(15).map((r) => r.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18]);
-    expect(nextRewards(30)).toEqual([]);
+    expect(nextRewards(15).map((r) => r.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18, 18]);
+    expect(nextRewards(30).map((r) => r.level)).toEqual([31, 31, 32, 32, 33, 33]);
+    expect(nextRewards(40)).toEqual([]);
   });
   it('perksFor', () => {
     expect(perksFor(4)).toEqual({ kinds: [], timeMs: 5000 });
@@ -108,26 +138,44 @@ describe('rewards', () => {
 });
 
 describe('stickers', () => {
-  it('opens series by level', () => {
-    expect(stickerSeriesOpen(null)).toEqual(['nya']);
-    expect(stickerSeriesOpen(1)).toEqual(['nya']);
-    expect(stickerSeriesOpen(3)).toEqual(['nya', 'nyaa']);
-    expect(stickerSeriesOpen(9)).toEqual([...STICKER_SERIES]);
-    const nyas = STICKERS.find((s) => s.series === 'nyas')!.id;
-    expect(stickerOpen(nyas, 5)).toBe(false);
-    expect(stickerOpen(nyas, 6)).toBe(true);
-    expect(stickerOpen('nope', 30)).toBe(false);
+  const notNya = (pack: keyof typeof STICKERS_BY_PACK) => STICKERS_BY_PACK[pack].find((s) => s.series !== 'nya')!.id;
+  it('opens packs by level and by achievement', () => {
+    expect(stickerPacksOpen(null)).toEqual(['basic']);
+    expect(stickerPacksOpen(9)).toEqual(['basic', 'food', 'party', 'cozy']);
+    expect(stickerPacksOpen(9, { packs: ['spooky'] })).toEqual(['basic', 'food', 'party', 'cozy', 'spooky']);
+    expect(stickerPacksOpen(40)).toEqual([...STICKER_PACKS]);
+  });
+  it('opens a sticker by its pack, an achievement pack or the inherited level', () => {
+    const spooky = notNya('spooky');
+    expect(stickerOpen(spooky, 10)).toBe(false);
+    expect(stickerOpen(spooky, 10, { packs: ['spooky'] })).toBe(true);
+    expect(stickerOpen(spooky, 36)).toBe(true);
+    const cozyNyas = STICKERS_BY_PACK.cozy.find((s) => s.series === 'nyas')!.id;
+    expect(stickerOpen(cozyNyas, 5)).toBe(false);
+    expect(stickerOpen(cozyNyas, 5, { legacyLevel: 6 })).toBe(true);
+    expect(stickerOpen(cozyNyas, 5, { legacyLevel: 5 })).toBe(false);
+    expect(stickerOpen('nope', 40, { legacyLevel: 40, packs: [...STICKER_PACKS] })).toBe(false);
+  });
+  it('keeps the old guest set (series nya) for everyone, guests too', () => {
+    expect(stickerOpen('nyaBeach', null)).toBe(true);
+    expect(stickerOpen('nyaBeach', 1)).toBe(true);
+    const basicNyaa = STICKERS_BY_PACK.basic.find((s) => s.series === 'nyaa')!.id;
+    expect(stickerOpen(basicNyaa, null)).toBe(true);
+    expect(stickerOpen(notNya('food'), null)).toBe(false);
+    expect(stickerOpen(notNya('food'), 3)).toBe(true);
   });
 });
 
 describe('looks', () => {
-  const none = { color: null, frame: null, badge: null, photo: null, font: null };
+  const none = { color: null, frame: null, badge: null, photo: null, font: null, effect: null };
   it('schema', () => {
     expect(looksSchema.safeParse({ color: 'sky', frame: null, badge: '⭐' }).success).toBe(true);
     expect(looksSchema.safeParse({ color: 'sky', frame: null, badge: '⭐', photo: 'fire', font: null }).success).toBe(true);
     expect(looksSchema.safeParse({ ...none, photo: 'tomoe' }).success).toBe(false);
     expect(looksSchema.safeParse({ color: 'pink', frame: null, badge: null }).success).toBe(false);
     expect(looksSchema.safeParse({ color: null, frame: null, badge: null, extra: 1 }).success).toBe(false);
+    expect(looksSchema.safeParse({ ...none, effect: 'flame' }).success).toBe(true);
+    expect(looksSchema.safeParse({ ...none, effect: 'smoke' }).success).toBe(false);
   });
   it('allowed and shown', () => {
     expect(looksAllowed({ ...none, color: 'sky' }, 1)).toBe(false);
@@ -135,8 +183,11 @@ describe('looks', () => {
     expect(looksAllowed({ ...none, photo: 'fire' }, 16)).toBe(false);
     expect(looksAllowed({ ...none, photo: 'fire' }, 17)).toBe(true);
     expect(looksAllowed({ ...none, font: 'hand' }, 1)).toBe(true);
-    expect(looksShown({ color: 'rainbow', frame: 'bronze', badge: '⭐', photo: 'aura', font: 'hand' }, 10))
-      .toEqual({ color: null, frame: 'bronze', badge: '⭐', photo: null, font: 'hand' });
+    expect(looksShown({ color: 'rainbow', frame: 'bronze', badge: '⭐', photo: 'aura', font: 'hand', effect: null }, 10))
+      .toEqual({ color: null, frame: 'bronze', badge: '⭐', photo: null, font: 'hand', effect: null });
+    expect(looksAllowed({ ...none, effect: 'flame' }, 30)).toBe(false);
+    expect(looksAllowed({ ...none, effect: 'flame' }, 31)).toBe(true);
+    expect(looksShown({ ...none, effect: 'flame' }, 30).effect).toBeNull();
   });
 });
 

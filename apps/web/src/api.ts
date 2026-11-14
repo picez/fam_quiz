@@ -248,8 +248,8 @@ export const likeFeedEvent = (id: string, liked: boolean) =>
   request<{ liked: boolean; likes: number }>(`/api/feed/${encodeURIComponent(id)}/like`, { method: 'POST', body: { liked } });
 export const dismissInvite = (code: string) => request<object>(`/api/me/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
 
-/** Улюблені стікери власного профілю (13a); гість отримує unauthorized. */
-export const getFavoriteStickers = () => request<{ favorites: string[] }>('/api/me/stickers');
+/** Улюблені стікери власного профілю (13a); гість отримує unauthorized. 34: ще й набори за досягнення та рівень успадкування (старий сервер їх не шле). */
+export const getFavoriteStickers = () => request<{ favorites: string[]; packs?: unknown; legacyLevel?: unknown }>('/api/me/stickers');
 /** Зберігає весь список (не більше 40 — його обрізає toggleFavorite). */
 export const saveFavoriteStickers = (favorites: string[]) => request<{ favorites: string[] }>('/api/me/stickers', { method: 'PUT', body: { favorites } });
 

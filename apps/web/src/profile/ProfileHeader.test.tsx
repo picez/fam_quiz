@@ -19,7 +19,7 @@ const stats: ProfileStats = {
   avgPlace: null,
 };
 
-const NO_LOOKS: NickLooks = { frame: null, color: null, badge: null, photo: null, font: null };
+const NO_LOOKS: NickLooks = { frame: null, color: null, badge: null, photo: null, font: null, effect: null };
 
 const header = (props: Partial<Parameters<typeof ProfileHeader>[0]> = {}) =>
   render(
@@ -35,6 +35,11 @@ describe('ProfileHeader', () => {
     expect(container.querySelector('.tomoe-ring')).toBeNull();
     expect(container.querySelector('h1 .nick-font-pixel.nick-c-blood')?.textContent).toBe('Олена');
     expect(container.querySelector('.profile-pills')?.textContent).toContain('🌻');
+  });
+
+  it('34: wears the nick effect in the header', () => {
+    const { container } = header({ looks: { ...NO_LOOKS, effect: 'light' } });
+    expect(container.querySelector('h1 .nick-fx.nick-x-light > .nick-name')?.textContent).toBe('Олена');
   });
 
   it('keeps the tomoe ring without a photo frame', () => {

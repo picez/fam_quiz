@@ -1,17 +1,23 @@
-import { LOOK_IDS, lookLevel, type LevelReward, type LookSlot, type NickFont, type NickLooks, type OwnLevel, type PhotoFrame, type ProfileCard } from '@quiz/shared';
+import { LOOK_IDS, lookLevel, PACK_ACHIEVEMENTS, type LevelReward, type LookSlot, type NickEffect, type NickFont, type NickLooks, type OwnLevel, type PhotoFrame, type ProfileCard } from '@quiz/shared';
 import { useEffect, useId, useRef, useState } from 'react';
 import { saveLooks } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
 import { loadNickFont } from '../nick-fonts';
-import { nickNameClass, Nick } from '../screens/Nick';
+import { nickNameClass, Nick, NickFx } from '../screens/Nick';
 import { Avatar } from './Avatar';
 import { AvatarFrame } from './AvatarFrame';
 
 /** Назва нагороди для списків «відкрито» й «далі». */
 export function rewardText(reward: LevelReward): string {
   switch (reward.kind) {
-    case 'stickers':
-      return t('reward_stickers', { series: reward.series });
+    case 'stickers': {
+      // Набір за досягнення (34) відкривається й раніше — це видно в назві нагороди.
+      const name = t(`pack_${reward.pack}` as TextKey);
+      const by = PACK_ACHIEVEMENTS[reward.pack];
+      return by === undefined ? t('reward_stickers', { name }) : t('reward_stickersOr', { name, achievement: t(`achievement_${by}` as TextKey) });
+    }
+    case 'effect':
+      return t('reward_effect', { name: t(`effect_${reward.id}` as TextKey) });
     case 'color':
       return t('reward_color', { name: t(`color_${reward.id}` as TextKey) });
     case 'frame':
@@ -134,6 +140,7 @@ const GROUPS: { slot: LookSlot; title: TextKey; none: TextKey }[] = [
   { slot: 'font', title: 'lookFont', none: 'lookNoFont' },
   { slot: 'color', title: 'lookColor', none: 'lookNoColor' },
   { slot: 'frame', title: 'lookFrame', none: 'lookNoFrame' },
+  { slot: 'effect', title: 'lookEffect', none: 'lookNoEffect' },
   { slot: 'badge', title: 'lookBadge', none: 'lookNoBadge' },
 ];
 
@@ -165,6 +172,17 @@ function TileFace({ slot, id, nickname, avatar }: { slot: LookSlot; id: string |
       return name === null ? null : <Nick nickname={name} levels={{ [name]: { level: 1, color: id as NickLooks['color'], frame: null, font: null } }} />;
     case 'frame':
       return name === null ? null : <Nick nickname={name} levels={{ [name]: { level: 1, color: null, frame: id as NickLooks['frame'], font: null } }} />;
+    case 'effect':
+      // Нік власника з ефектом (34); закрита плитка стоїть нерухомо (CSS .look-option.is-locked).
+      return (
+        <span className="look-art look-art-font" aria-hidden="true">
+          <NickFx effect={id as NickEffect | null}>
+            <span className={nickNameClass(null, null)} dir="auto">
+              {nickname}
+            </span>
+          </NickFx>
+        </span>
+      );
     case 'badge':
       return <span className="look-emoji">{name}</span>;
   }
@@ -229,7 +247,7 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
           </AvatarFrame>
           <span className="look-preview">
             {looks.badge !== null && <span className="profile-badge">{looks.badge} </span>}
-            <Nick nickname={nickname} levels={{ [nickname]: { level: 1, color: looks.color, frame: looks.frame, font: looks.font } }} />
+            <Nick nickname={nickname} levels={{ [nickname]: { level: 1, color: looks.color, frame: looks.frame, font: looks.font, ...(looks.effect === null ? {} : { effect: looks.effect }) } }} />
           </span>
         </div>
       </div>
@@ -246,8 +264,8 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
               return (
                 <label key={id ?? ''} className={`look-option${id === null ? ' is-none' : ''}${locked ? ' is-locked' : ''}`}>
                   <input type="radio" name={`look-${slot}`} disabled={locked} checked={looks[slot] === id} onChange={() => setLooks({ ...looks, [slot]: id } as NickLooks)} />
-                  {(id !== null || slot === 'photo' || slot === 'font') && <span className="look-face-wrap">{face}</span>}
-                  {(id === null || slot === 'photo' || slot === 'font') && <span className="look-name">{id === null ? t(none) : lookName(slot, id)}</span>}
+                  {(id !== null || slot === 'photo' || slot === 'font' || slot === 'effect') && <span className="look-face-wrap">{face}</span>}
+                  {(id === null || slot === 'photo' || slot === 'font' || slot === 'effect') && <span className="look-name">{id === null ? t(none) : lookName(slot, id)}</span>}
                   {locked && slot === 'badge' && (
                     <span className="look-lock">
                       <span aria-hidden="true">{`🔒 ${need}`}</span>
@@ -271,6 +289,7 @@ export function LevelCard({ level, nickname, profile, onSaved }: { level: OwnLev
           {t('lookSave')}
         </button>
       </div>
+      {level.next.length === 0 && <p className="meta">{t('levelAllOpen')}</p>}
       {level.next.length > 0 && (
         <>
           <h3>{t('levelNextTitle')}</h3>

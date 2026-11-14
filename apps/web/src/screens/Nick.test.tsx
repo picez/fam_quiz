@@ -16,6 +16,17 @@ describe('Nick', () => {
     expect(container.querySelector('.nick-title')?.textContent).toBe('👑 Король');
     expect(container.querySelector('.nick-name')?.textContent).toBe('Оля');
   });
+  it('34: wraps the name in its effect; no effect — no wrapper', () => {
+    const { container } = render(<Nick nickname="Оля" levels={{ Оля: { level: 31, color: 'flame', frame: null, font: null, effect: 'flame' } }} />);
+    const name = container.querySelector('.nick > .nick-fx.nick-x-flame > .nick-name.nick-c-flame');
+    expect(name?.textContent).toBe('Оля');
+    expect(container.querySelector('.nick-fx')?.textContent).toBe('Оля');
+    // Копія літер для сяйва береться з data-fx-text (CSS), у DOM тексту не додається.
+    expect(name?.getAttribute('data-fx-text')).toBe('Оля');
+    cleanup();
+    const plain = render(<Nick nickname="Оля" levels={{ Оля: { level: 31, color: null, frame: null, font: null } }} />);
+    expect(plain.container.innerHTML).not.toMatch(/nick-x-|nick-fx/);
+  });
   it('is just the nickname without entries', () => {
     const { container } = render(<Nick nickname="Петро" levels={{ Оля: { level: 3, color: null, frame: null, font: null } }} />);
     expect(container.textContent).toBe('Петро');

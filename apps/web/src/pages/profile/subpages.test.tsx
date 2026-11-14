@@ -71,7 +71,7 @@ const mine: OwnProfile = {
   wins: [{ gameId: 'g1', title: 'Кіно 90-х', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [],
   showcase: { title: null, awards: [], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null } },
   likes: { author: 4, host: 0, player: 1 },
 };
 

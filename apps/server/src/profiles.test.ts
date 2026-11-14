@@ -819,7 +819,7 @@ describe('level in the profile (15a)', () => {
     const db = await oldGames();
     const pub = await publicProfile(db, 'me', null);
     expect(pub?.level.level).toBeGreaterThanOrEqual(2);
-    expect(pub?.level.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null });
+    expect(pub?.level.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null, effect: null });
   });
 });
 

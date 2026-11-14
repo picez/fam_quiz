@@ -39,6 +39,7 @@ export * from './away';
 export * from './appeal';
 export * from './resume';
 export * from './stickers';
+export * from './sticker-packs';
 export * from './reactions';
 export * from './saved';
 export * from './prizes';

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { classicRound, makeRoundsQuiz, survivalRound } from '@quiz/engine/testing';
-import { ACHIEVEMENT_XP, STICKERS, achievementRarity, levelOf, stickerPath, xpForLevel, type OwnLevel, type ReactionItem } from '@quiz/shared';
+import { ACHIEVEMENT_XP, STICKERS, STICKERS_BY_PACK, achievementRarity, levelOf, stickerPath, xpForLevel, type OwnLevel, type ReactionItem } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { type Locator, type Page } from 'playwright-core';
 import { type Socket } from 'socket.io-client';
@@ -157,7 +157,7 @@ async function reactions13a() {
   await expectFitsWidth13a(olya, 'p13a-sheet-phone');
   await expectNoSideScroll(olya, 'p13a-sheet-phone');
   // Аркуш на 375 px вміщає три частини, а «Усі стікери» прокручуються всередині.
-  const all = olyaSheet.getByRole('group', { name: 'Усі стікери', ...exact }).locator('.reaction-grid.is-all');
+  const all = olyaSheet.getByRole('group', { name: 'Усі стікери', ...exact }).locator('.reaction-packs');
   const [inner, outer] = (await all.evaluate((el) => [el.scrollHeight, el.clientHeight])) as [number, number];
   expect(inner, 'all stickers scroll inside their box').toBeGreaterThan(outer);
   const sheetBox = (await olyaSheet.boundingBox())!;
@@ -1123,20 +1123,21 @@ async function levels15a() {
   await shot(petro, 'p15a-phone-final');
   await expectFramesFit15a(stage, 'p15a-stage-final');
   await shot(stage, 'p15a-stage-final');
-  const nyaa = STICKERS.find((sticker) => sticker.series === 'nyaa')!;
+  // 34: стікери за наборами; давня серія nya відкрита всім, «Смаколики» поза нею — з рівня 3.
+  const food = STICKERS_BY_PACK.food.find((sticker) => sticker.series !== 'nya')!;
   const nya = STICKERS.find((sticker) => sticker.series === 'nya')!;
   await iryna.getByRole('button', { name: '😀 Реакція', ...exact }).click();
   const sheet = iryna.getByRole('dialog', { name: 'Реакція', ...exact });
   const allStickers = sheet.getByRole('group', { name: 'Усі стікери', ...exact });
-  const locked = allStickers.locator('.reaction-pick', { has: iryna.locator(`img[src="${stickerPath(nyaa)}"]`) });
-  expect(await locked.getAttribute('aria-label')).toBe('Відкриється з рівня 3');
-  expect(await locked.isDisabled(), 'a locked sticker is clickable').toBe(true);
-  expect(await locked.locator('.reaction-lock').textContent()).toBe('🔒');
+  const locked = allStickers.getByRole('group', { name: 'Смаколики', ...exact }).locator('.sticker-pack-locked');
+  expect(await locked.locator('.sticker-pack-lock-text').textContent()).toBe('Смаколики — відкриється з рівня 3');
+  expect(await allStickers.locator('.reaction-pick', { has: iryna.locator(`img[src="${stickerPath(food)}"]`) }).count(), 'a locked sticker is a button').toBe(0);
   await shot(iryna, 'p15a-stickers');
   await expectNoSideScroll(iryna, 'p15a-stickers');
-  // Закрита серія nyaa з 🔒 у полі зору.
+  // Рядок закритого набору з 🔒 у полі зору.
   await locked.scrollIntoViewIfNeeded();
-  expect(await locked.locator('.reaction-lock').isVisible(), 'the 🔒 of a locked sticker').toBe(true);
+  expect(await locked.isVisible(), 'the line of a locked pack').toBe(true);
+  expect(await locked.textContent()).toContain('🔒');
   await shot(iryna, 'p15a-stickers-locked');
   await allStickers.getByRole('button', { name: `Стікер ${nya.id}`, ...exact }).click();
   await sheet.waitFor({ state: 'detached' });

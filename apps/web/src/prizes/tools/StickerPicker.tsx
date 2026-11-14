@@ -2,6 +2,7 @@ import { DECOR_LIMITS, stickerOf, stickerPath, type StickerPlace, type TrophyDec
 import { useEffect, useId, useRef, useState, type JSX } from 'react';
 import { t, type TextKey } from '../../i18n';
 import { layoutDecor, stickerPlaceChoices, type Occupant, type PlacedInscription, type PlacedSticker } from '../../trophy/decor-places';
+import { useFavoriteStickers } from '../../live/useFavoriteStickers';
 import { StickerDialog, type StickerEditing } from './StickerDialog';
 
 export interface StickerPickerProps {
@@ -50,6 +51,12 @@ export function stickerNote(sticker: PlacedSticker): string | null {
  */
 export function StickerPicker({ kind, decor, level, onPick, kept = [] }: StickerPickerProps): JSX.Element {
   const [dialog, setDialog] = useState<{ editing: StickerEditing | null } | null>(null);
+  // Набори за досягнення й успадковане (34): читаємо, щойно відкрили вікно наліпки, — як аркуш реакцій.
+  const { access, load } = useFavoriteStickers();
+  const opened = dialog !== null;
+  useEffect(() => {
+    if (opened) load();
+  }, [opened, load]);
   const add = useRef<HTMLButtonElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -144,6 +151,7 @@ export function StickerPicker({ kind, decor, level, onPick, kept = [] }: Sticker
           decor={decor}
           level={level}
           kept={kept}
+          access={access}
           editing={dialog.editing}
           onClose={() => setDialog(null)}
           onDone={(place, id) => {

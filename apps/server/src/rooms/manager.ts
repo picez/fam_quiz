@@ -160,7 +160,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, type StickerExtra, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { newAchievementsMine, newAchievementsStage } from './achievements';
@@ -270,6 +270,8 @@ export interface Room {
   titles: Map<string, string>;
   /** Рівні акаунтів кімнати (15a): userId → рівень і вбрання біля ніку. Лише в пам'яті; заповнює attachLevels. */
   levels: Map<string, NickLevel>;
+  /** Доступ до стікерів понад рівень (34): userId → набори за досягнення й рівень успадкування. Лише серверне й у пам'яті, у зріз не йде; заповнює attachLevels. */
+  stickerAccess: Map<string, StickerExtra>;
   /** Лайки (17a): власник вікторини й прочитані вподобання акаунтів кімнати. Лише в пам'яті; заповнює attachLikes. */
   likes: RoomLikes;
   /** «Нове досягнення!» (12j): userId → щойно отримані цією грою; hideAnti — хто ховає анти від сцени. null — ще не нагороджено. Лише в пам'яті; заповнює рекордер. */
@@ -763,6 +765,7 @@ export class RoomManager {
       prizes: [],
       titles: new Map(),
       levels: new Map(),
+      stickerAccess: new Map(),
       likes: { mine: new Map() },
       newAchievements: null,
     };
@@ -832,6 +835,7 @@ export class RoomManager {
       prizes: prizesOf(saved.prizes),
       titles: new Map(),
       levels: new Map(),
+      stickerAccess: new Map(),
       likes: { mine: new Map() },
       newAchievements: null,
     };
@@ -938,8 +942,9 @@ export class RoomManager {
     let changed = false;
     for (const [userId, level] of levels) {
       const was = room.levels.get(userId);
-      if (was !== undefined && was.level === level.level && was.color === level.color && was.frame === level.frame && was.font === level.font) continue;
-      room.levels.set(userId, { level: level.level, color: level.color, frame: level.frame, font: level.font });
+      if (was !== undefined && was.level === level.level && was.color === level.color && was.frame === level.frame && was.font === level.font && was.effect === level.effect) continue;
+      // Ключ effect — лише коли ефект є (34).
+      room.levels.set(userId, { level: level.level, color: level.color, frame: level.frame, font: level.font, ...(level.effect === undefined ? {} : { effect: level.effect }) });
       changed = true;
     }
     if (!changed) return;
@@ -948,6 +953,11 @@ export class RoomManager {
     // Межа між запитаннями: продовження (13b) бере контрольну точку, тож видача потрапляє й туди.
     if (room.state !== before && room.checkpoint?.state === before) room.checkpoint = { ...room.checkpoint, state: room.state };
     this.emit(room, { type: 'changed' });
+  }
+
+  /** Доступ до стікерів (34): лише для перевірки react, зрізу не змінює — без emit. */
+  setStickerAccess(room: Room, access: Map<string, StickerExtra>): void {
+    for (const [userId, extra] of access) room.stickerAccess.set(userId, extra);
   }
 
   /** Злити нагороди гри (12j): списки за userId замінюються, hideAnti — повністю; emit changed, якщо щось змінилось. */
@@ -1372,9 +1382,13 @@ export class RoomManager {
     const member = by === 'host' ? undefined : memberOf(state, by);
     const player = by === 'host' || member !== undefined ? undefined : state.players.find((p) => p.id === by);
     if (by !== 'host' && member === undefined && player === undefined) return { ok: false, error: 'not_found' };
-    // Стікери понад рівень (15a): гість — стартовий набір; ведучий має все. До вікна частоти: відмова його не займає.
-    if (by !== 'host' && item.kind === 'sticker' && !stickerOpen(item.value, room.levels.get(room.playerUsers.get(by) ?? '')?.level ?? null)) {
-      return { ok: false, error: 'sticker_locked' };
+    // Стікери (34): рівень, досягнення-набори й успадковане; гість — «Привітики» і давня серія nya; ведучий має все.
+    // До вікна частоти: відмова його не займає.
+    if (by !== 'host' && item.kind === 'sticker') {
+      const userId = room.playerUsers.get(by);
+      const level = userId === undefined ? null : (room.levels.get(userId)?.level ?? null);
+      const access = userId === undefined ? undefined : room.stickerAccess.get(userId);
+      if (!stickerOpen(item.value, level, access)) return { ok: false, error: 'sticker_locked' };
     }
     const now = this.now();
     if (!rateAllowed(room, 'react', by, now)) return { ok: false, error: 'too_soon' };

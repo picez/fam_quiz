@@ -3,7 +3,8 @@ import { DECOR_LIMITS, DECOR_SUPPORT, EMPTY_DECOR, INSCRIPTION_PLACES, STICKER_P
 import type { TrophyDecor } from './decor';
 import { TROPHY_KINDS } from './prizes';
 import { STICKERS } from './stickers';
-import { seriesLevel } from './levels';
+import { packLevel } from './levels';
+import { STICKERS_BY_PACK } from './sticker-packs';
 
 const url = (i: number) => `/uploads/${i.toString(16).padStart(32, '0')}.jpg`;
 const photo = (i: number) => ({ url: url(i), crop: { x: 0.5, y: 0.5, scale: 1 } });
@@ -205,9 +206,15 @@ describe('25c level locks', () => {
     expect(decorLocked(withIns('hand'), 1, null)).toBe(false);
     expect(decorLocked(withIns(null), 1, null)).toBe(false);
     const other = stickerOfSeries('other');
-    expect(decorLocked(withSticker(other), seriesLevel('other') - 1, null)).toBe(true);
-    expect(decorLocked(withSticker(other), seriesLevel('other'), null)).toBe(false);
+    expect(decorLocked(withSticker(other), packLevel('extra') - 1, null)).toBe(true);
+    expect(decorLocked(withSticker(other), packLevel('extra'), null)).toBe(false);
     expect(decorLocked(withSticker(stickerOfSeries('nya')), 1, null)).toBe(false);
+  });
+  it('34: achievement packs and the inherited level open prize stickers', () => {
+    const spooky = STICKERS_BY_PACK.spooky.find((s) => s.series !== 'nya')!.id;
+    expect(decorLocked(withSticker(spooky), 10, null)).toBe(true);
+    expect(decorLocked(withSticker(spooky), 10, null, { packs: ['spooky'] })).toBe(false);
+    expect(decorLocked(withSticker(spooky), 10, null, { legacyLevel: 9 })).toBe(false);
   });
   it('stored decor stays valid', () => {
     const other = stickerOfSeries('other');

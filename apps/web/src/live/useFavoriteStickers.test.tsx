@@ -25,6 +25,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('useFavoriteStickers access (34)', () => {
+  it('brings the achievement packs and the inherited level, dropping unknown packs', async () => {
+    stubFetch({ status: 200, body: { favorites: [a], packs: ['spooky', 'nope'], legacyLevel: 4 } });
+    const { result } = renderHook(() => useFavoriteStickers());
+    act(() => result.current.load());
+    await waitFor(() => expect(result.current.access).toEqual({ packs: ['spooky'], legacyLevel: 4 }));
+    expect(result.current.favorites).toEqual([a]);
+  });
+
+  it('an old server without the fields — nothing extra', async () => {
+    stubFetch({ status: 200, body: { favorites: [a] } });
+    const { result } = renderHook(() => useFavoriteStickers());
+    act(() => result.current.load());
+    await waitFor(() => expect(result.current.favorites).toEqual([a]));
+    expect(result.current.access).toEqual({});
+  });
+
+  it('a guest (401) — nothing extra', async () => {
+    const fetchMock = stubFetch({ status: 401, body: { error: 'unauthorized' } });
+    const { result } = renderHook(() => useFavoriteStickers());
+    act(() => result.current.load());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    expect(result.current.access).toEqual({});
+  });
+});
+
 describe('useFavoriteStickers (13a)', () => {
   it('loads nothing until load() is called', () => {
     const fetchMock = stubFetch({ status: 401, body: { error: 'unauthorized' } });

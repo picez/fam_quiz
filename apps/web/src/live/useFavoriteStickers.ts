@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { normalizeFavorites, toggleFavorite } from '@quiz/shared';
+import { normalizeFavorites, STICKER_PACKS, toggleFavorite, type StickerExtra, type StickerPackId } from '@quiz/shared';
 import { getFavoriteStickers, saveFavoriteStickers } from '../api';
 
 export const GUEST_FAVORITES_KEY = 'quiz:stickers:favorites';
@@ -25,12 +25,21 @@ function writeGuest(list: string[]): void {
   }
 }
 
+/** Доступ до стікерів з відповіді (34): невідомі набори й кривий рівень відкидаються; старий сервер — {}. */
+function accessOf(body: { packs?: unknown; legacyLevel?: unknown }): StickerExtra {
+  const access: StickerExtra = {};
+  if (Array.isArray(body.packs)) access.packs = body.packs.filter((p): p is StickerPackId => typeof p === 'string' && (STICKER_PACKS as readonly string[]).includes(p));
+  if (typeof body.legacyLevel === 'number' && Number.isInteger(body.legacyLevel) && body.legacyLevel >= 1) access.legacyLevel = body.legacyLevel;
+  return access;
+}
+
 /**
- * Улюблені стікери (13a). Вантажить на першому load(): 401 — гість (localStorage, JSON-масив, normalizeFavorites), ok — акаунт
+ * Улюблені стікери (13a) і доступ до них понад рівень (34: access — набори за досягнення й рівень успадкування; гість і «невідомо» — {}). Вантажить на першому load(): 401 — гість (localStorage, JSON-масив, normalizeFavorites), ok — акаунт
  * (/api/me/stickers), інший збій — невідомо: ☆ нічого не міняє й не зберігає, доки список не прочитано. toggle одразу оновлює список через toggleFavorite (не більше 40); збій збереження акаунта мовчки повертає попередній.
  */
-export function useFavoriteStickers(): { favorites: string[]; load: () => void; toggle: (id: string) => void } {
+export function useFavoriteStickers(): { favorites: string[]; access: StickerExtra; load: () => void; toggle: (id: string) => void } {
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [access, setAccess] = useState<StickerExtra>({});
   const listRef = useRef<string[]>([]);
   const ownerRef = useRef<Promise<Owner> | null>(null);
 
@@ -44,6 +53,7 @@ export function useFavoriteStickers(): { favorites: string[]; load: () => void; 
     const pending = getFavoriteStickers().then((result): Owner => {
       if (result.ok) {
         set(normalizeFavorites(result.favorites));
+        setAccess(accessOf(result));
         return 'account';
       }
       if (result.error === 'unauthorized') {
@@ -82,5 +92,5 @@ export function useFavoriteStickers(): { favorites: string[]; load: () => void; 
     [start, set],
   );
 
-  return { favorites, load, toggle };
+  return { favorites, access, load, toggle };
 }

@@ -1,7 +1,7 @@
 // @ts-expect-error node:fs без @types/node
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { NICK_COLORS, NICK_FONTS } from '@quiz/shared';
+import { NICK_COLORS, NICK_FONTS, NICK_FRAMES } from '@quiz/shared';
 import { contrast, rootTokens, tokenColor } from './theme.test';
 
 const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8') as string;
@@ -27,6 +27,11 @@ describe('nick colours and fonts in css', () => {
       const hexes = [...body.matchAll(/#([0-9a-f]{6}|[0-9a-f]{3})\b/gi)].map((m) => m[1]);
       expect(hexes.length).toBeGreaterThan(0);
       for (const hex of hexes) expect(contrast(hexToRgb(hex), surface)).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+  for (const id of NICK_FRAMES) {
+    it(`frame ${id} has a rule with an outline`, () => {
+      expect(rule(`.nick-f-${id}`)).toMatch(/outline:\s*2px solid/);
     });
   }
   for (const id of NICK_FONTS) {

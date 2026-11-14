@@ -61,7 +61,7 @@ const mine: OwnProfile = {
   wins: [{ gameId: 'g1', title: 'Хіт', startedAt: '2026-10-12T15:30:00.000Z', rank: 1 }],
   friends: [{ id: 'u2', nickname: 'Тарас', avatar: null, lastSeenAt: new Date(Date.now() - 60_000).toISOString() }],
   showcase: { title: null, awards: [award('a1'), award('a2')], pins: { prizes: [], achievements: [] } },
-  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null } },
+  level: { progress: levelProgress(0), unlocked: [], next: [], looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null } },
   likes: { author: 0, host: 0, player: 0 },
 };
 
