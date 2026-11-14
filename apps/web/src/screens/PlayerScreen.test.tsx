@@ -471,6 +471,17 @@ describe('PlayerScreen', () => {
     expect(screen.queryByText(t('answerPending'))).toBeNull();
   });
 
+  it('drops the pending line when the hook gives up and shows why a re-send was refused (32)', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'offline' }));
+    const { rerender } = render(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending />);
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    await screen.findByText(t('answerPending'));
+    rerender(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending={false} />);
+    expect(screen.queryByText(t('answerPending'))).toBeNull();
+    rerender(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending={false} answerError={{ error: 'time_over', at: 1 }} />);
+    expect(screen.getByRole('alert').textContent).toBe(errorText('time_over'));
+  });
+
   it('shows the pending line the game hook reports (32)', () => {
     render(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={vi.fn()} answerPending />);
     expect(screen.getByText(t('answerPending')).getAttribute('role')).toBe('status');

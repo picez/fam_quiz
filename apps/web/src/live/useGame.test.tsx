@@ -607,3 +607,83 @@ describe('useGame answer around a blip (32)', () => {
     expect(socket.timed.filter((entry) => entry.event === 'player:buzz')).toHaveLength(1);
   });
 });
+
+describe('useGame answer around a blip: retry buff and «Перевибрати» (32)', () => {
+  type Fake = (typeof sockets)[number];
+  const answer = { type: 'single', optionId: 'b' };
+  const viewOf = (over: { mark?: { epoch: number; count: number }; first?: unknown; board?: unknown; mine?: unknown } = {}) =>
+    ({
+      role: 'player',
+      phase: 'question',
+      splash: null,
+      questionIndex: 3,
+      me: { answer: over.mine ?? null, buffs: over.first === undefined ? null : { active: { first: over.first } }, blitz: null },
+      ...(over.board === undefined ? {} : { board: over.board }),
+      ...(over.mark === undefined ? {} : { answerMark: over.mark }),
+    }) as unknown as GameView;
+  const answers = (socket: Fake) => socket.timed.filter((entry) => entry.event === 'player:answer');
+  const blip = (socket: Fake, after: GameView) => {
+    socket.connected = false;
+    act(() => socket.fire('disconnect', 'transport close'));
+    socket.connected = true;
+    act(() => socket.fire('state', after, meta()));
+  };
+  const sentAt = (before: GameView) => {
+    const hook = renderHook(() => useGame(auth));
+    const socket = sockets.at(-1)!;
+    act(() => socket.fire('state', before, meta()));
+    void hook.result.current.send('player:answer', answer);
+    return { hook, socket };
+  };
+
+  it('a lost ack whose answer became the first try of «Друга спроба» is not sent again', () => {
+    const { hook, socket } = sentAt(viewOf({ mark: { epoch: 7, count: 0 } }));
+    blip(socket, viewOf({ mark: { epoch: 7, count: 1 }, first: { answer, points: 0 } }));
+    expect(answers(socket)).toHaveLength(1);
+    expect(hook.result.current.answerPending).toBe(false);
+    hook.unmount();
+  });
+
+  it('without a mark the changed first try is enough to hold back', () => {
+    const { hook, socket } = sentAt(viewOf());
+    blip(socket, viewOf({ first: { answer, points: 0 } }));
+    expect(answers(socket)).toHaveLength(1);
+    expect(hook.result.current.answerPending).toBe(false);
+    hook.unmount();
+  });
+
+  it('a lost ack whose answer the host took back with «Перевибрати» is not sent again', () => {
+    const board = { turn: null };
+    const { hook, socket } = sentAt(viewOf({ mark: { epoch: 7, count: 2 }, board }));
+    blip(socket, viewOf({ mark: { epoch: 7, count: 3 }, board }));
+    expect(answers(socket)).toHaveLength(1);
+    hook.unmount();
+    // Без лічильника на полі (де ведучий може зняти відповідь) — теж не повторюємо.
+    const old = sentAt(viewOf({ board }));
+    blip(old.socket, viewOf({ board }));
+    expect(answers(old.socket)).toHaveLength(1);
+    expect(old.hook.result.current.answerPending).toBe(false);
+    old.hook.unmount();
+  });
+
+  it('the same mark proves it never arrived, even on a board, and a restart (new epoch) falls back to the safe check', () => {
+    const board = { turn: null };
+    const { hook, socket } = sentAt(viewOf({ mark: { epoch: 7, count: 2 }, board }));
+    blip(socket, viewOf({ mark: { epoch: 7, count: 2 }, board }));
+    expect(answers(socket)).toHaveLength(2);
+    hook.unmount();
+    const restarted = sentAt(viewOf({ mark: { epoch: 7, count: 2 } }));
+    blip(restarted.socket, viewOf({ mark: { epoch: 9, count: 0 } }));
+    expect(answers(restarted.socket)).toHaveLength(2);
+    restarted.hook.unmount();
+  });
+
+  it('a re-send the server refuses drops the pending line and reports why', async () => {
+    const { hook, socket } = sentAt(viewOf({ mark: { epoch: 7, count: 0 } }));
+    blip(socket, viewOf({ mark: { epoch: 7, count: 0 } }));
+    await act(async () => answers(socket)[1]!.ack(null, { ok: false, error: 'time_over' }));
+    expect(hook.result.current.answerPending).toBe(false);
+    expect(hook.result.current.answerError?.error).toBe('time_over');
+    hook.unmount();
+  });
+});

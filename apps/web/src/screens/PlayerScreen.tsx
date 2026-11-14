@@ -112,6 +112,8 @@ interface Props {
   requestSync?: () => void;
   /** Відповідь висить без ack (32): useGame надішле її ще раз після перепідключення. */
   answerPending?: boolean;
+  /** Повтор відповіді сервер відхилив (32): причина; at — щоб однакова причина вдруге теж показалась. */
+  answerError?: { error: string; at: number } | null;
 }
 
 const NO_SYNC = () => {};
@@ -692,12 +694,23 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC, answerPending = false }: Props) {
+export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC, answerPending = false, answerError = null }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
   // Запитання, відповідь на яке зависла в обриві (32).
   const [stuckOn, setStuckOn] = useState<number | null>(null);
+  // useGame здався (не повторює, бо не певен, що відповідь загубилась) чи повтор відхилено: рядок «Зв'язок підвис…» знімаємо.
+  const wasPending = useRef(answerPending);
+  useEffect(() => {
+    if (wasPending.current && !answerPending) setStuckOn(null);
+    wasPending.current = answerPending;
+  }, [answerPending]);
+  useEffect(() => {
+    if (answerError === null) return;
+    setStuckOn(null);
+    setError(errorText(answerError.error));
+  }, [answerError]);
   const { me, phase, question } = view;
   const showPrizesAtIntro = useShowPrizesAtIntro(view);
   // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.

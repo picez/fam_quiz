@@ -31,14 +31,38 @@ export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'conne
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-/** Відповідь, на яку ще не прийшов ack: запитання, на яке її дали, і сама відповідь. */
+type AnswerMark = { epoch: number; count: number };
+
+/**
+ * Відповідь, на яку ще не прийшов ack: запитання, на яке її дали, сама відповідь і що було видно в зрізі в мить
+ * надсилання — лічильник прийнятих сервером відповідей (answerMark) і перша спроба бафу «Друга спроба».
+ */
 interface PendingAnswer {
   questionIndex: number;
   payload: unknown;
+  mark: AnswerMark | null;
+  first: string;
 }
 
+type PlayerBits = { me?: { answer?: unknown; buffs?: { active?: { first?: unknown } | null } | null; blitz?: unknown }; answerMark?: AnswerMark; board?: unknown };
+const bits = (view: GameView): PlayerBits => (view.role === 'player' ? (view as unknown as PlayerBits) : {});
 /** Відповіді гравця в зрізі (PlayerView.me.answer); undefined — зріз не гравця. */
-const ownAnswer = (view: GameView): unknown => (view.role === 'player' ? (view as { me?: { answer?: unknown } }).me?.answer : undefined);
+const ownAnswer = (view: GameView): unknown => bits(view).me?.answer;
+const markOf = (view: GameView): AnswerMark | null => bits(view).answerMark ?? null;
+const firstOf = (view: GameView): string => JSON.stringify(bits(view).me?.buffs?.active?.first ?? null);
+
+/**
+ * Чи довів зріз, що сервер ЦЮ відповідь не отримав. Надійно — за answerMark тієї самої епохи: лічильник не зріс.
+ * Без нього (старий сервер чи перезапуск) — обережно: лише без «Перевибрати» (поле й бліц, де ведучий знімає відповідь)
+ * і з тією самою першою спробою бафу; інакше не повторюємо — гравець торкне ще раз сам.
+ */
+function provenLost(pending: PendingAnswer, view: GameView): 'lost' | 'arrived' | 'unknown' {
+  const mark = markOf(view);
+  if (mark !== null && pending.mark !== null && mark.epoch === pending.mark.epoch) return mark.count > pending.mark.count ? 'arrived' : 'lost';
+  const { me, board } = bits(view);
+  if (board != null || me?.blitz != null || firstOf(view) !== pending.first) return 'unknown';
+  return 'lost';
+}
 
 /** Тримає сокет гри: поточний зріз стану, стан зв'язку й надсилання подій. */
 export function useGame(auth: SocketAuth | null) {
@@ -65,6 +89,8 @@ export function useGame(auth: SocketAuth | null) {
   // Відповідь без ack (32): після перепідключення її надішлемо ще раз, лише якщо зріз показує, що вона не дійшла.
   const pendingRef = useRef<PendingAnswer | null>(null);
   const [answerPending, setAnswerPending] = useState(false);
+  // Повтор відповіді сервер відхилив (32): причина для телефона; at — щоб та сама причина вдруге теж показалась.
+  const [answerError, setAnswerError] = useState<{ error: string; at: number } | null>(null);
   const viewRef = useRef<GameView | null>(null);
   const retryRef = useRef<(pending: PendingAnswer) => void>(() => {});
   const socketRef = useRef<GameSocket | null>(null);
@@ -89,6 +115,7 @@ export function useGame(auth: SocketAuth | null) {
     setDrawing(null);
     pendingRef.current = null;
     setAnswerPending(false);
+    setAnswerError(null);
     viewRef.current = null;
     netRef.current = initialNet;
     setQuality('good');
@@ -237,14 +264,24 @@ export function useGame(auth: SocketAuth | null) {
       if (pending === null) return;
       const mine = ownAnswer(next);
       const sameQuestion = next.phase === 'question' && next.questionIndex === pending.questionIndex;
-      if (!sameQuestion || (mine !== null && mine !== undefined)) {
-        // Відповідь дійшла (загубився лише ack) або гра пішла далі: нічого повторювати.
+      const mark = markOf(next);
+      const counted = mark !== null && pending.mark !== null && mark.epoch === pending.mark.epoch && mark.count > pending.mark.count;
+      if (!sameQuestion || (mine !== null && mine !== undefined) || counted) {
+        // Відповідь дійшла (загубився лише ack; «Друга спроба» чи «Перевибрати» могли вже знову очистити me.answer)
+        // або гра пішла далі: нічого повторювати.
         pendingRef.current = null;
         setAnswerPending(false);
         return;
       }
+      if (!afterReconnect || mine !== null) return;
+      const verdict = provenLost(pending, next);
       // Сервер її не отримав: ще раз, один раз на це підключення. Двічі рушій однаково не зарахує (already_answered).
-      if (afterReconnect && mine === null) retryRef.current(pending);
+      if (verdict === 'lost') retryRef.current(pending);
+      else {
+        // Не знаємо напевно: не повторюємо, рядок «Зв'язок підвис…» знімаємо — гравець бачить поле й торкне ще раз.
+        pendingRef.current = null;
+        setAnswerPending(false);
+      }
     };
 
     socket.on('state', (next, meta) => {
@@ -373,13 +410,19 @@ export function useGame(auth: SocketAuth | null) {
     } else setAnswerPending(true);
   }, []);
 
-  retryRef.current = (pending) => void rawSend('player:answer', pending.payload).then((result) => track(pending, result));
+  retryRef.current = (pending) =>
+    void rawSend('player:answer', pending.payload).then((result) => {
+      track(pending, result);
+      // Повтор відхилено (не обрив і не «вже є»): рядок «Зв'язок підвис…» зникає, телефон показує причину.
+      if (!result.ok && result.error !== 'offline' && result.error !== 'already_answered') setAnswerError({ error: result.error, at: Date.now() });
+    });
 
   const send = useCallback<Send>(
     async (event, payload) => {
       // Повторюємо лише відповідь (32): вона ідемпотентна в рушії; buzz, слова драбини, ходи — ні, там повтор був би новим ходом.
       if (event !== 'player:answer' || viewRef.current === null) return rawSend(event, payload);
-      const pending: PendingAnswer = { questionIndex: viewRef.current.questionIndex, payload };
+      const now = viewRef.current;
+      const pending: PendingAnswer = { questionIndex: now.questionIndex, payload, mark: markOf(now), first: firstOf(now) };
       pendingRef.current = pending;
       const result = await rawSend(event, payload);
       track(pending, result);
@@ -397,5 +440,5 @@ export function useGame(auth: SocketAuth | null) {
   /** Просить у сервера повний малюнок (28c), напр. після відмови ack художникові; поки знімок і так іде чи запит у польоті — нічого. */
   const requestSync = useCallback(() => syncRef.current(), []);
 
-  return { quality, answerPending, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
+  return { quality, answerPending, answerError, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
 }

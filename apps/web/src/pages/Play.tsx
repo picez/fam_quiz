@@ -280,6 +280,7 @@ export function Play() {
         drawing={game.drawing}
         requestSync={game.requestSync}
         answerPending={game.answerPending}
+        answerError={game.answerError}
       />
     </>
   );
