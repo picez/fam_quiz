@@ -344,9 +344,9 @@ describe('profile facts', () => {
       title: `Гра ${i}`,
       quizSnapshot: {},
       questionsPlayed: 0,
-      // Удень за Києвом (12i): нічні ігри дали б ще й «Нічну сову».
-      startedAt: new Date(Date.UTC(2026, 0, 1, 10, i)),
-      finishedAt: new Date(Date.UTC(2026, 0, 1, 11, i)),
+      // Удень за Києвом (12i): нічні ігри дали б ще й «Нічну сову»; не 1 січня (33): інакше ще й «Святковий настрій».
+      startedAt: new Date(Date.UTC(2026, 0, 2, 10, i)),
+      finishedAt: new Date(Date.UTC(2026, 0, 2, 11, i)),
     }));
     await db.insert(game).values(games);
     await db.insert(participant).values(

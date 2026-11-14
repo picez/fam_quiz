@@ -4,6 +4,7 @@ import type { AchievementGame, AchievementQuestion, AchievementRow } from './ach
 import { answerRow, groupRounds, ownRows, silentRisk } from './achievement-rows';
 import { antiAchievements } from './anti-achievements';
 import { mechanicAchievements } from './mechanic-achievements';
+import { roundAchievements } from './round-achievements';
 import { typeAchievements } from './type-achievements';
 
 /** Пороги ігрових ачівок (12i). */
@@ -198,8 +199,9 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
   // Антидосягнення й досягнення механік (12j).
   for (const id of antiAchievements(game, who)) got.add(id);
   for (const id of mechanicAchievements(game, who)) got.add(id);
-  // Досягнення за типи запитань (план 33).
+  // Досягнення за типи запитань, раунди й додаткові (план 33).
   for (const id of typeAchievements(game, who)) got.add(id);
+  for (const id of roundAchievements(game, who)) got.add(id);
 
   return ACHIEVEMENTS.filter((id) => got.has(id));
 }
