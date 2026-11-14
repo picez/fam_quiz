@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Quiz } from './quiz';
 import type { PrizeContent, PrizePlace } from './prizes';
+import { pageCount } from './paging';
 
 export const ADMIN_PAGE_SIZE = 50;
 export const ADMIN_REASON_MAX = 500;
@@ -53,5 +54,5 @@ export const banSchema = z
   .strict();
 
 export function adminPages(total: number): number {
-  return Math.max(1, Math.ceil(total / ADMIN_PAGE_SIZE));
+  return pageCount(total, ADMIN_PAGE_SIZE);
 }

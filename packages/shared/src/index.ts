@@ -12,6 +12,7 @@ export * from './sudoku';
 export * from './random';
 export * from './numbers';
 export * from './guards';
+export * from './paging';
 export * from './crossword';
 export * from './round-brief';
 export * from './upgrade';
