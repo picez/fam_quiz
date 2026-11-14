@@ -1,6 +1,6 @@
 import { deflateSync } from 'node:zlib';
 import { type PlayerView, type StateMeta } from '@quiz/shared';
-import { type Locator, type Page } from 'playwright-core';
+import { type Locator, type Page, type WebSocketRoute } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect } from 'vitest';
 import { ukMessages } from '../../../web/src/i18n';
@@ -27,6 +27,8 @@ export async function open(
     const expected =
       message.text().includes('401 (Unauthorized)') ||
       (flags.restarting && message.text().includes('WebSocket connection to')) ||
+      // Частина 32: без мережі невдалі запити, сокет і ресурси — очікувані.
+      (flags.offlineExpected && /net::ERR_INTERNET_DISCONNECTED|Failed to fetch|WebSocket connection to|net::ERR_FAILED|503 \(Service Unavailable\)/.test(message.text())) ||
       (flags.slots404Expected && message.text().includes('404 (Not Found)') && /\/api\/games\/by-code\/\d{6}\/slots$/.test(message.location().url)) ||
       (flags.banExpected && /403 \(Forbidden\)|404 \(Not Found\)/.test(message.text()) && /\/api\/(auth\/sign-in\/email|games\/by-code\/\d{6}(\/slots)?)$/.test(message.location().url));
     if (message.type() === 'error' && !expected) problems.push(`${name} console: ${message.text()} @ ${message.location().url}`);
@@ -988,4 +990,78 @@ export function png29d(width: number, height: number, pixel: (x: number, y: numb
   header.writeUInt32BE(height, 4);
   header.set([8, 2, 0, 0, 0], 8);
   return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
+/** Сервіс-воркер (32) установлено й він керує сторінкою, а кеш оболонки вже лежить: перезавантажує, доки так не стане. */
+export async function waitForServiceWorker(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  for (let attempt = 0; attempt < 5 && !((await page.evaluate('navigator.serviceWorker.controller !== null')) as boolean); attempt++) await page.reload();
+  expect(await page.evaluate('navigator.serviceWorker.controller !== null'), 'the service worker controls the page').toBe(true);
+  await expect
+    .poll(async () => (await page.evaluate(async () => {
+      const names = (await caches.keys()).filter((name) => name.startsWith('quiz-shell-'));
+      for (const name of names) if ((await (await caches.open(name)).match('/index.html')) !== undefined) return true;
+      return false;
+    })) as boolean, { timeout: 10_000 })
+    .toBe(true);
+}
+
+/** Керування сокетом сторінки (32): затримка в обидва боки й відкидання повідомлень одного з'єднання в обраний бік. */
+export interface SocketControl {
+  delayMs: number;
+  /** Номер з'єднання (1, 2, …), чиї повідомлення відкидаються, і в який бік; null — нічого не відкидаємо. */
+  drop: { connection: number; direction: 'toServer' | 'toPage' } | null;
+  /** Скільки з'єднань сокета відкрила сторінка. */
+  connections: number;
+  /** Скільки разів сторінка надіслала player:answer (і скільки з них дійшло до сервера). */
+  answersSent: number;
+  answersDelivered: number;
+  /** Закрити поточне з'єднання з боку сервера (як обрив). */
+  closeCurrent(): void;
+}
+
+const closeCode = (code: number | undefined) => (code !== undefined && (code === 1000 || (code >= 3000 && code <= 4999)) ? code : undefined);
+
+/** Пропускає WebSocket сторінки через себе (page.routeWebSocket): затримка delayMs зі збереженням порядку, відкидання за drop. Ставити до входу в гру. */
+export async function slowSocket(page: Page, { delayMs = 0 }: { delayMs?: number } = {}): Promise<SocketControl> {
+  let current: WebSocketRoute | null = null;
+  const control: SocketControl = {
+    delayMs,
+    drop: null,
+    connections: 0,
+    answersSent: 0,
+    answersDelivered: 0,
+    closeCurrent: () => current?.close({ code: 4000, reason: 'e2e blip' }).catch(() => undefined),
+  };
+  await page.routeWebSocket(/\/socket\.io\//, (ws) => {
+    const index = ++control.connections;
+    current = ws;
+    const server = ws.connectToServer();
+    // Черга кожного напрямку: затримка не міняє порядку повідомлень, навіть коли delayMs змінюють посеред гри.
+    const queue = { toServer: 0, toPage: 0 };
+    const later = (direction: 'toServer' | 'toPage', send: () => void) => {
+      const at = Math.max(Date.now() + control.delayMs, queue[direction]);
+      queue[direction] = at;
+      const wait = at - Date.now();
+      if (wait <= 0) send();
+      else setTimeout(send, wait);
+    };
+    const dropped = (direction: 'toServer' | 'toPage') => control.drop !== null && control.drop.connection === index && control.drop.direction === direction;
+    ws.onMessage((message) => {
+      const answer = typeof message === 'string' && message.includes('"player:answer"');
+      if (answer) control.answersSent += 1;
+      if (dropped('toServer')) return;
+      if (answer) control.answersDelivered += 1;
+      later('toServer', () => server.send(message));
+    });
+    server.onMessage((message) => {
+      if (dropped('toPage')) return;
+      later('toPage', () => ws.send(message));
+    });
+    ws.onClose((code, reason) => void server.close({ code: closeCode(code), reason }).catch(() => undefined));
+    server.onClose((code, reason) => void ws.close({ code: closeCode(code), reason }).catch(() => undefined));
+  });
+  return control;
 }
