@@ -160,7 +160,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -1115,7 +1115,7 @@ export class RoomManager {
     } else {
       room = this.create(input.quiz, input.hostUserId, input.quizId);
     }
-    const clamp = (score: number) => Math.max(-RESUME_POINTS_MAX, Math.min(RESUME_POINTS_MAX, Math.round(score)));
+    const bounded = (score: number) => clamp(Math.round(score), -RESUME_POINTS_MAX, RESUME_POINTS_MAX);
     const points: Record<string, number> = {};
     let state = room.state;
     for (const person of people) {
@@ -1144,12 +1144,12 @@ export class RoomManager {
       for (const [oldId, name] of teamNames) {
         const team = state.teams?.list.find((t) => t.name === name);
         const score = input.participants.find((p) => p.id === oldId)?.score ?? 0;
-        if (team !== undefined) points[team.id] = clamp(score);
+        if (team !== undefined) points[team.id] = bounded(score);
       }
     } else {
       for (const person of people) {
         const playerId = newIds.get(person.id);
-        if (playerId !== undefined) points[playerId] = clamp(person.score);
+        if (playerId !== undefined) points[playerId] = bounded(person.score);
       }
     }
     room.continued = { bound: new Set(), carry: { roundIndex: input.roundIndex, points }, replaces: input.gameId };
