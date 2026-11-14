@@ -392,6 +392,8 @@ async function stealthTeams29h() {
   await pickOption(olya, 'Київ');
   await click(olya, 'Відповісти');
   await olya.getByText('Відповідь прийнято', exact).waitFor();
+  // Відповіла одна команда з двох — запитання ще відкрите: ведучий закриває його сам, не чекаючи таймера.
+  await click(host, 'Закрити запитання');
   await click(host, 'Показати відповідь');
   await olya.locator('section.result').first().waitFor();
   await click(host, 'Далі');

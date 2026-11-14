@@ -1674,7 +1674,8 @@ async function powers12h() {
   };
   const fresh = await powersOf('Сили 12h');
   expect(fresh.debuffs.total).toBe(11);
-  expect(fresh.buffs.total).toBe(13);
+  // 29h додав 14-й баф «Прихований напад»: у редакторі тепер 14 бафів.
+  expect(fresh.buffs.total).toBe(14);
   expect(fresh.debuffs.on.length).toBe(5);
   for (const [at, name] of ['Догори дриґом', 'Ліхтарик', 'Липкі кнопки', 'Без годинника', 'Бульбашки'].entries()) expect(fresh.debuffs.on[at]).toContain(name);
   expect(fresh.buffs.on.length).toBe(5);

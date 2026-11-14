@@ -20,7 +20,8 @@
 Потрібні Node.js 22.9+ і pnpm.
 
     pnpm install
-    pnpm test                          # усі тести
+    pnpm test                          # модульні тести всіх пакетів (на слабкій машині: pnpm test --maxWorkers=2)
+    pnpm test --project web            # лише один пакет: shared, engine, server або web
     pnpm typecheck                     # перевірка типів
     pnpm --filter @quiz/server dev     # сервер на http://localhost:3000
 
@@ -103,6 +104,15 @@ Google не приймає адреси на кшталт `http://192.168.0.10:3
 
     pnpm test          # модульні й інтеграційні, без Docker
     pnpm e2e           # збирає клієнт і проходить гру в Chrome від реєстрації до подіуму
+
+`pnpm test` бере кореневий `vitest.config.ts`: чотири проєкти (shared, engine, server, web), кожен шукає `*.test.ts(x)` лише у своїй `src/` (сервер — ще в `scripts/`), тож тест кладіть поруч із кодом. Робочі дерева `.claude/worktrees`, `.superpowers`, `dist` і e2e не збираються.
+
+Наскрізні тести — `apps/server/e2e/*.e2e.ts`, по файлу на тему (у назві — частини й тема). Спільне — `helpers/setup.ts` (сервер, база, браузер, `useE2eServer()`, `flags`) і `helpers/common.ts` (помічники для кількох файлів). Кожен файл починається з `useE2eServer();` і запускається сам, файли йдуть по одному (`fileParallelism: false`):
+
+    pnpm build
+    npx vitest run --config apps/server/e2e/vitest.config.ts part25-
+
+На слабкій машині повний прогін — `pnpm build`, потім файли по одному на передньому плані (кожен до 10 хв; великі — половинами через `-t`). Нова частина — новий файл `partNN-<тема>.e2e.ts` або дописати в тематичний; помічник для кількох файлів — у `helpers/common.ts` з `export`; очікувані помилки консолі — `flags.restarting = true` тощо. `E2E_SHOTS=1` (знімки в `apps/server/e2e/artifacts/shots/`) і `E2E_CHANNEL` працюють як раніше.
 
 ## HTTP API
 

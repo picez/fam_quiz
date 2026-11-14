@@ -436,7 +436,7 @@ async function memoryGame29f() {
   expect(boardPetro!.points, 'the one who did not finish').toBe(0);
   expect(boardPetro!.pairs).toBe(2);
   const rows = await stage.locator('.memory-stage.is-reveal .memory-table tbody tr').evaluateAll((all) => all.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent ?? '')));
-  expect(rows.map((row) => [row[0], row[1], row[3]])).toEqual([['1', 'Оля', '+300'], ['2', 'Тарас', `+${tarasPoints}`], ['—', 'Петро', '']]);
+  expect(rows.map((row) => [row[0], row[1], row[3]])).toEqual([['1', 'Оля', '+300'], ['2', 'Тарас', `+${tarasPoints}`], ['—', 'Петро', '0']]);
   expect(rows[0]![2]).toMatch(/^[\d,]+ с$/);
   expect(rows[2]![2]).toBe('2 з 6');
   await scores29f(phones, [300, tarasPoints, 0]);

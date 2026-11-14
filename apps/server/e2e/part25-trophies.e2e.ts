@@ -292,10 +292,12 @@ async function trophyDecor25a() {
   const card = petro.locator('section.showcase .award-card').first();
   await card.waitFor();
   await card.scrollIntoViewIfNeeded();
-  const cardEmoji = card.locator('button.award-emoji');
-  if (await cardEmoji.isVisible()) await cardEmoji.click();
-  await card.locator('canvas.trophy-canvas').waitFor();
-  expect(await card.locator('canvas.trophy-canvas').getAttribute('data-decor')).toBe(CUP_DECOR);
+  // 29a: у вітрині — статична картинка кубка; 3D відкривається дотиком у діалозі перегляду (портал поза карткою).
+  await card.locator('button.award-emoji').click();
+  const cardViewer = dialogOf(petro);
+  await cardViewer.locator('canvas.trophy-canvas').waitFor();
+  expect(await cardViewer.locator('canvas.trophy-canvas').getAttribute('data-decor')).toBe(CUP_DECOR);
+  await petro.keyboard.press('Escape');
 
   const petroId = await myId(petro);
   await olya.goto(`${base}/profile/${petroId}`);
