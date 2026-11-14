@@ -61,6 +61,8 @@ const STATUS: Record<string, number> = {
   group_not_found: 404,
   item_not_found: 404,
   not_author: 403,
+  // Керування передали, поки йшов запит (перевірка під замком групи): конфлікт, а не заборона.
+  not_owner: 409,
 };
 
 function fail(reply: FastifyReply, error: string) {

@@ -294,6 +294,64 @@ describe('group store (12k)', () => {
     expect((await groupDetail(db, id, petro))?.items).toBe(2);
   });
 
+  it('a banned owner does not freeze the group: the earliest member who is not banned takes over', async () => {
+    const olia = await person('Оля');
+    const petro = await person('Петро');
+    const ira = await person('Іра');
+    const id = await newGroup(olia);
+    await joinByCode(db, await codeOf(id), petro, later(1));
+    await joinByCode(db, await codeOf(id), ira, later(2));
+    await db.insert(userBan).values([
+      { userId: olia, bannedAt: T },
+      { userId: petro, bannedAt: T },
+    ]);
+    expect(await membership(db, id, ira)).toBe('owner');
+    expect(await membership(db, id, olia)).toBe('member');
+    const detail = await groupDetail(db, id, ira);
+    expect(detail?.members.map((m) => m.id)).toEqual([ira]);
+    expect(detail?.people).toBe(1);
+    expect((await joinPreview(db, await codeOf(id), ira))?.owner?.id).toBe(ira);
+  });
+
+  it('hides banned people: pending invites, invites from them and the preview owner', async () => {
+    const olia = await person('Оля');
+    const ira = await person('Іра');
+    const marko = await person('Марко');
+    const id = await newGroup(olia);
+    await befriend(olia, ira);
+    await befriend(olia, marko);
+    await inviteFriends(db, id, olia, [ira, marko], later(1));
+    await db.insert(userBan).values({ userId: marko, bannedAt: T });
+    expect((await groupDetail(db, id, olia))?.pending?.map((p) => p.user.id)).toEqual([ira]);
+    // Власницю заблокували: її запрошення зникає, власника в прев'ю немає (інших учасників нема).
+    await db.insert(userBan).values({ userId: olia, bannedAt: T });
+    expect(await invitesFor(db, ira)).toEqual([]);
+    expect((await joinPreview(db, await codeOf(id), ira))?.owner).toBeNull();
+  });
+
+  it('two joins of one person at once do not pass ten groups', async () => {
+    const busy = await person('Дана');
+    for (let i = 0; i < 9; i++) await newGroup(busy, { ...kvitkovi, name: `Своя ${i}` });
+    const a = await newGroup(await person('Оля'));
+    const b = await newGroup(await person('Петро'));
+    const results = await Promise.all([joinByCode(db, await codeOf(a), busy, later(1)), joinByCode(db, await codeOf(b), busy, later(1))]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, error: 'too_many_groups' }]);
+  });
+
+  it('a hand-over from someone who is no longer the owner is a clean refusal', async () => {
+    const olia = await person('Оля');
+    const petro = await person('Петро');
+    const ira = await person('Іра');
+    const id = await newGroup(olia);
+    await joinByCode(db, await codeOf(id), petro, later(1));
+    await joinByCode(db, await codeOf(id), ira, later(2));
+    expect(await transferOwner(db, id, olia, petro)).toEqual({ ok: true });
+    expect(await transferOwner(db, id, olia, ira)).toEqual({ ok: false, error: 'not_owner' });
+    expect(await membership(db, id, petro)).toBe('owner');
+    expect(await membership(db, id, ira)).toBe('member');
+  });
+
   it('deleting a group takes members, invites and records', async () => {
     const olia = await person('Оля');
     const ira = await person('Іра');

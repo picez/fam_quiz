@@ -10,6 +10,7 @@ import {
 import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, groupItem, groupMember, profile } from './db/schema';
+import { notHidden } from './feed-store';
 import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -44,7 +45,8 @@ async function memberCards(db: Db, groupId: string): Promise<Map<string, Profile
     .select({ id: groupMember.userId, nickname: profile.nickname, avatar: profile.avatar, hasProfile: profile.userId })
     .from(groupMember)
     .leftJoin(profile, eq(profile.userId, groupMember.userId))
-    .where(eq(groupMember.groupId, groupId));
+    // Заблокованих (бан #23) не показуємо: автор такого запису — «вже не в групі», записи лишаються.
+    .where(and(eq(groupMember.groupId, groupId), notHidden(groupMember.userId)));
   const cards = new Map<string, ProfileCard>();
   for (const row of rows) {
     if (row.hasProfile !== null) {
@@ -121,8 +123,15 @@ function storedAbout(
   return stored;
 }
 
-async function lockGroup(tx: Tx, groupId: string): Promise<void> {
-  await tx.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, groupId)).for('update');
+/** Замок групи й перевірка під ним: група ще є і людина ще в ній (інакше — group_not_found, а не помилка ключа). */
+async function lockMember(tx: Tx, groupId: string, userId: string): Promise<boolean> {
+  const [group] = await tx.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, groupId)).for('update');
+  if (group === undefined) return false;
+  const [member] = await tx
+    .select({ userId: groupMember.userId })
+    .from(groupMember)
+    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId)));
+  return member !== undefined;
 }
 
 /** Учасники групи всередині транзакції: перевірка «про кого» саме на мить запису. */
@@ -141,11 +150,11 @@ export async function createItem(
   authorId: string,
   input: GroupItemInput,
   now: Date,
-): Promise<{ ok: true; item: GroupItem } | Fail<'group_items_full' | 'about_not_member'>> {
+): Promise<{ ok: true; item: GroupItem } | Fail<'group_not_found' | 'group_items_full' | 'about_not_member'>> {
   // Картки — до транзакції: ensureProfile ходить через db, а не через tx.
   const cards = await memberCards(db, groupId);
   const outcome = await db.transaction(async (tx) => {
-    await lockGroup(tx, groupId);
+    if (!(await lockMember(tx, groupId, authorId))) return { ok: false, error: 'group_not_found' } as const;
     const members = onlyCurrent(cards, await memberIds(tx, groupId));
     const about = storedAbout(input.about, members, []);
     if (about === null) return { ok: false, error: 'about_not_member' } as const;
@@ -177,10 +186,10 @@ export async function updateItem(
   userId: string,
   input: GroupItemInput,
   now: Date,
-): Promise<{ ok: true; item: GroupItem } | Fail<'item_not_found' | 'not_author' | 'about_not_member'>> {
+): Promise<{ ok: true; item: GroupItem } | Fail<'group_not_found' | 'item_not_found' | 'not_author' | 'about_not_member'>> {
   const cards = await memberCards(db, groupId);
   const outcome = await db.transaction(async (tx) => {
-    await lockGroup(tx, groupId);
+    if (!(await lockMember(tx, groupId, userId))) return { ok: false, error: 'group_not_found' } as const;
     const existing = await visibleItem(tx, groupId, itemId, userId);
     if (existing === null) return { ok: false, error: 'item_not_found' } as const;
     if (existing.authorId !== userId) return { ok: false, error: 'not_author' } as const;

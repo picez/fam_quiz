@@ -13,9 +13,9 @@ import {
   type GroupsPage,
   type ProfileCard,
 } from '@quiz/shared';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { familyGroup, follow, groupInvite, groupMember, profile } from './db/schema';
+import { familyGroup, follow, groupInvite, groupMember, profile, userBan } from './db/schema';
 import { notHidden } from './feed-store';
 import { countVisibleItems } from './group-items';
 import { ensureProfile } from './profiles';
@@ -66,15 +66,21 @@ export async function profileCards(db: Db, ids: readonly string[]): Promise<Map<
   return found;
 }
 
+/** SQL: акаунт з цим id не заблоковано (те саме, що notHidden, для колонки підзапиту). */
+const notBanned = (userId: SQL) => sql`NOT EXISTS (SELECT 1 FROM ${userBan} WHERE ${userBan.userId} = ${userId})`;
+
+/** Скільки людей у групі видно іншим (без заблокованих): для показу; межа 30 рахує всіх. */
+const visiblePeople = sql<number>`(SELECT count(*)::int FROM ${groupMember} m WHERE m.group_id = ${familyGroup.id} AND ${notBanned(sql`m.user_id`)})`;
+
 /**
- * Лагодить групу, що втратила власника (акаунт видалено): власником стає той, хто приєднався найраніше;
- * група без жодного учасника видаляється. false — групи (вже) немає.
+ * Лагодить групу, що втратила власника (акаунт видалено або заблоковано): власником стає той, хто приєднався
+ * найраніше й не заблокований (заблокований власник стає учасником); група без жодного учасника видаляється.
+ * false — групи (вже) немає.
  */
 async function repair(db: Db, groupId: string): Promise<boolean> {
   const [state] = await db
     .select({
-      members: sql<number>`(SELECT count(*)::int FROM ${groupMember} WHERE ${groupMember.groupId} = ${familyGroup.id})`,
-      owners: sql<number>`(SELECT count(*)::int FROM ${groupMember} WHERE ${groupMember.groupId} = ${familyGroup.id} AND ${groupMember.role} = 'owner')`,
+      owners: sql<number>`(SELECT count(*)::int FROM ${groupMember} m WHERE m.group_id = ${familyGroup.id} AND m.role = 'owner' AND ${notBanned(sql`m.user_id`)})`,
     })
     .from(familyGroup)
     .where(eq(familyGroup.id, groupId));
@@ -84,7 +90,7 @@ async function repair(db: Db, groupId: string): Promise<boolean> {
     const [locked] = await tx.select({ id: familyGroup.id }).from(familyGroup).where(eq(familyGroup.id, groupId)).for('update');
     if (locked === undefined) return false;
     const members = await tx
-      .select({ userId: groupMember.userId, role: groupMember.role })
+      .select({ userId: groupMember.userId, role: groupMember.role, banned: sql<boolean>`NOT ${notBanned(sql`${groupMember.userId}`)}` })
       .from(groupMember)
       .where(eq(groupMember.groupId, groupId))
       .orderBy(asc(groupMember.joinedAt), asc(groupMember.userId));
@@ -92,12 +98,15 @@ async function repair(db: Db, groupId: string): Promise<boolean> {
       await tx.delete(familyGroup).where(eq(familyGroup.id, groupId));
       return false;
     }
-    if (!members.some((m) => m.role === 'owner')) {
-      await tx
-        .update(groupMember)
-        .set({ role: 'owner' })
-        .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, members[0].userId)));
+    const owner = members.find((m) => m.role === 'owner');
+    const heir = members.find((m) => !m.banned);
+    // Лише заблоковані: групою ніхто не користується, лишаємо як є.
+    if ((owner !== undefined && !owner.banned) || heir === undefined) return true;
+    // Спершу старий власник — учасник: частковий унікальний індекс не допускає двох власників.
+    if (owner !== undefined) {
+      await tx.update(groupMember).set({ role: 'member' }).where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, owner.userId)));
     }
+    await tx.update(groupMember).set({ role: 'owner' }).where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, heir.userId)));
     return true;
   });
 }
@@ -116,6 +125,19 @@ export async function membership(db: Db, groupId: string, userId: string): Promi
 async function peopleIn(db: Db | Tx, groupId: string): Promise<number> {
   const [row] = await db.select({ n: count() }).from(groupMember).where(eq(groupMember.groupId, groupId));
   return Number(row?.n ?? 0);
+}
+
+async function visiblePeopleIn(db: Db, groupId: string): Promise<number> {
+  const [row] = await db.select({ n: visiblePeople }).from(familyGroup).where(eq(familyGroup.id, groupId));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Замок людини на час транзакції вступу чи створення: два одночасні вступи однієї людини не перейдуть межу 10 груп.
+ * Порядок усюди той самий — спершу людина, потім група.
+ */
+async function lockPerson(tx: Tx, userId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`groups:${userId}`}))`);
 }
 
 async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
@@ -139,7 +161,7 @@ export async function listGroups(db: Db, userId: string): Promise<GroupsPage> {
       description: familyGroup.description,
       role: groupMember.role,
       joinedAt: groupMember.joinedAt,
-      people: sql<number>`(SELECT count(*)::int FROM ${groupMember} m WHERE m.group_id = ${familyGroup.id})`,
+      people: visiblePeople,
     })
     .from(groupMember)
     .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
@@ -163,7 +185,8 @@ export async function groupDetail(db: Db, groupId: string, viewerId: string): Pr
   const rows = await db
     .select({ userId: groupMember.userId, role: groupMember.role, joinedAt: groupMember.joinedAt })
     .from(groupMember)
-    .where(eq(groupMember.groupId, groupId))
+    // Заблокованих (бан #23) інші не бачать — як у списку друзів.
+    .where(and(eq(groupMember.groupId, groupId), notHidden(groupMember.userId)))
     .orderBy(sql`${groupMember.role} = 'owner' DESC`, asc(groupMember.joinedAt), asc(groupMember.userId));
   const cards = await profileCards(db, rows.map((r) => r.userId));
   const members: GroupMember[] = [];
@@ -190,7 +213,7 @@ export async function groupDetail(db: Db, groupId: string, viewerId: string): Pr
     const pending = await db
       .select({ userId: groupInvite.userId, at: groupInvite.createdAt })
       .from(groupInvite)
-      .where(eq(groupInvite.groupId, groupId))
+      .where(and(eq(groupInvite.groupId, groupId), notHidden(groupInvite.userId)))
       .orderBy(desc(groupInvite.createdAt), asc(groupInvite.userId));
     const invited = await profileCards(db, pending.map((p) => p.userId));
     detail.pending = pending.flatMap((p) => {
@@ -210,6 +233,7 @@ export async function createGroup(
   for (let attempt = 1; ; attempt++) {
     try {
       return await db.transaction(async (tx) => {
+        await lockPerson(tx, ownerId);
         if ((await groupsOf(tx, ownerId)) >= GROUP_LIMITS.groupsPerUser) return { ok: false, error: 'too_many_groups' } as const;
         const [created] = await tx
           .insert(familyGroup)
@@ -265,16 +289,35 @@ export async function transferOwner(
   groupId: string,
   fromId: string,
   toId: string,
-): Promise<{ ok: true } | Fail<'member_not_found'>> {
-  return db.transaction(async (tx) => {
-    await lockGroup(tx, groupId);
-    if (fromId === toId || (await roleIn(tx, groupId, toId)) !== 'member') return { ok: false, error: 'member_not_found' } as const;
-    // Спершу старий власник — учасник: частковий унікальний індекс не допускає двох власників навіть на мить.
-    await tx.update(groupMember).set({ role: 'member' }).where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, fromId)));
-    await tx.update(groupMember).set({ role: 'owner' }).where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, toId)));
-    return { ok: true } as const;
-  });
+): Promise<{ ok: true } | Fail<'member_not_found' | 'not_owner'>> {
+  try {
+    return await db.transaction(async (tx) => {
+      await lockGroup(tx, groupId);
+      // Перевірка вже під замком: між перевіркою членства на маршруті й цією мить керування могли передати.
+      if ((await roleIn(tx, groupId, fromId)) !== 'owner') return { ok: false, error: 'not_owner' } as const;
+      if (fromId === toId || (await roleIn(tx, groupId, toId)) !== 'member') return { ok: false, error: 'member_not_found' } as const;
+      // Спершу старий власник — учасник: частковий унікальний індекс не допускає двох власників навіть на мить.
+      const demoted = await tx
+        .update(groupMember)
+        .set({ role: 'member' })
+        .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, fromId), eq(groupMember.role, 'owner')))
+        .returning({ userId: groupMember.userId });
+      const promoted = await tx
+        .update(groupMember)
+        .set({ role: 'owner' })
+        .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, toId), eq(groupMember.role, 'member')))
+        .returning({ userId: groupMember.userId });
+      if (demoted.length !== 1 || promoted.length !== 1) throw new TransferConflict();
+      return { ok: true } as const;
+    });
+  } catch (error) {
+    if (error instanceof TransferConflict || isUniqueViolation(error)) return { ok: false, error: 'not_owner' };
+    throw error;
+  }
 }
+
+/** Передача керування не влучила рівно в два рядки: транзакцію відкочено. */
+class TransferConflict extends Error {}
 
 export async function removeMember(
   db: Db,
@@ -283,19 +326,25 @@ export async function removeMember(
   userId: string,
 ): Promise<{ ok: true } | Fail<'member_not_found' | 'owner_must_transfer'>> {
   if (userId === ownerId) return { ok: false, error: 'owner_must_transfer' };
-  const removed = await db
-    .delete(groupMember)
-    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), eq(groupMember.role, 'member')))
-    .returning({ userId: groupMember.userId });
-  return removed.length === 0 ? { ok: false, error: 'member_not_found' } : { ok: true };
+  return db.transaction(async (tx) => {
+    await lockGroup(tx, groupId);
+    const removed = await tx
+      .delete(groupMember)
+      .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), eq(groupMember.role, 'member')))
+      .returning({ userId: groupMember.userId });
+    return removed.length === 0 ? ({ ok: false, error: 'member_not_found' } as const) : ({ ok: true } as const);
+  });
 }
 
 export async function leaveGroup(db: Db, groupId: string, userId: string): Promise<{ ok: true } | Fail<'owner_must_transfer'>> {
-  if ((await roleIn(db, groupId, userId)) === 'owner') return { ok: false, error: 'owner_must_transfer' };
-  await db
-    .delete(groupMember)
-    .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), eq(groupMember.role, 'member')));
-  return { ok: true };
+  return db.transaction(async (tx) => {
+    await lockGroup(tx, groupId);
+    if ((await roleIn(tx, groupId, userId)) === 'owner') return { ok: false, error: 'owner_must_transfer' } as const;
+    await tx
+      .delete(groupMember)
+      .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), eq(groupMember.role, 'member')));
+    return { ok: true } as const;
+  });
 }
 
 /** Лише друзі власника (follow), не заблоковані (як у списку друзів), не учасники, без власного id; повертає справді запрошених. */
@@ -356,11 +405,12 @@ export async function invitesFor(db: Db, userId: string): Promise<GroupInviteCar
       emoji: familyGroup.emoji,
       from: groupInvite.invitedBy,
       at: groupInvite.createdAt,
-      people: sql<number>`(SELECT count(*)::int FROM ${groupMember} m WHERE m.group_id = ${familyGroup.id})`,
+      people: visiblePeople,
     })
     .from(groupInvite)
     .innerJoin(familyGroup, eq(familyGroup.id, groupInvite.groupId))
-    .where(eq(groupInvite.userId, userId))
+    // Запрошення від заблокованого (бан #23) зникає, як запрошення в гру від такого ведучого.
+    .where(and(eq(groupInvite.userId, userId), sql`(${groupInvite.invitedBy} IS NULL OR ${notHidden(groupInvite.invitedBy)})`))
     .orderBy(desc(groupInvite.createdAt), asc(familyGroup.id));
   const cards = await profileCards(db, rows.flatMap((r) => (r.from === null ? [] : [r.from])));
   return rows.map((row) => ({
@@ -377,6 +427,7 @@ async function addMember(
   userId: string,
   now: Date,
 ): Promise<{ ok: true } | Fail<'group_not_found' | 'group_full' | 'too_many_groups'>> {
+  await lockPerson(tx, userId);
   if (!(await lockGroup(tx, groupId))) return { ok: false, error: 'group_not_found' };
   if ((await roleIn(tx, groupId, userId)) !== null) return { ok: true };
   if ((await peopleIn(tx, groupId)) >= GROUP_LIMITS.membersMax) return { ok: false, error: 'group_full' };
@@ -395,6 +446,8 @@ export async function acceptInvite(
   if (!UUID.test(groupId)) return { ok: false, error: 'invite_not_found' };
   if (!(await repair(db, groupId))) return { ok: false, error: 'invite_not_found' };
   return db.transaction(async (tx) => {
+    // Замки — до першого читання: людина, потім група (усередині addMember), як у вступі за посиланням.
+    await lockPerson(tx, userId);
     const [invite] = await tx
       .select({ userId: groupInvite.userId })
       .from(groupInvite)
@@ -424,14 +477,14 @@ export async function joinPreview(db: Db, code: string, viewerId: string): Promi
   const [owner] = await db
     .select({ userId: groupMember.userId })
     .from(groupMember)
-    .where(and(eq(groupMember.groupId, group.id), eq(groupMember.role, 'owner')));
+    .where(and(eq(groupMember.groupId, group.id), eq(groupMember.role, 'owner'), notHidden(groupMember.userId)));
   const ownerCard = owner === undefined ? null : ((await profileCards(db, [owner.userId])).get(owner.userId) ?? null);
   return {
     id: group.id,
     name: group.name,
     emoji: group.emoji,
     description: group.description,
-    people: await peopleIn(db, group.id),
+    people: await visiblePeopleIn(db, group.id),
     owner: ownerCard,
     member: (await roleIn(db, group.id, viewerId)) !== null,
   };

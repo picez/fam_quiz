@@ -2,7 +2,7 @@ import type { GroupItemInput } from '@quiz/shared';
 import { eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { familyGroup, groupItem, groupMember, profile, user } from './db/schema';
+import { familyGroup, groupItem, groupMember, profile, user, userBan } from './db/schema';
 import { createItem, deleteItem, listItems, updateItem } from './group-items';
 import { createGroup, groupDetail, joinByCode, leaveGroup, listGroups } from './group-store';
 import { ensureProfile } from './profiles';
@@ -170,6 +170,24 @@ describe('group records (12k)', () => {
     expect(list.find((i) => i.id === byIra.id)).toMatchObject({ author: null });
     const [row] = await db.select().from(groupItem).where(eq(groupItem.id, byIra.id));
     expect(row.authorId).toBeNull();
+  });
+
+  it('writing after leaving or after the group is gone is group_not_found, not a crash', async () => {
+    const { id, petro, olia } = await family();
+    const story = await write(id, petro, { text: 'Свій запис' });
+    expect((await leaveGroup(db, id, petro)).ok).toBe(true);
+    expect(await createItem(db, id, petro, { ...base, text: 'Ще' }, later(20))).toEqual({ ok: false, error: 'group_not_found' });
+    expect(await updateItem(db, id, story.id, petro, { ...base, text: 'Інше' }, later(20))).toEqual({ ok: false, error: 'group_not_found' });
+    await db.delete(familyGroup).where(eq(familyGroup.id, id));
+    expect(await createItem(db, id, olia, { ...base, text: 'Ще' }, later(21))).toEqual({ ok: false, error: 'group_not_found' });
+  });
+
+  it('a banned author shows as «вже не в групі», the record stays', async () => {
+    const { id, olia, petro } = await family();
+    const story = await write(id, petro, { text: 'Перша поїздка на море всією родиною' });
+    await db.insert(userBan).values({ userId: petro, bannedAt: T });
+    const [shown] = await listItems(db, id, olia, 'owner');
+    expect(shown).toMatchObject({ id: story.id, author: null });
   });
 
   it('stops at 500 records', async () => {
