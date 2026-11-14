@@ -5,6 +5,7 @@ import { getGroupItems } from '../api';
 import { errorText, t } from '../i18n';
 import { nickText } from '../nick';
 import { aboutName, ItemCard } from './ItemCard';
+import { GroupQuizBar } from './GroupQuizBar';
 
 /** Вкладка «Записи» (12k): «Додати запис», пошук, чипи виду, «Про кого» і картки. Фільтрує filterGroupItems. */
 export function ItemList({ group }: { group: GroupDetail }) {
@@ -13,6 +14,9 @@ export function ItemList({ group }: { group: GroupDetail }) {
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState<GroupItemKind | null>(null);
   const [about, setAbout] = useState('');
+  const [unused, setUnused] = useState(false);
+  /** Режим «Вікторини з групи» (12l): позначені записи. */
+  const [picking, setPicking] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     let current = true;
@@ -48,7 +52,14 @@ export function ItemList({ group }: { group: GroupDetail }) {
   if (items === null) return <p className="meta">{t('loading')}</p>;
 
   const full = items.length >= GROUP_LIMITS.itemsMax;
-  const shown = filterGroupItems(items, { query, kind, about: about === '' ? null : about });
+  const shown = filterGroupItems(items, { query, kind, about: about === '' ? null : about, unused });
+  const toggle = (id: string) =>
+    setPicking((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const chip = (on: boolean) => (on ? 'chip is-on' : 'chip');
 
   return (
@@ -66,22 +77,33 @@ export function ItemList({ group }: { group: GroupDetail }) {
             {t('itemsAdd')}
           </Link>
         )}
+        {items.length > 0 && picking === null && (
+          <button type="button" className="btn" onClick={() => setPicking(new Set())}>
+            {t('groupQuizButton')}
+          </button>
+        )}
       </div>
+      {picking !== null && <p className="meta">{t('groupQuizHint')}</p>}
       {items.length === 0 ? (
         <p className="meta group-items-empty">{t('itemsEmpty')}</p>
       ) : (
         <>
           <div className="group-items-filters">
             <input type="search" value={query} placeholder={t('itemsSearch')} aria-label={t('itemsSearch')} onChange={(event) => setQuery(event.target.value)} />
-            <div className="group-kind-chips" role="radiogroup" aria-label={t('itemKindsLabel')}>
-              <button type="button" role="radio" aria-checked={kind === null} className={chip(kind === null)} onClick={() => setKind(null)}>
-                {t('itemsFilterAll')}
+            <div className="group-kind-chips">
+              <button type="button" aria-pressed={unused} className={chip(unused)} onClick={() => setUnused((on) => !on)}>
+                {t('groupPickerUnused')}
               </button>
-              {GROUP_ITEM_KINDS.map((each) => (
-                <button key={each} type="button" role="radio" aria-checked={kind === each} className={chip(kind === each)} onClick={() => setKind(each)}>
-                  {t(`itemKind_${each}`)}
+              <span className="group-kind-radios" role="radiogroup" aria-label={t('itemKindsLabel')}>
+                <button type="button" role="radio" aria-checked={kind === null} className={chip(kind === null)} onClick={() => setKind(null)}>
+                  {t('itemsFilterAll')}
                 </button>
-              ))}
+                {GROUP_ITEM_KINDS.map((each) => (
+                  <button key={each} type="button" role="radio" aria-checked={kind === each} className={chip(kind === each)} onClick={() => setKind(each)}>
+                    {t(`itemKind_${each}`)}
+                  </button>
+                ))}
+              </span>
             </div>
             <select value={about} aria-label={t('itemsFilterAbout')} onChange={(event) => setAbout(event.target.value)}>
               <option value="">{t('itemsFilterAnyone')}</option>
@@ -97,11 +119,20 @@ export function ItemList({ group }: { group: GroupDetail }) {
           ) : (
             <div className="group-item-list">
               {shown.map((item) => (
-                <ItemCard key={item.id} groupId={group.id} item={item} onDeleted={(id) => setItems((all) => (all ?? []).filter((each) => each.id !== id))} />
+                <ItemCard
+                  key={item.id}
+                  groupId={group.id}
+                  item={item}
+                  onDeleted={(id) => setItems((all) => (all ?? []).filter((each) => each.id !== id))}
+                  {...(picking === null ? {} : { pick: { checked: picking.has(item.id), onToggle: () => toggle(item.id) } })}
+                />
               ))}
             </div>
           )}
         </>
+      )}
+      {picking !== null && (
+        <GroupQuizBar group={group} items={items} picked={items.filter((each) => picking.has(each.id))} onCancel={() => setPicking(null)} />
       )}
     </section>
   );

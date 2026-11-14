@@ -270,7 +270,7 @@ export function GroupPicker({
                   <button type="button" aria-pressed={unused} className={chip(unused)} onClick={() => setUnused((on) => !on)}>
                     {t('groupPickerUnused')}
                   </button>
-                  <span className="group-kind-chips" role="radiogroup" aria-label={t('itemKindsLabel')}>
+                  <span className="group-kind-radios" role="radiogroup" aria-label={t('itemKindsLabel')}>
                     <button type="button" role="radio" aria-checked={kind === null} className={chip(kind === null)} onClick={() => setKind(null)}>
                       {t('itemsFilterAll')}
                     </button>

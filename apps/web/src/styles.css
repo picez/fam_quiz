@@ -22666,3 +22666,46 @@ input.sudoku-editor-cell:focus-visible {
     border-radius: 0;
   }
 }
+
+/* Чипи виду поруч із «Ще не використані» (12l): у тому самому рядку з прокруткою. */
+.group-kind-radios {
+  display: contents;
+}
+
+/* «Вікторина з групи» (12l): позначка «використано», чекбокс і липка панель. */
+.group-item-used {
+  margin: 0;
+}
+.group-item-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+.group-item.is-picked {
+  border-color: var(--accent);
+}
+.group-items:has(.group-quiz-bar) {
+  padding-block-end: 1rem;
+}
+.group-quiz-bar {
+  bottom: calc(var(--menu-h) + env(safe-area-inset-bottom, 0px));
+  align-items: center;
+  z-index: 5;
+}
+.group-quiz-bar .meta,
+.group-quiz-bar .error {
+  flex: 1 1 100%;
+  margin: 0;
+}
+.group-quiz-bar-row {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.group-quiz-bar-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
