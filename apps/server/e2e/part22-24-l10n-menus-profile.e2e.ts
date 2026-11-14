@@ -330,7 +330,7 @@ async function bloodMoon23a() {
     await olya.setViewportSize({ width: 375, height: 812 });
     await olya.goto(`${base}/profile`);
     await expect.poll(() => htmlLang(olya), POLL).toBe(lang);
-    await olya.locator('nav.profile-tiles a').nth(7).waitFor();
+    await olya.locator('nav.profile-tiles a').nth(8).waitFor();
     for (const width of [320, 360, 375, 414, 701, 768, 1024, 1280]) await expectFiveItems(olya, width);
     await olya.setViewportSize({ width: 320, height: 812 });
     const clipped = await olya.locator('.profile-tiles a').evaluateAll((tiles) =>
@@ -371,7 +371,10 @@ async function bloodMoon23a() {
   await olya.getByRole('heading', { level: 1, name: 'Оля 23a', ...exact }).waitFor();
   await olya.locator('.profile-head .profile-pills').getByText(/^Рів\. \d+$/).waitFor();
   expect(await olya.locator('.headline-stats dd').count()).toBe(4);
-  expect(await olya.locator('nav.profile-tiles a').count()).toBe(8);
+  // Вісім плиток і дев'ята — «Групи» на всю ширину (12k).
+  expect(await olya.locator('nav.profile-tiles a').count()).toBe(9);
+  expect(await olya.locator('nav.profile-tiles a').nth(8).getAttribute('href')).toBe('/profile/groups');
+  expect(await olya.locator('nav.profile-tiles a.is-wide').count()).toBe(1);
   await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Призи, 5', ...exact }).waitFor();
   await olya.locator('nav.profile-tiles').getByRole('link', { name: 'Досягнення, 6', ...exact }).waitFor();
   expect(await noSideScroll(olya)).toBe(true);
@@ -574,7 +577,7 @@ async function bloodMoon23a() {
   expect(problems).toEqual([]);
 }
 
-it('part 23a: blood moon — five menu items fit 320–1280 px in all seven languages, the profile is a header with four numbers and eight tiles, the auto shelf puts the newest cup in the middle, Оля pins three prizes and five achievements with a clear limit message, a deleted award leaves the shelf, Петро sees her pinned shelf on the public profile, old addresses open the new sub-pages, a wrong answer shows ✗ in its own tone on the phone and the stage, and motifs stay still under reduced motion', async () => {
+it('part 23a: blood moon — five menu items fit 320–1280 px in all seven languages, the profile is a header with four numbers and eight tiles and a wide groups tile, the auto shelf puts the newest cup in the middle, Оля pins three prizes and five achievements with a clear limit message, a deleted award leaves the shelf, Петро sees her pinned shelf on the public profile, old addresses open the new sub-pages, a wrong answer shows ✗ in its own tone on the phone and the stage, and motifs stay still under reduced motion', async () => {
   try {
     await bloodMoon23a();
   } catch (error) {
