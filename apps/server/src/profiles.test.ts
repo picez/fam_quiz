@@ -9,12 +9,12 @@ import { playToEnd } from './testing/final-game';
 import { playLadderQuestion } from './testing/ladder-game';
 import { playSurvivalQuestion } from './testing/survival-game';
 import { playWipeout } from './testing/wipeout-game';
-import { follow, game, participant, profile, quiz as quizTable, user } from './db/schema';
+import { follow, game, participant, profile, quiz as quizTable, showcasePin, user, userAchievement } from './db/schema';
 import { nicknameKey } from './profiles';
 import { ensureProfile, findByNickname, searchProfiles, ownProfile, profileFacts, publicProfile, saveProfile } from './profiles';
 import { markInterrupted } from './recorder';
 import type { Room } from './rooms/manager';
-import { ACHIEVEMENTS, defaultTeams, questionsOf } from '@quiz/shared';
+import { ACHIEVEMENTS, defaultTeams, isAnti, questionsOf } from '@quiz/shared';
 import { seedGame } from './testing/history-rows';
 import { TEAM_HOST, TEAM_USERS, recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 import { hostGames, playerGames } from './history';
@@ -874,5 +874,36 @@ describe('popular quizzes in the own profile', () => {
       ['Нова', 1],
       ['Стара', 1],
     ]);
+  });
+});
+
+describe('hidden anti-achievements in the public profile (12j)', () => {
+  it('the public profile drops in_debt from the achievements and from the pinned shelf; the own profile keeps both', async () => {
+    const db = await createTestDb();
+    await addUser(db, 'hide-u', 'Олена');
+    await ensureProfile(db, 'hide-u');
+    const at = new Date('2026-11-01T10:00:00Z');
+    await db.insert(userAchievement).values([
+      { userId: 'hide-u', achievementId: 'in_debt', earnedAt: at, gameId: null },
+      { userId: 'hide-u', achievementId: 'first_game', earnedAt: at, gameId: null },
+    ]);
+    await db.insert(showcasePin).values([
+      { userId: 'hide-u', kind: 'achievement', itemId: 'in_debt', slot: 0, pinnedAt: at },
+      { userId: 'hide-u', kind: 'achievement', itemId: 'first_game', slot: 1, pinnedAt: at },
+    ]);
+    const shown = await publicProfile(db, 'hide-u', null);
+    expect(shown?.achievements.some((a) => a.id === 'in_debt')).toBe(true);
+    expect(shown?.showcase.pins.achievements).toEqual(['in_debt', 'first_game']);
+
+    await db.update(profile).set({ hideAnti: true }).where(eq(profile.userId, 'hide-u'));
+    const hidden = await publicProfile(db, 'hide-u', null);
+    expect(hidden?.achievements.map((a) => a.id)).not.toContain('in_debt');
+    expect(hidden?.achievements.some((a) => isAnti(a.id))).toBe(false);
+    expect(hidden?.achievements.find((a) => a.id === 'first_game')?.earned).toBe(true);
+    expect(hidden?.showcase.pins.achievements).toEqual(['first_game']);
+
+    const own = await ownProfile(db, { id: 'hide-u', name: 'Олена', email: 'hide-u@example.com' } as Parameters<typeof ownProfile>[1]);
+    expect(own?.achievements.find((a) => a.id === 'in_debt')?.earned).toBe(true);
+    expect(own?.showcase.pins.achievements).toEqual(['in_debt', 'first_game']);
   });
 });

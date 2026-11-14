@@ -1,8 +1,10 @@
 import {
   ACHIEVEMENT_INFO,
   ACHIEVEMENTS,
+  ANTI_ACHIEVEMENTS,
   AWAY_MS,
   gameStats,
+  isAnti,
   isLastPlace,
   podiumStats,
   type Achievement,
@@ -12,7 +14,7 @@ import {
   type ProfileStats,
   type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, gt, gte, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, gte, inArray, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
 import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
@@ -416,18 +418,48 @@ export function achievementList(earned: EarnedAchievements): Achievement[] {
   });
 }
 
-/** Сторінка ачівок: own — усі з поступом лічильних неотриманих; інакше лише отримані без поступу. null — немає такого користувача. */
+/** Хто з користувачів ховає антидосягнення (профіль з hide_anti, 12j); один запит. */
+export async function antiHidden(db: Db, userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: profile.userId })
+    .from(profile)
+    .where(and(inArray(profile.userId, userIds), eq(profile.hideAnti, true)));
+  return new Set(rows.map((row) => row.id));
+}
+
+/** Перемикач власника (12j); повертає збережене значення (профіль створюється, якщо його ще немає). */
+export async function setHideAnti(db: Db, userId: string, hide: boolean): Promise<boolean> {
+  await ensureProfile(db, userId);
+  const [row] = await db.update(profile).set({ hideAnti: hide }).where(eq(profile.userId, userId)).returning({ hideAnti: profile.hideAnti });
+  return row?.hideAnti ?? false;
+}
+
+/**
+ * Сторінка ачівок: own — усі з поступом лічильних неотриманих і перемикач hideAnti; інакше лише отримані без поступу,
+ * а коли власник ховає антидосягнення (12j) — і без них (total теж без них). null — немає такого користувача.
+ */
 export async function achievementsPage(db: Db, userId: string, own: boolean): Promise<AchievementsPage | null> {
   const card = await ensureProfile(db, userId);
   if (card === null) return null;
   // Чужа сторінка не показує поступу: типи запитань для неї не читаються.
   const { earned, facts } = await syncAchievements(db, userId, null, { types: own });
+  const hideAnti = (await antiHidden(db, [userId])).has(userId);
+  const hidden = !own && hideAnti;
   const progress = careerProgress(facts);
   const items = achievementList(earned).flatMap((achievement): AchievementCard[] => {
     if (!own && !achievement.earned) return [];
+    if (hidden && isAnti(achievement.id)) return [];
     const goal = ACHIEVEMENT_INFO[achievement.id].goal;
     const counting = own && !achievement.earned && goal !== null;
     return [{ ...achievement, progress: counting ? { current: progress[achievement.id] ?? 0, goal } : null }];
   });
-  return { profile: card, own, earned: earned.size, total: ACHIEVEMENTS.length, items };
+  const page = {
+    profile: card,
+    own,
+    earned: hidden ? items.length : earned.size,
+    total: hidden ? ACHIEVEMENTS.length - ANTI_ACHIEVEMENTS.length : ACHIEVEMENTS.length,
+    items,
+  };
+  return own ? { ...page, hideAnti } : page;
 }

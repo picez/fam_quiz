@@ -162,6 +162,18 @@ describe('writeAchievementEvents', () => {
     expect(rows[0].at.toISOString()).toBe(earnedAt.toISOString());
     expect(rows[0].userId).toBe(o);
   });
+
+  it('anti-achievements never reach the feed (12j)', async () => {
+    const { o } = await people();
+    const g = await game([solo(o, 1)]);
+    const earnedAt = new Date('2026-10-30T12:00:02.000Z');
+    await db.insert(userAchievement).values([
+      { userId: o, achievementId: 'in_debt', earnedAt, gameId: g.gameId },
+      { userId: o, achievementId: 'fast_answer', earnedAt, gameId: g.gameId },
+    ]);
+    await writeAchievementEvents(db, { gameId: g.gameId }, false);
+    expect((await eventsOf(g.gameId)).map((r) => r.key)).toEqual([`achievement:${o}:fast_answer`]);
+  });
 });
 
 describe('writePrizeEvents', () => {

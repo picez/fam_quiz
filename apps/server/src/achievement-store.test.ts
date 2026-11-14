@@ -3,7 +3,7 @@ import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
-import { achievementsPage, awardGame, careerFacts, syncAchievements } from './achievement-store';
+import { achievementsPage, antiHidden, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
 import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
@@ -626,5 +626,38 @@ describe('career counters and the history refill of 12j', () => {
     await read(fresh);
     const first = await soloGame(fresh, day(3), { score: -50, rank: 2, others: [{ ...guest, score: 100, rank: 1 }] });
     expect((await awardGame(db, first.gameId)).get(fresh)).toContain('in_debt');
+  });
+});
+
+describe('hiding anti-achievements (12j)', () => {
+  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 54', async () => {
+    const me = 'store-hide';
+    await addUser(me, 'Ліна');
+    await read(me);
+    await db.insert(userAchievement).values([
+      { userId: me, achievementId: 'in_debt', earnedAt: new Date('2026-11-01T10:00:00Z'), gameId: null },
+      { userId: me, achievementId: 'first_game', earnedAt: new Date('2026-11-01T10:00:00Z'), gameId: null },
+    ]);
+    expect((await achievementsPage(db, me, true))?.hideAnti).toBe(false);
+    expect(await setHideAnti(db, me, true)).toBe(true);
+
+    const theirs = await achievementsPage(db, me, false);
+    expect(theirs?.items.map((i) => i.id)).toEqual(['first_game']);
+    expect(theirs?.earned).toBe(1);
+    expect(theirs?.total).toBe(54);
+    expect(theirs).not.toHaveProperty('hideAnti');
+
+    const own = await achievementsPage(db, me, true);
+    expect(own?.hideAnti).toBe(true);
+    expect(own?.total).toBe(70);
+    expect(own?.items.filter((i) => i.earned).map((i) => i.id)).toEqual(expect.arrayContaining(['first_game', 'in_debt']));
+
+    const other = 'store-hide-not';
+    await addUser(other, 'Мія');
+    await read(other);
+    expect([...(await antiHidden(db, [me, other, 'store-nobody']))]).toEqual([me]);
+    expect(await antiHidden(db, [])).toEqual(new Set());
+    expect(await setHideAnti(db, me, false)).toBe(false);
+    expect((await achievementsPage(db, me, false))?.total).toBe(70);
   });
 });
