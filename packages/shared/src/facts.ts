@@ -1,6 +1,7 @@
 import type { Answer } from './answer';
 import type { BuffKind } from './game';
 import { answerWindowMs, type Question, type Round } from './quiz';
+import { SPEEDLESS_TYPES, WHOLE_ROW_TYPES } from './question-types';
 
 /** Пороги цікавинок (12d). */
 export const FACT_LIMITS = {
@@ -55,7 +56,7 @@ export interface FactQuestion {
 
 /** Типи, де «правильно» — лише за весь ряд (FactQuestion.wholeRow). */
 export function wholeRowQuestion(question: Question): boolean {
-  return question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless' || question.type === 'drawing' || question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory';
+  return WHOLE_ROW_TYPES.includes(question.type);
 }
 
 /** Рядок «учасник × спроба» (12d): як рядок answer без штрафів і голосів. */
@@ -188,17 +189,9 @@ export interface RoundShare {
 export function factLimitMs(question: Question, round: Round | undefined, voice: boolean): number | null {
   if (voice || question.video != null) return null;
   if (round?.type === 'ladder' && round.timer === false) return null;
-  // Словесна драбина рахує кроки, а не швидкість: її час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
-  if (question.type === 'wordladder') return null;
-  // «Список на час» (27c) рахує знахідки, а не швидкість.
-  if (question.type === 'timedlist') return null;
-  // «Слова з літер» (27d) рахують слова, а не швидкість.
-  if (question.type === 'letterwords') return null;
-  if (question.type === 'moreless') return null;
-  // «Малюнок» (28c): ціна без швидкості.
-  if (question.type === 'drawing') return null;
-  // «Головоломки» (28d): без швидкості.
-  if (question.type === 'sudoku' || question.type === 'crossword' || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory') return null;
+  // Швидкість не рахується: драбина рахує кроки, список і слова — знахідки, «Більше чи менше» — ряд, малюнок і головоломки — ціна без швидкості;
+  // їхній час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
+  if (SPEEDLESS_TYPES.includes(question.type)) return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
   if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth' || round?.type === 'puzzles') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;

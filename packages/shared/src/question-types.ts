@@ -487,3 +487,7 @@ export const SURVIVAL_TYPES = typesWhere((t) => t.rounds.includes('survival'), F
 export const QUEST_TYPES = typesWhere((t) => t.rounds.includes('quest'));
 /** Бали за близькість відповіді чи кількість знайденого (proximityPartial): повзунок, точка, стіна, «100 до 1». */
 export const PROXIMITY_TYPES = typesWhere((t) => t.proximity);
+/** Ряд чи список: «правильно» лише за весь ряд (wholeRowQuestion). */
+export const WHOLE_ROW_TYPES = typesWhere((t) => t.wholeRow);
+/** Швидкість відповіді не рахується (factLimitMs → null): драбина, список, слова, «Більше чи менше», малюнок і головоломки. */
+export const SPEEDLESS_TYPES = typesWhere((t) => !t.speed);
