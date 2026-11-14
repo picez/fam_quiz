@@ -26,6 +26,7 @@ const solo = (ranks: (number | null)[] = [1, 2, 3, 4], patch: Partial<Achievemen
   const players: AchievementPlayer[] = ranks.map((rank, i) => ({
     participantId: `p${i + 1}`,
     userId: `u${i + 1}`,
+    nickname: `Гравець ${i + 1}`,
     members: [],
     rank,
     score: 0,
@@ -127,8 +128,8 @@ describe('gameXp', () => {
     const g = solo(undefined, {
       teams: true,
       players: [
-        { participantId: 'tA', userId: null, rank: 1, score: 0, members: [{ participantId: 'a1', userId: 'A1' }, { participantId: 'a2', userId: 'A2' }] },
-        { participantId: 'tB', userId: null, rank: 2, score: 0, members: [{ participantId: 'b1', userId: 'B1' }, { participantId: 'b2', userId: 'B2' }] },
+        { participantId: 'tA', userId: null, nickname: 'A', rank: 1, score: 0, members: [{ participantId: 'a1', userId: 'A1', nickname: '' }, { participantId: 'a2', userId: 'A2', nickname: '' }] },
+        { participantId: 'tB', userId: null, nickname: 'B', rank: 2, score: 0, members: [{ participantId: 'b1', userId: 'B1', nickname: '' }, { participantId: 'b2', userId: 'B2', nickname: '' }] },
       ],
       rows: [row('tA', 0, { answeredBy: 'a1' }), row('tA', 1, { answeredBy: 'a1' }), row('tA', 2, { answeredBy: 'a1' }), row('tA', 3, { answeredBy: null })],
     });

@@ -54,16 +54,19 @@ function fakeGame(patch: Partial<AchievementGame> = {}): AchievementGame {
   return {
     gameId: 'g1',
     status: 'finished',
+    hostId: 'u-host',
+    autopilot: false,
     startedAt: new Date('2026-10-29T09:00:00Z'),
     finishedAt: new Date('2026-10-29T10:00:00Z'),
     questionsPlayed: questions.length,
     teams: false,
     players: [
-      { participantId: P, userId: 'u-olya', members: [], rank: 1, score: 500 },
-      { participantId: PETRO, userId: null, members: [], rank: 2, score: 100 },
+      { participantId: P, userId: 'u-olya', nickname: '', members: [], rank: 1, score: 500 },
+      { participantId: PETRO, userId: null, nickname: '', members: [], rank: 2, score: 100 },
     ],
     rows: [],
     adjustments: [],
+    questRounds: [],
     appeals: [],
     answerer: null,
     ...patch,
@@ -166,9 +169,9 @@ describe('gameAchievements: special rounds', () => {
   });
 
   it('duelist: a won duel', () => {
-    expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: 200 }] }))).toContain('duelist');
-    expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: -200 }] }))).not.toContain('duelist');
-    expect(earned(fakeGame({ adjustments: [{ participantId: PETRO, source: 'duel', points: 200 }] }))).not.toContain('duelist');
+    expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: 200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).toContain('duelist');
+    expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: -200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).not.toContain('duelist');
+    expect(earned(fakeGame({ adjustments: [{ participantId: PETRO, source: 'duel', points: 200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).not.toContain('duelist');
   });
 });
 
@@ -222,8 +225,8 @@ describe('gameAchievements: formats in a team game', () => {
     fakeGame({
       teams: true,
       players: [
-        { participantId: 'team-a', userId: null, members: [{ participantId: 'm-olya', userId: 'u-olya' }, { participantId: 'm-vira', userId: 'u-vira' }], rank: 1, score: 900 },
-        { participantId: 'team-b', userId: null, members: [], rank: 2, score: 100 },
+        { participantId: 'team-a', userId: null, nickname: '', members: [{ participantId: 'm-olya', userId: 'u-olya', nickname: '' }, { participantId: 'm-vira', userId: 'u-vira', nickname: '' }], rank: 1, score: 900 },
+        { participantId: 'team-b', userId: null, nickname: '', members: [], rank: 2, score: 100 },
       ],
       ...patch,
     });
