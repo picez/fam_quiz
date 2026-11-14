@@ -1,10 +1,20 @@
-import type { NickColor, NickFont, NickLevel } from '@quiz/shared';
+import type { NickColor, NickEffect, NickFont, NickLevel } from '@quiz/shared';
+import type { ReactNode } from 'react';
 import { t } from '../i18n';
 import { useNickFont } from '../nick-fonts';
 
 /** Клас імені: колір і шрифт (рамка живе на зовнішньому span). */
 export function nickNameClass(color: NickColor | null, font: NickFont | null): string {
   return `nick-name${color === null ? '' : ` nick-c-${color}`}${font === null ? '' : ` nick-font-${font}`}`;
+}
+
+/**
+ * Ефект ніку (34): обгортка .nick-fx.nick-x-<id> навколо імені; шари малює CSS у псевдоелементах.
+ * Обгортка, а не клас на самому імені: шар за літерами тоді лежить під градієнтним кольором ніку й не бруднить його.
+ */
+export function NickFx({ effect, children }: { effect: NickEffect | null | undefined; children: ReactNode }) {
+  if (effect === null || effect === undefined) return <>{children}</>;
+  return <span className={`nick-fx nick-x-${effect}`}>{children}</span>;
 }
 
 /**
@@ -21,7 +31,9 @@ export function Nick({ nickname, levels, titles }: { nickname: string; levels?: 
   const color = look?.color ?? null;
   return (
     <span className={frame === null ? 'nick' : `nick nick-f-${frame}`}>
-      <span className={nickNameClass(color, font)} dir="auto">{nickname}</span>
+      <NickFx effect={look?.effect}>
+        <span className={nickNameClass(color, font)} dir="auto">{nickname}</span>
+      </NickFx>
       {look !== undefined && look.level > 1 && (
         <span className="nick-level" aria-label={t('levelAria', { n: look.level })}>
           {t('levelBadge', { n: look.level })}

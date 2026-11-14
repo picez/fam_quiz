@@ -5,7 +5,7 @@ import { countText, t } from '../i18n';
 import { useNickFont } from '../nick-fonts';
 import { MotifHero } from '../motifs/Motifs';
 import { nickText } from '../nick';
-import { nickNameClass } from '../screens/Nick';
+import { nickNameClass, NickFx } from '../screens/Nick';
 import { Avatar } from './Avatar';
 import { AvatarFrame } from './AvatarFrame';
 import { LevelBar, ProfileLevelMark } from './LevelCard';
@@ -55,9 +55,11 @@ export function ProfileHeader(props: {
           </AvatarFrame>
           <div className="profile-id-text">
             <h1 className="brand">
-              <span className={nickNameClass(looks.color, looks.font)} dir="auto">
-                {nickText(profile.nickname)}
-              </span>
+              <NickFx effect={looks.effect}>
+                <span className={nickNameClass(looks.color, looks.font)} dir="auto">
+                  {nickText(profile.nickname)}
+                </span>
+              </NickFx>
               {title !== null && <span className="nick-title">{title}</span>}
             </h1>
             <p className="profile-pills">

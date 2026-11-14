@@ -37,6 +37,11 @@ describe('ProfileHeader', () => {
     expect(container.querySelector('.profile-pills')?.textContent).toContain('🌻');
   });
 
+  it('34: wears the nick effect in the header', () => {
+    const { container } = header({ looks: { ...NO_LOOKS, effect: 'light' } });
+    expect(container.querySelector('h1 .nick-fx.nick-x-light > .nick-name')?.textContent).toBe('Олена');
+  });
+
   it('keeps the tomoe ring without a photo frame', () => {
     const { container } = header();
     expect(container.querySelector('.tomoe-ring')).toBeTruthy();
