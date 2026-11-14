@@ -6,6 +6,7 @@ import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
+import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 export type ApiData<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -250,3 +251,32 @@ export const getShowcasePins = () => fetchData<ShowcasePins>('/api/me/showcase/p
 export const pinToShowcase = (pin: ShowcasePin) => fetchData<ShowcasePins>('/api/me/showcase/pins', { body: pin });
 export const unpinFromShowcase = (pin: ShowcasePin) =>
   fetchData<ShowcasePins>(`/api/me/showcase/pins/${pin.kind}/${encodeURIComponent(pin.id)}`, { method: 'DELETE' });
+
+/** Групи (12k): усі маршрути — для учасників, чужий отримує group_not_found. */
+const groupUrl = (id: string) => `/api/groups/${encodeURIComponent(id)}`;
+export const getGroups = () => request<GroupsPage>('/api/groups');
+export const createGroup = (input: GroupInput) => request<GroupDetail>('/api/groups', { method: 'POST', body: input });
+export const getGroup = (id: string) => request<GroupDetail>(groupUrl(id));
+export const updateGroup = (id: string, input: GroupInput) => request<GroupDetail>(groupUrl(id), { method: 'PUT', body: input });
+export const deleteGroup = (id: string) => request<object>(groupUrl(id), { method: 'DELETE' });
+export const refreshGroupCode = (id: string) => request<{ inviteCode: string }>(`${groupUrl(id)}/code`, { method: 'POST' });
+export const transferGroup = (id: string, userId: string) => request<GroupDetail>(`${groupUrl(id)}/owner`, { method: 'POST', body: { userId } });
+export const removeGroupMember = (id: string, userId: string) =>
+  request<object>(`${groupUrl(id)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+export const leaveGroup = (id: string) => request<object>(`${groupUrl(id)}/leave`, { method: 'POST' });
+export const inviteToGroup = (id: string, userIds: string[]) =>
+  request<{ invited: ProfileCard[] }>(`${groupUrl(id)}/invites`, { method: 'POST', body: { userIds } });
+export const cancelGroupInvite = (id: string, userId: string) =>
+  request<object>(`${groupUrl(id)}/invites/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+export const getGroupItems = (id: string) => fetchData<GroupItem[]>(`${groupUrl(id)}/items`);
+export const createGroupItem = (id: string, input: GroupItemInput) => request<GroupItem>(`${groupUrl(id)}/items`, { method: 'POST', body: input });
+export const updateGroupItem = (id: string, itemId: string, input: GroupItemInput) =>
+  request<GroupItem>(`${groupUrl(id)}/items/${encodeURIComponent(itemId)}`, { method: 'PUT', body: input });
+export const deleteGroupItem = (id: string, itemId: string) =>
+  request<object>(`${groupUrl(id)}/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+export const getGroupJoin = (code: string) => request<GroupJoinPreview>(`/api/groups/join/${encodeURIComponent(code)}`);
+export const joinGroup = (code: string) => request<{ id: string }>(`/api/groups/join/${encodeURIComponent(code)}`, { method: 'POST' });
+export const getGroupInvites = () => fetchData<GroupInviteCard[]>('/api/me/group-invites');
+export const acceptGroupInvite = (id: string) =>
+  request<{ id: string }>(`/api/me/group-invites/${encodeURIComponent(id)}/accept`, { method: 'POST' });
+export const declineGroupInvite = (id: string) => request<object>(`/api/me/group-invites/${encodeURIComponent(id)}`, { method: 'DELETE' });

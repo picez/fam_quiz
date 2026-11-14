@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getGroups } from '../api';
 import { Link, Navigate } from 'react-router-dom';
 import { t } from '../i18n';
 import { AchievementShowcase } from '../profile/AchievementShowcase';
@@ -9,7 +10,15 @@ import { ProfileTiles } from '../profile/ProfileTiles';
 import { ShowcaseShelf } from '../profile/ShowcaseShelf';
 import { useMyProfile } from '../profile/useMyProfile';
 import { useAccount } from '../useAccount';
+import { useGroupInvites } from '../useGroupInvites';
 import { announceInvitesChanged, useInvites } from '../useInvites';
+import { usePrivateData } from '../usePrivateData';
+
+/** Число моїх груп для плитки «Групи» (12k). */
+async function groupCount() {
+  const result = await getGroups();
+  return result.ok ? { ok: true as const, data: result.groups.length } : result;
+}
 
 const LOGIN = '/login?next=%2Fprofile';
 
@@ -17,6 +26,8 @@ const LOGIN = '/login?next=%2Fprofile';
 export function Profile() {
   const account = useAccount();
   const invites = useInvites(account.status === 'signed-in');
+  const groupInvites = useGroupInvites(account.status === 'signed-in');
+  const groups = usePrivateData(groupCount);
   const [gone, setGone] = useState<string[]>([]);
   // Код, якого сервер уже не віддає, забуваємо: повторно виданий код має знову з'явитися.
   useEffect(() => {
@@ -68,6 +79,7 @@ export function Profile() {
             prizes: profile.showcase.awards.length,
             achievements: profile.achievements.filter((achievement) => achievement.earned).length,
           }}
+          groups={{ count: groups.status === 'ready' ? groups.data : null, invites: groupInvites.length }}
         />
       </div>
       <div className="profile-col">

@@ -16,8 +16,19 @@ const TILES: { path: string; icon: string; label: TextKey; count?: Counted }[] =
   { path: 'settings', icon: '⚙️', label: 'profileTileSettings' },
 ];
 
-/** nav.profile-tiles (aria-label t('profileTilesLabel')): 8 Link-плиток у порядку специфікації; число — span.tile-count, ім'я посилання «Вікторини, 23». */
-export function ProfileTiles({ counts }: { counts: Record<Counted, number> }): JSX.Element {
+/** Групи (12k): число груп (null — ще вантажиться) і запрошень у групи. */
+export interface GroupsTile {
+  count: number | null;
+  invites: number;
+}
+
+/**
+ * nav.profile-tiles (aria-label t('profileTilesLabel')): 8 Link-плиток у порядку специфікації; число — span.tile-count, ім'я посилання «Вікторини, 23».
+ * Дев'ята — «👪 Групи» на всю ширину (is-wide): число груп і бейдж запрошень, ім'я «Групи, 2, Запрошень: 1».
+ */
+export function ProfileTiles({ counts, groups }: { counts: Record<Counted, number>; groups: GroupsTile }): JSX.Element {
+  const groupsLabel = t('profileTileGroups');
+  const groupsName = [groupsLabel, ...(groups.count === null ? [] : [String(groups.count)]), ...(groups.invites > 0 ? [t('invitesBadge', { count: groups.invites })] : [])].join(', ');
   return (
     <nav className="profile-tiles" aria-label={t('profileTilesLabel')}>
       {TILES.map((tile) => {
@@ -37,6 +48,22 @@ export function ProfileTiles({ counts }: { counts: Record<Counted, number> }): J
           </Link>
         );
       })}
+      <Link className="profile-tile is-wide" to="/profile/groups" aria-label={groupsName === groupsLabel ? undefined : groupsName}>
+        {groups.count !== null && (
+          <span className="tile-count" aria-hidden="true">
+            {groups.count}
+          </span>
+        )}
+        <span className="tile-icon" aria-hidden="true">
+          👪
+        </span>
+        <span className="tile-label">{groupsLabel}</span>
+        {groups.invites > 0 && (
+          <span className="menu-badge" aria-hidden="true">
+            {groups.invites}
+          </span>
+        )}
+      </Link>
     </nav>
   );
 }

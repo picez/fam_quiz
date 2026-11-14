@@ -21976,3 +21976,17 @@ input.sudoku-editor-cell:focus-visible {
 .hide-anti-status.error {
   color: var(--wrong);
 }
+
+/* Групи (12k): дев'ята плитка профілю — на всю ширину під вісьмома, значок і підпис в один рядок по центру (і в RTL). */
+.profile-tile.is-wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.profile-tile.is-wide .menu-badge {
+  min-width: 1.125rem;
+  height: 1.125rem;
+  font-size: 0.6875rem;
+}

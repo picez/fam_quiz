@@ -6,11 +6,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
-import { getFeedBadge, getMyInvites, me } from '../api';
+import { getFeedBadge, getGroupInvites, getMyInvites, me } from '../api';
 import { announceInvitesChanged } from '../useInvites';
 import { WithMenu } from './WithMenu';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(), getFeedBadge: vi.fn() }));
 
 const OK = { ok: true, id: 'u1', name: 'Олена', email: 'o@example.com', admin: false } as const;
 const OUT = { ok: false, error: 'unauthorized' } as const;
@@ -21,6 +21,8 @@ beforeEach(() => {
   vi.mocked(me).mockReset();
   vi.mocked(getMyInvites).mockReset();
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(getGroupInvites).mockReset();
+  vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(getFeedBadge).mockReset();
   vi.mocked(getFeedBadge).mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 });
 });
@@ -187,6 +189,27 @@ describe('Menu', () => {
       show('/quizzes');
       await vi.waitFor(() => expect(items()).toEqual(['🎮Меню', '🔑Увійти']));
       expect(getMyInvites).not.toHaveBeenCalled();
+    });
+
+    it('counts game invites and group invites together (12k), still five items', async () => {
+      const groupInvite = (id: string) => ({ group: { id, name: 'Родина Квіткових', emoji: '🌻' as const, people: 2 }, from: null, at: '2026-11-14T10:00:00.000Z' });
+      vi.mocked(me).mockResolvedValue(OK);
+      vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [invite('111111')] });
+      vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [groupInvite('g1'), groupInvite('g2')] });
+      show('/quizzes');
+      const link = await screen.findByRole('link', { name: 'Профіль, Запрошень: 3' });
+      expect(link.querySelector('.menu-badge')!.textContent).toBe('3');
+      expect(items()).toHaveLength(5);
+    });
+
+    it('keeps «Профіль» marked on the group pages (12k)', async () => {
+      vi.mocked(me).mockResolvedValue(OK);
+      for (const path of ['/groups/join/abc', '/profile/groups/x', '/groups']) {
+        show(path);
+        const link = await screen.findByRole('link', { name: 'Профіль' });
+        expect(link.getAttribute('aria-current'), path).toBe('page');
+        cleanup();
+      }
     });
 
     it('dismissing an invite updates the menu badge at once', async () => {

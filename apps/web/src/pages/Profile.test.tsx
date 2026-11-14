@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { forgetAccount } from '../useAccount';
 import { ACHIEVEMENTS, levelProgress, type AwardCard, type OwnProfile } from '@quiz/shared';
-import { dismissInvite, getMyInvites, getMyProfile, me } from '../api';
+import { dismissInvite, getGroupInvites, getGroups, getMyInvites, getMyProfile, me } from '../api';
 import { Profile } from './Profile';
 
 vi.mock('../push/push-client', () => ({
@@ -27,6 +27,8 @@ vi.mock('../api', () => ({
   signOut: vi.fn(),
   getPushKey: vi.fn(async () => ({ ok: true, publicKey: null })),
   getMyInvites: vi.fn(),
+  getGroupInvites: vi.fn(),
+  getGroups: vi.fn(),
   getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
@@ -71,6 +73,8 @@ beforeEach(() => {
   vi.mocked(getMyProfile).mockResolvedValue({ ok: true, data: mine });
   vi.mocked(getMyInvites).mockResolvedValue({ ok: true, data: [] });
   vi.mocked(dismissInvite).mockResolvedValue({ ok: true });
+  vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [] });
+  vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [], invites: [] });
 });
 afterEach(cleanup);
 
@@ -116,9 +120,16 @@ describe('Profile', () => {
     expect(before(invites, tiles())).toBe(true);
   });
 
-  it('has eight tiles leading to the sub-pages, with counts', async () => {
+  it('has nine tiles leading to the sub-pages, with counts; the last one is the wide «Групи» (12k)', async () => {
+    const card = (id: string) => ({ id, name: 'Родина', emoji: '🌻' as const, description: '', role: 'member' as const, people: 2, items: 0, joinedAt: '2026-11-14T10:00:00.000Z' });
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [card('g1'), card('g2')], invites: [] });
+    vi.mocked(getGroupInvites).mockResolvedValue({ ok: true, data: [{ group: { id: 'g3', name: 'Клас', emoji: '🎓', people: 3 }, from: null, at: '2026-11-14T10:00:00.000Z' }] });
     open();
     await screen.findByRole('navigation', { name: 'Розділи профілю' });
+    const wide = await screen.findByRole('link', { name: 'Групи, 2, Запрошень: 1' });
+    expect(wide.getAttribute('href')).toBe('/profile/groups');
+    expect(wide.classList.contains('is-wide')).toBe(true);
+    expect(wide.querySelector('.menu-badge')!.textContent).toBe('1');
     expect([...tiles().querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
       '/profile/quizzes',
       '/profile/prizes',
@@ -128,13 +139,14 @@ describe('Profile', () => {
       '/profile/likes',
       '/profile/looks',
       '/profile/settings',
+      '/profile/groups',
     ]);
     expect(screen.getByRole('link', { name: 'Вікторини, 5' }).getAttribute('href')).toBe('/profile/quizzes');
     expect(screen.getByRole('link', { name: 'Призи, 2' }).getAttribute('href')).toBe('/profile/prizes');
     expect(screen.getByRole('link', { name: 'Досягнення, 1' }).getAttribute('href')).toBe('/profile/achievements');
     expect(screen.getByRole('link', { name: 'Друзі' }).getAttribute('href')).toBe('/profile/friends');
     expect(screen.getByRole('link', { name: 'Налаштування' }).getAttribute('href')).toBe('/profile/settings');
-    expect(tiles().querySelectorAll('.tile-count')).toHaveLength(3);
+    expect(tiles().querySelectorAll('.tile-count')).toHaveLength(4);
   });
 
   it('after the tiles shows the trophy shelf and the achievements, with links to all', async () => {

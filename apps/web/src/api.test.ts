@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { acceptGroupInvite, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -261,5 +261,38 @@ describe('setHideAnti (12j)', () => {
     expect(await setHideAnti(true)).toEqual({ ok: true, data: { hideAnti: true } });
     expect(fetchMock.mock.calls[0]![0]).toBe('/api/me/achievements/hide-anti');
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ hide: true }) });
+  });
+});
+
+describe('groups (12k)', () => {
+  const sent = (mock: unknown, index = 0) => (mock as { mock: { calls: [string, RequestInit][] } }).mock.calls[index]!;
+
+  it('creates a group and a record, joins by link and accepts an invite with the right method, address and body', async () => {
+    const input = { name: 'Родина Квіткових', emoji: '🌻' as const, description: '' };
+    let fetchMock = respond(201, { id: 'g1' });
+    expect(await createGroup(input)).toMatchObject({ ok: true, id: 'g1' });
+    expect(sent(fetchMock)[0]).toBe('/api/groups');
+    expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST', body: JSON.stringify(input) });
+
+    const item = { kind: 'story' as const, text: 'Як тато заблукав у лісі по гриби', about: [], answer: null, year: 1998, photo: null, surprise: false };
+    fetchMock = respond(201, { id: 'i1' });
+    await createGroupItem('g/1', item);
+    expect(sent(fetchMock)[0]).toBe('/api/groups/g%2F1/items');
+    expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST', body: JSON.stringify(item) });
+
+    fetchMock = respond(200, { id: 'g1' });
+    expect(await joinGroup('abcdefghjk')).toEqual({ ok: true, id: 'g1' });
+    expect(sent(fetchMock)[0]).toBe('/api/groups/join/abcdefghjk');
+    expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST' });
+
+    fetchMock = respond(200, { id: 'g1' });
+    expect(await acceptGroupInvite('g1')).toEqual({ ok: true, id: 'g1' });
+    expect(sent(fetchMock)[0]).toBe('/api/me/group-invites/g1/accept');
+    expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST' });
+  });
+
+  it('keeps the reason of a bad group', async () => {
+    respond(400, { error: 'invalid_payload', reason: 'group_name' });
+    expect(await createGroup({ name: '', emoji: '👪', description: '' })).toEqual({ ok: false, error: 'invalid_payload:group_name' });
   });
 });

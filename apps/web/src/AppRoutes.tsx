@@ -8,6 +8,10 @@ import { CreateGame } from './pages/CreateGame';
 import { Feed } from './pages/Feed';
 import { Friends } from './pages/Friends';
 import { GameHistory } from './pages/GameHistory';
+import { GroupItemPage } from './pages/GroupItemPage';
+import { GroupJoin } from './pages/GroupJoin';
+import { GroupPage } from './pages/GroupPage';
+import { Groups } from './pages/Groups';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
 import { HostHelp } from './pages/HostHelp';
@@ -55,6 +59,13 @@ export function AppRoutes() {
         <Route path="/profile/likes" element={<ProfileLikes />} />
         <Route path="/profile/looks" element={<ProfileLooks />} />
         <Route path="/profile/settings" element={<ProfileSettings />} />
+        {/* Групи (12k): список, група, форма запису; вступ за коротким посиланням. */}
+        <Route path="/profile/groups" element={<Groups />} />
+        <Route path="/profile/groups/:id" element={<GroupPage />} />
+        <Route path="/profile/groups/:id/new" element={<GroupItemPage />} />
+        <Route path="/profile/groups/:id/items/:itemId" element={<GroupItemPage />} />
+        <Route path="/groups" element={<Groups />} />
+        <Route path="/groups/join/:code" element={<GroupJoin />} />
         {/* Старі адреси — аліаси тих самих сторінок, не редірект. */}
         <Route path="/prizes" element={<Prizes />} />
         <Route path="/achievements" element={<Achievements />} />

@@ -9,6 +9,7 @@ import { FeedTabs } from './feed/FeedTabs';
 vi.mock('./api', () => ({
   me: vi.fn(),
   getMyInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  getGroupInvites: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getFeedBadge: vi.fn().mockResolvedValue({ ok: true, events: 0, requests: 0, decisions: 0 }),
   myPrizes: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   getMyProfile: vi.fn().mockResolvedValue({ ok: true, data: { level: { progress: { level: 1 } } } }),
@@ -37,6 +38,10 @@ vi.mock('./pages/profile/ProfileLooks', () => ({ ProfileLooks: () => <p>ProfileL
 vi.mock('./pages/profile/ProfileSettings', () => ({ ProfileSettings: () => <p>ProfileSettings</p> }));
 vi.mock('./pages/Quizzes', () => ({ Quizzes: () => <p>Quizzes</p> }));
 vi.mock('./pages/Stage', () => ({ Stage: () => <p>Stage</p> }));
+vi.mock('./pages/Groups', () => ({ Groups: () => <p>Groups</p> }));
+vi.mock('./pages/GroupPage', () => ({ GroupPage: () => <p>GroupPage</p> }));
+vi.mock('./pages/GroupItemPage', () => ({ GroupItemPage: () => <p>GroupItemPage</p> }));
+vi.mock('./pages/GroupJoin', () => ({ GroupJoin: () => <p>GroupJoin</p> }));
 
 afterEach(cleanup);
 
@@ -84,6 +89,12 @@ describe('AppRoutes', () => {
     ['/prizes', 'Prizes'],
     ['/friends', 'Friends'],
     ['/profile/u2', 'PublicProfile'],
+    ['/profile/groups', 'Groups'],
+    ['/groups', 'Groups'],
+    ['/profile/groups/g1', 'GroupPage'],
+    ['/profile/groups/g1/new', 'GroupItemPage'],
+    ['/profile/groups/g1/items/i1', 'GroupItemPage'],
+    ['/groups/join/abcdefghjk', 'GroupJoin'],
   ])('%s draws %s with the menu', async (path, page) => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open(path);

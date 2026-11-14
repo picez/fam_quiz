@@ -28,6 +28,8 @@ vi.mock('../../api', () => ({
   signOut: vi.fn(),
   getPushKey: vi.fn(async () => ({ ok: true, publicKey: null })),
   getMyInvites: vi.fn(async () => ({ ok: true, data: [] })),
+  getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })),
+  getGroups: vi.fn(async () => ({ ok: true, groups: [], invites: [] })),
   getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })),
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
