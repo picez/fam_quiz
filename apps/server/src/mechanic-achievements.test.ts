@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AchievementId } from '@quiz/shared';
+import { TEAM_WIDE_TYPES, type AchievementId, type Question } from '@quiz/shared';
 import { clues, memory, single, withId } from '@quiz/engine/testing';
 import type { AchievementGame } from './achievement-games';
 import { PENALTY_ATTEMPT } from './db/schema';
@@ -52,6 +52,15 @@ describe('mechanicAchievements', () => {
     expect(has(teamGame({ answerer: 'chosen', rows: right, questions: [q(0, { blitz: true })] }), 'chosen_one', VIRA_IN_TEAM)).toBe(false);
     expect(has(teamGame({ answerer: 'chosen', rows: right, questions: [q(0, { question: withId(memory, 'm1') })] }), 'chosen_one', VIRA_IN_TEAM)).toBe(false);
     expect(has(fakeGame({ answerer: null, rows: [row(0)] }), 'chosen_one')).toBe(false);
+  });
+
+  it('chosen_one: no team-wide type counts — the whole team acts there, nobody is chosen', () => {
+    const right = [row(0, { participantId: TEAM, answeredBy: 'm-vira' })];
+    for (const type of TEAM_WIDE_TYPES) {
+      const question = { ...withId(single, `tw-${type}`), type } as unknown as Question;
+      expect(has(teamGame({ answerer: 'chosen', rows: right, questions: [q(0, { question })] }), 'chosen_one', VIRA_IN_TEAM), type).toBe(false);
+    }
+    expect(TEAM_WIDE_TYPES).toEqual(expect.arrayContaining(['timedlist', 'letterwords', 'drawing', 'memory', 'melody']));
   });
 
   it('an unfinished game gives nothing', () => {

@@ -1,10 +1,7 @@
-import { isSelfPaced, type AchievementId, type QuestionType } from '@quiz/shared';
+import { isSelfPaced, TEAM_WIDE_TYPES, type AchievementId } from '@quiz/shared';
 import type { AchievementGame } from './achievement-games';
 import { answerRow, ownRows } from './achievement-rows';
 import type { AchievementWho } from './game-achievements';
-
-/** Типи, де відповідача визначає не вибір капітана чи черга (12j, план — «Рішення»). */
-const NOT_CHOSEN_TYPES: readonly QuestionType[] = ['melody', 'jigsaw', 'spotdiff', 'memory', 'sudoku', 'crossword'];
 
 /**
  * Ігрові досягнення механік 12c–12h (5): lawyer, own_pace, risky, peeker, chosen_one; незавершена гра — порожньо.
@@ -33,11 +30,12 @@ export function mechanicAchievements(game: AchievementGame, who: AchievementWho)
   if (accepted.some((r) => r.buff === 'risk')) got.add('risky');
   if (accepted.some((r) => r.buff === 'peek')) got.add('peeker');
 
+  // Відповідача обирають капітан чи черга; у бліці й типах, де діє вся команда (TEAM_WIDE_TYPES), — не вибір.
   if (game.teams && who.personId !== null && (game.answerer === 'chosen' || game.answerer === 'rotate')) {
     if (
       accepted.some((r) => {
         const q = questions.get(r.questionIndex);
-        return q !== undefined && !q.blitz && !NOT_CHOSEN_TYPES.includes(q.question.type);
+        return q !== undefined && !q.blitz && !TEAM_WIDE_TYPES.includes(q.question.type);
       })
     )
       got.add('chosen_one');
