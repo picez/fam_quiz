@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import { joinSchema, type CodeInfo } from '@quiz/shared';
@@ -23,6 +24,7 @@ import { joinableOf, RoomManager } from './rooms/manager';
 import { realScheduler, type Scheduler } from './rooms/scheduler';
 import { RoomStore, type Located } from './rooms/store';
 import { attachSockets } from './socket';
+import { cacheControlFor, isMissingFile } from './static-cache';
 import { registerStickerRoutes } from './sticker-routes';
 import { attachLevels } from './levels';
 import { attachLikes } from './likes';
@@ -186,8 +188,17 @@ export async function buildApp(options: AppOptions) {
     return reply.code(201).send({ token: joined.token, playerId: joined.playerId });
   });
 
-  // preCompressed: якщо поруч лежить .br / .gz (збірка кладе їх для мап), віддається він за Accept-Encoding.
-  if (options.webRoot !== undefined) await app.register(fastifyStatic, { root: options.webRoot, preCompressed: true });
+  // preCompressed: якщо поруч лежить .br / .gz (збірка кладе їх для мап і для assets/*.js|css), віддається він за
+  // Accept-Encoding. Cache-Control ставимо самі (32): рік для хешованих /assets, no-cache для сторінки, воркера й
+  // маніфесту, добу для решти. setHeaders отримує шлях обраного файла (з .br / .gz), cacheControlFor це враховує.
+  const webRoot = options.webRoot;
+  if (webRoot !== undefined)
+    await app.register(fastifyStatic, {
+      root: webRoot,
+      preCompressed: true,
+      cacheControl: false,
+      setHeaders: (res, path) => res.header('cache-control', cacheControlFor(relative(webRoot, path))),
+    });
 
   app.setNotFoundHandler((request, reply) => {
     const isPage =
@@ -195,8 +206,10 @@ export async function buildApp(options: AppOptions) {
       request.method === 'GET' &&
       !request.url.startsWith('/api/') &&
       !request.url.startsWith('/socket.io/');
+    // Відсутній файл збірки (старий чанк після деплою) — це 404, а не сторінка: HTML під іменем JS ламає браузер і кеш воркера.
+    if (isPage && isMissingFile(request.url)) return reply.code(404).send({ error: 'not_found' });
     // Маршрути сторінок обробляє клієнт, тому на них віддається та сама сторінка.
-    if (isPage) return reply.sendFile('index.html');
+    if (isPage) return reply.header('cache-control', 'no-cache').sendFile('index.html');
     return reply.code(404).send({ error: 'not_found' });
   });
 

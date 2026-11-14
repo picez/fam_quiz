@@ -1,25 +1,37 @@
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import react from '@vitejs/plugin-react';
 import { build, defineConfig, type Plugin } from 'vite';
 
-/** Після збірки кладе поруч із мапами dist/maps/*.svg стиснені .br і .gz: сервер віддає їх сам (preCompressed). */
-function compressMaps(): Plugin {
+/**
+ * Після збірки кладе поруч із мапами dist/maps/*.svg і хешованими dist/assets/*.{js,css} (понад 1 КБ) стиснені
+ * .br (q11) і .gz (-9): сервер віддає їх сам (preCompressed), а Cloudflare передає brotli з origin як є.
+ * Головний чанк важить 565 КБ при brotli на льоту і 435 КБ при q11 (32).
+ */
+function precompress(): Plugin {
   let outDir = 'dist';
+  const targets: { dir: string; match: RegExp }[] = [
+    { dir: 'maps', match: /\.svg$/ },
+    { dir: 'assets', match: /\.(js|css)$/ },
+  ];
   return {
-    name: 'quiz-compress-maps',
+    name: 'quiz-precompress',
     apply: 'build',
     configResolved(config) {
       outDir = resolve(config.root, config.build.outDir);
     },
     closeBundle() {
-      const dir = join(outDir, 'maps');
-      for (const name of readdirSync(dir).filter((file) => file.endsWith('.svg'))) {
-        const file = join(dir, name);
-        const body = readFileSync(file);
-        writeFileSync(`${file}.br`, brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }));
-        writeFileSync(`${file}.gz`, gzipSync(body, { level: 9 }));
+      for (const { dir, match } of targets) {
+        const folder = join(outDir, dir);
+        if (!existsSync(folder)) continue;
+        for (const name of readdirSync(folder).filter((file) => match.test(file))) {
+          const file = join(folder, name);
+          const body = readFileSync(file);
+          if (body.length <= 1024) continue;
+          writeFileSync(`${file}.br`, brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 11, [constants.BROTLI_PARAM_SIZE_HINT]: body.length } }));
+          writeFileSync(`${file}.gz`, gzipSync(body, { level: 9 }));
+        }
       }
     },
   };
@@ -54,7 +66,7 @@ function serviceWorker(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), compressMaps(), serviceWorker()],
+  plugins: [react(), precompress(), serviceWorker()],
   server: {
     host: true,
     proxy: {
