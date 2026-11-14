@@ -1,35 +1,39 @@
+import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { Admin } from './admin/Admin';
 import { WithMenu } from './menu/WithMenu';
 import { Achievements } from './pages/Achievements';
-import { EditQuiz } from './pages/EditQuiz';
-import { Calendar } from './pages/Calendar';
 import { CreateGame } from './pages/CreateGame';
 import { Feed } from './pages/Feed';
 import { Friends } from './pages/Friends';
-import { GameHistory } from './pages/GameHistory';
-import { GroupItemPage } from './pages/GroupItemPage';
-import { GroupJoin } from './pages/GroupJoin';
-import { GroupPage } from './pages/GroupPage';
-import { Groups } from './pages/Groups';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
-import { HostHelp } from './pages/HostHelp';
 import { Host } from './pages/Host';
 import { Login } from './pages/Login';
 import { MyGames } from './pages/MyGames';
 import { Play } from './pages/Play';
 import { Prizes } from './pages/Prizes';
-import { PrizeStudioPage } from './pages/PrizeStudioPage';
 import { Profile } from './pages/Profile';
 import { PublicProfile } from './pages/PublicProfile';
 import { ProfileLikes } from './pages/profile/ProfileLikes';
-import { ProfileLooks } from './pages/profile/ProfileLooks';
 import { ProfileQuizzes } from './pages/profile/ProfileQuizzes';
 import { ProfileSettings } from './pages/profile/ProfileSettings';
-import { ProfileStats } from './pages/profile/ProfileStats';
 import { Quizzes } from './pages/Quizzes';
 import { Stage } from './pages/Stage';
+
+// Сторінки, без яких обходиться гравець, вантажаться окремими чанками (32): телефон, що входить у гру,
+// не тягне редактор, довідку ведучого чи адмінку. Поки чанк іде, WithMenu показує «Підключаємося…».
+const Admin = lazy(() => import('./admin/Admin').then((m) => ({ default: m.Admin })));
+const EditQuiz = lazy(() => import('./pages/EditQuiz').then((m) => ({ default: m.EditQuiz })));
+const Calendar = lazy(() => import('./pages/Calendar').then((m) => ({ default: m.Calendar })));
+const GameHistory = lazy(() => import('./pages/GameHistory').then((m) => ({ default: m.GameHistory })));
+const GroupItemPage = lazy(() => import('./pages/GroupItemPage').then((m) => ({ default: m.GroupItemPage })));
+const GroupJoin = lazy(() => import('./pages/GroupJoin').then((m) => ({ default: m.GroupJoin })));
+const GroupPage = lazy(() => import('./pages/GroupPage').then((m) => ({ default: m.GroupPage })));
+const Groups = lazy(() => import('./pages/Groups').then((m) => ({ default: m.Groups })));
+const HostHelp = lazy(() => import('./pages/HostHelp').then((m) => ({ default: m.HostHelp })));
+const PrizeStudioPage = lazy(() => import('./pages/PrizeStudioPage').then((m) => ({ default: m.PrizeStudioPage })));
+const ProfileLooks = lazy(() => import('./pages/profile/ProfileLooks').then((m) => ({ default: m.ProfileLooks })));
+const ProfileStats = lazy(() => import('./pages/profile/ProfileStats').then((m) => ({ default: m.ProfileStats })));
 
 export function AppRoutes() {
   return (

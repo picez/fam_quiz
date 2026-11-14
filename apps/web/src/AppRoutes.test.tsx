@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// @ts-expect-error node:fs без @types/node
+import { existsSync, readFileSync } from 'node:fs';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,6 +22,7 @@ vi.mock('./pages/EditQuiz', () => ({ EditQuiz: () => <p>EditQuiz</p> }));
 vi.mock('./pages/Feed', () => ({ Feed: () => <p>Feed</p> }));
 vi.mock('./pages/GameHistory', () => ({ GameHistory: () => <p>GameHistory</p> }));
 vi.mock('./pages/History', () => ({ History: () => <p>History</p> }));
+vi.mock('./admin/Admin', () => ({ Admin: () => <p>Admin</p> }));
 vi.mock('./pages/HostHelp', () => ({ HostHelp: () => <p>HostHelp</p> }));
 vi.mock('./pages/Home', () => ({ Home: () => <p>Home</p> }));
 vi.mock('./pages/Host', () => ({ Host: () => <p>Host</p> }));
@@ -112,6 +115,30 @@ describe('AppRoutes', () => {
     vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
     open('/help');
     expect(await screen.findByText('HostHelp')).toBeTruthy();
+  });
+
+  it.each([
+    ['/quizzes/new', 'EditQuiz'],
+    ['/help', 'HostHelp'],
+    ['/admin', 'Admin'],
+    ['/history/g1', 'GameHistory'],
+  ])('the lazy page %s arrives after its chunk with the menu kept', async (path, page) => {
+    vi.mocked(me).mockResolvedValue({ ok: false, error: 'unauthorized' });
+    open(path);
+    expect(await screen.findByText(page)).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Меню' })).toBeTruthy();
+  });
+
+  it('loads the pages a player never needs as separate chunks and keeps the game entries in the main one', () => {
+    const path = ['apps/web/src/AppRoutes.tsx', 'src/AppRoutes.tsx'].find((one) => existsSync(one) as boolean)!;
+    const source = readFileSync(path, 'utf8') as string;
+    const lazy = ['./pages/EditQuiz', './pages/HostHelp', './admin/Admin', './pages/PrizeStudioPage', './pages/Calendar', './pages/GroupPage', './pages/GroupItemPage', './pages/GroupJoin', './pages/Groups', './pages/profile/ProfileLooks', './pages/profile/ProfileStats', './pages/GameHistory'];
+    for (const page of lazy) {
+      expect(source, page).not.toContain(`from '${page}'`);
+      expect(source, page).toContain(`import('${page}')`);
+    }
+    expect(source).toContain('lazy(() => import(');
+    for (const page of ['./pages/Play', './pages/Host', './pages/Stage', './pages/Home', './pages/Login']) expect(source, page).toContain(`from '${page}'`);
   });
 
   it('/feed/calendar draws the two tabs with the calendar current and the menu item «Стрічка» active', async () => {
