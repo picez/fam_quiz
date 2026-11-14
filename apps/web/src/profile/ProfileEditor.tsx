@@ -2,6 +2,7 @@ import { IMAGE_LIMITS, LIMITS, type ProfileCard } from '@quiz/shared';
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { saveMyProfile, uploadImage } from '../api';
 import { errorText, t } from '../i18n';
+import { AVATAR_MAX_SIDE, shrinkImage } from '../image-shrink';
 import { Avatar } from './Avatar';
 
 const ACCEPT = IMAGE_LIMITS.types.join(',');
@@ -22,10 +23,11 @@ export function ProfileEditor({ profile, onSaved, onCancel }: { profile: Profile
     event.target.value = '';
     if (file === undefined) return;
     if (!isAllowed(file.type)) return setError(errorText('bad_image'));
-    if (file.size > IMAGE_LIMITS.maxBytes) return setError(errorText('too_large'));
     setError(null);
     setUploading(true);
-    const result = await uploadImage(file);
+    // Аватар більшим за 512 px не буває (32): браузер зменшує його ще до завантаження.
+    const shrunk = await shrinkImage(file, AVATAR_MAX_SIDE);
+    const result = shrunk.ok ? await uploadImage(shrunk.file) : shrunk;
     setUploading(false);
     if (result.ok) setAvatar(result.url);
     else setError(errorText(result.error));

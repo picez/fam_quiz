@@ -671,13 +671,14 @@ describe('QuizEditor: question image', () => {
     expect(roundQuestions(saved(onSave).rounds[0])[0].imageUrl).toBeNull();
   });
 
-  it('refuses a wrong format or an oversized file before sending anything', () => {
+  it('refuses a wrong format or a photo over 20 MB before sending anything', async () => {
     const fetchMock = answer(201, { url: IMAGE });
     open();
     choose(file('image/gif'));
     expect(screen.getByRole('alert').textContent).toBe('Підходять лише зображення JPEG, PNG або WebP.');
-    choose(file('image/png', 2 * 1024 * 1024 + 1));
-    expect(screen.getByRole('alert').textContent).toBe('Зображення завелике: дозволено до 2 МБ.');
+    // Понад 2 МБ браузер зменшує сам (32); межа сирого фото — 20 МБ.
+    choose(file('image/png', 20 * 1024 * 1024 + 1));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Фото завелике: до 20 МБ.'));
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -698,6 +699,8 @@ describe('QuizEditor: question image', () => {
     fill('Текст запитання', 'Що');
     choose(file('image/png'));
     fill('Текст запитання', 'Що на фото?');
+    // Перед запитом браузер ще пробує зменшити фото (32): відповідь приходить, коли запит уже пішов.
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
     finish(new Response(JSON.stringify({ url: IMAGE }), { status: 201 }));
     await screen.findByAltText('Зображення до запитання');
     expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value).toBe('Що на фото?');
@@ -711,6 +714,7 @@ describe('QuizEditor: question image', () => {
     fill('Текст запитання', 'Перше');
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
     choose(file('image/png'));
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
     click('Додати запитання');
     fill('Текст запитання', 'Друге');
     fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));

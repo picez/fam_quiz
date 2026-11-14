@@ -1218,6 +1218,7 @@
   "err_group_items_full": "Il gruppo ha già 500 voci: è il limite.",
   "err_group_not_found": "Gruppo non trovato: forse è stato eliminato o non ne fai parte.",
   "err_hint_late": "Non c'è più tempo per un suggerimento.",
+  "err_image_raw_too_large": "La foto è troppo grande: massimo 20 MB.",
   "err_internal": "Si è verificato un errore sul server, l'azione non è stata eseguita. Riprova.",
   "err_invalid_payload": "Dati non validi.",
   "err_invalid_payload_about_not_member": "Questa persona non è più nel gruppo.",

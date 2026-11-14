@@ -1210,6 +1210,7 @@
   "err_group_items_full": "The group already has 500 records — that's the limit.",
   "err_group_not_found": "Group not found — maybe it was deleted or you're not in it.",
   "err_hint_late": "There's no longer enough time for a hint.",
+  "err_image_raw_too_large": "The photo is too large: up to 20 MB.",
   "err_internal": "Something went wrong on the server, the action was not done. Try again.",
   "err_invalid_payload": "Invalid data.",
   "err_invalid_payload_about_not_member": "This person is no longer in the group.",

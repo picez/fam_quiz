@@ -1210,6 +1210,7 @@
   "err_group_items_full": "Die Gruppe hat schon 500 Einträge — das ist die Grenze.",
   "err_group_not_found": "Gruppe nicht gefunden — vielleicht wurde sie gelöscht oder du bist nicht darin.",
   "err_hint_late": "Für einen Tipp reicht die Zeit nicht mehr.",
+  "err_image_raw_too_large": "Das Foto ist zu groß: höchstens 20 MB.",
   "err_internal": "Auf dem Server ist ein Fehler aufgetreten, die Aktion wurde nicht ausgeführt. Versuch es nochmal.",
   "err_invalid_payload": "Ungültige Daten.",
   "err_invalid_payload_about_not_member": "Diese Person ist nicht mehr in der Gruppe.",
