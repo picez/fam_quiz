@@ -36,6 +36,7 @@ const item = (id: string, extra: Partial<GroupItem>): GroupItem => ({
   author: { id: 'u2', nickname: 'Петро', avatar: null },
   mine: false,
   canDelete: false,
+  uses: [],
   createdAt: at,
   updatedAt: at,
   ...extra,

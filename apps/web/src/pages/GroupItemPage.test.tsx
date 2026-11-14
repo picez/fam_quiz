@@ -34,6 +34,7 @@ const base: Omit<GroupItem, 'id' | 'mine'> = {
   surprise: false,
   author: { id: 'u2', nickname: 'Петро', avatar: null },
   canDelete: true,
+  uses: [],
   createdAt: at,
   updatedAt: at,
 };

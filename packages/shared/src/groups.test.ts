@@ -11,6 +11,7 @@ import {
   groupItemInputSchema,
   groupOwnerSchema,
   groupReason,
+  groupUsesSchema,
   type GroupItem,
 } from './groups';
 
@@ -47,6 +48,7 @@ function view(id: string, over: Partial<GroupItem>): GroupItem {
     author: null,
     mine: false,
     canDelete: false,
+    uses: [],
     createdAt: '2026-11-14T10:00:00.000Z',
     updatedAt: '2026-11-14T10:00:00.000Z',
     ...over,
@@ -154,5 +156,39 @@ describe('groups (12k)', () => {
     expect(filterGroupItems(items, { ...none, kind: 'quote' }).map((i) => i.id)).toEqual(['2']);
     expect(filterGroupItems(items, { ...none, about: 'u-olia' }).map((i) => i.id)).toEqual(['3']);
     expect(filterGroupItems(items, { ...none, about: 'тато' }).map((i) => i.id)).toEqual(['1']);
+  });
+});
+
+describe('group record uses (12l)', () => {
+  const quizId = '0b0e4f4e-9a59-4f43-8f43-3c1f8c1e2a01';
+  const a = '1b0e4f4e-9a59-4f43-8f43-3c1f8c1e2a02';
+  const b = '2b0e4f4e-9a59-4f43-8f43-3c1f8c1e2a03';
+  const uuid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+  it('checks the marking payload', () => {
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: [a, b] }).success).toBe(true);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: [] }).success).toBe(false);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: Array.from({ length: 201 }, (_, i) => uuid(i)) }).success).toBe(false);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: Array.from({ length: 200 }, (_, i) => uuid(i)) }).success).toBe(true);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: [a, a] }).success).toBe(false);
+    expect(groupUsesSchema.safeParse({ quizId: 'q1', itemIds: [a] }).success).toBe(false);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: ['i1'] }).success).toBe(false);
+    expect(groupUsesSchema.safeParse({ quizId, itemIds: [a], extra: 1 }).success).toBe(false);
+  });
+
+  it('keeps only unused records when asked', () => {
+    const items = [
+      view('1', {
+        text: 'Як тато заблукав у лісі по гриби',
+        uses: [{ quizId, title: 'Вікторина: Родина Квіткових', mine: true, at: '2026-11-14T10:00:00.000Z' }],
+      }),
+      view('2', { text: 'Бабуся Ніна збирає гриби швидше за всіх' }),
+      view('3', { text: 'Бабуся Ніна свистить двома пальцями' }),
+    ];
+    const none = { query: '', kind: null, about: null };
+    expect(filterGroupItems(items, { ...none, unused: true }).map((i) => i.id)).toEqual(['2', '3']);
+    expect(filterGroupItems(items, { ...none, unused: false }).map((i) => i.id)).toEqual(['1', '2', '3']);
+    expect(filterGroupItems(items, none).map((i) => i.id)).toEqual(['1', '2', '3']);
+    expect(filterGroupItems(items, { ...none, query: 'гриб', unused: true }).map((i) => i.id)).toEqual(['2']);
   });
 });

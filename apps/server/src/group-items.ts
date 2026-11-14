@@ -80,6 +80,7 @@ function toView(row: ItemRow, members: Map<string, ProfileCard>, viewerId: strin
     author: row.authorId === null ? null : (members.get(row.authorId) ?? null),
     mine,
     canDelete: mine || role === 'owner',
+    uses: [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
