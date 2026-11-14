@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QUICK_EMOJI, STICKERS, STICKERS_BY_PACK, packLevel } from '@quiz/shared';
+import { QUICK_EMOJI, STICKER_PACKS, STICKERS, STICKERS_BY_PACK, packLevel, type StickerExtra } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { ReactionButton, ReactionSheet } from './ReactionSheet';
@@ -17,11 +17,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function sheet(favorites: string[] = [], level: number | null = Infinity) {
+function sheet(favorites: string[] = [], level: number | null = Infinity, access?: StickerExtra) {
   const onPick = vi.fn();
   const onToggle = vi.fn();
   const onClose = vi.fn();
-  render(<ReactionSheet favorites={favorites} level={level} onPick={onPick} onToggle={onToggle} onClose={onClose} />);
+  render(<ReactionSheet favorites={favorites} level={level} access={access} onPick={onPick} onToggle={onToggle} onClose={onClose} />);
   return { onPick, onToggle, onClose, dialog: screen.getByRole('dialog', { name: t('reactionSheetTitle') }) };
 }
 
@@ -36,11 +36,11 @@ describe('ReactionSheet (13a)', () => {
     expect(onPick).toHaveBeenCalledWith({ kind: 'emoji', value: '🔥' });
   });
 
-  it('lists every sticker in manifest order with lazy 48 px pictures', () => {
+  it('lists every sticker by pack with lazy 48 px pictures', () => {
     const { onPick } = sheet();
     const all = stickerButtons(group(t('reactionAll')));
-    expect(all).toHaveLength(STICKERS.length);
-    expect(all[0].getAttribute('aria-label')).toBe(t('reactionSticker', { name: STICKERS[0].id }));
+    const byPack = STICKER_PACKS.flatMap((pack) => STICKERS_BY_PACK[pack]);
+    expect(all.map((button) => button.getAttribute('aria-label'))).toEqual(byPack.map((s) => t('reactionSticker', { name: s.id })));
     for (const img of group(t('reactionAll')).querySelectorAll('img')) {
       expect(img.getAttribute('loading')).toBe('lazy');
       expect(img.getAttribute('decoding')).toBe('async');
@@ -48,7 +48,7 @@ describe('ReactionSheet (13a)', () => {
       expect(img.getAttribute('height')).toBe('48');
     }
     fireEvent.click(all[2]);
-    expect(onPick).toHaveBeenCalledWith({ kind: 'sticker', value: STICKERS[2].id });
+    expect(onPick).toHaveBeenCalledWith({ kind: 'sticker', value: byPack[2].id });
   });
 
   it('without favourites it says how to add one', () => {
@@ -182,25 +182,63 @@ describe('«😀 Реакція» fits a 360 px header (e2e 7g regression)', () 
   });
 });
 
-describe('ReactionSheet locked series (15a)', () => {
+describe('ReactionSheet packs (34)', () => {
   const open = STICKERS.find((s) => s.series === 'nya')!;
-  const locked = STICKERS_BY_PACK.food.find((s) => s.series !== 'nya')!;
+  const notNya = (pack: keyof typeof STICKERS_BY_PACK) => STICKERS_BY_PACK[pack].filter((s) => s.series !== 'nya');
+  const locked = notNya('food')[0]!;
   const lockedLabel = t('stickerLocked', { level: packLevel('food') });
+  const packGroup = (name: string) => within(group(t('reactionAll'))).getByRole('group', { name });
+  const packNames = () => within(group(t('reactionAll'))).getAllByRole('group').map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent);
 
-  it('level 1: a later series is locked with its level and does not pick; the first series picks', () => {
+  it('level 1: «Привітики» open; «Смаколики» folded into one line with a four-sticker preview and «ще N»; the old series nya still picks', () => {
     const { onPick, dialog } = sheet([], 1);
-    const cell = within(group(t('reactionAll'))).getAllByRole('button', { name: lockedLabel })[0];
-    expect(cell.textContent).toContain('🔒');
-    fireEvent.click(cell);
-    expect(onPick).not.toHaveBeenCalled();
+    const basic = packGroup('Привітики');
+    expect(stickerButtons(basic)).toHaveLength(STICKERS_BY_PACK.basic.length);
+    const food = packGroup('Смаколики');
+    const line = food.querySelector('.sticker-pack-locked')!;
+    expect(line.textContent).toContain('🔒');
+    expect(line.textContent).toContain('Смаколики — відкриється з рівня 3');
+    expect(line.querySelectorAll('img')).toHaveLength(4);
+    expect(within(food).queryByRole('button', { name: t('reactionSticker', { name: locked.id }) })).toBeNull();
+    expect(line.textContent).toContain(`ще ${notNya('food').length - 4}`);
+    for (const img of line.querySelectorAll('img')) expect(img.getAttribute('loading')).toBe('lazy');
+    // Давня серія nya лишилась відкритою всім (рішення «м'якше»).
     fireEvent.click(within(dialog).getAllByRole('button', { name: t('reactionSticker', { name: open.id }) })[0]);
     expect(onPick).toHaveBeenCalledWith({ kind: 'sticker', value: open.id });
-    expect(lockedLabel).toBe('Відкриється з рівня 3');
+    expect(within(group(t('reactionAll'))).getByText('Моторошики — за досягнення «Нічна сова» або з рівня 36')).toBeTruthy();
   });
 
-  it('a guest (null) sees the same as level 1, and quick emoji stay open', () => {
-    const { onPick, dialog } = sheet([], null);
-    expect(within(group(t('reactionAll'))).getAllByRole('button', { name: lockedLabel }).length).toBeGreaterThan(0);
+  it('a fully locked pack has no sticker buttons at all, just its line', () => {
+    sheet([], 1);
+    const baking = packGroup('Пекарня — відкриється з рівня 32');
+    expect(within(baking).queryAllByRole('button')).toHaveLength(0);
+    expect(baking.querySelectorAll('img')).toHaveLength(4);
+  });
+
+  it('open packs come first in pack order, the ones with something locked after them', () => {
+    sheet([], 9);
+    expect(packNames().slice(0, 4)).toEqual(['Привітики', 'Смаколики', 'Свято', 'Затишок']);
+    expect(packNames()[4]).toBe('Звірята');
+  });
+
+  it('level 10 with «Нічна сова»: «Моторошики» opens among the open packs', () => {
+    sheet([], 10, { packs: ['spooky'] });
+    expect(packNames().slice(0, 5)).toEqual(['Привітики', 'Смаколики', 'Свято', 'Затишок', 'Моторошики']);
+    expect(stickerButtons(packGroup('Моторошики'))).toHaveLength(STICKERS_BY_PACK.spooky.length);
+  });
+
+  it('the inherited level keeps what the old series rule gave: level 1 now, inherited 6 — series nyas is open', () => {
+    const nyas = STICKERS_BY_PACK.cozy.find((s) => s.series === 'nyas')!;
+    sheet([nyas.id], 1, { legacyLevel: 6 });
+    expect((within(group(t('reactionFavorites'))).getByRole('button', { name: t('reactionSticker', { name: nyas.id }) }) as HTMLButtonElement).disabled).toBe(false);
+    expect(within(packGroup('Затишок')).getByRole('button', { name: t('reactionSticker', { name: nyas.id }) })).toBeTruthy();
+  });
+
+  it('a guest (null): a locked favourite is disabled with its level; quick emoji stay open', () => {
+    const cozy = notNya('cozy')[0]!;
+    const { onPick, dialog } = sheet([cozy.id], null);
+    const cell = within(group(t('reactionFavorites'))).getByRole('button', { name: 'Відкриється з рівня 9' }) as HTMLButtonElement;
+    expect(cell.disabled).toBe(true);
     fireEvent.click(within(dialog).getByRole('button', { name: '🔥' }));
     expect(onPick).toHaveBeenCalledWith({ kind: 'emoji', value: '🔥' });
   });
@@ -218,7 +256,7 @@ describe('ReactionSheet locked series (15a)', () => {
 
   it('level Infinity (the host) opens everything', () => {
     sheet([], Infinity);
-    expect(within(group(t('reactionAll'))).queryAllByRole('button', { name: /^Відкриється/ })).toHaveLength(0);
+    expect(group(t('reactionAll')).querySelector('.sticker-pack-locked')).toBeNull();
     expect(stickerButtons(group(t('reactionAll')))).toHaveLength(STICKERS.length);
   });
 });

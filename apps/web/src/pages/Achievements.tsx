@@ -1,4 +1,4 @@
-import { isAnti, type AchievementCard, type AchievementsPage } from '@quiz/shared';
+import { isAnti, PACK_ACHIEVEMENTS, STICKER_PACKS, type AchievementCard, type AchievementsPage } from '@quiz/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { getAchievements, getMyAchievements, setHideAnti } from '../api';
@@ -151,6 +151,8 @@ function HideAntiSwitch({ initial }: { initial: boolean }) {
 function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning }) {
   const name = t(`achievement_${item.id}` as TextKey);
   const progress = !item.earned ? item.progress : null;
+  // Набір стікерів, який це досягнення відкриває раніше за рівень (34).
+  const stickerPack = STICKER_PACKS.find((pack) => PACK_ACHIEVEMENTS[pack] === item.id);
   const className = ['achievement-card', ...(item.earned ? [] : ['is-locked']), ...(isAnti(item.id) ? ['is-anti'] : [])].join(' ');
   return (
     <li className={className}>
@@ -164,6 +166,7 @@ function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning 
       </h3>
       <p className="achievement-joke">{t(`achievementJoke_${item.id}` as TextKey)}</p>
       <p className="achievement-hint">{t(`achievementHint_${item.id}` as TextKey)}</p>
+      {stickerPack !== undefined && <p className="achievement-hint">{t('achievementStickers', { name: t(`pack_${stickerPack}` as TextKey) })}</p>}
       {item.earned && (
         <p className="achievement-date">
           {item.earnedAt === null ? t('achievementEarnedLongAgo') : t('achievementEarnedOn', { date: formatDay(item.earnedAt) })}

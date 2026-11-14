@@ -1,10 +1,7 @@
 import {
-  STICKERS,
-  STICKER_SERIES,
-  packLevel,
-  packOf,
   stickerOpen,
   stickerPath,
+  type StickerExtra,
   type StickerPlace,
   type TrophyDecor,
   type TrophyKind,
@@ -13,6 +10,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type JSX } from 'r
 import { createPortal } from 'react-dom';
 import { t } from '../../i18n';
 import { stickerPlaceChoices } from '../../trophy/decor-places';
+import { LockedPackLine, packName, packViews } from '../../screens/StickerPacks';
 import { occupantText, placeText } from './StickerPicker';
 
 /** Змінювана наліпка: її місце в даних, id і де вона фактично лежить (null — не вміщується). */
@@ -27,19 +25,19 @@ export interface StickerDialogProps {
   decor: TrophyDecor;
   level: number;
   kept: readonly string[];
+  /** Набори за досягнення й рівень успадкування власника (34). */
+  access?: StickerExtra;
   /** null — нова наліпка. */
   editing: StickerEditing | null;
   onDone: (place: StickerPlace, id: string) => void;
   onClose: () => void;
 }
 
-const lockText = (need: number): string => t('lookLocked', { level: t('levelFromLevel', { n: need }) });
-
 /**
- * Вікно наліпки: сітка за серіями (закриті за рівнем — з рівнем і без gif) і вибір місця, де зайняті вимкнені
+ * Вікно наліпки: сітка за наборами (34; закрита частина набору — одним рядком «відкриється з рівня N») і вибір місця, де зайняті вимкнені
  * з поясненням. Змінювана наліпка не займає ні свого місця, ні того, куди переїхала.
  */
-export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClose }: StickerDialogProps): JSX.Element {
+export function StickerDialog({ kind, decor, level, kept, access = {}, editing, onDone, onClose }: StickerDialogProps): JSX.Element {
   const choices = stickerPlaceChoices(kind, decor, editing?.place ?? null);
   const free = (p: StickerPlace | null) => p !== null && choices.some((c) => c.place === p && c.takenBy === null);
   const [id, setId] = useState<string | null>(editing?.id ?? null);
@@ -106,36 +104,25 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
           </h3>
           {/* Сітка прокручується сама: місце й «Готово» завжди видно знизу вікна. */}
           <div className="sticker-dialog-grids">
-            {STICKER_SERIES.map((series) => {
+            {packViews((sticker) => stickerOpen(sticker.id, level, access) || kept.includes(sticker.id) || sticker.id === editing?.id).map((view) => {
+              const headId = `${uid}-pack-${view.pack}`;
               return (
-                <ul key={series} className="studio-sticker-grid">
-                  {STICKERS.filter((s) => s.series === series).map((sticker) => {
-                    const need = packLevel(packOf(sticker.id));
-                    const locked = !stickerOpen(sticker.id, level) && !kept.includes(sticker.id) && sticker.id !== editing?.id;
-                    return (
-                      <li key={sticker.id}>
-                        <button
-                          type="button"
-                          className={locked ? 'studio-sticker-cell is-locked' : 'studio-sticker-cell'}
-                          aria-pressed={sticker.id === id}
-                          disabled={locked}
-                          aria-label={locked ? `${sticker.id} ${lockText(need)}` : undefined}
-                          onClick={() => setId(sticker.id)}
-                        >
-                          {locked ? (
-                            // Закрита клітинка без gif: сотні закритих наліпок не вантажаться на телефон.
-                            <>
-                              <span className="studio-sticker-lock" aria-hidden="true">{`🔒 ${need}`}</span>
-                              <span className="sr-only">{lockText(need)}</span>
-                            </>
-                          ) : (
+                <section key={view.pack} role="group" aria-labelledby={headId} className="sticker-pack">
+                  {view.open.length > 0 && <h4 id={headId}>{packName(view.pack)}</h4>}
+                  {view.open.length > 0 && (
+                    <ul className="studio-sticker-grid">
+                      {view.open.map((sticker) => (
+                        <li key={sticker.id}>
+                          <button type="button" className="studio-sticker-cell" aria-pressed={sticker.id === id} onClick={() => setId(sticker.id)}>
                             <img src={stickerPath(sticker)} alt={sticker.id} loading="lazy" decoding="async" width={40} height={40} />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {/* Закрита частина набору (34) — один рядок замість сітки замків: сотні закритих наліпок не вантажаться на телефон. */}
+                  {view.locked.length > 0 && <LockedPackLine view={view} id={view.open.length === 0 ? headId : undefined} />}
+                </section>
               );
             })}
           </div>

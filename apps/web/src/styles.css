@@ -13939,10 +13939,50 @@ button.wall-tile:disabled {
   list-style: none;
 }
 
-.reaction-grid.is-all {
+.reaction-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   max-height: 50vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+/* Набори стікерів (34): заголовок, сітка відкритих, рядок закритої частини переноситься на 320 px без прокрутки вбік. */
+.sticker-pack {
+  min-width: 0;
+}
+.sticker-pack h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+}
+.sticker-pack-locked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  margin: 0.25rem 0;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+.sticker-pack-lock-text {
+  min-width: 0;
+}
+.sticker-pack-preview {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.sticker-pack-preview img {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+.sticker-pack-more {
+  white-space: nowrap;
 }
 
 .reaction-cell {

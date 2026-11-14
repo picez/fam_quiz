@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { QUICK_EMOJI, REACTION_GAP_MS, STICKERS, packLevel, packOf, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker } from '@quiz/shared';
+import { QUICK_EMOJI, REACTION_GAP_MS, packLevel, packOf, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker, type StickerExtra } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useFavoriteStickers } from '../live/useFavoriteStickers';
+import { LockedPackLine, packName, packViews } from './StickerPacks';
 
 /** Стікер у сітці: кнопка-картинка (вибір) і мала ☆ / ★ (улюблений). */
 function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker: Sticker; favorite: boolean; locked: boolean; onPick: (item: ReactionItem) => void; onToggle: (id: string) => void }) {
@@ -37,7 +38,22 @@ function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker:
 }
 
 /** Нижній аркуш у порталі (як PeekSheet): Escape і «Закрити» закривають; вибір шле подію й закриває аркуш. */
-export function ReactionSheet({ favorites, level, onToggle, onPick, onClose }: { favorites: string[]; level: number | null; onToggle: (id: string) => void; onPick: (item: ReactionItem) => void; onClose: () => void }) {
+export function ReactionSheet({
+  favorites,
+  level,
+  access = {},
+  onToggle,
+  onPick,
+  onClose,
+}: {
+  favorites: string[];
+  level: number | null;
+  /** Набори за досягнення й рівень успадкування (34); гість — {}. */
+  access?: StickerExtra;
+  onToggle: (id: string) => void;
+  onPick: (item: ReactionItem) => void;
+  onClose: () => void;
+}) {
   const favoritesId = useId();
   const allId = useId();
   const firstRef = useRef<HTMLButtonElement | null>(null);
@@ -52,7 +68,9 @@ export function ReactionSheet({ favorites, level, onToggle, onPick, onClose }: {
     document.addEventListener('keydown', onEscape);
     return () => document.removeEventListener('keydown', onEscape);
   }, []);
+  const packsId = useId();
   const liked = new Set(favorites);
+  const open = (id: string) => stickerOpen(id, level, access);
   const favoriteStickers = favorites.map(stickerOf).filter((sticker): sticker is Sticker => sticker !== undefined);
   return createPortal(
     <section className="reaction-sheet" role="dialog" aria-label={t('reactionSheetTitle')}>
@@ -76,18 +94,32 @@ export function ReactionSheet({ favorites, level, onToggle, onPick, onClose }: {
         ) : (
           <ul className="reaction-grid">
             {favoriteStickers.map((sticker) => (
-              <StickerCell key={sticker.id} sticker={sticker} favorite locked={!stickerOpen(sticker.id, level)} onPick={onPick} onToggle={onToggle} />
+              <StickerCell key={sticker.id} sticker={sticker} favorite locked={!open(sticker.id)} onPick={onPick} onToggle={onToggle} />
             ))}
           </ul>
         )}
       </div>
       <div role="group" aria-labelledby={allId}>
         <h3 id={allId}>{t('reactionAll')}</h3>
-        <ul className="reaction-grid is-all">
-          {STICKERS.map((sticker) => (
-            <StickerCell key={sticker.id} sticker={sticker} favorite={liked.has(sticker.id)} locked={!stickerOpen(sticker.id, level)} onPick={onPick} onToggle={onToggle} />
-          ))}
-        </ul>
+        {/* Набори (34): відкриті — сіткою, закрита частина — одним рядком із чотирма картинками; прокручується всередині. */}
+        <div className="reaction-packs">
+          {packViews((sticker) => open(sticker.id)).map((view) => {
+            const headId = `${packsId}-${view.pack}`;
+            return (
+              <section key={view.pack} role="group" aria-labelledby={headId} className="sticker-pack">
+                {view.open.length > 0 && <h4 id={headId}>{packName(view.pack)}</h4>}
+                {view.open.length > 0 && (
+                  <ul className="reaction-grid">
+                    {view.open.map((sticker) => (
+                      <StickerCell key={sticker.id} sticker={sticker} favorite={liked.has(sticker.id)} locked={false} onPick={onPick} onToggle={onToggle} />
+                    ))}
+                  </ul>
+                )}
+                {view.locked.length > 0 && <LockedPackLine view={view} id={view.open.length === 0 ? headId : undefined} />}
+              </section>
+            );
+          })}
+        </div>
       </div>
     </section>,
     document.body,
@@ -106,7 +138,7 @@ function buttonParts(): [icon: string, label: string] {
  * Помилок (wrong_phase, offline) не показує: реакція для гри не важлива. Аркуш (а з ним і сітка стікерів) змонтований, лише поки відкритий.
  */
 export function ReactionButton({ shown, level, event, send }: { shown: boolean; level: number | null; event: 'player:react' | 'host:react'; send: Send }) {
-  const { favorites, load, toggle } = useFavoriteStickers();
+  const { favorites, access, load, toggle } = useFavoriteStickers();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resting, setResting] = useState(false);
@@ -164,7 +196,7 @@ export function ReactionButton({ shown, level, event, send }: { shown: boolean; 
           </span>
         )}
       </button>
-      {open && <ReactionSheet favorites={favorites} level={level} onToggle={toggle} onPick={(item) => void pick(item)} onClose={close} />}
+      {open && <ReactionSheet favorites={favorites} level={level} access={access} onToggle={toggle} onPick={(item) => void pick(item)} onClose={close} />}
     </>
   );
 }

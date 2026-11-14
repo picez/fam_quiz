@@ -102,6 +102,15 @@ describe('Achievements, own page', () => {
     expect(within(cardOf('Перша гра')).getByText('Отримано давно')).toBeTruthy();
   });
 
+  it('34: the three pack achievements name the stickers they open; others do not', async () => {
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 71');
+    expect(within(cardOf('Нічна сова')).getByText('Відкриває стікери «Моторошики»')).toBeTruthy();
+    expect(within(cardOf('Капості')).getByText('Відкриває стікери «Пустуни»')).toBeTruthy();
+    expect(within(cardOf('Серія 10 правильних')).getByText('Відкриває стікери «Вогники»')).toBeTruthy();
+    expect(within(cardOf('Швидкі пальці')).queryByText(/Відкриває стікери/)).toBeNull();
+  });
+
   it('a locked counted card is grey with its progress, a locked one-off has none', async () => {
     open('/achievements');
     await screen.findByText('Отримано 2 з 71');
