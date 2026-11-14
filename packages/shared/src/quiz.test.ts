@@ -10,6 +10,11 @@ import {
   READY_BUFFS,
   allowedBuffs,
   allowedDebuffs,
+  chosenDebuffs,
+  familyExtraMs,
+  familyOn,
+  FAMILY_OFF_DEBUFFS,
+  FAMILY_EXTRA_MAX_MS,
   buffSchema,
   buyDebuffSchema,
   debuffPrice,
@@ -3561,5 +3566,52 @@ describe('quest round (29g)', () => {
     expect(buff.quest?.bonus).toEqual({ kind: 'buff', buff: 'fifty', first: 2 });
     expect(emptyBrief('quest').quest).toBeNull();
     expect(roundBrief(roundSchema.parse(round('r1', [single]))).quest).toBeNull();
+  });
+});
+
+describe('family game (31)', () => {
+  const baseQuiz = { title: 'Т', description: '', settings: DEFAULT_SETTINGS, rounds: [round('r1', [single])] };
+  const withSettings = (settings: object) => ({ ...baseQuiz, settings: { ...baseQuiz.settings, ...settings } });
+
+  it('the schema takes family true and false, refuses other values and leaves no key when absent', () => {
+    expect(quizSchema.parse(withSettings({ family: true })).settings.family).toBe(true);
+    expect(quizSchema.parse(withSettings({ family: false })).settings.family).toBe(false);
+    expect(valid(quizSchema, withSettings({ family: 'yes' }))).toBe(false);
+    expect('family' in quizSchema.parse(baseQuiz).settings).toBe(false);
+  });
+  it('a family game drops the five confusing debuffs from the allowed ones', () => {
+    expect(allowedDebuffs({ settings: { leaderboard: 'each', family: true } })).toEqual(['fog', 'freeze', 'guests', 'mud']);
+    expect(allowedDebuffs({ settings: { leaderboard: 'each', family: true, debuffs: [...DEBUFF_KINDS] } })).toEqual([
+      'fog',
+      'freeze',
+      'guests',
+      'mud',
+      'sticky',
+      'noclock',
+    ]);
+    expect(allowedDebuffs({ settings: { leaderboard: 'each', family: false, debuffs: [...DEBUFF_KINDS] } })).toEqual([
+      ...DEBUFF_KINDS,
+    ]);
+    expect(familyOn({ settings: { leaderboard: 'each', family: true } })).toBe(true);
+    expect(familyOn({ settings: { leaderboard: 'each' } })).toBe(false);
+  });
+  it("chosenDebuffs keeps the author's own choice in a family game", () => {
+    expect(chosenDebuffs({ settings: { leaderboard: 'each', family: true, debuffs: [...DEBUFF_KINDS] } })).toEqual([
+      ...DEBUFF_KINDS,
+    ]);
+    expect(chosenDebuffs({ settings: { leaderboard: 'each', family: true } })).toEqual([...LEGACY_DEBUFFS]);
+  });
+  it('FAMILY_OFF_DEBUFFS are five known debuffs', () => {
+    expect(FAMILY_OFF_DEBUFFS).toEqual(['shake', 'mirror', 'flip', 'torch', 'bubbles']);
+    for (const kind of FAMILY_OFF_DEBUFFS) expect(DEBUFF_KINDS).toContain(kind);
+  });
+  it('familyExtraMs gives half the window, rounded up to a second, at most 30 s', () => {
+    expect(FAMILY_EXTRA_MAX_MS).toBe(30_000);
+    expect(familyExtraMs(25_000)).toBe(13_000);
+    expect(familyExtraMs(30_000)).toBe(15_000);
+    expect(familyExtraMs(31_500)).toBe(16_000);
+    expect(familyExtraMs(60_000)).toBe(30_000);
+    expect(familyExtraMs(90_000)).toBe(30_000);
+    expect(familyExtraMs(0)).toBe(0);
   });
 });

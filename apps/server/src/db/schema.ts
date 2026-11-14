@@ -381,6 +381,8 @@ export const profile = pgTable('profile', {
   locale: text('locale').$type<Locale>(),
   /** Ховати антидосягнення від інших (12j): чужа сторінка, публічний профіль, вітрина, сцена. */
   hideAnti: boolean('hide_anti').notNull().default(false),
+  /** Легкий режим (31): великий шрифт і спокійний екран на кожному пристрої, де людина ще не вибирала. */
+  easyMode: boolean('easy_mode').notNull().default(false),
   ...stamps,
 });
 

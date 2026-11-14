@@ -448,3 +448,31 @@ describe('Play: «Хто ти?» in a continued game (13b)', () => {
     });
   });
 });
+
+describe('Play: «Легкий режим» on the join form (31)', () => {
+  afterEach(() => {
+    localStorage.removeItem('quiz:easy');
+    document.documentElement.classList.remove('is-easy');
+  });
+
+  it('a new player sees the switch under the nickname, before «Увійти в гру»', async () => {
+    open();
+    await settle();
+    const box = screen.getByRole('checkbox', { name: 'Легкий режим' });
+    const enter = screen.getByRole('button', { name: 'Увійти в гру' });
+    expect(box.compareDocumentPosition(enter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(box);
+    expect(localStorage.getItem('quiz:easy')).toBe('on');
+  });
+
+  it('the switch is there while picking a saved place too', async () => {
+    vi.mocked(gameSlots).mockResolvedValue({
+      ok: true,
+      data: { slots: [{ id: '00000000-0000-4000-8000-000000000001', nickname: 'Петро', team: null }], mine: null },
+    });
+    open();
+    await screen.findByRole('group', { name: 'Хто ти?' });
+    expect(screen.queryByLabelText('Ваше ім’я')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Легкий режим' })).toBeTruthy();
+  });
+});

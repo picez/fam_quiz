@@ -8,7 +8,7 @@ import type { Db } from './db/client';
 import { givenLikes, receivedLikes } from './like-store';
 import { versusOf } from './versus';
 import { saveLooks } from './xp-store';
-import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
+import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveEasy, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
   db: Db;
@@ -21,6 +21,8 @@ const MAX_ID_LENGTH = 64;
 const MAX_QUERY_LENGTH = 100;
 /** Перемикач «Ховати антидосягнення від інших» (12j). */
 const hideAntiSchema = z.object({ hide: z.boolean() }).strict();
+/** Перемикач «Легкий режим» (31). */
+const easySchema = z.object({ on: z.boolean() }).strict();
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
@@ -62,6 +64,16 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     const body = hideAntiSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     return { hideAnti: await setHideAnti(db, user.id, body.data.hide) };
+  });
+
+  app.put('/api/me/easy', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const body = easySchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    const easyMode = await saveEasy(db, user.id, body.data.on);
+    if (easyMode === null) return reply.code(404).send(NOT_FOUND);
+    return { easyMode };
   });
 
   app.put('/api/me/looks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {

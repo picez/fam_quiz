@@ -72,6 +72,7 @@ import { StageNewAchievements } from './StageNewAchievements';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
+import { StageSpeech } from './StageSpeech';
 
 interface Props {
   view: StageView;
@@ -114,6 +115,12 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         <p className="address">{hostOf(joinUrl)}</p>
         <p className="meta">{t('joinCode')}</p>
         <p className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
+        {view.family === true && (
+          <>
+            <p className="meta family-lobby">{t('familyLobby')}</p>
+            <p className="meta">{t('familySpeechTip')}</p>
+          </>
+        )}
       </div>
       <div className="qr">
         <QRCodeSVG value={joinUrl} size={256} bgColor="#F3EAEA" fgColor="#060505" marginSize={2} />
@@ -1036,6 +1043,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
         {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} autopilot={view.autopilot} />}
         <StageDebuffs debuffs={view.debuffs} />
       </div>
+      {/* «Читати вголос» (31): кут сцени, inline-start знизу; на фініші там меню. */}
+      {phase !== 'finished' && <StageSpeech view={view} splashing={splashNow !== null} />}
       {view.paused && (
         <p className="banner" role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}

@@ -18,6 +18,8 @@ export interface Account {
   admin: boolean;
   /** Мова з профілю; null — людина ще не вибирала. */
   locale: Locale | null;
+  /** «Легкий режим» (31) у профілі. */
+  easyMode: boolean;
 }
 
 export interface QuizSummary {
@@ -94,8 +96,13 @@ export async function fetchData<T>(url: string, options: Options = {}): Promise<
 const quizUrl = (id: string) => `/api/quizzes/${encodeURIComponent(id)}`;
 const gameUrl = (code: string) => `/api/games/by-code/${encodeURIComponent(code)}`;
 
-/** Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null. */
-export const me = () => request<Omit<Account, 'locale'> & { locale?: unknown }>('/api/me');
+/**
+ * Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null;
+ * без easyMode (31) — вимкнено.
+ */
+export const me = () => request<Omit<Account, 'locale' | 'easyMode'> & { locale?: unknown; easyMode?: unknown }>('/api/me');
+/** «Легкий режим» (31) у профілі. */
+export const setEasy = (on: boolean) => fetchData<{ easyMode: boolean }>('/api/me/easy', { method: 'PUT', body: { on } });
 /** Зберігає мову в профілі, щоб пуші приходили нею ж. */
 export async function saveMyLocale(locale: Locale): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await request<object>('/api/me/locale', { method: 'PUT', body: { locale } });

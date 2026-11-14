@@ -174,3 +174,42 @@ describe('PowersEditor stealth (29h)', () => {
     expect(screen.queryByText(warn)).toBeNull();
   });
 });
+
+describe('PowersEditor in a family game (31)', () => {
+  const OFF = ['shake', 'mirror', 'flip', 'torch', 'bubbles'] as const;
+
+  it('the five confusing debuffs are disabled and unticked with «У сімейній грі вимкнено»; the saved choice stays', () => {
+    const onChange = vi.fn();
+    render(<PowersEditor settings={{ leaderboard: 'each', debuffs: [...DEBUFF_KINDS], debuffPrices: { shake: 300 } }} family spares={undefined} onChange={onChange} />);
+    for (const kind of OFF) {
+      const box = screen.getByRole('checkbox', { name: new RegExp(debuffName(kind)) }) as HTMLInputElement;
+      expect(box.disabled, kind).toBe(true);
+      expect(box.checked, kind).toBe(false);
+      expect(document.getElementById(box.getAttribute('aria-describedby') ?? '')?.textContent, kind).toBe('У сімейній грі вимкнено');
+    }
+    // Ціни — лише в дозволених: 11 − 5 = 6.
+    expect(screen.getAllByLabelText('Ціна, балів')).toHaveLength(6);
+    const fog = screen.getByRole('checkbox', { name: new RegExp(debuffName('fog')) }) as HTMLInputElement;
+    expect(fog.disabled).toBe(false);
+    fireEvent.click(fog);
+    const sent = onChange.mock.lastCall?.[0] as { debuffs: string[]; debuffPrices: object | undefined };
+    expect(sent.debuffs).toEqual(DEBUFF_KINDS.filter((kind) => kind !== 'fog'));
+    expect(sent.debuffPrices).toEqual({ shake: 300 });
+  });
+
+  it('without family the editor is as before', () => {
+    render(<PowersEditor settings={{ leaderboard: 'each', debuffs: [...DEBUFF_KINDS] }} spares={undefined} onChange={vi.fn()} />);
+    const shake = screen.getByRole('checkbox', { name: new RegExp(debuffName('shake')) }) as HTMLInputElement;
+    expect(shake.disabled).toBe(false);
+    expect(shake.checked).toBe(true);
+    expect(screen.queryByText('У сімейній грі вимкнено')).toBeNull();
+  });
+});
+
+describe('settleFamilyPrices (31)', () => {
+  it('a hidden debuff price out of range or not a number is settled silently; visible ones stay as typed', async () => {
+    const { settleFamilyPrices } = await import('./PowersEditor');
+    const settled = settleFamilyPrices({ leaderboard: 'each', family: true, debuffs: [...DEBUFF_KINDS], debuffPrices: { shake: 99_999, mirror: Number.NaN, torch: 0.5, fog: 99_999 } });
+    expect(settled.debuffPrices).toEqual({ shake: 5000, torch: 50, fog: 99_999 });
+  });
+});

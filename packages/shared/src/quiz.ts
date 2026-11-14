@@ -1498,6 +1498,8 @@ export const quizSettingsSchema = z.object({
   buffs: z.array(z.enum(BUFF_KINDS)).max(BUFF_KINDS.length).optional(),
   /** Пояснення для новачків (8d): «Як грати», пам'ятка раунду, підказка нового типу; немає поля — вимкнено. */
   newcomers: z.boolean().optional(),
+  /** Сімейна гра (31): довший час і без найзаплутаніших дебафів; немає поля — вимкнено. */
+  family: z.boolean().optional(),
   /** Ціни дебафів для гравців; немає ключа — LIMITS.defaultDebuffPrice. */
   debuffPrices: z
     .partialRecord(z.enum(DEBUFF_KINDS), z.number().int().min(LIMITS.minDebuffPrice).max(LIMITS.maxDebuffPrice))
@@ -1745,11 +1747,30 @@ export const quizSchema = z
 
 export type Quiz = z.infer<typeof quizSchema>;
 
-/** Дозволені дебафи в порядку DEBUFF_KINDS; без settings.debuffs — старі шість (12h). */
-export function allowedDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
+/** Сімейна гра (31): ці дебафи збивають дітей і старших найбільше — у такій грі їх немає. */
+export const FAMILY_OFF_DEBUFFS = ['shake', 'mirror', 'flip', 'torch', 'bubbles'] as const satisfies readonly DebuffKind[];
+
+/** Найбільша надбавка часу сімейної гри до одного запитання, мс. */
+export const FAMILY_EXTRA_MAX_MS = 30_000;
+
+/** Чи це сімейна гра (31); немає поля — ні. */
+export const familyOn = (quiz: Pick<Quiz, 'settings'>): boolean => quiz.settings.family === true;
+
+/** Сирий вибір дебафів автора (редактор) у порядку DEBUFF_KINDS; без settings.debuffs — старі шість (12h). */
+export function chosenDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
   const chosen = quiz.settings.debuffs;
   return chosen ? DEBUFF_KINDS.filter((kind) => chosen.includes(kind)) : [...LEGACY_DEBUFFS];
 }
+
+/** Дозволені дебафи гри: вибір автора, а в сімейній грі (31) — без FAMILY_OFF_DEBUFFS. */
+export function allowedDebuffs(quiz: Pick<Quiz, 'settings'>): DebuffKind[] {
+  const chosen = chosenDebuffs(quiz);
+  return familyOn(quiz) ? chosen.filter((kind) => !(FAMILY_OFF_DEBUFFS as readonly DebuffKind[]).includes(kind)) : chosen;
+}
+
+/** Надбавка сімейної гри до вікна відповіді: половина, вгору до цілої секунди, не більше FAMILY_EXTRA_MAX_MS. */
+export const familyExtraMs = (windowMs: number): number =>
+  Math.min(FAMILY_EXTRA_MAX_MS, Math.ceil(windowMs / 2000) * 1000);
 
 /** Ціна дебафу у вікторині для гравців (ведучий насилає безкоштовно). */
 export function debuffPrice(quiz: Pick<Quiz, 'settings'>, kind: DebuffKind): number {

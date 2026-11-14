@@ -209,7 +209,7 @@ describe('motifs', () => {
   });
 
   it('the crows drift only when motion is welcome', () => {
-    expect(/@media \(prefers-reduced-motion: no-preference\) \{\s*\.crows\s*\{[^}]*animation:[^}]*30s/.test(css)).toBe(true);
+    expect(/@media \(prefers-reduced-motion: no-preference\) \{\s*:where\(:root:not\(\.is-easy\)\) \.crows\s*\{[^}]*animation:[^}]*30s/.test(css)).toBe(true);
   });
 
   it('on phones the profile crows are smaller, fly above the nick and drift only sideways', () => {

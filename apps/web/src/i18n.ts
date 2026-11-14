@@ -1,5 +1,5 @@
 import type { Locale } from '@quiz/shared';
-import { intlTag, setCurrentLocale } from './locales/current';
+import { currentLocale, intlTag, setCurrentLocale } from './locales/current';
 import { loadMessages, type Messages } from './locales/load';
 import { helpUk } from './help/help-uk';
 import { isEnabled } from './locales/locales';
@@ -2174,6 +2174,24 @@ const uk = {
   groupQuizReplaceDraft: 'У тебе є незбережена нова вікторина. Замінити її цією?',
   groupQuizName: 'Вікторина: {name}',
   groupQuizNotice: 'Вікторину складено з записів групи. Над кожним запитанням — що варто перевірити.',
+  // Легкий режим, сімейна гра, читання вголос (31)
+  easyModeLabel: 'Легкий режим',
+  easyModeHint: 'Більший шрифт і кнопки, чіткіші кольори, без тремтіння й миготіння. Діє на цьому пристрої.',
+  easyModeHintAccount: 'Більший шрифт і кнопки, чіткіші кольори, без тремтіння й миготіння. Зберігається в профілі: на новому пристрої після входу ввімкнеться сам.',
+  easyModeSaveFailed: 'Не вдалося зберегти в профілі — на цьому пристрої режим однаково діє.',
+  familyLabel: 'Сімейна гра',
+  familyHint: 'Для дітей і старших: на кожне запитання — у півтора раза більше часу (до +30 с), а тремтіння, дзеркало, «догори дриґом», ліхтарик і бульбашки вимкнено.',
+  familyLobby: '👪 Сімейна гра: більше часу на відповідь, без найзаплутаніших дебафів',
+  familyDebuffOff: 'У сімейній грі вимкнено',
+  familySpeechTip: 'Увімкніть «Читати вголос» — сцена читатиме запитання.',
+  speechToggle: '🔊 Читати вголос',
+  speechResume: '🔊 Торкніться, щоб знову читати вголос',
+  speechRepeat: '🔁 Ще раз',
+  speechUnsupported: 'Цей браузер не вміє читати вголос.',
+  speechNoVoice: 'На цьому пристрої немає голосу для мови «{language}» — запитання не читаю.',
+  speechMedia: 'У запитанні є звук чи відео — вголос не читаю, щоб не заглушити.',
+  speechOptions: 'Варіанти: {list}.',
+  speechBlank: 'пропуск',
   // Меню
   menuLabel: 'Меню',
   menuJoin: 'Меню',
@@ -4058,6 +4076,15 @@ export function activateLocaleForTests(locale: Locale, messages?: { ui?: Message
 
 export function activeMessages(): { ui: Messages; help: Messages } {
   return active;
+}
+
+/**
+ * Текст саме мовою locale, якщо її словник уже в пам'яті (uk є завжди, активна — теж); інакше null.
+ * Для читання вголос (31): рамкові слова мають бути мовою голосу, а не інтерфейсу.
+ */
+export function textIn(locale: Locale, key: TextKey, vars: Record<string, string | number> = {}): string | null {
+  const messages = locale === currentLocale() ? active.ui : loaded.get(locale)?.ui;
+  return messages !== undefined && own(messages, key) ? fill(messages[key]!, vars) : null;
 }
 
 /** Текст активною мовою; нема ключа в її словнику — uk. */

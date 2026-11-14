@@ -5164,3 +5164,23 @@ describe('PlayerScreen: «Нове досягнення!» (12j)', () => {
     expect(screen.getByText('Нове досягнення!')).toBeTruthy();
   });
 });
+
+describe('PlayerScreen: «Легкий режим» (31)', () => {
+  it('the switch is in the lobby only, not on a question', () => {
+    show(view({ phase: 'lobby' }));
+    expect(screen.getByRole('checkbox', { name: 'Легкий режим' })).toBeTruthy();
+    cleanup();
+    show(onQuestion());
+    expect(screen.queryByRole('checkbox', { name: 'Легкий режим' })).toBeNull();
+  });
+});
+
+describe('PlayerScreen: family game (31)', () => {
+  it('the lobby says it is a family game only when it is', () => {
+    show(view({ phase: 'lobby', family: true }));
+    expect(screen.getByText('👪 Сімейна гра: більше часу на відповідь, без найзаплутаніших дебафів')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText(/Сімейна гра/)).toBeNull();
+  });
+});

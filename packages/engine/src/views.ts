@@ -177,6 +177,8 @@ import {
   surveyHitsOf,
   surveyOrder,
   newcomersOn,
+  shownSeconds,
+  familyOn,
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
@@ -192,7 +194,7 @@ import { undoPanel } from './undo';
 import { resumeLobby } from './carry';
 import { activeDebuff, debuffsOff, ghostTarget, lastPurchase, shopBlock, shownDebuff } from './debuffs';
 import { stealthMark } from './stealth';
-import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, SURVIVAL_LUCK_MS, trialOpen, trialQuestionOf } from './survival';
+import { edgeNow, inSurvivalRound, survivalAlive, survivalOver, survivalPlayOf, survivalVerdict, survivalTrialMs, trialOpen, trialQuestionOf } from './survival';
 import { contestantOf, decisionPending, inLadderRound, lifelinesUsed } from './ladder';
 import { decisionOpen, decisionsShown, inWipeoutRound, wipeoutChoiceOf, wipeoutIn, wipeoutPlayOf, wipeoutTable } from './wipeout';
 import {
@@ -567,12 +569,13 @@ function pinMarks(state: GameState, forHost: boolean): PinMark[] | null {
 }
 
 /** Найменший і найбільший час запитань раунду з таймером; null — таймера немає в жодного. */
-function timesOf(round: Round): { min: number; max: number } | null {
+function timesOf(round: Round, family: boolean): { min: number; max: number } | null {
   // «Мільйонер» без таймера: час запитань не діє.
   if (round.type === 'ladder' && !round.timer) return null;
   // «Правда про гравця» (28b): запитань у вікторині немає, усі з часом раунду.
-  if (round.type === 'truth') return { min: round.timeLimit, max: round.timeLimit };
-  const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [q.timeLimit] : []));
+  // Сімейна гра (31): гравці бачать час із надбавкою.
+  if (round.type === 'truth') return { min: shownSeconds(round.timeLimit, family), max: shownSeconds(round.timeLimit, family) };
+  const limits = roundQuestions(round).flatMap((q) => (isTimed(q) ? [shownSeconds(q.timeLimit, family)] : []));
   return limits.length === 0 ? null : { min: Math.min(...limits), max: Math.max(...limits) };
 }
 
@@ -586,8 +589,8 @@ function roundInfo(state: GameState): RoundInfo | null {
     type: round.type,
     partial: rulesOf(round).partial !== null,
     description: round.description ?? '',
-    brief: roundBrief(round),
-    times: timesOf(round),
+    brief: roundBrief(round, familyOn(state.quiz)),
+    times: timesOf(round, familyOn(state.quiz)),
   };
 }
 
@@ -2889,7 +2892,7 @@ function survivalInfo(state: GameState, forHost: boolean): SurvivalInfo | null {
             stage: trial.stage,
             endsAt: state.endsAt,
             remainingMs: state.remainingMs,
-            limitMs: question === null ? SURVIVAL_LUCK_MS : question.timeLimit * 1000,
+            limitMs: survivalTrialMs(state, question),
             done: trial.kind === 'question' ? Object.keys(trial.answers).length : Object.keys(trial.doors).length,
             total: (play?.survival.edge ?? []).length,
             question: question === null ? null : withoutClip(publicQuestion(question, trial.presented)),
@@ -3029,6 +3032,8 @@ function base(state: GameState, forHost: boolean) {
     overtime: overtimeRows(state),
     guide: state.phase === 'guide' ? { page: state.guidePage, pages: guidePages(state.quiz) } : null,
     newcomers: newcomersOn(state.quiz),
+    // Сімейна гра (31): ключ лише коли ввімкнено — фікстури звичайних ігор не змінюються.
+    ...(familyOn(state.quiz) ? { family: true as const } : {}),
     teams: teamsView(state),
     // Бонуси рівнів (15a): без ключа — діють; 'off' — ведучий вимкнув; 'none' — командна гра чи жоден бонус не пасує (переважає 'off').
     ...levelBonusesView(state),

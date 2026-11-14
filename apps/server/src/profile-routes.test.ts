@@ -396,3 +396,26 @@ describe('hiding anti-achievements (12j)', () => {
     expect((await request('PUT', '/api/me/achievements/hide-anti', olena.cookie, { hide: false })).json()).toEqual({ hideAnti: false });
   });
 });
+
+describe('easy mode in the profile (31)', () => {
+  it('GET /api/me says easyMode false; PUT /api/me/easy saves it and /api/me reports it', async () => {
+    const vira = await signUp(ctx.app, 'Віра');
+    expect((await request('GET', '/api/me', vira.cookie)).json().easyMode).toBe(false);
+    const on = await request('PUT', '/api/me/easy', vira.cookie, { on: true });
+    expect(on.statusCode).toBe(200);
+    expect(on.json()).toEqual({ easyMode: true });
+    expect((await request('GET', '/api/me', vira.cookie)).json().easyMode).toBe(true);
+    const off = await request('PUT', '/api/me/easy', vira.cookie, { on: false });
+    expect(off.json()).toEqual({ easyMode: false });
+    expect((await request('GET', '/api/me', vira.cookie)).json().easyMode).toBe(false);
+  });
+
+  it('needs a session and a plain { on: boolean }', async () => {
+    expect((await request('PUT', '/api/me/easy', undefined, { on: true })).statusCode).toBe(401);
+    for (const body of [{ on: 'yes' }, { on: true, x: 1 }, {}]) {
+      const response = await request('PUT', '/api/me/easy', olena.cookie, body);
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: 'invalid_payload' });
+    }
+  });
+});

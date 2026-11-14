@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isLocale } from '@quiz/shared';
 import { me, type Account } from './api';
+import { syncAccountEasy } from './easy-mode';
 import { syncAccountLocale } from './locales/choose';
 
 export type AccountState =
@@ -26,10 +27,16 @@ function check(): Promise<AccountState> {
         const locale = isLocale(result.locale) ? result.locale : null;
         // Мова з профілю перемагає мову пристрою; порожній профіль дістає поточну.
         void syncAccountLocale(locale, result.id);
-        return { status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale } };
+        // «Легкий режим» (31): профіль вмикає його лише на пристрої, що ще не вибирав.
+        const easyMode = result.easyMode === true;
+        syncAccountEasy(easyMode, result.id);
+        return { status: 'signed-in', account: { id: result.id, name: result.name, email: result.email, admin: result.admin === true, locale, easyMode } };
       }
       // Лише відповідь «немає сесії» означає, що людина не увійшла; будь-який інший збій нічого про це не каже.
-      if (result.error === 'unauthorized') return { status: 'anonymous' };
+      if (result.error === 'unauthorized') {
+        syncAccountEasy(false, null);
+        return { status: 'anonymous' };
+      }
       return { status: 'unknown', error: result.error };
     })
     .then((state) => {
@@ -47,6 +54,8 @@ function check(): Promise<AccountState> {
 export function forgetAccount(): void {
   known = null;
   pending = null;
+  // «Легкий режим» із профілю (31) гасне одразу після виходу; вибір самого пристрою лишається.
+  syncAccountEasy(false, null);
 }
 
 /** Хто увійшов. Запитує сервер під час появи й щоразу, коли змінюється refresh; до відповіді лишає попередній (чи відомий) стан. */
@@ -72,7 +81,7 @@ function sameState(a: AccountState, b: AccountState): boolean {
   if (a.status === 'signed-in' && b.status === 'signed-in') {
     const x = a.account;
     const y = b.account;
-    return x.id === y.id && x.name === y.name && x.email === y.email && x.admin === y.admin && x.locale === y.locale;
+    return x.id === y.id && x.name === y.name && x.email === y.email && x.admin === y.admin && x.locale === y.locale && x.easyMode === y.easyMode;
   }
   if (a.status === 'unknown' && b.status === 'unknown') return a.error === b.error;
   return true;

@@ -128,6 +128,14 @@ describe('HostScreen', () => {
     expect(screen.queryByText(/Серія \+/)).toBeNull();
   });
 
+  it('31: the lobby says it is a family game only when it is', () => {
+    show(view({ family: true }));
+    expect(screen.getByText('👪 Сімейна гра: більше часу на відповідь, без найзаплутаніших дебафів')).toBeTruthy();
+    cleanup();
+    show(view());
+    expect(screen.queryByText(/Сімейна гра/)).toBeNull();
+  });
+
   it('the lobby says whether level bonuses are on (15a)', () => {
     show(view());
     expect(screen.getByText('Бонуси рівнів увімкнено')).toBeTruthy();

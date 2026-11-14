@@ -34,6 +34,7 @@ vi.mock('../../api', () => ({
   dismissInvite: vi.fn(),
   saveLooks: vi.fn(),
   saveMyLocale: vi.fn(async () => ({ ok: true })),
+  setEasy: vi.fn(async () => ({ ok: true, data: { easyMode: true } })),
   myPrizes: vi.fn(),
   createPrize: vi.fn(),
   updatePrize: vi.fn(),
@@ -206,6 +207,15 @@ describe('«Налаштування»', () => {
     expect(((await screen.findByLabelText('Мова')) as HTMLSelectElement).options).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'Мій публічний профіль' }).getAttribute('href')).toBe('/profile/u1');
     expect(screen.queryByRole('link', { name: 'Адмінка' })).toBeNull();
+  });
+
+  it('31: has the «Легкий режим» section with the account hint', async () => {
+    open('/profile/settings');
+    expect(await screen.findByRole('heading', { level: 2, name: 'Легкий режим' })).toBeTruthy();
+    const box = await screen.findByRole('checkbox', { name: 'Легкий режим' });
+    await waitFor(() =>
+      expect(document.getElementById(box.getAttribute('aria-describedby') ?? '')?.textContent).toContain('Зберігається в профілі'),
+    );
   });
 
   it('links to the admin panel for admins', async () => {

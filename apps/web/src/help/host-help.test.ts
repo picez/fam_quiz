@@ -140,7 +140,9 @@ describe('host help', () => {
 
   it('11b minimum-time entry follows «newcomers» and tells the minimum times', () => {
     const ids = helpIds('settings');
-    expect(ids.indexOf('setting.pacing')).toBe(ids.indexOf('setting.newcomers') + 1);
+    // 31: «Сімейна гра» стоїть одразу після «Пояснення для новачків», далі — мінімальний час.
+    expect(ids.indexOf('setting.family')).toBe(ids.indexOf('setting.newcomers') + 1);
+    expect(ids.indexOf('setting.pacing')).toBe(ids.indexOf('setting.family') + 1);
     filled('setting.pacing');
     const body = text('setting.pacing');
     expect(helpEntry('setting.pacing').title).toBe('Мінімальний час перед «Далі»');

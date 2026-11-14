@@ -342,3 +342,13 @@ describe('survival trial: the end of the round', () => {
     expect(s.debuffs.p2?.firedAt).not.toBeNull();
   });
 });
+
+describe('survival trial in a family game (31)', () => {
+  it('a question trial gets half its time again, the luck trial stays as it is', () => {
+    const quiz = quizWith();
+    const family = { ...quiz, settings: { ...quiz.settings, family: true } };
+    const s = toTrial(startRound(lobbyWith(family, ...PLAYERS), 0, rng), ['p2', 'p3'], 2000);
+    expect(trialOf(s).kind).toBe('question');
+    expect(s.endsAt).toBe(3000 + 15_000 + 8000);
+  });
+});

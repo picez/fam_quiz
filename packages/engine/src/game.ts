@@ -37,6 +37,8 @@ import {
   RISK_FACTOR,
   rulesOf,
   answerWindowMs,
+  familyExtraMs,
+  familyOn,
   hallPoints,
   proximityPartial,
   isUnscored,
@@ -1512,11 +1514,15 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   const built = question.type === 'survey' ? (surveyBoard(state, question) ?? { rows: question.rows, source: 'host' as const }) : null;
   // «Малюнок» (28c): художник вибирається тут, разом із лічильником черги, — знімок після перезапуску не дасть другого вибору.
   const drawn = question.type === 'drawing' ? openDrawing(state) : null;
+  // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
+  const timed = isTimed(question) && !(round.type === 'ladder' && !round.timer);
+  // Сімейна гра (31): надбавка — у наявному extraMs, як «+15 с» ведучого; форма стану та сама.
+  const extra = timed && familyOn(state.quiz) ? familyExtraMs(answerWindowMs(question)) : 0;
   const play: Play = {
     roundIndex: state.roundIndex,
     question: built !== null && question.type === 'survey' ? surveyPlayQuestion(question, built) : question,
     answers: {},
-    extraMs: 0,
+    extraMs: extra,
     ...(board !== undefined ? { board } : {}),
     // Сортування в бліц-раунді без черги натискань: перемагає перший, хто відсортував усе.
     ...((round.type === 'blitz' && question.type !== 'sort') || board?.kind === 'blitz'
@@ -1572,8 +1578,7 @@ export function openQuestion(state: GameState, question: Question, now: number, 
       plays: [...packMemories(packSpotdiffs(packJigsaws(packPuzzles(packDrawings(state.plays, -1))))), play],
       presented: present(question, shuffles(round), rng),
       startedAt: at,
-      // «Мільйонер» без таймера: запис ще не в стані, тож тут умова з раунду, а не timedPlay.
-      endsAt: isTimed(question) && !(round.type === 'ladder' && !round.timer) ? at + answerWindowMs(question) : null,
+      endsAt: timed ? at + answerWindowMs(question) + extra : null,
       remainingMs: null,
       heldAt: null,
     },

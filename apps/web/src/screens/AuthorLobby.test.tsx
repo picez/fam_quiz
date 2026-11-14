@@ -13,10 +13,10 @@ afterEach(() => {
 const joinUrl = 'https://quiz.example/play/123456';
 const stageUrl = 'https://quiz.example/stage/123456#tok';
 
-function show(options: { levelBonuses?: 'off' | 'none'; stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
+function show(options: { family?: true; levelBonuses?: 'off' | 'none'; stageUrl?: string | null; send?: Send; onError?: (m: string | null) => void } = {}) {
   const send: Send = options.send ?? vi.fn(async () => ({ ok: true as const }));
   const onError = options.onError ?? vi.fn();
-  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} levelBonuses={options.levelBonuses} />);
+  render(<AuthorLobby code="123456" stageUrl={options.stageUrl === undefined ? stageUrl : options.stageUrl} joinUrl={joinUrl} send={send} onError={onError} levelBonuses={options.levelBonuses} family={options.family} />);
   return { send, onError };
 }
 
@@ -122,6 +122,14 @@ describe('AuthorLobby: a restarted saved game (13b)', () => {
     render(<AuthorLobby code="123456" stageUrl={null} joinUrl={joinUrl} send={vi.fn()} onError={vi.fn()} resume={resume} continued={{ slots: [], carryRound: null }} />);
     expect(screen.queryByText(/Почнемо з/)).toBeNull();
     expect(screen.queryByText('Продовжити попередню гру')).toBeNull();
+  });
+
+  it('31: says it is a family game only when it is', () => {
+    show({ family: true });
+    expect(screen.getByText('👪 Сімейна гра: більше часу на відповідь, без найзаплутаніших дебафів')).toBeTruthy();
+    cleanup();
+    show();
+    expect(screen.queryByText(/Сімейна гра/)).toBeNull();
   });
 
   it('says whether level bonuses are on', () => {

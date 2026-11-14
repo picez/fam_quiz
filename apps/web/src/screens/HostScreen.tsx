@@ -1490,6 +1490,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}
 
       {phase === 'lobby' && view.levelBonuses !== 'none' && <p className="meta">{t(view.levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
+      {phase === 'lobby' && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
       {phase === 'lobby' && <LobbyAccess code={code} />}
       {phase === 'lobby' && <InviteFriends code={code} />}
       {phase === 'lobby' && <PrizePlaces code={code} />}

@@ -525,3 +525,17 @@ describe('group item uses (12l)', () => {
     expect(await db.select().from(groupItemUse)).toEqual([]);
   });
 });
+
+describe('easy mode column (31)', () => {
+  it('migration 0035 adds profile.easy_mode = false to an existing profile, other fields stay', async () => {
+    const { profile } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0034_group_item_use');
+    await db.insert(user).values({ id: 'u1', name: 'Ганна', email: 'hanna@example.com' });
+    await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "nickname_key", "locale") VALUES ('u1', 'Ганна', 'ганна', 'uk')`);
+
+    await migrateRest();
+
+    const [row] = await db.select().from(profile);
+    expect(row).toMatchObject({ userId: 'u1', nickname: 'Ганна', locale: 'uk', hideAnti: false, easyMode: false });
+  });
+});

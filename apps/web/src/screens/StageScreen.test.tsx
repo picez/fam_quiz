@@ -3236,3 +3236,25 @@ describe('StageScreen: code quest (29g)', () => {
     expect(document.querySelector('.quest-strip')).toBeNull();
   });
 });
+
+describe('StageScreen: family game (31)', () => {
+  it('the lobby says it is a family game and suggests «Читати вголос»', () => {
+    show(view({ phase: 'lobby', family: true }));
+    expect(screen.getByText('👪 Сімейна гра: більше часу на відповідь, без найзаплутаніших дебафів')).toBeTruthy();
+    expect(screen.getByText('Увімкніть «Читати вголос» — сцена читатиме запитання.')).toBeTruthy();
+    cleanup();
+    show(view({ phase: 'lobby' }));
+    expect(screen.queryByText(/Сімейна гра/)).toBeNull();
+    expect(screen.queryByText(/Увімкніть «Читати вголос»/)).toBeNull();
+  });
+});
+
+describe('StageScreen: «Читати вголос» (31)', () => {
+  it('the stage has the read-aloud button in the lobby and on a question, not on the finish', () => {
+    show(view({ phase: 'lobby' }));
+    expect(screen.getByRole('button', { name: '🔊 Читати вголос' }).getAttribute('aria-pressed')).toBe('false');
+    cleanup();
+    show(view({ phase: 'finished' }));
+    expect(screen.queryByRole('button', { name: '🔊 Читати вголос' })).toBeNull();
+  });
+});

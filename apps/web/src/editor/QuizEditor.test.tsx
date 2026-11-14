@@ -1770,6 +1770,31 @@ describe('QuizEditor: away penalty (12e)', () => {
   });
 });
 
+describe('QuizEditor: family game (31)', () => {
+  it('«Сімейна гра» writes family: true, unticking drops the key; its ⓘ opens «Сімейна гра»', async () => {
+    const { onSave } = open();
+    fill('Назва вікторини', 'Гра');
+    fill('Текст запитання', 'Перше?');
+    fireEvent.click(screen.getByRole('button', { name: 'так чи ні' }));
+    const box = screen.getByRole('checkbox', { name: 'Сімейна гра' }) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    click('Зберегти');
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const quiz = saved(onSave);
+    expect(quiz.settings.family).toBe(true);
+    expect(quizSchema.safeParse(quiz).success).toBe(true);
+    cleanup();
+    const again = open(quiz);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Сімейна гра' }));
+    click('Зберегти');
+    await waitFor(() => expect(again.onSave).toHaveBeenCalledTimes(1));
+    expect('family' in saved(again.onSave).settings).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Довідка: Сімейна гра' }));
+    screen.getByRole('dialog', { name: 'Сімейна гра' });
+  });
+});
+
 describe('QuizEditor: explanations for newcomers', () => {
   it('the flag is off by default and is written only when on', async () => {
     const { onSave } = open();

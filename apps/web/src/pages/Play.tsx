@@ -11,6 +11,7 @@ import { PlayerScreen } from '../screens/PlayerScreen';
 import { clearAuthor, clearPlayer, loadAuthor, loadPlayer, savePlayer } from '../storage';
 import { Menu } from '../menu/Menu';
 import { useAccount } from '../useAccount';
+import { EasyModeSwitch } from '../EasyModeSwitch';
 
 const NEW_PLAYER = 'new';
 
@@ -150,6 +151,8 @@ function JoinForm({ code, notice, onJoined }: { code: string; notice: string | n
               />
             </label>
           )}
+          {/* «Легкий режим» (31): і новому гравцеві, і тому, хто вибирає збережене місце, — ще до гри. */}
+          <EasyModeSwitch />
           <button type="submit" className="btn btn-primary" disabled={!ready || busy}>
             {t(busy ? 'checking' : 'enterGame')}
           </button>

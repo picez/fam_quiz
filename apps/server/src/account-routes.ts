@@ -8,7 +8,7 @@ import type { Auth } from './auth';
 import type { Db } from './db/client';
 import { hostGame, hostGames, playerHistory, resumeOptions } from './history';
 import { openGameIds, savedSummaries } from './saved-games';
-import { profileLocale, touchSeen } from './profiles';
+import { profileEasy, profileLocale, touchSeen } from './profiles';
 import { isAdmin } from './admin';
 import { banNotice, isBanned } from './bans';
 import type { RoomManager } from './rooms/manager';
@@ -110,7 +110,7 @@ export async function registerAccountRoutes(
     if (user === null) return reply.code(401).send({ error: 'unauthorized' });
     // Меню питає /api/me на кожній сторінці: за цим друзі бачать «онлайн» (беклог 9). Збій мітки вхід не ламає.
     await touchSeen(deps.db, user.id).catch((error: unknown) => request.log.warn({ err: error }, 'touchSeen failed'));
-    return { ...user, admin: await isAdmin(deps.db, deps.adminEmails, user.id), locale: await profileLocale(deps.db, user.id) };
+    return { ...user, admin: await isAdmin(deps.db, deps.adminEmails, user.id), locale: await profileLocale(deps.db, user.id), easyMode: await profileEasy(deps.db, user.id) };
   });
 
   const { db } = deps;
