@@ -21867,3 +21867,47 @@ input.sudoku-editor-cell:focus-visible {
     }
   }
 }
+
+/* Слайд «Нові досягнення» на сцені (12j): до 8 рядків × 3 значки вміщуються в 1280 × 720. */
+.stage-new-achievements {
+  display: grid;
+  gap: 0.6rem;
+  width: min(100%, 68rem);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-new-achievements-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+  min-width: 0;
+  font-size: 1.35rem;
+  line-height: 1.3;
+}
+
+.stage-new-achievements-name {
+  font-weight: 700;
+  margin-inline-end: 0.25rem;
+}
+
+.stage-new-achievement {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--panel);
+  padding-block: 0.15rem;
+  padding-inline: 0.6rem;
+  white-space: nowrap;
+}
+
+.stage-new-achievement.is-anti {
+  border-color: var(--wrong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wrong) 45%, transparent);
+}
+
+.stage-new-achievements-more,
+.stage-new-achievements-people {
+  color: var(--dim);
+}
