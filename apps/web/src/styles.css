@@ -22121,3 +22121,26 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.5rem;
   margin-top: 0.75rem;
 }
+
+/* Вступ за посиланням (12k). */
+.group-join-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.group-join-card h2,
+.group-join-card p {
+  margin: 0;
+}
+
+.group-join-card .group-card-emoji {
+  font-size: 2.5rem;
+}
