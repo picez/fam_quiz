@@ -234,6 +234,13 @@ describe('ReactionSheet packs (34)', () => {
     expect(within(packGroup('Затишок')).getByRole('button', { name: t('reactionSticker', { name: nyas.id }) })).toBeTruthy();
   });
 
+  it('a locked favourite from an achievement pack names the achievement too', () => {
+    const spooky = notNya('spooky')[0]!;
+    sheet([spooky.id], 10);
+    const cell = within(group(t('reactionFavorites'))).getByRole('button', { name: 'Моторошики — за досягнення «Нічна сова» або з рівня 36' }) as HTMLButtonElement;
+    expect(cell.disabled).toBe(true);
+  });
+
   it('a guest (null): a locked favourite is disabled with its level; quick emoji stay open', () => {
     const cozy = notNya('cozy')[0]!;
     const { onPick, dialog } = sheet([cozy.id], null);

@@ -596,6 +596,41 @@ describe('sticker inheritance (34, «м\'якше»)', () => {
     expect((await stickerAccess(db, [four])).get(four)).toEqual({ packs: [], legacyLevel: 4 });
   });
 
+  it('an account that played before profiles existed gets a profile and keeps the old rule at its synced level', async () => {
+    const [me, x, y] = await accounts(3);
+    const players = [
+      { userId: me, rank: 1, correct: 16 },
+      { userId: x, rank: 2, correct: 0 },
+      { userId: y, rank: 3, correct: 0 },
+    ];
+    await finishedGame({ quizId: await newQuiz(), questions: 16, finishedAt: new Date('2026-08-01T08:00:00Z'), players });
+    await finishedGame({ quizId: await newQuiz(), questions: 16, finishedAt: new Date('2026-08-01T10:00:00Z'), players });
+    expect(await db.select().from(profile).where(eq(profile.userId, me))).toHaveLength(0);
+    const errors: unknown[] = [];
+    await settleStickerLegacy(db, (e) => errors.push(e));
+    expect(errors).toEqual([]);
+    const [row] = await db.select({ settled: profile.stickersSettled, legacy: profile.stickersLegacyLevel }).from(profile).where(eq(profile.userId, me));
+    // 620 досвіду ретро — рівень 3: давня серія nyaa лишається відкритою.
+    expect(row).toEqual({ settled: true, legacy: 3 });
+    // Повторний старт нічого не змінює.
+    await settleStickerLegacy(db);
+    expect((await stickerAccess(db, [me])).get(me)).toEqual({ packs: [], legacyLevel: 3 });
+  });
+
+  it('stickerAccess catches XP up first for an unsettled account without a mark — no drop to level 1', async () => {
+    const [me, x, y] = await accounts(3);
+    const players = [
+      { userId: me, rank: 1, correct: 16 },
+      { userId: x, rank: 2, correct: 0 },
+      { userId: y, rank: 3, correct: 0 },
+    ];
+    await finishedGame({ quizId: await newQuiz(), questions: 16, finishedAt: new Date('2026-08-02T08:00:00Z'), players });
+    await finishedGame({ quizId: await newQuiz(), questions: 16, finishedAt: new Date('2026-08-02T10:00:00Z'), players });
+    await ensureProfile(db, me);
+    await db.update(profile).set({ stickersSettled: false }).where(eq(profile.userId, me));
+    expect((await stickerAccess(db, [me])).get(me)).toEqual({ packs: [], legacyLevel: 3 });
+  });
+
   it('stickerAccess: achievement packs, and an unsettled account inherits its level as it is now', async () => {
     const [owl, waiting] = await accounts(2);
     await synced(owl);

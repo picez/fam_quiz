@@ -19,7 +19,7 @@ import {
   type PublicLevel,
   type StickerExtra,
 } from '@quiz/shared';
-import { and, asc, eq, gt, inArray, isNotNull, notExists, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
 import type { Db } from './db/client';
 import { game, participant, profile, quiz, userAchievement, xpEntry } from './db/schema';
@@ -402,9 +402,11 @@ const LEGACY_BATCH = 200;
  * Стікери (34, рішення власника «м'якше»): на старті кожен наявний акаунт (stickers_settled = false) дістає
  * stickers_legacy_level = свій рівень у цю мить — усе, що старе правило серій давало на ньому, лишається відкритим.
  * Нові акаунти створюються вже з true і нічого не успадковують. Без мітки досвіду спершу наздоганяємо (інакше рівень занижено);
- * збій наздоганяння лишає акаунт на наступний старт, а до того stickerAccess рахує рівень наживо. Ідемпотентно.
+ * збій наздоганяння лишає акаунт на наступний старт, а до того stickerAccess рахує рівень наживо (після наздоганяння). Ідемпотентно.
+ * Акаунти з історією ігор, але без рядка профілю (з часів до 15a), спершу дістають профіль і стають у ту саму чергу.
  */
 export async function settleStickerLegacy(db: Db, onError: (e: unknown) => void = (error) => reportError(error, { where: 'sticker-legacy' })): Promise<void> {
+  await adoptProfileless(db, onError);
   let after = '';
   for (;;) {
     const rows = await db
@@ -443,21 +445,55 @@ export async function settleStickerLegacy(db: Db, onError: (e: unknown) => void 
   }
 }
 
+/**
+ * Наявні акаунти без профілю, що грали (participant.user_id): профіль створюється, і знімок для нього ще не зроблено
+ * (stickers_settled = false). Новий профіль за замовчуванням «нічого не успадковує» — для давнього гравця це втрата стікерів.
+ * Повторний виклик нічого не знаходить: профіль уже є.
+ */
+async function adoptProfileless(db: Db, onError: (e: unknown) => void): Promise<void> {
+  const rows = await db
+    .selectDistinct({ userId: participant.userId })
+    .from(participant)
+    .where(and(isNotNull(participant.userId), notExists(db.select({ one: sql`1` }).from(profile).where(eq(profile.userId, participant.userId)))));
+  for (const { userId } of rows) {
+    if (userId === null) continue;
+    try {
+      if ((await ensureProfile(db, userId)) === null) continue;
+      // Лише щойно створений: ні мітки досвіду, ні знімка.
+      await db
+        .update(profile)
+        .set({ stickersSettled: false })
+        .where(and(eq(profile.userId, userId), isNull(profile.xpSyncedAt), isNull(profile.stickersLegacyLevel)));
+    } catch (error) {
+      onError(error);
+    }
+  }
+}
+
 /** Ачівки, що відкривають набори стікерів (34). */
 const PACK_ACHIEVEMENT_IDS: AchievementId[] = Object.values(PACK_ACHIEVEMENTS);
 
 /**
  * Що відкриває стікери понад рівень (34): набори за здобуті досягнення і рівень успадкування.
- * Акаунт без знімка (збій на старті) — успадковує свій поточний рівень, як дав би знімок. Лише серверне: у зріз гри не йде.
+ * Акаунт без знімка (збій на старті) — успадковує свій поточний рівень, як дав би знімок, але вже після наздоганяння досвіду
+ * (без мітки — syncXp), щоб не впасти тимчасово до рівня 1. Лише серверне: у зріз гри не йде.
  */
 export async function stickerAccess(db: Db, userIds: string[]): Promise<Map<string, StickerExtra>> {
   const ids = [...new Set(userIds)];
   const access = new Map<string, StickerExtra>();
   if (ids.length === 0) return access;
   const rows = await db
-    .select({ userId: profile.userId, legacy: profile.stickersLegacyLevel, settled: profile.stickersSettled })
+    .select({ userId: profile.userId, legacy: profile.stickersLegacyLevel, settled: profile.stickersSettled, mark: profile.xpSyncedAt })
     .from(profile)
     .where(inArray(profile.userId, ids));
+  for (const row of rows) {
+    if (row.settled || row.mark !== null) continue;
+    try {
+      await syncXp(db, row.userId);
+    } catch (error) {
+      logError(error);
+    }
+  }
   const unsettled = rows.filter((row) => !row.settled).map((row) => row.userId);
   const totals = unsettled.length === 0 ? new Map<string, number>() : await xpTotals(db, unsettled);
   const earned = await db

@@ -1,10 +1,16 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { QUICK_EMOJI, REACTION_GAP_MS, packLevel, packOf, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker, type StickerExtra } from '@quiz/shared';
+import { PACK_ACHIEVEMENTS, QUICK_EMOJI, REACTION_GAP_MS, packLevel, packOf, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker, type StickerExtra } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useFavoriteStickers } from '../live/useFavoriteStickers';
-import { LockedPackLine, packName, packViews } from './StickerPacks';
+import { LockedPackLine, packLockText, packName, packViews } from './StickerPacks';
+
+/** Чому стікер закритий: рівень, а для наборів за досягнення (34) — ще й досягнення, що відкриває раніше. */
+function lockedLabel(sticker: Sticker): string {
+  const pack = packOf(sticker.id);
+  return PACK_ACHIEVEMENTS[pack] === undefined ? t('stickerLocked', { level: packLevel(pack) }) : packLockText(pack);
+}
 
 /** Стікер у сітці: кнопка-картинка (вибір) і мала ☆ / ★ (улюблений). */
 function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker: Sticker; favorite: boolean; locked: boolean; onPick: (item: ReactionItem) => void; onToggle: (id: string) => void }) {
@@ -14,7 +20,7 @@ function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker:
         type="button"
         className="reaction-pick"
         disabled={locked}
-        aria-label={locked ? t('stickerLocked', { level: packLevel(packOf(sticker.id)) }) : t('reactionSticker', { name: sticker.id })}
+        aria-label={locked ? lockedLabel(sticker) : t('reactionSticker', { name: sticker.id })}
         onClick={locked ? undefined : () => onPick({ kind: 'sticker', value: sticker.id })}
       >
         <img src={stickerPath(sticker)} alt="" loading="lazy" decoding="async" width={48} height={48} />

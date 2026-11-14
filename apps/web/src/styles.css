@@ -15221,11 +15221,15 @@ button.wall-tile:disabled {
   margin-block: -0.3em;
   vertical-align: bottom;
 }
-.nick-fx > .nick-name {
+/* Ім'я: overflow: hidden (у Safari «…» надійне лише з ним); поле 0.3em з від'ємним відступом тієї ж величини дає місце сяйву
+   й шарам імені, а зовнішня ширина лишається шириною тексту. [class] — сильніше за max-width плиток вигляду. */
+.nick-fx > .nick-name[class] {
   position: relative;
   display: block;
-  overflow: clip;
-  overflow-clip-margin: 0.45em;
+  max-width: none;
+  overflow: hidden;
+  padding: 0.3em;
+  margin: -0.3em;
 }
 .nick-fx::before,
 .nick-fx::after {
@@ -15240,6 +15244,8 @@ button.wall-tile:disabled {
   content: attr(data-fx-text) / '';
   position: absolute;
   inset: 0;
+  /* Те саме поле, що в імені: копія лягає точно на літери. */
+  padding: 0.3em;
   z-index: -1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -15255,18 +15261,13 @@ button.wall-tile:disabled {
   pointer-events: none;
 }
 
-/* Нерухоме сяйво довкола всього ніку (filter на обгортці — не обрізається на кінцях імені й не бруднить градієнт). */
-.nick-x-light { filter: drop-shadow(0 0 0.12em rgb(255 190 80 / 0.85)); }
-.nick-x-flame { filter: drop-shadow(0 0 0.1em rgb(255 120 30 / 0.8)); }
-.nick-x-frost { filter: drop-shadow(0 0 0.1em rgb(56 189 248 / 0.8)); }
-.nick-x-stardust { filter: drop-shadow(0 0 0.1em rgb(167 139 250 / 0.7)); }
-
 /* Світло: теплий ореол навколо самих літер і м'яке світло за ніком. */
 .nick-x-light > .nick-name[data-fx-text]::before {
   color: #ffb238;
   -webkit-text-fill-color: #ffb238;
+  -webkit-text-stroke-width: 0.16em;
   filter: blur(0.16em);
-  opacity: 0.85;
+  opacity: 0.95;
 }
 .nick-x-light::before {
   background: radial-gradient(closest-side, rgb(255 220 150 / 0.55), rgb(255 180 70 / 0.18) 65%, transparent);
@@ -15291,7 +15292,7 @@ button.wall-tile:disabled {
 }
 .nick-x-sparks > .nick-name::after {
   content: '';
-  inset: -0.3em 0;
+  inset: 0;
   background:
     radial-gradient(circle at 12% 88%, #ffffff 0 0.065em, rgb(255 214 102 / 0.9) 0.085em, transparent 0.2em),
     radial-gradient(circle at 37% 8%, #fff7d6 0 0.065em, rgb(255 190 60 / 0.9) 0.085em, transparent 0.2em),
@@ -15302,8 +15303,9 @@ button.wall-tile:disabled {
 .nick-x-flame > .nick-name[data-fx-text]::before {
   color: #ff7a1a;
   -webkit-text-fill-color: #ff7a1a;
+  -webkit-text-stroke-width: 0.15em;
   filter: blur(0.14em);
-  opacity: 0.8;
+  opacity: 0.9;
 }
 .nick-x-flame::before {
   /* Кожен язик — вузький високий кінчик над ширшою низькою основою: разом полум'я звужується догори. */
@@ -15343,8 +15345,9 @@ button.wall-tile:disabled {
 .nick-x-frost > .nick-name[data-fx-text]::before {
   color: #38bdf8;
   -webkit-text-fill-color: #38bdf8;
+  -webkit-text-stroke-width: 0.15em;
   filter: blur(0.15em);
-  opacity: 0.85;
+  opacity: 0.95;
 }
 .nick-x-frost::before,
 .nick-x-frost::after,
@@ -15362,14 +15365,14 @@ button.wall-tile:disabled {
 }
 .nick-x-frost::before { inset-block-start: -0.05em; inset-inline-start: 0; font-size: 0.75em; }
 .nick-x-frost::after { inset-block-end: -0.05em; inset-inline-end: 0; font-size: 0.6em; }
-.nick-x-frost > .nick-name::after { inset-block-start: -0.42em; inset-inline-start: 45%; font-size: 0.45em; }
+.nick-x-frost > .nick-name::after { inset-block-start: 0; inset-inline-start: 45%; font-size: 0.45em; }
 
 /* Зоряний пил: дрібні зірочки піднімаються навколо ніку трьома хвилями. */
 .nick-x-stardust > .nick-name[data-fx-text]::before {
   color: #8b5cf6;
   -webkit-text-fill-color: #8b5cf6;
   filter: blur(0.16em);
-  opacity: 0.6;
+  opacity: 0.8;
 }
 .nick-x-stardust::before,
 .nick-x-stardust::after,
@@ -15393,7 +15396,7 @@ button.wall-tile:disabled {
 }
 .nick-x-stardust > .nick-name::after {
   content: '';
-  inset: -0.3em 0;
+  inset: 0;
   background:
     radial-gradient(circle at 9% 90%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
     radial-gradient(circle at 29% 70%, #ede9fe 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),

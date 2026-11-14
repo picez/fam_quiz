@@ -1,6 +1,6 @@
 import { ACHIEVEMENTS } from '@quiz/shared';
 import { blitzRound, classicRound, makeRoundsQuiz, melody, single, slider, withId } from '@quiz/engine/testing';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
 import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
@@ -823,7 +823,8 @@ describe('33: history fill-in', () => {
     });
     // До плану 33: історію вже доповнено (мітка є), записано first_game і sniper.
     const before = new Date('2026-10-02T10:00:00Z');
-    await old.insert(profile).values({ userId: me, achievementsSyncedAt: before });
+    // Сирим SQL: схема коду вже має колонки пізніших міграцій (34), а база ще на 0035.
+    await old.execute(sql`insert into profile (user_id, achievements_synced_at) values (${me}, ${before.toISOString()})`);
     await old.insert(userAchievement).values([
       { userId: me, achievementId: 'first_game', earnedAt: null, gameId: null },
       { userId: me, achievementId: 'sniper', earnedAt: new Date('2026-10-01T19:00:00Z'), gameId },

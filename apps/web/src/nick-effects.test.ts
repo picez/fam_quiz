@@ -48,6 +48,11 @@ describe('nick effects css (34)', () => {
     expect(wrapper.body).toMatch(/margin-block:\s*-0\.3em/);
     // По вертикалі шари не виходять за обгортку (сусідній рядок таблиці); min-width: 0 лише дозволяє стиснутися до «…».
     expect(wrapper.body).toMatch(/overflow-y:\s*clip/);
+    // Ім'я: overflow: hidden (надійне «…» і в Safari); поле й від'ємний відступ однакові — зовнішня ширина та сама.
+    const name = rulesOf(still).find((r) => r.selector === '.nick-fx > .nick-name[class]')!;
+    expect(name.body).toMatch(/overflow:\s*hidden/);
+    expect(name.body).toMatch(/padding:\s*0\.3em/);
+    expect(name.body).toMatch(/margin:\s*-0\.3em/);
     for (const rule of fxRules) {
       expect(rule.body, rule.selector).not.toMatch(/(^|[;\s])(padding-inline|margin-inline|padding-left|padding-right|margin-left|margin-right|width)\s*:/);
       expect(rule.body.replace(/min-width:\s*0\s*;/, ''), rule.selector).not.toMatch(/min-width\s*:/);
