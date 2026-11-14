@@ -19,7 +19,7 @@ const stats: ProfileStats = {
   avgPlace: null,
 };
 
-const NO_LOOKS: NickLooks = { frame: null, color: null, badge: null, photo: null, font: null };
+const NO_LOOKS: NickLooks = { frame: null, color: null, badge: null, photo: null, font: null, effect: null };
 
 const header = (props: Partial<Parameters<typeof ProfileHeader>[0]> = {}) =>
   render(

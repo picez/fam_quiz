@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { QUICK_EMOJI, REACTION_GAP_MS, STICKERS, seriesLevel, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker } from '@quiz/shared';
+import { QUICK_EMOJI, REACTION_GAP_MS, STICKERS, packLevel, packOf, stickerOf, stickerOpen, stickerPath, type ReactionItem, type Sticker } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { useFavoriteStickers } from '../live/useFavoriteStickers';
@@ -13,7 +13,7 @@ function StickerCell({ sticker, favorite, locked, onPick, onToggle }: { sticker:
         type="button"
         className="reaction-pick"
         disabled={locked}
-        aria-label={locked ? t('stickerLocked', { level: seriesLevel(sticker.series) }) : t('reactionSticker', { name: sticker.id })}
+        aria-label={locked ? t('stickerLocked', { level: packLevel(packOf(sticker.id)) }) : t('reactionSticker', { name: sticker.id })}
         onClick={locked ? undefined : () => onPick({ kind: 'sticker', value: sticker.id })}
       >
         <img src={stickerPath(sticker)} alt="" loading="lazy" decoding="async" width={48} height={48} />

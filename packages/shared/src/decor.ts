@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NICK_FONTS, lookLevel, stickerOpen } from './levels';
+import { NICK_FONTS, lookLevel, stickerOpen, type StickerExtra } from './levels';
 import type { NickFont } from './levels';
 import type { TrophyKind } from './prizes';
 import { IMAGE_URL } from './quiz';
@@ -243,12 +243,12 @@ export function isEmptyDecor(decor: TrophyDecor): boolean {
   );
 }
 
-/** true — є шрифт чи наліпка, закриті для level, і їх немає в stored. */
-export function decorLocked(decor: TrophyDecor, level: number, stored: TrophyDecor | null | undefined): boolean {
+/** true — є шрифт чи наліпка, закриті для level (і extra: набори за досягнення, успадкування — 34), і їх немає в stored. */
+export function decorLocked(decor: TrophyDecor, level: number, stored: TrophyDecor | null | undefined, extra: StickerExtra = {}): boolean {
   const fonts = new Set(stored?.inscriptions.map((i) => i.font));
   const stickers = new Set(stored?.stickers.map((s) => s.id));
   return (
     decor.inscriptions.some((i) => i.font !== null && !fonts.has(i.font) && lookLevel('font', i.font) > level) ||
-    decor.stickers.some((s) => !stickers.has(s.id) && !stickerOpen(s.id, level))
+    decor.stickers.some((s) => !stickers.has(s.id) && !stickerOpen(s.id, level, extra))
   );
 }

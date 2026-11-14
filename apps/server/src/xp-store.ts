@@ -291,10 +291,10 @@ async function looksOf(db: Db, userIds: string[]): Promise<Map<string, NickLooks
     .select({ userId: profile.userId, color: profile.nickColor, frame: profile.nickFrame, badge: profile.badge, photo: profile.photoFrame, font: profile.nickFont })
     .from(profile)
     .where(inArray(profile.userId, userIds));
-  return new Map(rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null, photo: row.photo ?? null, font: row.font ?? null }]));
+  return new Map(rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null, photo: row.photo ?? null, font: row.font ?? null, effect: null }]));
 }
 
-const NO_LOOKS: NickLooks = { color: null, frame: null, badge: null, photo: null, font: null };
+const NO_LOOKS: NickLooks = { color: null, frame: null, badge: null, photo: null, font: null, effect: null };
 
 /** Для кімнати: syncXp тим, хто без мітки (збій — onError, рівень з наявного), далі NickLevel з looksShown. */
 export async function roomLevels(db: Db, userIds: string[], onError: (e: unknown) => void = logError): Promise<Map<string, NickLevel>> {
@@ -382,7 +382,7 @@ export async function saveLooks(db: Db, userId: string, looks: LooksInput): Prom
   const level = levelOf((await xpTotals(db, [userId])).get(userId) ?? 0);
   // Відсутні photo/font (старий клієнт) — лишити збережене, але вже після looksShown.
   const stored = looksShown((await looksOf(db, [userId])).get(userId) ?? NO_LOOKS, level);
-  const full: NickLooks = { color: looks.color, frame: looks.frame, badge: looks.badge, photo: looks.photo === undefined ? stored.photo : looks.photo, font: looks.font === undefined ? stored.font : looks.font };
+  const full: NickLooks = { color: looks.color, frame: looks.frame, badge: looks.badge, photo: looks.photo === undefined ? stored.photo : looks.photo, font: looks.font === undefined ? stored.font : looks.font, effect: looks.effect === undefined ? stored.effect : looks.effect };
   if (!looksAllowed(full, level)) return { ok: false, error: 'look_locked' };
   await ensureProfile(db, userId);
   await db.update(profile).set({ nickColor: full.color, nickFrame: full.frame, badge: full.badge, photoFrame: full.photo, nickFont: full.font, updatedAt: new Date() }).where(eq(profile.userId, userId));

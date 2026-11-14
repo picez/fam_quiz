@@ -11,7 +11,9 @@ import { AvatarFrame } from './AvatarFrame';
 export function rewardText(reward: LevelReward): string {
   switch (reward.kind) {
     case 'stickers':
-      return t('reward_stickers', { series: reward.series });
+      return t('reward_stickers', { series: reward.pack });
+    case 'effect':
+      return t(`effect_${reward.id}` as TextKey);
     case 'color':
       return t('reward_color', { name: t(`color_${reward.id}` as TextKey) });
     case 'frame':

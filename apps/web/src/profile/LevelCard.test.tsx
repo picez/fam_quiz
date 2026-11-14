@@ -12,13 +12,13 @@ const at16: OwnLevel = {
   progress: { ...levelProgress(600), level: 16 },
   unlocked: rewardsUpTo(16).map((r) => ({ level: r.level, reward: r.reward, at: null })),
   next: nextRewards(16).slice(0, 3),
-  looks: { color: null, frame: null, badge: null, photo: null, font: null },
+  looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null },
 };
 const level: OwnLevel = {
   progress: levelProgress(600),
   unlocked: rewardsUpTo(3).map((r, i) => ({ level: r.level, reward: r.reward, at: i === 0 ? null : '2026-10-12T12:00:00.000Z' })),
   next: nextRewards(3).slice(0, 3),
-  looks: { color: null, frame: null, badge: null, photo: null, font: null },
+  looks: { color: null, frame: null, badge: null, photo: null, font: null, effect: null },
 };
 
 beforeEach(() => {
@@ -209,7 +209,7 @@ describe('LevelCard', () => {
   });
 
   it('save sends all five slots', async () => {
-    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: null, frame: null, badge: null, photo: 'fire', font: 'pixel' } } });
+    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: null, frame: null, badge: null, photo: 'fire', font: 'pixel', effect: null } } });
     render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
     fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
@@ -233,7 +233,7 @@ describe('LevelCard', () => {
   });
 
   it('saves the chosen look and reports it', async () => {
-    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: 'sky', frame: null, badge: null, photo: null, font: null } } });
+    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: 'sky', frame: null, badge: null, photo: null, font: null, effect: null } } });
     const onSaved = vi.fn();
     render(<LevelCard level={level} nickname="Олена" onSaved={onSaved} />);
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));

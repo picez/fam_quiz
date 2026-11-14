@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { QUICK_EMOJI, STICKERS, seriesLevel } from '@quiz/shared';
+import { QUICK_EMOJI, STICKERS, STICKERS_BY_PACK, packLevel } from '@quiz/shared';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { ReactionButton, ReactionSheet } from './ReactionSheet';
@@ -184,8 +184,8 @@ describe('«😀 Реакція» fits a 360 px header (e2e 7g regression)', () 
 
 describe('ReactionSheet locked series (15a)', () => {
   const open = STICKERS.find((s) => s.series === 'nya')!;
-  const locked = STICKERS.find((s) => s.series === 'nyaa')!;
-  const lockedLabel = t('stickerLocked', { level: seriesLevel('nyaa') });
+  const locked = STICKERS_BY_PACK.food.find((s) => s.series !== 'nya')!;
+  const lockedLabel = t('stickerLocked', { level: packLevel('food') });
 
   it('level 1: a later series is locked with its level and does not pick; the first series picks', () => {
     const { onPick, dialog } = sheet([], 1);

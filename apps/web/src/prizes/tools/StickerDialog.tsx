@@ -1,7 +1,8 @@
 import {
   STICKERS,
   STICKER_SERIES,
-  seriesLevel,
+  packLevel,
+  packOf,
   stickerOpen,
   stickerPath,
   type StickerPlace,
@@ -106,10 +107,10 @@ export function StickerDialog({ kind, decor, level, kept, editing, onDone, onClo
           {/* Сітка прокручується сама: місце й «Готово» завжди видно знизу вікна. */}
           <div className="sticker-dialog-grids">
             {STICKER_SERIES.map((series) => {
-              const need = seriesLevel(series);
               return (
                 <ul key={series} className="studio-sticker-grid">
                   {STICKERS.filter((s) => s.series === series).map((sticker) => {
+                    const need = packLevel(packOf(sticker.id));
                     const locked = !stickerOpen(sticker.id, level) && !kept.includes(sticker.id) && sticker.id !== editing?.id;
                     return (
                       <li key={sticker.id}>
