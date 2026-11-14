@@ -31,10 +31,20 @@ describe('AvatarFrame', () => {
     }
   });
 
-  it('uses svg art for the five illustrated frames only', () => {
+  it('34: sunflowers have 12 petals, waves one wave path, the constellation 7 stars and their links', () => {
+    const art = (id: 'sunflowers' | 'waves' | 'constellation') => render(<AvatarFrame frame={id}>x</AvatarFrame>).container.querySelector('svg.photo-frame-art')!;
+    expect(art('sunflowers').querySelectorAll('.pf-petal')).toHaveLength(12);
+    expect(art('waves').querySelectorAll('path.pf-wave')).toHaveLength(1);
+    const sky = art('constellation');
+    expect(sky.querySelectorAll('circle.pf-star')).toHaveLength(7);
+    expect(sky.querySelectorAll('polyline.pf-link')).toHaveLength(1);
+    expect(sky.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('uses svg art for the eight illustrated frames only', () => {
     const withSvg = PHOTO_FRAMES.filter((id) => render(<AvatarFrame frame={id}>x</AvatarFrame>).container.querySelector('svg') !== null);
     cleanup();
-    expect(withSvg).toEqual(['cloud', 'crows', 'thorns', 'eclipse', 'storm']);
+    expect(withSvg).toEqual(['cloud', 'crows', 'thorns', 'eclipse', 'storm', 'sunflowers', 'waves', 'constellation']);
   });
 
   it('draws the eclipse crescent as one path, with no disc painted in the background colour', () => {
