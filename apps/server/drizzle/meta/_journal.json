@@ -246,6 +246,13 @@
       "when": 1794648324061,
       "tag": "0034_group_item_use",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794656275433,
+      "tag": "0035_easy_mode",
+      "breakpoints": true
     }
   ]
 }

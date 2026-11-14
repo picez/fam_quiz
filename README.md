@@ -134,6 +134,7 @@ Google не приймає адреси на кшталт `http://192.168.0.10:3
 - `GET /api/games/by-code/:code/host-access` повертає ведучому токени його гри.
 - `GET /api/games` і `GET /api/games/:id`: історія ігор ведучого.
 - `GET /api/me/history`: ігри, у яких гравець брав участь, увійшовши в акаунт.
+- `PUT /api/me/easy` з `{ "on": true }` зберігає «Легкий режим» (31) у профілі; `GET /api/me` повертає `easyMode`.
 - Групи (12k; лише учасникам, чужий отримує `404 group_not_found`): `GET|POST /api/groups`,
   `GET|PUT|DELETE /api/groups/:id`, `POST /api/groups/:id/code` (нове посилання), `POST /api/groups/:id/owner`,
   `DELETE /api/groups/:id/members/:userId`, `POST /api/groups/:id/leave`, `POST /api/groups/:id/invites`,

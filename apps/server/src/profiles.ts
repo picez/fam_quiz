@@ -288,6 +288,19 @@ export async function profileLocale(db: Db, userId: string): Promise<Locale | nu
   return row?.locale ?? null;
 }
 
+/** Легкий режим (31) з профілю; немає профілю — вимкнено. */
+export async function profileEasy(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db.select({ easyMode: profile.easyMode }).from(profile).where(eq(profile.userId, userId));
+  return row?.easyMode ?? false;
+}
+
+/** Зберігає легкий режим (31); профілю ще немає — його створює ensureProfile. null — профілю не створити (немає користувача). */
+export async function saveEasy(db: Db, userId: string, on: boolean): Promise<boolean | null> {
+  if ((await ensureProfile(db, userId)) === null) return null;
+  const [row] = await db.update(profile).set({ easyMode: on }).where(eq(profile.userId, userId)).returning({ easyMode: profile.easyMode });
+  return row?.easyMode ?? null;
+}
+
 /** Зберігає мову; профілю ще немає — його створює ensureProfile. false — профілю не створити (немає користувача). */
 export async function saveLocale(db: Db, userId: string, locale: Locale): Promise<boolean> {
   if ((await ensureProfile(db, userId)) === null) return false;
