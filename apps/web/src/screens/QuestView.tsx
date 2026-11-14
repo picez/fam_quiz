@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { LIMITS, QUEST_WINDOW_MS, type HostQuest, type PlayerQuest, type QuestInfo, type QuestRow } from '@quiz/shared';
+import { LIMITS, QUEST_WINDOW_MS, evenPageSize, pageSlice, type HostQuest, type PlayerQuest, type QuestInfo, type QuestRow } from '@quiz/shared';
 import { buffName } from '../buff-meta';
 import { num, signed } from '../format';
 import { countText, errorText, t } from '../i18n';
@@ -274,12 +274,6 @@ export function QuestButton({ info, mine, paused, send, value, onValue, main = f
 
 const solvedCount = (info: QuestInfo) => info.rows.filter((row) => row.solved !== null).length;
 
-/** Рівні сторінки: 30 при межі 24 → 15 + 15, а не повна й майже порожня. */
-function evenPage(n: number, most: number): number {
-  if (n <= most) return Math.max(1, n);
-  return Math.ceil(n / Math.ceil(n / most));
-}
-
 const QUEST_ROWS_PAGE = 16;
 const QUEST_STRIP_PAGE = 8;
 
@@ -311,9 +305,9 @@ function QuestRowItem({ row, length }: { row: QuestRow; length: number }) {
 
 /** Рядки учасників сіткою: понад most — рівні сторінки по черзі (usePage), сітка за puzzleGrid. */
 export function QuestRows({ rows, length, most = QUEST_ROWS_PAGE, host = false }: { rows: readonly QuestRow[]; length: number; most?: number; host?: boolean }) {
-  const size = evenPage(rows.length, most);
+  const size = evenPageSize(rows.length, most);
   const page = usePage(rows.length, size, !host);
-  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  const shown = host ? rows : pageSlice(rows, page, size);
   const grid = puzzleGrid(shown.length, false);
   const cols = Math.min(grid.cols, 4);
   return (
@@ -358,7 +352,7 @@ function bonusText(row: QuestRow): string {
 function QuestTable({ rows, host = false }: { rows: readonly QuestRow[]; host?: boolean }) {
   const size = jigsawTablePageSize(rows.length);
   const page = usePage(rows.length, size, !host);
-  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  const shown = host ? rows : pageSlice(rows, page, size);
   return (
     <div className="quest-table-wrap">
       <table className={host ? 'jigsaw-table quest-table is-host' : 'jigsaw-table quest-table'} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>

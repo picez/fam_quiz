@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { MELODY_SHARES, MELODY_STEPS, melodySeconds, melodyShare, type MelodyInfo, type MelodyRow, type PlayerMelody, type PublicMelody, type PublicQuestion, type SubmittedAnswer } from '@quiz/shared';
+import { MELODY_SHARES, MELODY_STEPS, melodySeconds, melodyShare, pageSlice, type MelodyInfo, type MelodyRow, type PlayerMelody, type PublicMelody, type PublicQuestion, type SubmittedAnswer } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
@@ -172,7 +172,7 @@ function MelodyBoard({ info, question, questionIndex, paused, live, send, onSubm
 export function MelodyBoards({ rows, host = false }: { rows: readonly MelodyRow[]; host?: boolean }) {
   const size = puzzlePageSize(rows.length, false);
   const page = usePage(rows.length, size, !host);
-  const shown = host ? rows : rows.slice(page * size, page * size + size);
+  const shown = host ? rows : pageSlice(rows, page, size);
   const grid = puzzleGrid(shown.length, false);
   const answered = rows.filter((row) => row.answered).length;
   return (
@@ -214,7 +214,7 @@ export function MelodyTable({ rows, host = false }: { rows: readonly MelodyRow[]
   const size = jigsawTablePageSize(rows.length);
   const page = usePage(rows.length, size, !host);
   const from = host ? 0 : page * size;
-  const shown = host ? rows : rows.slice(from, from + size);
+  const shown = host ? rows : pageSlice(rows, page, size);
   return (
     <table className={host ? 'jigsaw-table melody-table is-host' : 'jigsaw-table melody-table'} aria-label={t('melodyTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
       <thead>

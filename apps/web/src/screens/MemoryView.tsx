@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import type { MemoryBoardView, MemoryCard, MemoryCellView, MemoryInfo, PlayerMemory, PublicMemory, PublicQuestion } from '@quiz/shared';
+import { pageSlice, type MemoryBoardView, type MemoryCard, type MemoryCellView, type MemoryInfo, type PlayerMemory, type PublicMemory, type PublicQuestion } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import type { Send } from '../live/types';
@@ -189,7 +189,7 @@ export function MemoryReveal({ mine, question }: { mine: PlayerMemory | undefine
 export function MemoryBoards({ boards, cols, rows, reveal = false, host = false }: { boards: readonly MemoryBoardView[]; cols: number; rows: number; reveal?: boolean; host?: boolean }) {
   const size = puzzlePageSize(boards.length, reveal);
   const page = usePage(boards.length, size, !host);
-  const shown = host ? boards : boards.slice(page * size, page * size + size);
+  const shown = host ? boards : pageSlice(boards, page, size);
   const grid = puzzleGrid(shown.length, false);
   return (
     <div className={host ? 'memory-boards-fit is-host' : grid.dense ? 'memory-boards-fit is-dense' : 'memory-boards-fit'}>
@@ -257,7 +257,7 @@ export function MemoryTable({ boards, host = false }: { boards: readonly MemoryB
   const size = jigsawTablePageSize(boards.length);
   const page = usePage(boards.length, size, !host);
   const from = host ? 0 : page * size;
-  const shown = host ? boards : boards.slice(from, from + size);
+  const shown = host ? boards : pageSlice(boards, page, size);
   return (
     <table className={host ? 'jigsaw-table memory-table is-host' : 'jigsaw-table memory-table'} aria-label={t('memoryTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
       <thead>
