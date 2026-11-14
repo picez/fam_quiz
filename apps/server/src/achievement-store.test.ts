@@ -1,16 +1,17 @@
 import { ACHIEVEMENTS } from '@quiz/shared';
-import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from '@quiz/engine/testing';
+import { blitzRound, classicRound, makeRoundsQuiz, melody, single, slider, withId } from '@quiz/engine/testing';
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
 import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
-import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
+import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import * as history from './history';
 import { publicProfile, setFollow } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
-import { createTestDb } from './testing/test-db';
+import { createTestDb, createTestDbUpTo } from './testing/test-db';
+import { creditAchievements } from './xp-store';
 
 vi.mock('./achievement-games', async (importOriginal) => {
   const original = await importOriginal<typeof import('./achievement-games')>();
@@ -28,6 +29,7 @@ vi.mock('./history', async (importOriginal) => {
 });
 
 const HOST = 'store-host';
+const range = (n: number) => [...Array(n).keys()];
 
 let db: Db;
 
@@ -781,5 +783,79 @@ describe('33: «Марафон за пультом» for the host', () => {
     const { earned } = await read(host);
     expect(earned.get('host_marathon')?.gameId).toBe(gameId);
     expect(earned.get('host_marathon')?.earnedAt).not.toBeNull();
+  });
+});
+
+describe('33: history fill-in', () => {
+  it('migration 0036 resets the mark: the next read writes the new achievements of past games «long ago», with XP and without the banner', async () => {
+    const { db: old, migrateRest } = await createTestDbUpTo('0035_easy_mode');
+    const me = 'fill33-olya';
+    const host = 'fill33-host';
+    await old.insert(user).values([
+      { id: me, name: 'Оля', email: 'fill33-olya@example.com' },
+      { id: host, name: 'Ведуча', email: 'fill33-host@example.com' },
+    ]);
+    const singles = range(5).map((i) => withId(single, `f${i}`));
+    const tune = { ...melody, id: 'fm' };
+    const snapshot = makeRoundsQuiz([classicRound('c1', singles), classicRound('c2', [tune])]);
+    const plays = [...singles.map((q) => ({ roundIndex: 0, questionId: q.id })), { roundIndex: 1, questionId: tune.id }];
+    const startedAt = new Date('2026-10-01T18:00:00Z');
+    const { gameId } = await seedGame(old, {
+      hostId: host,
+      startedAt,
+      finishedAt: new Date('2026-10-01T19:00:00Z'),
+      snapshot,
+      questionsPlayed: 6,
+      plays,
+      players: [
+        {
+          userId: me,
+          nickname: 'Оля',
+          score: 1600,
+          rank: 1,
+          rows: [
+            ...singles.map((_, i) => ({ questionIndex: i, accepted: true, points: 100, payload: { type: 'single' as const, optionId: 'b' }, timeMs: 5000 })),
+            { questionIndex: 5, roundIndex: 1, accepted: true, points: 1000, payload: { type: 'melody' as const, value: 'Щедрик', heard: 1 }, timeMs: 6000 },
+          ],
+        },
+        { ...guest, rows: [{ questionIndex: 0, accepted: false, points: 0, payload: { type: 'single', optionId: 'a' }, timeMs: 7000 }] },
+      ],
+    });
+    // До плану 33: історію вже доповнено (мітка є), записано first_game і sniper.
+    const before = new Date('2026-10-02T10:00:00Z');
+    await old.insert(profile).values({ userId: me, achievementsSyncedAt: before });
+    await old.insert(userAchievement).values([
+      { userId: me, achievementId: 'first_game', earnedAt: null, gameId: null },
+      { userId: me, achievementId: 'sniper', earnedAt: new Date('2026-10-01T19:00:00Z'), gameId },
+    ]);
+    await creditAchievements(old, me);
+    const xpOf = async (ids: string[]) =>
+      (await old.select({ id: xpEntry.achievementId, amount: xpEntry.amount }).from(xpEntry).where(eq(xpEntry.userId, me))).filter((e) => ids.includes(e.id ?? '')).reduce((sum, e) => sum + e.amount, 0);
+    expect(await xpOf(['first_note', 'classic_clean'])).toBe(0);
+
+    await migrateRest();
+    const [mark] = await old.select({ at: profile.achievementsSyncedAt }).from(profile).where(eq(profile.userId, me));
+    expect(mark?.at).toBeNull();
+
+    const { earned } = await syncAchievements(old, me, null);
+    expect(earned.get('first_note')).toEqual({ earnedAt: null, gameId });
+    expect(earned.get('classic_clean')).toEqual({ earnedAt: null, gameId });
+    const stored = await old.select().from(userAchievement).where(eq(userAchievement.userId, me));
+    expect(stored.find((r) => r.achievementId === 'first_note')).toMatchObject({ earnedAt: null, gameId });
+    expect(stored.find((r) => r.achievementId === 'classic_clean')).toMatchObject({ earnedAt: null, gameId });
+    expect(stored.find((r) => r.achievementId === 'first_game')).toMatchObject({ earnedAt: null, gameId: null });
+    expect(stored.find((r) => r.achievementId === 'sniper')?.earnedAt?.toISOString()).toBe('2026-10-01T19:00:00.000Z');
+    const [after] = await old.select({ at: profile.achievementsSyncedAt }).from(profile).where(eq(profile.userId, me));
+    expect(after?.at).toBeInstanceOf(Date);
+
+    // Досвід за «давні» нараховується за рідкістю (обидва rare, по 50).
+    await creditAchievements(old, me);
+    expect(await xpOf(['first_note', 'classic_clean'])).toBe(100);
+
+    // Наступна гра: «Нове досягнення!» показує лише датовані нею, а не «давні».
+    const next = await seedGame(old, { hostId: host, startedAt: new Date(Date.now() + 60_000), players: [{ userId: me, nickname: 'Оля', score: 0, rank: 1 }, guest] });
+    const awarded = (await awardGame(old, next.gameId)).get(me) ?? [];
+    expect(awarded).not.toContain('first_note');
+    expect(awarded).not.toContain('classic_clean');
   });
 });
