@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { GroupDetail } from '@quiz/shared';
 import { deleteGroup, getGroup, updateGroup } from '../api';
@@ -37,11 +37,16 @@ export function GroupPage() {
     setVersion((v) => v + 1);
   };
 
+  // Перечитування (після запрошення, передачі керування) лишає на екрані попередню групу: панелі не зникають і не губять свій статус.
+  const last = useRef<{ id: string; group: GroupDetail } | null>(null);
+  if (state.status === 'ready') last.current = { id, group: state.data };
+  const current = state.status === 'ready' ? state.data : state.status === 'loading' && last.current?.id === id ? last.current.group : null;
+
   if (state.status === 'signed-out') return <Navigate to={loginFor(location.pathname + location.search)} replace />;
-  if (state.status !== 'ready') {
+  if (current === null) {
     return (
       <ProfileSubpage title={null} back="/profile/groups">
-        {state.status === 'loading' ? (
+        {state.status !== 'error' ? (
           <p className="meta">{t('loading')}</p>
         ) : (
           <>
@@ -55,7 +60,7 @@ export function GroupPage() {
     );
   }
 
-  const group = saved !== null && saved.key === `${id}:${version}` ? saved.group : state.data;
+  const group = saved !== null && saved.key === `${id}:${version}` ? saved.group : current;
   const owner = group.role === 'owner';
   const tabs = TABS.filter((entry) => owner || entry.tab !== 'settings');
   const asked = params.get('tab');

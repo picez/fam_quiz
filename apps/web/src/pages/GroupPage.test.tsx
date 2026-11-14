@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GroupDetail } from '@quiz/shared';
-import { deleteGroup, getGroup, getGroupItems, getMyFriends, leaveGroup, me, removeGroupMember, transferGroup, updateGroup } from '../api';
+import { deleteGroup, getGroup, getGroupItems, getMyFriends, inviteToGroup, leaveGroup, me, removeGroupMember, transferGroup, updateGroup } from '../api';
 import { forgetAccount } from '../useAccount';
 import { GroupPage } from './GroupPage';
 
@@ -97,6 +97,18 @@ describe('GroupPage (12k)', () => {
     expect(window.confirm).toHaveBeenCalledWith('Передати керування групою Петро? Ти лишишся в групі, як усі.');
     await waitFor(() => expect(screen.queryByRole('tab', { name: 'Налаштування' })).toBeNull());
     expect(transferGroup).toHaveBeenCalledWith('g1', 'u2');
+  });
+
+  it('re-reading the group after an invite keeps the panel and its status on screen', async () => {
+    vi.mocked(getMyFriends).mockResolvedValue({ ok: true, data: [{ id: 'u3', nickname: 'Іра', avatar: null, lastSeenAt: null }] });
+    vi.mocked(inviteToGroup).mockResolvedValue({ ok: true, invited: [{ id: 'u3', nickname: 'Іра', avatar: null }] });
+    open('/profile/groups/g1?tab=people');
+    fireEvent.click(await screen.findByRole('checkbox'));
+    vi.mocked(getGroup).mockResolvedValue({ ok: true, ...detail('owner'), pending: [{ user: { id: 'u3', nickname: 'Іра', avatar: null }, at }] });
+    fireEvent.click(screen.getByRole('button', { name: 'Надіслати запрошення' }));
+    expect(await screen.findByText('Чекають відповіді')).toBeTruthy();
+    expect(screen.getByText('Запрошення надіслано')).toBeTruthy();
+    expect(getGroup).toHaveBeenCalledTimes(2);
   });
 
   it('«Вилучити» asks and removes', async () => {
