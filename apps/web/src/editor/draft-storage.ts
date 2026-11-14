@@ -2,6 +2,7 @@ import {
   ANSWER_MODES,
   clamp,
   clamp01,
+  isObjectLike,
   AUDIO_URL,
   BUFF_KINDS,
   questDefaultOrder,
@@ -61,8 +62,8 @@ const numberOr = (value: unknown) => (typeof value === 'number' ? value : Number
 
 /** Аудіо з чернетки: лишається, якщо джерело правильне; початок і тривалість можуть бути порожніми числами (NaN). */
 function reviveAudio(value: unknown): QuestionAudio | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const { source, url, id, start, duration } = value as Record<string, unknown>;
+  if (!isObjectLike(value)) return null;
+  const { source, url, id, start, duration } = value;
   const times = { start: numberOr(start), duration: numberOr(duration) };
   if (source === 'file' && typeof url === 'string' && AUDIO_URL.test(url)) return { source, url, ...times };
   if (source === 'youtube' && typeof id === 'string' && YOUTUBE_ID.test(id)) return { source, id, ...times };
@@ -74,12 +75,12 @@ function reviveAudio(value: unknown): QuestionAudio | null {
  * Відео стіна не має, а кількість помилок — звичайне число (порожнє поле — NaN, як і скрізь).
  */
 function reviveWall(base: Extract<Question, { type: 'wall' }>): Question {
-  const raw = Array.isArray(base.groups) ? (base.groups as unknown[]).filter(isRecord) : [];
+  const raw = Array.isArray(base.groups) ? (base.groups as unknown[]).filter(isObjectLike) : [];
   const size = raw.length === 3 ? 3 : 4;
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
   const groups = Array.from({ length: size }, (_, index) => {
     const group = raw[index];
-    const tiles = group !== undefined && Array.isArray(group.tiles) ? (group.tiles as unknown[]).filter(isRecord) : [];
+    const tiles = group !== undefined && Array.isArray(group.tiles) ? (group.tiles as unknown[]).filter(isObjectLike) : [];
     return {
       id: group !== undefined && typeof group.id === 'string' ? group.id : newId(),
       name: group === undefined ? '' : text(group.name),
@@ -100,7 +101,7 @@ function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
   const { cloudId, multiple, ...rest } = base;
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
   const cloud = typeof cloudId === 'string' && cloudId !== '' ? { cloudId } : {};
-  const raw = Array.isArray(base.rows) ? (base.rows as unknown[]).filter(isRecord) : null;
+  const raw = Array.isArray(base.rows) ? (base.rows as unknown[]).filter(isObjectLike) : null;
   const rows = (raw ?? []).map((row) => ({
     id: typeof row.id === 'string' ? row.id : newId(),
     text: text(row.text),
@@ -123,7 +124,7 @@ function reviveSurvey(base: Extract<Question, { type: 'survey' }>): Question {
  */
 function reviveTimedList(base: Extract<Question, { type: 'timedlist' }>): Question {
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
-  const raw = Array.isArray(base.items) ? (base.items as unknown[]).filter(isRecord) : [];
+  const raw = Array.isArray(base.items) ? (base.items as unknown[]).filter(isObjectLike) : [];
   const items = raw.map((item) => ({
     id: typeof item.id === 'string' ? item.id : newId(),
     text: text(item.text),
@@ -145,7 +146,7 @@ function reviveTimedList(base: Extract<Question, { type: 'timedlist' }>): Questi
  */
 function reviveLetterWords(base: Extract<Question, { type: 'letterwords' }>): Question {
   const raw: unknown = base.set;
-  const set = isRecord(raw) && raw.kind === 'fixed' ? { kind: 'fixed' as const, letters: typeof raw.letters === 'string' ? raw.letters : '' } : { kind: 'random' as const, count: isRecord(raw) && 'count' in raw ? numberOr(raw.count) : LIMITS.defaultLetterSet };
+  const set = isObjectLike(raw) && raw.kind === 'fixed' ? { kind: 'fixed' as const, letters: typeof raw.letters === 'string' ? raw.letters : '' } : { kind: 'random' as const, count: isObjectLike(raw) && 'count' in raw ? numberOr(raw.count) : LIMITS.defaultLetterSet };
   const goal = (LETTER_GOALS as readonly unknown[]).includes(base.goal) ? base.goal : 'most';
   const per = (LETTER_UNITS as readonly unknown[]).includes(base.per) ? base.per : 'word';
   return { ...base, video: null, set, goal, per };
@@ -157,8 +158,8 @@ function reviveLetterWords(base: Extract<Question, { type: 'letterwords' }>): Qu
  */
 function reviveMoreLess(base: Extract<Question, { type: 'moreless' }>): Question {
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
-  const option = (value: unknown) => (isRecord(value) ? { text: text(value.text), value: text(value.value) } : { text: '', value: '' });
-  const raw = Array.isArray(base.pairs) ? (base.pairs as unknown[]).filter(isRecord) : [];
+  const option = (value: unknown) => (isObjectLike(value) ? { text: text(value.text), value: text(value.value) } : { text: '', value: '' });
+  const raw = Array.isArray(base.pairs) ? (base.pairs as unknown[]).filter(isObjectLike) : [];
   const pairs = raw.map((pair) => ({
     id: typeof pair.id === 'string' ? pair.id : newId(),
     prompt: text(pair.prompt),
@@ -206,7 +207,7 @@ function reviveDrawing(base: Extract<Question, { type: 'drawing' }>): Question {
 function reviveMelody(base: Extract<Question, { type: 'melody' }>): Question {
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
   const raw: unknown = base.track;
-  const track = isRecord(raw) ? raw : {};
+  const track = isObjectLike(raw) ? raw : {};
   const start = typeof track.start === 'number' && Number.isInteger(track.start) && track.start >= 0 && track.start <= LIMITS.maxVideoStart ? track.start : 0;
   const revived =
     track.source === 'file' && typeof track.url === 'string' && AUDIO_URL.test(track.url)
@@ -241,7 +242,7 @@ function reviveJigsaw(base: Extract<Question, { type: 'jigsaw' }>): Question {
   const seed = typeof base.seed === 'number' && Number.isInteger(base.seed) && base.seed >= 0 && base.seed <= 2 ** 32 - 1 ? base.seed : 0;
   const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? clamp01(value) : 0.5);
   const focus: unknown = base.focus;
-  const kept = isRecord(focus) ? { x: share(focus.x), y: share(focus.y) } : { x: 0.5, y: 0.5 };
+  const kept = isObjectLike(focus) ? { x: share(focus.x), y: share(focus.y) } : { x: 0.5, y: 0.5 };
   const fallback = jigsawGrid(LIMITS.defaultJigsawPieces, aspect);
   const sane = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 2 && value <= 12;
   const fits = sane(base.rows) && sane(base.cols) && base.rows * base.cols >= LIMITS.minJigsawPieces && base.rows * base.cols <= LIMITS.maxJigsawPieces && jigsawPieceRatio(base.rows, base.cols, aspect) >= 0.5 && jigsawPieceRatio(base.rows, base.cols, aspect) <= 2;
@@ -260,7 +261,7 @@ function reviveSpotdiff(base: Extract<Question, { type: 'spotdiff' }>): Question
   const aspect = typeof base.aspect === 'number' && Number.isFinite(base.aspect) && base.aspect >= SPOT_MIN_ASPECT && base.aspect <= SPOT_MAX_ASPECT ? base.aspect : 4 / 3;
   const raw: unknown[] = Array.isArray(base.spots) ? base.spots : [];
   const spots = raw
-    .filter(isRecord)
+    .filter(isObjectLike)
     .filter((spot) => [spot.x, spot.y, spot.r].every((value) => typeof value === 'number' && Number.isFinite(value)))
     .slice(0, SPOT_MAX_COUNT)
     .map((spot) => ({ x: clamp(spot.x as number, 0, 1), y: clamp(spot.y as number, 0, 1), r: clamp(spot.r as number, SPOT_MIN_R, SPOT_MAX_R) }));
@@ -277,14 +278,14 @@ function reviveMemory(base: Extract<Question, { type: 'memory' }>): Question {
   const grid = (MEMORY_GRIDS as readonly unknown[]).includes(base.grid) ? base.grid : '3x4';
   const seed: unknown = base.seed;
   const half = (value: unknown) => {
-    if (!isRecord(value)) return blankMemoryCard();
+    if (!isObjectLike(value)) return blankMemoryCard();
     if (typeof value.imageUrl === 'string' && IMAGE_URL.test(value.imageUrl)) return { text: '', imageUrl: value.imageUrl };
     return { text: typeof value.text === 'string' ? value.text.slice(0, MEMORY_TEXT_MAX) : '' };
   };
   const raw: unknown[] = Array.isArray(base.pairs) ? base.pairs : [];
   const pairs = Array.from({ length: memoryGridSize(grid).pairs }, (_, i) => {
     const pair = raw[i];
-    return isRecord(pair) ? { a: half(pair.a), b: half(pair.b) } : { a: blankMemoryCard(), b: blankMemoryCard() };
+    return isObjectLike(pair) ? { a: half(pair.a), b: half(pair.b) } : { a: blankMemoryCard(), b: blankMemoryCard() };
   });
   return { ...rest, imageUrl: null, video: null, grid, pairs, seed: typeof seed === 'number' && Number.isInteger(seed) && seed >= 0 && seed <= 4294967295 ? seed : randomSudokuSeed() };
 }
@@ -296,11 +297,11 @@ function reviveMemory(base: Extract<Question, { type: 'memory' }>): Question {
 function reviveCrossword(base: Extract<Question, { type: 'crossword' }>): Question {
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
   const text = (value: unknown) => (typeof value === 'string' ? value : '');
-  const raw = Array.isArray(base.entries) ? (base.entries as unknown[]).filter(isRecord) : [];
+  const raw = Array.isArray(base.entries) ? (base.entries as unknown[]).filter(isObjectLike) : [];
   const entries = raw.slice(0, LIMITS.maxCrosswordWords).map((entry) => ({ id: typeof entry.id === 'string' ? entry.id : newId(), answer: text(entry.answer), clue: text(entry.clue) }));
   const mode = (CROSSWORD_MODES as readonly unknown[]).includes(base.mode) ? base.mode : 'full';
   const layout: unknown = base.layout;
-  const keptLayout = isRecord(layout) && Array.isArray(layout.words) && Array.isArray(layout.keyCells) ? base.layout : null;
+  const keptLayout = isObjectLike(layout) && Array.isArray(layout.words) && Array.isArray(layout.keyCells) ? base.layout : null;
   return {
     ...rest,
     video: null,
@@ -356,7 +357,7 @@ function revive(stored: Question): Question {
   if (base.type === 'pin') {
     const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? clamp01(value) : 0.5);
     const known = (PIN_MAPS as readonly unknown[]).includes(base.map);
-    const target: { x?: unknown; y?: unknown } = isRecord(base.target) ? base.target : {};
+    const target: { x?: unknown; y?: unknown } = isObjectLike(base.target) ? base.target : {};
     // Невідома мапа (чернетка з майбутнього чи зіпсована) стає світом: основа без картинки не буває порожньою.
     const map: PinMap | null = known ? (base.map as PinMap) : base.map === null && typeof base.imageUrl === 'string' ? null : 'world';
     return {
@@ -386,7 +387,7 @@ function revive(stored: Question): Question {
   if (base.type === 'melody') return reviveMelody(base);
   if (base.type === 'poll') {
     const options = Array.isArray(base.options)
-      ? (base.options as unknown[]).filter(isRecord).map((option) => ({
+      ? (base.options as unknown[]).filter(isObjectLike).map((option) => ({
           ...option,
           id: typeof option.id === 'string' ? option.id : newId(),
           text: typeof option.text === 'string' ? option.text : '',
@@ -406,8 +407,8 @@ const looksLikeQuestion = (q: unknown) =>
   (QUESTION_TYPES as readonly string[]).includes((q as Question).type);
 
 const looksLikeCategory = (category: unknown) => {
-  if (typeof category !== 'object' || category === null) return false;
-  const { id, title, cells } = category as Record<string, unknown>;
+  if (!isObjectLike(category)) return false;
+  const { id, title, cells } = category;
   return (
     typeof id === 'string' &&
     typeof title === 'string' &&
@@ -437,8 +438,6 @@ function reviveCategory(category: BoardCategory): BoardCategory {
 const looksLikeDuels = (value: unknown): value is Duels =>
   typeof value === 'object' && value !== null && Array.isArray((value as Duels).categories);
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
 /**
  * Чернетка могла не мати чисел (NaN у JSON стає null): беремо типові значення.
  * Зіпсовані категорії й запитання відкидаються; без жодної категорії — без дуелей.
@@ -446,11 +445,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 function reviveDuels(duels: Duels): Duels | null {
   const number = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
   const categories = (duels.categories as unknown[])
-    .filter((category): category is DuelCategory => isRecord(category) && Array.isArray(category.questions))
+    .filter((category): category is DuelCategory => isObjectLike(category) && Array.isArray(category.questions))
     .map((category) => ({
       ...category,
       questions: (category.questions as unknown[]).filter(
-        (question): question is DuelQuestion => isRecord(question) && typeof question.text === 'string' && Array.isArray(question.accepted),
+        (question): question is DuelQuestion => isObjectLike(question) && typeof question.text === 'string' && Array.isArray(question.accepted),
       ),
     }));
   if (categories.length === 0) return null;
@@ -490,8 +489,8 @@ const reviveSpares = (value: unknown): { spares: Question[] } | Record<string, n
 };
 
 function looksLikeQuiz(value: unknown): value is Quiz {
-  if (typeof value !== 'object' || value === null) return false;
-  const { title, description, settings, rounds } = value as Record<string, unknown>;
+  if (!isObjectLike(value)) return false;
+  const { title, description, settings, rounds } = value;
   return (
     typeof title === 'string' &&
     typeof description === 'string' &&
@@ -500,8 +499,8 @@ function looksLikeQuiz(value: unknown): value is Quiz {
     Array.isArray(rounds) &&
     rounds.length > 0 &&
     rounds.every((round) => {
-      if (typeof round !== 'object' || round === null) return false;
-      const { id, type, title: roundTitle, rules, questions, categories } = round as Record<string, unknown>;
+      if (!isObjectLike(round)) return false;
+      const { id, type, title: roundTitle, rules, questions, categories } = round;
       const common =
         typeof id === 'string' &&
         typeof roundTitle === 'string' &&

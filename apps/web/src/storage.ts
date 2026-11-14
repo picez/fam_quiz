@@ -1,3 +1,5 @@
+import { isObjectLike } from '@quiz/shared';
+
 export interface HostTokens {
   hostToken: string;
   stageToken: string;
@@ -46,8 +48,8 @@ export function loadHost(code: string): HostTokens | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const { hostToken, stageToken } = parsed as Record<string, unknown>;
+    if (!isObjectLike(parsed)) return null;
+    const { hostToken, stageToken } = parsed;
     return typeof hostToken === 'string' && typeof stageToken === 'string' ? { hostToken, stageToken } : null;
   } catch {
     return null;
@@ -68,8 +70,8 @@ export function loadAuthor(code: string): AuthorTokens | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    const { stageToken } = parsed as Record<string, unknown>;
+    if (!isObjectLike(parsed)) return null;
+    const { stageToken } = parsed;
     return typeof stageToken === 'string' ? { stageToken } : null;
   } catch {
     return null;

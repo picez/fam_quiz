@@ -1,4 +1,4 @@
-import { AUDIO_LIMITS } from '@quiz/shared';
+import { AUDIO_LIMITS, isObjectLike } from '@quiz/shared';
 import type { NickLooks, PrizeContent, PrizeItem, PrizePlacesInfo, AchievementsPage, AutopilotCheck, CalendarEvent, CalendarInput, CalendarPage, CalendarRequestStatus, ContinueResponse, FeedBadge, FeedPage, FriendCard, GameDetail, GameInvite, GameSummary, OwnProfile, Phase, PlayedGame, ProfileCard, ProfileUpdate, PublicProfile, PushSubscriptionInput, Quiz, QuizLikes, ResumeOption, SlotsResponse, Versus } from '@quiz/shared';
 import type { ShowcasePin, ShowcasePins } from '@quiz/shared';
 import type { CodeInfo, LobbyRow, LobbySettings } from '@quiz/shared';
@@ -46,8 +46,8 @@ const AUTH_CODES: [prefix: string, code: string][] = [
 ];
 
 function errorCode(data: unknown): string {
-  if (typeof data !== 'object' || data === null) return 'unknown';
-  const { error, code, reason } = data as Record<string, unknown>;
+  if (!isObjectLike(data)) return 'unknown';
+  const { error, code, reason } = data;
   if (typeof code === 'string') {
     const known = AUTH_CODES.find(([prefix]) => code.startsWith(prefix));
     if (known !== undefined) return known[1];
