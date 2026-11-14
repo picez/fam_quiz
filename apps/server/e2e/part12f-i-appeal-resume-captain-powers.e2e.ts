@@ -1835,7 +1835,7 @@ async function achievements12i() {
   // ── 4. Сторінка на телефоні. ──
   await olya.getByRole('heading', { level: 1, name: 'Досягнення', exact: true }).waitFor();
   const count = (await olya.locator('.achievements-count').textContent())!;
-  const earnedCount = Number(count.match(/^Отримано (\d+) з 71$/)?.[1]);
+  const earnedCount = Number(count.match(/^Отримано (\d+) з 102$/)?.[1]);
   expect(earnedCount, count).toBeGreaterThanOrEqual(3);
   expect(await olya.locator('section.achievement-group h2').allTextContents()).toEqual([
     'Перші кроки',
@@ -1915,7 +1915,7 @@ async function achievements12i() {
   // ── 9. API: чужа сторінка — лише отримані, анонім — 401. ──
   const publicPage = (await (await host.request.get(`${base}/api/profiles/${olyaId}/achievements`)).json()) as AchievementsPage;
   expect(publicPage.own).toBe(false);
-  expect(publicPage.total).toBe(71);
+  expect(publicPage.total).toBe(102);
   expect(publicPage.items.length).toBe(earnedCount);
   for (const item of publicPage.items) {
     expect(item.earned, item.id).toBe(true);
@@ -1928,7 +1928,7 @@ async function achievements12i() {
   expect(problems).toEqual([]);
 }
 
-it('part 12i: achievements I — after Оля answers «Дніпро» in under two seconds on a 375 phone, «🏅 Досягнення» between «Історія» and «Профіль» opens «Отримано N з 71» with «Швидкі пальці» dated today, grey «10 ігор» at «1 / 10», the grey «Антидосягнення» group last, cards in several columns at 1280, the profile shows a row of the newest badges, the host sees only Оля’s earned cards with no progress on her public page and «За пультом» on own page, and an anonymous visitor gets 401', async () => {
+it('part 12i: achievements I — after Оля answers «Дніпро» in under two seconds on a 375 phone, «🏅 Досягнення» between «Історія» and «Профіль» opens «Отримано N з 102» with «Швидкі пальці» dated today, grey «10 ігор» at «1 / 10», the grey «Антидосягнення» group last, cards in several columns at 1280, the profile shows a row of the newest badges, the host sees only Оля’s earned cards with no progress on her public page and «За пультом» on own page, and an anonymous visitor gets 401', async () => {
   try {
     await achievements12i();
   } catch (error) {

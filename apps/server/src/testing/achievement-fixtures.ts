@@ -46,22 +46,25 @@ export const row = (questionIndex: number, patch: Partial<AchievementRow> = {}):
   ...patch,
 });
 
-/** Завершена соло-гра двох гравців (Оля перша, Петро другий). */
+/** Завершена соло-гра двох гравців (Оля перша, Петро другий); вела u-host вручну (план 33). */
 export function fakeGame(patch: Partial<AchievementGame> = {}): AchievementGame {
   const questions = patch.questions ?? [q(0)];
   return {
     gameId: 'g1',
     status: 'finished',
+    hostId: 'u-host',
+    autopilot: false,
     startedAt: new Date('2026-10-29T09:00:00Z'),
     finishedAt: new Date('2026-10-29T10:00:00Z'),
     questionsPlayed: questions.length,
     teams: false,
     players: [
-      { participantId: P, userId: 'u-olya', members: [], rank: 1, score: 500 },
-      { participantId: PETRO, userId: null, members: [], rank: 2, score: 100 },
+      { participantId: P, userId: 'u-olya', nickname: 'Оля', members: [], rank: 1, score: 500 },
+      { participantId: PETRO, userId: null, nickname: 'Петро', members: [], rank: 2, score: 100 },
     ],
     rows: [],
     adjustments: [],
+    questRounds: [],
     appeals: [],
     answerer: null,
     ...patch,
@@ -77,8 +80,18 @@ export function teamGame(patch: Partial<AchievementGame> = {}): AchievementGame 
   return fakeGame({
     teams: true,
     players: [
-      { participantId: TEAM, userId: null, members: [{ participantId: 'm-olya', userId: 'u-olya' }, { participantId: 'm-vira', userId: 'u-vira' }], rank: 1, score: 500 },
-      { participantId: 'team-b', userId: null, members: [], rank: 2, score: 100 },
+      {
+        participantId: TEAM,
+        userId: null,
+        nickname: 'Буковина',
+        members: [
+          { participantId: 'm-olya', userId: 'u-olya', nickname: 'Оля' },
+          { participantId: 'm-vira', userId: 'u-vira', nickname: 'Віра' },
+        ],
+        rank: 1,
+        score: 500,
+      },
+      { participantId: 'team-b', userId: null, nickname: 'Дніпро', members: [], rank: 2, score: 100 },
     ],
     ...patch,
   });

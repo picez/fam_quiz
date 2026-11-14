@@ -153,6 +153,12 @@ describe('achievement rarity', () => {
     for (const id of ANTI_ACHIEVEMENTS) expect(achievementRarity(id)).toBe('common');
     expect(achievementRarity('lawyer')).toBe('rare');
   });
+
+  it('33: four new common ones, two new epic ones, the rest rare', () => {
+    for (const id of ['single_ten', 'sold', 'crossword_full', 'holiday', 'modern_art'] as const) expect(achievementRarity(id)).toBe('common');
+    for (const id of ['buffet', 'elephant_memory'] as const) expect(achievementRarity(id)).toBe('epic');
+    for (const id of ['classic_clean', 'host_marathon', 'first_note'] as const) expect(achievementRarity(id)).toBe('rare');
+  });
 });
 
 describe('perkSchema', () => {

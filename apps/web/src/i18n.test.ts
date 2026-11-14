@@ -141,6 +141,8 @@ describe('uk golden (22a)', () => {
   const ADDED_32_UI: string[] = ['netOffline', 'err_image_raw_too_large', 'netWeak', 'netWeakHint', 'answerPending'];
   const ADDED_32 = [...ADDED_32_UI, ...ADDED_32_SW];
   const ADDED_31 = ['easyModeLabel', 'easyModeHint', 'easyModeHintAccount', 'easyModeSaveFailed', 'familyLabel', 'familyHint', 'familyLobby', 'familyDebuffOff', 'familySpeechTip', 'speechToggle', 'speechResume', 'speechRepeat', 'speechUnsupported', 'speechNoVoice', 'speechMedia', 'speechOptions', 'speechBlank'];
+  /** План 33: назви, жарти й умови 31 нового досягнення (93 ключі). */
+  const ADDED_33 = ['classic_clean', 'cold_bets', 'sold', 'mind_reader', 'code_breaker', 'single_ten', 'all_at_once', 'not_a_coin', 'word_for_word', 'in_order', 'pair_to_pair', 'short_path', 'full_list', 'longest_word', 'number_sense', 'masterpiece', 'sudoku_first', 'crossword_full', 'jigsaw_first', 'spotdiff_all', 'elephant_memory', 'first_note', 'buffet', 'host_marathon', 'team_soul', 'quick_sketch', 'dark_horse', 'holiday', 'modern_art', 'mirror_logic', 'last_piece'].flatMap((id) => [`achievement_${id}`, `achievementJoke_${id}`, `achievementHint_${id}`]);
   /** Множина 12k: форм, яких немає в мові, там і не треба; _one є в кожній — перевіряє ADDED_12K. */
   const ADDED_12K_PLURALS = ['groupPeople_few', 'groupPeople_many', 'groupItems_few', 'groupItems_many'];
   const ADDED_29I = ['appealWaitOther', 'appealQueued', 'err_appeal_queued', 'morelessWatchPicks', 'drawingGuessTitle', 'drawingGuessTitleAnon', 'sudokuPencil', 'sudokuPencilMarks'];
@@ -201,6 +203,16 @@ describe('uk golden (22a)', () => {
     for (const key of ADDED_32) expect(ukMessages, key).toHaveProperty(key);
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_32_UI.filter((key) => !(key in dict)), lang).toEqual([]);
     for (const [lang, dict] of Object.entries(push)) expect(ADDED_32_SW.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
+  it('33 keys (93: name, joke and condition of the 31 new achievements) are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    expect(ADDED_33).toHaveLength(93);
+    for (const key of ADDED_33) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) {
+      expect(ADDED_33.filter((key) => !(key in dict)), lang).toEqual([]);
+      for (const key of ADDED_33) expect(dict[key]?.trim(), `${lang} ${key}`).toBeTruthy();
+    }
   });
 
   it('31 keys are in every language', () => {
@@ -289,7 +301,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key))).toEqual([]);
   });
 });
 

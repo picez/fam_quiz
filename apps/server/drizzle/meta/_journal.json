@@ -253,6 +253,13 @@
       "when": 1794656275433,
       "tag": "0035_easy_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794668211545,
+      "tag": "0036_type_achievements",
+      "breakpoints": true
     }
   ]
 }

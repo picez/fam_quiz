@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { defaultTeams } from '@quiz/shared';
-import { boardRound, classicRound, makeRoundsQuiz, pin, single, text, wall, withId } from '@quiz/engine/testing';
+import { boardRound, classicRound, makeRoundsQuiz, pin, questQuestions, questRound, single, text, wall, withId } from '@quiz/engine/testing';
 import { loadAchievementGames, whoIn } from './achievement-games';
 import type { Db } from './db/client';
 import { AWAY_ATTEMPT, game, user, VOTE_ATTEMPT } from './db/schema';
@@ -111,7 +111,7 @@ describe('loadAchievementGames', () => {
       expect.objectContaining({ questionIndex: 1, attempt: AWAY_ATTEMPT, awayMs: 9000 }),
       expect.objectContaining({ questionIndex: 2, roundIndex: 1, clue: 3, debuff: null, timeMs: 4000 }),
     ]);
-    expect(loaded.adjustments).toEqual([{ participantId: participantIds[0], source: 'duel', points: 300 }]);
+    expect(loaded.adjustments).toEqual([{ participantId: participantIds[0], source: 'duel', points: 300, seq: 1, roundIndex: 0, undoesSeq: null }]);
   });
 
   it('a team game lists the team rows with their people; answeredBy is the person row', async () => {
@@ -134,12 +134,12 @@ describe('loadAchievementGames', () => {
     expect(loaded.players.map((p) => p.participantId)).toEqual([participantIds[0], participantIds[1]]);
     expect(loaded.players[0].members).toEqual(
       expect.arrayContaining([
-        { participantId: participantIds[2], userId: OLYA },
-        { participantId: participantIds[3], userId: VIRA },
+        { participantId: participantIds[2], userId: OLYA, nickname: 'Оля' },
+        { participantId: participantIds[3], userId: VIRA, nickname: 'Віра' },
       ]),
     );
     expect(loaded.players[0].members).toHaveLength(2);
-    expect(loaded.players[1].members).toEqual([{ participantId: participantIds[4], userId: null }]);
+    expect(loaded.players[1].members).toEqual([{ participantId: participantIds[4], userId: null, nickname: 'Марко' }]);
     expect(loaded.rows).toEqual([expect.objectContaining({ participantId: participantIds[0], answeredBy: participantIds[2] })]);
 
     expect(whoIn(loaded, OLYA)).toEqual({ participantId: participantIds[0], personId: participantIds[2] });
@@ -300,5 +300,78 @@ describe('loadAchievementGames', () => {
     const last = await seed('finished', 4);
     const loaded = await loadAchievementGames(db, [last.gameId, aborted.gameId, running.gameId, first.gameId]);
     expect(loaded.map((g) => g.gameId)).toEqual([last.gameId, first.gameId]);
+  });
+});
+
+describe('loadAchievementGames (33)', () => {
+  it('reads who hosted and whether it was autopilot', async () => {
+    const { gameId } = await seedGame(db, { hostId: HOST, autopilot: true, startedAt: new Date('2026-11-01T18:00:00Z'), players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }] });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    expect(loaded.hostId).toBe(HOST);
+    expect(loaded.autopilot).toBe(true);
+  });
+
+  it('reads adjustments with seq, round and undo links', async () => {
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-11-02T18:00:00Z'),
+      players: [
+        {
+          userId: OLYA,
+          nickname: 'Оля',
+          score: 0,
+          rank: 1,
+          adjustments: [
+            { seq: 3, roundIndex: 1, points: 250, source: 'quest' },
+            { seq: 4, roundIndex: 1, points: -250, source: 'undo', undoesSeq: 3 },
+          ],
+        },
+      ],
+    });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    expect([...loaded.adjustments].sort((a, b) => a.seq - b.seq)).toEqual([
+      { participantId: participantIds[0], source: 'quest', points: 250, seq: 3, roundIndex: 1, undoesSeq: null },
+      { participantId: participantIds[0], source: 'undo', points: -250, seq: 4, roundIndex: 1, undoesSeq: 3 },
+    ]);
+  });
+
+  it('reads nicknames of team members and the team name of the team row', async () => {
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-11-03T18:00:00Z'),
+      players: [
+        { userId: null, nickname: 'Буковина', score: 0, rank: 1, isTeam: true },
+        { userId: OLYA, nickname: 'Оля', score: 0, rank: 1, teamOf: 0 },
+        { userId: VIRA, nickname: 'Віра', score: 0, rank: 1, teamOf: 0 },
+      ],
+    });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    expect(loaded.players.map((p) => p.nickname)).toEqual(['Буковина']);
+    expect(loaded.players[0].members).toEqual(
+      expect.arrayContaining([
+        { participantId: participantIds[1], userId: OLYA, nickname: 'Оля' },
+        { participantId: participantIds[2], userId: VIRA, nickname: 'Віра' },
+      ]),
+    );
+  });
+
+  it('reads quest rounds from the snapshot: size and points bonus, null for a buff bonus', async () => {
+    const snapshot = makeRoundsQuiz([
+      classicRound('r1', [single]),
+      questRound('q1', questQuestions, { bonus: { kind: 'points', points: 300 } }),
+      questRound('q2', questQuestions.slice(0, 4).map((x) => withId(x, `${x.id}-2`)), { bonus: { kind: 'buff', buff: 'fifty', first: null } }),
+    ], { buffs: ['fifty'] });
+    const { gameId } = await seedGame(db, { hostId: HOST, snapshot, startedAt: new Date('2026-11-04T18:00:00Z'), players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }] });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    expect(loaded.questRounds).toEqual([
+      { roundIndex: 1, questions: 5, bonusPoints: 300 },
+      { roundIndex: 2, questions: 4, bonusPoints: null },
+    ]);
+  });
+
+  it('an unreadable snapshot has no quest rounds', async () => {
+    const { gameId } = await seedGame(db, { hostId: HOST, snapshot: { broken: true }, startedAt: new Date('2026-11-05T18:00:00Z'), players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }] });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    expect(loaded.questRounds).toEqual([]);
   });
 });
