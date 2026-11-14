@@ -7,7 +7,7 @@ import { checkCode, getFeedBadge, getMyInvites, listLobbies, me } from '../api';
 import { savePlayer } from '../storage';
 import { ACCOUNT_WAIT_MS, Home } from './Home';
 
-vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn() }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), me: vi.fn(), getMyInvites: vi.fn(), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(), createGame: vi.fn(), createQuiz: vi.fn(), listLobbies: vi.fn() }));
 
 beforeEach(() => {
   // Відома людина (stale-while-revalidate) не переходить з тесту в тест.

@@ -392,3 +392,77 @@ describe('anti-achievements schema (migration 0032)', () => {
     expect((await db.select().from(userAchievement)).map((r) => [r.achievementId, r.gameId])).toEqual([['first_game', gameId]]);
   });
 });
+
+describe('groups (12k)', () => {
+  const groupId = '44444444-4444-4444-8444-444444444444';
+
+  async function seed() {
+    const { familyGroup, groupMember } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values([
+      { id: 'u1', name: 'Оля', email: 'olia@example.com' },
+      { id: 'u2', name: 'Петро', email: 'petro@example.com' },
+      { id: 'u3', name: 'Іра', email: 'ira@example.com' },
+    ]);
+    await db.insert(familyGroup).values({ id: groupId, name: 'Родина Квіткових', emoji: '🌻', inviteCode: 'abcdefghjk' });
+    await db.insert(groupMember).values({ groupId, userId: 'u1', role: 'owner', joinedAt: new Date() });
+    return db;
+  }
+
+  it('migration 0033 lays the four tables over an older database, old data stays', async () => {
+    const { profile, userAchievement } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0032_anti_achievements');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "nickname_key") VALUES ('u1', 'Олена', 'олена')`);
+    await db.execute(sql`INSERT INTO "user_achievement" ("user_id", "achievement_id", "earned_at") VALUES ('u1', 'first_game', now())`);
+
+    await migrateRest();
+
+    const { familyGroup, groupInvite, groupItem, groupMember } = await import('./schema');
+    for (const table of [familyGroup, groupMember, groupInvite, groupItem]) expect(await db.select().from(table)).toEqual([]);
+    expect((await db.select().from(profile)).map((r) => r.nickname)).toEqual(['Олена']);
+    expect((await db.select().from(userAchievement)).map((r) => r.achievementId)).toEqual(['first_game']);
+  });
+
+  it('one owner per group, any number of members', async () => {
+    const { groupMember } = await import('./schema');
+    const db = await seed();
+    await expect(db.insert(groupMember).values({ groupId, userId: 'u2', role: 'owner', joinedAt: new Date() })).rejects.toThrow();
+    await db.insert(groupMember).values([
+      { groupId, userId: 'u2', role: 'member', joinedAt: new Date() },
+      { groupId, userId: 'u3', role: 'member', joinedAt: new Date() },
+    ]);
+    expect(await db.select().from(groupMember)).toHaveLength(3);
+  });
+
+  it('the join code is unique', async () => {
+    const { familyGroup } = await import('./schema');
+    const db = await seed();
+    await expect(db.insert(familyGroup).values({ name: 'Друга', emoji: '👪', inviteCode: 'abcdefghjk' })).rejects.toThrow();
+  });
+
+  it('a record keeps defaults; a removed author leaves it without an author; a removed group takes everything', async () => {
+    const { familyGroup, groupInvite, groupItem, groupMember } = await import('./schema');
+    const db = await seed();
+    await db.insert(groupMember).values({ groupId, userId: 'u2', role: 'member', joinedAt: new Date() });
+    await db.insert(groupInvite).values({ groupId, userId: 'u3', invitedBy: 'u1', createdAt: new Date() });
+    const [created] = await db.insert(groupItem).values({ groupId, authorId: 'u2', kind: 'story', text: 'Як тато заблукав у лісі по гриби' }).returning();
+    expect(created.about).toEqual([]);
+    expect(created.surprise).toBe(false);
+    const [group] = await db.select().from(familyGroup);
+    expect(group.description).toBe('');
+
+    await db.delete(user).where(eq(user.id, 'u2'));
+    const [kept] = await db.select().from(groupItem);
+    expect(kept.authorId).toBeNull();
+    expect((await db.select().from(groupMember)).map((r) => r.userId)).toEqual(['u1']);
+
+    await db.delete(user).where(eq(user.id, 'u1'));
+    expect((await db.select().from(groupInvite))[0].invitedBy).toBeNull();
+
+    await db.delete(familyGroup).where(eq(familyGroup.id, groupId));
+    expect(await db.select().from(groupMember)).toEqual([]);
+    expect(await db.select().from(groupInvite)).toEqual([]);
+    expect(await db.select().from(groupItem)).toEqual([]);
+  });
+});

@@ -48,6 +48,7 @@ export * from './levels';
 export * from './likes';
 export * from './feed';
 export * from './calendar';
+export * from './groups';
 export * from './push';
 export * from './admin';
 export * from './locale';

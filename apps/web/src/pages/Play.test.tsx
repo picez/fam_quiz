@@ -33,7 +33,7 @@ vi.mock('socket.io-client', () => ({
     return socket;
   },
 }));
-vi.mock('../api', () => ({ checkCode: vi.fn(), joinGame: vi.fn(), gameSlots: vi.fn(), claimSlot: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })) }));
+vi.mock('../api', () => ({ checkCode: vi.fn(), joinGame: vi.fn(), gameSlots: vi.fn(), claimSlot: vi.fn(), me: vi.fn(), getMyCard: vi.fn(), getMyInvites: vi.fn(async () => ({ ok: true, data: [] })), getGroupInvites: vi.fn(async () => ({ ok: true, data: [] })), getFeedBadge: vi.fn(async () => ({ ok: true, events: 0, requests: 0, decisions: 0 })) }));
 vi.mock('../screens/PlayerScreen', () => ({ PlayerScreen: () => <p>screen</p> }));
 
 beforeEach(() => {
