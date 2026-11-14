@@ -88,6 +88,15 @@
   letter-spacing: 0 !important;
 }
 
+/* Легкий режим (31): більший шрифт (19 px замість 16 — rem-розміри телефона й пульта ростуть пропорційно), білий текст,
+   видимі рамки. Правила елементів — у кінці файлу; рух — як за prefers-reduced-motion: reduce (двійники біля кожного блоку). */
+:root.is-easy {
+  font-size: 118.75%;
+  --paper: #ffffff;
+  --dim: rgb(255 255 255 / 0.88);
+  --line: #6b4a4a;
+}
+
 /* Значки-стрілки інтерфейсу (назад, далі) дзеркаляться справа наліво. */
 [dir='rtl'] .flip-rtl {
   display: inline-block;
@@ -1072,6 +1081,11 @@ button.choice {
   }
 }
 
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .timer-bar > span {
+  transition: none;
+}
+
 .timer-status,
 .timer-label::before {
   color: var(--pending);
@@ -1332,8 +1346,8 @@ button.choice {
 
 /* Єдиний підкреслений момент: розкриття правильної відповіді. */
 @media (prefers-reduced-motion: no-preference) {
-  .choice.is-correct,
-  .result {
+  :where(:root:not(.is-easy)) .choice.is-correct,
+  :where(:root:not(.is-easy)) .result {
     animation: reveal 0.5s ease-out both;
   }
 
@@ -1347,15 +1361,15 @@ button.choice {
 
 /* Вердикт відповіді одного гравця мигає 3 с; селектор сильніший за .choice.is-correct вище. */
 @media (prefers-reduced-motion: no-preference) {
-  .choice.is-blinking.is-wrong,
-  .is-blinking.is-correct,
-  .is-blinking.is-wrong,
-  .blitz-mark.is-blinking {
+  :where(:root:not(.is-easy)) .choice.is-blinking.is-wrong,
+  :where(:root:not(.is-easy)) .is-blinking.is-correct,
+  :where(:root:not(.is-easy)) .is-blinking.is-wrong,
+  :where(:root:not(.is-easy)) .blitz-mark.is-blinking {
     animation: verdict-blink 0.5s ease-in-out 6;
   }
 
   /* Поп розкриття лишається в списку: інакше він повторився б, коли is-blinking зникне. */
-  .choice.is-blinking.is-correct {
+  :where(:root:not(.is-easy)) .choice.is-blinking.is-correct {
     animation:
       reveal 0.5s ease-out both,
       verdict-blink 0.5s ease-in-out 6;
@@ -1370,7 +1384,7 @@ button.choice {
 
 /* Напруга перед вердиктом (беклог 19): помаранчева відповідь швидко мигає, поки вердикт тримається; без руху — просто пауза. */
 @media (prefers-reduced-motion: no-preference) {
-  .is-suspense .is-pending {
+  :where(:root:not(.is-easy)) .is-suspense .is-pending {
     animation: verdict-blink 0.3s ease-in-out infinite;
   }
 }
@@ -3026,7 +3040,7 @@ a.banner {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .die.is-rolling {
+  :where(:root:not(.is-easy)) .die.is-rolling {
     animation: dice-roll 0.3s linear infinite;
   }
 }
@@ -4378,10 +4392,10 @@ button.shelf-cup {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .wager-latest .allin-badge {
+  :where(:root:not(.is-easy)) .wager-latest .allin-badge {
     animation: allin-pop 0.6s ease-out;
   }
-  .bank-meter-text {
+  :where(:root:not(.is-easy)) .bank-meter-text {
     display: inline-block;
     animation: bank-pulse 0.5s ease-out;
   }
@@ -4988,7 +5002,7 @@ body:has(.banner.is-offline) .host .live-notices {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .live-notice {
+  :where(:root:not(.is-easy)) .live-notice {
     animation: notice-in 0.25s ease-out both;
   }
 
@@ -5180,27 +5194,27 @@ body:has(.debuff-banner) .live-notices {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .debuff-splat {
+  :where(:root:not(.is-easy)) .debuff-splat {
     transition: opacity 0.2s ease-out;
   }
 
   /* Фаза — від миті спрацювання (--shake-phase), тож поштовх збігається з вібрацією телефона. */
-  .is-shake:not(.is-calm) .debuff-content {
+  :where(:root:not(.is-easy)) .is-shake:not(.is-calm) .debuff-content {
     animation: debuff-shake var(--shake-cycle, 2800ms) infinite;
     animation-delay: calc(-1 * var(--shake-phase, 0ms));
   }
 
   /* Гість на всю ширину зони: translate 100% — рівно її ширина, рух іде на компоненті (без left). */
-  .debuff-guest {
+  :where(:root:not(.is-easy)) .debuff-guest {
     right: 0; /* phys */
     animation: debuff-run 4s linear var(--delay) infinite;
   }
 
-  .debuff-ice .crack {
+  :where(:root:not(.is-easy)) .debuff-ice .crack {
     transition: opacity 0.3s ease-out;
   }
 
-  .debuff-ice[data-stage='3'] {
+  :where(:root:not(.is-easy)) .debuff-ice[data-stage='3'] {
     animation: debuff-crumble 0.4s ease-in forwards;
   }
 
@@ -5369,15 +5383,15 @@ body:has(.debuff-banner) .live-notices {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .debuff-zone.is-flip:not(.is-calm) .debuff-content {
+  :where(:root:not(.is-easy)) .debuff-zone.is-flip:not(.is-calm) .debuff-content {
     transition: rotate 0.4s ease;
   }
 
-  .debuff-bubble {
+  :where(:root:not(.is-easy)) .debuff-bubble {
     animation: bubble-float 3s ease-in-out var(--delay, 0s) infinite alternate;
   }
 
-  .debuff-bubble.is-popped {
+  :where(:root:not(.is-easy)) .debuff-bubble.is-popped {
     animation: bubble-pop 0.25s ease-out forwards;
   }
 
@@ -5758,37 +5772,37 @@ button.sort-zone:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .sort-card {
+  :where(:root:not(.is-easy)) .sort-card {
     transition:
       transform 0.15s ease-out,
       opacity 0.15s ease-out;
   }
 
-  .sort-card.is-dragging {
+  :where(:root:not(.is-easy)) .sort-card.is-dragging {
     transition: none;
   }
 
-  .sort-card.is-flying {
+  :where(:root:not(.is-easy)) .sort-card.is-flying {
     opacity: 0;
   }
 
-  .sort-card.is-to-left {
+  :where(:root:not(.is-easy)) .sort-card.is-to-left {
     transform: translateX(-70%) scale(0.85);
   }
 
-  .sort-card.is-to-right {
+  :where(:root:not(.is-easy)) .sort-card.is-to-right {
     transform: translateX(70%) scale(0.85);
   }
 
-  .sort-card.is-to-top {
+  :where(:root:not(.is-easy)) .sort-card.is-to-top {
     transform: translateY(-70%) scale(0.85);
   }
 
-  .sort-card.is-to-bottom {
+  :where(:root:not(.is-easy)) .sort-card.is-to-bottom {
     transform: translateY(70%) scale(0.85);
   }
 
-  .sort-card.is-shaking {
+  :where(:root:not(.is-easy)) .sort-card.is-shaking {
     animation: sort-shake 0.4s ease-in-out;
   }
 
@@ -5888,7 +5902,7 @@ button.sort-zone:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .sort-bar-fill {
+  :where(:root:not(.is-easy)) .sort-bar-fill {
     transition: transform 0.3s ease-out;
   }
 }
@@ -6073,6 +6087,15 @@ button.sort-zone:disabled {
   .sort-live-card.is-miss {
     animation: none;
   }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .sort-live-card {
+  transition: none;
+}
+
+:where(:root.is-easy) .sort-live-card.is-miss {
+  animation: none;
 }
 
 .stage .sort-reveal {
@@ -6272,7 +6295,7 @@ body:has(.duel-banner):has(.debuff-banner) .live-notices {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .duel-banner.is-pulsing {
+  :where(:root:not(.is-easy)) .duel-banner.is-pulsing {
     animation: duel-pulse 1.6s ease-in-out infinite;
   }
 
@@ -6851,7 +6874,7 @@ label.powers-price {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .buff-btn.is-active {
+  :where(:root:not(.is-easy)) .buff-btn.is-active {
     animation: buff-flash 0.6s ease-out 2;
   }
 
@@ -7235,7 +7258,7 @@ label.powers-price {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .vote-sheet {
+  :where(:root:not(.is-easy)) .vote-sheet {
     animation: vote-rise 0.2s ease-out;
   }
 
@@ -7708,43 +7731,43 @@ label.powers-price {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .splash-card,
-  .splash-rays,
-  .splash-sparks > span,
-  .splash-flip,
-  .splash-side.is-challenger,
-  .splash-side.is-opponent {
+  :where(:root:not(.is-easy)) .splash-card,
+  :where(:root:not(.is-easy)) .splash-rays,
+  :where(:root:not(.is-easy)) .splash-sparks > span,
+  :where(:root:not(.is-easy)) .splash-flip,
+  :where(:root:not(.is-easy)) .splash-side.is-challenger,
+  :where(:root:not(.is-easy)) .splash-side.is-opponent {
     animation-duration: var(--splash-ms);
     animation-delay: var(--splash-elapsed);
     animation-fill-mode: both;
   }
 
-  .splash-card {
+  :where(:root:not(.is-easy)) .splash-card {
     animation-name: splash-zoom;
     animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  .splash.is-final .splash-rays {
+  :where(:root:not(.is-easy)) .splash.is-final .splash-rays {
     animation-name: splash-rays;
     animation-timing-function: linear;
   }
 
-  .splash-sparks > span {
+  :where(:root:not(.is-easy)) .splash-sparks > span {
     animation-name: splash-sparks;
     animation-timing-function: cubic-bezier(0.1, 0.7, 0.3, 1);
   }
 
-  .splash-flip {
+  :where(:root:not(.is-easy)) .splash-flip {
     animation-name: splash-flip;
     animation-timing-function: ease-in-out;
   }
 
-  .splash-side.is-challenger {
+  :where(:root:not(.is-easy)) .splash-side.is-challenger {
     animation-name: splash-slide-left;
     animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
   }
 
-  .splash-side.is-opponent {
+  :where(:root:not(.is-easy)) .splash-side.is-opponent {
     animation-name: splash-slide-right;
     animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
   }
@@ -7787,7 +7810,7 @@ label.powers-price {
     }
   }
 
-  .splash-surprise {
+  :where(:root:not(.is-easy)) .splash-surprise {
     animation-name: splash-surprise;
     animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1);
   }
@@ -7804,7 +7827,7 @@ label.powers-price {
     }
   }
 
-  .splash-blitz {
+  :where(:root:not(.is-easy)) .splash-blitz {
     animation-name: splash-blitz-in;
     animation-duration: 0.45s;
     animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -8847,6 +8870,11 @@ label.powers-price {
   }
 }
 
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .audio-card.is-playing .audio-listen {
+  animation: none;
+}
+
 .audio-card.is-quiet {
   min-height: 0;
   padding: 0;
@@ -9089,7 +9117,7 @@ label.powers-price {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .clue.is-new {
+  :where(:root:not(.is-easy)) .clue.is-new {
     animation: clue-in 0.4s ease-out;
   }
 }
@@ -9703,7 +9731,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .survey-row.is-flipping {
+  :where(:root:not(.is-easy)) .survey-row.is-flipping {
     animation: survey-flip 0.6s ease-out;
   }
 
@@ -9721,7 +9749,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .wall-tile.wall-shake {
+  :where(:root:not(.is-easy)) .wall-tile.wall-shake {
     animation: wall-shake 0.4s ease-in-out;
   }
 
@@ -9892,7 +9920,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .poll-fill {
+  :where(:root:not(.is-easy)) .poll-fill {
     transition: width 0.6s ease-out;
   }
 }
@@ -10342,7 +10370,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .bluff-row.is-flipping {
+  :where(:root:not(.is-easy)) .bluff-row.is-flipping {
     animation: bluff-flip 0.6s ease-out;
   }
 
@@ -11006,7 +11034,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .survival-door.is-open.is-trap {
+  :where(:root:not(.is-easy)) .survival-door.is-open.is-trap {
     animation: survival-trap 0.4s ease-out;
   }
 }
@@ -11449,7 +11477,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .ladder-step.is-current {
+  :where(:root:not(.is-easy)) .ladder-step.is-current {
     animation: ladder-glow 1.6s ease-in-out infinite alternate;
   }
 }
@@ -12930,7 +12958,7 @@ button.wall-tile:disabled {
 
 /* Пульс — лише без «менше руху»; інакше статичне червоне тло. */
 @media (prefers-reduced-motion: no-preference) {
-  .away-alarm {
+  :where(:root:not(.is-easy)) .away-alarm {
     animation: away-pulse 0.5s ease-in-out infinite alternate;
   }
 }
@@ -13620,7 +13648,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .reaction-badge {
+  :where(:root:not(.is-easy)) .reaction-badge {
     animation: reaction-pop 200ms ease-out;
   }
 }
@@ -13629,6 +13657,11 @@ button.wall-tile:disabled {
   .reaction-badge {
     animation: none;
   }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .reaction-badge {
+  animation: none;
 }
 
 @keyframes reaction-pop {
@@ -15083,7 +15116,7 @@ button.wall-tile:disabled {
 .nick-f-fire { outline: 2px solid #f97316; outline-offset: 2px; box-shadow: 0 0 8px 2px #ef4444; }
 .nick-f-rainbow { outline: 2px solid #a78bfa; outline-offset: 2px; box-shadow: -3px 0 6px #f87171, 3px 0 6px #38bdf8; }
 @media (prefers-reduced-motion: no-preference) {
-  .nick-f-neon, .nick-f-fire { transition: box-shadow 0.3s; }
+  :where(:root:not(.is-easy)) .nick-f-neon, :where(:root:not(.is-easy)) .nick-f-fire { transition: box-shadow 0.3s; }
 }
 
 /* ---------- Церемонія призів (14a): подіум 2 — 1 — 3, конфеті, «Твій приз» ---------- */
@@ -15317,19 +15350,19 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .podium-col.is-shown .podium-step {
+  :where(:root:not(.is-easy)) .podium-col.is-shown .podium-step {
     animation: podium-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
-  .podium-col.is-shown .podium-info {
+  :where(:root:not(.is-easy)) .podium-col.is-shown .podium-info {
     animation: podium-arrive 600ms ease-out 250ms both;
   }
 
-  .podium-col.is-now .podium-step {
+  :where(:root:not(.is-easy)) .podium-col.is-now .podium-step {
     box-shadow: 0 0 2rem color-mix(in srgb, var(--accent) 45%, transparent);
   }
 
-  .confetti {
+  :where(:root:not(.is-easy)) .confetti {
     display: block;
     position: absolute;
     top: -1rem;
@@ -16574,7 +16607,7 @@ button.wall-tile:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .crows {
+  :where(:root:not(.is-easy)) .crows {
     animation: crows-drift 30s ease-in-out infinite alternate;
   }
 
@@ -16590,7 +16623,7 @@ button.wall-tile:disabled {
 
   /* Над ніком на телефоні дрейф лише вбік: вниз ворони не опускаються. */
   @media (max-width: 35.99rem) {
-    .profile-hero .crows {
+    :where(:root:not(.is-easy)) .profile-hero .crows {
       animation-name: crows-drift-flat;
     }
   }
@@ -16766,7 +16799,7 @@ button.wall-tile:disabled {
 .photo-frame-aura::before { background: conic-gradient(#f472b6, #a78bfa, #38bdf8, #34d399, #fbbf24, #f472b6); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .photo-frame-aura::before {
+  :where(:root:not(.is-easy)) .photo-frame-aura::before {
     animation: photo-frame-aura-spin 8s linear infinite;
   }
   @keyframes photo-frame-aura-spin {
@@ -17332,6 +17365,13 @@ button.wall-tile:disabled {
   }
 }
 
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .timedlist-cell.is-fresh,
+:where(:root.is-easy) .timedlist-cell.is-again,
+:where(:root.is-easy) .timedlist-form input.is-shake {
+  animation: none;
+}
+
 .timedlist-reveal {
   display: grid;
   gap: 0.375rem;
@@ -17718,6 +17758,13 @@ button.letterwords-tile:focus-visible {
   .letterwords-form input.is-shake {
     animation: none;
   }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .letterwords-mine li.is-fresh,
+:where(:root.is-easy) .letterwords-mine li.is-again,
+:where(:root.is-easy) .letterwords-form input.is-shake {
+  animation: none;
 }
 
 /* Більше чи менше: редактор (28a). */
@@ -18140,6 +18187,12 @@ button.letterwords-tile:focus-visible {
   .moreless-side.moreless-right {
     animation: none;
   }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .moreless-card.is-slide,
+:where(:root.is-easy) .moreless-side.moreless-right {
+  animation: none;
 }
 
 /* «Правда про гравця» (28b): факт у лобі, пульт фактів, імена на телефоні, сцена й розкриття. */
@@ -19628,7 +19681,7 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .puzzle-thumb-cell.is-last {
+  :where(:root:not(.is-easy)) .puzzle-thumb-cell.is-last {
     animation: puzzle-flash 1.2s ease-out;
   }
 
@@ -20363,6 +20416,11 @@ input.sudoku-editor-cell:focus-visible {
     animation: none;
   }
 }
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .spot-miss line {
+  animation: none;
+}
 /* «Знайди відмінності»: кінець телефона */
 
 /* «Знайди відмінності»: сцена й пульт (29d). Картинки зверху (контейнер за розміром), картки гравців і таблиця — як у пазлі. */
@@ -20647,6 +20705,12 @@ input.sudoku-editor-cell:focus-visible {
     animation: none;
     opacity: 0.6;
   }
+}
+
+/* Легкий режим (31): те саме, що prefers-reduced-motion: reduce. */
+:where(:root.is-easy) .memory-card.is-pending {
+  animation: none;
+  opacity: 0.6;
 }
 
 .memory-card.is-open {
@@ -21088,7 +21152,7 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .melody-step.is-playing {
+  :where(:root:not(.is-easy)) .melody-step.is-playing {
     animation: melody-pulse 0.9s ease-in-out infinite alternate;
   }
 
@@ -21867,7 +21931,7 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .new-achievement {
+  :where(:root:not(.is-easy)) .new-achievement {
     animation: new-achievement-in 0.45s ease-out both;
     animation-delay: calc(var(--i, 0) * 0.6s);
   }
@@ -22714,4 +22778,38 @@ input.sudoku-editor-cell:focus-visible {
 .group-quiz-bar-row select {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* ---------- Легкий режим (31) ----------
+   У кінці файлу й через :where(): специфічність та сама, що в звичайних правил, тож перемагають лише вони самі —
+   правила з точнішими селекторами (сітка картинок, малі кнопки) лишаються як є. Шрифт не менший за звичайний. */
+:where(:root.is-easy) body {
+  line-height: 1.5;
+}
+
+:where(:root.is-easy) .btn:where(:not(.btn-small)) {
+  min-height: 3.5rem;
+}
+
+:where(:root.is-easy) .btn:disabled {
+  opacity: 0.55;
+}
+
+:where(:root.is-easy) .choice {
+  min-height: 4.25rem;
+  font-size: 1.25rem;
+  border-width: 3px;
+}
+
+:where(:root.is-easy) .meta {
+  font-size: max(1rem, 1em);
+}
+
+:where(:root.is-easy) :focus-visible {
+  outline: 3px solid var(--paper);
+  outline-offset: 2px;
+}
+
+:where(:root.is-easy) .game-bg::before {
+  display: none;
 }

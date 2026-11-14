@@ -554,7 +554,7 @@ describe('DebuffZone: 12h debuffs', () => {
 describe('12h debuff styles', () => {
   it('flip uses rotate (shake owns translate), instant with reduced motion', () => {
     expect(rule('.debuff-zone.is-flip .debuff-content')).toContain('rotate: 180deg;');
-    expect(rule('.debuff-zone.is-flip:not(.is-calm) .debuff-content')).toContain('transition: rotate 0.4s ease;');
+    expect(rule(':where(:root:not(.is-easy)) .debuff-zone.is-flip:not(.is-calm) .debuff-content')).toContain('transition: rotate 0.4s ease;');
     // Набраний текст повертається назад, як під «Дзеркалом»: його можна прочитати.
     expect(css).toContain('.is-flip .debuff-content input,\n.is-flip .debuff-content textarea {\n  rotate: 180deg;');
   });
@@ -689,7 +689,7 @@ describe('debuff strength', () => {
   });
 
   it('the shake runs on the shared cycle, jolts up to 14px and is calm for the last 70 %', () => {
-    const shake = rule('.is-shake:not(.is-calm) .debuff-content');
+    const shake = rule(':where(:root:not(.is-easy)) .is-shake:not(.is-calm) .debuff-content');
     expect(shake).toContain('animation: debuff-shake var(--shake-cycle, 2800ms) infinite;');
     expect(shake).toContain('animation-delay: calc(-1 * var(--shake-phase, 0ms));');
     const start = css.indexOf('@keyframes debuff-shake {');
