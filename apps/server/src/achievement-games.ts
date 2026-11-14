@@ -1,4 +1,5 @@
 import {
+  groupBy,
   cellAnswerMode,
   factLimitMs,
   findCell,
@@ -75,17 +76,6 @@ export interface AchievementGame {
   questions: AchievementQuestion[];
   rows: AchievementRow[];
   adjustments: { participantId: string; source: AdjustmentSource; points: number }[];
-}
-
-/** Елементи списку за ключем, в одному проході. */
-function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const item of items) {
-    const list = groups.get(key(item));
-    if (list === undefined) groups.set(key(item), [item]);
-    else list.push(item);
-  }
-  return groups;
 }
 
 /** Зіграні запитання гри зі знімка й журналу; запитання, якого немає в знімку, пропускається (індекси решти не зсуваються). */

@@ -1,4 +1,5 @@
 import {
+  groupBy,
   AWAY_MS,
   adjustmentSource,
   allSpares,
@@ -1000,17 +1001,6 @@ export interface GameTable {
   /** Типи раундів зі знімка; [] — знімок не вдалося прочитати. */
   roundTypes: Round['type'][];
   players: TablePlayer[];
-}
-
-/** Елементи списку за ключем, в одному проході. */
-function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const item of items) {
-    const list = groups.get(key(item));
-    if (list === undefined) groups.set(key(item), [item]);
-    else list.push(item);
-  }
-  return groups;
 }
 
 const ROUND_TYPES: ReadonlySet<unknown> = new Set(roundSchema.options.map((option) => option.shape.type.value));
