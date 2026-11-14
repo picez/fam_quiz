@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react';
-import { aspectRatio, jigsawCrop, jigsawSides, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { aspectRatio, clamp, evenPageSize, jigsawCrop, jigsawSides, pageSlice, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { piecePad, piecePath } from '../live/jigsaw-shape';
@@ -43,8 +43,7 @@ export function jigsawDropAt(rect: { left: number; top: number; width: number; h
   const cy = coreTop + cellH / 2;
   if (cx < rect.left || cx > rect.left + rect.width || cy < rect.top || cy > rect.top + rect.height) return null;
   const round = (value: number) => Math.round(value * 1000) / 1000;
-  const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
-  return { x: clamp(round((coreLeft - rect.left) / cellW), cols - 1), y: clamp(round((coreTop - rect.top) / cellH), rows - 1) };
+  return { x: clamp(round((coreLeft - rect.left) / cellW), 0, cols - 1), y: clamp(round((coreTop - rect.top) / cellH), 0, rows - 1) };
 }
 
 interface Layout {
@@ -639,8 +638,7 @@ export function JigsawBoards({ info, jigsaw, reveal = false, host = false }: { i
   const photo = useThumbPhoto(jigsaw, geometry);
   const size = puzzlePageSize(info.boards.length, reveal);
   const page = usePage(info.boards.length, size, !host);
-  const from = host ? 0 : page * size;
-  const shown = host ? info.boards : info.boards.slice(from, from + size);
+  const shown = host ? info.boards : pageSlice(info.boards, page, size);
   const grid = puzzleGrid(shown.length, reveal);
   const [gw, gh] = aspectParts(aspect);
   return (
@@ -656,8 +654,7 @@ export function JigsawBoards({ info, jigsaw, reveal = false, host = false }: { i
 
 /** Розмір сторінки таблиці: рівні сторінки (25 → 9 + 8 + 8), а не повна й майже порожня. */
 export function jigsawTablePageSize(n: number): number {
-  if (n <= JIGSAW_TABLE_PAGE) return Math.max(1, n);
-  return Math.ceil(n / Math.ceil(n / JIGSAW_TABLE_PAGE));
+  return evenPageSize(n, JIGSAW_TABLE_PAGE);
 }
 
 /**
@@ -674,7 +671,7 @@ export function JigsawTable({ info, host = false }: { info: JigsawInfo; host?: b
   });
   const size = jigsawTablePageSize(info.boards.length);
   const page = usePage(info.boards.length, size, !host);
-  const shown = host ? info.boards : info.boards.slice(page * size, page * size + size);
+  const shown = host ? info.boards : pageSlice(info.boards, page, size);
   // --rows: на сцені шрифт таблиці тим менший, чим більше рядків, — уся сторінка (до JIGSAW_TABLE_PAGE) влазить у висоту комірки.
   return (
     <table className={host ? 'jigsaw-table is-host' : 'jigsaw-table'} aria-label={t('jigsawTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>

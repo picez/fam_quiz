@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { PaceWindow } from '@quiz/shared';
+import { clamp01, type PaceWindow } from '@quiz/shared';
 import { t } from './i18n';
 
 /** Запас поверх кінця вікна: кнопка вмикається трохи пізніше, ніж дозволяє сервер (11b). */
@@ -14,7 +14,7 @@ export function paceProgress(window: PaceWindow | null, serverNow: number): numb
   if (serverNow >= end) return null;
   const span = end - window.from;
   if (span <= 0) return null;
-  return Math.min(1, Math.max(0, (serverNow - window.from) / span));
+  return clamp01((serverNow - window.from) / span);
 }
 
 /** Атрибути кнопки, що чекає вікна: заповнення (--pace), підказка «Ще мить…» і aria-busy; progress null — жодних. */

@@ -4,6 +4,7 @@ import {
   ADMIN_PAGE_SIZE,
   ADMIN_QUERY_MAX,
   hasTruthRound,
+  pageOffset,
   questionsOf,
   type AdminList,
   type AdminLogEntry,
@@ -127,7 +128,7 @@ export async function adminUsers(db: Db, emails: ReadonlySet<string>, query: { q
     .leftJoin(profile, eq(profile.userId, user.id))
     .where(where);
   const total = num(n);
-  const rows = await userRows(db, emails, where, ADMIN_PAGE_SIZE, (query.page - 1) * ADMIN_PAGE_SIZE);
+  const rows = await userRows(db, emails, where, ADMIN_PAGE_SIZE, pageOffset(query.page, ADMIN_PAGE_SIZE));
   return { rows, total, page: query.page, pages: adminPages(total) };
 }
 
@@ -171,7 +172,7 @@ export async function adminQuizzes(db: Db, query: { q?: string; page: number }):
     .where(where)
     .orderBy(desc(quiz.updatedAt), quiz.id)
     .limit(ADMIN_PAGE_SIZE)
-    .offset((query.page - 1) * ADMIN_PAGE_SIZE);
+    .offset(pageOffset(query.page, ADMIN_PAGE_SIZE));
   const result: AdminQuizRow[] = [];
   for (const r of rows) {
     const nickname = r.hasProfile !== null ? (r.nickname ?? '') : ((await ensureProfile(db, r.row.ownerId))?.nickname ?? '');
@@ -206,7 +207,7 @@ export async function adminLog(db: Db, page: number): Promise<AdminList<AdminLog
     .from(adminAction)
     .orderBy(desc(adminAction.at), desc(adminAction.id))
     .limit(ADMIN_PAGE_SIZE)
-    .offset((page - 1) * ADMIN_PAGE_SIZE);
+    .offset(pageOffset(page, ADMIN_PAGE_SIZE));
   return {
     rows: rows.map((r) => ({ id: r.id, at: iso(r.at), admin: r.adminLabel, kind: r.kind, target: r.targetLabel, details: r.details })),
     total,

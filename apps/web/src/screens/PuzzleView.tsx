@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { crosswordCells, crosswordLetter, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
+import { crosswordCells, crosswordLetter, evenPageSize, pageCount, pageSlice, type PlayerPuzzle, type PublicPuzzle, type PublicQuestion, type PuzzleAnswer, type PuzzleBoardView, type PuzzleInfo, type PuzzleTone, type Question } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
@@ -676,7 +676,7 @@ export function puzzleGrid(n: number, reveal: boolean): { cols: number; rows: nu
 
 /** Поточна сторінка мініатюр: понад size сторінки міняються кожні PUZZLE_PAGE_MS. */
 export function usePage(count: number, size: number, enabled: boolean): number {
-  const pages = enabled ? Math.max(1, Math.ceil(count / size)) : 1;
+  const pages = enabled ? pageCount(count, size) : 1;
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (pages <= 1) return;
@@ -790,9 +790,7 @@ function Thumb({ board, puzzle, solution, reveal }: ThumbProps) {
 
 /** Розмір сторінки мініатюр для n дошок: сторінки рівні (45 → 23 + 22), а не повна й майже порожня. */
 export function puzzlePageSize(n: number, reveal: boolean): number {
-  const most = reveal ? PUZZLE_REVEAL_PAGE_SIZE : PUZZLE_PAGE_SIZE;
-  if (n <= most) return Math.max(1, n);
-  return Math.ceil(n / Math.ceil(n / most));
+  return evenPageSize(n, reveal ? PUZZLE_REVEAL_PAGE_SIZE : PUZZLE_PAGE_SIZE);
 }
 
 /**
@@ -804,8 +802,7 @@ export function puzzlePageSize(n: number, reveal: boolean): number {
 export function PuzzleBoards({ info, puzzle, reveal, host = false }: { info: PuzzleInfo; puzzle: PublicPuzzle; reveal: boolean; host?: boolean }) {
   const size = puzzlePageSize(info.boards.length, reveal);
   const page = usePage(info.boards.length, size, !host);
-  const from = host ? 0 : page * size;
-  const shown = host ? info.boards : info.boards.slice(from, from + size);
+  const shown = host ? info.boards : pageSlice(info.boards, page, size);
   const grid = puzzleGrid(shown.length, reveal);
   return (
     <div className={host ? 'puzzle-boards-fit is-host' : grid.dense ? 'puzzle-boards-fit is-dense' : 'puzzle-boards-fit'}>

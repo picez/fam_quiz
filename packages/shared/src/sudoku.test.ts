@@ -6,11 +6,11 @@ import {
   countSudoku,
   generateSudoku,
   isSudokuGrid,
-  seededRng,
   singlesSolvable,
   sudokuConflicts,
   sudokuIssue,
 } from './sudoku';
+import { seededRng } from './random';
 
 /** Правильна повна сітка 6×6 з блоками 2×3. */
 const FULL = '123456' + '456123' + '231564' + '564231' + '312645' + '645312';

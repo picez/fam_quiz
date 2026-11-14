@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { LIMITS, ladderKey, wordLetters, type LetterWordsInfo, type PlayerLetterWords, type PublicQuestion } from '@quiz/shared';
+import { LIMITS, ladderKey, shuffle, wordLetters, type LetterWordsInfo, type PlayerLetterWords, type PublicQuestion } from '@quiz/shared';
 import { signed } from '../format';
 import { errorText, t } from '../i18n';
 import type { Send } from '../live/types';
@@ -229,13 +229,8 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
 
   const source = letters.join('');
   const tiles = order !== null && order.source === source ? order.letters : letters;
-  const shuffle = () => {
-    const next = [...tiles];
-    for (let i = next.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [next[i], next[j]] = [next[j], next[i]];
-    }
-    setOrder({ source, letters: next });
+  const mix = () => {
+    setOrder({ source, letters: shuffle(tiles, Math.random) });
   };
 
   if (question.letterwords === undefined) return null;
@@ -279,7 +274,7 @@ export function LetterWordsPlay({ info, question, paused, send }: { info: Player
           <button type="button" className="btn" disabled={off || word === ''} {...keepFocus} onClick={() => change('')}>
             {t('lettersClear')}
           </button>
-          <button type="button" className="btn" disabled={off || letters.length < 2} {...keepFocus} onClick={shuffle}>
+          <button type="button" className="btn" disabled={off || letters.length < 2} {...keepFocus} onClick={mix}>
             {t('lettersShuffle')}
           </button>
         </div>

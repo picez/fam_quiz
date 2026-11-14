@@ -10,6 +10,7 @@ import { crosswordIssue } from './crossword';
 import { JIGSAW_ASPECTS, jigsawEdgeCount, jigsawPieceRatio } from './jigsaw';
 import { MELODY_STEP_COUNT } from './melody';
 import { questKey } from './quest';
+import { clamp01 } from './numbers';
 import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
@@ -994,7 +995,7 @@ export function answerWindowMs(question: Timed): number {
 /** Частка ціни за час відповіді на картинці, що проявляється: від 1 до REVEAL_MIN_SHARE. */
 export function revealShare(timeMs: number, windowMs: number): number {
   if (windowMs <= 0) return REVEAL_MIN_SHARE;
-  const t = Math.min(1, Math.max(0, timeMs / windowMs));
+  const t = clamp01(timeMs / windowMs);
   return 1 - (1 - REVEAL_MIN_SHARE) * t;
 }
 

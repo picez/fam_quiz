@@ -1,4 +1,4 @@
-import { LIMITS, SPOT_DEFAULT_R, SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_R, aspectsMatch, type Question, type SpotCircle } from '@quiz/shared';
+import { LIMITS, SPOT_DEFAULT_R, SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_R, aspectsMatch, clamp, type Question, type SpotCircle } from '@quiz/shared';
 import { useEffect, useRef, useState, type ChangeEvent, type PointerEvent } from 'react';
 import { t } from '../i18n';
 import { shareOf } from '../live/spot-geometry';
@@ -7,7 +7,7 @@ import { ACCEPT, measureImage, useImageUpload } from './ImageField';
 import { TimeField } from './JigsawEditor';
 import type { SpotdiffQuestion } from './draft';
 
-const clampR = (r: number) => Math.min(SPOT_MAX_R, Math.max(SPOT_MIN_R, r));
+const clampR = (r: number) => clamp(r, SPOT_MIN_R, SPOT_MAX_R);
 
 /** Дрейф пальця до стількох CSS px — ще тап, а не перетягування (радіус не міняється). */
 const DRAG_THRESHOLD_PX = 6;

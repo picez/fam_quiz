@@ -1,4 +1,4 @@
-import { LIMITS, rulesOf, type BluffAnswer, type Question } from '@quiz/shared';
+import { LIMITS, rulesOf, seededRng, type BluffAnswer, type Question } from '@quiz/shared';
 import { textMatches } from './check';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import {
@@ -15,7 +15,6 @@ import {
   type GameState,
   type Play,
   type Result,
-  type Rng,
 } from './game';
 import { normalizeText } from './normalize';
 import { presentPlayers } from './present';
@@ -24,17 +23,8 @@ import { closesAt, limitMsOf, timeOver } from './timing';
 
 type BluffQuestion = Extract<Question, { type: 'bluff' }>;
 
-/** mulberry32: детермінований генератор з 32-бітного зерна. */
-export function seededRng(seed: number): Rng {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
+/** mulberry32: детермінований генератор з 32-бітного зерна (канонічний — у @quiz/shared/random; ре-експорт для давніх імпортів). */
+export { seededRng };
 
 /**
  * Текст варіанта блефу на екранах: ключ написання (малі літери, один вид апострофів і лапок, зведені пробіли) без крапки

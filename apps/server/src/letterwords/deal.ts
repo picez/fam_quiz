@@ -1,6 +1,6 @@
 // «Слова з літер» (27d): роздача сервера — випадковий набір, у якому завжди є слово словника, і найдовші можливі слова.
 // Словник той самий, що в драбини; клієнт його не отримує ніколи.
-import { LETTER_VOWELS, LIMITS, wordLetters } from '@quiz/shared';
+import { LETTER_VOWELS, LIMITS, shuffle, wordLetters } from '@quiz/shared';
 import type { NounDictionary } from '../wordladder/nouns';
 
 /** 33 літери абетки: позиція літери — її клітинка в лічильнику Uint8Array. */
@@ -114,15 +114,6 @@ function weighted(weights: readonly number[], rng: () => number): string {
   return 'а';
 }
 
-function shuffled<T>(items: T[], rng: () => number): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
 /**
  * Слово-основа: випадкове слово без «ґ» довжини L чи L − 1 (L = min(7, count); для count ≤ 4 — від 3). Від випадкового місця
  * береться перше, з яким набір ще може набрати need голосних. Таких довжин у словнику немає — будь-яке коротше.
@@ -165,7 +156,7 @@ function attemptOf(index: Built, count: number, rng: () => number): string[] {
     filler[consonants[Math.floor(rng() * consonants.length)]] = weighted(index.vowelWeights, rng);
     vowels += 1;
   }
-  return shuffled([...base, ...filler], rng);
+  return shuffle([...base, ...filler], rng);
 }
 
 /**

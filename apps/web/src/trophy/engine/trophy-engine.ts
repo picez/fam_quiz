@@ -12,6 +12,7 @@ import {
   type Material,
   type Texture,
 } from 'three';
+import { clamp } from '@quiz/shared';
 import type { TrophyDecor } from '@quiz/shared';
 import { reducedMotion } from '../../motion';
 import { APPEAR_SECONDS, NEUTRAL_POSE, appearancePose, type AppearancePose } from '../appearance-pose';
@@ -93,10 +94,6 @@ function decorResources(built: BuiltDecor): { dispose(): void }[] {
 
 function disposeDecor(built: BuiltDecor): void {
   for (const resource of new Set(decorResources(built))) resource.dispose();
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 /** Одна збірка вигляду: модель з оформленням, тінь, ефект і реквізит появи — усе, що update міняє за один кадр. */

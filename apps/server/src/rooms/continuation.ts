@@ -1,5 +1,5 @@
 import { READABLE_STATE_VERSIONS, type GameState } from '@quiz/engine';
-import type { ErrorCode, PlacedPrize, Quiz } from '@quiz/shared';
+import { isRecord, type ErrorCode, type PlacedPrize, type Quiz } from '@quiz/shared';
 import type { Room } from './manager';
 
 /** Версія формату saved_game.data (13b). */
@@ -20,15 +20,13 @@ export interface SavedGameData {
   prizes?: PlacedPrize[];
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-
 /** v === 1, stateVersion — число, state — об'єкт із масивом players, at — число, playerUsers — масив. Версію стану НЕ перевіряє. */
 export function isSavedGameData(raw: unknown): raw is SavedGameData {
-  if (!isObject(raw)) return false;
+  if (!isRecord(raw)) return false;
   return (
     raw.v === SAVED_GAME_VERSION &&
     typeof raw.stateVersion === 'number' &&
-    isObject(raw.state) &&
+    isRecord(raw.state) &&
     Array.isArray(raw.state.players) &&
     typeof raw.at === 'number' &&
     Array.isArray(raw.playerUsers)

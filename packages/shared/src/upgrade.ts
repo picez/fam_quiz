@@ -1,7 +1,5 @@
 import { DEFAULT_RULES } from './quiz';
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+import { isRecord } from './guards';
 
 /**
  * Переводить вікторину старого формату (один список запитань) в один класичний раунд

@@ -1,5 +1,5 @@
 import { READABLE_STATE_VERSIONS, slotsOf, type GameState } from '@quiz/engine';
-import { claimSchema, type ContinueResponse, type GameSummary, type PlacedPrize, type SavedMode } from '@quiz/shared';
+import { claimSchema, isRecord, type ContinueResponse, type GameSummary, type PlacedPrize, type SavedMode } from '@quiz/shared';
 import { and, desc, eq, gt, inArray, notInArray, sql } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -14,12 +14,10 @@ import { isSavedGameData, SAVED_GAME_VERSION, type RestartParticipant, type Save
 import { isSavedRoom, type RoomManager, type SavedRoom } from './rooms/manager';
 import type { Located } from './rooms/store';
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-
 /** Шлях 12r: старий збережений запис, який замінює кімната (поле continued.replaces конверта); null — немає. */
 function replacesOf(data: SavedRoom): string | null {
   const continued = (data as unknown as { continued?: unknown }).continued;
-  return isObject(continued) && typeof continued.replaces === 'string' ? continued.replaces : null;
+  return isRecord(continued) && typeof continued.replaces === 'string' ? continued.replaces : null;
 }
 
 /** Точне збереження з контрольної точки читабельного запису: лише гра з ведучим-акаунтом, що дійшла до запитання й не фінішувала. */
@@ -43,10 +41,10 @@ function exactWrite(data: unknown) {
 
 /** Сирий запис (може бути нечитабельним): конверт SavedGameData з data.checkpoint, якщо там об'єкт зі state і версія — число; інакше null. */
 function rawSaved(data: unknown): { data: SavedGameData | null; stateVersion: number | null } {
-  if (!isObject(data)) return { data: null, stateVersion: null };
+  if (!isRecord(data)) return { data: null, stateVersion: null };
   const stateVersion = typeof data.stateVersion === 'number' ? data.stateVersion : null;
   const checkpoint = data.checkpoint;
-  if (stateVersion === null || !isObject(checkpoint) || !isObject(checkpoint.state)) return { data: null, stateVersion };
+  if (stateVersion === null || !isRecord(checkpoint) || !isRecord(checkpoint.state)) return { data: null, stateVersion };
   return {
     data: {
       v: SAVED_GAME_VERSION,

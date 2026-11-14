@@ -82,4 +82,67 @@ describe('letter index (27d)', () => {
     expect(deal.possible).toBe(196);
     expect(dealOf(index, [...'бджжщ'])).toEqual({ best: [], possible: 0 });
   });
+
+  it('pickLetters golden (30d)', () => {
+    const index = letterIndexOf(SMALL);
+    expect([1, 2, 3, 4, 5].map((s) => pickLetters(index, 9, seededRng(s)))).toMatchInlineSnapshot(`
+      [
+        [
+          "к",
+          "а",
+          "о",
+          "в",
+          "і",
+          "т",
+          "м",
+          "а",
+          "с",
+        ],
+        [
+          "к",
+          "а",
+          "м",
+          "а",
+          "р",
+          "т",
+          "о",
+          "і",
+          "с",
+        ],
+        [
+          "о",
+          "т",
+          "к",
+          "і",
+          "с",
+          "т",
+          "а",
+          "і",
+          "м",
+        ],
+        [
+          "м",
+          "т",
+          "і",
+          "к",
+          "р",
+          "с",
+          "о",
+          "а",
+          "о",
+        ],
+        [
+          "с",
+          "в",
+          "а",
+          "к",
+          "і",
+          "у",
+          "о",
+          "р",
+          "м",
+        ],
+      ]
+    `);
+  });
 });

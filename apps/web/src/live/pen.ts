@@ -1,4 +1,4 @@
-import { DRAWING_SCALE, LIMITS, type DrawOp } from '@quiz/shared';
+import { DRAWING_SCALE, LIMITS, clamp, type DrawOp } from '@quiz/shared';
 
 /** «Малюнок» (28c): як часто телефон художника шле пакет точок, мс. */
 export const DRAW_FLUSH_MS = 80;
@@ -26,7 +26,7 @@ interface PenStroke {
   sent: number;
 }
 
-const quantize = (value: number) => Math.min(DRAWING_SCALE, Math.max(0, Math.round(value * DRAWING_SCALE)));
+const quantize = (value: number) => clamp(Math.round(value * DRAWING_SCALE), 0, DRAWING_SCALE);
 
 /**
  * next — номер наступного штриха в малюнку (довжина локальної моделі художника); питається під час flush для штриха, чий begin ще не пішов.

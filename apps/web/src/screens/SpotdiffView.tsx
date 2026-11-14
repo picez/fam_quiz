@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import type { PlayerSpotdiff, PublicQuestion, PublicSpotdiff, SpotdiffBoardView, SpotdiffHostInfo, SpotdiffInfo } from '@quiz/shared';
+import { pageSlice, type PlayerSpotdiff, type PublicQuestion, type PublicSpotdiff, type SpotdiffBoardView, type SpotdiffHostInfo, type SpotdiffInfo } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { shareOf } from '../live/spot-geometry';
@@ -221,7 +221,7 @@ type BoardRow = SpotdiffBoardView & { spots?: number[] };
 export function SpotdiffBoards({ boards, reveal = false, host = false }: { boards: readonly BoardRow[]; reveal?: boolean; host?: boolean }) {
   const size = puzzlePageSize(boards.length, reveal);
   const page = usePage(boards.length, size, !host);
-  const shown = host ? boards : boards.slice(page * size, page * size + size);
+  const shown = host ? boards : pageSlice(boards, page, size);
   const grid = puzzleGrid(shown.length, false);
   return (
     <div className={host ? 'spotdiff-boards-fit is-host' : grid.dense ? 'spotdiff-boards-fit is-dense' : 'spotdiff-boards-fit'}>
@@ -256,7 +256,7 @@ export function SpotdiffTable({ boards, host = false }: { boards: readonly Spotd
   const size = jigsawTablePageSize(boards.length);
   const page = usePage(boards.length, size, !host);
   const from = host ? 0 : page * size;
-  const shown = host ? boards : boards.slice(from, from + size);
+  const shown = host ? boards : pageSlice(boards, page, size);
   return (
     <table className={host ? 'jigsaw-table spotdiff-table is-host' : 'jigsaw-table spotdiff-table'} aria-label={t('spotdiffTableLabel')} style={host ? undefined : ({ '--rows': shown.length } as CSSProperties)}>
       <thead>

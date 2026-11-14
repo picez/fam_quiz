@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { JIGSAW_HOLD_REFRESH_MS, jigsawFits, seededRng, type PlayerJigsaw, type PublicJigsaw } from '@quiz/shared';
+import { JIGSAW_HOLD_REFRESH_MS, jigsawFits, seededRng, shuffle, type PlayerJigsaw, type PublicJigsaw } from '@quiz/shared';
 import { errorText } from '../i18n';
 import type { Send, SendResult } from './types';
 
@@ -35,11 +35,7 @@ export function jigsawSeed(jigsaw: PublicJigsaw): number {
  */
 export function jigsawPile(rows: number, cols: number, seed: number, actorId: string): { piece: number; rot: number }[] {
   const rng = seededRng((seed ^ hashText(actorId)) >>> 0);
-  const order = Array.from({ length: rows * cols }, (_, i) => i);
-  for (let i = order.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
-  }
+  const order = shuffle(Array.from({ length: rows * cols }, (_, i) => i), rng);
   return order.map((piece) => ({ piece, rot: Math.floor(rng() * 4) }));
 }
 

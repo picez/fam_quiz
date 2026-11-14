@@ -1,3 +1,5 @@
+import { clamp } from '@quiz/shared';
+
 /** Найбільше наближення рамки точки. */
 export const PIN_MAX_ZOOM = 5;
 
@@ -20,7 +22,6 @@ export interface Point {
   y: number;
 }
 
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 // Без «-0»: toEqual відрізняє його від 0, а користі в ньому немає.
 const plain = (value: number) => (value === 0 ? 0 : value);
 
