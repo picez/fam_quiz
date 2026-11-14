@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -42,6 +42,7 @@ import { halloweenQuiz } from './halloween-quiz';
 import { mixQuiz } from './mix-quiz';
 import { quickQuiz } from './quick-quiz';
 import { MEGA_FILES, MEGA_IMAGES, megaQuiz } from './mega-quiz';
+import { FEST_FILES, FEST_IMAGES, festQuiz } from './fest-quiz';
 import { MIX2_PHOTOS, mix2Quiz } from './mix2-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
@@ -126,7 +127,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -215,6 +216,17 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       const keys = [...MEGA_FILES, ...Object.keys(MEGA_IMAGES)];
       const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(MEGA_IMAGES)) }));
       return megaQuiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'fest': {
+      if (!site) throw new Error('The fest quiz needs SITE_URL: its pictures are required');
+      const files = Object.fromEntries(FEST_FILES.map((key) => [key, `file:${join(import.meta.dirname, 'fest', 'img', `${key}.png`)}`]));
+      const keys = [...FEST_FILES, ...Object.keys(FEST_IMAGES)];
+      const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(FEST_IMAGES)) }));
+      return festQuiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
