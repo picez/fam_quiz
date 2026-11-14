@@ -1,6 +1,7 @@
 import {
   allSpares,
   LIKES_PAGE,
+  nextOffset,
   questionIdsOf,
   roundQuestions,
   type GivenLike,
@@ -227,7 +228,7 @@ export async function givenLikes(db: Db, userId: string, offset: number): Promis
     .limit(LIKES_PAGE + 1)
     .offset(offset);
   const page = groups.slice(0, LIKES_PAGE);
-  const next = groups.length > LIKES_PAGE ? offset + LIKES_PAGE : null;
+  const next = nextOffset(groups.length, offset, LIKES_PAGE);
   if (page.length === 0) return { items: [], next };
   const ids = page.map((g) => g.quizId!);
   const [mine, quizzes] = await Promise.all([
@@ -287,7 +288,7 @@ export async function receivedLikes(db: Db, userId: string, offset: number): Pro
     .limit(LIKES_PAGE + 1)
     .offset(offset);
   const page = groups.slice(0, LIKES_PAGE);
-  const next = groups.length > LIKES_PAGE ? offset + LIKES_PAGE : null;
+  const next = nextOffset(groups.length, offset, LIKES_PAGE);
   if (page.length === 0) return { items: [], next };
   const perQuestion = await db
     .select({ quizId: userLike.quizId, questionId: userLike.questionId, n: sql<number>`count(*)::int` })
