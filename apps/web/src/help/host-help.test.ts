@@ -150,8 +150,8 @@ describe('host help', () => {
   });
 
   it('11h autopilot entry follows «reveal» and tells the stage times and what the author menu does', () => {
-    expect(helpIds('settings').at(-1)).toBe('setting.autopilot');
-    expect(helpIds('settings').at(-2)).toBe('setting.reveal');
+    expect(helpIds('settings').at(-2)).toBe('setting.autopilot');
+    expect(helpIds('settings').at(-3)).toBe('setting.reveal');
     filled('setting.autopilot');
     const body = text('setting.autopilot');
     for (const part of [`${AUTOPILOT_MS.reveal / 1000} с`, `${AUTOPILOT_MS.leaderboard / 1000} с`, `${AUTOPILOT_MS.resume / 1000} с`, 'Приховати', 'Провести ботом']) expect(body).toContain(part);
@@ -196,10 +196,18 @@ describe('host help', () => {
     expect(searchHelp('цікавинки')).toContain('setting.scores');
   });
 
+  it('12l «Запитання з групи» entry comes last and tells the templates, the honest «Вигадка» and «використано»', () => {
+    expect(helpIds('settings').at(-1)).toBe('setting.groups');
+    filled('setting.groups');
+    const body = text('setting.groups');
+    for (const part of ['«Із групи»', '«Хто це?»', '«Правда чи вигадка?»', '«Коли це було?»', '«Хто я?»', '«Відкрите запитання»', '«Блеф»', '«___»', 'використано у', '«Вікторина з групи»', 'Сюрпризи про тебе', 'коротку відповідь і рік', '25 с']) expect(body, part).toContain(part);
+    expect(searchHelp('з групи')).toContain('setting.groups');
+  });
+
   it('12e away entry follows «undo» and tells what counts, who sees what, the penalty, the undo and the honest limits', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.away')).toBe(ids.indexOf('setting.undo') + 1);
-    expect(ids.at(-1)).toBe('setting.autopilot');
+    expect(ids.at(-2)).toBe('setting.autopilot');
     filled('setting.away');
     const body = text('setting.away').replace(/ /g, ' ');
     const sec = (ms: number) => `${String(ms / 1000).replace('.', ',')} с`;
@@ -218,7 +226,7 @@ describe('host help', () => {
   it('12f appeal entry follows «away» and tells when, who votes, the count, the host and the limits', () => {
     const ids = helpIds('settings');
     expect(ids.indexOf('setting.appeal')).toBe(ids.indexOf('setting.away') + 1);
-    expect(ids.at(-1)).toBe('setting.autopilot');
+    expect(ids.at(-2)).toBe('setting.autopilot');
     filled('setting.appeal');
     const body = text('setting.appeal').replace(/ /g, ' ');
     for (const part of ['30 с', '2 апеляції', 'Голосує зал', 'не бачить ніхто', 'Зараховано ведучим', '(апеляція)', 'Нема кому голосувати', 'Оскаржити штраф', 'капітан', 'Нічия', 'Пауза', '↶ Бали', 'Після кінця гри']) expect(body, part).toContain(part);
