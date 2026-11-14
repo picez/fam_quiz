@@ -5,6 +5,9 @@ import { LIMITS } from '@quiz/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { t } from '../i18n';
 import { BoardEditor } from './BoardEditor';
+import { getGroup, getGroupItems, getGroups } from '../api';
+
+vi.mock('../api', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api')>()), getGroups: vi.fn(), getGroup: vi.fn(), getGroupItems: vi.fn() }));
 import { newBoardRound, newQuestion, newSpare } from './draft';
 
 afterEach(cleanup);
@@ -379,5 +382,62 @@ describe('BoardEditor readiness (11a)', () => {
     render(<BoardEditor round={withCells(() => 'ready')} onChange={vi.fn()} />);
     expect(legend()).not.toContain('не готов');
     expect(screen.getAllByText('3 / 3 готово')).toHaveLength(3);
+  });
+});
+
+describe('BoardEditor: «Із групи» in a cell (12l)', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const at = '2026-11-14T10:00:00.000Z';
+  const story = {
+    id: 'i-story',
+    kind: 'story' as const,
+    text: 'Як тато заблукав у лісі по гриби й вийшов до сусіднього села. Шукали всім селом. Знайшовся з повним кошиком.',
+    about: [{ kind: 'name' as const, name: 'тато' }],
+    answer: 'Тато',
+    year: 1998,
+    photo: null,
+    surprise: false,
+    author: null,
+    mine: true,
+    canDelete: true,
+    uses: [],
+    createdAt: at,
+    updatedAt: at,
+  };
+  const group = { id: 'g1', name: 'Родина Квіткових', emoji: '🌻' as const, description: '', role: 'owner' as const, people: 1, items: 1, joinedAt: at };
+
+  function board(): BoardRound {
+    const round = boardWith(0);
+    const [first, ...rest] = round.categories;
+    const [cell, ...cells] = first!.cells;
+    return { ...round, categories: [{ ...first!, cells: [{ ...cell!, kind: 'blitz', question: { ...newQuestion('single'), text: 'Старе запитання', points: 300 } }, ...cells] }, ...rest] };
+  }
+  async function pick(template: RegExp) {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [group], invites: [] });
+    vi.mocked(getGroup).mockResolvedValue({ ok: true, ...group, members: [{ id: 'u1', nickname: 'Оля', avatar: null, role: 'owner', joinedAt: at, you: true }] });
+    vi.mocked(getGroupItems).mockResolvedValue({ ok: true, data: [story] });
+    const onChange = vi.fn();
+    render(<BoardEditor round={board()} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Із групи' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Як тато заблукав/ }));
+    expect((screen.getByRole('button', { name: /^Блеф/ }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: template }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вставити запитання' }));
+    return onChange;
+  }
+
+  it('replaces the cell question after a confirmation, keeps the price and makes the cell normal', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onChange = await pick(/^Хто я\?/);
+    expect(confirm).toHaveBeenCalledWith('У клітинці вже є запитання. Замінити його запитанням із групи?');
+    const cell = (onChange.mock.calls.at(-1)![0] as BoardRound).categories[0]!.cells[0]!;
+    expect(cell.kind).toBe('normal');
+    expect(cell.question).toMatchObject({ type: 'clues', text: 'Хто я?', points: 300 });
+  });
+
+  it('a refused confirmation changes nothing', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onChange = await pick(/^Хто я\?/);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

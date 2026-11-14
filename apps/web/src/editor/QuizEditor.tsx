@@ -2,10 +2,12 @@ import { LIMITS, allowedBuffs, questionsOf, roundQuestions, roundTrials, type Qu
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import {
+  booleanCounts,
   cleaned,
   cloudSources,
   duplicateQuestion,
   firstProblem,
+  groupDraftPlace,
   moveItem,
   newBlitzRound,
   newBoardRound,
@@ -28,6 +30,9 @@ import {
   swapGaps,
 } from './draft';
 import { BoardEditor } from './BoardEditor';
+import { GroupPicker } from '../groups/GroupPicker';
+import type { GroupDraft } from '../groups/templates';
+import { useGroupDrafts } from './group-drafts';
 import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
 import { DuelsEditor } from './DuelsEditor';
@@ -62,6 +67,9 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   const [roundIndex, setRoundIndex] = useState(0);
   const [selected, setSelected] = useState(0);
   const [listOpen, setListOpen] = useState(false);
+  /** Панель «Запитання з групи» відкрита (12l). */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const groupDrafts = useGroupDrafts();
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   /** Розділ «Дуелі» розгорнуто: автором або помилкою в ньому. */
@@ -163,6 +171,15 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     // У «Головоломках» нове запитання — згенероване судоку (інших типів там немає).
     setQuestions([...questions, round.type === 'wipeout' ? newWipeoutQuestion(questions[last]) : round.type === 'survival' ? { ...newQuestion('single'), points: 100 } : newQuestion(round.type === 'puzzles' ? 'sudoku' : 'single')]);
     select(questions.length);
+  };
+
+  /** Чернетка із запису групи — в кінець списку, як «Додати запитання», і з тією самою ціною (12l). */
+  const addFromGroup = (draft: GroupDraft, source: { groupId: string; itemId: string }) => {
+    const points = round.type === 'wipeout' ? newWipeoutQuestion(questions[last]).points : round.type === 'survival' ? 100 : draft.question.points;
+    const question = { ...draft.question, points } as Question;
+    setQuestions([...questions, question]);
+    select(questions.length);
+    groupDrafts?.add(question.id, { ...source, notes: draft.notes });
   };
 
   const duplicate = () => {
@@ -453,9 +470,27 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
                 })}
               </ol>
 
-              <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
-                {t('addQuestion')}
-              </button>
+              {groupDraftPlace(round) === 'list' ? (
+                <div className="editor-add-row">
+                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
+                    {t('addQuestion')}
+                  </button>
+                  <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={() => setPickerOpen(true)}>
+                    {t('groupFromButton')}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="btn btn-dashed" disabled={!roomForMore} onClick={add}>
+                  {t('addQuestion')}
+                </button>
+              )}
+              {pickerOpen && (
+                <GroupPicker
+                  target={{ types: questionTypesFor(round.type), booleans: booleanCounts(questions) }}
+                  onPick={addFromGroup}
+                  onClose={() => setPickerOpen(false)}
+                />
+              )}
             </>
           )}
         </aside>

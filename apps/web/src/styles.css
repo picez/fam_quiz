@@ -1802,6 +1802,18 @@ a.banner {
   justify-self: stretch;
 }
 
+/* «Додати запитання» і «Із групи» (12l): в один рядок, на вузькому екрані — одна під одною. */
+.editor-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.editor-add-row > .btn-dashed {
+  flex: 1 1 8rem;
+}
+
 .type-chips {
   display: flex;
   flex-wrap: wrap;
