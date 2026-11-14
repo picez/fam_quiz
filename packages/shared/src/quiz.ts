@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QUESTION_TYPES, type QuestionType } from './question-types';
+import { PUZZLES_ROUND_TYPES, PUZZLE_TYPES, QUEST_TYPES, QUESTION_TYPES, REVEAL_TYPES, SIMPLE_TYPES, SURVIVAL_TYPES, UNSCORED_TYPES, WIPEOUT_TYPES, PROXIMITY_TYPES, type QuestionType } from './question-types';
 import { BUFF_KINDS, DEBUFF_KINDS, LEGACY_DEBUFFS, READY_BUFFS, type BuffKind, type DebuffKind } from './game';
 import { UNSTORABLE, isStorable } from './text';
 import { ANSWERER_MODES } from './teams';
@@ -926,12 +926,6 @@ export const questionSchema = z
 
 export type Question = z.infer<typeof questionSchema>;
 
-/** Типи з автоматичною перевіркою й простою відповіддю: друга спроба, голосування залу, запасні запитання. */
-export const SIMPLE_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'slider'] as const satisfies readonly Question['type'][];
-
-/** Типи, де діє картинка, що проявляється (10b). */
-export const REVEAL_TYPES = ['single', 'text', 'numeric'] as const satisfies readonly Question['type'][];
-
 /** «Хто я?», де кожен відкриває підказки сам (12c). */
 export function isSelfPaced(question: Question): boolean {
   return question.type === 'clues' && question.cluePace === 'self';
@@ -998,9 +992,6 @@ export function revealShare(timeMs: number, windowMs: number): number {
   const t = clamp01(timeMs / windowMs);
   return 1 - (1 - REVEAL_MIN_SHARE) * t;
 }
-
-/** Типи без балів (10d): не йдуть у таблицю, серії, точність і досягнення. */
-export const UNSCORED_TYPES = ['poll', 'wordcloud'] as const satisfies readonly Question['type'][];
 
 export function isUnscored(question: { type: Question['type'] }): boolean {
   return (UNSCORED_TYPES as readonly string[]).includes(question.type);
@@ -1084,7 +1075,7 @@ export function cloudWords(words: readonly string[], max: number): string[] {
  * правильна — частка ≥ 0,5 (14a). Картинка, що проявляється, сюди не входить: її спадання — плата за час, не правильність.
  */
 export function proximityPartial(question: Question): boolean {
-  return question.type === 'slider' || question.type === 'pin' || question.type === 'wall' || question.type === 'survey';
+  return PROXIMITY_TYPES.includes(question.type);
 }
 
 /** Орієнтир ціни «Слів з літер» на табло: найдовше слово — 7 літер (довше словник не має), слова — до 10, літери — до 40. */
@@ -1303,15 +1294,9 @@ export const truthRoundSchema = z.object({
 
 export type TruthRound = z.infer<typeof truthRoundSchema>;
 
-/** Типи запитань «Головоломок» (28d); живуть лише в раунді puzzles, а він приймає лише їх. */
-export const PUZZLE_TYPES = ['sudoku', 'crossword'] as const satisfies readonly Question['type'][];
-
 export function isPuzzle(question: { type: Question['type'] }): boolean {
   return (PUZZLE_TYPES as readonly string[]).includes(question.type);
 }
-
-/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл і (29d) «Знайди відмінності»; isPuzzle їх не охоплює. */
-export const PUZZLES_ROUND_TYPES = [...PUZZLE_TYPES, 'jigsaw', 'spotdiff', 'memory'] as const satisfies readonly Question['type'][];
 
 export function fitsPuzzlesRound(question: { type: Question['type'] }): boolean {
   return (PUZZLES_ROUND_TYPES as readonly string[]).includes(question.type);
@@ -1329,9 +1314,6 @@ export const puzzlesRoundSchema = z.object({
 
 export type PuzzlesRound = z.infer<typeof puzzlesRoundSchema>;
 
-/** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
-export const WIPEOUT_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
-
 /** «Ва-банк»: правильна відповідь додає ціну в банк, помилка спалює його; після кожної правильної — «Далі» чи «Забрати». Правил балів немає. */
 export const wipeoutRoundSchema = z.object({
   id: z.string().min(1).refine(isStorable, UNSTORABLE),
@@ -1345,9 +1327,6 @@ export const wipeoutRoundSchema = z.object({
 });
 
 export type WipeoutRound = z.infer<typeof wipeoutRoundSchema>;
-
-/** Типи запитань раунду «Вибування» (основних і питань на виживання): відповідь однозначно правильна чи ні. */
-export const SURVIVAL_TYPES = ['single', 'boolean', 'numeric', 'text', 'slider'] as const satisfies readonly QuestionType[];
 
 /** Вид випробування «на межі»: окреме питання або троє дверей. */
 export const TRIAL_KINDS = ['question', 'luck'] as const;
@@ -1404,9 +1383,6 @@ export const ladderRoundSchema = z.object({
 });
 
 export type LadderRound = z.infer<typeof ladderRoundSchema>;
-
-/** Типи запитань раунду «Квест із кодом» (29g): звичайні запитання без медіа-механік. */
-export const QUEST_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'slider'] as const satisfies readonly QuestionType[];
 
 /** Бонус за відкриту скриню: бали (за формулою questPoints) чи ще одне використання бафа. */
 export const questBonusSchema = z.discriminatedUnion('kind', [

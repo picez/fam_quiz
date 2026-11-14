@@ -466,3 +466,24 @@ export function typesWhere(test: (traits: QuestionTypeTraits, type: QuestionType
   const hit = QUESTION_TYPES.filter((type) => test(QUESTION_TYPE_TRAITS[type], type));
   return [...lead.filter((type) => hit.includes(type)), ...hit.filter((type) => !lead.includes(type))];
 }
+
+/** Типи з автоматичною перевіркою й простою відповіддю: друга спроба, голосування залу, запасні запитання. */
+export const SIMPLE_TYPES = typesWhere((t) => t.simple);
+/** Типи, де діє картинка, що проявляється (10b). */
+export const REVEAL_TYPES = typesWhere((t) => t.reveal);
+/** Типи без балів (10d): не йдуть у таблицю, серії, точність і досягнення. */
+export const UNSCORED_TYPES = typesWhere((t) => t.unscored);
+/** Типи запитань «Головоломок» (28d); живуть лише в раунді puzzles, а він приймає лише їх. */
+export const PUZZLE_TYPES = typesWhere((t) => t.puzzle);
+/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл і (29d) «Знайди відмінності»; isPuzzle їх не охоплює. */
+export const PUZZLES_ROUND_TYPES = typesWhere((t) => t.rounds.includes('puzzles'));
+/** Історичний порядок меню «Ва-банку» й «Вибування»: число перед текстом. */
+const FIRM_LEAD: readonly QuestionType[] = ['single', 'boolean', 'numeric'];
+/** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
+export const WIPEOUT_TYPES = typesWhere((t) => t.rounds.includes('wipeout'), FIRM_LEAD);
+/** Типи запитань раунду «Вибування» (основних і питань на виживання): відповідь однозначно правильна чи ні. */
+export const SURVIVAL_TYPES = typesWhere((t) => t.rounds.includes('survival'), FIRM_LEAD);
+/** Типи запитань раунду «Квест із кодом» (29g): звичайні запитання без медіа-механік. */
+export const QUEST_TYPES = typesWhere((t) => t.rounds.includes('quest'));
+/** Бали за близькість відповіді чи кількість знайденого (proximityPartial): повзунок, точка, стіна, «100 до 1». */
+export const PROXIMITY_TYPES = typesWhere((t) => t.proximity);
