@@ -144,12 +144,19 @@ export function GroupPicker({
   const close = useRef(onClose);
   close.current = onClose;
   useEffect(() => {
+    // Кнопка, що відкрила панель («Із групи»), отримає фокус назад, коли панель закриється.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     heading.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close.current();
+      // Відкрита довідка закривається своїм Escape — панель лишається.
+      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.help-pop') !== null) return;
+      close.current();
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      opener?.focus();
+    };
   }, []);
 
   const openGroup = async (id: string) => {

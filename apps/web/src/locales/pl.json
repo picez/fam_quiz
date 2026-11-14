@@ -1566,6 +1566,7 @@
   "groupNoteBlankName": "Zamień imię bohatera w tekście na „___”, żeby nie podpowiadać odpowiedzi.",
   "groupNoteClipped": "Tekst wpisu jest dłuższy niż {max} znaków — został skrócony.",
   "groupNoteClues": "Dopisz wskazówki: potrzeba co najmniej {min}.",
+  "groupNoteCluesCut": "Wpis ma więcej niż {max} zdań — wskazówkami zostało pierwszych {max}.",
   "groupNoteDismiss": "Rozumiem",
   "groupNoteFiction": "To zmyślenie: odpowiedź „nie”. Sprawdź, czy podmieniony szczegół brzmi naturalnie.",
   "groupNoteLies": "Dopisz zapasowe zmyślenia: potrzeba co najmniej {min}.",

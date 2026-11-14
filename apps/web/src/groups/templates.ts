@@ -106,13 +106,42 @@ function wrongNames(names: readonly string[], pool: readonly string[]): string[]
   return pool.filter((name) => !taken.has(answerKey(name)));
 }
 
+/** Найкоротший можливий неправильний варіант (стільки ж імен, скільки героїв) чи null, якщо жоден не вміщається. */
+function shortestWrong(names: readonly string[], pool: readonly string[]): string | null {
+  const others = wrongNames(names, pool);
+  if (others.length < names.length) return null;
+  const option = namesText([...others].sort((a, b) => a.length - b.length).slice(0, names.length));
+  return option.length <= LIMITS.optionText ? option : null;
+}
+
+/** Неправильні варіанти «Хто це?»: до трьох різних наборів з перемішаного пулу, кожен ≤ LIMITS.optionText; хоч один — завжди, якщо templateIssue дозволив. */
+function wrongOptions(names: readonly string[], pool: readonly string[], rng: Rng): string[] {
+  const correct = answerKey(namesText([...names]));
+  const rest = shuffle(wrongNames(names, pool), rng);
+  const wrong: string[] = [];
+  const seen = new Set<string>([correct]);
+  for (let i = 0; i + names.length <= rest.length && wrong.length < WRONG_OPTIONS; i += names.length) {
+    const option = namesText(rest.slice(i, i + names.length));
+    if (option.length <= LIMITS.optionText && !seen.has(answerKey(option))) {
+      seen.add(answerKey(option));
+      wrong.push(option);
+    }
+  }
+  if (wrong.length === 0) {
+    const fallback = shortestWrong(names, pool);
+    if (fallback !== null) wrong.push(fallback);
+  }
+  return wrong;
+}
+
 export function templateIssue(template: GroupTemplate, item: GroupItem, pool: readonly string[]): TemplateIssue | null {
   const names = aboutNames(item);
   switch (template) {
     case 'who':
       if (names.length === 0) return { key: 'groupTplNeedAbout' };
       if (namesText(names).length > LIMITS.optionText) return { key: 'groupTplNamesLong', vars: { max: LIMITS.optionText } };
-      if (wrongNames(names, pool).length < names.length) return { key: 'groupTplNeedNames' };
+      // Хоч один неправильний варіант мусить вміститися: питання з одним варіантом не буває.
+      if (shortestWrong(names, pool) === null) return { key: 'groupTplNeedNames' };
       return null;
     case 'truth':
       return null;
@@ -239,12 +268,7 @@ export function draftFrom(template: GroupTemplate, item: GroupItem, context: Dra
       photoNote();
       const text = questionText(t('groupTplText_who', { text: blanked.text }), notes);
       const correct = namesText(names);
-      const rest = shuffle(wrongNames(names, context.pool), context.rng);
-      const wrong: string[] = [];
-      for (let i = 0; i + names.length <= rest.length && wrong.length < WRONG_OPTIONS; i += names.length) {
-        const option = namesText(rest.slice(i, i + names.length));
-        if (option.length <= LIMITS.optionText && answerKey(option) !== answerKey(correct)) wrong.push(option);
-      }
+      const wrong = wrongOptions(names, context.pool, context.rng);
       const options = shuffle([correct, ...wrong], context.rng).map((value) => ({ id: newId(), text: value }));
       const correctId = options.find((option) => option.text === correct)!.id;
       return { question: { ...base, type: 'single', text, options, correctId } as Question, notes };
@@ -269,9 +293,9 @@ export function draftFrom(template: GroupTemplate, item: GroupItem, context: Dra
     }
     case 'whoami': {
       let hit = false;
-      const sentences = body
-        .split(/(?<=[.!?…])\s+/u)
-        .filter((sentence) => sentence.trim() !== '')
+      const all = body.split(/(?<=[.!?…])\s+/u).filter((sentence) => sentence.trim() !== '');
+      if (all.length > LIMITS.maxClues) notes.push({ key: 'groupNoteCluesCut', vars: { max: LIMITS.maxClues } });
+      const sentences = all
         .slice(0, LIMITS.maxClues)
         .reverse()
         .map((sentence) => {

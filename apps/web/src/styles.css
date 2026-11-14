@@ -22695,7 +22695,7 @@ input.sudoku-editor-cell:focus-visible {
   padding-block-end: 1rem;
 }
 .group-quiz-bar {
-  bottom: calc(var(--menu-h) + env(safe-area-inset-bottom, 0px));
+  /* Над нижнім меню телефона панель піднімає спільне правило .with-menu .actions (≤ 700 px); ширше меню вгорі — відступу немає. */
   align-items: center;
   z-index: 5;
 }

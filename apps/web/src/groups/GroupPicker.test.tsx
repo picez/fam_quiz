@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { seededRng, type GroupCard, type GroupDetail, type GroupItem } from '@quiz/shared';
@@ -185,6 +186,46 @@ describe('GroupPicker (12l)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Закрити' }));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('Escape with the help open closes only the help; closing returns the focus to the opener', async () => {
+    const onClose = vi.fn();
+    function Host() {
+      const [open, setOpen] = useState(false);
+      return (
+        <MemoryRouter>
+          <button type="button" onClick={() => setOpen(true)}>
+            Із групи
+          </button>
+          {open && (
+            <GroupPicker
+              target={classic}
+              onPick={vi.fn()}
+              onClose={() => {
+                onClose();
+                setOpen(false);
+              }}
+              rng={seededRng(3)}
+              year={2026}
+            />
+          )}
+        </MemoryRouter>
+      );
+    }
+    render(<Host />);
+    const opener = screen.getByRole('button', { name: 'Із групи' });
+    opener.focus();
+    fireEvent.click(opener);
+    await screen.findByRole('dialog', { name: 'Запитання з групи' });
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Запитання з групи' })).getByRole('button', { name: /^Довідка/ }));
+    expect(document.querySelector('.help-pop')).not.toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('.help-pop')).toBeNull();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Запитання з групи' })).toBeNull();
+    expect(document.activeElement).toBe(opener);
   });
 
   it('a failed request says so', async () => {

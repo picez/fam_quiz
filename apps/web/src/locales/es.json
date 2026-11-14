@@ -1566,6 +1566,7 @@
   "groupNoteBlankName": "Cambia el nombre del protagonista en el texto por «___» para no dar la respuesta.",
   "groupNoteClipped": "El texto de la entrada tiene más de {max} caracteres: se ha acortado.",
   "groupNoteClues": "Añade pistas: hacen falta al menos {min}.",
+  "groupNoteCluesCut": "La entrada tiene más de {max} frases: las primeras {max} son las pistas.",
   "groupNoteDismiss": "Entendido",
   "groupNoteFiction": "Esto es un invento: la respuesta es «no». Comprueba que el detalle cambiado suene natural.",
   "groupNoteLies": "Añade inventos de reserva: hacen falta al menos {min}.",

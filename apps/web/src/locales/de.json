@@ -1547,6 +1547,7 @@
   "groupNoteBlankName": "Ersetze den Namen im Text durch „___“, damit er die Antwort nicht verrät.",
   "groupNoteClipped": "Der Text des Eintrags ist länger als {max} Zeichen — er wurde gekürzt.",
   "groupNoteClues": "Ergänze Hinweise: mindestens {min} werden gebraucht.",
+  "groupNoteCluesCut": "Der Eintrag hat mehr als {max} Sätze — die ersten {max} wurden zu Hinweisen.",
   "groupNoteDismiss": "Verstanden",
   "groupNoteFiction": "Das ist erfunden: Die Antwort ist „nein“. Prüfe, ob das ausgetauschte Detail natürlich klingt.",
   "groupNoteLies": "Ergänze Ersatz-Flunkereien: mindestens {min} werden gebraucht.",

@@ -131,6 +131,23 @@ describe('group question templates (12l)', () => {
       expect(templateIssue('who', date, pool)).toEqual({ key: 'groupTplNeedAbout' });
     });
 
+    it('is unavailable unless a wrong option fits 120 characters; otherwise there are always at least two options', () => {
+      const heroes = item('h3', { text: 'Тато, мама й дід спекли пиріг', about: [{ kind: 'name', name: 'тато' }, { kind: 'name', name: 'мама' }, { kind: 'name', name: 'дід' }] });
+      const long = (n: number) => `${'Дуже-довге-імʼя-родича-'.repeat(2)}${n}`.slice(0, 40);
+      const tooLong = ['тато', 'мама', 'дід', long(1), long(2), long(3)];
+      expect(templateIssue('who', heroes, tooLong)).toEqual({ key: 'groupTplNeedNames' });
+      // Довгі імена поруч із короткими: випадкові набори можуть не влізти, але один варіант знайдеться завжди.
+      const mixed = [...tooLong, 'Оля', 'Іра', 'Петро'];
+      expect(templateIssue('who', heroes, mixed)).toBeNull();
+      for (let seed = 1; seed <= 20; seed++) {
+        const { question } = draftFrom('who', heroes, context(seed, { pool: mixed }));
+        if (question.type !== 'single') throw new Error(question.type);
+        expect(question.options.length, String(seed)).toBeGreaterThanOrEqual(2);
+        for (const option of question.options) expect(option.text.length).toBeLessThanOrEqual(120);
+        expect(valid(question)).toBe(true);
+      }
+    });
+
     it('several heroes: each wrong option has as many names', () => {
       const pair = item('i-pair', { text: 'Оля й Іра спекли пиріг', about: [{ kind: 'name', name: 'тато' }, { kind: 'name', name: 'бабуся Ніна' }] });
       const { question } = draftFrom('who', pair, context());
@@ -234,6 +251,15 @@ describe('group question templates (12l)', () => {
       const round = quiz.rounds[0]!;
       if (round.type !== 'classic') throw new Error(round.type);
       expect(problemsOf({ ...quiz, rounds: [{ ...round, questions: [question] }] }).join(' ')).toMatch(/підказку/);
+    });
+
+    it('more than six sentences: the first six become clues and a reminder says so', () => {
+      const many = item('m', { text: 'Раз. Два. Три. Чотири. П’ять. Шість. Сім. Вісім.', about: [{ kind: 'name', name: 'тато' }] });
+      const { question, notes } = draftFrom('whoami', many, context());
+      if (question.type !== 'clues') throw new Error(question.type);
+      expect(question.clues).toEqual(['Шість.', 'П’ять.', 'Чотири.', 'Три.', 'Два.', 'Раз.']);
+      expect(notes).toContainEqual({ key: 'groupNoteCluesCut', vars: { max: 6 } });
+      expect(keys(draftFrom('whoami', story, context()).notes)).not.toContain('groupNoteCluesCut');
     });
 
     it('a long sentence is clipped with «…»; several heroes get a reminder', () => {

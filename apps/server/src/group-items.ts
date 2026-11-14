@@ -177,6 +177,7 @@ export async function createItem(
     return { ok: true, row, members } as const;
   });
   if (!outcome.ok) return outcome;
+  // Новий запис ще ніде не використано (12l): uses порожній.
   return { ok: true, item: toView(outcome.row, outcome.members, authorId, 'member') };
 }
 
@@ -214,7 +215,9 @@ export async function updateItem(
     return { ok: true, row, members } as const;
   });
   if (!outcome.ok) return outcome;
-  return { ok: true, item: toView(outcome.row, outcome.members, userId, 'member') };
+  // Позначки «використано» лишаються після зміни запису (12l).
+  const uses = await usesOf(db, [itemId], userId);
+  return { ok: true, item: toView(outcome.row, outcome.members, userId, 'member', uses.get(itemId) ?? []) };
 }
 
 export async function deleteItem(

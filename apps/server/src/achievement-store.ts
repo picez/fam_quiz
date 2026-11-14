@@ -354,7 +354,11 @@ export async function syncAchievements(
   }
   const now = options.now ?? new Date();
   const careerAt = at ?? missed.at(-1) ?? null;
-  for (const id of careerEarned(facts)) want(id, careerAt?.earnedAt ?? now, careerAt?.gameId ?? null);
+  for (const id of careerEarned(facts)) {
+    // Ачівки не з ігор (12l) — завжди «зараз» і без гри, навіть якщо їх застала гра чи наздоганяння.
+    if (NOT_FROM_GAMES.has(id)) want(id, now, null);
+    else want(id, careerAt?.earnedAt ?? now, careerAt?.gameId ?? null);
+  }
 
   let fresh: AchievementId[] = [];
   if (pending.size > 0) {

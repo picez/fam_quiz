@@ -1547,6 +1547,7 @@
   "groupNoteBlankName": "Replace the hero's name in the text with “___” so it doesn't give the answer away.",
   "groupNoteClipped": "The record's text is longer than {max} characters — it has been shortened.",
   "groupNoteClues": "Add clues: at least {min} are needed.",
+  "groupNoteCluesCut": "The record has more than {max} sentences — the first {max} became clues.",
   "groupNoteDismiss": "Got it",
   "groupNoteFiction": "This is made up: the answer is “no”. Check that the swapped detail sounds natural.",
   "groupNoteLies": "Add spare fibs: at least {min} are needed.",

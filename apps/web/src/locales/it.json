@@ -1566,6 +1566,7 @@
   "groupNoteBlankName": "Sostituisci il nome del protagonista nel testo con «___», per non suggerire la risposta.",
   "groupNoteClipped": "Il testo della voce supera i {max} caratteri: è stato accorciato.",
   "groupNoteClues": "Aggiungi indizi: ne servono almeno {min}.",
+  "groupNoteCluesCut": "La voce ha più di {max} frasi: le prime {max} sono diventate indizi.",
   "groupNoteDismiss": "Capito",
   "groupNoteFiction": "È inventato: la risposta è «no». Controlla che il dettaglio sostituito suoni naturale.",
   "groupNoteLies": "Aggiungi invenzioni di riserva: ne servono almeno {min}.",

@@ -229,5 +229,10 @@ describe('group record uses in the list (12l)', () => {
     expect(forOlia.find((item) => item.id === fact.id)?.uses).toEqual([]);
     const forPetro = await listItems(db, id, petro, 'member');
     expect(forPetro.find((item) => item.id === surprise.id)?.uses).toMatchObject([{ mine: true }]);
+
+    // Зміна запису віддає його справжні позначки, а не порожній список.
+    const changed = await updateItem(db, id, story.id, olia, { ...base, kind: 'story', text: 'Як тато заблукав у лісі по гриби (і знайшовся)' }, later(40));
+    if (!changed.ok) throw new Error(changed.error);
+    expect(changed.item.uses).toEqual([{ quizId: made.id, title: 'Вікторина: Родина Квіткових', mine: false, at: later(30).toISOString() }]);
   });
 });

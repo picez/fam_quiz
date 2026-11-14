@@ -714,4 +714,30 @@ describe('«Літописець» from group records (12l)', () => {
     await read(petro);
     expect((await achievementsPage(db, petro, true))?.items.find((i) => i.id === 'chronicler')?.earned).toBe(true);
   });
+
+  it('a missed game does not claim it: the sync after the 20th record dates it now and ties it to no game', async () => {
+    const me = 'store-chronicler-missed';
+    await addUser(me, 'Оля');
+    await read(me);
+    await db.update(profile).set({ achievementsSyncedAt: new Date('2026-09-25T00:00:00Z') }).where(eq(profile.userId, me));
+    const missed = await playGame(me, new Date('2026-09-25T18:00:00Z'));
+    const group = await groupOf(me, 'Родина Квіткових');
+    await records(group, me, 20);
+    const at = new Date('2026-11-14T12:00:00Z');
+    const { earned } = await syncAchievements(db, me, null, { now: at });
+    expect(earned.get('first_game')?.gameId).toBe(missed.gameId);
+    expect(earned.get('chronicler')).toEqual({ earnedAt: at, gameId: null });
+  });
+
+  it('someone who already has 20 records gets it on the next sync after a game, without the game', async () => {
+    const me = 'store-chronicler-game';
+    await addUser(me, 'Петро');
+    await read(me);
+    const group = await groupOf(me, 'Друзі з двору');
+    await records(group, me, 20);
+    const played = await playGame(me, new Date('2026-10-01T18:00:00Z'));
+    const { earned } = await syncAchievements(db, me, { gameId: played.gameId, earnedAt: new Date('2026-10-01T18:30:00Z') });
+    expect(earned.get('chronicler')?.gameId).toBeNull();
+    expect(earned.get('chronicler')?.earnedAt?.toISOString()).not.toBe('2026-10-01T18:30:00.000Z');
+  });
 });
