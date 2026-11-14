@@ -140,6 +140,12 @@ describe('uk golden (22a)', () => {
   const ADDED_32_SW = ['swOfflineTitle', 'swOfflineBody', 'swOfflineRetry'];
   const ADDED_32_UI: string[] = ['netOffline', 'err_image_raw_too_large', 'netWeak', 'netWeakHint', 'answerPending'];
   const ADDED_32 = [...ADDED_32_UI, ...ADDED_32_SW];
+  const ADDED_34 = [
+    'pack_basic', 'pack_food', 'pack_party', 'pack_cozy', 'pack_animals', 'pack_everyday', 'pack_winter', 'pack_love', 'pack_hugs', 'pack_baking', 'pack_spooky', 'pack_mischief', 'pack_extra',
+    'reward_stickersOr', 'reward_effect', 'effect_light', 'effect_sparks', 'effect_flame', 'effect_frost', 'effect_stardust', 'effect_bolt', 'effect_shimmer',
+    'frame_glacier', 'frame_aurora', 'photo_sunflowers', 'photo_waves', 'photo_constellation', 'lookEffect', 'lookNoEffect', 'levelAllOpen',
+    'stickerPackLocked', 'stickerPackLockedOr', 'stickerPackMore', 'achievementStickers',
+  ];
   const ADDED_31 = ['easyModeLabel', 'easyModeHint', 'easyModeHintAccount', 'easyModeSaveFailed', 'familyLabel', 'familyHint', 'familyLobby', 'familyDebuffOff', 'familySpeechTip', 'speechToggle', 'speechResume', 'speechRepeat', 'speechUnsupported', 'speechNoVoice', 'speechMedia', 'speechOptions', 'speechBlank'];
   /** Множина 12k: форм, яких немає в мові, там і не треба; _one є в кожній — перевіряє ADDED_12K. */
   const ADDED_12K_PLURALS = ['groupPeople_few', 'groupPeople_many', 'groupItems_few', 'groupItems_many'];
@@ -161,7 +167,7 @@ describe('uk golden (22a)', () => {
   /** 27a: раунд «Ставки» — назва, пояснення, помилки, редактор, обріз, історія. */
   const ADDED_27A = ['roundTypeBets', 'roundHow_bets', 'buffWhy_off_bets', 'scoreSource_bets', 'err_bet_skipped', 'err_bet_range', 'summaryBetsMinimum', 'summaryBetsMinimumFlat', 'summaryBetsMax', 'summaryBetsAll', 'betsHistoryLine', 'betsQuestionOf', 'betsTeaserLabel', 'betsPrompt', 'betsPlace', 'betsMinimumButton', 'betsMine', 'betsSkipLow', 'betsSkipLate', 'betsWon', 'betsLost', 'betsRefunded', 'betsKeptNoBank', 'betStartLabel', 'betStepLabel', 'betMaxLabel', 'betMaxPlaceholder', 'betsMinimumsNote', 'betsCutLabel', 'betsCutNone', 'betsCutAll', 'betsCutPreview', 'betsCutPreviewNone', 'betsCutHidden', 'betsSettingsNote', 'problemBetsMax', 'problemBetsCut', 'betsBank', 'betsPlacedNames', 'betsNobodyYet', 'betsMinimumStage', 'betsMaximumStage', 'betsSkipping', 'betsOpen', 'betsHostCut', 'betsHostLimit', 'betsHostCannot', 'betsRefundStage', 'betsRowStake'];
   /** Після 22a свідомо змінені uk-тексти: посилання на друзів ведуть на сторінку «Друзі», а не в профіль. */
-  const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame'];
+  const CHANGED_LATER = ['feedEmptyLink', 'noFriendsToInvite', /* перший пункт меню веде на стартове меню — «Меню» */ 'menuJoin', 'menuShortJoin', /* 24d: «Рамка» стала «Рамка ніку», бо з'явилась рамка фото */ 'lookFrame', /* 34: стікери відкривають набори — назва набору й «рівень або досягнення» */ 'reward_stickers', 'err_sticker_locked'];
 
   it('keeps every uk text as it was before localisation', () => {
     const current: Record<string, string> = ukMessages;
@@ -201,6 +207,16 @@ describe('uk golden (22a)', () => {
     for (const key of ADDED_32) expect(ukMessages, key).toHaveProperty(key);
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_32_UI.filter((key) => !(key in dict)), lang).toEqual([]);
     for (const [lang, dict] of Object.entries(push)) expect(ADDED_32_SW.filter((key) => !(key in dict)), lang).toEqual([]);
+  });
+
+  it('34 keys are in every language, and reward_stickers names its pack by {name}', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    for (const key of ADDED_34) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_34.filter((key) => !(key in dict)), lang).toEqual([]);
+    for (const dict of [ukMessages as Record<string, string>, ...Object.values(locales)]) {
+      expect(dict.reward_stickers).toContain('{name}');
+      expect(dict.reward_stickers).not.toContain('{series}');
+    }
   });
 
   it('31 keys are in every language', () => {
@@ -289,7 +305,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_34.includes(key))).toEqual([]);
   });
 });
 

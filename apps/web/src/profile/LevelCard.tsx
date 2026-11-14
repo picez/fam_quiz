@@ -1,4 +1,4 @@
-import { LOOK_IDS, lookLevel, type LevelReward, type LookSlot, type NickFont, type NickLooks, type OwnLevel, type PhotoFrame, type ProfileCard } from '@quiz/shared';
+import { LOOK_IDS, lookLevel, PACK_ACHIEVEMENTS, type LevelReward, type LookSlot, type NickFont, type NickLooks, type OwnLevel, type PhotoFrame, type ProfileCard } from '@quiz/shared';
 import { useEffect, useId, useRef, useState } from 'react';
 import { saveLooks } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
@@ -10,10 +10,14 @@ import { AvatarFrame } from './AvatarFrame';
 /** Назва нагороди для списків «відкрито» й «далі». */
 export function rewardText(reward: LevelReward): string {
   switch (reward.kind) {
-    case 'stickers':
-      return t('reward_stickers', { series: reward.pack });
+    case 'stickers': {
+      // Набір за досягнення (34) відкривається й раніше — це видно в назві нагороди.
+      const name = t(`pack_${reward.pack}` as TextKey);
+      const by = PACK_ACHIEVEMENTS[reward.pack];
+      return by === undefined ? t('reward_stickers', { name }) : t('reward_stickersOr', { name, achievement: t(`achievement_${by}` as TextKey) });
+    }
     case 'effect':
-      return t(`effect_${reward.id}` as TextKey);
+      return t('reward_effect', { name: t(`effect_${reward.id}` as TextKey) });
     case 'color':
       return t('reward_color', { name: t(`color_${reward.id}` as TextKey) });
     case 'frame':
