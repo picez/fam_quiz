@@ -14,6 +14,10 @@ import type {
   FeedData,
   FeedKind,
   GameStatus,
+  GroupAboutStored,
+  GroupEmoji,
+  GroupItemKind,
+  GroupRole,
   Locale,
   LikeKind,
   LadderOutcomeKind,
@@ -669,4 +673,74 @@ export const adminAction = pgTable(
     details: jsonb('details').$type<AdminLogDetails>().notNull(),
   },
   (table) => [index('admin_action_at_idx').on(table.at)],
+);
+
+/** Група родини чи компанії (12k). Власник — рядок group_member з role 'owner'. */
+export const familyGroup = pgTable('family_group', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  emoji: text('emoji').$type<GroupEmoji>().notNull(),
+  description: text('description').notNull().default(''),
+  /** Код посилання /groups/join/<код>; «Нове посилання» замінює його. */
+  inviteCode: text('invite_code').notNull().unique(),
+  ...stamps,
+});
+
+export const groupMember = pgTable(
+  'group_member',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role').$type<GroupRole>().notNull(),
+    joinedAt: at('joined_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.groupId, table.userId] }),
+    index('group_member_user_idx').on(table.userId),
+    uniqueIndex('group_member_owner_idx').on(table.groupId).where(sql`role = 'owner'`),
+  ],
+);
+
+/** Запрошення від друга (12k): чекає, доки його не приймуть чи відхилять. */
+export const groupInvite = pgTable(
+  'group_invite',
+  {
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    invitedBy: text('invited_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.groupId, table.userId] }), index('group_invite_user_idx').on(table.userId)],
+);
+
+/** Запис групи (12k): факт, історія, цитата чи дата; основа запитань 12l. */
+export const groupItem = pgTable(
+  'group_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => familyGroup.id, { onDelete: 'cascade' }),
+    /** null — акаунт видалено; автор не в групі — «вже не в групі». */
+    authorId: text('author_id').references(() => user.id, { onDelete: 'set null' }),
+    kind: text('kind').$type<GroupItemKind>().notNull(),
+    text: text('text').notNull(),
+    /** До 5: { kind: 'member', userId, name } чи { kind: 'name', name }. */
+    about: jsonb('about').$type<GroupAboutStored[]>().notNull().default(sql`'[]'::jsonb`),
+    answer: text('answer'),
+    year: integer('year'),
+    photo: text('photo'),
+    /** Не бачать акаунти з about (крім автора). */
+    surprise: boolean('surprise').notNull().default(false),
+    ...stamps,
+  },
+  (table) => [index('group_item_group_idx').on(table.groupId, table.createdAt), index('group_item_author_idx').on(table.authorId)],
 );
