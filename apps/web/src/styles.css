@@ -22545,7 +22545,7 @@ input.sudoku-editor-cell:focus-visible {
   min-width: 0;
   margin: 0;
   font-size: 1.125rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .group-picker-head h2:focus {
   outline: none;
@@ -22657,6 +22657,12 @@ input.sudoku-editor-cell:focus-visible {
 @media (max-width: 700px) {
   .group-picker-backdrop {
     padding: 0;
+  }
+  .group-picker-head {
+    padding: 0.5rem 0.75rem;
+  }
+  .group-picker-head h2 {
+    font-size: 1rem;
   }
   .group-picker {
     width: 100%;

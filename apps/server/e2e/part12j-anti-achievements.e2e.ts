@@ -218,7 +218,7 @@ async function anti12j() {
   const publicProfile = (await (await olya.request.get(`${base}/api/profiles/${petroId}`)).json()) as PublicProfile;
   expect(publicProfile.achievements.map((a) => a.id)).not.toContain('in_debt');
   const publicPage = (await (await olya.request.get(`${base}/api/profiles/${petroId}/achievements`)).json()) as AchievementsPage;
-  expect(publicPage.total).toBe(54);
+  expect(publicPage.total).toBe(55);
   await expectNoSideScroll(olya, 'p12j-public-hidden');
 
   // ── 8. Профіль: свій у Петра й публічний очима Олі — без бічного скролу. ──
