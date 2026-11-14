@@ -2319,6 +2319,8 @@ export interface PaceWindow { from: number; until: number }
 export interface HostPace { next: PaceWindow | null; lock: PaceWindow | null; skip: PaceWindow | null }
 
 export interface HostView extends BaseView {
+  /** «Нові досягнення» (12j): у каруселі «Нагород гри» є слайд досягнень — кнопка показу потрібна й без нагород. Ставить сервер; немає — false. */
+  awardsExtra?: boolean;
   /** Оберіг гравців (15a): id гравця → готовий чи спрацював; ключа немає, коли оберегів немає. */
   wards?: Record<string, 'ready' | 'spent'>;
   role: 'host';

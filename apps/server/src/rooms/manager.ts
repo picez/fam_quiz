@@ -1352,7 +1352,9 @@ export class RoomManager {
   awards(room: Room): AckResult {
     if (!this.alive(room)) return this.gone();
     // Після фінішу рядка розкриття немає: revealOpen false — той самий кешований запис, що й у зрізах.
-    if (room.state.phase !== 'finished' || (gameFacts(room.state, false)?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
+    if (room.state.phase !== 'finished') return { ok: false, error: 'wrong_phase' };
+    // Слайд «Нові досягнення» (12j) теж слайд каруселі: без нагород гри він єдиний.
+    if ((gameFacts(room.state, false)?.awards ?? []).length === 0 && newAchievementsStage(room) === undefined) return { ok: false, error: 'wrong_phase' };
     const seq = ++room.awardsSeq;
     this.emit(room, { type: 'awards', seq });
     return { ok: true };
@@ -1391,19 +1393,21 @@ export class RoomManager {
     const levels = levelsView(room);
     // Лайки (17a) — лише телефону гравця; сцена й пульт їх не мають.
     const likes = identity.role === 'player' && identity.playerId !== null ? likesView(room, identity.playerId) : undefined;
-    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд; пульт — нічого.
-    const fresh =
-      identity.role === 'player' && identity.playerId !== null ? newAchievementsMine(room, identity.playerId) : identity.role === 'stage' ? newAchievementsStage(room) : undefined;
-    if (prizes === undefined && titles === undefined && levels === undefined && likes === undefined && fresh === undefined) return base;
     // Як continued (13b): ключа немає, коли порожньо.
-    return {
-      ...base,
+    const extra = {
       ...(prizes === undefined ? {} : { prizes }),
       ...(titles === undefined ? {} : { titles }),
       ...(levels === undefined ? {} : { levels }),
       ...(likes === undefined ? {} : { likes }),
-      ...(fresh === undefined ? {} : { newAchievements: fresh }),
-    } as GameView;
+    };
+    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — лише позначка, що слайд є (кнопка «Нагороди на сцені»).
+    if (base.role === 'player') {
+      const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
+      return { ...base, ...extra, ...(mine === undefined ? {} : { newAchievements: mine }) };
+    }
+    const slide = newAchievementsStage(room);
+    if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
+    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {

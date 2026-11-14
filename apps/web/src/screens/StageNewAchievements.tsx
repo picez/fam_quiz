@@ -14,13 +14,14 @@ export function StageNewAchievements({ stage }: { stage: NewAchievementsStage })
   return (
     <>
       <h1 className="question award-title">{t('stageNewAchievements')}</h1>
-      <ul className="stage-new-achievements">
+      {/* Понад 5 рядків — дрібніший шрифт; рядок завжди один: довга назва значка обрізається трикрапкою, а не переносить рядок. */}
+      <ul className={shown.length > 5 ? 'stage-new-achievements is-many' : 'stage-new-achievements'}>
         {shown.map((person, index) => (
           <li key={`${index}:${person.nickname}`} className="stage-new-achievements-row">
             <span className="stage-new-achievements-name">{person.nickname}</span>
             {person.ids.slice(0, BADGES).map((id) => (
               <span key={id} className={isAnti(id) ? 'stage-new-achievement is-anti' : 'stage-new-achievement'}>
-                <span aria-hidden="true">{ACHIEVEMENT_ICONS[id]}</span> {t(`achievement_${id}` as TextKey)}
+                <span aria-hidden="true">{ACHIEVEMENT_ICONS[id]}</span> <span className="stage-new-achievement-name">{t(`achievement_${id}` as TextKey)}</span>
               </span>
             ))}
             {person.ids.length > BADGES && <span className="stage-new-achievements-more">{t('stageNewAchievementsMore', { count: person.ids.length - BADGES })}</span>}

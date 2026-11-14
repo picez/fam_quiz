@@ -102,6 +102,19 @@ describe('«Нове досягнення!» in the room (12j)', () => {
     expect(phone(manager, room, members['Віра']).newAchievements).toEqual({ account: true, ids: ['team_win'] });
   });
 
+  it('a game without fact awards still has the slide: the host gets awardsExtra and «Нагороди на сцені» moves the stage', () => {
+    const w = world();
+    w.enter('Оля', 'u-olya');
+    finish(w.manager, w.room);
+    const host = () => w.manager.view(w.room, HOST) as unknown as Record<string, unknown>;
+    expect(w.manager.awards(w.room)).toEqual({ ok: false, error: 'wrong_phase' });
+    expect('awardsExtra' in host()).toBe(false);
+    w.manager.setNewAchievements(w.room, new Map([['u-olya', ['first_game']]]), new Set());
+    expect(host().awardsExtra).toBe(true);
+    expect(w.manager.awards(w.room)).toEqual({ ok: true });
+    expect(stage(w.manager, w.room).newAchievements).toEqual({ people: [{ nickname: 'Оля', ids: ['first_game'] }] });
+  });
+
   it('the room snapshot does not keep it; a restored room starts with null', () => {
     const w = world();
     w.enter('Оля', 'u-olya');

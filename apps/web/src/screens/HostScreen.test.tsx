@@ -3283,6 +3283,15 @@ describe('HostScreen: facts (12d)', () => {
     expect(screen.queryByRole('button', { name: 'Нагороди на сцені' })).toBeNull();
   });
 
+  it('without fact awards the «Нові досягнення» slide still gets the button (12j)', async () => {
+    const send = show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards: [] }, awardsExtra: true }));
+    fireEvent.click(button('Нагороди на сцені'));
+    await waitFor(() => expect(send).toHaveBeenCalledWith('host:awards', undefined));
+    cleanup();
+    show(view({ phase: 'finished', questionIndex: 1, standings, awardsExtra: true }));
+    expect(button('Нагороди на сцені')).toBeTruthy();
+  });
+
   it('a refused awards tap is explained', async () => {
     const send: Send = vi.fn(async () => ({ ok: false as const, error: 'not_allowed' }));
     show(view({ phase: 'finished', questionIndex: 1, standings, facts: { reveal: null, round: null, awards } }), send);

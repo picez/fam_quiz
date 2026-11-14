@@ -34,6 +34,17 @@ const ANSWERS: [string, string][] = [
   ['Чорне', 'Азовське'],
 ];
 
+/** Підміняє рядки слайда «Нові досягнення» на 8 «важких»: довгі ніки, три найдовші назви значків (одна — анти) і «+4». */
+const HEAVY_SLIDE = `(() => {
+  const list = document.querySelector('.stage-new-achievements');
+  list.classList.add('is-many');
+  const names = ['Парасолька в сонячний день', 'Хтось мусить бути останнім', 'Ризик — справа шляхетна'];
+  list.innerHTML = Array.from({ length: 8 }, (_, i) =>
+    '<li class="stage-new-achievements-row"><span class="stage-new-achievements-name">Олександра-Марія ' + (i + 1) + '</span>' +
+    names.map((name, k) => '<span class="stage-new-achievement' + (k === 0 ? ' is-anti' : '') + '"><span aria-hidden="true">🏅</span> <span class="stage-new-achievement-name">' + name + '</span></span>').join('') +
+    '<span class="stage-new-achievements-more">+4</span></li>').join('');
+})()`;
+
 /** Картка досягнення з назвою name на сторінці досягнень; заголовок закритої ще й має «, ще не отримано». */
 const achievementCard = (page: Page, name: string) =>
   page.locator('.achievement-card', { has: page.getByRole('heading', { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*, ще не отримано)?$`) }) });
@@ -165,6 +176,15 @@ async function anti12j() {
   await expectStageFits(stage, 'p12j-stage-new');
   await expectStageInView(stage, 'p12j-stage-new');
   await shot(stage, 'p12j-stage-new');
+
+  // Важкий випадок (перевірка верстки справжніми стилями): 8 людей з довгими ніками, по 3 найдовші назви й «+N».
+  await stage.evaluate(HEAVY_SLIDE);
+  expect(await slide.locator('.stage-new-achievements-row').count()).toBe(8);
+  const overflow = (await stage.evaluate(`[...document.querySelectorAll('.stage-new-achievements-row')].some((row) => row.scrollWidth > row.clientWidth + 1 && getComputedStyle(row).overflow !== 'visible')`)) as boolean;
+  expect(overflow).toBe(false);
+  await expectStageFits(stage, 'p12j-stage-heavy');
+  await expectStageInView(stage, 'p12j-stage-heavy');
+  await shot(stage, 'p12j-stage-heavy');
 
   // ── 6. Сторінка досягнень Петра: група «Антидосягнення» остання, «У мінусі» отримано в червонуватій рамці. ──
   await petro.goto(`${base}/profile/achievements`);
