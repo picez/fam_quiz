@@ -744,3 +744,18 @@ export const groupItem = pgTable(
   },
   (table) => [index('group_item_group_idx').on(table.groupId, table.createdAt), index('group_item_author_idx').on(table.authorId)],
 );
+
+/** Запис групи, використаний у вікторині (12l): «використано у «…»». Зникає з вікториною чи записом. */
+export const groupItemUse = pgTable(
+  'group_item_use',
+  {
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => groupItem.id, { onDelete: 'cascade' }),
+    quizId: uuid('quiz_id')
+      .notNull()
+      .references(() => quiz.id, { onDelete: 'cascade' }),
+    createdAt: at('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.itemId, table.quizId] }), index('group_item_use_quiz_idx').on(table.quizId)],
+);

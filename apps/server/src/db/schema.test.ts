@@ -466,3 +466,62 @@ describe('groups (12k)', () => {
     expect(await db.select().from(groupItem)).toEqual([]);
   });
 });
+
+describe('group item uses (12l)', () => {
+  const groupId = '55555555-5555-4555-8555-555555555555';
+
+  async function seed() {
+    const { familyGroup, groupItem, groupMember } = await import('./schema');
+    const db = await createTestDb();
+    await db.insert(user).values({ id: 'u1', name: 'Оля', email: 'olia@example.com' });
+    await db.insert(familyGroup).values({ id: groupId, name: 'Родина Квіткових', emoji: '🌻', inviteCode: 'abcdefghjm' });
+    await db.insert(groupMember).values({ groupId, userId: 'u1', role: 'owner', joinedAt: new Date() });
+    const [item] = await db.insert(groupItem).values({ groupId, authorId: 'u1', kind: 'story', text: 'Як тато заблукав у лісі по гриби' }).returning();
+    const source = makeQuiz([single]);
+    const [made] = await db
+      .insert(quiz)
+      .values({ ownerId: 'u1', title: 'Вікторина: Родина Квіткових', description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    return { db, itemId: item.id, quizId: made.id };
+  }
+
+  it('migration 0034 adds group_item_use over an older database, group records stay', async () => {
+    const { db, migrateRest } = await createTestDbUpTo('0033_groups');
+    await db.insert(user).values({ id: 'u1', name: 'Оля', email: 'olia@example.com' });
+    await db.execute(sql`INSERT INTO "family_group" ("id", "name", "emoji", "invite_code") VALUES (${groupId}, 'Родина Квіткових', '🌻', 'abcdefghjm')`);
+    await db.execute(sql`INSERT INTO "group_item" ("group_id", "author_id", "kind", "text") VALUES (${groupId}, 'u1', 'story', 'Як тато заблукав у лісі по гриби')`);
+    const source = makeQuiz([single]);
+    await db.insert(quiz).values({ ownerId: 'u1', title: 'T', description: '', settings: source.settings, rounds: source.rounds });
+
+    await migrateRest();
+
+    const { groupItem, groupItemUse } = await import('./schema');
+    expect(await db.select().from(groupItemUse)).toEqual([]);
+    expect((await db.select().from(groupItem)).map((r) => r.text)).toEqual(['Як тато заблукав у лісі по гриби']);
+  });
+
+  it('one mark per record and quiz', async () => {
+    const { groupItemUse } = await import('./schema');
+    const { db, itemId, quizId } = await seed();
+    await db.insert(groupItemUse).values({ itemId, quizId, createdAt: new Date() });
+    await expect(db.insert(groupItemUse).values({ itemId, quizId, createdAt: new Date() })).rejects.toThrow();
+  });
+
+  it('marks go with the quiz, the record or the group', async () => {
+    const { familyGroup, groupItem, groupItemUse } = await import('./schema');
+    let { db, itemId, quizId } = await seed();
+    await db.insert(groupItemUse).values({ itemId, quizId, createdAt: new Date() });
+    await db.delete(quiz).where(eq(quiz.id, quizId));
+    expect(await db.select().from(groupItemUse)).toEqual([]);
+
+    ({ db, itemId, quizId } = await seed());
+    await db.insert(groupItemUse).values({ itemId, quizId, createdAt: new Date() });
+    await db.delete(groupItem).where(eq(groupItem.id, itemId));
+    expect(await db.select().from(groupItemUse)).toEqual([]);
+
+    ({ db, itemId, quizId } = await seed());
+    await db.insert(groupItemUse).values({ itemId, quizId, createdAt: new Date() });
+    await db.delete(familyGroup).where(eq(familyGroup.id, groupId));
+    expect(await db.select().from(groupItemUse)).toEqual([]);
+  });
+});
