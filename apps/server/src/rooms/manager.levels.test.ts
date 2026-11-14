@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { classicRound, makeRoundsQuiz, single, withId } from '@quiz/engine/testing';
-import { defaultTeams, STICKERS, type NickLevel, type Question, type Quiz, type QuizSettings, type ReactionItem, type StickerSeries } from '@quiz/shared';
+import { defaultTeams, STICKERS_BY_PACK, type NickLevel, type Question, type Quiz, type QuizSettings, type ReactionItem, type StickerPackId } from '@quiz/shared';
 import { FakeScheduler } from '../testing/fake-scheduler';
 import { startTeamGame } from '../testing/team-game';
 import type { SavedGameData } from './continuation';
@@ -17,7 +17,9 @@ function levelQuiz(settings: Partial<QuizSettings> = {}): Quiz {
 }
 
 const lv = (level: number, color: NickLevel['color'] = null, frame: NickLevel['frame'] = null, font: NickLevel['font'] = null): NickLevel => ({ level, color, frame, font });
-const sticker = (series: StickerSeries): ReactionItem => ({ kind: 'sticker', value: STICKERS.find((s) => s.series === series)!.id });
+/** Стікер набору поза давньою серією nya (її мають усі, 34). */
+const sticker = (pack: StickerPackId): ReactionItem => ({ kind: 'sticker', value: STICKERS_BY_PACK[pack].find((s) => s.series !== 'nya')!.id });
+const byId = (value: string): ReactionItem => ({ kind: 'sticker', value });
 
 function world(quiz: Quiz = levelQuiz()) {
   const scheduler = new FakeScheduler();
@@ -204,13 +206,13 @@ describe('levels in the room (15a)', () => {
     while (w.room.state.phase !== 'reveal') expect(w.manager.host(w.room, { type: 'next' })).toEqual({ ok: true });
     const reactions = () => w.events.filter((e) => e.event.type === 'reaction').length;
     const before = reactions();
-    expect(w.manager.react(w.room, three, sticker('nyas'))).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(w.manager.react(w.room, three, sticker('party'))).toEqual({ ok: false, error: 'sticker_locked' });
     // Відмова не займає вікно частоти: дозволена реакція одразу після неї проходить.
-    expect(w.manager.react(w.room, three, sticker('nyaa'))).toEqual({ ok: true });
-    expect(w.manager.react(w.room, six, sticker('nyas'))).toEqual({ ok: true });
-    expect(w.manager.react(w.room, guest, sticker('nyaa'))).toEqual({ ok: false, error: 'sticker_locked' });
-    expect(w.manager.react(w.room, guest, sticker('nya'))).toEqual({ ok: true });
-    expect(w.manager.react(w.room, 'host', sticker('other'))).toEqual({ ok: true });
+    expect(w.manager.react(w.room, three, sticker('food'))).toEqual({ ok: true });
+    expect(w.manager.react(w.room, six, sticker('party'))).toEqual({ ok: true });
+    expect(w.manager.react(w.room, guest, sticker('food'))).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(w.manager.react(w.room, guest, sticker('basic'))).toEqual({ ok: true });
+    expect(w.manager.react(w.room, 'host', sticker('extra'))).toEqual({ ok: true });
     expect(reactions()).toBe(before + 4);
     // Швидкі емодзі — усім.
     w.scheduler.advance(10_000);
@@ -233,7 +235,47 @@ describe('levels in the room (15a)', () => {
     while (phase() !== 'question') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
     expect(manager.host(room, { type: 'lock' })).toEqual({ ok: true });
     while (phase() !== 'reveal') expect(manager.host(room, { type: 'next' })).toEqual({ ok: true });
-    expect(manager.react(room, members['Петро']!, sticker('other'))).toEqual({ ok: false, error: 'sticker_locked' });
-    expect(manager.react(room, members['Оля']!, sticker('other'))).toEqual({ ok: true });
+    expect(manager.react(room, members['Петро']!, sticker('hugs'))).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(manager.react(room, members['Оля']!, sticker('hugs'))).toEqual({ ok: true });
+  });
+
+  it('34: achievement packs and the inherited level open stickers on the server; guests keep series nya', () => {
+    const w = world();
+    const ten = w.enter('Ганна', 'u1');
+    const old = w.enter('Іван', 'u2');
+    const guest = w.enter('Гість', null);
+    w.manager.setLevels(w.room, new Map([['u1', lv(10)], ['u2', lv(1)]]));
+    expect(w.manager.host(w.room, { type: 'start' })).toEqual({ ok: true });
+    w.toQuestion();
+    for (const id of [ten, old, guest]) w.manager.answer(w.room, id, { type: 'single', optionId: 'b' });
+    if (w.room.state.phase === 'question') expect(w.manager.host(w.room, { type: 'lock' })).toEqual({ ok: true });
+    while (w.room.state.phase !== 'reveal') expect(w.manager.host(w.room, { type: 'next' })).toEqual({ ok: true });
+    const later = () => w.scheduler.advance(10_000);
+    expect(w.manager.react(w.room, ten, sticker('spooky'))).toEqual({ ok: false, error: 'sticker_locked' });
+    w.manager.setStickerAccess(w.room, new Map([['u1', { packs: ['spooky'] }], ['u2', { legacyLevel: 6 }]]));
+    expect(w.manager.react(w.room, ten, sticker('spooky'))).toEqual({ ok: true });
+    // Іван мав рівень 6 при переході: серія nyas лишилась, хоч «Свято» відкривається з 6-го, а «Затишок» — з 9-го.
+    const cozyNyas = STICKERS_BY_PACK.cozy.find((s) => s.series === 'nyas')!.id;
+    expect(w.manager.react(w.room, old, byId(cozyNyas))).toEqual({ ok: true });
+    later();
+    expect(w.manager.react(w.room, old, sticker('extra'))).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(w.manager.react(w.room, guest, byId('nyaBeach'))).toEqual({ ok: true });
+    later();
+    expect(w.manager.react(w.room, guest, byId(cozyNyas))).toEqual({ ok: false, error: 'sticker_locked' });
+    expect(w.manager.react(w.room, 'host', sticker('mischief'))).toEqual({ ok: true });
+  });
+
+  it('34: setLevels carries the effect and notices when only the effect changes', () => {
+    const w = world();
+    w.enter('Оля', 'u1');
+    w.manager.setLevels(w.room, new Map([['u1', lv(31)]]));
+    expect('effect' in w.room.levels.get('u1')!).toBe(false);
+    const changed = () => w.events.filter((e) => e.event.type === 'changed').length;
+    const before = changed();
+    w.manager.setLevels(w.room, new Map([['u1', { ...lv(31), effect: 'flame' }]]));
+    expect(changed()).toBe(before + 1);
+    expect(levelsView(w.room)).toEqual({ Оля: { ...lv(31), effect: 'flame' } });
+    w.manager.setLevels(w.room, new Map([['u1', { ...lv(31), effect: 'flame' }]]));
+    expect(changed()).toBe(before + 1);
   });
 });

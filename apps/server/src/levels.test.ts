@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import type { NickLevel } from '@quiz/shared';
-import { user } from './db/schema';
+import { profile, user, userAchievement } from './db/schema';
+import { eq } from 'drizzle-orm';
 import { attachLevels } from './levels';
 import { RoomManager } from './rooms/manager';
 import { FakeScheduler } from './testing/fake-scheduler';
@@ -73,5 +74,20 @@ describe('levels of accounts in the room', () => {
     await w.levels.idle();
     expect(setLevels).not.toHaveBeenCalled();
     expect(w.errors).toEqual([]);
+  });
+
+  it('34: the same read brings sticker access — achievement packs and the inherited level', async () => {
+    const w = await world();
+    await w.db.insert(profile).values({ userId: 'u2' }).onConflictDoNothing();
+    await w.db.update(profile).set({ stickersLegacyLevel: 6 }).where(eq(profile.userId, 'u2'));
+    await w.db.insert(userAchievement).values({ userId: 'u2', achievementId: 'night_owl', earnedAt: new Date() });
+    const joined = w.manager.join(w.room.code, 'Оля', 'u2');
+    if (!joined.ok) throw new Error(joined.error);
+    await w.levels.idle();
+    expect(w.errors).toEqual([]);
+    expect(w.room.levels.get('u2')).toMatchObject({ level: 1 });
+    expect(w.room.stickerAccess.get('u2')).toEqual({ packs: ['spooky'], legacyLevel: 6 });
+    // Лише серверне: у зрізі доступу немає.
+    expect(JSON.stringify(w.manager.view(w.room, STAGE))).not.toContain('legacyLevel');
   });
 });

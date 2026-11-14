@@ -7,7 +7,7 @@ import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { givenLikes, receivedLikes } from './like-store';
 import { versusOf } from './versus';
-import { saveLooks } from './xp-store';
+import { saveLooks, stickerAccessOne } from './xp-store';
 import { ensureProfile, favoriteStickers, findByNickname, friendsOf, ownProfile, publicProfile, saveEasy, saveFavoriteStickers, saveLocale, saveProfile, searchProfiles, setFollow } from './profiles';
 
 export interface ProfileDeps {
@@ -47,7 +47,9 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
   app.get('/api/me/stickers', async (request, reply) => {
     const user = await currentUser(request);
     if (user === null) return reply.code(401).send(UNAUTHORIZED);
-    return { favorites: await favoriteStickers(db, user.id) };
+    // 34: ще й набори за досягнення та рівень успадкування — клієнт закриває рівно те, що відкине сервер.
+    const access = await stickerAccessOne(db, user.id);
+    return { favorites: await favoriteStickers(db, user.id), packs: access.packs ?? [], legacyLevel: access.legacyLevel ?? null };
   });
 
   app.put('/api/me/stickers', async (request, reply) => {
