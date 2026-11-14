@@ -1,16 +1,17 @@
 import { ACHIEVEMENTS } from '@quiz/shared';
-import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from '@quiz/engine/testing';
+import { blitzRound, classicRound, makeRoundsQuiz, melody, single, slider, withId } from '@quiz/engine/testing';
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
 import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
-import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
+import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import * as history from './history';
 import { publicProfile, setFollow } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
-import { createTestDb } from './testing/test-db';
+import { createTestDb, createTestDbUpTo } from './testing/test-db';
+import { creditAchievements } from './xp-store';
 
 vi.mock('./achievement-games', async (importOriginal) => {
   const original = await importOriginal<typeof import('./achievement-games')>();
@@ -28,6 +29,7 @@ vi.mock('./history', async (importOriginal) => {
 });
 
 const HOST = 'store-host';
+const range = (n: number) => [...Array(n).keys()];
 
 let db: Db;
 
@@ -292,7 +294,7 @@ describe('reading', () => {
 });
 
 describe('achievements page', () => {
-  it('own: all 71 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
+  it('own: all 102 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
     const me = 'store-page';
     await addUser(me, 'Яна');
     await playGame(me, new Date('2026-09-12T18:00:00Z'));
@@ -630,7 +632,7 @@ describe('career counters and the history refill of 12j', () => {
 });
 
 describe('hiding anti-achievements (12j)', () => {
-  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 55', async () => {
+  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 83', async () => {
     const me = 'store-hide';
     await addUser(me, 'Ліна');
     await read(me);
@@ -644,12 +646,12 @@ describe('hiding anti-achievements (12j)', () => {
     const theirs = await achievementsPage(db, me, false);
     expect(theirs?.items.map((i) => i.id)).toEqual(['first_game']);
     expect(theirs?.earned).toBe(1);
-    expect(theirs?.total).toBe(55);
+    expect(theirs?.total).toBe(83);
     expect(theirs).not.toHaveProperty('hideAnti');
 
     const own = await achievementsPage(db, me, true);
     expect(own?.hideAnti).toBe(true);
-    expect(own?.total).toBe(71);
+    expect(own?.total).toBe(102);
     expect(own?.items.filter((i) => i.earned).map((i) => i.id)).toEqual(expect.arrayContaining(['first_game', 'in_debt']));
 
     const other = 'store-hide-not';
@@ -658,7 +660,7 @@ describe('hiding anti-achievements (12j)', () => {
     expect([...(await antiHidden(db, [me, other, 'store-nobody']))]).toEqual([me]);
     expect(await antiHidden(db, [])).toEqual(new Set());
     expect(await setHideAnti(db, me, false)).toBe(false);
-    expect((await achievementsPage(db, me, false))?.total).toBe(71);
+    expect((await achievementsPage(db, me, false))?.total).toBe(102);
   });
 });
 
@@ -739,5 +741,121 @@ describe('«Літописець» from group records (12l)', () => {
     const { earned } = await syncAchievements(db, me, { gameId: played.gameId, earnedAt: new Date('2026-10-01T18:30:00Z') });
     expect(earned.get('chronicler')?.gameId).toBeNull();
     expect(earned.get('chronicler')?.earnedAt?.toISOString()).not.toBe('2026-10-01T18:30:00.000Z');
+  });
+});
+
+describe('33: «Марафон за пультом» for the host', () => {
+  const marathon = (hostId: string, startedAt: Date, players: SeedPlayer[], autopilot = false) =>
+    seedGame(db, { hostId, autopilot, startedAt, finishedAt: new Date(startedAt.getTime() + 3 * 3600_000), questionsPlayed: 50, players });
+
+  it('awardGame gives the host host_marathon with the game date, the players do not get it', async () => {
+    const host = 'store-marathon-host';
+    const player = 'store-marathon-player';
+    await addUser(host, 'Ведуча марафону');
+    await addUser(player, 'Гравчиня');
+    const { gameId } = await marathon(host, new Date('2026-09-20T15:00:00Z'), [{ userId: player, nickname: 'Гравчиня', score: 0, rank: 1 }, guest]);
+    const awarded = await awardGame(db, gameId);
+    expect(awarded.get(host)).toContain('host_marathon');
+    expect(awarded.get(player)).not.toContain('host_marathon');
+    const row = (await rowsOf(host)).find((r) => r.achievementId === 'host_marathon');
+    expect(row?.earnedAt?.toISOString()).toBe('2026-09-20T18:00:00.000Z');
+    expect(row?.gameId).toBe(gameId);
+    expect((await rowsOf(player)).map((r) => r.achievementId)).not.toContain('host_marathon');
+  });
+
+  it('the history fill-in writes host_marathon «long ago» for an old hosted game, but not for an autopilot one', async () => {
+    const host = 'store-marathon-old';
+    const bot = 'store-marathon-bot';
+    await addUser(host, 'Давня ведуча');
+    await addUser(bot, 'Автопілотниця');
+    const { gameId } = await marathon(host, new Date('2026-08-01T15:00:00Z'), [guest]);
+    await marathon(bot, new Date('2026-08-02T15:00:00Z'), [guest], true);
+    const { earned } = await read(host);
+    expect(earned.get('host_marathon')).toEqual({ earnedAt: null, gameId });
+    expect((await read(bot)).earned.has('host_marathon')).toBe(false);
+  });
+
+  it('catching up a missed hosted game after the mark gives host_marathon with its date', async () => {
+    const host = 'store-marathon-missed';
+    await addUser(host, 'Ведуча з пропуском');
+    await read(host);
+    const { gameId } = await marathon(host, new Date(Date.now() + 60_000), [guest]);
+    const { earned } = await read(host);
+    expect(earned.get('host_marathon')?.gameId).toBe(gameId);
+    expect(earned.get('host_marathon')?.earnedAt).not.toBeNull();
+  });
+});
+
+describe('33: history fill-in', () => {
+  it('migration 0036 resets the mark: the next read writes the new achievements of past games «long ago», with XP and without the banner', async () => {
+    const { db: old, migrateRest } = await createTestDbUpTo('0035_easy_mode');
+    const me = 'fill33-olya';
+    const host = 'fill33-host';
+    await old.insert(user).values([
+      { id: me, name: 'Оля', email: 'fill33-olya@example.com' },
+      { id: host, name: 'Ведуча', email: 'fill33-host@example.com' },
+    ]);
+    const singles = range(5).map((i) => withId(single, `f${i}`));
+    const tune = { ...melody, id: 'fm' };
+    const snapshot = makeRoundsQuiz([classicRound('c1', singles), classicRound('c2', [tune])]);
+    const plays = [...singles.map((q) => ({ roundIndex: 0, questionId: q.id })), { roundIndex: 1, questionId: tune.id }];
+    const startedAt = new Date('2026-10-01T18:00:00Z');
+    const { gameId } = await seedGame(old, {
+      hostId: host,
+      startedAt,
+      finishedAt: new Date('2026-10-01T19:00:00Z'),
+      snapshot,
+      questionsPlayed: 6,
+      plays,
+      players: [
+        {
+          userId: me,
+          nickname: 'Оля',
+          score: 1600,
+          rank: 1,
+          rows: [
+            ...singles.map((_, i) => ({ questionIndex: i, accepted: true, points: 100, payload: { type: 'single' as const, optionId: 'b' }, timeMs: 5000 })),
+            { questionIndex: 5, roundIndex: 1, accepted: true, points: 1000, payload: { type: 'melody' as const, value: 'Щедрик', heard: 1 }, timeMs: 6000 },
+          ],
+        },
+        { ...guest, rows: [{ questionIndex: 0, accepted: false, points: 0, payload: { type: 'single', optionId: 'a' }, timeMs: 7000 }] },
+      ],
+    });
+    // До плану 33: історію вже доповнено (мітка є), записано first_game і sniper.
+    const before = new Date('2026-10-02T10:00:00Z');
+    await old.insert(profile).values({ userId: me, achievementsSyncedAt: before });
+    await old.insert(userAchievement).values([
+      { userId: me, achievementId: 'first_game', earnedAt: null, gameId: null },
+      { userId: me, achievementId: 'sniper', earnedAt: new Date('2026-10-01T19:00:00Z'), gameId },
+    ]);
+    await creditAchievements(old, me);
+    const xpOf = async (ids: string[]) =>
+      (await old.select({ id: xpEntry.achievementId, amount: xpEntry.amount }).from(xpEntry).where(eq(xpEntry.userId, me))).filter((e) => ids.includes(e.id ?? '')).reduce((sum, e) => sum + e.amount, 0);
+    expect(await xpOf(['first_note', 'classic_clean'])).toBe(0);
+
+    await migrateRest();
+    const [mark] = await old.select({ at: profile.achievementsSyncedAt }).from(profile).where(eq(profile.userId, me));
+    expect(mark?.at).toBeNull();
+
+    const { earned } = await syncAchievements(old, me, null);
+    expect(earned.get('first_note')).toEqual({ earnedAt: null, gameId });
+    expect(earned.get('classic_clean')).toEqual({ earnedAt: null, gameId });
+    const stored = await old.select().from(userAchievement).where(eq(userAchievement.userId, me));
+    expect(stored.find((r) => r.achievementId === 'first_note')).toMatchObject({ earnedAt: null, gameId });
+    expect(stored.find((r) => r.achievementId === 'classic_clean')).toMatchObject({ earnedAt: null, gameId });
+    expect(stored.find((r) => r.achievementId === 'first_game')).toMatchObject({ earnedAt: null, gameId: null });
+    expect(stored.find((r) => r.achievementId === 'sniper')?.earnedAt?.toISOString()).toBe('2026-10-01T19:00:00.000Z');
+    const [after] = await old.select({ at: profile.achievementsSyncedAt }).from(profile).where(eq(profile.userId, me));
+    expect(after?.at).toBeInstanceOf(Date);
+
+    // Досвід за «давні» нараховується за рідкістю (обидва rare, по 50).
+    await creditAchievements(old, me);
+    expect(await xpOf(['first_note', 'classic_clean'])).toBe(100);
+
+    // Наступна гра: «Нове досягнення!» показує лише датовані нею, а не «давні».
+    const next = await seedGame(old, { hostId: host, startedAt: new Date(Date.now() + 60_000), players: [{ userId: me, nickname: 'Оля', score: 0, rank: 1 }, guest] });
+    const awarded = (await awardGame(old, next.gameId)).get(me) ?? [];
+    expect(awarded).not.toContain('first_note');
+    expect(awarded).not.toContain('classic_clean');
   });
 });

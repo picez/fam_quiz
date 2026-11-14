@@ -196,7 +196,7 @@ describe('profile facts', () => {
     // 12i: відповіді в тесті миттєві, тож Олена має й «Швидкі пальці» (правильна швидше ніж за 2 с) — якщо час відповіді
     // не вийшов рівно 0 мс (відкриття й відповідь в одну мілісекунду; «Швидкі пальці» вимагають час > 0).
     expect(earned(olena.achievements).filter((id) => id !== 'fast_answer')).toEqual(['first_game', 'first_win']);
-    expect(olena.achievements).toHaveLength(71);
+    expect(olena.achievements).toHaveLength(102);
     // 12i: дата — ISO-мить отримання (гра записана й нагороджена) чи null для неотриманих.
     expect(olena.achievements.map((a) => a.id)).toEqual([...ACHIEVEMENTS]);
     for (const a of olena.achievements) expect(a.earnedAt === null || !Number.isNaN(Date.parse(a.earnedAt))).toBe(true);
@@ -344,9 +344,9 @@ describe('profile facts', () => {
       title: `Гра ${i}`,
       quizSnapshot: {},
       questionsPlayed: 0,
-      // Удень за Києвом (12i): нічні ігри дали б ще й «Нічну сову».
-      startedAt: new Date(Date.UTC(2026, 0, 1, 10, i)),
-      finishedAt: new Date(Date.UTC(2026, 0, 1, 11, i)),
+      // Удень за Києвом (12i): нічні ігри дали б ще й «Нічну сову»; не 1 січня (33): інакше ще й «Святковий настрій».
+      startedAt: new Date(Date.UTC(2026, 0, 2, 10, i)),
+      finishedAt: new Date(Date.UTC(2026, 0, 2, 11, i)),
     }));
     await db.insert(game).values(games);
     await db.insert(participant).values(

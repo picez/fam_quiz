@@ -10,9 +10,9 @@ export const LEVEL_XP = { join: 50, correct: 10, place: [100, 60, 30], dailyCap:
 export const ACHIEVEMENT_XP = { common: 25, rare: 50, epic: 100 } as const;
 export type AchievementRarity = keyof typeof ACHIEVEMENT_XP;
 
-/** Рідкості в 12i немає, тож вона тут: антидосягнення (12j) — common, решта ачівок — rare. */
-export const COMMON_ACHIEVEMENTS: readonly AchievementId[] = ['first_game', 'first_win', 'host', 'games_10', 'streak_5', 'fast_answer', 'early_bird', 'night_owl'];
-export const EPIC_ACHIEVEMENTS: readonly AchievementId[] = ['games_100', 'wins_10', 'host_10', 'streak_10', 'perfect_game', 'win_streak_3', 'ladder_top', 'all_rounds', 'all_types', 'podium_10', 'veteran'];
+/** Рідкості в 12i немає, тож вона тут: антидосягнення (12j) — common, решта ачівок — rare. План 33: +4 common (single_ten, sold, crossword_full, holiday), +2 epic (buffet, elephant_memory). */
+export const COMMON_ACHIEVEMENTS: readonly AchievementId[] = ['first_game', 'first_win', 'host', 'games_10', 'streak_5', 'fast_answer', 'early_bird', 'night_owl', 'single_ten', 'sold', 'crossword_full', 'holiday'];
+export const EPIC_ACHIEVEMENTS: readonly AchievementId[] = ['games_100', 'wins_10', 'host_10', 'streak_10', 'perfect_game', 'win_streak_3', 'ladder_top', 'all_rounds', 'all_types', 'podium_10', 'veteran', 'buffet', 'elephant_memory'];
 
 export function achievementRarity(id: AchievementId): AchievementRarity {
   if (COMMON_ACHIEVEMENTS.includes(id) || isAnti(id)) return 'common';

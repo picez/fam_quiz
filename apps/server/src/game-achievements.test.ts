@@ -53,16 +53,19 @@ function fakeGame(patch: Partial<AchievementGame> = {}): AchievementGame {
   return {
     gameId: 'g1',
     status: 'finished',
+    hostId: 'u-host',
+    autopilot: false,
     startedAt: new Date('2026-10-29T09:00:00Z'),
     finishedAt: new Date('2026-10-29T10:00:00Z'),
     questionsPlayed: questions.length,
     teams: false,
     players: [
-      { participantId: P, userId: 'u-olya', members: [], rank: 1, score: 500 },
-      { participantId: 'p-petro', userId: null, members: [], rank: 2, score: 100 },
+      { participantId: P, userId: 'u-olya', nickname: '', members: [], rank: 1, score: 500 },
+      { participantId: 'p-petro', userId: null, nickname: '', members: [], rank: 2, score: 100 },
     ],
     rows: [],
     adjustments: [],
+    questRounds: [],
     appeals: [],
     answerer: null,
     ...patch,
@@ -141,8 +144,8 @@ describe('gameAchievements: sniper', () => {
       teams: true,
       questions: ten,
       players: [
-        { participantId: 'team-a', userId: null, members: [{ participantId: 'm-olya', userId: 'u-olya' }, { participantId: 'm-vira', userId: 'u-vira' }], rank: 1, score: 900 },
-        { participantId: 'team-b', userId: null, members: [], rank: 2, score: 100 },
+        { participantId: 'team-a', userId: null, nickname: '', members: [{ participantId: 'm-olya', userId: 'u-olya', nickname: '' }, { participantId: 'm-vira', userId: 'u-vira', nickname: '' }], rank: 1, score: 900 },
+        { participantId: 'team-b', userId: null, nickname: '', members: [], rank: 2, score: 100 },
       ],
       rows: range(10).map((i) => row(i, { participantId: 'team-a', answeredBy: 'm-olya', accepted: i !== 3 })),
     });
@@ -206,8 +209,8 @@ describe('gameAchievements: outcome', () => {
     fakeGame({
       teams: true,
       players: [
-        { participantId: 'team-a', userId: null, members: [{ participantId: 'm-olya', userId: 'u-olya' }, { participantId: 'm-vira', userId: 'u-vira' }], rank: 1, score: 900 },
-        { participantId: 'team-b', userId: null, members: [{ participantId: 'm-petro', userId: 'u-petro' }], rank: 2, score: 100 },
+        { participantId: 'team-a', userId: null, nickname: '', members: [{ participantId: 'm-olya', userId: 'u-olya', nickname: '' }, { participantId: 'm-vira', userId: 'u-vira', nickname: '' }], rank: 1, score: 900 },
+        { participantId: 'team-b', userId: null, nickname: '', members: [{ participantId: 'm-petro', userId: 'u-petro', nickname: '' }], rank: 2, score: 100 },
       ],
       ...patch,
     });

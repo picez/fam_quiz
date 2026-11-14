@@ -9,7 +9,7 @@ import { fakeGame, OLYA_IN_TEAM, P, PETRO, q, range, row, SOLO, TEAM, teamGame, 
 
 const has = (game: AchievementGame, id: AchievementId, who: AchievementWho = SOLO) => antiAchievements(game, who).has(id);
 
-const player = (participantId: string, rank: number | null, score: number): AchievementPlayer => ({ participantId, userId: null, members: [], rank, score });
+const player = (participantId: string, rank: number | null, score: number): AchievementPlayer => ({ participantId, userId: null, nickname: '', members: [], rank, score });
 
 /** Неправильна своя відповідь. */
 const miss = (index: number, patch: Parameters<typeof row>[1] = {}) => row(index, { accepted: false, points: 0, ...patch });
@@ -79,7 +79,7 @@ describe('antiAchievements: black_stripe', () => {
 
   it('a question undone by the host stays a miss', () => {
     const rows = range(5).map((i) => miss(i, { points: i === 2 ? -100 : 0 }));
-    const game = fakeGame({ questions, rows, adjustments: [{ participantId: P, source: 'undo', points: 100 }] });
+    const game = fakeGame({ questions, rows, adjustments: [{ participantId: P, source: 'undo', points: 100, seq: 1, roundIndex: 0, undoesSeq: null }] });
     expect(has(game, 'black_stripe')).toBe(true);
   });
 });
@@ -203,10 +203,10 @@ describe('antiAchievements in a team game', () => {
 
   it('the result ones go to every person of the team', () => {
     const players: AchievementPlayer[] = [
-      { participantId: 'x1', userId: null, members: [], rank: 1, score: 900 },
-      { participantId: 'x2', userId: null, members: [], rank: 2, score: 500 },
-      { participantId: 'x3', userId: null, members: [], rank: 3, score: 300 },
-      { participantId: TEAM, userId: null, members: [{ participantId: 'm-olya', userId: 'u-olya' }, { participantId: 'm-vira', userId: 'u-vira' }], rank: 4, score: -100 },
+      { participantId: 'x1', userId: null, nickname: '', members: [], rank: 1, score: 900 },
+      { participantId: 'x2', userId: null, nickname: '', members: [], rank: 2, score: 500 },
+      { participantId: 'x3', userId: null, nickname: '', members: [], rank: 3, score: 300 },
+      { participantId: TEAM, userId: null, nickname: '', members: [{ participantId: 'm-olya', userId: 'u-olya', nickname: '' }, { participantId: 'm-vira', userId: 'u-vira', nickname: '' }], rank: 4, score: -100 },
     ];
     const rows = range(3).map((i) => miss(i, { participantId: TEAM, answeredBy: 'm-vira', debuff: 'fog' }));
     const game = teamGame({ questions, players, rows, appeals: [{ participantId: TEAM, questionIndex: 0, outcome: 'no', yes: 0, no: 4 }] });

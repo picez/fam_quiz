@@ -66,14 +66,39 @@ export interface AchievementRow {
 export interface AchievementPlayer {
   participantId: string;
   userId: string | null;
-  members: { participantId: string; userId: string | null }[];
+  /** План 33: нікнейм у грі (соло — гравця, командна гра — назва команди). */
+  nickname: string;
+  /** Люди команди; nickname (план 33) — їхні нікнейми, щоб знайти художника «Малюнка» за ref.drawing.drawer. */
+  members: { participantId: string; userId: string | null; nickname: string }[];
   rank: number | null;
   score: number;
+}
+
+/** План 33: раунд «Квест із кодом» зі знімка — індекс, кількість запитань і бали бонусу (null — бонус-баф). */
+export interface AchievementQuestRound {
+  roundIndex: number;
+  questions: number;
+  bonusPoints: number | null;
+}
+
+/** Коригування балів гри; seq, roundIndex і undoesSeq (план 33) — щоб знати раунд квесту й чи не скасовано бонус. */
+export interface AchievementAdjustment {
+  participantId: string;
+  source: AdjustmentSource;
+  points: number;
+  seq: number;
+  roundIndex: number;
+  /** Скасування (12a): seq скасованого коригування чи скасування, яке повернули; null — інший рядок. */
+  undoesSeq: number | null;
 }
 
 export interface AchievementGame {
   gameId: string;
   status: GameStatus;
+  /** План 33: хто вів гру (для «Марафону за пультом»). */
+  hostId: string;
+  /** План 33: гру вів автопілот. */
+  autopilot: boolean;
   startedAt: Date;
   finishedAt: Date | null;
   questionsPlayed: number;
@@ -82,7 +107,9 @@ export interface AchievementGame {
   /** Порожньо, якщо знімок не читається чи гра стара (без plays). */
   questions: AchievementQuestion[];
   rows: AchievementRow[];
-  adjustments: { participantId: string; source: AdjustmentSource; points: number }[];
+  adjustments: AchievementAdjustment[];
+  /** План 33: раунди «Квест із кодом» зі знімка; знімок не читається — порожньо. */
+  questRounds: AchievementQuestRound[];
   /** Закриті апеляції гри (12f): учасник рушія (соло — гравець, командна гра — команда). */
   appeals: { participantId: string; questionIndex: number; outcome: AppealOutcome; yes: number; no: number }[];
   /** Режим відповідача (12g) командної гри зі знімка; соло чи знімок не читається — null. */
@@ -96,6 +123,14 @@ function quizOf(rawSnapshot: unknown): Quiz | null {
   } catch {
     return null;
   }
+}
+
+/** Раунди квесту зі знімка (план 33); знімок не читається — []. */
+function questRoundsOf(quiz: Quiz | null): AchievementQuestRound[] {
+  if (quiz === null) return [];
+  return quiz.rounds.flatMap((round, roundIndex): AchievementQuestRound[] =>
+    round.type === 'quest' ? [{ roundIndex, questions: round.questions.length, bonusPoints: round.bonus.kind === 'points' ? round.bonus.points : null }] : [],
+  );
 }
 
 /** Зіграні запитання гри зі знімка й журналу; запитання, якого немає в знімку, пропускається (індекси решти не зсуваються). */
@@ -136,6 +171,9 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
     .select({
       id: game.id,
       status: game.status,
+      // План 33: ведучий і автопілот — для «Марафону за пультом».
+      hostId: game.hostId,
+      autopilot: game.autopilot,
       startedAt: game.startedAt,
       finishedAt: game.finishedAt,
       questionsPlayed: game.questionsPlayed,
@@ -148,7 +186,7 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
   if (games.length === 0) return [];
 
   const participants = await db
-    .select({ id: participant.id, gameId: participant.gameId, userId: participant.userId, score: participant.score, rank: participant.rank, isTeam: participant.isTeam, teamId: participant.teamId })
+    .select({ id: participant.id, gameId: participant.gameId, userId: participant.userId, nickname: participant.nickname, score: participant.score, rank: participant.rank, isTeam: participant.isTeam, teamId: participant.teamId })
     .from(participant)
     .where(
       inArray(
@@ -185,7 +223,15 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
     ids.length === 0
       ? []
       : await db
-          .select({ participantId: scoreAdjustment.participantId, source: scoreAdjustment.source, points: scoreAdjustment.points })
+          // План 33: seq, раунд і посилання скасування — для «Код зламано».
+          .select({
+            participantId: scoreAdjustment.participantId,
+            source: scoreAdjustment.source,
+            points: scoreAdjustment.points,
+            seq: scoreAdjustment.seq,
+            roundIndex: scoreAdjustment.roundIndex,
+            undoesSeq: scoreAdjustment.undoesSeq,
+          })
           .from(scoreAdjustment)
           .where(inArray(scoreAdjustment.participantId, ids));
 
@@ -217,7 +263,8 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
       .map((p) => ({
         participantId: p.id,
         userId: p.userId,
-        members: own.filter((m) => m.teamId === p.id).map((m) => ({ participantId: m.id, userId: m.userId })),
+        nickname: p.nickname,
+        members: own.filter((m) => m.teamId === p.id).map((m) => ({ participantId: m.id, userId: m.userId, nickname: m.nickname })),
         rank: p.rank,
         score: p.score,
       }));
@@ -225,6 +272,8 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
       {
         gameId,
         status: row.status,
+        hostId: row.hostId,
+        autopilot: row.autopilot,
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
         questionsPlayed: row.questionsPlayed,
@@ -233,6 +282,7 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
         questions: questionsOf(quiz, row.plays, row.questionsPlayed),
         rows: rowsOf.get(gameId) ?? [],
         adjustments: adjustmentsOf.get(gameId) ?? [],
+        questRounds: questRoundsOf(quiz),
         appeals: (appealsOf.get(gameId) ?? []).map(({ participantId, questionIndex, outcome, yes, no }) => ({ participantId, questionIndex, outcome, yes, no })),
         answerer: teams && quiz !== null ? answererModeOf(quiz.settings.teams) : null,
       },
