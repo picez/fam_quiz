@@ -21990,3 +21990,134 @@ input.sudoku-editor-cell:focus-visible {
   height: 1.125rem;
   font-size: 0.6875rem;
 }
+
+/* «Групи» (12k): запрошення, картки груп, форма групи. */
+.groups-intro {
+  margin: 0 0 1rem;
+}
+
+.group-invites ul,
+.group-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.group-invites li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
+
+.group-invites .invite-text {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.group-invites {
+  margin-bottom: 1rem;
+}
+
+.group-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  text-decoration: none;
+}
+
+.group-card:hover {
+  border-color: var(--accent);
+}
+
+.group-card-emoji {
+  flex: none;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.group-card-body {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.group-card-name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.0625rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.groups-empty {
+  margin: 1rem 0;
+}
+
+.groups-create,
+.group-create {
+  margin-top: 1rem;
+}
+
+.group-form {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.group-form input,
+.group-form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.group-field-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.group-counter {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 24 значки: 8 у рядку, на вузьких телефонах — 6; без прокрутки вбік. */
+.group-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+@media (max-width: 359px) {
+  .group-emoji-picker {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.group-emoji-picker .chip {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0;
+  border-radius: var(--radius);
+  font-size: 1.25rem;
+}
+
+.group-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
