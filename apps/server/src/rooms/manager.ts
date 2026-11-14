@@ -160,7 +160,7 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
 import { levelsView, perkGrants } from './levels';
@@ -492,11 +492,9 @@ export interface SavedRoom {
   lobby?: LobbyState;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
 /** Перевірка рядка з бази: та сама версія знімка, версія стану, що читається як поточна, на місці поля, без яких кімнату не підняти. */
 export function isSavedRoom(raw: unknown): raw is SavedRoom {
-  if (!isObject(raw)) return false;
+  if (!isObjectLike(raw)) return false;
   return (
     raw.v === SAVED_ROOM_VERSION &&
     typeof raw.stateVersion === 'number' &&
@@ -506,7 +504,7 @@ export function isSavedRoom(raw: unknown): raw is SavedRoom {
     Array.isArray(raw.playerTokens) &&
     typeof raw.tickedTo === 'number' &&
     typeof raw.savedAt === 'number' &&
-    isObject(raw.state) &&
+    isObjectLike(raw.state) &&
     Array.isArray(raw.state.players)
   );
 }
@@ -530,18 +528,18 @@ function closedTruth<V extends { truth?: { open: boolean }; me?: { truth?: { can
 }
 
 function continuedOf(raw: unknown): Continued | null {
-  if (!isObject(raw) || !Array.isArray(raw.bound)) return null;
+  if (!isObjectLike(raw) || !Array.isArray(raw.bound)) return null;
   const bound = raw.bound.filter((id): id is string => typeof id === 'string');
   const replaces = typeof raw.replaces === 'string' ? raw.replaces : null;
   const carry = raw.carry;
-  const readable = isObject(carry) && typeof carry.roundIndex === 'number' && isObject(carry.points) && !Array.isArray(carry.points);
+  const readable = isObjectLike(carry) && typeof carry.roundIndex === 'number' && isObjectLike(carry.points) && !Array.isArray(carry.points);
   return { bound: new Set(bound), carry: readable ? (carry as unknown as ResumeSetup) : null, replaces };
 }
 
 /** Лобі з рядка бази (24c): що читається — те й береться, інакше типове («Лише друзі», без ведучого — «Прихована»). */
 function lobbyOf(raw: unknown, hostUserId: string | null, savedAt: number): LobbyState {
   const fallback: LobbyState = { visibility: hostUserId === null ? 'hidden' : 'friends', password: null, openedAt: savedAt };
-  if (!isObject(raw)) return fallback;
+  if (!isObjectLike(raw)) return fallback;
   const visibility = LOBBY_VISIBILITIES.find((v) => v === raw.visibility);
   const password = raw.password === null ? null : lobbyPasswordSchema.safeParse(raw.password);
   if (visibility === undefined || typeof raw.openedAt !== 'number') return fallback;
@@ -567,7 +565,7 @@ function prizesOf(raw: unknown): PlacedPrize[] {
 
 /** Контрольна точка з рядка бази (13b): лише об'єкт зі state.players-масивом і числом at, інакше null. */
 function checkpointOf(raw: unknown): { state: GameState; at: number } | null {
-  if (!isObject(raw) || typeof raw.at !== 'number' || !isObject(raw.state) || !Array.isArray(raw.state.players)) return null;
+  if (!isObjectLike(raw) || typeof raw.at !== 'number' || !isObjectLike(raw.state) || !Array.isArray(raw.state.players)) return null;
   return { state: raw.state as unknown as GameState, at: raw.at };
 }
 
