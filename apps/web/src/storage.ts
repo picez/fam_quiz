@@ -83,6 +83,14 @@ const LIVE_WATCH = 'quiz:live-watch';
 export const loadLiveWatch = (): boolean => read(LIVE_WATCH) !== 'off';
 export const saveLiveWatch = (on: boolean): void => write(LIVE_WATCH, on ? null : 'off');
 
+const EASY = 'quiz:easy';
+/** «Легкий режим» (31) на цьому пристрої: 'on' | 'off'; null — людина ще не вибирала. */
+export const loadEasy = (): 'on' | 'off' | null => {
+  const value = read(EASY);
+  return value === 'on' || value === 'off' ? value : null;
+};
+export const saveEasy = (on: boolean): void => write(EASY, on ? 'on' : 'off');
+
 const LAST_GAME = 'quiz:last-game';
 
 /** Код гри, яку ведучий запустив останньою з цього пристрою. */

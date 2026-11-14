@@ -711,3 +711,29 @@ describe('debuff strength', () => {
     expect(frames).not.toContain('rotate');
   });
 });
+
+describe('easy mode (31)', () => {
+  const setVibrate = (value: unknown) => Object.defineProperty(navigator, 'vibrate', { value, configurable: true, writable: true });
+  afterEach(() => {
+    setVibrate(undefined);
+    document.documentElement.classList.remove('is-easy');
+  });
+
+  it('a shake on an easy phone is calm and does not buzz', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }));
+    const vibrate = vi.fn();
+    setVibrate(vibrate);
+    document.documentElement.classList.add('is-easy');
+    render(
+      <DebuffZone debuff={{ kind: 'shake', since: Date.now(), by: null }} limitMs={30_000} offsetMs={0} questionIndex={0}>
+        x
+      </DebuffZone>,
+    );
+    expect(zone().classList.contains('is-shake')).toBe(true);
+    expect(zone().classList.contains('is-calm')).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(SHAKE_CYCLE_MS * 2);
+    });
+    expect(vibrate).not.toHaveBeenCalled();
+  });
+});
