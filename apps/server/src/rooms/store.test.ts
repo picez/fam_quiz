@@ -13,10 +13,11 @@ import { HEARTBEAT_MS, LEASE_MS, MAX_AGE_MS, RoomStore, type RoomStoreOptions } 
 const HOST: Identity = { role: 'host', playerId: null };
 const correct = { type: 'single', optionId: 'b' } as const;
 /** Поля паузи й зв'язку (і «block»: null чи «paused» у shop/buff) — єдине, чим відновлений зріз може відрізнятися. */
+// answerMark (32) — лічильник прийнятих відповідей окремого процесу з його епохою: після відновлення він новий за задумом.
 const steady = (view: unknown) =>
   JSON.parse(
     JSON.stringify(view, (key, value) =>
-      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'offline', 'serverNow'].includes(key) || (key === 'block' && (value === null || value === 'paused'))
+      ['paused', 'pausedAt', 'endsAt', 'startedAt', 'remainingMs', 'connected', 'offline', 'serverNow', 'answerMark'].includes(key) || (key === 'block' && (value === null || value === 'paused'))
         ? undefined
         : value,
     ),

@@ -663,7 +663,8 @@ export class RoomManager {
   private readonly timerFailures = new WeakMap<Room, number>();
   /** Прийняті відповіді кожного гравця кімнати (32): лише в пам'яті, для повтору відповіді після обриву; epoch — цей процес. */
   private readonly answerCounts = new WeakMap<Room, Map<string, number>>();
-  private readonly answerEpoch = randomInt(1, 2 ** 47);
+  // randomBytes, а не randomInt: randomInt — джерело кодів кімнат, епоха не має з ним перетинатися.
+  private readonly answerEpoch = randomBytes(6).readUIntBE(0, 6);
 
   constructor(scheduler: Scheduler, rng: () => number = Math.random, options: RoomManagerOptions = {}) {
     this.scheduler = scheduler;
