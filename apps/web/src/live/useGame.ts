@@ -169,10 +169,13 @@ export function useGame(auth: SocketAuth | null) {
       netRef.current = next;
       setQuality(next.quality);
     };
+    // socket.connect() посеред затримки перепідключення socket.io нічого не робить (менеджер «уже перепідключається»):
+    // disconnect() скидає ту затримку (і зависле з'єднання), connect() одразу відкриває нове.
     const reconnectNow = () => {
       if (gone || refused || closedHere) return;
       if (retry !== null) clearTimeout(retry);
       retry = null;
+      socket.disconnect();
       socket.connect();
     };
     const ping = () => {
@@ -192,7 +195,6 @@ export function useGame(auth: SocketAuth | null) {
         // Три тайм-аути поспіль на видимій вкладці з мережею: з'єднання зависло, не чекаємо engine.io.
         if (shouldForceReconnect(netRef.current) && tabVisible() && deviceOnline()) {
           setNet(onReconnect(netRef.current));
-          socket.disconnect();
           reconnectNow();
         }
       });

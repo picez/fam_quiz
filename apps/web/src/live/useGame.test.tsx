@@ -440,6 +440,9 @@ describe('useGame connection quality (32)', () => {
     act(() => socket.fire('disconnect', 'transport close'));
     act(() => window.dispatchEvent(new Event('online')));
     expect(socket.connect).toHaveBeenCalledTimes(1);
+    // socket.connect() посеред затримки socket.io нічого не робить: спершу disconnect() скидає ту затримку.
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    expect(socket.disconnect.mock.invocationCallOrder[0]).toBeLessThan(socket.connect.mock.invocationCallOrder[0]!);
     // Уже на зв'язку — online нічого не робить.
     socket.connected = true;
     act(() => window.dispatchEvent(new Event('online')));
