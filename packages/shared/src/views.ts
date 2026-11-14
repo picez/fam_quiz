@@ -1,4 +1,5 @@
 import type { Answer } from './answer';
+import type { AchievementId } from './achievements';
 import type { AppealOutcome, AppealReason } from './appeal';
 import type { AwayMark, OwnAway } from './away';
 import type { ScoreBreakdown } from './breakdown';
@@ -2009,8 +2010,21 @@ export interface DebuffNotice {
   target: BlitzPlayer;
 }
 
+/** «Нове досягнення!» на телефоні (12j); ставить сервер лише у finished. account false — гість (ids []). */
+export interface NewAchievementsMine {
+  account: boolean;
+  ids: AchievementId[];
+}
+
+/** Слайд «Нові досягнення» сцени (12j): люди з непорожнім списком у порядку стану; антидосягнення тих, хто їх ховає, прибрано. */
+export interface NewAchievementsStage {
+  people: { nickname: string; ids: AchievementId[] }[];
+}
+
 export interface StageView extends BaseView {
   role: 'stage';
+  /** «Нові досягнення» (12j): ставить сервер, рушій ключа не ставить; немає — ніхто нічого не отримав чи гра не скінчилась. */
+  newAchievements?: NewAchievementsStage;
   players: LobbyPlayer[];
   reveal: Question | null;
   stats: RevealStats | null;
@@ -2048,6 +2062,8 @@ export interface PlayerTable {
 
 export interface PlayerView extends BaseView {
   role: 'player';
+  /** «Нове досягнення!» (12j): ставить сервер, рушій ключа не ставить; немає — гра не скінчилась чи нічого нового. */
+  newAchievements?: NewAchievementsMine;
   /** Лайки (17a): ставить сервер, рушій ключа не ставить; немає — гість чи ще не прочитано. */
   likes?: LikesView;
   /** Оберіг (15a): які дебафи проти суперників гасить готовий оберіг; id гравця. */

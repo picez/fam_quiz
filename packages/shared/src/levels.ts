@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AchievementId } from './achievements';
+import { isAnti, type AchievementId } from './achievements';
 import type { TrophyKind, TrophyMaterial } from './prizes';
 import { STICKER_SERIES, stickerOf, type StickerSeries } from './stickers';
 
@@ -9,12 +9,12 @@ export const LEVEL_XP = { join: 50, correct: 10, place: [100, 60, 30], dailyCap:
 export const ACHIEVEMENT_XP = { common: 25, rare: 50, epic: 100 } as const;
 export type AchievementRarity = keyof typeof ACHIEVEMENT_XP;
 
-/** Рідкості в 12i немає, тож вона тут: решта ачівок — rare. */
+/** Рідкості в 12i немає, тож вона тут: антидосягнення (12j) — common, решта ачівок — rare. */
 export const COMMON_ACHIEVEMENTS: readonly AchievementId[] = ['first_game', 'first_win', 'host', 'games_10', 'streak_5', 'fast_answer', 'early_bird', 'night_owl'];
 export const EPIC_ACHIEVEMENTS: readonly AchievementId[] = ['games_100', 'wins_10', 'host_10', 'streak_10', 'perfect_game', 'win_streak_3', 'ladder_top', 'all_rounds', 'all_types', 'podium_10', 'veteran'];
 
 export function achievementRarity(id: AchievementId): AchievementRarity {
-  if (COMMON_ACHIEVEMENTS.includes(id)) return 'common';
+  if (COMMON_ACHIEVEMENTS.includes(id) || isAnti(id)) return 'common';
   if (EPIC_ACHIEVEMENTS.includes(id)) return 'epic';
   return 'rare';
 }

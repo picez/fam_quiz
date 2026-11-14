@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, ROUND_TYPES } from './quiz';
 import type { ProfileCard } from './profile';
 
-/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i) у порядку специфікації. */
+/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i), потім 22 нові (12j: 14 антидосягнень, далі 8 досягнень механік) у порядку специфікації. */
 export const ACHIEVEMENTS = [
   'first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10',
   'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5',
@@ -9,10 +9,13 @@ export const ACHIEVEMENTS = [
   'sort_clean', 'chain_full', 'survey_top', 'lone_genius', 'bluff_master', 'lie_detector', 'ladder_top', 'wipeout_bank',
   'last_hero', 'duelist', 'board_owner', 'all_rounds', 'all_types', 'buff_gourmet', 'double_jackpot', 'prankster',
   'unbreakable', 'team_win', 'night_owl', 'early_bird', 'marathon', 'podium_10', 'author_hit', 'veteran',
+  'in_debt', 'zero', 'last_place', 'last_place_5', 'black_stripe', 'so_close', 'gullible', 'all_in_lost',
+  'burned', 'umbrella', 'same_river', 'slowpoke', 'debuff_magnet', 'who_am_i',
+  'lawyer', 'hammer', 'honest', 'wanderer', 'own_pace', 'risky', 'peeker', 'chosen_one',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 
-/** Групи сторінки ачівок у порядку показу; anti — антиачівки 12j (у 12i порожня). */
+/** Групи сторінки ачівок у порядку показу; anti — антидосягнення 12j. */
 export const ACHIEVEMENT_GROUPS = ['start', 'accuracy', 'speed', 'formats', 'powers', 'company', 'host', 'anti'] as const;
 export type AchievementGroup = (typeof ACHIEVEMENT_GROUPS)[number];
 
@@ -66,7 +69,33 @@ export const ACHIEVEMENT_INFO: Record<AchievementId, { group: AchievementGroup; 
   podium_10: { group: 'start', goal: 10 },
   author_hit: { group: 'host', goal: 10 },
   veteran: { group: 'start', goal: 250 },
+  in_debt: { group: 'anti', goal: null },
+  zero: { group: 'anti', goal: null },
+  last_place: { group: 'anti', goal: null },
+  last_place_5: { group: 'anti', goal: 5 },
+  black_stripe: { group: 'anti', goal: null },
+  so_close: { group: 'anti', goal: null },
+  gullible: { group: 'anti', goal: null },
+  all_in_lost: { group: 'anti', goal: null },
+  burned: { group: 'anti', goal: null },
+  umbrella: { group: 'anti', goal: null },
+  same_river: { group: 'anti', goal: null },
+  slowpoke: { group: 'anti', goal: null },
+  debuff_magnet: { group: 'anti', goal: null },
+  who_am_i: { group: 'anti', goal: null },
+  lawyer: { group: 'company', goal: null },
+  hammer: { group: 'anti', goal: null },
+  honest: { group: 'start', goal: 10 },
+  wanderer: { group: 'anti', goal: null },
+  own_pace: { group: 'accuracy', goal: null },
+  risky: { group: 'powers', goal: null },
+  peeker: { group: 'powers', goal: null },
+  chosen_one: { group: 'company', goal: null },
 };
+
+/** Антидосягнення (12j): група anti, у порядку ACHIEVEMENTS. */
+export const ANTI_ACHIEVEMENTS: readonly AchievementId[] = ACHIEVEMENTS.filter((id) => ACHIEVEMENT_INFO[id].group === 'anti');
+export const isAnti = (id: AchievementId): boolean => ACHIEVEMENT_INFO[id].group === 'anti';
 
 /** Скільки останніх значків показує профіль. */
 export const PROFILE_STRIP_BADGES = 8;
@@ -90,4 +119,6 @@ export interface AchievementsPage {
   earned: number;
   total: number;
   items: AchievementCard[];
+  /** Лише своя сторінка: чи сховано антидосягнення від інших (12j). */
+  hideAnti?: boolean;
 }
