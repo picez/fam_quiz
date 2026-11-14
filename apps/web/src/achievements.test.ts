@@ -42,9 +42,9 @@ describe('achievement texts', () => {
     expect(joke('sort_clean')).toBe('Усе по поличках, як у бабусі в комоді.');
   });
 
-  it('71 achievements; anti-achievements joke about the situation, never mock the player (12j)', () => {
-    expect(ACHIEVEMENTS).toHaveLength(71);
-    expect(ANTI_ACHIEVEMENTS).toHaveLength(16);
+  it('102 achievements; anti-achievements joke about the situation, never mock the player (12j)', () => {
+    expect(ACHIEVEMENTS).toHaveLength(102);
+    expect(ANTI_ACHIEVEMENTS).toHaveLength(19);
     for (const id of ANTI_ACHIEVEMENTS) {
       for (const text of [name(id), joke(id), hint(id)]) expect(text.trim(), id).not.toBe('');
       expect(joke(id), id).not.toMatch(/невдах|лох|ганьб/iu);
@@ -62,6 +62,15 @@ describe('achievement texts', () => {
     expect(hint('chronicler')).toBe('Написати 20 записів у групах');
     expect(joke('chronicler')).toBe('Двадцять історій записано. Родина пишається (і трохи боїться).');
     expect(ACHIEVEMENT_ICONS.chronicler).toBe('📜');
+  });
+
+  it('33: all 102 icons differ, each of the 31 new ones has its own', () => {
+    expect(new Set(Object.values(ACHIEVEMENT_ICONS)).size).toBe(102);
+    const added = ACHIEVEMENTS.slice(71);
+    expect(added).toHaveLength(31);
+    for (const id of added) expect(ACHIEVEMENT_ICONS[id], id).toBeTruthy();
+    expect(ACHIEVEMENT_ICONS.classic_clean).toBe('🎻');
+    expect(ACHIEVEMENT_ICONS.last_piece).toBe('🧷');
   });
 });
 

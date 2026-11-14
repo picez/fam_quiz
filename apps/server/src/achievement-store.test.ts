@@ -292,7 +292,7 @@ describe('reading', () => {
 });
 
 describe('achievements page', () => {
-  it('own: all 71 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
+  it('own: all 102 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
     const me = 'store-page';
     await addUser(me, 'Яна');
     await playGame(me, new Date('2026-09-12T18:00:00Z'));
@@ -630,7 +630,7 @@ describe('career counters and the history refill of 12j', () => {
 });
 
 describe('hiding anti-achievements (12j)', () => {
-  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 55', async () => {
+  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 83', async () => {
     const me = 'store-hide';
     await addUser(me, 'Ліна');
     await read(me);
@@ -644,12 +644,12 @@ describe('hiding anti-achievements (12j)', () => {
     const theirs = await achievementsPage(db, me, false);
     expect(theirs?.items.map((i) => i.id)).toEqual(['first_game']);
     expect(theirs?.earned).toBe(1);
-    expect(theirs?.total).toBe(55);
+    expect(theirs?.total).toBe(83);
     expect(theirs).not.toHaveProperty('hideAnti');
 
     const own = await achievementsPage(db, me, true);
     expect(own?.hideAnti).toBe(true);
-    expect(own?.total).toBe(71);
+    expect(own?.total).toBe(102);
     expect(own?.items.filter((i) => i.earned).map((i) => i.id)).toEqual(expect.arrayContaining(['first_game', 'in_debt']));
 
     const other = 'store-hide-not';
@@ -658,7 +658,7 @@ describe('hiding anti-achievements (12j)', () => {
     expect([...(await antiHidden(db, [me, other, 'store-nobody']))]).toEqual([me]);
     expect(await antiHidden(db, [])).toEqual(new Set());
     expect(await setHideAnti(db, me, false)).toBe(false);
-    expect((await achievementsPage(db, me, false))?.total).toBe(71);
+    expect((await achievementsPage(db, me, false))?.total).toBe(102);
   });
 });
 

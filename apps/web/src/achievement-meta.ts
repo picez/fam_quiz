@@ -1,6 +1,6 @@
 import type { AchievementId } from '@quiz/shared';
 
-/** Значок кожної ачівки (12i + 12j, таблиці специфікації й плану 12j). */
+/** Значок кожної ачівки (12i + 12j + 12l + 33, таблиці специфікації й планів 12j і 33). */
 export const ACHIEVEMENT_ICONS: Record<AchievementId, string> = {
   first_game: '🎈',
   first_win: '🏆',
@@ -73,4 +73,35 @@ export const ACHIEVEMENT_ICONS: Record<AchievementId, string> = {
   peeker: '👀',
   chosen_one: '🌟',
   chronicler: '📜',
+  classic_clean: '🎻',
+  cold_bets: '🧊',
+  sold: '🛎️',
+  mind_reader: '🔎',
+  code_breaker: '🔓',
+  single_ten: '☝️',
+  all_at_once: '🧺',
+  not_a_coin: '🪙',
+  word_for_word: '✍️',
+  in_order: '📐',
+  pair_to_pair: '💞',
+  short_path: '🪜',
+  full_list: '📋',
+  longest_word: '🔤',
+  number_sense: '🧭',
+  masterpiece: '🎨',
+  sudoku_first: '🔢',
+  crossword_full: '📰',
+  jigsaw_first: '🖼️',
+  spotdiff_all: '🔍',
+  elephant_memory: '🐘',
+  first_note: '🎵',
+  buffet: '🍽️',
+  host_marathon: '🎙️',
+  team_soul: '🫶',
+  quick_sketch: '✏️',
+  dark_horse: '🐴',
+  holiday: '🎄',
+  modern_art: '🌀',
+  mirror_logic: '🪞',
+  last_piece: '🧷',
 };

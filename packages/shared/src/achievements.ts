@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, ROUND_TYPES } from './quiz';
 import type { ProfileCard } from './profile';
 
-/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i), потім 22 нові (12j: 14 антидосягнень, далі 8 досягнень механік) у порядку специфікації, потім 1 нова (12l). */
+/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i), потім 22 нові (12j: 14 антидосягнень, далі 8 досягнень механік) у порядку специфікації, потім 1 нова (12l), потім 31 нова (33: 5 раундів, 17 типів запитань, 6 додаткових, 3 антидосягнення). */
 export const ACHIEVEMENTS = [
   'first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10',
   'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5',
@@ -13,6 +13,11 @@ export const ACHIEVEMENTS = [
   'burned', 'umbrella', 'same_river', 'slowpoke', 'debuff_magnet', 'who_am_i',
   'lawyer', 'hammer', 'honest', 'wanderer', 'own_pace', 'risky', 'peeker', 'chosen_one',
   'chronicler',
+  'classic_clean', 'cold_bets', 'sold', 'mind_reader', 'code_breaker',
+  'single_ten', 'all_at_once', 'not_a_coin', 'word_for_word', 'in_order', 'pair_to_pair', 'short_path', 'full_list',
+  'longest_word', 'number_sense', 'masterpiece', 'sudoku_first', 'crossword_full', 'jigsaw_first', 'spotdiff_all', 'elephant_memory', 'first_note',
+  'buffet', 'host_marathon', 'team_soul', 'quick_sketch', 'dark_horse', 'holiday',
+  'modern_art', 'mirror_logic', 'last_piece',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 
@@ -93,6 +98,38 @@ export const ACHIEVEMENT_INFO: Record<AchievementId, { group: AchievementGroup; 
   peeker: { group: 'powers', goal: null },
   chosen_one: { group: 'company', goal: null },
   chronicler: { group: 'company', goal: 20 },
+  // План 33: усі 31 разові.
+  classic_clean: { group: 'accuracy', goal: null },
+  cold_bets: { group: 'formats', goal: null },
+  sold: { group: 'formats', goal: null },
+  mind_reader: { group: 'company', goal: null },
+  code_breaker: { group: 'formats', goal: null },
+  single_ten: { group: 'accuracy', goal: null },
+  all_at_once: { group: 'accuracy', goal: null },
+  not_a_coin: { group: 'accuracy', goal: null },
+  word_for_word: { group: 'accuracy', goal: null },
+  in_order: { group: 'formats', goal: null },
+  pair_to_pair: { group: 'formats', goal: null },
+  short_path: { group: 'formats', goal: null },
+  full_list: { group: 'formats', goal: null },
+  longest_word: { group: 'formats', goal: null },
+  number_sense: { group: 'accuracy', goal: null },
+  masterpiece: { group: 'formats', goal: null },
+  sudoku_first: { group: 'speed', goal: null },
+  crossword_full: { group: 'formats', goal: null },
+  jigsaw_first: { group: 'speed', goal: null },
+  spotdiff_all: { group: 'speed', goal: null },
+  elephant_memory: { group: 'formats', goal: null },
+  first_note: { group: 'formats', goal: null },
+  buffet: { group: 'formats', goal: null },
+  host_marathon: { group: 'host', goal: null },
+  team_soul: { group: 'company', goal: null },
+  quick_sketch: { group: 'speed', goal: null },
+  dark_horse: { group: 'company', goal: null },
+  holiday: { group: 'start', goal: null },
+  modern_art: { group: 'anti', goal: null },
+  mirror_logic: { group: 'anti', goal: null },
+  last_piece: { group: 'anti', goal: null },
 };
 
 /** Антидосягнення (12j): група anti, у порядку ACHIEVEMENTS. */

@@ -30,7 +30,7 @@ const mine: AchievementsPage = {
   profile: { id: 'u1', nickname: 'Олена', avatar: null },
   own: true,
   earned: 2,
-  total: 71,
+  total: 102,
   items: ACHIEVEMENTS.map((id) => card(id, true)),
 };
 
@@ -38,7 +38,7 @@ const theirs: AchievementsPage = {
   profile: { id: 'u2', nickname: 'Оля', avatar: null },
   own: false,
   earned: 2,
-  total: 71,
+  total: 102,
   items: ACHIEVEMENTS.filter((id) => id in EARNED).map((id) => card(id, false)),
 };
 
@@ -73,7 +73,7 @@ const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name: n
 describe('Achievements, own page', () => {
   it('shows the count and the groups in order, the anti group last (12j)', async () => {
     const { container } = open('/achievements');
-    expect(await screen.findByText('Отримано 2 з 71')).toBeTruthy();
+    expect(await screen.findByText('Отримано 2 з 102')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1, name: 'Досягнення' })).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
       'Перші кроки',
@@ -85,13 +85,13 @@ describe('Achievements, own page', () => {
       'Ведення й авторство',
       'Антидосягнення',
     ]);
-    expect(container.querySelectorAll('.achievement-card')).toHaveLength(71);
+    expect(container.querySelectorAll('.achievement-card')).toHaveLength(102);
     expect(getMyAchievements).toHaveBeenCalled();
   });
 
   it('an earned card has its joke, the condition and the date', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     const fast = cardOf('Швидкі пальці');
     expect(fast.classList.contains('is-locked')).toBe(false);
     expect(within(fast).getByRole('heading', { level: 3 }).textContent).toBe('Швидкі пальці');
@@ -104,7 +104,7 @@ describe('Achievements, own page', () => {
 
   it('a locked counted card is grey with its progress, a locked one-off has none', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     const games = cardOf('10 ігор');
     expect(games.classList.contains('is-locked')).toBe(true);
     // Назву картки не підмінено: «ще не отримано» — прихований текст у заголовку.
@@ -124,7 +124,7 @@ describe('Achievements, own page', () => {
   it('only earned cards have the 📌 button; a tap pins the achievement', async () => {
     vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [], achievements: ['first_game', 'fast_answer'] } });
     open('/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     expect(within(cardOf('10 ігор')).queryByRole('button')).toBeNull();
     const first = await within(cardOf('Перша гра')).findByRole('button', { name: '📌 Прибрати з вітрини: Перша гра' });
     expect(first.hasAttribute('aria-pressed')).toBe(false);
@@ -220,7 +220,7 @@ describe('Achievements: the anti group (12j)', () => {
   const withDebt = (own: boolean, hideAnti?: boolean): AchievementsPage => {
     const base = own ? mine : theirs;
     const items = base.items.map((item) => (item.id === 'in_debt' ? { ...item, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null } : item));
-    const page = { ...base, earned: 2, total: 71, items: own ? items : [...items, { id: 'in_debt' as const, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null }] };
+    const page = { ...base, earned: 2, total: 102, items: own ? items : [...items, { id: 'in_debt' as const, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null }] };
     return hideAnti === undefined ? page : { ...page, hideAnti };
   };
 
@@ -228,7 +228,7 @@ describe('Achievements: the anti group (12j)', () => {
     vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
     vi.mocked(setHideAnti).mockResolvedValue({ ok: true, data: { hideAnti: true } });
     open('/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
     expect(cardOf('Нуль без палички').className).toBe('achievement-card is-locked is-anti');
     expect(cardOf('Перша гра').className).toBe('achievement-card');
@@ -246,7 +246,7 @@ describe('Achievements: the anti group (12j)', () => {
     vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
     vi.mocked(setHideAnti).mockResolvedValue({ ok: false, error: 'offline' });
     open('/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     const toggle = screen.getByRole('checkbox', { name: 'Ховати антидосягнення від інших' }) as HTMLInputElement;
     fireEvent.click(toggle);
     await waitFor(() => expect(toggle.checked).toBe(false));
@@ -256,7 +256,7 @@ describe('Achievements: the anti group (12j)', () => {
   it('someone else’s page has no switch', async () => {
     vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: withDebt(false) });
     open('/profile/u2/achievements');
-    await screen.findByText('Отримано 2 з 71');
+    await screen.findByText('Отримано 2 з 102');
     expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
