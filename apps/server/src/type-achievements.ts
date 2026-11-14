@@ -1,7 +1,7 @@
-import type { AchievementId } from '@quiz/shared';
+import { melodyHeardOf, type AchievementId } from '@quiz/shared';
 import { textMatches } from '@quiz/engine';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
-import { answerRow, ownRows } from './achievement-rows';
+import { answerRow, ownRows, participantRows } from './achievement-rows';
 import type { AchievementWho } from './game-achievements';
 
 /** Пороги досягнень за типи запитань (план 33). */
@@ -13,11 +13,18 @@ export const TYPE_LIMITS = {
   orderItems: 5,
   matchPairs: 5,
   morelessPairs: 5,
+  drawingGuessers: 2,
+  sketchGuessers: 3,
+  sudokuPlayers: 2,
+  memoryMovesPerPair: 1.5,
+  jigsawMinPieces: 4,
+  halfTime: 0.5,
 } as const;
 
 /**
  * Досягнення за типи запитань завершеної гри (план 33, «Рішення»); незавершена — порожньо.
  * Прості типи — за відповіді: свої рядки (у командній грі людина з answeredBy) на основних запитаннях; запасні не рахуються.
+ * Командні типи (TEAM_WIDE_TYPES) — за результат: рядки учасника таблиці, тобто вся команда; малюнок — художнику.
  */
 export function typeAchievements(game: AchievementGame, who: AchievementWho): Set<AchievementId> {
   const got = new Set<AchievementId>();
@@ -108,6 +115,84 @@ export function typeAchievements(game: AchievementGame, who: AchievementWho): Se
     if (r.payload.right === r.payload.total) got.add('number_sense');
     if (r.payload.right === 0 && r.payload.picks.length === r.payload.total) got.add('mirror_logic');
   }
+
+  // Командні й «головоломкові» типи (TEAM_WIDE_TYPES) — за результат учасника таблиці: уся команда.
+  const mine = participantRows(game, who).filter(answerRow);
+  /** Межа «половини часу»: базовий ліміт запитання (без «+15 с» ведучого й сімейної надбавки), мс. */
+  const halfOf = (r: AchievementRow): number | null => {
+    const question = mainOf(r)?.question;
+    return question === undefined ? null : question.timeLimit * 1000 * L.halfTime;
+  };
+
+  // «Список закрито»: знайдено всі пункти.
+  if (mine.some((r) => r.payload?.type === 'timedlist' && r.payload.total > 0 && r.payload.found.length === r.payload.total)) got.add('full_list');
+
+  // «Найдовше слово»: слово довжини найдовшого можливого (ref.letterwords.best); стара гра без best — ні.
+  if (
+    mine.some((r) => {
+      const best = questions.get(r.questionIndex)?.ref.letterwords?.best ?? [];
+      return r.payload?.type === 'letterwords' && best.length > 0 && r.payload.longest >= Math.max(...best.map((w) => Array.from(w).length));
+    })
+  )
+    got.add('longest_word');
+
+  // «Шедевр» і «Сучасне мистецтво» — художнику: соло — гравцю з рядком drew; командна гра — людині, чий нік дорівнює ref.drawing.drawer.
+  const player = game.players.find((p) => p.participantId === who.participantId);
+  for (const r of mine) {
+    if (r.payload?.type !== 'drawing' || r.payload.drew === null || r.payload.drew.could < L.drawingGuessers) continue;
+    if (who.personId !== null) {
+      const drawer = questions.get(r.questionIndex)?.ref.drawing?.drawer ?? '';
+      const person = drawer === '' ? undefined : player?.members.find((m) => m.nickname === drawer);
+      if (person?.participantId !== who.personId) continue;
+    }
+    if (r.payload.drew.guessed === r.payload.drew.could) got.add('masterpiece');
+    if (r.payload.drew.guessed === 0) got.add('modern_art');
+  }
+
+  // «Вгадано з півштриха»: перша прийнята відгадка (найменший timeMs; нічия — усім), коли вгадували щонайменше троє.
+  for (const q of game.questions) {
+    if (q.question.type !== 'drawing') continue;
+    const guesses = game.rows.filter((r) => r.questionIndex === q.index && answerRow(r) && r.payload?.type === 'drawing' && r.payload.guess !== null);
+    if (new Set(guesses.map((r) => r.participantId)).size < L.sketchGuessers) continue;
+    const right = guesses.filter((r) => r.accepted);
+    if (right.length === 0) continue;
+    const first = Math.min(...right.map((r) => r.timeMs));
+    if (right.some((r) => r.participantId === who.participantId && r.timeMs === first)) {
+      got.add('quick_sketch');
+      break;
+    }
+  }
+
+  // «Судоку на швидкість»: розв'язати раніше за всіх, коли запис мають щонайменше двоє.
+  // timeMs запису «Головоломок» пише рушій (puzzleFinish): мить «Готово» від відкриття запитання; сітку без «Готово» фіксує кінець часу — тоді timeMs = ліміт.
+  for (const q of game.questions) {
+    if (q.question.type !== 'sudoku') continue;
+    const records = game.rows.filter((r) => r.questionIndex === q.index && answerRow(r) && r.payload?.type === 'puzzle');
+    if (new Set(records.map((r) => r.participantId)).size < L.sudokuPlayers) continue;
+    const solved = records.filter((r) => r.payload?.type === 'puzzle' && r.payload.solved);
+    if (solved.length === 0) continue;
+    const first = Math.min(...solved.map((r) => r.timeMs));
+    if (solved.some((r) => r.participantId === who.participantId && r.timeMs <= first)) {
+      got.add('sudoku_first');
+      break;
+    }
+  }
+
+  if (mine.some((r) => r.payload?.type === 'puzzle' && r.payload.kind === 'crossword' && r.payload.solved)) got.add('crossword_full');
+
+  for (const r of mine) {
+    const half = halfOf(r);
+    // «Пазл зійшовся» і «Жодна не сховалася»: усе швидше, ніж за половину базового часу.
+    if (r.payload?.type === 'jigsaw' && r.payload.done && r.payload.timeMs !== null && half !== null && r.payload.timeMs <= half) got.add('jigsaw_first');
+    if (r.payload?.type === 'spotdiff' && r.payload.done && r.payload.timeMs !== null && half !== null && r.payload.timeMs <= half) got.add('spotdiff_all');
+    // «Останній шматочок»: час скінчився, а бракувало одного шматочка (пазл щонайменше на 4).
+    if (r.payload?.type === 'jigsaw' && !r.payload.done && r.payload.total >= L.jigsawMinPieces && r.payload.placed === r.payload.total - 1) got.add('last_piece');
+    // «Пам'ять як у слона»: усі пари не більше ніж за півтора ходи на пару.
+    if (r.payload?.type === 'memory' && r.payload.done && r.payload.moves <= L.memoryMovesPerPair * r.payload.total) got.add('elephant_memory');
+  }
+
+  // «З першої ноти»: прийнято, коли відкрито лише перший шматок; старий запис без heard — ні.
+  if (mine.some((r) => r.accepted && mainOf(r)?.question.type === 'melody' && melodyHeardOf(r.payload) === 1)) got.add('first_note');
 
   return got;
 }

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS, type AchievementId, type Answer, type Question } from '@quiz/shared';
 import { textAccepts, textMatches } from '@quiz/engine';
-import { bool, match, moreless, multi, order, single, text, withId, wordladder } from '@quiz/engine/testing';
+import { bool, crosswordFull, drawing, jigsaw, letterwordsRandom, match, melody, memory, moreless, multi, order, single, spotdiff, sudoku, text, timedlist, withId, wordladder } from '@quiz/engine/testing';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
 import { gameAchievements, type AchievementWho } from './game-achievements';
-import { fakeGame, OLYA_IN_TEAM, P, q, range, row, SOLO, TEAM, teamGame, VIRA_IN_TEAM } from './testing/achievement-fixtures';
+import { fakeGame, OLYA_IN_TEAM, P, PETRO, q, range, row, SOLO, TEAM, teamGame, VIRA_IN_TEAM } from './testing/achievement-fixtures';
 import { typeAchievements } from './type-achievements';
 
 const has = (game: AchievementGame, id: AchievementId, who: AchievementWho = SOLO) => typeAchievements(game, who).has(id);
@@ -136,5 +136,112 @@ describe('typeAchievements (33): simple question types', () => {
     const got = gameAchievements(game, SOLO);
     expect(got).toEqual(expect.arrayContaining(['single_ten', 'not_a_coin']));
     expect(got).toEqual(ACHIEVEMENTS.filter((id) => got.includes(id)));
+  });
+});
+
+describe('typeAchievements (33): team-wide and puzzle types', () => {
+  const one = (question: Question, payload: Answer, patch: Partial<AchievementRow> = {}, ref: Partial<AchievementQuestion['ref']> = {}) =>
+    fakeGame({ questions: [q(0, { question, ref: { roundIndex: 0, questionId: question.id, ...ref } })], rows: [row(0, { payload, ...patch })] });
+
+  it('full_list: every item found; in a team game the whole team gets it', () => {
+    const list = (found: number): Answer => ({ type: 'timedlist', found: range(found).map((i) => `l${i + 1}`), total: 8, wrong: 0 });
+    expect(has(one(timedlist, list(8)), 'full_list')).toBe(true);
+    expect(has(one(timedlist, list(7)), 'full_list')).toBe(false);
+    const team = teamGame({ questions: [q(0, { question: timedlist })], rows: [row(0, { participantId: TEAM, payload: list(8) })] });
+    expect(has(team, 'full_list', OLYA_IN_TEAM)).toBe(true);
+    expect(has(team, 'full_list', VIRA_IN_TEAM)).toBe(true);
+  });
+
+  it('longest_word: a word as long as the longest possible one; an old game without the best words gives nothing', () => {
+    const words = (longest: number): Answer => ({ type: 'letterwords', words: ['прапор'], longest });
+    const best = { letterwords: { letters: [...'прапорщик'], best: ['ПРАПОР'] } };
+    expect(has(one(letterwordsRandom, words(6), {}, best), 'longest_word')).toBe(true);
+    expect(has(one(letterwordsRandom, words(5), {}, best), 'longest_word')).toBe(false);
+    expect(has(one(letterwordsRandom, words(6)), 'longest_word')).toBe(false);
+  });
+
+  it('masterpiece and modern_art: the drawing everyone or nobody guessed, at least 2 could', () => {
+    const drew = (guessed: number, could: number): Answer => ({ type: 'drawing', guess: null, drew: { guessed, could } });
+    expect(has(one(drawing, drew(3, 3)), 'masterpiece')).toBe(true);
+    expect(has(one(drawing, drew(0, 2)), 'modern_art')).toBe(true);
+    expect(has(one(drawing, drew(0, 2)), 'masterpiece')).toBe(false);
+    const single1 = typeAchievements(one(drawing, drew(1, 1)), SOLO);
+    expect(single1.has('masterpiece') || single1.has('modern_art')).toBe(false);
+    expect(has(one(drawing, drew(2, 3)), 'masterpiece')).toBe(false);
+  });
+
+  it('masterpiece in a team game: only the person whose nickname drew it; a removed drawer — nobody', () => {
+    const team = (drawer: string) =>
+      teamGame({
+        questions: [q(0, { question: drawing, ref: { roundIndex: 0, questionId: drawing.id, drawing: { drawer, strokes: '' } } })],
+        rows: [row(0, { participantId: TEAM, payload: { type: 'drawing', guess: null, drew: { guessed: 2, could: 2 } } })],
+      });
+    expect(has(team('Віра'), 'masterpiece', VIRA_IN_TEAM)).toBe(true);
+    expect(has(team('Віра'), 'masterpiece', OLYA_IN_TEAM)).toBe(false);
+    expect(has(team(''), 'masterpiece', VIRA_IN_TEAM)).toBe(false);
+    expect(has(team(''), 'masterpiece', OLYA_IN_TEAM)).toBe(false);
+  });
+
+  it('quick_sketch: the first right guess when at least three guessed; a tie gives it to both', () => {
+    const guess = (participantId: string, timeMs: number, accepted = true): AchievementRow =>
+      row(0, { participantId, timeMs, accepted, payload: { type: 'drawing', guess: 'соняшник', drew: null } });
+    const game = (rows: AchievementRow[]) => fakeGame({ questions: [q(0, { question: drawing })], rows });
+    const three = game([guess(P, 4000), guess(PETRO, 6000), guess('p-ira', 3000, false)]);
+    expect(has(three, 'quick_sketch')).toBe(true);
+    expect(has(three, 'quick_sketch', { participantId: PETRO, personId: null })).toBe(false);
+    const tie = game([guess(P, 4000), guess(PETRO, 4000), guess('p-ira', 9000)]);
+    expect(has(tie, 'quick_sketch')).toBe(true);
+    expect(has(tie, 'quick_sketch', { participantId: PETRO, personId: null })).toBe(true);
+    expect(has(game([guess(P, 4000), guess(PETRO, 6000)]), 'quick_sketch')).toBe(false);
+  });
+
+  it('sudoku_first: solved first when at least two have a record', () => {
+    const record = (participantId: string, timeMs: number, solved = true): AchievementRow =>
+      row(0, { participantId, timeMs, accepted: solved, payload: { type: 'puzzle', kind: 'sudoku', grid: '', filled: 0, total: 0, solved, done: true } });
+    const game = (rows: AchievementRow[]) => fakeGame({ questions: [q(0, { question: sudoku, roundType: 'puzzles' })], rows });
+    const both = game([record(P, 40_000), record(PETRO, 60_000)]);
+    expect(has(both, 'sudoku_first')).toBe(true);
+    expect(has(both, 'sudoku_first', { participantId: PETRO, personId: null })).toBe(false);
+    expect(has(game([record(P, 40_000), record(PETRO, 30_000, false)]), 'sudoku_first')).toBe(true);
+    expect(has(game([record(P, 40_000)]), 'sudoku_first')).toBe(false);
+  });
+
+  it('crossword_full: the crossword solved', () => {
+    const cross = (solved: boolean): Answer => ({ type: 'puzzle', kind: 'crossword', grid: '', filled: 0, total: 0, solved });
+    expect(has(one(crosswordFull, cross(true)), 'crossword_full')).toBe(true);
+    expect(has(one(crosswordFull, cross(false)), 'crossword_full')).toBe(false);
+  });
+
+  it('jigsaw_first and last_piece: in half the base time, or one piece short', () => {
+    const piece = (patch: Partial<Extract<Answer, { type: 'jigsaw' }>>): Answer => ({ type: 'jigsaw', placed: 12, total: 12, done: true, timeMs: 59_000, ...patch });
+    expect(jigsaw.timeLimit).toBe(120);
+    expect(has(one(jigsaw, piece({})), 'jigsaw_first')).toBe(true);
+    expect(has(one(jigsaw, piece({ timeMs: 61_000 })), 'jigsaw_first')).toBe(false);
+    expect(has(one(jigsaw, piece({ timeMs: null })), 'jigsaw_first')).toBe(false);
+    expect(has(one(jigsaw, piece({ done: false, placed: 11, timeMs: null })), 'last_piece')).toBe(true);
+    expect(has(one(jigsaw, piece({ done: false, placed: 10, timeMs: null })), 'last_piece')).toBe(false);
+    expect(has(one(jigsaw, piece({ done: false, placed: 2, total: 3, timeMs: null })), 'last_piece')).toBe(false);
+  });
+
+  it('spotdiff_all: all found in half the time', () => {
+    expect(spotdiff.timeLimit).toBe(90);
+    expect(has(one(spotdiff, { type: 'spotdiff', found: 3, total: 3, done: true, timeMs: 45_000 }), 'spotdiff_all')).toBe(true);
+    expect(has(one(spotdiff, { type: 'spotdiff', found: 3, total: 3, done: true, timeMs: 46_000 }), 'spotdiff_all')).toBe(false);
+    expect(has(one(spotdiff, { type: 'spotdiff', found: 2, total: 3, done: false, timeMs: null }), 'spotdiff_all')).toBe(false);
+  });
+
+  it('elephant_memory: all pairs in at most one and a half moves a pair', () => {
+    const mem = (moves: number, done = true): Answer => ({ type: 'memory', pairs: done ? 6 : 5, total: 6, done, timeMs: 30_000, moves });
+    expect(has(one(memory, mem(9)), 'elephant_memory')).toBe(true);
+    expect(has(one(memory, mem(6)), 'elephant_memory')).toBe(true);
+    expect(has(one(memory, mem(10)), 'elephant_memory')).toBe(false);
+    expect(has(one(memory, mem(9, false)), 'elephant_memory')).toBe(false);
+  });
+
+  it('first_note: right with only the first piece open; an old record without heard gives nothing', () => {
+    expect(has(one(melody, { type: 'melody', value: 'Щедрик', heard: 1 }), 'first_note')).toBe(true);
+    expect(has(one(melody, { type: 'melody', value: 'Щедрик', heard: 2 }), 'first_note')).toBe(false);
+    expect(has(one(melody, { type: 'melody', value: 'Щедрик' } as unknown as Answer), 'first_note')).toBe(false);
+    expect(has(one(melody, { type: 'melody', value: 'Щедрик', heard: 1 }, { accepted: false, points: 0 }), 'first_note')).toBe(false);
   });
 });
