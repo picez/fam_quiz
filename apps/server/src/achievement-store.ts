@@ -14,7 +14,7 @@ import {
   type ProfileStats,
   type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, gt, gte, inArray, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
 import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
@@ -416,6 +416,22 @@ export function achievementList(earned: EarnedAchievements): Achievement[] {
     const got = earned.get(id);
     return { id, earned: got !== undefined, earnedAt: got?.earnedAt?.toISOString() ?? null };
   });
+}
+
+/** Датовані досягнення цієї гри з user_achievement (earned_at not null, game_id = gameId, 12j): userId → id у порядку ACHIEVEMENTS. */
+export async function awardedIn(db: Db, gameId: string): Promise<Map<string, AchievementId[]>> {
+  const rows = await db
+    .select({ userId: userAchievement.userId, id: userAchievement.achievementId })
+    .from(userAchievement)
+    .where(and(eq(userAchievement.gameId, gameId), isNotNull(userAchievement.earnedAt)));
+  const byUser = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!KNOWN.has(row.id)) continue;
+    const set = byUser.get(row.userId) ?? new Set<string>();
+    set.add(row.id);
+    byUser.set(row.userId, set);
+  }
+  return new Map([...byUser].map(([userId, ids]) => [userId, ACHIEVEMENTS.filter((id) => ids.has(id))]));
 }
 
 /** Хто з користувачів ховає антидосягнення (профіль з hide_anti, 12j); один запит. */

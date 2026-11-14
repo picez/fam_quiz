@@ -3,7 +3,7 @@ import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
-import { achievementsPage, antiHidden, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
+import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
 import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
@@ -659,5 +659,23 @@ describe('hiding anti-achievements (12j)', () => {
     expect(await antiHidden(db, [])).toEqual(new Set());
     expect(await setHideAnti(db, me, false)).toBe(false);
     expect((await achievementsPage(db, me, false))?.total).toBe(70);
+  });
+});
+
+describe('awardedIn (12j)', () => {
+  it('only the dated achievements of this game, in catalogue order', async () => {
+    const me = 'store-awarded-in';
+    await addUser(me, 'Дана');
+    const { gameId } = await playGame(me, new Date('2026-11-02T18:00:00Z'));
+    const other = await playGame(me, new Date('2026-11-03T18:00:00Z'));
+    const at = new Date('2026-11-02T18:30:00Z');
+    await db.insert(userAchievement).values([
+      { userId: me, achievementId: 'in_debt', earnedAt: at, gameId },
+      { userId: me, achievementId: 'first_game', earnedAt: at, gameId },
+      { userId: me, achievementId: 'sniper', earnedAt: null, gameId },
+      { userId: me, achievementId: 'fast_answer', earnedAt: at, gameId: other.gameId },
+    ]);
+    expect(await awardedIn(db, gameId)).toEqual(new Map([[me, ['first_game', 'in_debt']]]));
+    expect(await awardedIn(db, '00000000-0000-4000-8000-000000000000')).toEqual(new Map());
   });
 });

@@ -19,7 +19,7 @@ import { recordedTeamGame, toEnd, toQuestion } from './testing/team-game';
 
 vi.mock('./achievement-store', async (importOriginal) => {
   const original = await importOriginal<typeof import('./achievement-store')>();
-  return { ...original, awardGame: vi.fn(original.awardGame) };
+  return { ...original, awardGame: vi.fn(original.awardGame), awardedIn: vi.fn(original.awardedIn) };
 });
 
 const HOST = 'host-user';
@@ -2402,5 +2402,44 @@ describe('recorder: achievements (12i)', () => {
     const rows = await earnedBy(ctx.db, 'olena-user');
     expect(rows.map((r) => r.achievementId)).toContain('first_game');
     expect(rows.every((r) => r.gameId === ctx.room.id)).toBe(true);
+  });
+
+  const mineOf = (manager: RoomManager, room: Room, playerId: string) => (manager.view(room, { role: 'player', playerId }) as { newAchievements?: { account: boolean; ids: string[] } }).newAchievements;
+
+  it('the finished room shows each player what the game just gave (12j); a guest gets the sign-in hint', async () => {
+    const ctx = await setup();
+    playToFinish(ctx);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toEqual([]);
+    expect(mineOf(ctx.manager, ctx.room, ctx.olena)).toEqual({ account: true, ids: expect.arrayContaining(['first_game', 'first_win']) });
+    expect(mineOf(ctx.manager, ctx.room, ctx.taras)).toEqual({ account: false, ids: [] });
+  });
+
+  it('after a restart the same list comes from the database (12j)', async () => {
+    const ctx = await setup();
+    playToFinish(ctx);
+    await ctx.recorder.idle();
+    const before = mineOf(ctx.manager, ctx.room, ctx.olena);
+    const saved = JSON.parse(JSON.stringify(ctx.manager.snapshot(ctx.room)));
+
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, ctx.db);
+    const room = manager.restore(saved)!;
+    expect(room.newAchievements).toBeNull();
+    manager.connect(room, { role: 'host', playerId: null });
+    await recorder.idle();
+    expect(mineOf(manager, room, ctx.olena)).toEqual(before);
+  });
+
+  it('a failed read of the stored list is retried like a failed award (12j)', async () => {
+    const ctx = await setup(undefined, 10);
+    vi.mocked(store.awardedIn).mockRejectedValueOnce(new Error('read failed'));
+    playToFinish(ctx);
+    await ctx.recorder.idle();
+    expect(ctx.errors).toHaveLength(1);
+    expect(mineOf(ctx.manager, ctx.room, ctx.olena)).toBeUndefined();
+    await wait(80);
+    await ctx.recorder.idle();
+    expect(mineOf(ctx.manager, ctx.room, ctx.olena)?.ids).toContain('first_game');
   });
 });
