@@ -141,7 +141,7 @@ describe('Profile', () => {
     open();
     const nav = await screen.findByRole('navigation', { name: 'Розділи профілю' });
     const shelf = screen.getByRole('heading', { name: /Вітрина кубків/ });
-    const achievements = screen.getByRole('heading', { name: /Ачівки · 1 з 48/ });
+    const achievements = screen.getByRole('heading', { name: /Ачівки · 1 з 70/ });
     expect(before(nav, shelf)).toBe(true);
     expect(before(shelf, achievements)).toBe(true);
     expect(before(achievements, screen.getByRole('heading', { name: 'Найпопулярніші вікторини' }))).toBe(true);

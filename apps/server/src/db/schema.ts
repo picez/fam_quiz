@@ -131,6 +131,8 @@ export interface PlayRef {
   letterwords?: { letters: string[]; best: string[] };
   /** «Малюнок» (28c): нік художника ('' — художника вилучили до закриття) і стиснені штрихи (packStrokes). */
   drawing?: { drawer: string; strokes: string };
+  /** Фінал і «Ставки»: хто на мить відкриття поставив ва-банк (12j); немає — ніхто чи стара гра. */
+  final?: { allIn: string[] };
   /** «Ва-банк»: хто забрав банк після цього запитання (id учасників) і чи скінчився на ньому раунд. */
   wipeout?: { took: string[]; end?: true };
   /** «Мільйонер»: учасник, сходинка, підказки, рішення й підсумок (id учасника). */
@@ -373,6 +375,8 @@ export const profile = pgTable('profile', {
   calendarSeenAt: at('calendar_seen_at'),
   /** Мова інтерфейсу (22a): одна з LOCALES; null — ще не обрано (пуші йдуть українською). */
   locale: text('locale').$type<Locale>(),
+  /** Ховати антидосягнення від інших (12j): чужа сторінка, публічний профіль, вітрина, сцена. */
+  hideAnti: boolean('hide_anti').notNull().default(false),
   ...stamps,
 });
 

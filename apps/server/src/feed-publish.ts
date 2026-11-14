@@ -1,4 +1,4 @@
-import { ACHIEVEMENTS, FEED_RETENTION_DAYS, levelOf, type FeedData } from '@quiz/shared';
+import { ACHIEVEMENTS, FEED_RETENTION_DAYS, isAnti, levelOf, type FeedData } from '@quiz/shared';
 import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { feedEvent, game, participant, profile, quiz } from './db/schema';
@@ -12,8 +12,9 @@ const GAME_BATCH = 100;
 const PROFILE_BATCH = 500;
 const DAY_MS = 86_400_000;
 
+/** Антидосягнення — не привід для стрічки (12j): вони лишаються на сторінці досягнень і в кінці гри. */
 const KNOWN_ACHIEVEMENTS = sql.join(
-  ACHIEVEMENTS.map((id) => sql`${id}`),
+  ACHIEVEMENTS.filter((id) => !isAnti(id)).map((id) => sql`${id}`),
   sql`, `,
 );
 

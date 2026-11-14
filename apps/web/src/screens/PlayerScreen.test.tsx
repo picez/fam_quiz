@@ -5139,3 +5139,28 @@ describe('PlayerScreen code quest (29g)', () => {
     expect(document.querySelector('.quest-button')).toBeNull();
   });
 });
+
+describe('PlayerScreen: «Нове досягнення!» (12j)', () => {
+  afterEach(() => vi.useRealTimers());
+  const standings = [{ participantId: 'p1', nickname: 'Олена', score: 750, totalTimeMs: 1, rank: 1 }];
+  const content = { trophy: null, engraving: 'Чемпіон', real: { text: 'Піца', photoUrl: null }, title: null, diploma: true };
+
+  it('finished: the block comes after the game card, before the table', () => {
+    show(view({ phase: 'finished', questionIndex: 1, standings, newAchievements: { account: true, ids: ['fast_answer', 'in_debt'] } }));
+    const block = document.querySelector('.new-achievements');
+    expect(block).not.toBeNull();
+    expect(screen.getByText('Нові досягнення!')).toBeTruthy();
+    const table = document.querySelector('.standings')!;
+    expect(block!.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('not during the prize ceremony, only after it', () => {
+    vi.useFakeTimers();
+    show(view({ phase: 'finished', questionIndex: 1, standings, newAchievements: { account: true, ids: ['fast_answer'] }, prizes: { mine: null, places: [{ place: 1, content, winner: { name: 'Тарас', members: [] } }] } }));
+    expect(document.querySelector('.new-achievements')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    expect(screen.getByText('Нове досягнення!')).toBeTruthy();
+  });
+});

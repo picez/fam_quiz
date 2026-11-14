@@ -34,7 +34,7 @@ export function isPerfect(game: { played: PlayedGame; marks: AnswerMark[] }): bo
   );
 }
 
-/** Кар'єрні факти (16 перших ачівок + 12i). */
+/** Кар'єрні факти (16 перших ачівок + 12i + 12j). */
 export interface CareerFacts {
   games: number;
   wins: number;
@@ -56,6 +56,24 @@ export interface CareerFacts {
   roundTypes: number;
   /** Різних типів запитань, де є своя відповідь. */
   questionTypes: number;
+  /** Ігор з останнім місцем (isLastPlace, 12j). */
+  lastPlaces: number;
+  /** Найдовша серія завершених соло-ігор без позначки «поза грою» (з AWAY_DATA_SINCE, 12j). */
+  honestStreak: number;
+}
+
+/** Мить злиття 12e: раніше позначок виходу не писали, і стара гра виглядала б «чесною». */
+export const AWAY_DATA_SINCE = new Date('2026-10-28T11:34:43Z');
+
+/** Найдовша серія ігор без виходу; ігри — від найстарішої (сортується тут). */
+export function honestStreak(games: { startedAt: Date; away: boolean }[]): number {
+  let best = 0;
+  let current = 0;
+  for (const g of [...games].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime())) {
+    current = g.away ? 0 : current + 1;
+    best = Math.max(best, current);
+  }
+  return best;
 }
 
 /** Найдовша серія перемог (isWin) серед завершених ігор за startedAt; незавершені пропускаються. */
@@ -159,9 +177,11 @@ const COUNTERS = new Map<AchievementId, (facts: CareerFacts) => number>([
   ['win_streak_3', (f) => f.winStreak],
   ['all_rounds', (f) => f.roundTypes],
   ['all_types', (f) => f.questionTypes],
+  ['last_place_5', (f) => f.lastPlaces],
+  ['honest', (f) => f.honestStreak],
 ]);
 
-/** 22 кар'єрні ачівки, отримані за фактами, у порядку ACHIEVEMENTS. */
+/** 24 кар'єрні ачівки, отримані за фактами, у порядку ACHIEVEMENTS. */
 export function careerEarned(facts: CareerFacts): AchievementId[] {
   return ACHIEVEMENTS.filter((id) => {
     const counter = COUNTERS.get(id);

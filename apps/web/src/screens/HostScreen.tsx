@@ -1416,7 +1416,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           {view.prizes !== undefined && <PrizeResults prizes={view.prizes} role="host" />}
           {view.prizes !== undefined && <HostCeremony prizes={view.prizes} stageGone={stageGone} stageUrl={stageUrl} />}
           {view.facts?.awards != null && <FactCards cards={view.facts.awards} withRound={(round?.total ?? 1) > 1} title={t('awardsTitle')} />}
-          {(view.facts?.awards?.length ?? 0) > 0 && (
+          {/* Слайд «Нові досягнення» (12j) — теж слайд каруселі: кнопка є й без нагород гри. */}
+          {((view.facts?.awards?.length ?? 0) > 0 || view.awardsExtra === true) && (
             <>
               <button type="button" className="btn awards-show" disabled={!stageOnline || awardsGuard.busy} onClick={() => void showAwards()}>
                 {t(awardsStarted ? 'awardsNext' : 'awardsShow')}

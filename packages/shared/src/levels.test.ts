@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS } from './achievements';
+import { ACHIEVEMENTS, ANTI_ACHIEVEMENTS } from './achievements';
 import {
   COMMON_ACHIEVEMENTS, EPIC_ACHIEVEMENTS, FREE_LOOKS, LEVEL_REWARDS, LOOK_IDS, NICK_COLORS, NICK_FONTS, PHOTO_FRAMES, PROFILE_BADGES,
   achievementRarity, levelOf, levelProgress, lookLevel, looksAllowed, looksSchema, looksShown, nextRewards, perkSchema, perksFor,
@@ -147,6 +147,11 @@ describe('achievement rarity', () => {
     expect(achievementRarity('sniper')).toBe('rare');
     for (const id of [...COMMON_ACHIEVEMENTS, ...EPIC_ACHIEVEMENTS]) expect(ACHIEVEMENTS).toContain(id);
     expect(COMMON_ACHIEVEMENTS.filter((id) => EPIC_ACHIEVEMENTS.includes(id))).toEqual([]);
+  });
+
+  it('gives every anti-achievement common XP and the mechanics ones rare (12j)', () => {
+    for (const id of ANTI_ACHIEVEMENTS) expect(achievementRarity(id)).toBe('common');
+    expect(achievementRarity('lawyer')).toBe('rare');
   });
 });
 

@@ -113,6 +113,11 @@ export function isWin(game: Counted): boolean {
   return game.status === 'finished' && game.rank === 1 && game.score > 0 && game.playerCount > 1;
 }
 
+/** Останнє місце (12j): завершена гра, ≥ 4 учасники таблиці, rank === playerCount (нічия за останнє — ні). */
+export function isLastPlace(game: Pick<Counted, 'status' | 'rank' | 'playerCount'>): boolean {
+  return game.status === 'finished' && game.playerCount >= 4 && game.rank === game.playerCount;
+}
+
 /** Ігри, перемоги й частка правильних (округлено до цілого відсотка). */
 export function gameStats(games: Counted[]): { games: number; wins: number; accuracy: number | null } {
   const asked = games.reduce((sum, game) => sum + game.questionsPlayed, 0);

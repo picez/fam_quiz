@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FactCard } from '@quiz/shared';
+import { AWARDS_MS, type FactCard } from '@quiz/shared';
 import { AwardsCarousel } from './AwardsCarousel';
 
 beforeEach(() => {
@@ -161,5 +161,50 @@ describe('AwardsCarousel', () => {
     rerender(carousel(1, true, []));
     wait(20_000);
     expect(onPodium()).toBe(true);
+  });
+});
+
+describe('AwardsCarousel with the «Нові досягнення» slide (12j)', () => {
+  const extra = <p className="extra-slide">Нові досягнення</p>;
+  const withExtra = (seq: number | null, autopilot = false, list = awards) => (
+    <AwardsCarousel awards={list} withRound={false} autopilot={autopilot} seq={seq} extra={extra}>
+      <div className="podium">П'єдестал</div>
+    </AwardsCarousel>
+  );
+  const meta = () => document.querySelector('.stage-board.is-award .meta')?.textContent ?? null;
+  const onExtra = () => document.querySelector('.stage-board.is-award .extra-slide') !== null;
+
+  it('host taps: award 1, award 2, the extra slide last with «3 з 3», then award 1 again', () => {
+    const { rerender } = render(withExtra(null));
+    rerender(withExtra(1));
+    expect(meta()).toBe('Нагороди гри · 1 з 3');
+    rerender(withExtra(2));
+    expect(meta()).toBe('Нагороди гри · 2 з 3');
+    rerender(withExtra(3));
+    expect(onExtra()).toBe(true);
+    expect(meta()).toBe('Нагороди гри · 3 з 3');
+    rerender(withExtra(4));
+    expect(meta()).toBe('Нагороди гри · 1 з 3');
+  });
+
+  it('the autopilot cycles podium → 1 → 2 → extra → podium', () => {
+    render(withExtra(null, true));
+    expect(onPodium()).toBe(true);
+    wait(AWARDS_MS.podium);
+    expect(meta()).toBe('Нагороди гри · 1 з 3');
+    wait(AWARDS_MS.slide);
+    expect(meta()).toBe('Нагороди гри · 2 з 3');
+    wait(AWARDS_MS.slide);
+    expect(onExtra()).toBe(true);
+    wait(AWARDS_MS.slide);
+    expect(onPodium()).toBe(true);
+  });
+
+  it('no awards, only the extra slide: a tap shows it', () => {
+    const { rerender } = render(withExtra(null, false, []));
+    expect(onPodium()).toBe(true);
+    rerender(withExtra(1, false, []));
+    expect(onExtra()).toBe(true);
+    expect(meta()).toBe('Нагороди гри · 1 з 1');
   });
 });

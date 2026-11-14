@@ -1,7 +1,9 @@
 import { ACHIEVEMENTS, bluffFact, cluesAt, FACT_LIMITS, isSelfPaced, isWin, surveyHitsOf, survivorsAfter, wipeoutStandings, type AchievementId } from '@quiz/shared';
 import { checkAnswer } from '@quiz/engine';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
-import { PENALTY_ATTEMPT } from './db/schema';
+import { answerRow, groupRounds, ownRows, silentRisk } from './achievement-rows';
+import { antiAchievements } from './anti-achievements';
+import { mechanicAchievements } from './mechanic-achievements';
 
 /** Пороги ігрових ачівок (12i). */
 export const ACHIEVEMENT_LIMITS = {
@@ -29,28 +31,6 @@ export interface AchievementWho {
 
 const EPSILON = 1e-9;
 
-/** Свої рядки: соло — рядки учасника; людина команди — рядки команди, де відповідала вона (без answeredBy — нічиї). */
-function ownRows(game: AchievementGame, who: AchievementWho): AchievementRow[] {
-  return game.rows.filter((r) => r.participantId === who.participantId && (who.personId === null || r.answeredBy === who.personId));
-}
-
-/** Рядок-відповідь: спроба, а не штраф. */
-const answerRow = (row: AchievementRow) => row.attempt >= 0;
-
-/** Мовчання з «Ризиком»: штраф за невідповідь під бафом. */
-const silentRisk = (row: AchievementRow) => row.attempt === PENALTY_ATTEMPT && row.buff === 'risk';
-
-/** Зіграні запитання за раундами, у порядку гри. */
-function groupRounds(questions: AchievementQuestion[]): AchievementQuestion[][] {
-  const rounds = new Map<number, AchievementQuestion[]>();
-  for (const q of questions) {
-    const list = rounds.get(q.roundIndex);
-    if (list === undefined) rounds.set(q.roundIndex, [q]);
-    else list.push(q);
-  }
-  return [...rounds.values()];
-}
-
 let kyivFormat: Intl.DateTimeFormat | undefined;
 
 /** Година за київським часом (0–23). */
@@ -68,7 +48,7 @@ export function kyivHour(date: Date): number {
   return Number(kyivFormat.format(date)) % 24;
 }
 
-/** Ачівки однієї завершеної гри (26 ігрових, «Рішення плану»); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
+/** Ачівки однієї завершеної гри (26 ігрових 12i + 15 антидосягнень і 5 механік 12j, «Рішення плану»); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
 export function gameAchievements(game: AchievementGame, who: AchievementWho): AchievementId[] {
   if (game.status !== 'finished') return [];
   const L = ACHIEVEMENT_LIMITS;
@@ -213,6 +193,10 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
   const startHour = kyivHour(game.startedAt);
   if (startHour >= L.morning[0] && startHour < L.morning[1]) got.add('early_bird');
   if (game.questionsPlayed >= L.marathon) got.add('marathon');
+
+  // Антидосягнення й досягнення механік (12j).
+  for (const id of antiAchievements(game, who)) got.add(id);
+  for (const id of mechanicAchievements(game, who)) got.add(id);
 
   return ACHIEVEMENTS.filter((id) => got.has(id));
 }

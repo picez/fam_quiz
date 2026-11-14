@@ -6,11 +6,12 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_INFO, type AchievementCard, type AchievementsPage } from '@quiz/shared';
-import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase } from '../api';
+import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase, setHideAnti } from '../api';
+import { errorText } from '../i18n';
 import { formatDay } from '../format';
 import { Achievements } from './Achievements';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn(), setHideAnti: vi.fn() }));
 
 const EARNED: Record<string, string | null> = { fast_answer: '2026-10-29T10:00:00.000Z', first_game: null };
 
@@ -29,7 +30,7 @@ const mine: AchievementsPage = {
   profile: { id: 'u1', nickname: 'Олена', avatar: null },
   own: true,
   earned: 2,
-  total: 48,
+  total: 70,
   items: ACHIEVEMENTS.map((id) => card(id, true)),
 };
 
@@ -37,7 +38,7 @@ const theirs: AchievementsPage = {
   profile: { id: 'u2', nickname: 'Оля', avatar: null },
   own: false,
   earned: 2,
-  total: 48,
+  total: 70,
   items: ACHIEVEMENTS.filter((id) => id in EARNED).map((id) => card(id, false)),
 };
 
@@ -70,9 +71,9 @@ const open = (path: string) =>
 const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name: new RegExp(`^${name}(, ще не отримано)?$`) }).closest('li') as HTMLElement;
 
 describe('Achievements, own page', () => {
-  it('shows the count, the groups in order without the empty anti group', async () => {
+  it('shows the count and the groups in order, the anti group last (12j)', async () => {
     const { container } = open('/achievements');
-    expect(await screen.findByText('Отримано 2 з 48')).toBeTruthy();
+    expect(await screen.findByText('Отримано 2 з 70')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1, name: 'Досягнення' })).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
       'Перші кроки',
@@ -82,15 +83,15 @@ describe('Achievements, own page', () => {
       'Бафи й дебафи',
       'Компанія',
       'Ведення й авторство',
+      'Антидосягнення',
     ]);
-    expect(screen.queryByText('Антидосягнення')).toBeNull();
-    expect(container.querySelectorAll('.achievement-card')).toHaveLength(48);
+    expect(container.querySelectorAll('.achievement-card')).toHaveLength(70);
     expect(getMyAchievements).toHaveBeenCalled();
   });
 
   it('an earned card has its joke, the condition and the date', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     const fast = cardOf('Швидкі пальці');
     expect(fast.classList.contains('is-locked')).toBe(false);
     expect(within(fast).getByRole('heading', { level: 3 }).textContent).toBe('Швидкі пальці');
@@ -103,7 +104,7 @@ describe('Achievements, own page', () => {
 
   it('a locked counted card is grey with its progress, a locked one-off has none', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     const games = cardOf('10 ігор');
     expect(games.classList.contains('is-locked')).toBe(true);
     // Назву картки не підмінено: «ще не отримано» — прихований текст у заголовку.
@@ -123,7 +124,7 @@ describe('Achievements, own page', () => {
   it('only earned cards have the 📌 button; a tap pins the achievement', async () => {
     vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [], achievements: ['first_game', 'fast_answer'] } });
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     expect(within(cardOf('10 ігор')).queryByRole('button')).toBeNull();
     const first = await within(cardOf('Перша гра')).findByRole('button', { name: '📌 Прибрати з вітрини: Перша гра' });
     expect(first.hasAttribute('aria-pressed')).toBe(false);
@@ -212,5 +213,51 @@ describe('Achievements, styles', () => {
     const icon = rule('.achievement-card.is-locked .achievement-icon');
     expect(icon).toContain('filter: grayscale(1);');
     expect(icon).toContain('opacity');
+  });
+});
+
+describe('Achievements: the anti group (12j)', () => {
+  const withDebt = (own: boolean, hideAnti?: boolean): AchievementsPage => {
+    const base = own ? mine : theirs;
+    const items = base.items.map((item) => (item.id === 'in_debt' ? { ...item, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null } : item));
+    const page = { ...base, earned: 2, total: 70, items: own ? items : [...items, { id: 'in_debt' as const, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null }] };
+    return hideAnti === undefined ? page : { ...page, hideAnti };
+  };
+
+  it('own page: anti cards framed, the switch unchecked; a tap saves at once and says «Збережено»', async () => {
+    vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
+    vi.mocked(setHideAnti).mockResolvedValue({ ok: true, data: { hideAnti: true } });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
+    expect(cardOf('Нуль без палички').className).toBe('achievement-card is-locked is-anti');
+    expect(cardOf('Перша гра').className).toBe('achievement-card');
+    const toggle = screen.getByRole('checkbox', { name: 'Ховати антидосягнення від інших' }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    expect(toggle.closest('section')?.querySelector('h2')?.textContent).toBe('Антидосягнення');
+    fireEvent.click(toggle);
+    expect(toggle.checked).toBe(true);
+    expect(setHideAnti).toHaveBeenCalledWith(true);
+    expect(await screen.findByText('Збережено')).toBeTruthy();
+    expect(toggle.checked).toBe(true);
+  });
+
+  it('a failed save puts the switch back and says why', async () => {
+    vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
+    vi.mocked(setHideAnti).mockResolvedValue({ ok: false, error: 'offline' });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    const toggle = screen.getByRole('checkbox', { name: 'Ховати антидосягнення від інших' }) as HTMLInputElement;
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.checked).toBe(false));
+    expect(screen.getByText(errorText('offline'))).toBeTruthy();
+  });
+
+  it('someone else’s page has no switch', async () => {
+    vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: withDebt(false) });
+    open('/profile/u2/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 });

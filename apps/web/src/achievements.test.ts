@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACHIEVEMENTS, type Achievement, type AchievementCard, type AchievementId } from '@quiz/shared';
+import { ACHIEVEMENTS, ANTI_ACHIEVEMENTS, type Achievement, type AchievementCard, type AchievementId } from '@quiz/shared';
 import { ACHIEVEMENT_ICONS } from './achievement-meta';
 import { groupCards, recentBadges } from './achievements';
 import { hasText, t, type TextKey } from './i18n';
@@ -40,6 +40,21 @@ describe('achievement texts', () => {
       for (const text of [name(id), joke(id), hint(id)]) expect(text, id).not.toMatch(/росі|москв|ссср|радянськ|сервант/iu);
     }
     expect(joke('sort_clean')).toBe('Усе по поличках, як у бабусі в комоді.');
+  });
+
+  it('70 achievements; anti-achievements joke about the situation, never mock the player (12j)', () => {
+    expect(ACHIEVEMENTS).toHaveLength(70);
+    expect(ANTI_ACHIEVEMENTS).toHaveLength(16);
+    for (const id of ANTI_ACHIEVEMENTS) {
+      for (const text of [name(id), joke(id), hint(id)]) expect(text.trim(), id).not.toBe('');
+      expect(joke(id), id).not.toMatch(/невдах|лох|ганьб/iu);
+    }
+    expect(name('in_debt')).toBe('У мінусі');
+    expect(joke('in_debt')).toBe('Борг — теж досягнення. Банк уже дзвонить.');
+    expect(name('burned')).toBe('Згоріло на фініші');
+    expect(hint('chosen_one')).toBe('Відповідати за команду за вибором капітана чи чергою — і влучити');
+    expect(ACHIEVEMENT_ICONS.in_debt).toBe('🕳️');
+    expect(ACHIEVEMENT_ICONS.chosen_one).toBe('🌟');
   });
 });
 

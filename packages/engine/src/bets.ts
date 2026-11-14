@@ -85,7 +85,9 @@ export function openBetsQuestion(state: GameState, now: number, rng: Rng): GameS
       .map((p) => [p.id, placed[p.id]]),
   );
   const opened = openQuestion(state, question, now, rng);
-  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, allIn: [], graded: [] } });
+  // Ва-банк на мить відкриття — для журналу гри (12j); рахунку не змінює.
+  const allIn = state.final.allIn.filter((id) => Object.hasOwn(wagers, id));
+  return withCurrentPlay(opened, { ...opened.plays[opened.questionIndex], final: { wagers, allIn, graded: [] } });
 }
 
 /**

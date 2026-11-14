@@ -1,6 +1,7 @@
 import { normalizeText } from '@quiz/engine';
 import {
   LIMITS,
+  isAnti,
   isWin,
   nicknameSchema,
   normalizeFavorites,
@@ -16,7 +17,7 @@ import {
 } from '@quiz/shared';
 import { and, asc, count, eq, inArray, isNull, like, lt, ne, or } from 'drizzle-orm';
 import type { CurrentUser } from './account-routes';
-import { achievementList, careerInputs, syncAchievements } from './achievement-store';
+import { achievementList, antiHidden, careerInputs, syncAchievements } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { follow, game, profile, user } from './db/schema';
@@ -250,7 +251,20 @@ export async function publicProfile(db: Db, id: string, viewerId: string | null)
   if (!base) return null;
   const { stats, achievements } = await profileFacts(db, id, false);
   const following = viewerId === null || viewerId === id ? null : await isFollowing(db, viewerId, id);
-  return { id: base.id, nickname: base.nickname, avatar: base.avatar, stats, achievements, following, showcase: await showcaseOf(db, id), level: await publicLevel(db, id), likes: await likeTotals(db, id) };
+  const showcase = await showcaseOf(db, id);
+  // Антидосягнення, які власник ховає (12j): ні в списку, ні закріплених на вітрині.
+  const hide = (await antiHidden(db, [id])).has(id);
+  return {
+    id: base.id,
+    nickname: base.nickname,
+    avatar: base.avatar,
+    stats,
+    achievements: hide ? achievements.filter((a) => !isAnti(a.id)) : achievements,
+    following,
+    showcase: hide ? { ...showcase, pins: { ...showcase.pins, achievements: showcase.pins.achievements.filter((a) => !isAnti(a)) } } : showcase,
+    level: await publicLevel(db, id),
+    likes: await likeTotals(db, id),
+  };
 }
 
 /** Улюблені користувача: лише відомі маніфесту id (normalizeFavorites); профілю ще немає — його створює ensureProfile. */

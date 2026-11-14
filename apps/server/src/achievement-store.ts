@@ -1,7 +1,11 @@
 import {
   ACHIEVEMENT_INFO,
   ACHIEVEMENTS,
+  ANTI_ACHIEVEMENTS,
+  AWAY_MS,
   gameStats,
+  isAnti,
+  isLastPlace,
   podiumStats,
   type Achievement,
   type AchievementCard,
@@ -10,11 +14,11 @@ import {
   type ProfileStats,
   type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, gt, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
-import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
+import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
 import { gameAchievements } from './game-achievements';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { ensureProfile } from './profiles';
@@ -80,6 +84,8 @@ interface CareerCounts {
   hostedInGame: number;
   /** Типи запитань: усі й без гри split; null — не читали (тоді questionTypes = 0, а all_types цим читанням не дається). */
   types: { all: Set<QuestionType>; without: Set<QuestionType> } | null;
+  /** Соло-ігри (завершені, з AWAY_DATA_SINCE) і чи був у них свій рядок з away_ms ≥ AWAY_MS.mark (12j). */
+  soloAway: { gameId: string; startedAt: Date; away: boolean }[];
 }
 
 /** Один набір запитів на лічильники: і «зараз», і «до гри split» (умовні count, а не другий набір запитів). */
@@ -111,6 +117,14 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
       .where(and(eq(game.id, split), eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
     hostedInGame = hosted.n;
   }
+  // Чесні соло-ігри (12j): свій рядок гравця без команди; командні ігри серію не рвуть і не подовжують.
+  const soloAway = await db
+    .select({ gameId: game.id, startedAt: game.startedAt, away: sql<number>`count(${answer.participantId})`.mapWith(Number) })
+    .from(participant)
+    .innerJoin(game, eq(game.id, participant.gameId))
+    .leftJoin(answer, and(eq(answer.participantId, participant.id), gte(answer.awayMs, AWAY_MS.mark)))
+    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(participant.isTeam, false), eq(game.status, 'finished'), gte(game.startedAt, AWAY_DATA_SINCE)))
+    .groupBy(game.id, game.startedAt);
   let types: CareerCounts['types'] = null;
   if (withTypes) {
     if (split === null) {
@@ -126,6 +140,7 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
     authoredInGame: authored.inGame,
     hostedInGame,
     types,
+    soloAway: soloAway.map((row) => ({ gameId: row.gameId, startedAt: row.startedAt, away: row.away > 0 })),
   };
 }
 
@@ -164,6 +179,8 @@ function factsOf(userId: string, inputs: CareerInputs, counts: CareerCounts, wit
     authorGames: counts.authored - (without === null ? 0 : counts.authoredInGame),
     roundTypes: roundTypes.size,
     questionTypes: types?.size ?? 0,
+    lastPlaces: played.filter(isLastPlace).length,
+    honestStreak: honestStreak(without === null ? counts.soloAway : counts.soloAway.filter((g) => g.gameId !== without)),
   };
 }
 
@@ -401,18 +418,64 @@ export function achievementList(earned: EarnedAchievements): Achievement[] {
   });
 }
 
-/** Сторінка ачівок: own — усі з поступом лічильних неотриманих; інакше лише отримані без поступу. null — немає такого користувача. */
+/** Датовані досягнення цієї гри з user_achievement (earned_at not null, game_id = gameId, 12j): userId → id у порядку ACHIEVEMENTS. */
+export async function awardedIn(db: Db, gameId: string): Promise<Map<string, AchievementId[]>> {
+  const rows = await db
+    .select({ userId: userAchievement.userId, id: userAchievement.achievementId })
+    .from(userAchievement)
+    .where(and(eq(userAchievement.gameId, gameId), isNotNull(userAchievement.earnedAt)));
+  const byUser = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!KNOWN.has(row.id)) continue;
+    const set = byUser.get(row.userId) ?? new Set<string>();
+    set.add(row.id);
+    byUser.set(row.userId, set);
+  }
+  return new Map([...byUser].map(([userId, ids]) => [userId, ACHIEVEMENTS.filter((id) => ids.has(id))]));
+}
+
+/** Хто з користувачів ховає антидосягнення (профіль з hide_anti, 12j); один запит. */
+export async function antiHidden(db: Db, userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: profile.userId })
+    .from(profile)
+    .where(and(inArray(profile.userId, userIds), eq(profile.hideAnti, true)));
+  return new Set(rows.map((row) => row.id));
+}
+
+/** Перемикач власника (12j); повертає збережене значення (профіль створюється, якщо його ще немає). */
+export async function setHideAnti(db: Db, userId: string, hide: boolean): Promise<boolean> {
+  await ensureProfile(db, userId);
+  const [row] = await db.update(profile).set({ hideAnti: hide }).where(eq(profile.userId, userId)).returning({ hideAnti: profile.hideAnti });
+  return row?.hideAnti ?? false;
+}
+
+/**
+ * Сторінка ачівок: own — усі з поступом лічильних неотриманих і перемикач hideAnti; інакше лише отримані без поступу,
+ * а коли власник ховає антидосягнення (12j) — і без них (total теж без них). null — немає такого користувача.
+ */
 export async function achievementsPage(db: Db, userId: string, own: boolean): Promise<AchievementsPage | null> {
   const card = await ensureProfile(db, userId);
   if (card === null) return null;
   // Чужа сторінка не показує поступу: типи запитань для неї не читаються.
   const { earned, facts } = await syncAchievements(db, userId, null, { types: own });
+  const hideAnti = (await antiHidden(db, [userId])).has(userId);
+  const hidden = !own && hideAnti;
   const progress = careerProgress(facts);
   const items = achievementList(earned).flatMap((achievement): AchievementCard[] => {
     if (!own && !achievement.earned) return [];
+    if (hidden && isAnti(achievement.id)) return [];
     const goal = ACHIEVEMENT_INFO[achievement.id].goal;
     const counting = own && !achievement.earned && goal !== null;
     return [{ ...achievement, progress: counting ? { current: progress[achievement.id] ?? 0, goal } : null }];
   });
-  return { profile: card, own, earned: earned.size, total: ACHIEVEMENTS.length, items };
+  const page = {
+    profile: card,
+    own,
+    earned: hidden ? items.length : earned.size,
+    total: hidden ? ACHIEVEMENTS.length - ANTI_ACHIEVEMENTS.length : ACHIEVEMENTS.length,
+    items,
+  };
+  return own ? { ...page, hideAnti } : page;
 }

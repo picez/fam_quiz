@@ -116,6 +116,14 @@ describe('the bets round (27a)', () => {
     expect(betsPlaying(s)).toEqual(['p1', 'p2', 'p3']);
   });
 
+  it('the opened question keeps who went all-in, so the game log can record it (12j)', () => {
+    const wager = toWager();
+    const allIn = must(placeWager(wager, 'p3', 0, T, rng, true));
+    const s = bet(allIn, { p1: 400, p2: 200 });
+    expect(s.phase).toBe('question');
+    expect(current(s).final).toEqual({ wagers: { p1: 400, p2: 200, p3: 300 }, allIn: ['p3'], graded: [] });
+  });
+
   it('the host can open early; who did not bet skips', () => {
     const s = must(next(bet(toWager(), { p1: 400 }), T, rng));
     expect(s.phase).toBe('question');

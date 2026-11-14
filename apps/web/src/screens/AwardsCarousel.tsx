@@ -8,10 +8,28 @@ import { t } from '../i18n';
  * Звичайна гра: стоїть на п'єдесталі, доки не прийде новий seq від ведучого; далі сама до кінця й назад на п'єдестал (стоп); кожен новий seq — наступний слайд.
  * autopilot: після AWARDS_MS.podium сама, по колу. hold (заставка «Підсумки») — жоден таймер ще не йде: дотик під заставкою
  * відкриває нагороду, і її 4 с починаються, коли заставка зійде.
- * 12j додасть слайд «Нові ачівки» в slides.
+ * extra (12j) — останній слайд після нагород («Нові досягнення»): той самий лічильник «N з M», ті самі дотики й автопілот.
  */
-export function AwardsCarousel({ awards, withRound, autopilot, seq, hold = false, children }: { awards: FactCard[]; withRound: boolean; autopilot: boolean; seq: number | null; hold?: boolean; children: ReactNode }) {
-  const total = awards.length;
+export function AwardsCarousel({
+  awards,
+  withRound,
+  autopilot,
+  seq,
+  hold = false,
+  extra = null,
+  children,
+}: {
+  awards: FactCard[];
+  withRound: boolean;
+  autopilot: boolean;
+  seq: number | null;
+  hold?: boolean;
+  /** Останній слайд після нагород (12j «Нові досягнення»); null — немає. */
+  extra?: ReactNode | null;
+  children: ReactNode;
+}) {
+  const hasExtra = extra !== null && extra !== undefined && extra !== false;
+  const total = awards.length + (hasExtra ? 1 : 0);
   // step росте з кожною зміною слайда: дотик на тому самому слайді теж починає 4 с знову.
   const [{ slide, step }, setShown] = useState({ slide: 0, step: 0 });
   // Перший seq після монтування — базовий: дотик до відкриття сцени слайд не рушить.
@@ -34,11 +52,19 @@ export function AwardsCarousel({ awards, withRound, autopilot, seq, hold = false
     return () => clearTimeout(timer);
   }, [slide, step, total, autopilot, hold]);
 
-  const card = slide > 0 && slide <= total ? awards[slide - 1] : null;
+  const card = slide > 0 && slide <= awards.length ? awards[slide - 1] : null;
+  const onExtra = hasExtra && slide === total && slide > 0;
   // Обгортка aria-live стоїть завжди: зміну слайда зчитувач чує й тоді, коли нагорода приходить на місце п'єдесталу.
   return (
     <div className="awards-live" aria-live="polite">
-      {card === null ? (
+      {onExtra ? (
+        <div className="stage-board is-award is-new-achievements">
+          <p className="meta">
+            {t('awardsTitle')} · {t('awardsSlide', { n: slide, total })}
+          </p>
+          {extra}
+        </div>
+      ) : card === null ? (
         children
       ) : (
         <div className="stage-board is-award">

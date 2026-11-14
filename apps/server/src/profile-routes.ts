@@ -1,7 +1,8 @@
 import { favoriteStickersSchema, likesOffsetSchema, localeUpdateSchema, looksSchema, profileUpdateSchema } from '@quiz/shared';
+import { z } from 'zod';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CurrentUser } from './account-routes';
-import { achievementsPage } from './achievement-store';
+import { achievementsPage, setHideAnti } from './achievement-store';
 import { isBanned } from './bans';
 import type { Db } from './db/client';
 import { givenLikes, receivedLikes } from './like-store';
@@ -18,6 +19,8 @@ const UNAUTHORIZED = { error: 'unauthorized' };
 const NOT_FOUND = { error: 'not_found' };
 const MAX_ID_LENGTH = 64;
 const MAX_QUERY_LENGTH = 100;
+/** Перемикач «Ховати антидосягнення від інших» (12j). */
+const hideAntiSchema = z.object({ hide: z.boolean() }).strict();
 
 export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileDeps): Promise<void> {
   const { db, currentUser } = deps;
@@ -51,6 +54,14 @@ export async function registerProfileRoutes(app: FastifyInstance, deps: ProfileD
     const body = favoriteStickersSchema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
     return { favorites: await saveFavoriteStickers(db, user.id, body.data.favorites) };
+  });
+
+  app.put('/api/me/achievements/hide-anti', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const user = await currentUser(request);
+    if (user === null) return reply.code(401).send(UNAUTHORIZED);
+    const body = hideAntiSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    return { hideAnti: await setHideAnti(db, user.id, body.data.hide) };
   });
 
   app.put('/api/me/looks', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {

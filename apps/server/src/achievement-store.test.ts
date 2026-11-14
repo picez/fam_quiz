@@ -3,7 +3,7 @@ import { blitzRound, classicRound, makeRoundsQuiz, single, slider, withId } from
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as games from './achievement-games';
-import { achievementsPage, awardGame, careerFacts, syncAchievements } from './achievement-store';
+import { achievementsPage, antiHidden, awardedIn, awardGame, careerFacts, setHideAnti, syncAchievements } from './achievement-store';
 import type { Db } from './db/client';
 import { setErrorReporter } from './log';
 import { PENALTY_ATTEMPT, profile, quiz, user, userAchievement } from './db/schema';
@@ -292,7 +292,7 @@ describe('reading', () => {
 });
 
 describe('achievements page', () => {
-  it('own: all 48 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
+  it('own: all 70 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
     const me = 'store-page';
     await addUser(me, 'Яна');
     await playGame(me, new Date('2026-09-12T18:00:00Z'));
@@ -538,5 +538,144 @@ describe('catch-up of lost awards beyond players (12i)', () => {
     } finally {
       unhook();
     }
+  });
+});
+
+describe('career counters and the history refill of 12j', () => {
+  const day = (n: number, hour = 18) => new Date(Date.UTC(2026, 10, n, hour));
+
+  /** Соло-гра на одне запитання; away — позначка «поза грою» на ньому; score, rank і players — для місць. */
+  async function soloGame(userId: string, startedAt: Date, { away = false, score = 100, rank = 1, others = [guest] }: { away?: boolean; score?: number; rank?: number; others?: SeedPlayer[] } = {}) {
+    return seedGame(db, {
+      hostId: HOST,
+      startedAt,
+      finishedAt: new Date(startedAt.getTime() + 30 * 60_000),
+      snapshot: quizOne,
+      questionsPlayed: 1,
+      plays: playsOne.slice(0, 1),
+      players: [
+        { userId, nickname: 'Гравець', score, rank, rows: [{ questionIndex: 0, accepted: true, points: score, payload: { type: 'single', optionId: 'b' }, timeMs: 5000, ...(away ? { awayMs: 4000 } : {}) }] },
+        ...others,
+      ],
+    });
+  }
+
+  it('ten honest solo games in a row give honest; an away mark in the fifth breaks it', async () => {
+    const honest = 'store-honest';
+    await addUser(honest, 'Соня');
+    for (let i = 1; i <= 10; i++) await soloGame(honest, day(i));
+    expect((await read(honest)).earned.has('honest')).toBe(true);
+
+    const broken = 'store-honest-broken';
+    await addUser(broken, 'Стефа');
+    for (let i = 1; i <= 10; i++) await soloGame(broken, day(i), { away: i === 5 });
+    const read2 = await read(broken);
+    expect(read2.earned.has('honest')).toBe(false);
+    expect(read2.facts.honestStreak).toBe(5);
+  });
+
+  it('games before the away marks existed do not count; team games neither break nor extend the run', async () => {
+    const me = 'store-honest-old';
+    await addUser(me, 'Тая');
+    for (let i = 1; i <= 5; i++) await soloGame(me, new Date(Date.UTC(2026, 9, 20 + i, 18)));
+    for (let i = 1; i <= 9; i++) {
+      await soloGame(me, day(i));
+      if (i === 4) {
+        await seedGame(db, {
+          hostId: HOST,
+          startedAt: day(i, 20),
+          players: [
+            { userId: null, nickname: 'Буковина', score: 100, rank: 1, isTeam: true, rows: [{ questionIndex: 0, accepted: true, points: 100, awayMs: 9000 }] },
+            { userId: me, nickname: 'Тая', score: 100, rank: 1, teamOf: 0 },
+          ],
+        });
+      }
+    }
+    const { earned, facts } = await read(me);
+    expect(facts.honestStreak).toBe(9);
+    expect(earned.has('honest')).toBe(false);
+  });
+
+  it('the fifth last place gives last_place_5 with the date of that game', async () => {
+    const me = 'store-last5';
+    await addUser(me, 'Уляна');
+    await read(me);
+    const others: SeedPlayer[] = [1, 2, 3].map((rank) => ({ userId: null, nickname: `Гість ${rank}`, score: 500 - rank * 100, rank }));
+    let fifth = '';
+    for (let i = 1; i <= 5; i++) fifth = (await soloGame(me, day(i, 10), { score: 10, rank: 4, others })).gameId;
+    const awarded = await awardGame(db, fifth);
+    expect(awarded.get(me)).toEqual(expect.arrayContaining(['last_place', 'last_place_5']));
+    const row = (await rowsOf(me)).find((r) => r.achievementId === 'last_place_5');
+    expect(row?.earnedAt?.toISOString()).toBe(new Date(day(5, 10).getTime() + 30 * 60_000).toISOString());
+    expect(row?.gameId).toBe(fifth);
+  });
+
+  it('the refill gives in_debt for an old game «long ago»; a new game in debt reports it only if it is new', async () => {
+    const debtor = 'store-debt';
+    await addUser(debtor, 'Віта');
+    const old = await soloGame(debtor, day(1), { score: -100, rank: 2, others: [{ ...guest, score: 100, rank: 1 }] });
+    // Користувач уже прочитаний до 12j: міграція 0032 скидає мітку.
+    await db.update(profile).set({ achievementsSyncedAt: null }).where(eq(profile.userId, debtor));
+    const { earned } = await read(debtor);
+    expect(earned.get('in_debt')).toEqual({ earnedAt: null, gameId: old.gameId });
+    const again = await soloGame(debtor, day(2), { score: -50, rank: 2, others: [{ ...guest, score: 100, rank: 1 }] });
+    expect((await awardGame(db, again.gameId)).get(debtor)).not.toContain('in_debt');
+
+    const fresh = 'store-debt-new';
+    await addUser(fresh, 'Зоя');
+    await read(fresh);
+    const first = await soloGame(fresh, day(3), { score: -50, rank: 2, others: [{ ...guest, score: 100, rank: 1 }] });
+    expect((await awardGame(db, first.gameId)).get(fresh)).toContain('in_debt');
+  });
+});
+
+describe('hiding anti-achievements (12j)', () => {
+  it('the own page says hideAnti; once hidden, another viewer sees no anti-achievements and a total of 54', async () => {
+    const me = 'store-hide';
+    await addUser(me, 'Ліна');
+    await read(me);
+    await db.insert(userAchievement).values([
+      { userId: me, achievementId: 'in_debt', earnedAt: new Date('2026-11-01T10:00:00Z'), gameId: null },
+      { userId: me, achievementId: 'first_game', earnedAt: new Date('2026-11-01T10:00:00Z'), gameId: null },
+    ]);
+    expect((await achievementsPage(db, me, true))?.hideAnti).toBe(false);
+    expect(await setHideAnti(db, me, true)).toBe(true);
+
+    const theirs = await achievementsPage(db, me, false);
+    expect(theirs?.items.map((i) => i.id)).toEqual(['first_game']);
+    expect(theirs?.earned).toBe(1);
+    expect(theirs?.total).toBe(54);
+    expect(theirs).not.toHaveProperty('hideAnti');
+
+    const own = await achievementsPage(db, me, true);
+    expect(own?.hideAnti).toBe(true);
+    expect(own?.total).toBe(70);
+    expect(own?.items.filter((i) => i.earned).map((i) => i.id)).toEqual(expect.arrayContaining(['first_game', 'in_debt']));
+
+    const other = 'store-hide-not';
+    await addUser(other, 'Мія');
+    await read(other);
+    expect([...(await antiHidden(db, [me, other, 'store-nobody']))]).toEqual([me]);
+    expect(await antiHidden(db, [])).toEqual(new Set());
+    expect(await setHideAnti(db, me, false)).toBe(false);
+    expect((await achievementsPage(db, me, false))?.total).toBe(70);
+  });
+});
+
+describe('awardedIn (12j)', () => {
+  it('only the dated achievements of this game, in catalogue order', async () => {
+    const me = 'store-awarded-in';
+    await addUser(me, 'Дана');
+    const { gameId } = await playGame(me, new Date('2026-11-02T18:00:00Z'));
+    const other = await playGame(me, new Date('2026-11-03T18:00:00Z'));
+    const at = new Date('2026-11-02T18:30:00Z');
+    await db.insert(userAchievement).values([
+      { userId: me, achievementId: 'in_debt', earnedAt: at, gameId },
+      { userId: me, achievementId: 'first_game', earnedAt: at, gameId },
+      { userId: me, achievementId: 'sniper', earnedAt: null, gameId },
+      { userId: me, achievementId: 'fast_answer', earnedAt: at, gameId: other.gameId },
+    ]);
+    expect(await awardedIn(db, gameId)).toEqual(new Map([[me, ['first_game', 'in_debt']]]));
+    expect(await awardedIn(db, '00000000-0000-4000-8000-000000000000')).toEqual(new Map());
   });
 });

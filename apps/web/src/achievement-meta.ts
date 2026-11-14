@@ -1,6 +1,6 @@
 import type { AchievementId } from '@quiz/shared';
 
-/** Значок кожної ачівки (12i, таблиця специфікації). */
+/** Значок кожної ачівки (12i + 12j, таблиці специфікації й плану 12j). */
 export const ACHIEVEMENT_ICONS: Record<AchievementId, string> = {
   first_game: '🎈',
   first_win: '🏆',
@@ -50,4 +50,26 @@ export const ACHIEVEMENT_ICONS: Record<AchievementId, string> = {
   podium_10: '🥉',
   author_hit: '📖',
   veteran: '🛡️',
+  in_debt: '🕳️',
+  zero: '🥚',
+  last_place: '🐌',
+  last_place_5: '🪨',
+  black_stripe: '🦓',
+  so_close: '🤏',
+  gullible: '🐑',
+  all_in_lost: '📉',
+  burned: '🧯',
+  umbrella: '☂️',
+  same_river: '🌊',
+  slowpoke: '🐢',
+  debuff_magnet: '🧲',
+  who_am_i: '🙃',
+  lawyer: '⚖️',
+  hammer: '🔨',
+  honest: '🙌',
+  wanderer: '🚶',
+  own_pace: '🐇',
+  risky: '🎲',
+  peeker: '👀',
+  chosen_one: '🌟',
 };

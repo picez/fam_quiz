@@ -68,6 +68,7 @@ import { BluffBoard } from './BluffBoard';
 import { SurveyBoard } from './SurveyBoard';
 import { FactCards, RevealFactsLine } from './FactCards';
 import { AwardsCarousel } from './AwardsCarousel';
+import { StageNewAchievements } from './StageNewAchievements';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
@@ -960,7 +961,14 @@ function StandingsBoard({ view, standings, awardsSeq, splashing, ceremony = null
   if (phase === 'finished')
     return (
       // Поки йде заставка «Підсумки», карусель стоїть на п'єдесталі.
-      <AwardsCarousel awards={view.facts?.awards ?? []} withRound={(view.round?.total ?? 1) > 1} autopilot={view.autopilot} seq={awardsSeq} hold={splashing}>
+      <AwardsCarousel
+        awards={view.facts?.awards ?? []}
+        withRound={(view.round?.total ?? 1) > 1}
+        autopilot={view.autopilot}
+        seq={awardsSeq}
+        hold={splashing}
+        extra={view.newAchievements === undefined ? null : <StageNewAchievements stage={view.newAchievements} />}
+      >
         <div className="stage-board is-final">
           {heading}
           {table}

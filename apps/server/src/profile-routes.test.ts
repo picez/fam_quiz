@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeQuiz, single } from '@quiz/engine/testing';
-import { STICKERS, xpForLevel } from '@quiz/shared';
+import { isAnti, STICKERS, xpForLevel, type AchievementId } from '@quiz/shared';
 import { buildApp } from './app';
 import { follow, profile, user, xpEntry } from './db/schema';
 import { awardPrizes, createPrize, reservePlaces } from './prizes';
@@ -47,7 +47,7 @@ describe('own profile', () => {
     expect(body.nickname).toBe('Олена');
     expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина', plays: 0 }]);
     expect(body.friends).toMatchObject([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
-    expect(body.achievements).toHaveLength(48);
+    expect(body.achievements).toHaveLength(70);
     expect(body.achievements[0]).toEqual({ id: 'first_game', earned: false, earnedAt: null });
     expect(body.stats.quizzes).toBe(1);
   });
@@ -235,7 +235,7 @@ describe('podium (11f)', () => {
 });
 
 describe('achievements pages (12i)', () => {
-  it('my page needs a session and has all 48; somebody else’s page has only the earned ones without progress', async () => {
+  it('my page needs a session and has all 70; somebody else’s page has only the earned ones without progress', async () => {
     const yarema = await signUp(ctx.app, 'Ярема');
     const yaremaId = await idOf(yarema.cookie);
     await seedGame(db, {
@@ -251,9 +251,9 @@ describe('achievements pages (12i)', () => {
     const own = await request('GET', '/api/me/achievements', yarema.cookie);
     expect(own.statusCode).toBe(200);
     const page = own.json();
-    expect(Object.keys(page).sort()).toEqual(['earned', 'items', 'own', 'profile', 'total']);
+    expect(Object.keys(page).sort()).toEqual(['earned', 'hideAnti', 'items', 'own', 'profile', 'total']);
     expect(page.own).toBe(true);
-    expect(page.items).toHaveLength(48);
+    expect(page.items).toHaveLength(70);
     expect(page.items.find((i: { id: string }) => i.id === 'games_10').progress).toEqual({ current: 1, goal: 10 });
 
     for (const cookie of [undefined, olena.cookie, yarema.cookie]) {
@@ -378,5 +378,21 @@ describe('wearing looks (15a)', () => {
     const locked = await request('PUT', '/api/me/looks', taras.cookie, { ...none, photo: 'aura' });
     expect(locked.statusCode).toBe(409);
     expect(locked.json()).toEqual({ error: 'look_locked' });
+  });
+});
+
+describe('hiding anti-achievements (12j)', () => {
+  it('PUT /api/me/achievements/hide-anti saves the switch; then the public page has no anti-achievements', async () => {
+    expect((await request('PUT', '/api/me/achievements/hide-anti', undefined, { hide: true })).statusCode).toBe(401);
+    expect((await request('PUT', '/api/me/achievements/hide-anti', olena.cookie, { hide: 'yes' })).statusCode).toBe(400);
+    expect((await request('PUT', '/api/me/achievements/hide-anti', olena.cookie, { hide: true, extra: 1 })).statusCode).toBe(400);
+    const saved = await request('PUT', '/api/me/achievements/hide-anti', olena.cookie, { hide: true });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({ hideAnti: true });
+    expect((await request('GET', '/api/me/achievements', olena.cookie)).json().hideAnti).toBe(true);
+    const page = (await request('GET', `/api/profiles/${olenaId}/achievements`, taras.cookie)).json();
+    expect(page.total).toBe(54);
+    expect(page.items.some((i: { id: AchievementId }) => isAnti(i.id))).toBe(false);
+    expect((await request('PUT', '/api/me/achievements/hide-anti', olena.cookie, { hide: false })).json()).toEqual({ hideAnti: false });
   });
 });

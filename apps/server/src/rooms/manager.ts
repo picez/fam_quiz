@@ -160,9 +160,10 @@ import {
   type Result,
   type TeamAct,
 } from '@quiz/engine';
-import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility } from '@quiz/shared';
+import { ANSWERER_PICKS_PER_SECOND, REACTION_GAP_MS, reactionAllowed, type Reaction, type ReactionItem, APPEAL_VOTES_PER_SECOND, AWAY_EVENTS_PER_SECOND, awayGapMs, draftQuestionType, DRAFTS_PER_SECOND, isAnswerDraft, isUnscored, SORT_TILT_GAP_MS, LIST_WORDS_PER_SECOND, MORELESS_PICKS_PER_SECOND, PUZZLE_BATCHES_PER_SECOND, JIGSAW_MOVES_PER_SECOND, SPOTDIFF_TAPS_PER_SECOND, MEMORY_FLIPS_PER_SECOND, DRAW_GUESSES_PER_SECOND, DRAW_OPS_PER_SECOND, type DrawingEvent, type DrawOp, type AckResult, type Answer, type MoreLessSide, type AnswererScope, type AppealReason, type BuffKind, type DebuffKind, type DraftValue, type ErrorCode, type GameView, type Grade, type HostDrafts, type HostUndoTarget, type LifelineKind, type Phase, type PlayerView, type Question, type Quiz, type ResumeSetup, RESUME_POINTS_MAX, clamp, isObjectLike, type ContinuedView, type PlacedPrize, placedPrizeSchema, type SlotsResponse, type Role, type SortTilt, type SubmittedAnswer, type TeamForm, type ActivePerk, type NickLevel, stickerOpen, LIKE_RATE, type LikePayload, LOBBY_VISIBILITIES, lobbyPasswordSchema, type LobbySettings, type LobbyVisibility, type AchievementId } from '@quiz/shared';
 import type { LikeChange, LikeKey } from '../like-store';
 import { SAVED_GAME_VERSION, type ContinueResult, type RestartInput, type SavedGameData } from './continuation';
+import { newAchievementsMine, newAchievementsStage } from './achievements';
 import { levelsView, perkGrants } from './levels';
 import { likedQuestionId, likesView, personOf, type RoomLikes } from './likes';
 import { prizesView, titlesView } from './prizes';
@@ -271,6 +272,8 @@ export interface Room {
   levels: Map<string, NickLevel>;
   /** Лайки (17a): власник вікторини й прочитані вподобання акаунтів кімнати. Лише в пам'яті; заповнює attachLikes. */
   likes: RoomLikes;
+  /** «Нове досягнення!» (12j): userId → щойно отримані цією грою; hideAnti — хто ховає анти від сцени. null — ще не нагороджено. Лише в пам'яті; заповнює рекордер. */
+  newAchievements: { byUser: Map<string, AchievementId[]>; hideAnti: Set<string> } | null;
 }
 
 /** Продовження збереженої гри (13b): лише рівень кімнати, у стані гри нічого нового. */
@@ -757,6 +760,7 @@ export class RoomManager {
       titles: new Map(),
       levels: new Map(),
       likes: { mine: new Map() },
+      newAchievements: null,
     };
     this.live.set(room.code, room);
     this.reschedule(room);
@@ -825,6 +829,7 @@ export class RoomManager {
       titles: new Map(),
       levels: new Map(),
       likes: { mine: new Map() },
+      newAchievements: null,
     };
     this.live.set(room.code, room);
     this.reserved.delete(room.code);
@@ -938,6 +943,23 @@ export class RoomManager {
     room.state = this.syncPerks(room, before);
     // Межа між запитаннями: продовження (13b) бере контрольну точку, тож видача потрапляє й туди.
     if (room.state !== before && room.checkpoint?.state === before) room.checkpoint = { ...room.checkpoint, state: room.state };
+    this.emit(room, { type: 'changed' });
+  }
+
+  /** Злити нагороди гри (12j): списки за userId замінюються, hideAnti — повністю; emit changed, якщо щось змінилось. */
+  setNewAchievements(room: Room, byUser: Map<string, AchievementId[]>, hideAnti: Set<string>): void {
+    const was = room.newAchievements;
+    const same = (a: readonly string[] | undefined, b: readonly string[]) => a !== undefined && a.length === b.length && a.every((id, i) => id === b[i]);
+    const merged = new Map(was?.byUser ?? []);
+    let changed = was === null;
+    for (const [userId, ids] of byUser) {
+      if (same(merged.get(userId), ids)) continue;
+      merged.set(userId, [...ids]);
+      changed = true;
+    }
+    if (was !== null && (was.hideAnti.size !== hideAnti.size || [...hideAnti].some((id) => !was.hideAnti.has(id)))) changed = true;
+    if (!changed) return;
+    room.newAchievements = { byUser: merged, hideAnti: new Set(hideAnti) };
     this.emit(room, { type: 'changed' });
   }
 
@@ -1330,7 +1352,9 @@ export class RoomManager {
   awards(room: Room): AckResult {
     if (!this.alive(room)) return this.gone();
     // Після фінішу рядка розкриття немає: revealOpen false — той самий кешований запис, що й у зрізах.
-    if (room.state.phase !== 'finished' || (gameFacts(room.state, false)?.awards ?? []).length === 0) return { ok: false, error: 'wrong_phase' };
+    if (room.state.phase !== 'finished') return { ok: false, error: 'wrong_phase' };
+    // Слайд «Нові досягнення» (12j) теж слайд каруселі: без нагород гри він єдиний.
+    if ((gameFacts(room.state, false)?.awards ?? []).length === 0 && newAchievementsStage(room) === undefined) return { ok: false, error: 'wrong_phase' };
     const seq = ++room.awardsSeq;
     this.emit(room, { type: 'awards', seq });
     return { ok: true };
@@ -1369,15 +1393,21 @@ export class RoomManager {
     const levels = levelsView(room);
     // Лайки (17a) — лише телефону гравця; сцена й пульт їх не мають.
     const likes = identity.role === 'player' && identity.playerId !== null ? likesView(room, identity.playerId) : undefined;
-    if (prizes === undefined && titles === undefined && levels === undefined && likes === undefined) return base;
     // Як continued (13b): ключа немає, коли порожньо.
-    return {
-      ...base,
+    const extra = {
       ...(prizes === undefined ? {} : { prizes }),
       ...(titles === undefined ? {} : { titles }),
       ...(levels === undefined ? {} : { levels }),
       ...(likes === undefined ? {} : { likes }),
     };
+    // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — лише позначка, що слайд є (кнопка «Нагороди на сцені»).
+    if (base.role === 'player') {
+      const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
+      return { ...base, ...extra, ...(mine === undefined ? {} : { newAchievements: mine }) };
+    }
+    const slide = newAchievementsStage(room);
+    if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
+    return { ...base, ...extra, ...(slide === undefined ? {} : { awardsExtra: true }) };
   }
 
   private baseView(room: Room, identity: Identity): GameView | null {

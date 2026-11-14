@@ -21773,3 +21773,206 @@ input.sudoku-editor-cell:focus-visible {
   color: var(--accent-text);
 }
 /* «Квест із кодом»: кінець сцени й пульта */
+
+/* «Нове досягнення!» на телефоні після гри (12j): картки по одній, антидосягнення — у червонуватій рамці. */
+.new-achievements {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  min-width: 0;
+}
+
+.new-achievements h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.new-achievements ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.new-achievement {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding-block: 0.6rem;
+  padding-inline: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.new-achievement.is-anti {
+  border-color: var(--wrong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wrong) 45%, transparent);
+}
+
+.new-achievement-icon {
+  flex: none;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.new-achievement-text {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.new-achievement h3,
+.new-achievement p {
+  margin: 0;
+}
+
+.new-achievement h3 {
+  font-size: 1rem;
+}
+
+.new-achievement-anti {
+  color: var(--wrong);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.new-achievements-all {
+  justify-self: start;
+  color: var(--link);
+}
+
+.new-achievements-guest {
+  margin-block: 1rem;
+  color: var(--dim);
+}
+
+.new-achievements-guest a {
+  color: var(--link);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .new-achievement {
+    animation: new-achievement-in 0.45s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.6s);
+  }
+
+  @keyframes new-achievement-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+}
+
+/* Слайд «Нові досягнення» на сцені (12j): до 8 рядків × 3 значки вміщуються в 1280 × 720. */
+.stage-new-achievements {
+  display: grid;
+  gap: 0.6rem;
+  width: min(100%, 68rem);
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-new-achievements-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+  font-size: 1.35rem;
+  line-height: 1.3;
+}
+
+.stage-new-achievements.is-many .stage-new-achievements-row {
+  font-size: 1.1rem;
+}
+
+.stage-new-achievements-name {
+  flex: none;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  margin-inline-end: 0.25rem;
+}
+
+/* Значок не переносить рядок: бракує місця — назва стискається з трикрапкою. */
+.stage-new-achievement {
+  display: flex;
+  gap: 0.35rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--panel);
+  padding-block: 0.15rem;
+  padding-inline: 0.6rem;
+  white-space: nowrap;
+}
+
+.stage-new-achievement-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-new-achievements-more {
+  flex: none;
+}
+
+.stage-new-achievement.is-anti {
+  border-color: var(--wrong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wrong) 45%, transparent);
+}
+
+.stage-new-achievements-more,
+.stage-new-achievements-people {
+  color: var(--dim);
+}
+
+/* Група «Антидосягнення» (12j): червонувата рамка — і отриманих, і сірих неотриманих; перемикач приватності. */
+.achievement-card.is-anti {
+  border-color: var(--wrong);
+}
+
+.achievement-card.is-locked.is-anti {
+  border-color: color-mix(in srgb, var(--wrong) 55%, var(--line));
+}
+
+.hide-anti {
+  display: grid;
+  gap: 0.25rem;
+  margin-block-end: 0.75rem;
+}
+
+.hide-anti-label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.75rem;
+  font-weight: 600;
+}
+
+.hide-anti-label input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--accent);
+}
+
+.hide-anti-hint,
+.hide-anti-status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+.hide-anti-status.error {
+  color: var(--wrong);
+}

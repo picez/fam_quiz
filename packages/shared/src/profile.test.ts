@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gameStats, podiumPlace, podiumStats, profileUpdateSchema } from './profile';
+import { gameStats, isLastPlace, podiumPlace, podiumStats, profileUpdateSchema } from './profile';
 import type { PlayedGame } from './history';
 
 function game(over: Partial<PlayedGame> = {}) {
@@ -76,5 +76,15 @@ describe('podium (11f)', () => {
     const stats = podiumStats([game({ status: 'aborted', rank: null, score: 10 })]);
     expect(stats.bestScore).toBeNull();
     expect(stats.top3).toBeNull();
+  });
+});
+
+describe('isLastPlace (12j)', () => {
+  it('is the very last place of a finished game with at least 4 participants', () => {
+    expect(isLastPlace(game({ rank: 4, playerCount: 4 }))).toBe(true);
+    expect(isLastPlace(game({ rank: 3, playerCount: 3 }))).toBe(false);
+    expect(isLastPlace(game({ rank: 3, playerCount: 4 }))).toBe(false); // нічия 1, 2, 3, 3
+    expect(isLastPlace(game({ rank: 4, playerCount: 4, status: 'aborted' }))).toBe(false);
+    expect(isLastPlace(game({ rank: null, playerCount: 4 }))).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
-import { awardGame } from './achievement-store';
+import { antiHidden, awardedIn, awardGame } from './achievement-store';
 import type { Db } from './db/client';
 import { answer, appeal, AWAY_ATTEMPT, game, participant, PENALTY_ATTEMPT, savedGame, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import { publishGameFeed } from './feed-publish';
@@ -286,6 +286,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
         ? {}
         : { letterwords: { letters: play.letterwords.letters, best: play.letterwords.best } }),
       ...(play.drawing === undefined ? {} : { drawing: drawingRef(state, play.drawing) }),
+      ...(play.final === undefined || play.final.allIn.length === 0 ? {} : { final: { allIn: play.final.allIn } }),
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),
@@ -638,7 +639,12 @@ export function attachRecorder(
       // Гра вже записана; збій нагородження — як збій запису: журнал і повтор (повтор нічого не дублює).
       // Збій одного користувача awardGame сам віддає в журнал і йде далі; його ачівки наздожене наступне читання.
       if (state.phase === 'finished' && !awarded.has(room.id)) {
-        await awardGame(db, room.id, onError);
+        const fresh = await awardGame(db, room.id, onError);
+        // «Нове досягнення!» (12j): після перезапуску повторний awardGame нового не пише — ті самі досягнення беремо з бази.
+        const stored = await awardedIn(db, room.id);
+        const byUser = new Map([...stored, ...[...fresh].filter(([, ids]) => ids.length > 0)]);
+        const hideAnti = await antiHidden(db, [...byUser.keys()]);
+        if (!manager.frozen && manager.get(room.code) === room) manager.setNewAchievements(room, byUser, hideAnti);
         awarded.add(room.id);
       }
       // Призи — після історії й ачівок (14a), у тій самій черзі й з тими самими повторами; повтор нічого не вручає двічі.

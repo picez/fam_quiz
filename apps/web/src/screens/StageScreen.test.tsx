@@ -2759,6 +2759,22 @@ describe('StageScreen: facts (12d)', () => {
     });
     expect(document.querySelector('.award-title')?.textContent).toBe('⚡ Блискавка');
   });
+
+  it('finished with newAchievements: the «Нові досягнення» slide ends the awards; without the key — as before (12j)', () => {
+    vi.useFakeTimers();
+    const finished = view({ phase: 'finished', questionIndex: 2, round: { ...round, index: 1 }, standings, facts: facts({ awards: cards }), newAchievements: { people: [{ nickname: 'Петро', ids: ['in_debt'] }] } });
+    const stage = (seq: number | null, current = finished) => <StageScreen view={current} code="123456" joinUrl="http://quiz.test/play/123456" offsetMs={0} hostOnline awardsSeq={seq} />;
+    const { rerender } = render(stage(null));
+    for (let seq = 1; seq <= 4; seq++) rerender(stage(seq));
+    expect(document.querySelector('.stage-board.is-award .meta')?.textContent).toBe('Нагороди гри · 4 з 4');
+    expect(document.querySelector('.stage-new-achievements-row')?.textContent).toContain('Петро');
+    cleanup();
+    const plain = { ...finished };
+    delete (plain as { newAchievements?: unknown }).newAchievements;
+    const again = render(stage(null, plain));
+    again.rerender(stage(1, plain));
+    expect(document.querySelector('.stage-board.is-award .meta')?.textContent).toBe('Нагороди гри · 1 з 3');
+  });
 });
 
 describe('StageScreen: away (12e)', () => {

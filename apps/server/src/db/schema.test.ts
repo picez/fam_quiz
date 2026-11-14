@@ -370,3 +370,25 @@ describe('achievements schema (migration 0017)', () => {
     expect(await db.select().from(userAchievement)).toEqual([]);
   });
 });
+
+describe('anti-achievements schema (migration 0032)', () => {
+  const gameId = '33333333-3333-4333-8333-333333333333';
+
+  it('migration 0032 adds hide_anti = false and clears the history sync mark, earned achievements stay', async () => {
+    const { profile, userAchievement } = await import('./schema');
+    const { db, migrateRest } = await createTestDbUpTo('0031_profile_looks');
+    await db.insert(user).values({ id: 'u1', name: 'Олена', email: 'olena@example.com' });
+    await db.execute(sql`INSERT INTO "profile" ("user_id", "nickname", "nickname_key", "achievements_synced_at") VALUES ('u1', 'Олена', 'олена', now())`);
+    await db.execute(sql`
+      INSERT INTO "game" ("id", "host_id", "code", "status", "title", "quiz_snapshot", "questions_played", "started_at")
+      VALUES (${gameId}, 'u1', '123456', 'finished', 'Гра', ${JSON.stringify(makeQuiz([single]))}::jsonb, 1, now())`);
+    await db.execute(sql`INSERT INTO "user_achievement" ("user_id", "achievement_id", "earned_at", "game_id") VALUES ('u1', 'first_game', now(), ${gameId})`);
+
+    await migrateRest();
+
+    const [own] = await db.select().from(profile);
+    expect(own.hideAnti).toBe(false);
+    expect(own.achievementsSyncedAt).toBeNull();
+    expect((await db.select().from(userAchievement)).map((r) => [r.achievementId, r.gameId])).toEqual([['first_game', gameId]]);
+  });
+});

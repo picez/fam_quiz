@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { AdjustmentSource, Answer, BuffKind, DebuffKind, GameStatus } from '@quiz/shared';
+import type { AdjustmentSource, Answer, AppealOutcome, AppealReason, BuffKind, DebuffKind, GameStatus } from '@quiz/shared';
 import { makeQuiz, single } from '@quiz/engine/testing';
 import type { Db } from '../db/client';
-import { answer, game, participant, scoreAdjustment, type PlayRef } from '../db/schema';
+import { answer, appeal, game, participant, scoreAdjustment, type PlayRef } from '../db/schema';
 
 export interface SeedPlayer {
   userId: string | null;
@@ -42,6 +42,7 @@ let codes = 0;
 /**
  * Вставляє гру з учасниками, рядками answer і коригуваннями; повертає id гри й учасників у порядку players.
  * plays — журнал гри; finishedAt — за замовчуванням startedAt для завершеної гри, інакше null; quizId — вікторина гри.
+ * appeals (12j) — закриті апеляції: participant — індекс у players, reason за замовчуванням 'grade'.
  */
 export async function seedGame(
   db: Db,
@@ -57,6 +58,7 @@ export async function seedGame(
     plays?: PlayRef[];
     quizId?: string;
     players: SeedPlayer[];
+    appeals?: { participant: number; seq: number; questionIndex: number; reason?: AppealReason; yes: number; no: number; outcome: AppealOutcome }[];
   },
 ): Promise<{ gameId: string; participantIds: string[] }> {
   const gameId = randomUUID();
@@ -130,6 +132,20 @@ export async function seedGame(
         })),
       );
     }
+  }
+  if (spec.appeals !== undefined && spec.appeals.length > 0) {
+    await db.insert(appeal).values(
+      spec.appeals.map((a) => ({
+        gameId,
+        seq: a.seq,
+        participantId: participantIds[a.participant]!,
+        questionIndex: a.questionIndex,
+        reason: a.reason ?? ('grade' as const),
+        yes: a.yes,
+        no: a.no,
+        outcome: a.outcome,
+      })),
+    );
   }
   return { gameId, participantIds };
 }
