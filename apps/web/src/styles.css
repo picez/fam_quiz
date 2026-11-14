@@ -15924,7 +15924,8 @@ button.wall-tile:disabled {
 }
 /* Назви кольорів і рамок ніку в плитці переносяться, а не обрізаються «…» («Місячне срібло»). */
 .look-group-color .look-option,
-.look-group-frame .look-option {
+.look-group-frame .look-option,
+.look-group-effect .look-option {
   justify-content: center;
 }
 .look-group-color .nick-name,

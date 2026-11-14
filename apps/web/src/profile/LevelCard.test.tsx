@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { levelProgress, nextRewards, rewardsUpTo, type OwnLevel } from '@quiz/shared';
+import { levelProgress, nextRewards, rewardsUpTo, xpForLevel, type OwnLevel } from '@quiz/shared';
 import { saveLooks } from '../api';
 import { NICK_FONT_LOADERS, resetNickFontCache } from '../nick-fonts';
 import { LevelBar, LevelCard, rewardText, unlockedByLevel } from './LevelCard';
@@ -133,7 +133,7 @@ describe('LevelCard', () => {
   it('puts the preview and the pickers first, then «Далі», then «Відкрито»', () => {
     const { container } = render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     const order = [...container.querySelectorAll('h3, [data-testid="look-preview"], [role="radiogroup"], .toolbar')].map((el) => (el.tagName === 'H3' ? el.textContent : el.getAttribute('data-slot') ?? el.className));
-    expect(order).toEqual(['Вигляд', 'look-preview-box', 'photo', 'font', 'color', 'frame', 'badge', 'toolbar', 'Далі', `Відкрито · ${new Set(rewardsUpTo(3).map((r) => r.level)).size}`]);
+    expect(order).toEqual(['Вигляд', 'look-preview-box', 'photo', 'font', 'color', 'frame', 'effect', 'badge', 'toolbar', 'Далі', `Відкрито · ${new Set(rewardsUpTo(3).map((r) => r.level)).size}`]);
   });
 
   it('offers only unlocked looks', () => {
@@ -144,10 +144,10 @@ describe('LevelCard', () => {
     expect(within(colors).getByRole('radio', { name: /Без кольору/ })).toBeTruthy();
   });
 
-  it('shows five radio groups in order, each named by its visible heading', () => {
+  it('shows six radio groups in order, each named by its visible heading', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={() => {}} />);
     const groups = screen.getAllByRole('radiogroup');
-    const names = ['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Значок'];
+    const names = ['Рамка фото', 'Шрифт ніку', 'Колір ніку', 'Рамка ніку', 'Ефект ніку', 'Значок'];
     expect(groups.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)!.textContent)).toEqual(names);
     expect(screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual(names);
     for (const name of names) expect(screen.getByRole('radiogroup', { name })).toBeTruthy();
@@ -172,7 +172,7 @@ describe('LevelCard', () => {
       if (lock !== null) expect(tile.lastElementChild).toBe(lock);
     }
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
-    expect(container.querySelectorAll('label.look-option input:checked')).toHaveLength(5);
+    expect(container.querySelectorAll('label.look-option input:checked')).toHaveLength(6);
     expect((screen.getByRole('radio', { name: /Небо/ }) as HTMLInputElement).checked).toBe(true);
   });
 
@@ -208,13 +208,13 @@ describe('LevelCard', () => {
     expect(preview.querySelector('.nick-font-pixel')).not.toBeNull();
   });
 
-  it('save sends all five slots', async () => {
+  it('save sends all six slots', async () => {
     vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { color: null, frame: null, badge: null, photo: 'fire', font: 'pixel', effect: null } } });
     render(<LevelCard level={at16} nickname="Олена" onSaved={() => {}} />);
     fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Рамка фото' })).getByRole('radio', { name: /Вогонь/ }));
     fireEvent.click(screen.getByRole('radio', { name: /Піксельний/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
-    await waitFor(() => expect(saveLooks).toHaveBeenCalledWith({ color: null, frame: null, badge: null, photo: 'fire', font: 'pixel' }));
+    await waitFor(() => expect(saveLooks).toHaveBeenCalledWith({ color: null, frame: null, badge: null, photo: 'fire', font: 'pixel', effect: null }));
   });
 
   it('opening the page loads every open font for the tiles', () => {
@@ -238,8 +238,41 @@ describe('LevelCard', () => {
     render(<LevelCard level={level} nickname="Олена" onSaved={onSaved} />);
     fireEvent.click(screen.getByRole('radio', { name: /Небо/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null }));
-    expect(saveLooks).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null, effect: null }));
+    expect(saveLooks).toHaveBeenCalledWith({ color: 'sky', frame: null, badge: null, photo: null, font: null, effect: null });
+  });
+
+  it('34: the effect group at level 31 — eight tiles, flame open, frost locked, the preview and save carry the flame', async () => {
+    const at31: OwnLevel = { ...at16, progress: { ...levelProgress(xpForLevel(31)) }, next: nextRewards(31) };
+    vi.mocked(saveLooks).mockResolvedValue({ ok: true, data: { looks: { ...at16.looks, effect: 'flame' } } });
+    const { container } = render(<LevelCard level={at31} nickname="Олена" onSaved={() => {}} />);
+    const group = screen.getByRole('radiogroup', { name: 'Ефект ніку' });
+    expect(within(group).getAllByRole('radio')).toHaveLength(8);
+    const flame = within(group).getByRole('radio', { name: /Полум'я/ }) as HTMLInputElement;
+    expect(flame.disabled).toBe(false);
+    const frost = within(group).getByRole('radio', { name: /Іній/ }) as HTMLInputElement;
+    expect(frost.disabled).toBe(true);
+    expect(frost.closest('label')!.textContent).toContain('🔒 з рівня 33');
+    expect(frost.closest('label')!.classList.contains('is-locked')).toBe(true);
+    // Плитка показує нік власника з ефектом.
+    expect(flame.closest('label')!.querySelector('.nick-fx.nick-x-flame .nick-name')?.textContent).toBe('Олена');
+    fireEvent.click(flame);
+    expect(container.querySelector('[data-testid="look-preview"] .nick-fx.nick-x-flame .nick-name')?.textContent).toBe('Олена');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти вигляд' }));
+    await waitFor(() => expect(saveLooks).toHaveBeenCalledWith({ ...at16.looks, effect: 'flame' }));
+  });
+
+  it('34: level 40 has no «Далі» and says every level reward is open', () => {
+    const at40: OwnLevel = { ...at16, progress: levelProgress(xpForLevel(40)), next: nextRewards(40) };
+    render(<LevelCard level={at40} nickname="Олена" onSaved={() => {}} />);
+    expect(screen.queryByRole('heading', { name: 'Далі' })).toBeNull();
+    expect(screen.getByText('Усі нагороди рівнів відкрито — далі рахуємо лише досвід.')).toBeTruthy();
+  });
+
+  it('34: reward texts name the pack, the achievement that opens it sooner, and the effect', () => {
+    expect(rewardText({ kind: 'stickers', pack: 'spooky' })).toBe('Стікери «Моторошики» (раніше — за досягнення «Нічна сова»)');
+    expect(rewardText({ kind: 'stickers', pack: 'food' })).toBe('Стікери «Смаколики»');
+    expect(rewardText({ kind: 'effect', id: 'flame' })).toBe("Ефект ніку: Полум'я");
   });
 
   it('shows the error text on 409', async () => {
