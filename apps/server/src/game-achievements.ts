@@ -3,6 +3,7 @@ import { checkAnswer } from '@quiz/engine';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
 import { answerRow, groupRounds, ownRows, silentRisk } from './achievement-rows';
 import { antiAchievements } from './anti-achievements';
+import { mechanicAchievements } from './mechanic-achievements';
 
 /** Пороги ігрових ачівок (12i). */
 export const ACHIEVEMENT_LIMITS = {
@@ -47,7 +48,7 @@ export function kyivHour(date: Date): number {
   return Number(kyivFormat.format(date)) % 24;
 }
 
-/** Ачівки однієї завершеної гри (26 ігрових 12i + 15 антидосягнень 12j, «Рішення плану»); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
+/** Ачівки однієї завершеної гри (26 ігрових 12i + 15 антидосягнень і 5 механік 12j, «Рішення плану»); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
 export function gameAchievements(game: AchievementGame, who: AchievementWho): AchievementId[] {
   if (game.status !== 'finished') return [];
   const L = ACHIEVEMENT_LIMITS;
@@ -193,8 +194,9 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
   if (startHour >= L.morning[0] && startHour < L.morning[1]) got.add('early_bird');
   if (game.questionsPlayed >= L.marathon) got.add('marathon');
 
-  // Антидосягнення (12j).
+  // Антидосягнення й досягнення механік (12j).
   for (const id of antiAchievements(game, who)) got.add(id);
+  for (const id of mechanicAchievements(game, who)) got.add(id);
 
   return ACHIEVEMENTS.filter((id) => got.has(id));
 }

@@ -1,6 +1,6 @@
 import type { PlayedGame } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
-import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
+import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound } from './achievements';
 import type { GameTable, TableRow } from './history';
 import { ADJUSTMENT_ATTEMPT, PENALTY_ATTEMPT, VOTE_ATTEMPT } from './db/schema';
 
@@ -22,7 +22,7 @@ const played = (status: PlayedGame['status'] = 'finished'): PlayedGame => ({
   team: null,
 });
 
-const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0, podium: 0, debuffsBought: 0, authorGames: 0, roundTypes: 0, questionTypes: 0 };
+const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0, podium: 0, debuffsBought: 0, authorGames: 0, roundTypes: 0, questionTypes: 0, lastPlaces: 0, honestStreak: 0 };
 const table = (roundTypes: GameTable['roundTypes'], players: GameTable['players']): GameTable => ({
   gameId: 'g',
   status: 'finished',
@@ -110,7 +110,28 @@ describe('careerProgress', () => {
     expect(progress).toMatchObject({ games_10: 10, games_50: 37, games_100: 37, veteran: 37, wins_10: 0, all_types: 0 });
     expect('first_game' in progress).toBe(false);
     expect('fast_answer' in progress).toBe(false);
-    expect(Object.keys(progress)).toHaveLength(15);
+    expect(Object.keys(progress)).toHaveLength(17);
+  });
+});
+
+describe('career counters of 12j', () => {
+  const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
+
+  it('honestStreak: the longest run of games without an away mark', () => {
+    const run = (aways: boolean[]) => aways.map((away, i) => ({ startedAt: new Date(Date.UTC(2026, 10, 1 + i)), away }));
+    expect(honestStreak(run(Array(10).fill(false)))).toBe(10);
+    expect(honestStreak(run([...Array(6).fill(false), true, ...Array(5).fill(false)]))).toBe(6);
+    expect(honestStreak([])).toBe(0);
+    // Порядок — від найстарішої, хоч би як прийшли.
+    expect(honestStreak(run([false, true, false, false]).reverse())).toBe(2);
+  });
+
+  it('five last places give last_place_5, ten honest games give honest; progress counts both', () => {
+    expect(careerEarned({ ...base, lastPlaces: 5 })).toContain('last_place_5');
+    expect(careerEarned({ ...base, lastPlaces: 4 })).not.toContain('last_place_5');
+    expect(careerEarned({ ...base, honestStreak: 10 })).toContain('honest');
+    expect(careerEarned({ ...base, honestStreak: 9 })).not.toContain('honest');
+    expect(careerProgress({ ...base, lastPlaces: 3, honestStreak: 7 })).toMatchObject({ last_place_5: 3, honest: 7 });
   });
 });
 

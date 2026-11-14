@@ -1,7 +1,9 @@
 import {
   ACHIEVEMENT_INFO,
   ACHIEVEMENTS,
+  AWAY_MS,
   gameStats,
+  isLastPlace,
   podiumStats,
   type Achievement,
   type AchievementCard,
@@ -10,11 +12,11 @@ import {
   type ProfileStats,
   type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, gt, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gt, gte, isNull, ne, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
-import { bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
+import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
 import { gameAchievements } from './game-achievements';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { ensureProfile } from './profiles';
@@ -80,6 +82,8 @@ interface CareerCounts {
   hostedInGame: number;
   /** Типи запитань: усі й без гри split; null — не читали (тоді questionTypes = 0, а all_types цим читанням не дається). */
   types: { all: Set<QuestionType>; without: Set<QuestionType> } | null;
+  /** Соло-ігри (завершені, з AWAY_DATA_SINCE) і чи був у них свій рядок з away_ms ≥ AWAY_MS.mark (12j). */
+  soloAway: { gameId: string; startedAt: Date; away: boolean }[];
 }
 
 /** Один набір запитів на лічильники: і «зараз», і «до гри split» (умовні count, а не другий набір запитів). */
@@ -111,6 +115,14 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
       .where(and(eq(game.id, split), eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false)));
     hostedInGame = hosted.n;
   }
+  // Чесні соло-ігри (12j): свій рядок гравця без команди; командні ігри серію не рвуть і не подовжують.
+  const soloAway = await db
+    .select({ gameId: game.id, startedAt: game.startedAt, away: sql<number>`count(${answer.participantId})`.mapWith(Number) })
+    .from(participant)
+    .innerJoin(game, eq(game.id, participant.gameId))
+    .leftJoin(answer, and(eq(answer.participantId, participant.id), gte(answer.awayMs, AWAY_MS.mark)))
+    .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(participant.isTeam, false), eq(game.status, 'finished'), gte(game.startedAt, AWAY_DATA_SINCE)))
+    .groupBy(game.id, game.startedAt);
   let types: CareerCounts['types'] = null;
   if (withTypes) {
     if (split === null) {
@@ -126,6 +138,7 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
     authoredInGame: authored.inGame,
     hostedInGame,
     types,
+    soloAway: soloAway.map((row) => ({ gameId: row.gameId, startedAt: row.startedAt, away: row.away > 0 })),
   };
 }
 
@@ -164,6 +177,8 @@ function factsOf(userId: string, inputs: CareerInputs, counts: CareerCounts, wit
     authorGames: counts.authored - (without === null ? 0 : counts.authoredInGame),
     roundTypes: roundTypes.size,
     questionTypes: types?.size ?? 0,
+    lastPlaces: played.filter(isLastPlace).length,
+    honestStreak: honestStreak(without === null ? counts.soloAway : counts.soloAway.filter((g) => g.gameId !== without)),
   };
 }
 
