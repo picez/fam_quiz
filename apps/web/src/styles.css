@@ -21773,3 +21773,97 @@ input.sudoku-editor-cell:focus-visible {
   color: var(--accent-text);
 }
 /* «Квест із кодом»: кінець сцени й пульта */
+
+/* «Нове досягнення!» на телефоні після гри (12j): картки по одній, антидосягнення — у червонуватій рамці. */
+.new-achievements {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 1rem;
+  min-width: 0;
+}
+
+.new-achievements h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.new-achievements ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.new-achievement {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding-block: 0.6rem;
+  padding-inline: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.new-achievement.is-anti {
+  border-color: var(--wrong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wrong) 45%, transparent);
+}
+
+.new-achievement-icon {
+  flex: none;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.new-achievement-text {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.new-achievement h3,
+.new-achievement p {
+  margin: 0;
+}
+
+.new-achievement h3 {
+  font-size: 1rem;
+}
+
+.new-achievement-anti {
+  color: var(--wrong);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.new-achievements-all {
+  justify-self: start;
+  color: var(--link);
+}
+
+.new-achievements-guest {
+  margin-block: 1rem;
+  color: var(--dim);
+}
+
+.new-achievements-guest a {
+  color: var(--link);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .new-achievement {
+    animation: new-achievement-in 0.45s ease-out both;
+    animation-delay: calc(var(--i, 0) * 0.6s);
+  }
+
+  @keyframes new-achievement-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+}
