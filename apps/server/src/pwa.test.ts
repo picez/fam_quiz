@@ -56,14 +56,18 @@ describe('installable app', () => {
     expect(pngSize('public/apple-touch-icon.png')).toEqual({ width: 180, height: 180 });
   });
 
-  it('ships a push-only service worker', () => {
+  it('ships a service worker for push and the app shell', () => {
     const sw = read('src/sw.ts').toString('utf8');
-    for (const event of ['push', 'notificationclick', 'pushsubscriptionchange']) expect(sw).toContain(`'${event}'`);
-    expect(sw).not.toContain('fetch');
-    expect(sw).not.toContain('caches');
+    for (const event of ['push', 'notificationclick', 'pushsubscriptionchange', 'fetch', 'install', 'activate']) expect(sw).toContain(`'${event}'`);
+    expect(sw).toContain("from './sw/shell-cache'");
+    // Воркер лишається малим: зі спільного пакета лише типи.
+    const valueImport = /^import\s+(?!type\b)[^;]*from\s+'@quiz\/shared'/m;
+    for (const path of ['src/sw.ts', 'src/sw/shell-cache.ts', 'src/push/push-strings.ts', 'src/push/sw-handlers.ts']) expect(read(path).toString('utf8'), path).not.toMatch(valueImport);
     expect(read('src/main.tsx').toString('utf8')).toContain("register('/sw.js')");
     const config = read('vite.config.ts').toString('utf8');
     expect(config).toContain("fileName: () => 'sw.js'");
     expect(config).toContain("formats: ['iife']");
+    expect(config).toContain('manifest: true');
+    expect(config).toContain('__SHELL_VERSION__');
   });
 });

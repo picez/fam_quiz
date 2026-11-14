@@ -27,7 +27,7 @@ const SHELL_KEY = '/index.html';
 const PASS_PREFIXES = ['/api/', '/socket.io/', '/uploads/', '/stickers/'];
 
 export function cacheNames(version: string): { shell: string; assets: string } {
-  return { shell: `${PREFIX}shell-${version}`, assets: `${PREFIX}assets-${version}` };
+  return { shell: `quiz-shell-${version}`, assets: `quiz-assets-${version}` };
 }
 
 type RouteRequest = { method: string; url: string; mode: string; headers: { has(n: string): boolean } };

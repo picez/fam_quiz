@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 import react from '@vitejs/plugin-react';
@@ -37,7 +38,33 @@ function precompress(): Plugin {
   };
 }
 
-/** Збирає src/sw.ts окремим класичним скриптом dist/sw.js (IIFE, без хешу): модульні сервіс-воркери в Safari ненадійні. */
+interface ManifestChunk {
+  file: string;
+  css?: string[];
+  imports?: string[];
+}
+
+/** Файли оболонки з маніфесту Vite: вхід index.html, його css і статичні імпорти (рекурсивно), з / на початку. */
+function shellFiles(manifest: Record<string, ManifestChunk>): string[] {
+  const files = new Set<string>();
+  const seen = new Set<string>();
+  const visit = (key: string): void => {
+    const chunk = manifest[key];
+    if (chunk === undefined || seen.has(key)) return;
+    seen.add(key);
+    files.add(`/${chunk.file}`);
+    for (const css of chunk.css ?? []) files.add(`/${css}`);
+    for (const next of chunk.imports ?? []) visit(next);
+  };
+  visit('index.html');
+  return [...files];
+}
+
+/**
+ * Збирає src/sw.ts окремим класичним скриптом dist/sw.js (IIFE, без хешу): модульні сервіс-воркери в Safari ненадійні.
+ * Список файлів оболонки (__SHELL__) і версію кешу (__SHELL_VERSION__, перші 10 знаків sha256 списку) бере з
+ * dist/.vite/manifest.json; сам маніфест після цього видаляє, щоб сервер його не віддавав (32).
+ */
 function serviceWorker(): Plugin {
   let root = '.';
   let outDir = 'dist';
@@ -49,24 +76,33 @@ function serviceWorker(): Plugin {
       outDir = resolve(config.root, config.build.outDir);
     },
     async closeBundle() {
+      const manifestDir = join(outDir, '.vite');
+      const manifest = JSON.parse(readFileSync(join(manifestDir, 'manifest.json'), 'utf8')) as Record<string, ManifestChunk>;
+      const shell = shellFiles(manifest);
+      const version = createHash('sha256').update(JSON.stringify(shell)).digest('hex').slice(0, 10);
       await build({
         root,
         configFile: false,
         logLevel: 'warn',
         publicDir: false,
+        define: { __SHELL__: JSON.stringify(shell), __SHELL_VERSION__: JSON.stringify(version) },
         build: {
           outDir,
           emptyOutDir: false,
           copyPublicDir: false,
+          manifest: false,
           lib: { entry: resolve(root, 'src/sw.ts'), formats: ['iife'], name: 'quizSw', fileName: () => 'sw.js' },
         },
       });
+      rmSync(manifestDir, { recursive: true, force: true });
     },
   };
 }
 
 export default defineConfig({
   plugins: [react(), precompress(), serviceWorker()],
+  // Маніфест потрібен воркеру: з нього береться список файлів оболонки (32). Плагін видаляє його після збірки.
+  build: { manifest: true },
   server: {
     host: true,
     proxy: {
