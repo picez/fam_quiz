@@ -741,3 +741,45 @@ describe('«Літописець» from group records (12l)', () => {
     expect(earned.get('chronicler')?.earnedAt?.toISOString()).not.toBe('2026-10-01T18:30:00.000Z');
   });
 });
+
+describe('33: «Марафон за пультом» for the host', () => {
+  const marathon = (hostId: string, startedAt: Date, players: SeedPlayer[], autopilot = false) =>
+    seedGame(db, { hostId, autopilot, startedAt, finishedAt: new Date(startedAt.getTime() + 3 * 3600_000), questionsPlayed: 50, players });
+
+  it('awardGame gives the host host_marathon with the game date, the players do not get it', async () => {
+    const host = 'store-marathon-host';
+    const player = 'store-marathon-player';
+    await addUser(host, 'Ведуча марафону');
+    await addUser(player, 'Гравчиня');
+    const { gameId } = await marathon(host, new Date('2026-09-20T15:00:00Z'), [{ userId: player, nickname: 'Гравчиня', score: 0, rank: 1 }, guest]);
+    const awarded = await awardGame(db, gameId);
+    expect(awarded.get(host)).toContain('host_marathon');
+    expect(awarded.get(player)).not.toContain('host_marathon');
+    const row = (await rowsOf(host)).find((r) => r.achievementId === 'host_marathon');
+    expect(row?.earnedAt?.toISOString()).toBe('2026-09-20T18:00:00.000Z');
+    expect(row?.gameId).toBe(gameId);
+    expect((await rowsOf(player)).map((r) => r.achievementId)).not.toContain('host_marathon');
+  });
+
+  it('the history fill-in writes host_marathon «long ago» for an old hosted game, but not for an autopilot one', async () => {
+    const host = 'store-marathon-old';
+    const bot = 'store-marathon-bot';
+    await addUser(host, 'Давня ведуча');
+    await addUser(bot, 'Автопілотниця');
+    const { gameId } = await marathon(host, new Date('2026-08-01T15:00:00Z'), [guest]);
+    await marathon(bot, new Date('2026-08-02T15:00:00Z'), [guest], true);
+    const { earned } = await read(host);
+    expect(earned.get('host_marathon')).toEqual({ earnedAt: null, gameId });
+    expect((await read(bot)).earned.has('host_marathon')).toBe(false);
+  });
+
+  it('catching up a missed hosted game after the mark gives host_marathon with its date', async () => {
+    const host = 'store-marathon-missed';
+    await addUser(host, 'Ведуча з пропуском');
+    await read(host);
+    const { gameId } = await marathon(host, new Date(Date.now() + 60_000), [guest]);
+    const { earned } = await read(host);
+    expect(earned.get('host_marathon')?.gameId).toBe(gameId);
+    expect(earned.get('host_marathon')?.earnedAt).not.toBeNull();
+  });
+});

@@ -14,13 +14,13 @@ import {
   type ProfileStats,
   type QuestionType,
 } from '@quiz/shared';
-import { and, asc, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
-import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
+import { and, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists, sql } from 'drizzle-orm';
+import { loadAchievementGames, type AchievementGame } from './achievement-games';
 import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
 import { ADJUSTMENT_ATTEMPT, answer, follow, game, groupItem, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
-import { gameAchievements } from './game-achievements';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
+import { achievementsFor } from './host-achievements';
 import { ensureProfile } from './profiles';
 import { reportError } from './log';
 
@@ -215,21 +215,31 @@ async function storedOf(db: Db, userId: string): Promise<{ earned: EarnedAchieve
   return { earned: earnedOf(rows), syncedAt: rows[0]?.syncedAt ?? null };
 }
 
-/** Ігрові ачівки користувача з усіх його завершених ігор (крім exceptGameId), від найстарішої: id → перша гра, що її дала. */
+/**
+ * Ігрові ачівки користувача з усіх його завершених ігор (крім exceptGameId), від найстарішої: id → перша гра, що її дала.
+ * План 33: ще й ігри, які він вів сам (не автопілот), — для «Марафону за пультом»; гра, де він і грав, і вів, — один раз.
+ */
 async function historyAchievements(db: Db, userId: string, exceptGameId: string | null): Promise<Map<AchievementId, string>> {
-  const rows = await db
-    .select({ id: game.id })
+  const except = exceptGameId === null ? undefined : ne(game.id, exceptGameId);
+  const columns = { id: game.id, startedAt: game.startedAt };
+  const played = await db
+    .select(columns)
     .from(participant)
     .innerJoin(game, eq(game.id, participant.gameId))
-    .where(and(eq(participant.userId, userId), eq(game.status, 'finished'), exceptGameId === null ? undefined : ne(game.id, exceptGameId)))
-    .orderBy(asc(game.startedAt), asc(game.id));
-  const gameIds = [...new Set(rows.map((row) => row.id))];
+    .where(and(eq(participant.userId, userId), eq(game.status, 'finished'), except));
+  const hosted = await db
+    .select(columns)
+    .from(game)
+    .where(and(eq(game.hostId, userId), eq(game.status, 'finished'), eq(game.autopilot, false), except));
+  const byGame = new Map<string, Date>();
+  for (const row of [...played, ...hosted]) byGame.set(row.id, row.startedAt);
+  const gameIds = [...byGame]
+    .sort(([a, at], [b, bt]) => at.getTime() - bt.getTime() || (a < b ? -1 : a > b ? 1 : 0))
+    .map(([id]) => id);
   const found = new Map<AchievementId, string>();
   for (let i = 0; i < gameIds.length; i += BATCH) {
     for (const loaded of await loadAchievementGames(db, gameIds.slice(i, i + BATCH))) {
-      const who = whoIn(loaded, userId);
-      if (who === null) continue;
-      for (const id of gameAchievements(loaded, who)) if (!found.has(id)) found.set(id, loaded.gameId);
+      for (const id of achievementsFor(loaded, userId)) if (!found.has(id)) found.set(id, loaded.gameId);
     }
   }
   return found;
@@ -275,9 +285,9 @@ async function missedAchievements(
   for (let i = 0; i < missed.length; i += BATCH) {
     try {
       const found: [AchievementId, string][] = [];
+      // План 33: і як учасника, і як ведучого (missedGames уже бере проведені ігри).
       for (const loaded of await loadAchievementGames(db, missed.slice(i, i + BATCH).map((m) => m.gameId))) {
-        const who = whoIn(loaded, userId);
-        if (who !== null) for (const id of gameAchievements(loaded, who)) found.push([id, loaded.gameId]);
+        for (const id of achievementsFor(loaded, userId)) found.push([id, loaded.gameId]);
       }
       for (const [id, gameId] of found) want(id, dates.get(gameId) ?? null, gameId);
     } catch (error) {
@@ -338,8 +348,8 @@ export async function syncAchievements(
   }
   if (at !== null) {
     const loaded = at.game ?? (await loadAchievementGames(db, [at.gameId]))[0];
-    const who = loaded === undefined ? null : whoIn(loaded, userId);
-    if (loaded !== undefined && who !== null) for (const id of gameAchievements(loaded, who)) want(id, at.earnedAt, at.gameId);
+    // План 33: досягнення учасника й ведучого («Марафон за пультом»).
+    if (loaded !== undefined) for (const id of achievementsFor(loaded, userId)) want(id, at.earnedAt, at.gameId);
   }
   // Наздоганяння ніколи не ламає читання: збій — у журнал, а мітка все одно переходить за ці ігри (інакше вічні повтори).
   const onError = options.onError ?? ((error: unknown) => reportError(error, { where: 'achievements-sync' }));
