@@ -64,6 +64,21 @@ describe('achievement texts', () => {
     expect(ACHIEVEMENT_ICONS.chronicler).toBe('📜');
   });
 
+  it('33: the new ones read word for word from the plan and keep the gender out of their names and jokes', () => {
+    expect(name('not_a_coin')).toBe('Не монетка');
+    expect(joke('not_a_coin')).toBe('Так чи ні — і щоразу в яблучко. Монетка так не вміє.');
+    expect(hint('classic_clean')).toBe('Правильно на всі запитання класичного раунду (щонайменше 5)');
+    expect(name('mirror_logic')).toBe('Дзеркальна логіка');
+    expect(joke('holiday')).toBe('Мандарини зачекають — спершу вікторина.');
+    // Минулий час однини виказує рід («вгадав», «склала»); множина й безособові форми («вгадали», «знайдено») — можна.
+    const gendered = ['вгадав', 'вгадала', 'склав', 'склала', 'знайшов', 'знайшла', 'розв’язав', 'розв’язала', 'поставив', 'поставила', 'намалював', 'намалювала', 'відкрив', 'відкрила', 'зламав', 'зламала', 'провів', 'провела', 'влучила', 'запам’ятав', 'запам’ятала', 'художниця', 'переможниця'];
+    for (const id of ACHIEVEMENTS.slice(71)) {
+      for (const text of [name(id), joke(id)]) {
+        for (const word of gendered) expect(new RegExp(`(?<!\\p{L})${word}(?!\\p{L})`, 'iu').test(text), `${id}: ${text}`).toBe(false);
+      }
+    }
+  });
+
   it('33: all 102 icons differ, each of the 31 new ones has its own', () => {
     expect(new Set(Object.values(ACHIEVEMENT_ICONS)).size).toBe(102);
     const added = ACHIEVEMENTS.slice(71);

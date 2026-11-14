@@ -187,6 +187,16 @@ describe('uk golden (22a)', () => {
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_12L.filter((key) => !(key in dict)), lang).toEqual([]);
   });
 
+  it('33 keys (93: name, joke and condition of the 31 new achievements) are in every language', () => {
+    const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
+    expect(ADDED_33).toHaveLength(93);
+    for (const key of ADDED_33) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) {
+      expect(ADDED_33.filter((key) => !(key in dict)), lang).toEqual([]);
+      for (const key of ADDED_33) expect(dict[key]?.trim(), `${lang} ${key}`).toBeTruthy();
+    }
+  });
+
   it('31 keys are in every language', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
     for (const key of ADDED_31) expect(ukMessages, key).toHaveProperty(key);
