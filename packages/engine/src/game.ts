@@ -46,6 +46,8 @@ import {
   auctionPrice,
   letterSet,
   isPuzzle,
+  shuffle,
+  type Rng,
 } from '@quiz/shared';
 // adjust.ts, buffs.ts, debuffs.ts і duel.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { adjustmentTotal } from './adjust';
@@ -1397,16 +1399,8 @@ function watchAway(state: GameState, now: number): GameState {
   return away ? { ...state, board: { ...state.board, awaySince: now } } : state;
 }
 
-export type Rng = () => number;
-
-export function shuffle<T>(items: T[], rng: Rng): T[] {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
+// Канонічні — у @quiz/shared/random; ре-експорт для давніх імпортів.
+export { shuffle, type Rng };
 
 /** Порядок показу варіантів; експортовано для buffs.ts. */
 export function present(question: Question, shuffleOptions: boolean, rng: Rng): string[] {
