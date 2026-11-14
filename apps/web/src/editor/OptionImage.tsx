@@ -15,7 +15,7 @@ export function OptionImage({ url, index, onChange }: Props) {
   return (
     <span className="option-image">
       <span className="option-image-row">
-        {url !== undefined && <img className="option-thumb" src={url} alt="" />}
+        {url !== undefined && <img className="option-thumb" src={url} alt="" loading="lazy" decoding="async" />}
         <label
           className={busy ? 'btn btn-small file-pick is-busy' : 'btn btn-small file-pick'}
           title={t('optionImageAdd', { index })}

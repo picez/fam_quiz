@@ -4,6 +4,7 @@ import { REACTION_SHOW_MS, type ClientToServerEvents, type CloseReason, type Gam
 import { freshSplash } from '../clock';
 import { dropReaction, upsertReaction } from '../reactions';
 import { emptyDrawing, needsSync, reduceDrawing, type DrawingModel } from './drawing';
+import { initialNet, isStale, NET_PING_EVERY_MS, NET_PING_TIMEOUT_MS, onPong, onReconnect, onTimeout, shouldForceReconnect, type NetState, type Quality } from './net-quality';
 import type { Send, SendResult } from './types';
 
 /** Остання команда звуку від ведучого; seq зростає, тож кожна нова — окрема. */
@@ -17,12 +18,51 @@ export const RETRY_MS = 1500;
 export const DRAW_SNAPSHOT_WAIT_MS = 2000;
 /** Повтор draw:sync після too_soon (вікно сервера — 2 на секунду). */
 export const DRAW_SYNC_RETRY_MS = 600;
+/** Скільки чекати ack будь-якої події (32): обрив після emit більше не лишає проміс висіти назавжди. */
+export const ACK_TIMEOUT_MS = 8000;
+
+const OFFLINE: SendResult = { ok: false, error: 'offline' };
+const tabVisible = (): boolean => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+const deviceOnline = (): boolean => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 /** Ключ тексту для екрана без гри чи смуги над грою. */
 export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'connecting' =>
   status === 'offline' ? 'offline' : status === 'restarting' ? 'restarting' : 'connecting';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+
+type AnswerMark = { epoch: number; count: number };
+
+/**
+ * Відповідь, на яку ще не прийшов ack: запитання, на яке її дали, сама відповідь і що було видно в зрізі в мить
+ * надсилання — лічильник прийнятих сервером відповідей (answerMark) і перша спроба бафу «Друга спроба».
+ */
+interface PendingAnswer {
+  questionIndex: number;
+  payload: unknown;
+  mark: AnswerMark | null;
+  first: string;
+}
+
+type PlayerBits = { me?: { answer?: unknown; buffs?: { active?: { first?: unknown } | null } | null; blitz?: unknown }; answerMark?: AnswerMark; board?: unknown };
+const bits = (view: GameView): PlayerBits => (view.role === 'player' ? (view as unknown as PlayerBits) : {});
+/** Відповіді гравця в зрізі (PlayerView.me.answer); undefined — зріз не гравця. */
+const ownAnswer = (view: GameView): unknown => bits(view).me?.answer;
+const markOf = (view: GameView): AnswerMark | null => bits(view).answerMark ?? null;
+const firstOf = (view: GameView): string => JSON.stringify(bits(view).me?.buffs?.active?.first ?? null);
+
+/**
+ * Чи довів зріз, що сервер ЦЮ відповідь не отримав. Надійно — за answerMark тієї самої епохи: лічильник не зріс.
+ * Без нього (старий сервер чи перезапуск) — обережно: лише без «Перевибрати» (поле й бліц, де ведучий знімає відповідь)
+ * і з тією самою першою спробою бафу; інакше не повторюємо — гравець торкне ще раз сам.
+ */
+function provenLost(pending: PendingAnswer, view: GameView): 'lost' | 'arrived' | 'unknown' {
+  const mark = markOf(view);
+  if (mark !== null && pending.mark !== null && mark.epoch === pending.mark.epoch) return mark.count > pending.mark.count ? 'arrived' : 'lost';
+  const { me, board } = bits(view);
+  if (board != null || me?.blitz != null || firstOf(view) !== pending.first) return 'unknown';
+  return 'lost';
+}
 
 /** Тримає сокет гри: поточний зріз стану, стан зв'язку й надсилання подій. */
 export function useGame(auth: SocketAuth | null) {
@@ -43,6 +83,16 @@ export function useGame(auth: SocketAuth | null) {
   const [reactions, setReactions] = useState<Reaction[]>([]);
   // Малюнок поточного запитання (28c): знімок + операції; лише в пам'яті, з розривом зникає.
   const [drawing, setDrawing] = useState<DrawingModel | null>(null);
+  // Якість зв'язку (32): вердикт для плашки «Слабкий зв'язок»; модель живе між перепідключеннями.
+  const [quality, setQuality] = useState<Quality>('good');
+  const netRef = useRef<NetState>(initialNet);
+  // Відповідь без ack (32): після перепідключення її надішлемо ще раз, лише якщо зріз показує, що вона не дійшла.
+  const pendingRef = useRef<PendingAnswer | null>(null);
+  const [answerPending, setAnswerPending] = useState(false);
+  // Повтор відповіді сервер відхилив (32): причина для телефона; at — щоб та сама причина вдруге теж показалась.
+  const [answerError, setAnswerError] = useState<{ error: string; at: number } | null>(null);
+  const viewRef = useRef<GameView | null>(null);
+  const retryRef = useRef<(pending: PendingAnswer) => void>(() => {});
   const socketRef = useRef<GameSocket | null>(null);
   // Запит повного малюнка; живе в ефекті сокета, назовні — requestSync.
   const syncRef = useRef<() => void>(() => {});
@@ -63,6 +113,12 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
     setReactions([]);
     setDrawing(null);
+    pendingRef.current = null;
+    setAnswerPending(false);
+    setAnswerError(null);
+    viewRef.current = null;
+    netRef.current = initialNet;
+    setQuality('good');
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -130,6 +186,69 @@ export function useGame(auth: SocketAuth | null) {
       if ((model === null || model.questionIndex !== next.questionIndex) && next.drawing.rev === 0) setModel(emptyDrawing(next.questionIndex));
       if (needsSync(model, next)) requestSync();
     };
+    // Пінг якості зв'язку (32): кожні NET_PING_EVERY_MS, поки вкладка видима; запускається першим зрізом з'єднання.
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let pinging = false;
+    // Ефект прибрано (розмонтування чи нова гра) або сервер відмовив у доступі: більше нічого не перепідключаємо.
+    let closedHere = false;
+    let refused = false;
+    const setNet = (next: NetState) => {
+      netRef.current = next;
+      setQuality(next.quality);
+    };
+    // socket.connect() посеред затримки перепідключення socket.io нічого не робить (менеджер «уже перепідключається»):
+    // disconnect() скидає ту затримку (і зависле з'єднання), connect() одразу відкриває нове.
+    const reconnectNow = () => {
+      if (gone || refused || closedHere) return;
+      if (retry !== null) clearTimeout(retry);
+      retry = null;
+      socket.disconnect();
+      socket.connect();
+    };
+    const ping = () => {
+      if (!socket.connected || pinging || !tabVisible()) return;
+      pinging = true;
+      const sentAt = Date.now();
+      socket.timeout(NET_PING_TIMEOUT_MS).emit('net:ping', (error: Error | null) => {
+        pinging = false;
+        if (closedHere) return;
+        if (error === null) {
+          setNet(onPong(netRef.current, Date.now() - sentAt, Date.now()));
+          return;
+        }
+        // Обрив сам зупиняє пінги; рахуємо лише тайм-аути живого з'єднання.
+        if (!socket.connected) return;
+        setNet(onTimeout(netRef.current));
+        // Три тайм-аути поспіль на видимій вкладці з мережею: з'єднання зависло, не чекаємо engine.io.
+        if (shouldForceReconnect(netRef.current) && tabVisible() && deviceOnline()) {
+          setNet(onReconnect(netRef.current));
+          reconnectNow();
+        }
+      });
+    };
+    const startPings = () => {
+      if (pingTimer === null) pingTimer = setInterval(ping, NET_PING_EVERY_MS);
+    };
+    const stopPings = () => {
+      if (pingTimer !== null) clearInterval(pingTimer);
+      pingTimer = null;
+    };
+    // Пристрій знову в мережі: перепідключаємось одразу, без затримки socket.io.
+    const onOnline = () => {
+      if (!socket.connected) reconnectNow();
+    };
+    // Вкладка знову видима: пінг одразу; після довгої тиші мертве з'єднання перепідключаємо.
+    const onVisibility = () => {
+      if (!tabVisible()) return;
+      if (!socket.connected) {
+        if (isStale(netRef.current, Date.now())) reconnectNow();
+        return;
+      }
+      ping();
+    };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisibility);
+
     const again = () => {
       if (retry === null)
         retry = setTimeout(() => {
@@ -138,9 +257,39 @@ export function useGame(auth: SocketAuth | null) {
         }, RETRY_MS);
     };
 
+    // Перший зріз після (пере)підключення: тут вирішується доля відповіді, що зависла під час обриву.
+    let afterReconnect = false;
+    const settlePending = (next: GameView) => {
+      const pending = pendingRef.current;
+      if (pending === null) return;
+      const mine = ownAnswer(next);
+      const sameQuestion = next.phase === 'question' && next.questionIndex === pending.questionIndex;
+      const mark = markOf(next);
+      const counted = mark !== null && pending.mark !== null && mark.epoch === pending.mark.epoch && mark.count > pending.mark.count;
+      if (!sameQuestion || (mine !== null && mine !== undefined) || counted) {
+        // Відповідь дійшла (загубився лише ack; «Друга спроба» чи «Перевибрати» могли вже знову очистити me.answer)
+        // або гра пішла далі: нічого повторювати.
+        pendingRef.current = null;
+        setAnswerPending(false);
+        return;
+      }
+      if (!afterReconnect || mine !== null) return;
+      const verdict = provenLost(pending, next);
+      // Сервер її не отримав: ще раз, один раз на це підключення. Двічі рушій однаково не зарахує (already_answered).
+      if (verdict === 'lost') retryRef.current(pending);
+      else {
+        // Не знаємо напевно: не повторюємо, рядок «Зв'язок підвис…» знімаємо — гравець бачить поле й торкне ще раз.
+        pendingRef.current = null;
+        setAnswerPending(false);
+      }
+    };
+
     socket.on('state', (next, meta) => {
       // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
       restarting = false;
+      viewRef.current = next;
+      settlePending(next);
+      afterReconnect = false;
       setView(freshSplash(next, meta.serverNow));
       if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
       if (tiltsAt !== null && tiltsAt !== next.questionIndex) setDrafts(null);
@@ -150,6 +299,7 @@ export function useGame(auth: SocketAuth | null) {
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
       checkDrawing(next);
+      startPings();
     });
     socket.on('drawing', (event) => {
       if (event.kind === 'sync') {
@@ -196,6 +346,9 @@ export function useGame(auth: SocketAuth | null) {
       snapshotDue = false;
       snapshotIn = false;
       syncing = false;
+      afterReconnect = true;
+      stopPings();
+      setNet(onReconnect(netRef.current));
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -205,6 +358,7 @@ export function useGame(auth: SocketAuth | null) {
     });
     socket.on('connect_error', (error) => {
       if (error.message === 'unauthorized') {
+        refused = true;
         setStatus('unauthorized');
         socket.close();
       } else if (error.message === 'restarting') {
@@ -218,6 +372,10 @@ export function useGame(auth: SocketAuth | null) {
     });
 
     return () => {
+      closedHere = true;
+      stopPings();
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisibility);
       if (retry !== null) clearTimeout(retry);
       for (const timer of reactionTimers) clearTimeout(timer);
       stopDrawingTimers();
@@ -227,18 +385,51 @@ export function useGame(auth: SocketAuth | null) {
     };
   }, [code, role, token]);
 
-  const send = useCallback<Send>((event, payload) => {
+  const rawSend = useCallback<Send>((event, payload) => {
     return new Promise<SendResult>((resolve) => {
       const socket = socketRef.current;
       if (socket === null || !socket.connected) {
-        resolve({ ok: false, error: 'offline' });
+        resolve(OFFLINE);
         return;
       }
-      const emit = socket.emit.bind(socket) as (event: string, ...args: unknown[]) => void;
-      if (payload === undefined) emit(event, resolve);
-      else emit(event, payload, resolve);
+      // Ack з тайм-аутом (32): тайм-аут чи обрив дають offline, а не вічне очікування.
+      const timed = socket.timeout(ACK_TIMEOUT_MS);
+      const emit = timed.emit.bind(timed) as (event: string, ...args: unknown[]) => void;
+      const done = (error: Error | null, result?: SendResult) => resolve(error !== null || result === undefined ? OFFLINE : result);
+      if (payload === undefined) emit(event, done);
+      else emit(event, payload, done);
     });
   }, []);
+
+  /** Ack відповіді: будь-яка відповідь сервера, крім offline (і already_answered теж), закриває запис. */
+  const track = useCallback((pending: PendingAnswer, result: SendResult) => {
+    if (pendingRef.current !== pending) return;
+    if (result.ok || result.error !== 'offline') {
+      pendingRef.current = null;
+      setAnswerPending(false);
+    } else setAnswerPending(true);
+  }, []);
+
+  retryRef.current = (pending) =>
+    void rawSend('player:answer', pending.payload).then((result) => {
+      track(pending, result);
+      // Повтор відхилено (не обрив і не «вже є»): рядок «Зв'язок підвис…» зникає, телефон показує причину.
+      if (!result.ok && result.error !== 'offline' && result.error !== 'already_answered') setAnswerError({ error: result.error, at: Date.now() });
+    });
+
+  const send = useCallback<Send>(
+    async (event, payload) => {
+      // Повторюємо лише відповідь (32): вона ідемпотентна в рушії; buzz, слова драбини, ходи — ні, там повтор був би новим ходом.
+      if (event !== 'player:answer' || viewRef.current === null) return rawSend(event, payload);
+      const now = viewRef.current;
+      const pending: PendingAnswer = { questionIndex: now.questionIndex, payload, mark: markOf(now), first: firstOf(now) };
+      pendingRef.current = pending;
+      const result = await rawSend(event, payload);
+      track(pending, result);
+      return result;
+    },
+    [rawSend, track],
+  );
 
   /** Забуває живі вибори й нахили (12b): пульт вимкнув чи знову ввімкнув «наживо», а сервер надішле свіжі. */
   const forgetLive = useCallback(() => {
@@ -249,5 +440,5 @@ export function useGame(auth: SocketAuth | null) {
   /** Просить у сервера повний малюнок (28c), напр. після відмови ack художникові; поки знімок і так іде чи запит у польоті — нічого. */
   const requestSync = useCallback(() => syncRef.current(), []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
+  return { quality, answerPending, answerError, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
 }

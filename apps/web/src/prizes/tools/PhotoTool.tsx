@@ -1,6 +1,7 @@
 import { DECOR_SUPPORT, IMAGE_LIMITS, TROPHY_PHOTO_FRAMES, TROPHY_PHOTO_STYLES } from '@quiz/shared';
 import { useEffect, useRef, useState, type ChangeEvent, type JSX } from 'react';
 import { uploadImage } from '../../api';
+import { IMAGE_MAX_SIDE, shrinkImage } from '../../image-shrink';
 import { ACCEPT } from '../../editor/ImageField';
 import { errorText, t, type TextKey } from '../../i18n';
 import type { ToolProps } from '../PrizeStudio';
@@ -59,11 +60,13 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
         if (mounted.current) setError(errorText('bad_image'));
         continue;
       }
-      if (file.size > IMAGE_LIMITS.maxBytes) {
-        if (mounted.current) setError(errorText('too_large'));
+      // Фото зменшується в браузері до 1600 px (32): великі знімки з телефона більше не відкидаються.
+      const shrunk = await shrinkImage(file, IMAGE_MAX_SIDE);
+      if (!shrunk.ok) {
+        if (mounted.current) setError(errorText(shrunk.error));
         continue;
       }
-      const result = await uploadImage(file);
+      const result = await uploadImage(shrunk.file);
       if (!result.ok) {
         if (mounted.current) setError(errorText(result.error));
         break;
@@ -123,7 +126,7 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
             <ol className="studio-photos">
               {shown.map((item, index) => (
                 <li key={`${index}:${item.url}`} className="studio-photo">
-                  <img className="studio-photo-thumb" src={item.url} alt={t('studioPhotoN', { n: index + 1 })} />
+                  <img className="studio-photo-thumb" src={item.url} alt={t('studioPhotoN', { n: index + 1 })} loading="lazy" decoding="async" />
                   <div className="studio-photo-actions">
                     <button
                       type="button"

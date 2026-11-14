@@ -124,6 +124,12 @@ export const MAX_MESSAGE_BYTES = 64 * 1024;
  * попереднього зрізу посиланнями — наступний зріз важить сотню байтів замість кількох KB. Малі події (< 1 KB) — без стиснення.
  */
 export const SOCKET_DEFLATE = { threshold: 1024 } as const;
+/**
+ * Пінги engine.io (32): типові 25 с + 20 с помічали мертве з'єднання телефона лише за 45 с. Тепер за ≤ 25 с; простій
+ * Cloudflare (100 с) нас не зачіпає. Клієнт додатково міряє час відгуку подією net:ping.
+ */
+export const SOCKET_PING_INTERVAL_MS = 15_000;
+export const SOCKET_PING_TIMEOUT_MS = 10_000;
 /** Скільки разів за хвилину одна адреса може питати базу про код, якого немає в пам'яті. */
 export const LOOKUPS_PER_MINUTE = 60;
 const LOOKUP_WINDOW_MS = 60_000;
@@ -196,6 +202,8 @@ export function attachSockets(
 ): GameServer {
   const io: GameServer = new Server(server, {
     serveClient: false,
+    pingInterval: SOCKET_PING_INTERVAL_MS,
+    pingTimeout: SOCKET_PING_TIMEOUT_MS,
     maxHttpBufferSize: MAX_MESSAGE_BYTES,
     perMessageDeflate: options.deflate === false ? false : SOCKET_DEFLATE,
   });
@@ -511,6 +519,18 @@ export function attachSockets(
         reply(args, result);
       });
     };
+    // Час відгуку (32) для плашки «Слабкий зв’язок»: будь-яка роль, у загальному бюджеті, без manager.guard — кімнати не торкається.
+    (socket as unknown as { on(event: string, listener: (...args: unknown[]) => void): void }).on('net:ping', (...args) => {
+      if (!withinBudget('net:ping')) return reply(args, RATE_LIMITED);
+      const ack = args.at(-1);
+      if (typeof ack !== 'function') return;
+      try {
+        ack({ now: manager.now() });
+      } catch (error) {
+        reportError(error, { where: 'socket-ack' });
+      }
+    });
+
     const isHost = identity.role === 'host';
     // Хто доходить до обробників host:*: пульт; у грі без ведучого — і гравець (manager.author відповідає not_allowed чужим і зайвим діям).
     const hostSide = isHost || (identity.role === 'player' && identity.playerId !== null && room.state.autopilot !== undefined);

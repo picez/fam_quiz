@@ -128,7 +128,7 @@ export function ItemForm({
           </label>
         ) : (
           <span className="item-photo">
-            <img src={photo} alt="" />
+            <img src={photo} alt="" loading="lazy" decoding="async" />
             <button type="button" className="btn btn-small" onClick={() => setPhoto(null)}>
               {t('itemPhotoRemove')}
             </button>

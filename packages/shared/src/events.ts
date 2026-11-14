@@ -277,6 +277,8 @@ export const captainSchema = z.object({ teamId: playerId, memberId: playerId });
 export const joinSchema = z.object({ nickname: z.string().max(100).refine(isStorable, UNSTORABLE), ...entryFields });
 
 export interface ClientToServerEvents {
+  /** Час відгуку для плашки слабкого зв’язку (32); стану не торкається, відповідь — час сервера. */
+  'net:ping': (ack: (reply: { now: number }) => void) => void;
   'player:answer': (answer: Answer, ack: Ack) => void;
   'player:guess': (payload: z.infer<typeof guessSchema>, ack: Ack) => void;
   'player:hint': (ack: Ack) => void;

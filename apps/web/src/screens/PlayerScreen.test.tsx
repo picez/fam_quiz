@@ -460,6 +460,33 @@ describe('PlayerScreen', () => {
     expect(screen.queryByRole('button', { name: /Львів/ })).toBeNull();
   });
 
+  it('an answer stuck in a blip says it will be sent, not an error, and the line goes once the answer is in (32)', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'offline' }));
+    const { rerender } = render(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    const line = await screen.findByText(t('answerPending'));
+    expect(line.getAttribute('role')).toBe('status');
+    expect(screen.queryByText(errorText('offline'))).toBeNull();
+    rerender(<PlayerScreen view={onQuestion({ me: { ...me, answer: { type: 'single', optionId: 'b' } } })} hostOnline offsetMs={0} send={send} />);
+    expect(screen.queryByText(t('answerPending'))).toBeNull();
+  });
+
+  it('drops the pending line when the hook gives up and shows why a re-send was refused (32)', async () => {
+    const send: Send = vi.fn(async () => ({ ok: false as const, error: 'offline' }));
+    const { rerender } = render(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending />);
+    fireEvent.click(screen.getByRole('button', { name: /Київ/ }));
+    await screen.findByText(t('answerPending'));
+    rerender(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending={false} />);
+    expect(screen.queryByText(t('answerPending'))).toBeNull();
+    rerender(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={send} answerPending={false} answerError={{ error: 'time_over', at: 1 }} />);
+    expect(screen.getByRole('alert').textContent).toBe(errorText('time_over'));
+  });
+
+  it('shows the pending line the game hook reports (32)', () => {
+    render(<PlayerScreen view={onQuestion()} hostOnline offsetMs={0} send={vi.fn()} answerPending />);
+    expect(screen.getByText(t('answerPending')).getAttribute('role')).toBe('status');
+  });
+
   it('explains why an answer was refused', async () => {
     const send: Send = vi.fn(async () => ({ ok: false as const, error: 'time_over' }));
     show(onQuestion(), { send });
@@ -2528,6 +2555,17 @@ describe('PlayerScreen: splashes', () => {
     vi.setSystemTime(T);
   };
   afterEach(() => vi.useRealTimers());
+
+  it('the question picture is already in the page under the pre-question splash (32)', () => {
+    timed();
+    const imageUrl = '/uploads/0123456789abcdef0123456789abcdef.webp';
+    show(onQuestion({ round: classic, question: { ...publicQuestion, imageUrl }, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200) }));
+    expect(document.querySelector('.splash.is-question')).not.toBeNull();
+    const image = document.querySelector('img.question-image');
+    expect(image?.getAttribute('src')).toBe(imageUrl);
+    expect(image?.getAttribute('fetchpriority')).toBe('high');
+    expect(image?.getAttribute('loading')).toBeNull();
+  });
 
   it('the phone shows a smaller splash over a question that is already in place', () => {
     timed();

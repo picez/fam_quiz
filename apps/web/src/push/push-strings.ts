@@ -16,6 +16,10 @@ export const pushStrings = {
   pushCancelledBody: 'Ведучий скасував гру {when}.',
   pushFallbackTitle: 'Квіз',
   pushFallbackBody: 'Є оновлення щодо запланованої гри.',
+  // Сторінка «Немає зв’язку» воркера (32): ні мережі, ні кешу.
+  swOfflineTitle: 'Немає зв’язку',
+  swOfflineBody: 'Сторінку не вдалося відкрити: немає інтернету або сервер недоступний.',
+  swOfflineRetry: 'Спробувати ще раз',
 } as const;
 
 export type PushStringKey = keyof typeof pushStrings;

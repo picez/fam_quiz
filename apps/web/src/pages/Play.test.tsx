@@ -18,6 +18,15 @@ const { sockets, FakeSocket } = vi.hoisted(() => {
       return this;
     }
     emit() {}
+    /** socket.timeout(ms).emit (32): той самий emit, а ack (err, result) — звичайний ack з результатом. */
+    timeout() {
+      return {
+        emit: (event: string, ...rest: unknown[]) => {
+          const ack = rest.pop() as (err: Error | null, result?: unknown) => void;
+          (this.emit as (...args: unknown[]) => void)(event, ...rest, (result: unknown) => ack(null, result));
+        },
+      };
+    }
     close() {}
     fire(event: string, ...args: unknown[]) {
       for (const handler of this.handlers.get(event) ?? []) handler(...args);

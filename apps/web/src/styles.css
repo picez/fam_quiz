@@ -22868,3 +22868,37 @@ input.sudoku-editor-cell:focus-visible {
     margin-inline-start: auto;
   }
 }
+
+/* ---------- Слабкий інтернет (32) ---------- */
+
+/* «📶 Слабкий зв'язок»: невелика плашка в один рядок над екраном гри (телефон і пульт). Без анімації: у легкому
+   режимі (31) росте разом із rem, у RTL іконка сама стає праворуч (flex іде за напрямком тексту). */
+.net-weak {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: calc(100vw - 1rem);
+  margin: 0.25rem auto;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--bank) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bank) 16%, var(--stage));
+  color: var(--bank);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.net-weak-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* «Зв'язок підвис…»: відповідь чекає на зв'язок — спокійний рядок замість червоної помилки. */
+.answer-pending {
+  color: var(--bank);
+  font-weight: 600;
+}

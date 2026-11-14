@@ -262,6 +262,46 @@ describe('serving the web client', () => {
     await served.app.close();
   });
 
+  it('caches hashed assets for good, revalidates the page and the worker, and 404s a missing chunk', async () => {
+    const webRoot = mkdtempSync(joinPath(tmpdir(), 'quiz-web-'));
+    writeFileSync(joinPath(webRoot, 'index.html'), '<!doctype html><title>quiz</title>');
+    writeFileSync(joinPath(webRoot, 'sw.js'), 'self.addEventListener("push", () => {});');
+    mkdirSync(joinPath(webRoot, 'assets'));
+    const js = `console.log(${JSON.stringify('x'.repeat(4000))});`;
+    writeFileSync(joinPath(webRoot, 'assets', 'app-abc123.js'), js);
+    writeFileSync(joinPath(webRoot, 'assets', 'app-abc123.js.br'), brotliCompressSync(js));
+    mkdirSync(joinPath(webRoot, 'maps'));
+    writeFileSync(joinPath(webRoot, 'maps', 'world.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    const served = await buildApp({ db, auth: TEST_AUTH, webRoot });
+    const get = (url: string, headers: Record<string, string> = {}) => served.app.inject({ method: 'GET', url, headers });
+
+    const asset = await get('/assets/app-abc123.js', { 'accept-encoding': 'br' });
+    expect(asset.statusCode).toBe(200);
+    expect(asset.headers['content-encoding']).toBe('br');
+    expect(asset.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(brotliDecompressSync(asset.rawPayload).toString()).toBe(js);
+    expect((await get('/assets/app-abc123.js')).headers['cache-control']).toContain('immutable');
+
+    for (const url of ['/', '/play/123456']) {
+      const page = await get(url);
+      expect(page.statusCode).toBe(200);
+      expect(page.headers['content-type']).toContain('text/html');
+      expect(page.headers['cache-control']).toBe('no-cache');
+    }
+    expect((await get('/sw.js')).headers['cache-control']).toBe('no-cache');
+    expect((await get('/maps/world.svg')).headers['cache-control']).toBe('public, max-age=86400');
+
+    for (const url of ['/assets/missing-zzz.js', '/maps/none.svg', '/models/none.glb']) {
+      const missing = await get(url);
+      expect(missing.statusCode).toBe(404);
+      expect(missing.headers['content-type']).toContain('application/json');
+      expect(missing.json()).toEqual({ error: 'not_found' });
+      // Відсутній файл не кешується ніде: після деплою він може з'явитися.
+      expect(missing.headers['cache-control']).toBe('no-store');
+    }
+    await served.app.close();
+  });
+
   it('answers JSON 404 for unknown routes when no client is configured', async () => {
     const response = await ctx.app.inject({ method: 'GET', url: '/play/123456' });
     expect(response.statusCode).toBe(404);

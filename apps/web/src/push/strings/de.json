@@ -6,5 +6,8 @@
   "pushOpenedBody": "Der Spielleiter hat das Spiel geöffnet. Tippe, um beizutreten.",
   "pushOpenedTitle": "Das Spiel „{title}“ hat begonnen",
   "pushReminderBody": "Beginn um {time}. Sei pünktlich!",
-  "pushReminderTitle": "Bald beginnt das Spiel „{title}“"
+  "pushReminderTitle": "Bald beginnt das Spiel „{title}“",
+  "swOfflineBody": "Die Seite ließ sich nicht öffnen: kein Internet oder der Server ist nicht erreichbar.",
+  "swOfflineRetry": "Erneut versuchen",
+  "swOfflineTitle": "Keine Verbindung"
 }

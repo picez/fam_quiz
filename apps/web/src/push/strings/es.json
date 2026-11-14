@@ -6,5 +6,8 @@
   "pushOpenedBody": "El presentador ha abierto la partida. Toca para unirte.",
   "pushOpenedTitle": "Ha empezado la partida «{title}»",
   "pushReminderBody": "Empieza a las {time}. ¡No llegues tarde!",
-  "pushReminderTitle": "Pronto empieza «{title}»"
+  "pushReminderTitle": "Pronto empieza «{title}»",
+  "swOfflineBody": "No se pudo abrir la página: no hay internet o el servidor no está disponible.",
+  "swOfflineRetry": "Intentar de nuevo",
+  "swOfflineTitle": "Sin conexión"
 }

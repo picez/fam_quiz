@@ -155,6 +155,8 @@ export const flags = {
   slots404Expected: false,
   /** Лише частина 21a: закрите лобі забороненого (404 на код гри) і відмова у вході (403) очікувані. */
   banExpected: false,
+  /** Лише частина 32: офлайн-сценарії, де браузер журналює невдалі запити й WebSocket (ERR_INTERNET_DISCONNECTED, Failed to fetch). */
+  offlineExpected: false,
 };
 
 /** Перезапуск сервера як на Render: зупинка через shutdown (SIGTERM), нова версія на тій самій базі й порті. */
@@ -212,6 +214,7 @@ export function useE2eServer(): void {
     problems.length = 0;
     rigged.length = 0;
     flags.restarting = false;
+    flags.offlineExpected = false;
     // Попередній сценарій міг упасти посеред перезапуску: піднімаємо сервер, щоб решта не падала слідом.
     if (!(await healthy())) {
       await ctx.app.close().catch(() => undefined);

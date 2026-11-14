@@ -2,6 +2,7 @@ import { IMAGE_LIMITS } from '@quiz/shared';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { uploadImage } from '../api';
 import { errorText, t } from '../i18n';
+import { IMAGE_MAX_SIDE, shrinkImage } from '../image-shrink';
 import { QuestionImage } from '../screens/QuestionImage';
 
 interface Props {
@@ -40,10 +41,11 @@ export function useImageUpload(onChange: (url: string | null) => void, { keepLat
     event.target.value = '';
     if (file === undefined) return;
     if (!isAllowed(file.type)) return setError(errorText('bad_image'));
-    if (file.size > IMAGE_LIMITS.maxBytes) return setError(errorText('too_large'));
     setError(null);
     setBusy(true);
-    const result = await uploadImage(file);
+    // Фото з телефона браузер спершу зменшує до 1600 px і стискає у WebP (32); сервер приймає до 2 МБ.
+    const shrunk = await shrinkImage(file, IMAGE_MAX_SIDE);
+    const result = shrunk.ok ? await uploadImage(shrunk.file) : shrunk;
     if (!mounted.current) {
       // Поле зникло: локальний стан уже нічий, але адресу можна віддати далі, якщо її чекають.
       if (keepLate && result.ok) latest.current(result.url);

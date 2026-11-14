@@ -661,6 +661,10 @@ export class RoomManager {
   private readonly listeners = new Set<RoomListener>();
   /** Збої таймера кроку поспіль (30a): для наростаючої паузи повторів і паузи кімнати. Лише в пам'яті. */
   private readonly timerFailures = new WeakMap<Room, number>();
+  /** Прийняті відповіді кожного гравця кімнати (32): лише в пам'яті, для повтору відповіді після обриву; epoch — цей процес. */
+  private readonly answerCounts = new WeakMap<Room, Map<string, number>>();
+  // randomBytes, а не randomInt: randomInt — джерело кодів кімнат, епоха не має з ним перетинатися.
+  private readonly answerEpoch = randomBytes(6).readUIntBE(0, 6);
 
   constructor(scheduler: Scheduler, rng: () => number = Math.random, options: RoomManagerOptions = {}) {
     this.scheduler = scheduler;
@@ -1403,7 +1407,8 @@ export class RoomManager {
     // «Нове досягнення!» (12j): телефон — своє, сцена — слайд, пульт — лише позначка, що слайд є (кнопка «Нагороди на сцені»).
     if (base.role === 'player') {
       const mine = identity.playerId === null ? undefined : newAchievementsMine(room, identity.playerId);
-      return { ...base, ...extra, ...(mine === undefined ? {} : { newAchievements: mine }) };
+      const answerMark = identity.playerId === null ? undefined : { epoch: this.answerEpoch, count: this.answerCounts.get(room)?.get(identity.playerId) ?? 0 };
+      return { ...base, ...extra, ...(mine === undefined ? {} : { newAchievements: mine }), ...(answerMark === undefined ? {} : { answerMark }) };
     }
     const slide = newAchievementsStage(room);
     if (base.role === 'stage') return { ...base, ...extra, ...(slide === undefined ? {} : { newAchievements: slide }) };
@@ -1627,7 +1632,13 @@ export class RoomManager {
 
   answer(room: Room, playerId: string, answer: Answer): AckResult {
     if (!this.alive(room)) return this.gone();
-    return this.apply(room, actAnswer(room.state, playerId, answer, this.now()));
+    const result = this.apply(room, actAnswer(room.state, playerId, answer, this.now()));
+    if (result.ok) {
+      const counts = this.answerCounts.get(room) ?? new Map<string, number>();
+      counts.set(playerId, (counts.get(playerId) ?? 0) + 1);
+      this.answerCounts.set(room, counts);
+    }
+    return result;
   }
 
   buzz(room: Room, playerId: string): AckResult {
