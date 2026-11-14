@@ -205,3 +205,11 @@ describe('PowersEditor in a family game (31)', () => {
     expect(screen.queryByText('У сімейній грі вимкнено')).toBeNull();
   });
 });
+
+describe('settleFamilyPrices (31)', () => {
+  it('a hidden debuff price out of range or not a number is settled silently; visible ones stay as typed', async () => {
+    const { settleFamilyPrices } = await import('./PowersEditor');
+    const settled = settleFamilyPrices({ leaderboard: 'each', family: true, debuffs: [...DEBUFF_KINDS], debuffPrices: { shake: 99_999, mirror: Number.NaN, torch: 0.5, fog: 99_999 } });
+    expect(settled.debuffPrices).toEqual({ shake: 5000, torch: 50, fog: 99_999 });
+  });
+});

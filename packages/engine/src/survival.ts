@@ -1,4 +1,4 @@
-import { DOOR_COUNT, LIMITS, survivorsAfter, type Answer, type Grade, type Question } from '@quiz/shared';
+import { DOOR_COUNT, familyExtraMs, familyOn, LIMITS, survivorsAfter, type Answer, type Grade, type Question } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; звертання лише під час виклику функцій.
 import {
   autoLock,
@@ -23,6 +23,13 @@ import { timeOver } from './timing';
 
 /** Скільки триває вибір дверей в удачі. */
 export const SURVIVAL_LUCK_MS = LIMITS.survivalLuckSeconds * 1000;
+
+/** Час випробування: «Удача» — сталий; запитання — його час, а в сімейній грі (31) ще й надбавка (лише в endsAt — форма стану та сама). */
+export function survivalTrialMs(state: Pick<GameState, 'quiz'>, question: Question | null): number {
+  if (question === null) return SURVIVAL_LUCK_MS;
+  const ms = question.timeLimit * 1000;
+  return familyOn(state.quiz) ? ms + familyExtraMs(ms) : ms;
+}
 
 /** Чи поточний раунд — «Вибування». */
 export function inSurvivalRound(state: GameState): boolean {
@@ -181,7 +188,7 @@ export function openTrial(state: GameState, edge: string[], now: number, rng: Rn
   };
   const splashed = withSplash({ ...state, phase: 'leaderboard', remainingMs: null }, 'trial', now);
   const startedAt = splashed.splash?.until ?? now;
-  const limitMs = question === null ? SURVIVAL_LUCK_MS : question.timeLimit * 1000;
+  const limitMs = survivalTrialMs(state, question);
   return withTrial({ ...splashed, startedAt, endsAt: startedAt + limitMs }, { ...play, survival: { ...play.survival, edge } }, trial);
 }
 

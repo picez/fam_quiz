@@ -22852,3 +22852,19 @@ input.sudoku-editor-cell:focus-visible {
 :where(:root.is-easy) .game-bg::before {
   display: none;
 }
+
+/* Легкий режим на вузькому телефоні: підпис «Запитання 1 з 4 · лишилося 3» — окремим рядком над таймером, а не в чотири рядки поруч. */
+@media (max-width: 420px) {
+  :where(:root.is-easy) .question-head {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  :where(:root.is-easy) .question-meta {
+    flex: 1 0 100%;
+  }
+
+  :where(:root.is-easy) .question-head > :not(.question-meta) {
+    margin-inline-start: auto;
+  }
+}

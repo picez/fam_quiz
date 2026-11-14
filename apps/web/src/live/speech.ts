@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Locale, PublicQuestion, StageView } from '@quiz/shared';
-import { t, type TextKey } from '../i18n';
+import { textIn, type TextKey } from '../i18n';
 import { currentLocale } from '../locales/current';
 
 /**
@@ -48,7 +48,6 @@ export function pickVoice(voices: readonly SpeechSynthesisVoice[], lang: Locale)
   return [...own].sort((a, b) => rank(a) - rank(b))[0] ?? null;
 }
 
-type Text = (key: TextKey, vars?: Record<string, string | number>) => string;
 
 /** Довгий шматок — по межах речень, а задовге речення — по пробілах. */
 function chunks(text: string): string[] {
@@ -80,11 +79,14 @@ function chunks(text: string): string[] {
  * Що читати: текст запитання й (для single і multi) «Варіанти: А; Б; В.» — без літер A–F, бо голос читає їх дивно.
  * Лише PublicQuestion: правильної відповіді в ньому немає ніколи. null — у запитанні є звук чи відео (не заглушуємо).
  */
-export function speechParts(question: PublicQuestion, text: Text = t): string[] | null {
-  if (question.audio !== null || question.video !== null || question.melody !== undefined) return null;
+export function speechParts(question: PublicQuestion, lang: Locale = speechLanguage(question, currentLocale())): string[] | null {
+  if (question.audio != null || question.video != null || question.melody !== undefined) return null;
+  // Рамкові слова («Варіанти», «пропуск») — мовою голосу; немає її словника в пам'яті — без них.
+  const frame = (key: TextKey, vars: Record<string, string | number> = {}) => textIn(lang, key, vars);
+  const blank = frame('speechBlank');
   const clean = (value: string) =>
     value
-      .replace(/_{3,}/g, ` ${text('speechBlank')} `)
+      .replace(/_{3,}/g, blank === null ? ' ' : ` ${blank} `)
       .replace(/\p{Extended_Pictographic}|\p{Regional_Indicator}/gu, '')
       .replace(/[\u{FE0F}\u{200D}]/gu, '')
       .replace(/\s+/g, ' ')
@@ -92,9 +94,21 @@ export function speechParts(question: PublicQuestion, text: Text = t): string[] 
   const pieces = [clean(question.text)];
   if (question.type === 'single' || question.type === 'multi') {
     const list = question.choices.map((choice) => clean(choice.text)).filter((choice) => choice !== '');
-    if (list.length > 0) pieces.push(text('speechOptions', { list: list.join('; ') }));
+    if (list.length > 0) pieces.push(frame('speechOptions', { list: list.join('; ') }) ?? `${list.join('; ')}.`);
   }
   return pieces.filter((piece) => piece !== '').flatMap(chunks);
+}
+
+/** Тексти, які прозвучать: запитання, а для single і multi — ще й варіанти. */
+const spokenTexts = (question: PublicQuestion) =>
+  question.type === 'single' || question.type === 'multi' ? [question.text, ...question.choices.map((choice) => choice.text)] : [question.text];
+
+/**
+ * Мова читання за всім, що прозвучить: є кирилиця хоч у варіанті — українська (потрібен український голос, інакше мовчимо),
+ * далі арабське письмо, інакше — як speechLang.
+ */
+export function speechLanguage(question: PublicQuestion, ui: Locale): Locale {
+  return speechLang(spokenTexts(question).join(' '), ui);
 }
 
 /** Що зараз читається: «раунд:запитання» лише на етапі question; вибір блефу — ні (варіанти-вигадки не читаємо). */
@@ -138,8 +152,8 @@ export function useStageSpeech({ view, splashing, enabled }: { view: StageView; 
   const { voices, ready } = useVoices(active);
   const key = speechKey(view);
   const question = key === null ? null : view.question;
-  const parts = question === null ? null : speechParts(question);
-  const language = question === null ? null : speechLang(question.text, currentLocale());
+  const language = question === null ? null : speechLanguage(question, currentLocale());
+  const parts = question === null || language === null ? null : speechParts(question, language);
   const voice = language === null ? null : pickVoice(voices, language);
   const partsText = parts?.join('\n') ?? null;
   const spoken = useRef<string | null>(null);
@@ -169,8 +183,9 @@ export function useStageSpeech({ view, splashing, enabled }: { view: StageView; 
       return;
     }
     if (key === null || view.paused || splashing || spoken.current === key || !ready) return;
-    spoken.current = key;
+    // Немає голосу (ще) — не позначаємо прочитаним: голос, що прийде (voiceschanged) під час цього ж запитання, його прочитає.
     if (partsText === null || voice === null) return;
+    spoken.current = key;
     speak(partsText.split('\n'), voice);
   }, [active, key, view.paused, splashing, ready, voice, partsText, speak]);
 

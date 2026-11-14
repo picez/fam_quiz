@@ -50,13 +50,13 @@ it('part 31: an account keeps easy mode in the profile and a new device without 
 
 /** Заглушка мовлення: записує, що сцена сказала й скільки разів замовкала; голоси — лише ті, що в списку. */
 const SPEECH_STUB31 = (voices: { lang: string; name: string }[]) => `(() => {
-  window.__spoken = []; window.__cancels = 0;
+  window.__spoken = []; window.__cancels = 0; window.__unlocks = 0;
   const list = ${JSON.stringify(voices)}.map((v) => ({ ...v, voiceURI: v.name, localService: true, default: false }));
   class Utterance { constructor(text) { this.text = text; this.lang = ''; this.voice = null; this.rate = 1; this.onend = null; } }
   const synth = {
     speaking: false, pending: false, paused: false,
     getVoices: () => list,
-    speak(u) { window.__spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.lang ?? null }); setTimeout(() => u.onend?.({}), 30); },
+    speak(u) { if (u.text === '') { window.__unlocks += 1; return; } window.__spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.lang ?? null }); setTimeout(() => u.onend?.({}), 30); },
     cancel() { window.__cancels += 1; },
     pause() {}, resume() {},
     addEventListener() {}, removeEventListener() {},
@@ -323,6 +323,8 @@ async function stageSpeech31() {
   expect(await speak.getAttribute('aria-pressed')).toBe('false');
   await speak.click();
   await expect.poll(() => speak.getAttribute('aria-pressed'), POLL).toBe('true');
+  // iOS: порожня фраза просто з дотику відмикає мову.
+  expect(await stage.evaluate('window.__unlocks')).toBe(1);
   await stage.getByRole('button', { name: '🔁 Ще раз', ...exact }).waitFor();
   await expectStageInView(stage, 'p31-stage-lobby-speech');
   await shot(stage, 'p31-stage-lobby-speech');

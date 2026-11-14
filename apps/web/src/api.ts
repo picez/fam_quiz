@@ -96,8 +96,10 @@ export async function fetchData<T>(url: string, options: Options = {}): Promise<
 const quizUrl = (id: string) => `/api/quizzes/${encodeURIComponent(id)}`;
 const gameUrl = (code: string) => `/api/games/by-code/${encodeURIComponent(code)}`;
 
-/** Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null. */
-/** Відповідь /api/me: старий сервер може не мати easyMode — тоді вимкнено. */
+/**
+ * Відповідь /api/me: старий сервер чи кешована відповідь може не мати locale — useAccount тоді ставить null;
+ * без easyMode (31) — вимкнено.
+ */
 export const me = () => request<Omit<Account, 'locale' | 'easyMode'> & { locale?: unknown; easyMode?: unknown }>('/api/me');
 /** «Легкий режим» (31) у профілі. */
 export const setEasy = (on: boolean) => fetchData<{ easyMode: boolean }>('/api/me/easy', { method: 'PUT', body: { on } });

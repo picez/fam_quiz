@@ -4,6 +4,8 @@ import type { PublicQuestion, StageView } from '@quiz/shared';
 export interface FakeSynth {
   spoken: { text: string; lang: string; voice: string | null; rate: number }[];
   cancels: number;
+  /** Порожні фрази з дотику (відмикання мови на iOS). */
+  unlocks: number;
   voices: SpeechSynthesisVoice[];
   /** Голоси з'явилися пізніше: оновлює список і кличе слухачів voiceschanged. */
   setVoices: (voices: { lang: string; name: string; localService?: boolean }[]) => void;
@@ -19,12 +21,17 @@ export function installSpeech(voices: { lang: string; name: string; localService
   const synth: FakeSynth = {
     spoken: [],
     cancels: 0,
+    unlocks: 0,
     voices: voices.map(asVoice),
     setVoices(next) {
       synth.voices = next.map(asVoice);
       for (const listener of listeners) listener();
     },
     speak(utterance) {
+      if (utterance.text === '') {
+        synth.unlocks += 1;
+        return;
+      }
       synth.spoken.push({ text: utterance.text, lang: utterance.lang, voice: utterance.voice?.lang ?? null, rate: utterance.rate });
     },
     cancel() {

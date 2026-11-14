@@ -1,5 +1,5 @@
 import type { Locale } from '@quiz/shared';
-import { intlTag, setCurrentLocale } from './locales/current';
+import { currentLocale, intlTag, setCurrentLocale } from './locales/current';
 import { loadMessages, type Messages } from './locales/load';
 import { helpUk } from './help/help-uk';
 import { isEnabled } from './locales/locales';
@@ -4076,6 +4076,15 @@ export function activateLocaleForTests(locale: Locale, messages?: { ui?: Message
 
 export function activeMessages(): { ui: Messages; help: Messages } {
   return active;
+}
+
+/**
+ * Текст саме мовою locale, якщо її словник уже в пам'яті (uk є завжди, активна — теж); інакше null.
+ * Для читання вголос (31): рамкові слова мають бути мовою голосу, а не інтерфейсу.
+ */
+export function textIn(locale: Locale, key: TextKey, vars: Record<string, string | number> = {}): string | null {
+  const messages = locale === currentLocale() ? active.ui : loaded.get(locale)?.ui;
+  return messages !== undefined && own(messages, key) ? fill(messages[key]!, vars) : null;
 }
 
 /** Текст активною мовою; нема ключа в її словнику — uk. */

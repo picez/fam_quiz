@@ -1,11 +1,11 @@
-import { DEBUFF_KINDS, familyExtraMs, type Question, type Quiz } from '@quiz/shared';
+import { DEBUFF_KINDS, familyExtraMs, roundBrief, type Question, type Quiz } from '@quiz/shared';
 import { describe, expect, it } from 'vitest';
 import { writeLie } from './bluff';
 import { buyDebuff, setDebuff } from './debuffs';
 import { lock, next, pause, recordOf, start, submitAnswer, type GameState } from './game';
 import { pickContestant } from './ladder';
 import { adjustTime, limitMsOf } from './timing';
-import { bluff, classicRound, ladderRound, makeRoundsQuiz, single, withVideo } from './testing/fixtures';
+import { bluff, classicRound, ladderRound, makeRoundsQuiz, single, truthRound, withVideo } from './testing/fixtures';
 import { lobbyWith, must, startRound } from './testing/helpers';
 import { hostView, playerView, stageView } from './views';
 
@@ -95,5 +95,16 @@ describe('family game (31)', () => {
     const fam = open(family(classic([single30])));
     expect(Object.keys(JSON.parse(JSON.stringify(fam))).sort()).toEqual(Object.keys(JSON.parse(JSON.stringify(plain))).sort());
     expect(Object.keys(fam.plays[0]).sort()).toEqual(Object.keys(plain.plays[0]).sort());
+  });
+
+  it('the round intro and its briefing show the family time', () => {
+    const intro = must(start(lobbyWith(family(classic([single30, { ...single30, id: 'q2', timeLimit: 25 }])), 'Оля')));
+    expect(intro.phase).toBe('intro');
+    expect(stageView(intro).round?.times).toEqual({ min: 38, max: 45 });
+    const plain = must(start(lobbyWith(classic([single30]), 'Оля')));
+    expect(stageView(plain).round?.times).toEqual({ min: 30, max: 30 });
+    const truth = truthRound('t1', { timeLimit: 30 });
+    expect(roundBrief(truth, true).truth?.time).toBe(45);
+    expect(roundBrief(truth).truth?.time).toBe(30);
   });
 });

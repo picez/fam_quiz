@@ -38,6 +38,23 @@ const pricesFor = (prices: Prices | undefined, allowed: DebuffKind[]): Prices | 
   return kept.length === 0 ? undefined : Object.fromEntries(kept.map((kind) => [kind, prices?.[kind]]));
 };
 
+/**
+ * Сімейна гра (31): ціни FAMILY_OFF_DEBUFFS сховано разом із полями. Недописана (поза межами чи дробова) ціна
+ * тихо стає найближчою допустимою, нечислова — типовою: схована помилка не блокує збереження.
+ */
+export function settleFamilyPrices(settings: QuizSettings): QuizSettings {
+  const prices = settings.debuffPrices;
+  if (prices === undefined) return settings;
+  const next: Prices = { ...prices };
+  for (const kind of FAMILY_OFF_DEBUFFS) {
+    const price = next[kind];
+    if (price === undefined) continue;
+    if (!Number.isFinite(price)) delete next[kind];
+    else next[kind] = Math.min(LIMITS.maxDebuffPrice, Math.max(LIMITS.minDebuffPrice, Math.round(price)));
+  }
+  return { ...settings, debuffPrices: Object.keys(next).length === 0 ? undefined : next };
+}
+
 /** Розділ «Бафи й дебафи»: прапорці, ціни дебафів і «Усі / Жодного»; onChange завжди дає всі поля у порядку списків. */
 export function PowersEditor({ settings, spares, gaps, onChange, family = false }: Props) {
   // Сирий вибір автора (31): у сімейній грі заборонені дебафи в ньому лишаються — вимкнув сімейну гру, і вони повернулися.

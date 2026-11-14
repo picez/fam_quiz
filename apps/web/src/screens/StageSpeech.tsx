@@ -1,12 +1,18 @@
 import { useId, useState } from 'react';
 import type { StageView } from '@quiz/shared';
 import { t } from '../i18n';
-import { useStageSpeech } from '../live/speech';
+import { speechSupported, useStageSpeech } from '../live/speech';
 import { LOCALE_NAMES } from '../locales/locales';
 import { loadStageSpeech, saveStageSpeech } from '../storage';
 
-/** Чи вже був дотик на сторінці: без нього браузер не дасть говорити (navigator.userActivation; немає API — вважаємо, що був). */
-const touched = () => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive !== false;
+/** Чи вже був дотик на сторінці: без нього браузер не дасть говорити. Немає navigator.userActivation (старий Safari) — не знаємо, тож просимо торкнутися. */
+const touched = () => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true;
+
+/** iOS відмикає мову лише висловлюванням, запущеним просто з дотику: порожня фраза в обробнику кліку. */
+function unlockSpeech(): void {
+  if (!speechSupported()) return;
+  window.speechSynthesis.speak(new window.SpeechSynthesisUtterance(''));
+}
 
 /**
  * «🔊 Читати вголос» у куті сцени (31): лише тут, бо браузер дозволяє мову тільки після дотику саме на цій сторінці.
@@ -25,6 +31,7 @@ export function StageSpeech({ view, splashing }: { view: StageView; splashing: b
       saveStageSpeech(false);
       return;
     }
+    unlockSpeech();
     setArmed(true);
     setStored(true);
     saveStageSpeech(true);

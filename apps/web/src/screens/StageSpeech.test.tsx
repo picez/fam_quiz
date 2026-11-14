@@ -35,6 +35,8 @@ describe('StageSpeech (31)', () => {
     fireEvent.click(toggle());
     expect(toggle().getAttribute('aria-pressed')).toBe('true');
     expect(localStorage.getItem('quiz:stage-speech')).toBe('on');
+    // iOS: порожня фраза просто з дотику відмикає мову.
+    expect(synth.unlocks).toBe(1);
     expect(screen.getByRole('button', { name: '🔁 Ще раз' })).toBeTruthy();
     expect(synth.spoken.map((s) => s.text)).toEqual(['Яка річка тече через Київ?', 'Варіанти: Дніпро; Дунай; Десна.']);
     const before = synth.cancels;
@@ -95,5 +97,12 @@ describe('StageSpeech (31)', () => {
     expect((toggle() as HTMLButtonElement).disabled).toBe(true);
     expect(document.getElementById(toggle().getAttribute('aria-describedby') ?? '')?.textContent).toBe('Цей браузер не вміє читати вголос.');
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('without navigator.userActivation a remembered choice still asks for a tap', () => {
+    localStorage.setItem('quiz:stage-speech', 'on');
+    show();
+    expect(toggle().textContent).toBe('🔊 Торкніться, щоб знову читати вголос');
+    expect(synth.spoken).toEqual([]);
   });
 });

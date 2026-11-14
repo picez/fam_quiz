@@ -36,7 +36,7 @@ import { useGroupDrafts } from './group-drafts';
 import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
 import { DuelsEditor } from './DuelsEditor';
-import { PowersEditor } from './PowersEditor';
+import { PowersEditor, settleFamilyPrices } from './PowersEditor';
 import { QuestionEditor } from './QuestionEditor';
 import { RoundSettings } from './RoundSettings';
 import { RoundStrip } from './RoundStrip';
@@ -135,7 +135,8 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
   };
   const setFamily = (on: boolean) => {
     const { family: _off, ...rest } = settings;
-    update({ ...quiz, settings: on ? { ...rest, family: true } : rest });
+    // Ціни схованих у сімейній грі дебафів поля вже не мають — недописану ціну тихо виправляємо, щоб вона не блокувала збереження.
+    update({ ...quiz, settings: on ? settleFamilyPrices({ ...rest, family: true }) : rest });
   };
   const setTeams = (teams: Quiz['settings']['teams']) => {
     const { teams: _off, ...rest } = settings;

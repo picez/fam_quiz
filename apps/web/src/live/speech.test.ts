@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
-import { pickVoice, speechKey, speechLang, speechParts, SPEECH_CHUNK } from './speech';
+import { afterEach, describe, expect, it } from 'vitest';
+import { activateLocaleForTests } from '../i18n';
+import { pickVoice, speechKey, speechLang, speechLanguage, speechParts, SPEECH_CHUNK } from './speech';
 import { speechQuestion, speechView } from './speech-fixtures';
 
 const voice = (lang: string, localService = true) => ({ lang, name: lang, voiceURI: lang, localService, default: false }) as SpeechSynthesisVoice;
@@ -67,4 +68,32 @@ describe('speechKey (31)', () => {
     expect(speechKey(speechView({ bluff: { stage: 'choice' } as never }))).toBeNull();
     expect(speechKey(speechView({ bluff: { stage: 'lies' } as never }))).toBe('0:0');
   });
+
+describe('speech language over everything that is spoken (31)', () => {
+  afterEach(() => activateLocaleForTests('uk'));
+
+  it('Cyrillic in any option makes it Ukrainian, frame words too', () => {
+    const latin = speechQuestion({ text: 'Euro 2012?', choices: [{ id: 'a', text: 'Київ' }, { id: 'b', text: 'Varsovia' }] });
+    expect(speechLanguage(latin, 'uk')).toBe('uk');
+    expect(speechParts(latin)).toEqual(['Euro 2012?', 'Варіанти: Київ; Varsovia.']);
+    const numbers = speechQuestion({ text: '1991', choices: [{ id: 'a', text: 'Незалежність' }] });
+    expect(speechLanguage(numbers, 'en')).toBe('uk');
+  });
+
+  it('an English UI with a Cyrillic question reads it in Ukrainian with Ukrainian frame words', () => {
+    activateLocaleForTests('en', { ui: { speechOptions: 'Options: {list}.', speechBlank: 'blank' } });
+    const question = speechQuestion({ text: 'Тарас ___ — поет?' });
+    expect(speechLanguage(question, 'en')).toBe('uk');
+    expect(speechParts(question)).toEqual(['Тарас пропуск — поет?', 'Варіанти: Дніпро; Дунай; Десна.']);
+  });
+
+  it('a Latin question uses the frame words of a Latin UI, and none when that language is not loaded', () => {
+    const english = speechQuestion({ text: 'Which river ___ Kyiv?', choices: [{ id: 'a', text: 'Dnipro' }, { id: 'b', text: 'Danube' }] });
+    activateLocaleForTests('en', { ui: { speechOptions: 'Options: {list}.', speechBlank: 'blank' } });
+    expect(speechParts(english)).toEqual(['Which river blank Kyiv?', 'Options: Dnipro; Danube.']);
+    activateLocaleForTests('uk');
+    expect(speechLanguage(english, 'uk')).toBe('en');
+    expect(speechParts(english)).toEqual(['Which river Kyiv?', 'Dnipro; Danube.']);
+  });
+});
 });

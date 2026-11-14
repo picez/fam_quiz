@@ -54,6 +54,8 @@ function check(): Promise<AccountState> {
 export function forgetAccount(): void {
   known = null;
   pending = null;
+  // «Легкий режим» із профілю (31) гасне одразу після виходу; вибір самого пристрою лишається.
+  syncAccountEasy(false, null);
 }
 
 /** Хто увійшов. Запитує сервер під час появи й щоразу, коли змінюється refresh; до відповіді лишає попередній (чи відомий) стан. */

@@ -81,7 +81,7 @@ describe('useStageSpeech (31)', () => {
     expect(synth.cancels).toBeGreaterThan(before);
   });
 
-  it('without a voice of that language it says no_voice and reads nothing; a voice that comes later reads the next question', () => {
+  it('without a voice of that language it says no_voice and reads nothing; a voice that comes during the same question reads it', () => {
     removeSpeech();
     synth = installSpeech([{ lang: 'en-US', name: 'English' }]);
     const hook = mount(speechView());
@@ -90,9 +90,10 @@ describe('useStageSpeech (31)', () => {
     expect(hook.result.current.language).toBe('uk');
     expect(synth.spoken).toEqual([]);
     act(() => synth.setVoices(UK));
-    hook.rerender({ view: speechView({ questionIndex: 1, question: speechQuestion({ type: 'text', text: 'Назвіть столицю Польщі', choices: [] }) }), splashing: false, enabled: true });
-    expect(texts()).toEqual(['Назвіть столицю Польщі']);
+    expect(texts()).toEqual(['Яка річка тече через Київ?', 'Варіанти: Дніпро; Дунай; Десна.']);
     expect(synth.spoken[0]!.voice).toBe('uk-UA');
+    hook.rerender({ view: speechView({ questionIndex: 1, question: speechQuestion({ type: 'text', text: 'Назвіть столицю Польщі', choices: [] }) }), splashing: false, enabled: true });
+    expect(texts().at(-1)).toBe('Назвіть столицю Польщі');
   });
 
   it('waits for voices that come late instead of saying no_voice at once', () => {
@@ -114,5 +115,16 @@ describe('useStageSpeech (31)', () => {
     removeSpeech();
     const hook = mount(speechView());
     expect(hook.result.current.status).toBe('unsupported');
+  });
+
+  it('Latin or number-only question text with Cyrillic options needs a Ukrainian voice: with only English and Russian voices it stays silent', () => {
+    removeSpeech();
+    synth = installSpeech([{ lang: 'en-US', name: 'English' }, { lang: 'ru-RU', name: 'Інший' }]);
+    const question = speechQuestion({ text: '1991?', choices: [{ id: 'a', text: 'Незалежність' }, { id: 'b', text: 'Олімпіада' }] });
+    const hook = mount(speechView({ question }));
+    act(() => vi.advanceTimersByTime(VOICES_WAIT_MS));
+    expect(hook.result.current.status).toBe('no_voice');
+    expect(hook.result.current.language).toBe('uk');
+    expect(synth.spoken).toEqual([]);
   });
 });

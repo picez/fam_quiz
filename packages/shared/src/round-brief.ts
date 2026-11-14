@@ -1,5 +1,5 @@
 import type { BuffKind } from './game';
-import { ANSWER_MODES, boardCells, cellAnswerMode, rulesOf, type AnswerMode, type AuctionBidMode, type AuctionLoss, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
+import { ANSWER_MODES, boardCells, cellAnswerMode, familyExtraMs, rulesOf, type AnswerMode, type AuctionBidMode, type AuctionLoss, type LadderPick, type LifelineKind, type Round, type RoundRules, type TrialKind, type WagerMode } from './quiz';
 
 /** Бонус квесту для сцени й телефона (29g): без коду й порядку. */
 export type QuestBonusView = { kind: 'points'; points: number } | { kind: 'buff'; buff: BuffKind; first: number | null };
@@ -76,7 +76,10 @@ export function emptyBrief(type: Round['type']): RoundBrief {
   };
 }
 
-export function roundBrief(round: Round): RoundBrief {
+/** Час запитання в секундах, який бачать гравці: у сімейній грі (31) — з надбавкою familyExtraMs. */
+export const shownSeconds = (seconds: number, family = false): number => (family ? seconds + familyExtraMs(seconds * 1000) / 1000 : seconds);
+
+export function roundBrief(round: Round, family = false): RoundBrief {
   const base = emptyBrief(round.type);
   if (round.type === 'final') return { ...base, wagerMode: round.wagerMode };
   if (round.type === 'bets') {
@@ -85,7 +88,7 @@ export function roundBrief(round: Round): RoundBrief {
   if (round.type === 'auction') {
     return { ...base, auction: { mode: round.bidMode, step: round.bidStep, loss: round.loss, count: round.questions.length } };
   }
-  if (round.type === 'truth') return { ...base, truth: { points: round.points, time: round.timeLimit } };
+  if (round.type === 'truth') return { ...base, truth: { points: round.points, time: shownSeconds(round.timeLimit, family) } };
   if (round.type === 'puzzles') {
     return {
       ...base,
@@ -95,7 +98,7 @@ export function roundBrief(round: Round): RoundBrief {
         jigsaw: round.questions.filter((q) => q.type === 'jigsaw').length,
         spotdiff: round.questions.filter((q) => q.type === 'spotdiff').length,
         memory: round.questions.filter((q) => q.type === 'memory').length,
-        time: round.questions.reduce((sum, q) => sum + q.timeLimit, 0),
+        time: round.questions.reduce((sum, q) => sum + shownSeconds(q.timeLimit, family), 0),
       },
     };
   }

@@ -87,3 +87,16 @@ describe('easy mode store (31)', () => {
     expect(reducedMotion()).toBe(true);
   });
 });
+
+describe('signing out (31)', () => {
+  it('forgetAccount turns off the mode the profile turned on, but keeps the device choice', async () => {
+    const { forgetAccount } = await import('./useAccount');
+    syncAccountEasy(true, 'u1');
+    expect(easyModeOn()).toBe(true);
+    forgetAccount();
+    expect(easyModeOn()).toBe(false);
+    setEasyMode(true);
+    forgetAccount();
+    expect(easyModeOn()).toBe(true);
+  });
+});
