@@ -29,7 +29,7 @@ const mine: AchievementsPage = {
   profile: { id: 'u1', nickname: 'Олена', avatar: null },
   own: true,
   earned: 2,
-  total: 48,
+  total: 70,
   items: ACHIEVEMENTS.map((id) => card(id, true)),
 };
 
@@ -37,7 +37,7 @@ const theirs: AchievementsPage = {
   profile: { id: 'u2', nickname: 'Оля', avatar: null },
   own: false,
   earned: 2,
-  total: 48,
+  total: 70,
   items: ACHIEVEMENTS.filter((id) => id in EARNED).map((id) => card(id, false)),
 };
 
@@ -70,9 +70,9 @@ const open = (path: string) =>
 const cardOf = (name: string) => screen.getByRole('heading', { level: 3, name: new RegExp(`^${name}(, ще не отримано)?$`) }).closest('li') as HTMLElement;
 
 describe('Achievements, own page', () => {
-  it('shows the count, the groups in order without the empty anti group', async () => {
+  it('shows the count and the groups in order, the anti group last (12j)', async () => {
     const { container } = open('/achievements');
-    expect(await screen.findByText('Отримано 2 з 48')).toBeTruthy();
+    expect(await screen.findByText('Отримано 2 з 70')).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1, name: 'Досягнення' })).toBeTruthy();
     expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
       'Перші кроки',
@@ -82,15 +82,15 @@ describe('Achievements, own page', () => {
       'Бафи й дебафи',
       'Компанія',
       'Ведення й авторство',
+      'Антидосягнення',
     ]);
-    expect(screen.queryByText('Антидосягнення')).toBeNull();
-    expect(container.querySelectorAll('.achievement-card')).toHaveLength(48);
+    expect(container.querySelectorAll('.achievement-card')).toHaveLength(70);
     expect(getMyAchievements).toHaveBeenCalled();
   });
 
   it('an earned card has its joke, the condition and the date', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     const fast = cardOf('Швидкі пальці');
     expect(fast.classList.contains('is-locked')).toBe(false);
     expect(within(fast).getByRole('heading', { level: 3 }).textContent).toBe('Швидкі пальці');
@@ -103,7 +103,7 @@ describe('Achievements, own page', () => {
 
   it('a locked counted card is grey with its progress, a locked one-off has none', async () => {
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     const games = cardOf('10 ігор');
     expect(games.classList.contains('is-locked')).toBe(true);
     // Назву картки не підмінено: «ще не отримано» — прихований текст у заголовку.
@@ -123,7 +123,7 @@ describe('Achievements, own page', () => {
   it('only earned cards have the 📌 button; a tap pins the achievement', async () => {
     vi.mocked(pinToShowcase).mockResolvedValue({ ok: true, data: { prizes: [], achievements: ['first_game', 'fast_answer'] } });
     open('/achievements');
-    await screen.findByText('Отримано 2 з 48');
+    await screen.findByText('Отримано 2 з 70');
     expect(within(cardOf('10 ігор')).queryByRole('button')).toBeNull();
     const first = await within(cardOf('Перша гра')).findByRole('button', { name: '📌 Прибрати з вітрини: Перша гра' });
     expect(first.hasAttribute('aria-pressed')).toBe(false);
