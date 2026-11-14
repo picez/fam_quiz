@@ -243,7 +243,7 @@ async function groupQuestions12l() {
   expect(await chronicler.getAttribute('class')).not.toContain('is-locked');
   await chronicler.getByText(`Отримано ${today}`, exact).waitFor();
   expect(await chronicler.innerText()).toContain('📜');
-  expect(await petro.locator('.achievements-count').textContent()).toMatch(/^Отримано \d+ з 71$/);
+  expect(await petro.locator('.achievements-count').textContent()).toMatch(/^Отримано \d+ з 102$/);
   await chronicler.scrollIntoViewIfNeeded();
   await shot(petro, 'p12l-chronicler-375');
 
