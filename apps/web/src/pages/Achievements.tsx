@@ -1,7 +1,7 @@
-import type { AchievementCard, AchievementsPage } from '@quiz/shared';
+import { isAnti, type AchievementCard, type AchievementsPage } from '@quiz/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
-import { getAchievements, getMyAchievements } from '../api';
+import { getAchievements, getMyAchievements, setHideAnti } from '../api';
 import { ACHIEVEMENT_ICONS } from '../achievement-meta';
 import { groupCards } from '../achievements';
 import { formatDay } from '../format';
@@ -101,6 +101,7 @@ function PageView({ page, pinning }: { page: AchievementsPage; pinning?: Pinning
       {groups.map(({ group, items }) => (
         <section key={group} className="achievement-group" aria-labelledby={`g-${group}`}>
           <h2 id={`g-${group}`}>{t(`achievementGroup_${group}` as TextKey)}</h2>
+          {group === 'anti' && page.own && <HideAntiSwitch initial={page.hideAnti ?? false} />}
           <ul className="achievement-cards">
             {items.map((item) => (
               <CardView key={item.id} item={item} pinning={page.own ? pinning : undefined} />
@@ -112,11 +113,47 @@ function PageView({ page, pinning }: { page: AchievementsPage; pinning?: Pinning
   );
 }
 
+/** Перемикач «Ховати антидосягнення від інших» (12j): одразу зберігає; на час запиту — busy; збій — назад і текст помилки. */
+function HideAntiSwitch({ initial }: { initial: boolean }) {
+  const [hide, setHide] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const change = async (next: boolean) => {
+    setHide(next);
+    setBusy(true);
+    setStatus(null);
+    const result = await setHideAnti(next);
+    setBusy(false);
+    if (result.ok) {
+      setHide(result.data.hideAnti);
+      setStatus({ ok: true, text: t('hideAntiSaved') });
+    } else {
+      setHide(!next);
+      setStatus({ ok: false, text: errorText(result.error) });
+    }
+  };
+  return (
+    <div className="hide-anti">
+      <label className="hide-anti-label">
+        <input type="checkbox" checked={hide} disabled={busy} aria-describedby="hide-anti-hint" onChange={(event) => void change(event.target.checked)} />
+        {t('hideAntiLabel')}
+      </label>
+      <p id="hide-anti-hint" className="hide-anti-hint">
+        {t('hideAntiHint')}
+      </p>
+      <p className={status?.ok === false ? 'hide-anti-status error' : 'hide-anti-status'} role="status">
+        {status?.text ?? ''}
+      </p>
+    </div>
+  );
+}
+
 function CardView({ item, pinning }: { item: AchievementCard; pinning?: Pinning }) {
   const name = t(`achievement_${item.id}` as TextKey);
   const progress = !item.earned ? item.progress : null;
+  const className = ['achievement-card', ...(item.earned ? [] : ['is-locked']), ...(isAnti(item.id) ? ['is-anti'] : [])].join(' ');
   return (
-    <li className={item.earned ? 'achievement-card' : 'achievement-card is-locked'}>
+    <li className={className}>
       <span className="achievement-icon" aria-hidden="true">
         {ACHIEVEMENT_ICONS[item.id]}
       </span>

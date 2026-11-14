@@ -210,6 +210,8 @@ export const saveMyProfile = (update: ProfileUpdate) => fetchData<ProfileCard>('
 export const saveLooks = (looks: NickLooks) => fetchData<{ looks: NickLooks }>('/api/me/looks', { method: 'PUT', body: looks });
 export const getProfile = (id: string) => fetchData<PublicProfile>(`/api/profiles/${encodeURIComponent(id)}`);
 export const getMyAchievements = () => fetchData<AchievementsPage>('/api/me/achievements');
+/** «Ховати антидосягнення від інших» (12j). */
+export const setHideAnti = (hide: boolean) => fetchData<{ hideAnti: boolean }>('/api/me/achievements/hide-anti', { method: 'PUT', body: { hide } });
 export const getAchievements = (id: string) => fetchData<AchievementsPage>(`/api/profiles/${encodeURIComponent(id)}/achievements`);
 export const getVersus = (id: string) => fetchData<Versus>(`/api/me/versus/${encodeURIComponent(id)}`);
 export const findProfile = (nickname: string) => fetchData<ProfileCard>(`/api/profiles?nickname=${encodeURIComponent(nickname)}`);

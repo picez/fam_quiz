@@ -6,11 +6,12 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { existsSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ACHIEVEMENTS, ACHIEVEMENT_INFO, type AchievementCard, type AchievementsPage } from '@quiz/shared';
-import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase } from '../api';
+import { getAchievements, getMyAchievements, getShowcasePins, me, pinToShowcase, setHideAnti } from '../api';
+import { errorText } from '../i18n';
 import { formatDay } from '../format';
 import { Achievements } from './Achievements';
 
-vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getMyAchievements: vi.fn(), getAchievements: vi.fn(), getShowcasePins: vi.fn(), pinToShowcase: vi.fn(), unpinFromShowcase: vi.fn(), setHideAnti: vi.fn() }));
 
 const EARNED: Record<string, string | null> = { fast_answer: '2026-10-29T10:00:00.000Z', first_game: null };
 
@@ -212,5 +213,51 @@ describe('Achievements, styles', () => {
     const icon = rule('.achievement-card.is-locked .achievement-icon');
     expect(icon).toContain('filter: grayscale(1);');
     expect(icon).toContain('opacity');
+  });
+});
+
+describe('Achievements: the anti group (12j)', () => {
+  const withDebt = (own: boolean, hideAnti?: boolean): AchievementsPage => {
+    const base = own ? mine : theirs;
+    const items = base.items.map((item) => (item.id === 'in_debt' ? { ...item, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null } : item));
+    const page = { ...base, earned: 2, total: 70, items: own ? items : [...items, { id: 'in_debt' as const, earned: true, earnedAt: '2026-11-14T10:00:00.000Z', progress: null }] };
+    return hideAnti === undefined ? page : { ...page, hideAnti };
+  };
+
+  it('own page: anti cards framed, the switch unchecked; a tap saves at once and says «Збережено»', async () => {
+    vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
+    vi.mocked(setHideAnti).mockResolvedValue({ ok: true, data: { hideAnti: true } });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
+    expect(cardOf('Нуль без палички').className).toBe('achievement-card is-locked is-anti');
+    expect(cardOf('Перша гра').className).toBe('achievement-card');
+    const toggle = screen.getByRole('checkbox', { name: 'Ховати антидосягнення від інших' }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    expect(toggle.closest('section')?.querySelector('h2')?.textContent).toBe('Антидосягнення');
+    fireEvent.click(toggle);
+    expect(toggle.checked).toBe(true);
+    expect(setHideAnti).toHaveBeenCalledWith(true);
+    expect(await screen.findByText('Збережено')).toBeTruthy();
+    expect(toggle.checked).toBe(true);
+  });
+
+  it('a failed save puts the switch back and says why', async () => {
+    vi.mocked(getMyAchievements).mockResolvedValue({ ok: true, data: withDebt(true, false) });
+    vi.mocked(setHideAnti).mockResolvedValue({ ok: false, error: 'offline' });
+    open('/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    const toggle = screen.getByRole('checkbox', { name: 'Ховати антидосягнення від інших' }) as HTMLInputElement;
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle.checked).toBe(false));
+    expect(screen.getByText(errorText('offline'))).toBeTruthy();
+  });
+
+  it('someone else’s page has no switch', async () => {
+    vi.mocked(getAchievements).mockResolvedValue({ ok: true, data: withDebt(false) });
+    open('/profile/u2/achievements');
+    await screen.findByText('Отримано 2 з 70');
+    expect(cardOf('У мінусі').className).toBe('achievement-card is-anti');
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 });

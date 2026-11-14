@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -252,5 +252,14 @@ describe('push api', () => {
       '/api/me/push',
       expect.objectContaining({ method: 'DELETE', body: '{"endpoint":"https://fcm.googleapis.com/fcm/send/a"}' }),
     );
+  });
+});
+
+describe('setHideAnti (12j)', () => {
+  it('sends PUT with the switch', async () => {
+    const fetchMock = respond(200, { hideAnti: true }) as unknown as { mock: { calls: any[][] } };
+    expect(await setHideAnti(true)).toEqual({ ok: true, data: { hideAnti: true } });
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/me/achievements/hide-anti');
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: 'PUT', body: JSON.stringify({ hide: true }) });
   });
 });
