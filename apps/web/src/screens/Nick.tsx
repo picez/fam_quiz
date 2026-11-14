@@ -1,5 +1,5 @@
 import type { NickColor, NickEffect, NickFont, NickLevel } from '@quiz/shared';
-import type { ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { t } from '../i18n';
 import { useNickFont } from '../nick-fonts';
 
@@ -11,10 +11,16 @@ export function nickNameClass(color: NickColor | null, font: NickFont | null): s
 /**
  * Ефект ніку (34): обгортка .nick-fx.nick-x-<id> навколо імені; шари малює CSS у псевдоелементах.
  * Обгортка, а не клас на самому імені: шар за літерами тоді лежить під градієнтним кольором ніку й не бруднить його.
+ * Ім'я дістає data-fx-text — з нього CSS малює розмиту копію літер для сяйва (з порожнім alt-текстом: читач екрана її не чує).
  */
 export function NickFx({ effect, children }: { effect: NickEffect | null | undefined; children: ReactNode }) {
   if (effect === null || effect === undefined) return <>{children}</>;
-  return <span className={`nick-fx nick-x-${effect}`}>{children}</span>;
+  const only = Children.only(children);
+  const name =
+    isValidElement<{ children?: ReactNode }>(only) && typeof only.props.children === 'string'
+      ? cloneElement(only as ReactElement<Record<string, unknown>>, { 'data-fx-text': only.props.children })
+      : only;
+  return <span className={`nick-fx nick-x-${effect}`}>{name}</span>;
 }
 
 /**

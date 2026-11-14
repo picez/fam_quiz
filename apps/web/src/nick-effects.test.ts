@@ -44,9 +44,14 @@ describe('nick effects css (34)', () => {
 
   it('adds only vertical room: padding-block and margin-block on the wrapper, nothing that widens a nickname', () => {
     const wrapper = rulesOf(still).find((r) => r.selector === '.nick-fx')!;
-    expect(wrapper.body).toMatch(/padding-block:\s*0\.4em/);
-    expect(wrapper.body).toMatch(/margin-block:\s*-0\.4em/);
-    for (const rule of fxRules) expect(rule.body, rule.selector).not.toMatch(/(^|[;\s])(padding-inline|margin-inline|padding-left|padding-right|margin-left|margin-right|width|min-width)\s*:/);
+    expect(wrapper.body).toMatch(/padding-block:\s*0\.3em/);
+    expect(wrapper.body).toMatch(/margin-block:\s*-0\.3em/);
+    // По вертикалі шари не виходять за обгортку (сусідній рядок таблиці); min-width: 0 лише дозволяє стиснутися до «…».
+    expect(wrapper.body).toMatch(/overflow-y:\s*clip/);
+    for (const rule of fxRules) {
+      expect(rule.body, rule.selector).not.toMatch(/(^|[;\s])(padding-inline|margin-inline|padding-left|padding-right|margin-left|margin-right|width)\s*:/);
+      expect(rule.body.replace(/min-width:\s*0\s*;/, ''), rule.selector).not.toMatch(/min-width\s*:/);
+    }
   });
 
   it('every nick-fx keyframe moves only transform and opacity', () => {
@@ -61,7 +66,7 @@ describe('nick effects css (34)', () => {
     expect(fxRules.filter((r) => rulesOf(still).some((s) => s.selector === r.selector && s.body === r.body) && /(^|[;\s])animation(-name)?\s*:/.test(r.body))).toEqual([]);
     const moving = motion.flatMap(rulesOf).filter((r) => /nick-x-/.test(r.selector) && /animation\s*:\s*nick-fx-/.test(r.body));
     for (const r of moving) expect(r.selector).toMatch(/^:where\(:root:not\(\.is-easy\)\)/);
-    for (const id of NICK_EFFECTS) expect(moving.some((r) => r.selector.includes(`.nick-x-${id}::`)), id).toBe(true);
+    for (const id of NICK_EFFECTS) expect(moving.some((r) => new RegExp(`\\.nick-x-${id}(::| > \\.nick-name::)`).test(r.selector)), id).toBe(true);
   });
 
   it('dims the layer behind the letters in easy mode for light, flame and frost', () => {
@@ -70,6 +75,15 @@ describe('nick effects css (34)', () => {
       expect(rule, id).toBeDefined();
       expect(Number(/opacity:\s*([\d.]+)/.exec(rule!.body)![1])).toBeLessThanOrEqual(0.35);
     }
+  });
+
+  it('the blurred copy of the letters has empty alt text, so a screen reader does not read the nick twice', () => {
+    const copies = rulesOf(still).filter((r) => /nick-x-|nick-fx/.test(r.selector) && /content:\s*attr\(/.test(r.body));
+    expect(copies.length).toBeGreaterThan(0);
+    for (const rule of copies) expect(rule.body).toMatch(/content:\s*attr\(data-fx-text\)\s*\/\s*''/);
+    const flakes = rulesOf(still).filter((r) => r.body.includes("content: '\\2744"));
+    expect(flakes.length).toBeGreaterThan(0);
+    for (const rule of flakes) expect(rule.body).toMatch(/\/\s*''/);
   });
 
   it('the bolt cycle is at least 3 s (no strobe)', () => {

@@ -3491,6 +3491,8 @@ button.match-item {
   overflow-wrap: anywhere;
   /* Кольоровий нік лишається читким і над червоним місяцем героя (тінь працює й з градієнтом через background-clip). */
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.9));
+  /* Тінь заголовка героя (.motif-hero .brand) лягала поверх градієнтних кольорів (background-clip: text) і робила нік темним; тут тінь — filter. */
+  text-shadow: none;
 }
 
 /* Довгий email і кнопки шапки не розпирають сторінку на 320 px: колонка біля аватарки може стискатися. */
@@ -15200,22 +15202,31 @@ button.wall-tile:disabled {
 @media (prefers-reduced-motion: no-preference) {
   :where(:root:not(.is-easy)) .nick-f-neon, :where(:root:not(.is-easy)) .nick-f-fire { transition: box-shadow 0.3s; }
 }
-/* Ефекти ніку (34): обгортка .nick-fx навколо .nick-name; шари — псевдоелементи без тексту, тож читач екрана нічого зайвого не чує.
-   Лише вертикальне поле (padding-block з від'ємним margin-block): ширина ніку та сама, на 320 px він так само обрізається «…».
-   Шар за літерами (::before) лежить під фоном .nick-name, тож градієнтні кольори ніку він не бруднить.
-   Поза блоком no-preference кожен ефект має нерухомий кадр: за зменшеного руху й у легкому режимі ефект видно, але він стоїть. */
+/* Ефекти ніку (34): обгортка .nick-fx навколо .nick-name. Шари — псевдоелементи: обгортки (::before за літерами, ::after перед ними)
+   та імені (::before — розмита копія літер для сяйва, з порожнім alt-текстом «/ ''», тож читач екрана її не чує; ::after — передній шар).
+   Лише вертикальне поле (padding-block з від'ємним margin-block): ширина ніку та сама, на 320 px він так
+   само обрізається «…». Сяйво за літерами лежить під градієнтом ніку й не бруднить його. Рух — лише transform і opacity; поза блоком
+   no-preference кожен ефект має нерухомий кадр: за зменшеного руху й у легкому режимі ефект видно, але він стоїть. */
 .nick-fx {
   position: relative;
   isolation: isolate;
   display: inline-block;
   max-width: 100%;
-  /* overflow не visible: автоматична найменша ширина флекс-елемента — 0, тож нік і далі стискається до «…». */
-  overflow: hidden;
-  padding-block: 0.4em;
-  margin-block: -0.4em;
+  /* По вертикалі шари не виходять за обгортку: ніщо не заходить у сусідній рядок таблиці. По горизонталі сяйво літер може
+     м'яко вийти за край (на ширину не впливає). min-width: 0 — щоб нік і далі стискався до «…». */
+  min-width: 0;
+  overflow-x: visible;
+  overflow-y: clip;
+  padding-block: 0.3em;
+  margin-block: -0.3em;
   vertical-align: bottom;
 }
-.nick-fx > .nick-name { display: block; }
+.nick-fx > .nick-name {
+  position: relative;
+  display: block;
+  overflow: clip;
+  overflow-clip-margin: 0.45em;
+}
 .nick-fx::before,
 .nick-fx::after {
   content: '';
@@ -15224,130 +15235,279 @@ button.wall-tile:disabled {
   pointer-events: none;
 }
 .nick-fx::before { z-index: -1; }
+/* Розмита копія літер (сяйво за літерами): той самий шрифт, перенос і «…», що й в імені. */
+.nick-fx > .nick-name[data-fx-text]::before {
+  content: attr(data-fx-text) / '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: none;
+  /* Обведення товщає копію літер: після розмиття сяйво видно довкола, а не лише під самими літерами. */
+  -webkit-text-stroke: 0.12em currentColor;
+  pointer-events: none;
+  opacity: 0;
+}
+.nick-fx > .nick-name::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Нерухоме сяйво довкола всього ніку (filter на обгортці — не обрізається на кінцях імені й не бруднить градієнт). */
+.nick-x-light { filter: drop-shadow(0 0 0.12em rgb(255 190 80 / 0.85)); }
+.nick-x-flame { filter: drop-shadow(0 0 0.1em rgb(255 120 30 / 0.8)); }
+.nick-x-frost { filter: drop-shadow(0 0 0.1em rgb(56 189 248 / 0.8)); }
+.nick-x-stardust { filter: drop-shadow(0 0 0.1em rgb(167 139 250 / 0.7)); }
+
+/* Світло: теплий ореол навколо самих літер і м'яке світло за ніком. */
+.nick-x-light > .nick-name[data-fx-text]::before {
+  color: #ffb238;
+  -webkit-text-fill-color: #ffb238;
+  filter: blur(0.16em);
+  opacity: 0.85;
+}
 .nick-x-light::before {
-  background: radial-gradient(closest-side, rgb(255 236 179 / 0.55), transparent);
-  opacity: 0.5;
+  background: radial-gradient(closest-side, rgb(255 220 150 / 0.55), rgb(255 180 70 / 0.18) 65%, transparent);
+  opacity: 0.8;
 }
+
+/* Іскри: дев'ять яскравих зірочок над, під і на кінцях ніку, спалахують у різний час (три групи). */
 .nick-x-sparks::before,
-.nick-x-sparks::after { opacity: 0.6; }
-.nick-x-sparks::after {
-  background:
-    radial-gradient(circle at 12% 12%, #fde68a 0 1.5px, transparent 2.2px),
-    radial-gradient(circle at 52% 9%, #ffffff 0 1.5px, transparent 2.2px),
-    radial-gradient(circle at 86% 88%, #fbbf24 0 1.5px, transparent 2.2px);
-}
+.nick-x-sparks::after,
+.nick-x-sparks > .nick-name::after { opacity: 0.75; }
 .nick-x-sparks::before {
   background:
-    radial-gradient(circle at 30% 90%, #ffffff 0 1.5px, transparent 2.2px),
-    radial-gradient(circle at 70% 11%, #fde68a 0 1.5px, transparent 2.2px),
-    radial-gradient(circle at 96% 14%, #ffffff 0 1.5px, transparent 2.2px);
+    radial-gradient(circle at 4% 22%, #ffffff 0 0.07em, rgb(255 214 102 / 0.9) 0.09em, transparent 0.22em),
+    radial-gradient(circle at 46% 88%, #fff7d6 0 0.065em, rgb(255 190 60 / 0.9) 0.085em, transparent 0.2em),
+    radial-gradient(circle at 83% 10%, #ffffff 0 0.07em, rgb(255 230 150 / 0.9) 0.09em, transparent 0.22em);
+}
+.nick-x-sparks::after {
+  background:
+    radial-gradient(circle at 22% 9%, #ffffff 0 0.08em, rgb(255 214 102 / 0.9) 0.1em, transparent 0.24em),
+    radial-gradient(circle at 63% 92%, #ffffff 0 0.065em, rgb(255 230 150 / 0.9) 0.085em, transparent 0.2em),
+    radial-gradient(circle at 97% 72%, #fff7d6 0 0.05em, rgb(255 190 60 / 0.9) 0.06em, transparent 0.17em);
+}
+.nick-x-sparks > .nick-name::after {
+  content: '';
+  inset: -0.3em 0;
+  background:
+    radial-gradient(circle at 12% 88%, #ffffff 0 0.065em, rgb(255 214 102 / 0.9) 0.085em, transparent 0.2em),
+    radial-gradient(circle at 37% 8%, #fff7d6 0 0.065em, rgb(255 190 60 / 0.9) 0.085em, transparent 0.2em),
+    radial-gradient(circle at 74% 6%, #ffffff 0 0.075em, rgb(255 230 150 / 0.9) 0.095em, transparent 0.22em);
+}
+
+/* Полум'я: нерівні язики різної висоти й ширини за літерами, дрібні — під ними, тепле сяйво літер. */
+.nick-x-flame > .nick-name[data-fx-text]::before {
+  color: #ff7a1a;
+  -webkit-text-fill-color: #ff7a1a;
+  filter: blur(0.14em);
+  opacity: 0.8;
 }
 .nick-x-flame::before {
-  background: radial-gradient(ellipse 0.35em 1.1em at 50% 100%, #ffd166, #ff7a1a 55%, transparent 70%) 0 100% / 0.7em 100% repeat-x;
-  transform-origin: bottom;
-  opacity: 0.5;
+  /* Кожен язик — вузький високий кінчик над ширшою низькою основою: разом полум'я звужується догори. */
+  background:
+    radial-gradient(ellipse 0.11em 0.98em at 4% 100%, #fff6cc, #ffd166 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.25em 0.48em at 4% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.15em 1.44em at 15% 100%, #fff6cc, #ffc94d 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.34em 0.72em at 15% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.10em 0.85em at 26% 100%, #fff6cc, #ffd166 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.24em 0.42em at 26% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.14em 1.27em at 37% 100%, #fff6cc, #ffc94d 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.31em 0.64em at 37% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.12em 1.02em at 49% 100%, #fff6cc, #ffd166 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.26em 0.51em at 49% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.16em 1.57em at 60% 100%, #fff6cc, #ffc94d 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.36em 0.79em at 60% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.10em 0.89em at 72% 100%, #fff6cc, #ffd166 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.24em 0.45em at 72% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.14em 1.32em at 84% 100%, #fff6cc, #ffc94d 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.31em 0.66em at 84% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.10em 0.81em at 96% 100%, #fff6cc, #ffd166 18%, rgb(255 122 26 / 0.85) 45%, rgb(255 70 20 / 0) 100%),
+    radial-gradient(ellipse 0.24em 0.40em at 96% 100%, #ffe9a8, #ff9a2e 35%, rgb(255 70 20 / 0) 100%);
+  transform-origin: 50% 100%;
+  opacity: 0.85;
 }
 .nick-x-flame::after {
-  background: radial-gradient(ellipse 0.3em 0.45em at 50% 100%, #ffd166, #ff7a1a 55%, transparent 70%) 0.35em 100% / 0.7em 100% repeat-x;
-  transform-origin: bottom;
-  opacity: 0.45;
-}
-.nick-x-frost::before {
   background:
-    repeating-linear-gradient(60deg, #e0f2fe 0 1px, transparent 1px 4px) 0 100% / 100% 0.35em no-repeat,
-    radial-gradient(closest-side, rgb(125 211 252 / 0.4), transparent);
-  opacity: 0.7;
+    radial-gradient(ellipse 0.14em 0.32em at 9% 100%, #fff4c2, #ffb347 35%, rgb(255 90 20 / 0) 100%),
+    radial-gradient(ellipse 0.18em 0.38em at 31% 100%, #fff4c2, #ffb347 35%, rgb(255 90 20 / 0) 100%),
+    radial-gradient(ellipse 0.12em 0.27em at 54% 100%, #fff4c2, #ffb347 35%, rgb(255 90 20 / 0) 100%),
+    radial-gradient(ellipse 0.17em 0.36em at 78% 100%, #fff4c2, #ffb347 35%, rgb(255 90 20 / 0) 100%);
+  transform-origin: 50% 100%;
+  opacity: 0.8;
 }
-.nick-x-frost::after {
-  background:
-    radial-gradient(circle at 4% 18%, #ffffff 0 1.2px, rgb(224 242 254 / 0.7) 1.3px 2.6px, transparent 3.2px),
-    radial-gradient(circle at 96% 82%, #ffffff 0 1.2px, rgb(224 242 254 / 0.7) 1.3px 2.6px, transparent 3.2px);
+
+/* Іній: крижане сяйво літер і три чіткі сніжинки. */
+.nick-x-frost > .nick-name[data-fx-text]::before {
+  color: #38bdf8;
+  -webkit-text-fill-color: #38bdf8;
+  filter: blur(0.15em);
+  opacity: 0.85;
+}
+.nick-x-frost::before,
+.nick-x-frost::after,
+.nick-x-frost > .nick-name::after {
+  content: '\2744\FE0E' / '';
+  inset: auto;
+  color: #e0f2fe;
+  -webkit-text-fill-color: #e0f2fe;
+  background: none;
+  font-family: system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1;
+  text-shadow: 0 0 0.2em #7dd3fc;
+  opacity: 0.85;
+}
+.nick-x-frost::before { inset-block-start: -0.05em; inset-inline-start: 0; font-size: 0.75em; }
+.nick-x-frost::after { inset-block-end: -0.05em; inset-inline-end: 0; font-size: 0.6em; }
+.nick-x-frost > .nick-name::after { inset-block-start: -0.42em; inset-inline-start: 45%; font-size: 0.45em; }
+
+/* Зоряний пил: дрібні зірочки піднімаються навколо ніку трьома хвилями. */
+.nick-x-stardust > .nick-name[data-fx-text]::before {
+  color: #8b5cf6;
+  -webkit-text-fill-color: #8b5cf6;
+  filter: blur(0.16em);
   opacity: 0.6;
 }
 .nick-x-stardust::before,
-.nick-x-stardust::after { opacity: 0.5; }
-.nick-x-stardust::after {
-  background:
-    radial-gradient(circle at 15% 80%, #e9d5ff 0 1px, transparent 1.6px),
-    radial-gradient(circle at 41% 70%, #ffffff 0 1px, transparent 1.6px),
-    radial-gradient(circle at 63% 86%, #c4b5fd 0 1.2px, transparent 1.8px),
-    radial-gradient(circle at 88% 74%, #ffffff 0 1px, transparent 1.6px);
-}
+.nick-x-stardust::after,
+.nick-x-stardust > .nick-name::after { opacity: 0.95; }
 .nick-x-stardust::before {
   background:
-    radial-gradient(circle at 27% 84%, #c4b5fd 0 1.2px, transparent 1.8px),
-    radial-gradient(circle at 54% 76%, #ffffff 0 1px, transparent 1.6px),
-    radial-gradient(circle at 77% 88%, #e9d5ff 0 1px, transparent 1.6px);
+    radial-gradient(circle at 6% 70%, #f5f3ff 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),
+    radial-gradient(circle at 24% 92%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 43% 64%, #ede9fe 0 0.06em, rgb(196 181 253 / 0.85) 0.075em, transparent 0.17em),
+    radial-gradient(circle at 61% 88%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 79% 72%, #f5f3ff 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),
+    radial-gradient(circle at 95% 90%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em);
+}
+.nick-x-stardust::after {
+  background:
+    radial-gradient(circle at 14% 84%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 33% 76%, #f5f3ff 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),
+    radial-gradient(circle at 52% 94%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 70% 80%, #ede9fe 0 0.06em, rgb(196 181 253 / 0.85) 0.075em, transparent 0.17em),
+    radial-gradient(circle at 88% 66%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em);
+}
+.nick-x-stardust > .nick-name::after {
+  content: '';
+  inset: -0.3em 0;
+  background:
+    radial-gradient(circle at 9% 90%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 29% 70%, #ede9fe 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),
+    radial-gradient(circle at 48% 86%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em),
+    radial-gradient(circle at 67% 74%, #f5f3ff 0 0.055em, rgb(196 181 253 / 0.85) 0.07em, transparent 0.16em),
+    radial-gradient(circle at 86% 92%, #ffffff 0 0.05em, rgb(233 213 255 / 0.85) 0.065em, transparent 0.15em);
+}
+
+/* Розряд: холодне сяйво літер і коротка блискавка просто над ними, усередині обгортки (у сусідній рядок не заходить). */
+.nick-x-bolt > .nick-name[data-fx-text]::before {
+  color: #22d3ee;
+  -webkit-text-fill-color: #22d3ee;
+  filter: blur(0.14em);
+  opacity: 0.55;
 }
 .nick-x-bolt::before {
-  background: radial-gradient(closest-side, rgb(125 211 252 / 0.35), transparent);
+  background: radial-gradient(closest-side, rgb(103 232 249 / 0.3), transparent);
   opacity: 0.5;
 }
 .nick-x-bolt::after {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpolyline points='0,6 9,2 17,8 26,3 34,7 43,1 51,7 60,3 68,8 77,2 85,7 93,3 100,6' fill='none' stroke='%237dd3fc' stroke-width='1.4' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") no-repeat 0 0 / 100% 0.4em;
-  opacity: 0.5;
+  inset: 0.03em 12% auto;
+  height: 0.24em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpolyline points='0,7 12,2 20,8 31,1 40,9 52,2 61,8 72,1 80,7 91,2 100,6' fill='none' stroke='%23f0fdff' stroke-width='2.2' stroke-linejoin='bevel' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") no-repeat 0 0 / 100% 100%;
+  filter: drop-shadow(0 0 0.05em #67e8f9) drop-shadow(0 0 0.12em #22d3ee);
+  opacity: 0.6;
 }
-.nick-x-shimmer::before {
-  background: radial-gradient(closest-side, rgb(255 255 255 / 0.5), transparent);
-  opacity: 0.25;
+
+/* Перелив: світла смуга пробігає самими літерами (overlay над темним тлом майже не видно); звичайний нік — сріблястий. */
+.nick-x-shimmer { isolation: auto; overflow: clip; }
+.nick-x-shimmer::before { content: none; }
+.nick-x-shimmer > .nick-name:not([class*='nick-c-']) {
+  color: #a8b3c4;
 }
 .nick-x-shimmer::after {
-  inset: 0 -50%;
-  background: linear-gradient(100deg, transparent 35%, rgb(255 255 255 / 0.5) 50%, transparent 65%);
-  mix-blend-mode: soft-light;
-  opacity: 0;
+  inset: 0 -60%;
+  background: linear-gradient(100deg, transparent 32%, rgb(255 255 255 / 0.7) 44%, #ffffff 50%, rgb(255 255 255 / 0.7) 56%, transparent 68%);
+  mix-blend-mode: overlay;
+  transform: translateX(-12%);
+  opacity: 0.8;
 }
-/* Легкий режим: шар за літерами притлумлено, щоб контраст тексту не падав. */
+
+/* Легкий режим: шари за літерами притлумлено, щоб контраст тексту не падав. */
 :where(:root.is-easy) .nick-x-light::before,
 :where(:root.is-easy) .nick-x-flame::before,
-:where(:root.is-easy) .nick-x-frost::before { opacity: 0.35; }
+:where(:root.is-easy) .nick-x-frost::before,
+:where(:root.is-easy) .nick-x-light > .nick-name[data-fx-text]::before,
+:where(:root.is-easy) .nick-x-flame > .nick-name[data-fx-text]::before,
+:where(:root.is-easy) .nick-x-frost > .nick-name[data-fx-text]::before { opacity: 0.35; }
 @keyframes nick-fx-light {
-  from { opacity: 0.35; transform: scale(0.94); }
-  to { opacity: 0.8; transform: scale(1.04); }
+  from { opacity: 0.45; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+@keyframes nick-fx-glow {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
 }
 @keyframes nick-fx-sparks {
-  0%, 100% { opacity: 0; transform: scale(0.6); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%, 100% { opacity: 0; transform: scale(0.5); }
+  45% { opacity: 1; transform: scale(1.15); }
+  60% { opacity: 0.9; transform: scale(1); }
 }
 @keyframes nick-fx-flame {
-  from { opacity: 0.7; transform: translateY(0) scaleY(1); }
-  to { opacity: 1; transform: translateY(-0.12em) scaleY(1.18); }
+  0% { opacity: 0.85; transform: scaleY(1) skewX(0deg); }
+  30% { opacity: 1; transform: scaleY(1.14) skewX(-4deg); }
+  55% { opacity: 0.9; transform: scaleY(0.92) skewX(3deg); }
+  80% { opacity: 1; transform: scaleY(1.08) skewX(-2deg); }
+  100% { opacity: 0.85; transform: scaleY(1) skewX(0deg); }
 }
 @keyframes nick-fx-frost {
-  from { opacity: 0.3; }
-  to { opacity: 0.9; }
+  0%, 100% { opacity: 0.45; transform: rotate(0deg) scale(0.9); }
+  50% { opacity: 1; transform: rotate(30deg) scale(1.1); }
 }
 @keyframes nick-fx-stardust {
-  0% { opacity: 0; transform: translateY(0.3em); }
-  50% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-0.45em); }
+  0% { opacity: 0; transform: translateY(0.35em); }
+  30% { opacity: 1; }
+  70% { opacity: 0.8; }
+  100% { opacity: 0; transform: translateY(-0.4em); }
 }
 @keyframes nick-fx-bolt {
-  0%, 89% { opacity: 0.15; }
-  90% { opacity: 1; }
-  92% { opacity: 0.2; }
-  94% { opacity: 1; }
-  97%, 100% { opacity: 0.15; }
+  0%, 86% { opacity: 0.12; }
+  88% { opacity: 1; }
+  90% { opacity: 0.25; }
+  93% { opacity: 1; }
+  97%, 100% { opacity: 0.12; }
 }
 @keyframes nick-fx-shimmer {
-  0% { transform: translateX(-60%); }
-  40%, 100% { transform: translateX(60%); }
+  0% { transform: translateX(-70%); }
+  55%, 100% { transform: translateX(70%); }
 }
 @media (prefers-reduced-motion: no-preference) {
   :where(:root:not(.is-easy)) .nick-x-light::before { animation: nick-fx-light 2.4s ease-in-out infinite alternate; }
-  :where(:root:not(.is-easy)) .nick-x-sparks::after { animation: nick-fx-sparks 1.6s ease-in-out infinite; }
-  :where(:root:not(.is-easy)) .nick-x-sparks::before { animation: nick-fx-sparks 1.6s ease-in-out -0.8s infinite; }
-  :where(:root:not(.is-easy)) .nick-x-flame::before { animation: nick-fx-flame 0.9s ease-in-out infinite alternate; }
-  :where(:root:not(.is-easy)) .nick-x-flame::after { animation: nick-fx-flame 0.9s ease-in-out -0.45s infinite alternate; }
-  :where(:root:not(.is-easy)) .nick-x-frost::after { animation: nick-fx-frost 3s ease-in-out infinite alternate; }
-  :where(:root:not(.is-easy)) .nick-x-stardust::after { animation: nick-fx-stardust 2.8s linear infinite; }
-  :where(:root:not(.is-easy)) .nick-x-stardust::before { animation: nick-fx-stardust 2.8s linear -1.4s infinite; }
-  :where(:root:not(.is-easy)) .nick-x-bolt::after { animation: nick-fx-bolt 3.2s linear infinite; }
+  :where(:root:not(.is-easy)) .nick-x-light > .nick-name::before { animation: nick-fx-glow 2.4s ease-in-out infinite alternate; }
+  :where(:root:not(.is-easy)) .nick-x-sparks::before { animation: nick-fx-sparks 1.7s ease-in-out infinite; }
+  :where(:root:not(.is-easy)) .nick-x-sparks::after { animation: nick-fx-sparks 2.1s ease-in-out -0.7s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-sparks > .nick-name::after { animation: nick-fx-sparks 1.4s ease-in-out -1.1s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-flame::before { animation: nick-fx-flame 0.9s ease-in-out infinite; }
+  :where(:root:not(.is-easy)) .nick-x-flame::after { animation: nick-fx-flame 1.3s ease-in-out -0.5s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-flame > .nick-name::before { animation: nick-fx-glow 0.7s ease-in-out infinite alternate; }
+  :where(:root:not(.is-easy)) .nick-x-frost::before { animation: nick-fx-frost 3s ease-in-out infinite; }
+  :where(:root:not(.is-easy)) .nick-x-frost::after { animation: nick-fx-frost 3.6s ease-in-out -1.2s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-frost > .nick-name::after { animation: nick-fx-frost 2.6s ease-in-out -2s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-stardust::before { animation: nick-fx-stardust 3s linear infinite; }
+  :where(:root:not(.is-easy)) .nick-x-stardust::after { animation: nick-fx-stardust 3.6s linear -1.2s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-stardust > .nick-name::after { animation: nick-fx-stardust 2.6s linear -2s infinite; }
+  :where(:root:not(.is-easy)) .nick-x-bolt::before,
+  :where(:root:not(.is-easy)) .nick-x-bolt::after,
+  :where(:root:not(.is-easy)) .nick-x-bolt > .nick-name::before { animation: nick-fx-bolt 3.2s linear infinite; }
   :where(:root:not(.is-easy)) .nick-x-shimmer::after { opacity: 1; animation: nick-fx-shimmer 3.5s ease-in-out infinite; }
   /* Закриті плитки вигляду (34) стоять: сім рухомих плиток відволікали б. */
   :where(:root:not(.is-easy)) .look-option.is-locked .nick-fx::before,
-  :where(:root:not(.is-easy)) .look-option.is-locked .nick-fx::after { animation: none; }
-  :where(:root:not(.is-easy)) .look-option.is-locked .nick-x-shimmer::after { opacity: 0; }
+  :where(:root:not(.is-easy)) .look-option.is-locked .nick-fx::after,
+  :where(:root:not(.is-easy)) .look-option.is-locked .nick-fx > .nick-name::before,
+  :where(:root:not(.is-easy)) .look-option.is-locked .nick-fx > .nick-name::after { animation: none; }
+  :where(:root:not(.is-easy)) .look-option.is-locked .nick-x-shimmer::after { opacity: 0.8; }
 }
 
 /* ---------- Церемонія призів (14a): подіум 2 — 1 — 3, конфеті, «Твій приз» ---------- */
