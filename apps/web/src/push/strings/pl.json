@@ -6,5 +6,8 @@
   "pushOpenedBody": "Prowadzący otworzył grę. Dotknij, żeby dołączyć.",
   "pushOpenedTitle": "Gra „{title}” się zaczęła",
   "pushReminderBody": "Początek o {time}. Nie spóźnij się!",
-  "pushReminderTitle": "Wkrótce gra „{title}”"
+  "pushReminderTitle": "Wkrótce gra „{title}”",
+  "swOfflineBody": "Nie udało się otworzyć strony: brak internetu albo serwer jest niedostępny.",
+  "swOfflineRetry": "Spróbuj ponownie",
+  "swOfflineTitle": "Brak połączenia"
 }

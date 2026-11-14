@@ -6,5 +6,8 @@
   "pushOpenedBody": "The host has opened the game. Tap to join.",
   "pushOpenedTitle": "“{title}” has started",
   "pushReminderBody": "Starts at {time}. Don't be late!",
-  "pushReminderTitle": "“{title}” starts soon"
+  "pushReminderTitle": "“{title}” starts soon",
+  "swOfflineBody": "The page couldn't be opened: there's no internet or the server is unavailable.",
+  "swOfflineRetry": "Try again",
+  "swOfflineTitle": "No connection"
 }

@@ -6,5 +6,8 @@
   "pushOpenedBody": "فتح المقدّم اللعبة. المس للانضمام.",
   "pushOpenedTitle": "بدأت اللعبة «{title}»",
   "pushReminderBody": "البداية في {time}. لا تتأخر!",
-  "pushReminderTitle": "قريبًا اللعبة «{title}»"
+  "pushReminderTitle": "قريبًا اللعبة «{title}»",
+  "swOfflineBody": "تعذّر فتح الصفحة: لا يوجد إنترنت أو الخادم غير متاح.",
+  "swOfflineRetry": "حاول مرة أخرى",
+  "swOfflineTitle": "لا يوجد اتصال"
 }
