@@ -225,6 +225,13 @@
       "when": 1793830556415,
       "tag": "0031_profile_looks",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794634276176,
+      "tag": "0032_anti_achievements",
+      "breakpoints": true
     }
   ]
 }

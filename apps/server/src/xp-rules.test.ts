@@ -17,6 +17,8 @@ const row = (participantId: string, questionIndex: number, patch: Partial<Achiev
   debuff: null,
   clue: null,
   answeredBy: null,
+  awayMs: null,
+  wager: null,
   ...patch,
 });
 
@@ -46,6 +48,8 @@ const solo = (ranks: (number | null)[] = [1, 2, 3, 4], patch: Partial<Achievemen
     questions: [],
     rows,
     adjustments: [],
+    appeals: [],
+    answerer: null,
     ...patch,
   } as AchievementGame;
 };

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { defaultTeams } from '@quiz/shared';
 import { boardRound, classicRound, makeRoundsQuiz, pin, single, text, wall, withId } from '@quiz/engine/testing';
 import { loadAchievementGames, whoIn } from './achievement-games';
 import type { Db } from './db/client';
@@ -42,7 +43,7 @@ const plays = [
 ];
 
 describe('loadAchievementGames', () => {
-  it('reads questions with time limits and cells, answer rows without votes and away marks, and adjustments', async () => {
+  it('reads questions with time limits and cells, answer rows without votes (away marks stay, 12j), and adjustments', async () => {
     const startedAt = new Date('2026-10-20T18:00:00Z');
     const { gameId, participantIds } = await seedGame(db, {
       hostId: HOST,
@@ -104,7 +105,10 @@ describe('loadAchievementGames', () => {
         debuff: 'fog',
         clue: null,
         answeredBy: null,
+        awayMs: null,
+        wager: null,
       },
+      expect.objectContaining({ questionIndex: 1, attempt: AWAY_ATTEMPT, awayMs: 9000 }),
       expect.objectContaining({ questionIndex: 2, roundIndex: 1, clue: 3, debuff: null, timeMs: 4000 }),
     ]);
     expect(loaded.adjustments).toEqual([{ participantId: participantIds[0], source: 'duel', points: 300 }]);
@@ -191,6 +195,93 @@ describe('loadAchievementGames', () => {
     const who = whoIn(loaded, OLYA);
     expect(who).not.toBeNull();
     expect(gameAchievements(loaded, who!)).toEqual(expect.arrayContaining(['wall_clean', 'duelist']));
+  });
+
+  it('reads away marks and wagers (12j): an AWAY_ATTEMPT row stays, a vote row does not', async () => {
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-23T18:00:00Z'),
+      snapshot: quiz,
+      questionsPlayed: 2,
+      plays: plays.slice(0, 2),
+      players: [
+        {
+          userId: OLYA,
+          nickname: 'Оля',
+          score: 300,
+          rank: 1,
+          rows: [
+            { questionIndex: 0, accepted: true, points: 300, wager: 300 },
+            { questionIndex: 1, attempt: AWAY_ATTEMPT, accepted: false, points: 0, awayMs: 4000 },
+            { questionIndex: 1, attempt: VOTE_ATTEMPT, accepted: false, points: 0 },
+          ],
+        },
+      ],
+    });
+    const [loaded] = await loadAchievementGames(db, [gameId]);
+    const rows = [...loaded.rows].sort((a, b) => a.questionIndex - b.questionIndex);
+    expect(rows.map((r) => [r.participantId, r.questionIndex, r.attempt, r.awayMs, r.wager])).toEqual([
+      [participantIds[0], 0, 0, null, 300],
+      [participantIds[0], 1, AWAY_ATTEMPT, 4000, null],
+    ]);
+    expect(loaded.appeals).toEqual([]);
+    expect(loaded.answerer).toBeNull();
+  });
+
+  it('reads the closed appeals of the game (12j)', async () => {
+    const { gameId, participantIds } = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-24T18:00:00Z'),
+      snapshot: quiz,
+      questionsPlayed: 2,
+      plays: plays.slice(0, 2),
+      players: [
+        { userId: OLYA, nickname: 'Оля', score: 300, rank: 1 },
+        { userId: VIRA, nickname: 'Віра', score: 0, rank: 2 },
+      ],
+      appeals: [
+        { participant: 0, seq: 1, questionIndex: 0, yes: 3, no: 1, outcome: 'yes' },
+        { participant: 1, seq: 2, questionIndex: 1, reason: 'away', yes: 0, no: 2, outcome: 'no' },
+      ],
+    });
+    const other = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-24T19:00:00Z'),
+      players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }],
+      appeals: [{ participant: 0, seq: 1, questionIndex: 0, yes: 0, no: 0, outcome: 'cancelled' }],
+    });
+    const [loaded, second] = await loadAchievementGames(db, [gameId, other.gameId]);
+    expect([...loaded.appeals].sort((a, b) => a.questionIndex - b.questionIndex)).toEqual([
+      { participantId: participantIds[0], questionIndex: 0, outcome: 'yes', yes: 3, no: 1 },
+      { participantId: participantIds[1], questionIndex: 1, outcome: 'no', yes: 0, no: 2 },
+    ]);
+    expect(second.appeals).toEqual([{ participantId: other.participantIds[0], questionIndex: 0, outcome: 'cancelled', yes: 0, no: 0 }]);
+  });
+
+  it('reads the team answerer mode from the snapshot; solo is null (12j)', async () => {
+    const teamQuiz = { ...quiz, settings: { ...quiz.settings, teams: { ...defaultTeams(2), answerer: 'chosen' as const } } };
+    const team = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-25T18:00:00Z'),
+      snapshot: teamQuiz,
+      questionsPlayed: 1,
+      plays: plays.slice(0, 1),
+      players: [
+        { userId: null, nickname: 'Буковина', score: 0, rank: 1, isTeam: true },
+        { userId: OLYA, nickname: 'Оля', score: 0, rank: 1, teamOf: 0 },
+      ],
+    });
+    const solo = await seedGame(db, {
+      hostId: HOST,
+      startedAt: new Date('2026-10-25T19:00:00Z'),
+      snapshot: quiz,
+      questionsPlayed: 1,
+      plays: plays.slice(0, 1),
+      players: [{ userId: OLYA, nickname: 'Оля', score: 0, rank: 1 }],
+    });
+    const [teamGame, soloGame] = await loadAchievementGames(db, [team.gameId, solo.gameId]);
+    expect(teamGame.answerer).toBe('chosen');
+    expect(soloGame.answerer).toBeNull();
   });
 
   it('no ids — no queries, and unknown ids are skipped', async () => {

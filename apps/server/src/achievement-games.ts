@@ -1,4 +1,5 @@
 import {
+  answererModeOf,
   groupBy,
   cellAnswerMode,
   factLimitMs,
@@ -6,6 +7,8 @@ import {
   isUnscored,
   type AdjustmentSource,
   type Answer,
+  type AnswererMode,
+  type AppealOutcome,
   type BuffKind,
   type DebuffKind,
   type GameStatus,
@@ -15,7 +18,7 @@ import {
 } from '@quiz/shared';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import type { Db } from './db/client';
-import { answer, AWAY_ATTEMPT, game, participant, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
+import { answer, appeal, game, participant, scoreAdjustment, VOTE_ATTEMPT, type PlayRef } from './db/schema';
 import type { AchievementWho } from './game-achievements';
 import { playedQuestions, snapshotOf } from './history';
 
@@ -38,7 +41,7 @@ export interface AchievementQuestion {
   ref: PlayRef;
 }
 
-/** Рядок answer для ачівок (без VOTE_ATTEMPT і AWAY_ATTEMPT). */
+/** Рядок answer для ачівок (без VOTE_ATTEMPT). */
 export interface AchievementRow {
   participantId: string;
   questionIndex: number;
@@ -53,6 +56,10 @@ export interface AchievementRow {
   debuff: DebuffKind | null;
   clue: number | null;
   answeredBy: string | null;
+  /** Вихід на запитанні від AWAY_MS.mark (12e); null — без позначки. */
+  awayMs: number | null;
+  /** Ставка фіналу; null поза фіналом. */
+  wager: number | null;
 }
 
 /** Учасник таблиці (соло — гравець, командна гра — команда) і люди команди. */
@@ -76,19 +83,25 @@ export interface AchievementGame {
   questions: AchievementQuestion[];
   rows: AchievementRow[];
   adjustments: { participantId: string; source: AdjustmentSource; points: number }[];
+  /** Закриті апеляції гри (12f): учасник рушія (соло — гравець, командна гра — команда). */
+  appeals: { participantId: string; questionIndex: number; outcome: AppealOutcome; yes: number; no: number }[];
+  /** Режим відповідача (12g) командної гри зі знімка; соло чи знімок не читається — null. */
+  answerer: AnswererMode | null;
+}
+
+/** Знімок вікторини гри; null — не читається. */
+function quizOf(rawSnapshot: unknown): Quiz | null {
+  try {
+    return snapshotOf(rawSnapshot);
+  } catch {
+    return null;
+  }
 }
 
 /** Зіграні запитання гри зі знімка й журналу; запитання, якого немає в знімку, пропускається (індекси решти не зсуваються). */
-function questionsOf(rawSnapshot: unknown, plays: PlayRef[], questionsPlayed: number): AchievementQuestion[] {
+function questionsOf(quiz: Quiz | null, plays: PlayRef[], questionsPlayed: number): AchievementQuestion[] {
   // Старі ігри без журналу не знають раундів і клітинок: умови за запитаннями для них не рахуються.
-  if (plays.length === 0) return [];
-  let quiz: Quiz | null;
-  try {
-    quiz = snapshotOf(rawSnapshot);
-  } catch {
-    quiz = null;
-  }
-  if (quiz === null) return [];
+  if (plays.length === 0 || quiz === null) return [];
   const known = quiz;
   return playedQuestions(known, plays, questionsPlayed).flatMap(({ roundIndex, question, ref }, index): AchievementQuestion[] => {
     if (question === undefined || ref === undefined) return [];
@@ -116,7 +129,7 @@ function questionsOf(rawSnapshot: unknown, plays: PlayRef[], questionsPlayed: nu
   });
 }
 
-/** Завершені ігри за id для ачівок: чотири запити на всю пачку (ігри, учасники, відповіді, коригування) і розбір знімка в Node. Порядок — як у gameIds; незавершених немає. */
+/** Завершені ігри за id для ачівок: п'ять запитів на всю пачку (ігри, учасники, відповіді, коригування, апеляції) і розбір знімка в Node. Порядок — як у gameIds; незавершених немає. */
 export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<AchievementGame[]> {
   if (gameIds.length === 0) return [];
   const games = await db
@@ -162,10 +175,12 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
             debuff: answer.debuff,
             clue: answer.clue,
             answeredBy: answer.answeredBy,
+            awayMs: answer.awayMs,
+            wager: answer.wager,
           })
           .from(answer)
-          // Голоси опитувань і хмари та позначки виходу — не відповіді.
-          .where(and(inArray(answer.participantId, ids), ne(answer.attempt, VOTE_ATTEMPT), ne(answer.attempt, AWAY_ATTEMPT)));
+          // Голоси опитувань і хмари — не відповіді; позначки виходу (AWAY_ATTEMPT) лишаються для антиумов 12j, наявні умови їх відсіюють.
+          .where(and(inArray(answer.participantId, ids), ne(answer.attempt, VOTE_ATTEMPT)));
   const adjustments =
     ids.length === 0
       ? []
@@ -174,7 +189,18 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
           .from(scoreAdjustment)
           .where(inArray(scoreAdjustment.participantId, ids));
 
+  const appeals = await db
+    .select({ gameId: appeal.gameId, participantId: appeal.participantId, questionIndex: appeal.questionIndex, outcome: appeal.outcome, yes: appeal.yes, no: appeal.no })
+    .from(appeal)
+    .where(
+      inArray(
+        appeal.gameId,
+        games.map((g) => g.id),
+      ),
+    );
+
   const gameOf = new Map(participants.map((p) => [p.id, p.gameId]));
+  const appealsOf = groupBy(appeals, (a) => a.gameId);
   const rowsOf = groupBy(answers, (a) => gameOf.get(a.participantId) ?? '');
   const adjustmentsOf = groupBy(adjustments, (a) => gameOf.get(a.participantId) ?? '');
   const participantsOf = groupBy(participants, (p) => p.gameId);
@@ -183,6 +209,8 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
     const row = byId.get(gameId);
     if (row === undefined) return [];
     const own = participantsOf.get(gameId) ?? [];
+    const teams = own.some((p) => p.isTeam);
+    const quiz = quizOf(row.quizSnapshot);
     // Таблицю складають команди (командна гра) чи гравці (соло); рядки людей — склад команди.
     const players = own
       .filter((p) => p.teamId === null)
@@ -200,11 +228,13 @@ export async function loadAchievementGames(db: Db, gameIds: string[]): Promise<A
         startedAt: row.startedAt,
         finishedAt: row.finishedAt,
         questionsPlayed: row.questionsPlayed,
-        teams: own.some((p) => p.isTeam),
+        teams,
         players,
-        questions: questionsOf(row.quizSnapshot, row.plays, row.questionsPlayed),
+        questions: questionsOf(quiz, row.plays, row.questionsPlayed),
         rows: rowsOf.get(gameId) ?? [],
         adjustments: adjustmentsOf.get(gameId) ?? [],
+        appeals: (appealsOf.get(gameId) ?? []).map(({ participantId, questionIndex, outcome, yes, no }) => ({ participantId, questionIndex, outcome, yes, no })),
+        answerer: teams && quiz !== null ? answererModeOf(quiz.settings.teams) : null,
       },
     ];
   });

@@ -286,6 +286,7 @@ async function writeGame(tx: Tx, snapshot: Snapshot, saving: boolean): Promise<v
         ? {}
         : { letterwords: { letters: play.letterwords.letters, best: play.letterwords.best } }),
       ...(play.drawing === undefined ? {} : { drawing: drawingRef(state, play.drawing) }),
+      ...(play.final === undefined || play.final.allIn.length === 0 ? {} : { final: { allIn: play.final.allIn } }),
       ...(play.wipeout === undefined ? {} : { wipeout: { took: play.wipeout.took, ...(play.wipeout.end ? { end: true as const } : {}) } }),
       ...(play.survival === undefined ? {} : { survival: survivalRef(play.survival) }),
       ...(play.ladder === undefined ? {} : { ladder: ladderRef(play.ladder, play.question) }),

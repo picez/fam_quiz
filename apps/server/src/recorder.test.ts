@@ -1211,6 +1211,62 @@ describe('recorder: board', () => {
     }
   });
 
+  it('the game log keeps who went all-in in the final, questions without all-in have no key (12j)', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), finalRound('f', withId(single, 'f1'))]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [olya, petro] = ['Оля', 'Петро'].map(enter);
+    // Оля ставить усю межу (ва-банк), Петро — звичайну ставку.
+    playToEnd(manager, room, [olya, petro], [petro], (id) => (id === olya ? (room.state.final?.limits[olya] ?? 0) : 100), undefined, [olya]);
+    expect(room.state.phase).toBe('finished');
+    await recorder.idle();
+
+    const [saved] = await db.select().from(game).where(eq(game.id, room.id));
+    expect(saved.plays[0]).not.toHaveProperty('final');
+    expect(saved.plays[1].final).toEqual({ allIn: [olya] });
+  });
+
+  it('the game log keeps who went all-in in a bets round (12j)', async () => {
+    const db = await createTestDb();
+    await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });
+    const manager = new RoomManager(new FakeScheduler(), () => 0.5);
+    const recorder = attachRecorder(manager, db);
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), betsRound('b', [withId(single, 'b1')], { betStart: 100 })]);
+    const room = manager.create(quiz, HOST, null);
+    const enter = (nickname: string) => {
+      const joined = manager.join(room.code, nickname);
+      if (!joined.ok) throw new Error(joined.error);
+      manager.connect(room, { role: 'player', playerId: joined.playerId });
+      return joined.playerId;
+    };
+    const [olena, taras] = ['Олена', 'Тарас'].map(enter);
+    const host = (type: 'start' | 'next') => expect(manager.host(room, { type })).toEqual({ ok: true });
+    host('start');
+    host('next');
+    toBetsWager(manager, room, { [olena]: 800, [taras]: 500 });
+    expect(manager.wager(room, olena, 400)).toEqual({ ok: true });
+    expect(manager.wager(room, taras, 0, true)).toEqual({ ok: true });
+    expect(room.state.phase).toBe('question');
+    expect(manager.answer(room, olena, correct)).toEqual({ ok: true });
+    expect(manager.answer(room, taras, wrong)).toEqual({ ok: true });
+    host('next');
+    expect(room.state.phase).toBe('reveal');
+    await recorder.idle();
+
+    const [saved] = await db.select().from(game).where(eq(game.id, room.id));
+    expect(saved.plays[0]).not.toHaveProperty('final');
+    expect(saved.plays[1].final).toEqual({ allIn: [taras] });
+  });
+
   it('a bets answer is recorded with its wager and bank points', async () => {
     const db = await createTestDb();
     await db.insert(user).values({ id: HOST, name: 'Ведуча', email: 'host@example.com' });

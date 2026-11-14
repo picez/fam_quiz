@@ -292,7 +292,7 @@ describe('reading', () => {
 });
 
 describe('achievements page', () => {
-  it('own: all 48 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
+  it('own: all 70 with progress for unearned counters; public: earned only without progress; unknown: null', async () => {
     const me = 'store-page';
     await addUser(me, 'Яна');
     await playGame(me, new Date('2026-09-12T18:00:00Z'));

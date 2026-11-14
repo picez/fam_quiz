@@ -40,6 +40,8 @@ const row = (questionIndex: number, patch: Partial<AchievementRow> = {}): Achiev
   debuff: null,
   clue: null,
   answeredBy: null,
+  awayMs: null,
+  wager: null,
   ...patch,
 });
 
@@ -61,6 +63,8 @@ function fakeGame(patch: Partial<AchievementGame> = {}): AchievementGame {
     ],
     rows: [],
     adjustments: [],
+    appeals: [],
+    answerer: null,
     ...patch,
     questions,
   };

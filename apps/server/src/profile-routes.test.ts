@@ -47,7 +47,7 @@ describe('own profile', () => {
     expect(body.nickname).toBe('Олена');
     expect(body.quizzes).toEqual([{ id: quizId, title: 'Таємна вікторина', plays: 0 }]);
     expect(body.friends).toMatchObject([{ id: tarasId, nickname: 'Тарас', avatar: null }]);
-    expect(body.achievements).toHaveLength(48);
+    expect(body.achievements).toHaveLength(70);
     expect(body.achievements[0]).toEqual({ id: 'first_game', earned: false, earnedAt: null });
     expect(body.stats.quizzes).toBe(1);
   });
@@ -235,7 +235,7 @@ describe('podium (11f)', () => {
 });
 
 describe('achievements pages (12i)', () => {
-  it('my page needs a session and has all 48; somebody else’s page has only the earned ones without progress', async () => {
+  it('my page needs a session and has all 70; somebody else’s page has only the earned ones without progress', async () => {
     const yarema = await signUp(ctx.app, 'Ярема');
     const yaremaId = await idOf(yarema.cookie);
     await seedGame(db, {
@@ -253,7 +253,7 @@ describe('achievements pages (12i)', () => {
     const page = own.json();
     expect(Object.keys(page).sort()).toEqual(['earned', 'items', 'own', 'profile', 'total']);
     expect(page.own).toBe(true);
-    expect(page.items).toHaveLength(48);
+    expect(page.items).toHaveLength(70);
     expect(page.items.find((i: { id: string }) => i.id === 'games_10').progress).toEqual({ current: 1, goal: 10 });
 
     for (const cookie of [undefined, olena.cookie, yarema.cookie]) {
