@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { GroupDetail } from '@quiz/shared';
 import { deleteGroup, getGroup, updateGroup } from '../api';
 import { GroupForm } from '../groups/GroupForm';
 import { InvitePanel } from '../groups/InvitePanel';
+import { ItemList } from '../groups/ItemList';
 import { MemberList } from '../groups/MemberList';
 import { countText, t, type TextKey } from '../i18n';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
@@ -17,7 +18,7 @@ const TABS: { tab: Tab; label: TextKey }[] = [
 ];
 
 /** Сторінка групи (12k): вкладки «Записи» · «Учасники» · «Налаштування» (лише власнику); вкладка — у ?tab=. */
-export function GroupPage({ items }: { items?: (group: GroupDetail) => ReactNode }) {
+export function GroupPage() {
   const { id = '' } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -84,14 +85,7 @@ export function GroupPage({ items }: { items?: (group: GroupDetail) => ReactNode
         ))}
       </div>
       <div role="tabpanel" id={`group-panel-${tab}`} aria-labelledby={`group-tab-${tab}`}>
-        {tab === 'items' &&
-          (items !== undefined ? (
-            items(group)
-          ) : (
-            <Link className="btn btn-primary" to={`/profile/groups/${encodeURIComponent(group.id)}/new`}>
-              {t('itemsAdd')}
-            </Link>
-          ))}
+        {tab === 'items' && <ItemList group={group} />}
         {tab === 'people' && (
           <>
             <InvitePanel group={group} onChanged={reload} />
