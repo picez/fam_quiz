@@ -110,6 +110,8 @@ interface Props {
   /** «Малюнок» (28c): модель штрихів з useGame і запит повного малюнка. */
   drawing?: DrawingModel | null;
   requestSync?: () => void;
+  /** Відповідь висить без ack (32): useGame надішле її ще раз після перепідключення. */
+  answerPending?: boolean;
 }
 
 const NO_SYNC = () => {};
@@ -690,10 +692,12 @@ function usePersonalTotal(
   return total;
 }
 
-export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC }: Props) {
+export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = NO_TILTS, code = '', stageUrl = null, stageOnline = true, reactions = NO_REACTIONS, drawing = null, requestSync = NO_SYNC, answerPending = false }: Props) {
   // Напруга перед вердиктом (беклог 19): після оцінки ведучого ще мить видно помаранчеву відповідь.
   const { view, suspense } = useVerdictSuspense(live);
   const [error, setError] = useState<string | null>(null);
+  // Запитання, відповідь на яке зависла в обриві (32).
+  const [stuckOn, setStuckOn] = useState<number | null>(null);
   const { me, phase, question } = view;
   const showPrizesAtIntro = useShowPrizesAtIntro(view);
   // Церемонія призів (14a) у finished; далі «Твій приз» (диплом бере назву вікторини з кімнати) або хто що взяв.
@@ -753,8 +757,16 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
     // Подана відповідь не мусить перебитися чернеткою, що ще чекає на відправку.
     sendDraft.cancel();
     const result = await send('player:answer', answer);
+    // Обрив (32): не помилка — відповідь надішлемо, щойно зв'язок повернеться (useGame), а рушій двічі її не зарахує.
+    if (!result.ok && result.error === 'offline') {
+      setError(null);
+      setStuckOn(view.questionIndex);
+      return;
+    }
     setError(result.ok ? null : errorText(result.error));
   };
+  // Рядок «Зв'язок підвис…» тримається, поки на цьому запитанні немає відповіді в зрізі.
+  const pendingShown = phase === 'question' && me.answer === null && (answerPending || stuckOn === view.questionIndex);
 
   const board = view.board;
   const chooserIsMe = board?.turn?.playerId === me.id;
@@ -1749,6 +1761,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {error !== null && (
         <p className="error" role="alert">
           {error}
+        </p>
+      )}
+      {pendingShown && (
+        <p className="answer-pending" role="status">
+          {t('answerPending')}
         </p>
       )}
       {/* Тривога (12e) — останній шар екрана, над заставками, аркушами й смугою «Немає зв'язку». */}

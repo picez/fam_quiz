@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { CloseReason, SlotOption, SocketAuth } from '@quiz/shared';
 import { checkCode, claimSlot, gameSlots, getMyCard, joinGame } from '../api';
 import { errorText, t, type TextKey } from '../i18n';
+import { NetSignal } from '../live/NetSignal';
 import { statusTextKey, useGame } from '../live/useGame';
 import { useAwayWatch } from '../live/useAwayWatch';
 import { useSirenUnlock } from '../live/useSirenUnlock';
@@ -259,6 +260,7 @@ export function Play() {
           {t(statusTextKey(game.status))}
         </p>
       )}
+      <NetSignal status={game.status} quality={game.quality} />
       {/* Без Wake Lock (немає чи відмовлено) і зі штрафом: блокування екрана теж рахується виходом — попереджаємо. */}
       {screenUnguarded && game.view.awayPenalty && game.view.phase !== 'lobby' && (
         <p className="banner is-wake" role="note">
@@ -277,6 +279,7 @@ export function Play() {
         reactions={game.reactions}
         drawing={game.drawing}
         requestSync={game.requestSync}
+        answerPending={game.answerPending}
       />
     </>
   );

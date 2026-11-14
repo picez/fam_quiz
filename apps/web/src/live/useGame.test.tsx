@@ -516,3 +516,91 @@ describe('useGame connection quality (32)', () => {
     expect(socket.connect).not.toHaveBeenCalled();
   });
 });
+
+describe('useGame answer around a blip (32)', () => {
+  type Fake = (typeof sockets)[number];
+  const answer = { type: 'single', optionId: 'b' };
+  const onQuestion = (questionIndex: number, mine: unknown = null, phase = 'question') =>
+    ({ role: 'player', phase, splash: null, questionIndex, me: { answer: mine } }) as unknown as GameView;
+  const answers = (socket: Fake) => socket.timed.filter((entry) => entry.event === 'player:answer');
+  const drop = (socket: Fake) => {
+    socket.connected = false;
+    act(() => socket.fire('disconnect', 'transport close'));
+    socket.connected = true;
+  };
+
+  it('sends a lost answer once more after the reconnect when the snapshot shows it never arrived', async () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    let first: unknown = null;
+    void result.current.send('player:answer', answer).then((value) => (first = value));
+    drop(socket);
+    await act(async () => {
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS);
+    });
+    expect(first).toEqual({ ok: false, error: 'offline' });
+    expect(result.current.answerPending).toBe(true);
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    expect(answers(socket)).toHaveLength(2);
+    expect(answers(socket)[1]!.args).toEqual([answer]);
+    await act(async () => answers(socket)[1]!.ack(null, { ok: false, error: 'already_answered' }));
+    expect(result.current.answerPending).toBe(false);
+    drop(socket);
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    expect(answers(socket)).toHaveLength(2);
+  });
+
+  it('does not repeat an answer the snapshot already has', async () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    void result.current.send('player:answer', answer);
+    drop(socket);
+    act(() => socket.fire('state', onQuestion(3, answer), meta()));
+    expect(answers(socket)).toHaveLength(1);
+    expect(result.current.answerPending).toBe(false);
+    drop(socket);
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    expect(answers(socket)).toHaveLength(1);
+  });
+
+  it('forgets the answer when the game has moved on', () => {
+    for (const next of [onQuestion(4), onQuestion(3, null, 'reveal')]) {
+      sockets.length = 0;
+      const { result, unmount } = renderHook(() => useGame(auth));
+      const socket = sockets[0];
+      act(() => socket.fire('state', onQuestion(3), meta()));
+      void result.current.send('player:answer', answer);
+      drop(socket);
+      act(() => socket.fire('state', next, meta()));
+      expect(answers(socket)).toHaveLength(1);
+      drop(socket);
+      act(() => socket.fire('state', onQuestion(3), meta()));
+      expect(answers(socket)).toHaveLength(1);
+      unmount();
+    }
+  });
+
+  it('an answer acked in time leaves nothing to repeat', async () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    const pending = result.current.send('player:answer', answer);
+    answers(socket)[0]!.ack(null, { ok: true });
+    expect(await pending).toEqual({ ok: true });
+    drop(socket);
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    expect(answers(socket)).toHaveLength(1);
+  });
+
+  it('repeats only answers, never a buzz', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    void result.current.send('player:buzz');
+    drop(socket);
+    act(() => socket.fire('state', onQuestion(3), meta()));
+    expect(socket.timed.filter((entry) => entry.event === 'player:buzz')).toHaveLength(1);
+  });
+});

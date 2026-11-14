@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { SocketAuth, SortTilt } from '@quiz/shared';
 import { hostAccess } from '../api';
 import { t } from '../i18n';
+import { NetSignal } from '../live/NetSignal';
 import { statusTextKey, useGame } from '../live/useGame';
 import { HostScreen } from '../screens/HostScreen';
 import { loadHost, saveHost, type HostTokens } from '../storage';
@@ -115,6 +116,7 @@ export function Host() {
           {t(statusTextKey(game.status))}
         </p>
       )}
+      <NetSignal status={game.status} quality={game.quality} />
       <HostScreen
         view={game.view}
         code={code}

@@ -31,6 +31,15 @@ export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'conne
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
+/** Відповідь, на яку ще не прийшов ack: запитання, на яке її дали, і сама відповідь. */
+interface PendingAnswer {
+  questionIndex: number;
+  payload: unknown;
+}
+
+/** Відповіді гравця в зрізі (PlayerView.me.answer); undefined — зріз не гравця. */
+const ownAnswer = (view: GameView): unknown => (view.role === 'player' ? (view as { me?: { answer?: unknown } }).me?.answer : undefined);
+
 /** Тримає сокет гри: поточний зріз стану, стан зв'язку й надсилання подій. */
 export function useGame(auth: SocketAuth | null) {
   const [view, setView] = useState<GameView | null>(null);
@@ -53,6 +62,11 @@ export function useGame(auth: SocketAuth | null) {
   // Якість зв'язку (32): вердикт для плашки «Слабкий зв'язок»; модель живе між перепідключеннями.
   const [quality, setQuality] = useState<Quality>('good');
   const netRef = useRef<NetState>(initialNet);
+  // Відповідь без ack (32): після перепідключення її надішлемо ще раз, лише якщо зріз показує, що вона не дійшла.
+  const pendingRef = useRef<PendingAnswer | null>(null);
+  const [answerPending, setAnswerPending] = useState(false);
+  const viewRef = useRef<GameView | null>(null);
+  const retryRef = useRef<(pending: PendingAnswer) => void>(() => {});
   const socketRef = useRef<GameSocket | null>(null);
   // Запит повного малюнка; живе в ефекті сокета, назовні — requestSync.
   const syncRef = useRef<() => void>(() => {});
@@ -73,6 +87,9 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
     setReactions([]);
     setDrawing(null);
+    pendingRef.current = null;
+    setAnswerPending(false);
+    viewRef.current = null;
     netRef.current = initialNet;
     setQuality('good');
     if (code === undefined || role === undefined || token === undefined) return;
@@ -211,9 +228,29 @@ export function useGame(auth: SocketAuth | null) {
         }, RETRY_MS);
     };
 
+    // Перший зріз після (пере)підключення: тут вирішується доля відповіді, що зависла під час обриву.
+    let afterReconnect = false;
+    const settlePending = (next: GameView) => {
+      const pending = pendingRef.current;
+      if (pending === null) return;
+      const mine = ownAnswer(next);
+      const sameQuestion = next.phase === 'question' && next.questionIndex === pending.questionIndex;
+      if (!sameQuestion || (mine !== null && mine !== undefined)) {
+        // Відповідь дійшла (загубився лише ack) або гра пішла далі: нічого повторювати.
+        pendingRef.current = null;
+        setAnswerPending(false);
+        return;
+      }
+      // Сервер її не отримав: ще раз, один раз на це підключення. Двічі рушій однаково не зарахує (already_answered).
+      if (afterReconnect && mine === null) retryRef.current(pending);
+    };
+
     socket.on('state', (next, meta) => {
       // Заставка, що скінчилася до відправлення, відкидається за часом сервера, а не за годинником пристрою.
       restarting = false;
+      viewRef.current = next;
+      settlePending(next);
+      afterReconnect = false;
       setView(freshSplash(next, meta.serverNow));
       if (next.paused || (tiltsAt !== null && tiltsAt !== next.questionIndex)) setTilts({});
       if (tiltsAt !== null && tiltsAt !== next.questionIndex) setDrafts(null);
@@ -270,6 +307,7 @@ export function useGame(auth: SocketAuth | null) {
       snapshotDue = false;
       snapshotIn = false;
       syncing = false;
+      afterReconnect = true;
       stopPings();
       setNet(onReconnect(netRef.current));
       if (gone) return;
@@ -308,7 +346,7 @@ export function useGame(auth: SocketAuth | null) {
     };
   }, [code, role, token]);
 
-  const send = useCallback<Send>((event, payload) => {
+  const rawSend = useCallback<Send>((event, payload) => {
     return new Promise<SendResult>((resolve) => {
       const socket = socketRef.current;
       if (socket === null || !socket.connected) {
@@ -324,6 +362,30 @@ export function useGame(auth: SocketAuth | null) {
     });
   }, []);
 
+  /** Ack відповіді: будь-яка відповідь сервера, крім offline (і already_answered теж), закриває запис. */
+  const track = useCallback((pending: PendingAnswer, result: SendResult) => {
+    if (pendingRef.current !== pending) return;
+    if (result.ok || result.error !== 'offline') {
+      pendingRef.current = null;
+      setAnswerPending(false);
+    } else setAnswerPending(true);
+  }, []);
+
+  retryRef.current = (pending) => void rawSend('player:answer', pending.payload).then((result) => track(pending, result));
+
+  const send = useCallback<Send>(
+    async (event, payload) => {
+      // Повторюємо лише відповідь (32): вона ідемпотентна в рушії; buzz, слова драбини, ходи — ні, там повтор був би новим ходом.
+      if (event !== 'player:answer' || viewRef.current === null) return rawSend(event, payload);
+      const pending: PendingAnswer = { questionIndex: viewRef.current.questionIndex, payload };
+      pendingRef.current = pending;
+      const result = await rawSend(event, payload);
+      track(pending, result);
+      return result;
+    },
+    [rawSend, track],
+  );
+
   /** Забуває живі вибори й нахили (12b): пульт вимкнув чи знову ввімкнув «наживо», а сервер надішле свіжі. */
   const forgetLive = useCallback(() => {
     setTilts({});
@@ -333,5 +395,5 @@ export function useGame(auth: SocketAuth | null) {
   /** Просить у сервера повний малюнок (28c), напр. після відмови ack художникові; поки знімок і так іде чи запит у польоті — нічого. */
   const requestSync = useCallback(() => syncRef.current(), []);
 
-  return { quality, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
+  return { quality, answerPending, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
 }
