@@ -1,4 +1,4 @@
-import { seededRng } from './sudoku';
+import { seededRng } from './random';
 
 export const JIGSAW_ASPECTS = ['1:1', '4:3', '3:4', '16:9'] as const;
 export type JigsawAspect = (typeof JIGSAW_ASPECTS)[number];

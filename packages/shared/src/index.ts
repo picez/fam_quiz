@@ -9,6 +9,7 @@ export * from './wordladder';
 export * from './letterwords';
 export * from './drawing';
 export * from './sudoku';
+export * from './random';
 export * from './crossword';
 export * from './round-brief';
 export * from './upgrade';

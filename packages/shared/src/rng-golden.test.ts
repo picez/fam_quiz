@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { jigsawTabs } from './jigsaw';
 import { memoryLayout } from './memory';
-import { generateSudoku, SUDOKU_LEVELS, seededRng } from './sudoku';
+import { seededRng } from './random';
+import { generateSudoku, SUDOKU_LEVELS } from './sudoku';
 
 const take = (rng: () => number, n: number) => Array.from({ length: n }, () => rng());
 const SEEDS = [1, 42, 4294967295];

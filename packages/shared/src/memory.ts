@@ -1,5 +1,5 @@
 /** «Пам'ять» (29f): чиста детермінована логіка сіток, розкладу, пар і балів. LIMITS тут не імпортуємо (quiz.ts імпортує цей файл). */
-import { seededRng } from './sudoku';
+import { seededRng, shuffle } from './random';
 
 export const MEMORY_GRIDS = ['3x4', '4x4', '4x5'] as const;
 export type MemoryGrid = (typeof MEMORY_GRIDS)[number];
@@ -23,13 +23,7 @@ export function memoryGridSize(grid: MemoryGrid): { cols: number; rows: number; 
 
 /** layout[cell] = card, card = 2·pair + side (0 — a, 1 — b). Фішер—Єйтс із seededRng. */
 export function memoryLayout(pairs: number, seed: number): number[] {
-  const rng = seededRng(seed);
-  const items = Array.from({ length: pairs * 2 }, (_, i) => i);
-  for (let i = items.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [items[i], items[j]] = [items[j], items[i]];
-  }
-  return items;
+  return shuffle(Array.from({ length: pairs * 2 }, (_, i) => i), seededRng(seed));
 }
 
 export function memoryPairOf(layout: readonly number[], cell: number): number {
