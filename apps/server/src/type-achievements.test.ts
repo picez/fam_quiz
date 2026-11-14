@@ -158,6 +158,10 @@ describe('typeAchievements (33): team-wide and puzzle types', () => {
     expect(has(one(letterwordsRandom, words(6), {}, best), 'longest_word')).toBe(true);
     expect(has(one(letterwordsRandom, words(5), {}, best), 'longest_word')).toBe(false);
     expect(has(one(letterwordsRandom, words(6)), 'longest_word')).toBe(false);
+    // Апостроф не літера (wordLetters, як у рушії): «п'ятниця» — 7 літер, хоч символів 8.
+    const apostrophe = { letterwords: { letters: [...'пятницяок'], best: ["п'ятниця"] } };
+    expect(has(one(letterwordsRandom, words(7), {}, apostrophe), 'longest_word')).toBe(true);
+    expect(has(one(letterwordsRandom, words(6), {}, apostrophe), 'longest_word')).toBe(false);
   });
 
   it('masterpiece and modern_art: the drawing everyone or nobody guessed, at least 2 could', () => {

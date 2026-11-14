@@ -26,10 +26,10 @@ describe('achievement texts', () => {
     expect(ACHIEVEMENT_ICONS.veteran).toBe('🛡️');
   });
 
-  it('names and jokes do not speak of a player in a gendered past tense', () => {
-    const words = ['відповів', 'переміг', 'вгадав', 'знайшов', 'лишився', 'поставив', 'купив', 'грав', 'бачив', 'дійшов', 'ніс', 'вийшов', 'спробував', 'влучив', 'підглядав', 'забув', 'його', 'Єдиний'];
+  it('names, jokes and conditions do not speak of a player in a gendered form', () => {
+    const words = ['відповів', 'переміг', 'вгадав', 'знайшов', 'лишився', 'поставив', 'купив', 'грав', 'бачив', 'дійшов', 'ніс', 'вийшов', 'спробував', 'влучив', 'підглядав', 'забув', 'його', 'Єдиний', 'першим', 'першою', 'сам', 'сама'];
     for (const id of ACHIEVEMENTS) {
-      for (const text of [name(id), joke(id)]) {
+      for (const text of [name(id), joke(id), hint(id)]) {
         for (const word of words) expect(new RegExp(`(?<!\\p{L})${word}(?!\\p{L})`, 'iu').test(text), `${id}: ${text}`).toBe(false);
       }
     }
@@ -64,16 +64,17 @@ describe('achievement texts', () => {
     expect(ACHIEVEMENT_ICONS.chronicler).toBe('📜');
   });
 
-  it('33: the new ones read word for word from the plan and keep the gender out of their names and jokes', () => {
+  it('33: the new ones read word for word from the plan and keep the gender out of their names, jokes and conditions', () => {
     expect(name('not_a_coin')).toBe('Не монетка');
     expect(joke('not_a_coin')).toBe('Так чи ні — і щоразу в яблучко. Монетка так не вміє.');
     expect(hint('classic_clean')).toBe('Правильно на всі запитання класичного раунду (щонайменше 5)');
     expect(name('mirror_logic')).toBe('Дзеркальна логіка');
     expect(joke('holiday')).toBe('Мандарини зачекають — спершу вікторина.');
+    expect(hint('quick_sketch')).toBe('«Малюнок»: вгадати раніше за всіх, коли вгадували щонайменше троє');
     // Минулий час однини виказує рід («вгадав», «склала»); множина й безособові форми («вгадали», «знайдено») — можна.
-    const gendered = ['вгадав', 'вгадала', 'склав', 'склала', 'знайшов', 'знайшла', 'розв’язав', 'розв’язала', 'поставив', 'поставила', 'намалював', 'намалювала', 'відкрив', 'відкрила', 'зламав', 'зламала', 'провів', 'провела', 'влучила', 'запам’ятав', 'запам’ятала', 'художниця', 'переможниця'];
+    const gendered = ['вгадав', 'вгадала', 'склав', 'склала', 'знайшов', 'знайшла', 'розв’язав', 'розв’язала', 'поставив', 'поставила', 'намалював', 'намалювала', 'відкрив', 'відкрила', 'зламав', 'зламала', 'провів', 'провела', 'влучила', 'запам’ятав', 'запам’ятала', 'художниця', 'переможниця', 'першим', 'першою'];
     for (const id of ACHIEVEMENTS.slice(71)) {
-      for (const text of [name(id), joke(id)]) {
+      for (const text of [name(id), joke(id), hint(id)]) {
         for (const word of gendered) expect(new RegExp(`(?<!\\p{L})${word}(?!\\p{L})`, 'iu').test(text), `${id}: ${text}`).toBe(false);
       }
     }

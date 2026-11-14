@@ -15,6 +15,17 @@ const round = (roundType: RoundType, n: number, roundIndex = 0, from = 0): Achie
 
 const adjustment = (patch: Partial<AchievementAdjustment>): AchievementAdjustment => ({ participantId: P, source: 'quest', points: 250, seq: 1, roundIndex: 1, undoesSeq: null, ...patch });
 
+/** Командна гра: Оля влучає olya разів, Віра — vira, режим відповідача answerer. */
+const team33 = (olya: number, vira: number, answerer: AchievementGame['answerer']) =>
+  teamGame({
+    answerer,
+    questions: round('classic', olya + vira),
+    rows: [
+      ...range(olya).map((i) => row(i, { participantId: TEAM, answeredBy: 'm-olya' })),
+      ...range(vira).map((i) => row(olya + i, { participantId: TEAM, answeredBy: 'm-vira' })),
+    ],
+  });
+
 describe('roundAchievements (33)', () => {
   it('classic_clean: every question of a classic round (at least 5) answered right; a spare closes it; an appeal does not', () => {
     const questions = round('classic', 5);
@@ -48,6 +59,11 @@ describe('roundAchievements (33)', () => {
     expect(has(fakeGame({ questions: two, rows: two.map((x) => row(x.index, { wager: 100 })) }), 'cold_bets')).toBe(false);
     const lost = fakeGame({ questions, rows: questions.map((x, i) => row(x.index, { wager: 100, accepted: i !== 1 })) });
     expect(has(lost, 'cold_bets')).toBe(false);
+    // Опитування в «Ставках» без балів і ставки не ламає умову, але й не рахується до трьох.
+    const withPoll = [...questions, q(3, { roundType: 'bets', scored: false, question: withId(single, 'poll3') })];
+    expect(has(fakeGame({ questions: withPoll, rows: questions.map((x) => row(x.index, { wager: 100 })) }), 'cold_bets')).toBe(true);
+    const twoAndPoll = [...round('bets', 2), q(2, { roundType: 'bets', scored: false, question: withId(single, 'poll2') })];
+    expect(has(fakeGame({ questions: twoAndPoll, rows: [row(0, { wager: 100 }), row(1, { wager: 100 })] }), 'cold_bets')).toBe(false);
   });
 
   it('sold: the auction lot bought and answered right', () => {
@@ -118,8 +134,9 @@ describe('roundAchievements (33)', () => {
 
   it('team_soul: the most right answers of the team people (at least 5, strictly more)', () => {
     const questions = round('classic', 12);
-    const team = (olya: number, vira: number) =>
+    const team = (olya: number, vira: number, answerer: AchievementGame['answerer'] = 'chosen') =>
       teamGame({
+        answerer,
         questions,
         rows: [
           ...range(olya).map((i) => row(i, { participantId: TEAM, answeredBy: 'm-olya' })),
@@ -132,6 +149,18 @@ describe('roundAchievements (33)', () => {
     expect(has(team(5, 5), 'team_soul', VIRA_IN_TEAM)).toBe(false);
     expect(has(team(4, 0), 'team_soul', OLYA_IN_TEAM)).toBe(false);
     expect(has(fakeGame({ questions, rows: range(8).map((i) => row(i)) }), 'team_soul')).toBe(false);
+    expect(has(team(6, 4, 'rotate'), 'team_soul', OLYA_IN_TEAM)).toBe(true);
+  });
+
+  it('team_soul: not in the captain mode (the captain answers everything), and at least two people of the team must hit', () => {
+    expect(has(team33(6, 4, 'captain'), 'team_soul', OLYA_IN_TEAM)).toBe(false);
+    expect(has(team33(6, 4, null), 'team_soul', OLYA_IN_TEAM)).toBe(false);
+    expect(has(team33(6, 0, 'chosen'), 'team_soul', OLYA_IN_TEAM)).toBe(false);
+    expect(has(team33(6, 1, 'chosen'), 'team_soul', OLYA_IN_TEAM)).toBe(true);
+  });
+
+  it('holiday: not for a game where no question was played', () => {
+    expect(has(fakeGame({ startedAt: new Date('2026-12-31T20:00:00Z'), questions: [], questionsPlayed: 0 }), 'holiday')).toBe(false);
   });
 
   it('holiday: started on 31 December or 1 January in Kyiv', () => {

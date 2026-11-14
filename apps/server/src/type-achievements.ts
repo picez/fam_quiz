@@ -1,4 +1,4 @@
-import { melodyHeardOf, type AchievementId } from '@quiz/shared';
+import { melodyHeardOf, wordLetters, type AchievementId } from '@quiz/shared';
 import { textMatches } from '@quiz/engine';
 import type { AchievementGame, AchievementQuestion, AchievementRow } from './achievement-games';
 import { answerRow, ownRows, participantRows } from './achievement-rows';
@@ -127,11 +127,11 @@ export function typeAchievements(game: AchievementGame, who: AchievementWho): Se
   // «Список закрито»: знайдено всі пункти.
   if (mine.some((r) => r.payload?.type === 'timedlist' && r.payload.total > 0 && r.payload.found.length === r.payload.total)) got.add('full_list');
 
-  // «Найдовше слово»: слово довжини найдовшого можливого (ref.letterwords.best); стара гра без best — ні.
+  // «Найдовше слово»: слово довжини найдовшого можливого (ref.letterwords.best); літери — як у рушії (wordLetters: апостроф не літера); стара гра без best — ні.
   if (
     mine.some((r) => {
       const best = questions.get(r.questionIndex)?.ref.letterwords?.best ?? [];
-      return r.payload?.type === 'letterwords' && best.length > 0 && r.payload.longest >= Math.max(...best.map((w) => Array.from(w).length));
+      return r.payload?.type === 'letterwords' && best.length > 0 && r.payload.longest >= Math.max(...best.map((w) => wordLetters(w).length));
     })
   )
     got.add('longest_word');

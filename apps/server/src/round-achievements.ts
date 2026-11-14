@@ -50,10 +50,12 @@ export function roundAchievements(game: AchievementGame, who: AchievementWho): S
     }
   }
 
-  // «Холодний розрахунок»: у «Ставках» щонайменше 3 запитання, на кожному перша спроба зі ставкою > 0 і прийнята.
+  // «Холодний розрахунок»: у «Ставках» щонайменше 3 запитання з балами, на кожному перша спроба зі ставкою > 0 і прийнята; опитування й хмари не рахуються.
   for (const round of rounds) {
-    if (round[0]!.roundType !== 'bets' || round.length < L.betsQuestions) continue;
-    if (round.every((q) => mine.some((r) => r.questionIndex === q.index && r.attempt === 0 && (r.wager ?? 0) > 0 && r.accepted))) {
+    if (round[0]!.roundType !== 'bets') continue;
+    const scored = round.filter((q) => q.scored);
+    if (scored.length < L.betsQuestions) continue;
+    if (scored.every((q) => mine.some((r) => r.questionIndex === q.index && r.attempt === 0 && (r.wager ?? 0) > 0 && r.accepted))) {
       got.add('cold_bets');
       break;
     }
@@ -97,19 +99,27 @@ export function roundAchievements(game: AchievementGame, who: AchievementWho): S
   if (types.size >= L.roundTypes) got.add('buffet');
 
   // «Душа команди»: найбільше прийнятих відповідей серед людей своєї команди (щонайменше 5, строго більше за кожного).
+  // Не в режимі «капітан» (типовий: капітан відповідає за все) і лише коли влучали щонайменше двоє людей команди.
   const player = game.players.find((p) => p.participantId === who.participantId);
-  if (game.teams && who.personId !== null && player !== undefined && player.members.length >= L.teamPeople) {
+  if (
+    game.teams &&
+    (game.answerer === 'chosen' || game.answerer === 'rotate') &&
+    who.personId !== null &&
+    player !== undefined &&
+    player.members.length >= L.teamPeople
+  ) {
     const counts = new Map(player.members.map((m) => [m.participantId, 0]));
     for (const r of mine) {
       if (r.accepted && r.answeredBy !== null && counts.has(r.answeredBy)) counts.set(r.answeredBy, counts.get(r.answeredBy)! + 1);
     }
     const own = counts.get(who.personId) ?? 0;
-    if (own >= L.teamSoul && [...counts].every(([id, n]) => id === who.personId || n < own)) got.add('team_soul');
+    const scorers = [...counts.values()].filter((n) => n > 0).length;
+    if (own >= L.teamSoul && scorers >= L.teamPeople && [...counts].every(([id, n]) => id === who.personId || n < own)) got.add('team_soul');
   }
 
-  // «Святковий настрій»: гра почалася 31 грудня чи 1 січня за київським часом.
+  // «Святковий настрій»: гра почалася 31 грудня чи 1 січня за київським часом і зіграно хоча б одне запитання.
   const day = kyivDay(game.startedAt);
-  if (day.endsWith('-12-31') || day.endsWith('-01-01')) got.add('holiday');
+  if (game.questionsPlayed > 0 && day.endsWith('-12-31') || day.endsWith('-01-01')) got.add('holiday');
 
   return got;
 }
