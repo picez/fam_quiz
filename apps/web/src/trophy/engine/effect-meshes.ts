@@ -13,7 +13,8 @@ import {
   SRGBColorSpace,
   type Texture,
 } from 'three';
-import { createParticles, mulberry32, stepParticles, type EffectFrame, type EffectPlan, type Particles, type ParticleKind } from '../effect-plan';
+import { seededRng } from '@quiz/shared';
+import { createParticles, stepParticles, type EffectFrame, type EffectPlan, type Particles, type ParticleKind } from '../effect-plan';
 
 export interface BuiltEffect {
   object: Object3D;
@@ -171,7 +172,7 @@ export const PARTICLE_RENDER_ORDER = 1;
 
 function buildPoints(plan: EffectPlan, frame: EffectFrame, seed: number, fovDeg: number): BuiltEffect {
   const kind = plan.kind as ParticleKind;
-  const rng = mulberry32(seed);
+  const rng = seededRng(seed);
   const particles: Particles = createParticles(kind, plan.count, frame, rng);
   const geometry = new BufferGeometry();
   const position = new BufferAttribute(particles.positions, 3);

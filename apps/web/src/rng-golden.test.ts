@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { jigsawPile } from './live/useJigsaw';
 import { splatsFor } from './screens/wipe';
-import { createParticles, mulberry32, type EffectFrame } from './trophy/effect-plan';
+import { seededRng } from '@quiz/shared';
+import { createParticles, type EffectFrame } from './trophy/effect-plan';
 
 const take = (rng: () => number, n: number) => Array.from({ length: n }, () => rng());
 const frame: EffectFrame = { center: [0, 1, 0], radius: 1 };
@@ -302,7 +303,7 @@ describe('rng golden (30d)', () => {
   });
 
   it('trophy rng first values', () => {
-    expect([3, 4294967295].map((s) => take(mulberry32(s), 6))).toMatchInlineSnapshot(`
+    expect([3, 4294967295].map((s) => take(seededRng(s), 6))).toMatchInlineSnapshot(`
       [
         [
           0.7202267837710679,
@@ -325,7 +326,7 @@ describe('rng golden (30d)', () => {
   });
 
   it('createParticles positions', () => {
-    expect(Array.from(createParticles('sparks', 8, frame, mulberry32(3)).positions)).toMatchInlineSnapshot(`
+    expect(Array.from(createParticles('sparks', 8, frame, seededRng(3)).positions)).toMatchInlineSnapshot(`
       [
         -0.9797961115837097,
         1.7384073734283447,
