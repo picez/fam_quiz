@@ -59,3 +59,23 @@ describe('QuestionEditor points after a type switch (29c)', () => {
     expect(seen).toEqual(['100', '777']);
   });
 });
+
+describe('QuestionEditor: a question drafted from a group (12l)', () => {
+  it('shows the reminders above the text inside the provider and nothing outside', async () => {
+    const { GroupDraftsProvider } = await import('./group-drafts');
+    const question = { ...newQuestion('single'), text: 'Хто це? Як тато заблукав' };
+    const { container, unmount } = render(<QuestionEditor question={question} onChange={vi.fn()} types={questionTypesFor('classic')} />);
+    expect(container.querySelector('.group-draft-notes')).toBeNull();
+    unmount();
+
+    render(
+      <GroupDraftsProvider initial={{ entries: { [question.id]: { groupId: 'g1', itemId: 'i1', notes: [{ key: 'groupNoteBlankName' }] } } }} onChange={vi.fn()}>
+        <QuestionEditor question={question} onChange={vi.fn()} types={questionTypesFor('classic')} />
+      </GroupDraftsProvider>,
+    );
+    const notes = screen.getByRole('note');
+    expect(notes.textContent).toContain('Заміни ім’я героя');
+    const text = screen.getByLabelText(t('questionText'));
+    expect(notes.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

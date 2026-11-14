@@ -1,9 +1,10 @@
 import { withUniqueQuestionIds, type Quiz, type QuizLikes } from '@quiz/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { createQuiz, fetchQuizLikes, getQuiz, updateQuiz } from '../api';
+import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, updateQuiz } from '../api';
 import { newQuiz } from '../editor/draft';
-import { clearDraft, loadDraft, saveDraft } from '../editor/draft-storage';
+import { clearDraft, clearGroupDrafts, loadDraft, loadGroupDrafts, saveDraft, saveGroupDrafts } from '../editor/draft-storage';
+import { GroupDraftsProvider, usesToMark, type GroupDrafts } from '../editor/group-drafts';
 import { newId } from '../editor/new-id';
 import { QuizEditor } from '../editor/QuizEditor';
 import { errorText, t } from '../i18n';
@@ -19,6 +20,9 @@ export function EditQuiz() {
     const stored = loadDraft(id);
     return stored === null ? null : withUniqueQuestionIds(stored, newId);
   }, [id]);
+  // Звідки запитання з групи (12l): лише в редакторі й поруч із чернеткою.
+  const initialDrafts = useMemo(() => loadGroupDrafts(id), [id]);
+  const groupDrafts = useRef<GroupDrafts | null>(initialDrafts);
   const [loaded, setLoaded] = useState<Quiz | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [likes, setLikes] = useState<QuizLikes | undefined>(undefined);
@@ -95,23 +99,44 @@ export function EditQuiz() {
       if (result.error === 'unauthorized') setExpired(true);
       return errorText(result.error);
     }
+    // «Використано у «…»» — після збереження; збій позначки не заважає: вікторина вже збережена.
+    const savedId = id ?? result.id;
+    if (groupDrafts.current !== null) {
+      for (const [groupId, itemIds] of usesToMark(groupDrafts.current, quiz)) {
+        try {
+          await markGroupUses(groupId, { quizId: savedId, itemIds });
+        } catch {
+          // Позначка не важливіша за збережену вікторину.
+        }
+      }
+    }
+    clearGroupDrafts(id);
     clearDraft(id);
     navigate('/quizzes');
     return null;
   };
 
   return (
-    <QuizEditor
-      initial={initial}
-      heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
-      likes={likes}
-      notice={draft === null ? null : t('draftRestored')}
-      onDraft={(quiz) => saveDraft(id, quiz)}
-      onSave={save}
-      onCancel={() => {
-        clearDraft(id);
-        navigate('/quizzes');
+    <GroupDraftsProvider
+      initial={initialDrafts}
+      onChange={(next) => {
+        groupDrafts.current = next;
+        saveGroupDrafts(id, next);
       }}
-    />
+    >
+      <QuizEditor
+        initial={initial}
+        heading={t(id === undefined ? 'editorNew' : 'editorEdit')}
+        likes={likes}
+        notice={initialDrafts?.fresh === true && draft !== null ? t('groupQuizNotice') : draft === null ? null : t('draftRestored')}
+        onDraft={(quiz) => saveDraft(id, quiz)}
+        onSave={save}
+        onCancel={() => {
+          clearGroupDrafts(id);
+          clearDraft(id);
+          navigate('/quizzes');
+        }}
+      />
+    </GroupDraftsProvider>
   );
 }

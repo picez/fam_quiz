@@ -2,12 +2,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createQuiz, fetchQuizLikes, getQuiz, me, updateQuiz } from '../api';
+import { createQuiz, fetchQuizLikes, getQuiz, markGroupUses, me, updateQuiz } from '../api';
 import { roundQuestions } from '@quiz/shared';
 import { demoQuiz } from '../demo-quiz';
+import type { Question, Quiz } from '@quiz/shared';
+import { newClassicRound, newQuestion, newQuiz } from '../editor/draft';
+import { saveDraft, saveGroupDrafts } from '../editor/draft-storage';
 import { EditQuiz } from './EditQuiz';
 
-vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn() }));
+vi.mock('../api', () => ({ me: vi.fn(), getQuiz: vi.fn(), createQuiz: vi.fn(), updateQuiz: vi.fn(), fetchQuizLikes: vi.fn(), markGroupUses: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -195,5 +198,50 @@ describe('EditQuiz: unsaved work', () => {
     vi.mocked(getQuiz).mockResolvedValue({ ok: true, data: demoQuiz });
     open('/quizzes/q1');
     expect((await title()).value).toBe(demoQuiz.title);
+  });
+});
+
+describe('EditQuiz: questions from a group (12l)', () => {
+  /** Нова вікторина з двома запитаннями з групи — так, як її кладе «Вікторина з групи». */
+  function stored(fresh: boolean) {
+    const a = { ...newQuestion('boolean'), text: 'Правда чи вигадка? Як тато заблукав у лісі по гриби' };
+    const b = { ...newQuestion('boolean'), text: 'Правда чи вигадка? Бабуся Ніна свистить двома пальцями', correct: false } as Question;
+    const quiz: Quiz = { ...newQuiz(), title: 'Вікторина: Родина Квіткових', rounds: [{ ...newClassicRound(), title: 'Родина Квіткових', questions: [a, b] }] };
+    saveDraft(undefined, quiz);
+    saveGroupDrafts(undefined, {
+      entries: { [a.id]: { groupId: 'g1', itemId: 'i1', notes: [{ key: 'groupNotePhoto' }] }, [b.id]: { groupId: 'g1', itemId: 'i2', notes: [{ key: 'groupNoteFiction' }] } },
+      ...(fresh ? { fresh: true as const } : {}),
+    });
+  }
+
+  it('after saving marks the records used, then forgets both drafts and goes to the list', async () => {
+    stored(false);
+    vi.mocked(createQuiz).mockResolvedValue({ ok: true, id: 'q-new' });
+    vi.mocked(markGroupUses).mockResolvedValue({ ok: true, marked: 2 });
+    open('/quizzes/new');
+    await screen.findByLabelText('Назва вікторини');
+    expect(screen.getByRole('note').textContent).toContain('Перевір, чи фото не підказує відповідь.');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+    expect(markGroupUses).toHaveBeenCalledWith('g1', { quizId: 'q-new', itemIds: ['i1', 'i2'] });
+    expect(sessionStorage.getItem('quiz:draft:new')).toBeNull();
+    expect(sessionStorage.getItem('quiz:groupdraft:new')).toBeNull();
+  });
+
+  it('a failed mark does not stop the save', async () => {
+    stored(false);
+    vi.mocked(createQuiz).mockResolvedValue({ ok: true, id: 'q-new' });
+    vi.mocked(markGroupUses).mockRejectedValue(new Error('offline'));
+    open('/quizzes/new');
+    await screen.findByLabelText('Назва вікторини');
+    fireEvent.click(screen.getByRole('button', { name: 'Зберегти' }));
+    expect(await screen.findByText('мої вікторини')).toBeTruthy();
+  });
+
+  it('a quiz just made from the group says so instead of «restored»', async () => {
+    stored(true);
+    open('/quizzes/new');
+    await screen.findByLabelText('Назва вікторини');
+    expect(screen.getByRole('status').textContent).toBe('Вікторину складено з записів групи. Над кожним запитанням — що варто перевірити.');
   });
 });

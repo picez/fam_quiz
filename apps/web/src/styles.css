@@ -22479,3 +22479,21 @@ input.sudoku-editor-cell:focus-visible {
   flex-wrap: wrap;
   overflow-x: visible;
 }
+
+/* Групи II (12l): нагадування над запитанням із запису групи. */
+.group-draft-notes {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px dashed var(--bank);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bank) 8%, transparent);
+  overflow-wrap: anywhere;
+}
+.group-draft-notes-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+.group-draft-notes ul {
+  margin: 0 0 8px;
+  padding-inline-start: 1.2em;
+}
