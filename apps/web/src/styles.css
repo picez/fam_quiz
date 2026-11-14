@@ -22432,3 +22432,50 @@ input.sudoku-editor-cell:focus-visible {
   object-fit: cover;
   border-radius: var(--radius);
 }
+
+/* Поля груп (12k) — як .field, але трохи нижчі: форма запису має вміститися в один екран телефона. */
+.group-form input,
+.group-form textarea,
+.item-form textarea,
+.item-form input:not([type='checkbox']):not([type='file']),
+.group-items-filters input,
+.group-items-filters select,
+.group-invite-link {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--paper);
+  font: inherit;
+}
+
+.group-form textarea,
+.item-form textarea {
+  resize: vertical;
+}
+
+.group-items-filters select option {
+  background: var(--stage);
+}
+
+.group-form input:focus-visible,
+.group-form textarea:focus-visible,
+.item-form textarea:focus-visible,
+.item-form input:focus-visible,
+.group-items-filters input:focus-visible,
+.group-items-filters select:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.item-surprise input[type='checkbox'] {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+
+/* Три вкладки групи переносяться, а не ховаються за прокруткою на 320 px. */
+.group-tabs {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
