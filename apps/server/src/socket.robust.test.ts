@@ -6,7 +6,7 @@ import { LIMITS, type AckResult, type ClientToServerEvents, type GameView, type 
 import { buildApp } from './app';
 import type { Db } from './db/client';
 import { log, setErrorReporter, type ErrorContext } from './log';
-import { MAX_MESSAGE_BYTES, SOCKET_EVENTS_PER_SECOND } from './socket';
+import { MAX_MESSAGE_BYTES, SOCKET_EVENTS_PER_SECOND, SOCKET_PING_INTERVAL_MS, SOCKET_PING_TIMEOUT_MS } from './socket';
 import { TEST_AUTH, startGame } from './testing/accounts';
 import { createTestDb } from './testing/test-db';
 
@@ -202,5 +202,55 @@ describe('the largest message (30a)', () => {
     // Кімната й інші сокети живі.
     expect(await send(host, 'host:start')).toEqual({ ok: true });
     expect(host.socket.connected).toBe(true);
+  });
+});
+
+describe('the connection-quality ping (32)', () => {
+  const ping = (tracked: Tracked) =>
+    new Promise<unknown>((resolve) => (tracked.socket.emit as (event: string, ...args: unknown[]) => void)('net:ping', resolve));
+
+  it('answers every role with the server time and never touches the room or sends a slice', async () => {
+    const { game, host, stage, olena } = await lobby();
+    // Зрізи від підключень лобі встигають дійти до всіх.
+    await pause(300);
+    const room = ctx.manager.get(game.code)!;
+    const before = room.state;
+    let slices = 0;
+    for (const tracked of [host, stage, olena]) tracked.socket.on('state', () => (slices += 1));
+    for (const tracked of [host, stage, olena]) {
+      const sent = ctx.manager.now();
+      const answer = (await ping(tracked)) as { now: number };
+      expect(Object.keys(answer)).toEqual(['now']);
+      expect(answer.now).toBeGreaterThanOrEqual(sent);
+      expect(answer.now).toBeLessThanOrEqual(ctx.manager.now());
+    }
+    await pause(100);
+    expect(slices).toBe(0);
+    expect(room.state).toBe(before);
+  });
+
+  it('counts in the socket budget and a ping past it is refused without dropping the socket', async () => {
+    const { olena } = await lobby();
+    const burst = await Promise.all(Array.from({ length: SOCKET_EVENTS_PER_SECOND + 1 }, () => ping(olena)));
+    expect(burst.slice(0, SOCKET_EVENTS_PER_SECOND).every((answer) => typeof (answer as { now?: unknown }).now === 'number')).toBe(true);
+    expect(burst[SOCKET_EVENTS_PER_SECOND]).toEqual({ ok: false, error: 'rate_limited' });
+    expect(olena.socket.connected).toBe(true);
+    // Пінги з’їли бюджет: наступна подія в ту ж секунду теж відмовлена — пінг рахується як усі.
+    expect(await send(olena, 'player:buzz')).toEqual({ ok: false, error: 'rate_limited' });
+  });
+
+  it('a ping without an ack function is ignored quietly', async () => {
+    const { olena } = await lobby();
+    (olena.socket.emit as (event: string, ...args: unknown[]) => void)('net:ping', 'not a function');
+    expect(((await ping(olena)) as { now: number }).now).toBeTypeOf('number');
+    expect(reports).toEqual([]);
+  });
+
+  it('engine.io notices a dead connection within 25 s', () => {
+    expect(SOCKET_PING_INTERVAL_MS).toBe(15_000);
+    expect(SOCKET_PING_TIMEOUT_MS).toBe(10_000);
+    const opts = (ctx.io as unknown as { engine: { opts: { pingInterval: number; pingTimeout: number } } }).engine.opts;
+    expect(opts.pingInterval).toBe(SOCKET_PING_INTERVAL_MS);
+    expect(opts.pingTimeout).toBe(SOCKET_PING_TIMEOUT_MS);
   });
 });
