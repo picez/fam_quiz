@@ -7,7 +7,7 @@ import { profile, quiz, user, userAchievement, xpEntry } from './db/schema';
 import { ensureProfile } from './profiles';
 import { seedGame, type SeedPlayer } from './testing/history-rows';
 import { createTestDb } from './testing/test-db';
-import { accountLevel, creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, syncXp, unlockTimes, xpTotals } from './xp-store';
+import { accountLevel, creditAchievements, creditGame, ownLevel, publicLevel, roomLevels, saveLooks, settleStickerLegacy, stickerAccess, syncXp, unlockTimes, xpTotals } from './xp-store';
 
 const HOST = 'xp-host';
 const AUTHOR = 'xp-author';
@@ -465,15 +465,15 @@ describe('levels and looks', () => {
     const own = await ownLevel(db, me);
     expect(own.progress).toEqual({ level: 3, xp: 600, levelAt: 520, nextAt: 800 });
     expect(own.unlocked.map((u) => u.level)).toEqual([1, 2, 2, 3, 3, 3]);
-    expect(own.unlocked[3]).toEqual({ level: 3, reward: { kind: 'stickers', series: 'nyaa' }, at: at.toISOString() });
+    expect(own.unlocked[3]).toEqual({ level: 3, reward: { kind: 'stickers', pack: 'food' }, at: at.toISOString() });
     expect(own.next.map((n) => n.level)).toEqual([4, 4, 4, 5, 5, 6, 6, 6]);
-    expect(own.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null });
+    expect(own.looks).toEqual({ color: null, frame: null, badge: null, photo: null, font: null, effect: null });
   });
 
   it('saveLooks refuses a colour above the level and saves it once the level is there', async () => {
     const [me] = await accounts(1);
     await synced(me);
-    const looks = { color: 'sky' as const, frame: null, badge: null, photo: null, font: null };
+    const looks = { color: 'sky' as const, frame: null, badge: null, photo: null, font: null, effect: null };
     expect(await saveLooks(db, me, looks)).toEqual({ ok: false, error: 'look_locked' });
     const at = new Date('2026-10-20T10:00:00Z');
     await db.insert(xpEntry).values({ userId: me, source: 'game', amount: 300, counted: true, day: '2026-10-20', at, createdAt: at });
@@ -497,10 +497,10 @@ describe('levels and looks', () => {
   it('saveLooks keeps stored photo and font when an old client omits them', async () => {
     const [me] = await accounts(1);
     await giveXp(me, xpForLevel(2));
-    const first = { color: null, frame: null, badge: null, photo: 'crimson' as const, font: 'hand' as const };
+    const first = { color: null, frame: null, badge: null, photo: 'crimson' as const, font: 'hand' as const, effect: null };
     expect(await saveLooks(db, me, first)).toEqual({ ok: true, looks: first });
-    expect(await saveLooks(db, me, { color: null, frame: null, badge: '🌻' })).toEqual({ ok: true, looks: { color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand' } });
-    expect((await publicLevel(db, me)).looks).toEqual({ color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand' });
+    expect(await saveLooks(db, me, { color: null, frame: null, badge: '🌻' })).toEqual({ ok: true, looks: { color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand', effect: null } });
+    expect((await publicLevel(db, me)).looks).toEqual({ color: null, frame: null, badge: '🌻', photo: 'crimson', font: 'hand', effect: null });
   });
 
   it('saveLooks refuses a locked photo frame', async () => {
@@ -524,7 +524,7 @@ describe('levels and looks', () => {
   it('ownLevel.next at level 15', async () => {
     const [me] = await accounts(1);
     await giveXp(me, xpForLevel(15));
-    expect((await ownLevel(db, me)).next.map((n) => n.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18]);
+    expect((await ownLevel(db, me)).next.map((n) => n.level)).toEqual([16, 16, 16, 17, 17, 17, 18, 18, 18, 18]);
   });
 
   it('roomLevels: an account without rows is level 1 with nothing worn; worn looks above the level are hidden', async () => {
@@ -539,5 +539,77 @@ describe('levels and looks', () => {
     expect(levels.get(worn)).toEqual({ level: 2, color: 'sky', frame: null, font: null });
     const [mark] = await db.select({ at: profile.xpSyncedAt }).from(profile).where(eq(profile.userId, fresh));
     expect(mark.at).toBeInstanceOf(Date);
+  });
+
+  it('34: saveLooks opens the flame at level 31 and keeps a stored effect when an old client omits it', async () => {
+    const [me] = await accounts(1);
+    await giveXp(me, xpForLevel(30));
+    const flame = { color: null, frame: null, badge: null, photo: null, font: null, effect: 'flame' as const };
+    expect(await saveLooks(db, me, flame)).toEqual({ ok: false, error: 'look_locked' });
+    await giveXp(me, xpForLevel(31) - xpForLevel(30));
+    expect(await saveLooks(db, me, flame)).toEqual({ ok: true, looks: flame });
+    expect((await ownLevel(db, me)).looks.effect).toBe('flame');
+    expect(await saveLooks(db, me, { color: null, frame: null, badge: '🌻' })).toEqual({ ok: true, looks: { ...flame, badge: '🌻' } });
+  });
+
+  it('34: roomLevels carries the effect only when there is one and it is open', async () => {
+    const [worn, plain, fallen] = await accounts(3);
+    await giveXp(worn, xpForLevel(31));
+    await giveXp(plain, xpForLevel(31));
+    await giveXp(fallen, xpForLevel(20));
+    await db.update(profile).set({ nickEffect: 'flame' }).where(inArray(profile.userId, [worn, fallen]));
+    const levels = await roomLevels(db, [worn, plain, fallen]);
+    expect(levels.get(worn)).toEqual({ level: 31, color: null, frame: null, font: null, effect: 'flame' });
+    expect('effect' in levels.get(plain)!).toBe(false);
+    expect('effect' in levels.get(fallen)!).toBe(false);
+  });
+});
+
+describe('sticker inheritance (34, «м\'якше»)', () => {
+  it('a new account is settled already and inherits nothing', async () => {
+    const [me] = await accounts(1);
+    await synced(me);
+    const [row] = await db.select({ settled: profile.stickersSettled, legacy: profile.stickersLegacyLevel }).from(profile).where(eq(profile.userId, me));
+    expect(row).toEqual({ settled: true, legacy: null });
+    await settleStickerLegacy(db);
+    expect((await stickerAccess(db, [me])).get(me)).toEqual({ packs: [], legacyLevel: null });
+  });
+
+  it('settles every existing account once at its level, catching up XP first', async () => {
+    const [four, unsynced] = await accounts(2);
+    await synced(four);
+    const at = new Date('2026-10-24T10:00:00Z');
+    await db.insert(xpEntry).values({ userId: four, source: 'game', amount: xpForLevel(4), counted: true, day: '2026-10-24', at, createdAt: at });
+    await db.update(profile).set({ stickersSettled: false }).where(eq(profile.userId, four));
+    await ensureProfile(db, unsynced);
+    await db.update(profile).set({ stickersSettled: false }).where(eq(profile.userId, unsynced));
+    const errors: unknown[] = [];
+    await settleStickerLegacy(db, (e) => errors.push(e));
+    expect(errors).toEqual([]);
+    const rows = await db.select({ id: profile.userId, settled: profile.stickersSettled, legacy: profile.stickersLegacyLevel, mark: profile.xpSyncedAt }).from(profile).where(inArray(profile.userId, [four, unsynced]));
+    expect(rows.find((r) => r.id === four)).toMatchObject({ settled: true, legacy: 4 });
+    expect(rows.find((r) => r.id === unsynced)).toMatchObject({ settled: true, legacy: 1 });
+    expect(rows.find((r) => r.id === unsynced)?.mark).toBeInstanceOf(Date);
+    // Повторний виклик нічого не змінює, навіть коли рівень виріс.
+    await db.insert(xpEntry).values({ userId: four, source: 'game', amount: xpForLevel(20), counted: true, day: '2026-10-25', at, createdAt: at });
+    await settleStickerLegacy(db);
+    expect((await stickerAccess(db, [four])).get(four)).toEqual({ packs: [], legacyLevel: 4 });
+  });
+
+  it('stickerAccess: achievement packs, and an unsettled account inherits its level as it is now', async () => {
+    const [owl, waiting] = await accounts(2);
+    await synced(owl);
+    await db.insert(userAchievement).values([
+      { userId: owl, achievementId: 'night_owl', earnedAt: new Date() },
+      { userId: owl, achievementId: 'first_game', earnedAt: new Date() },
+    ]);
+    await synced(waiting);
+    const at = new Date('2026-10-26T10:00:00Z');
+    await db.insert(xpEntry).values({ userId: waiting, source: 'game', amount: xpForLevel(7), counted: true, day: '2026-10-26', at, createdAt: at });
+    await db.update(profile).set({ stickersSettled: false }).where(eq(profile.userId, waiting));
+    const access = await stickerAccess(db, [owl, waiting, 'nobody']);
+    expect(access.get(owl)).toEqual({ packs: ['spooky'], legacyLevel: null });
+    expect(access.get(waiting)).toEqual({ packs: [], legacyLevel: 7 });
+    expect(access.get('nobody')).toEqual({ packs: [], legacyLevel: null });
   });
 });

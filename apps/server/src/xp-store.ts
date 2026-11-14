@@ -7,6 +7,8 @@ import {
   looksAllowed,
   looksShown,
   nextRewards,
+  PACK_ACHIEVEMENTS,
+  packsByAchievements,
   rewardsUpTo,
   xpForLevel,
   type AchievementId,
@@ -15,6 +17,7 @@ import {
   type NickLooks,
   type OwnLevel,
   type PublicLevel,
+  type StickerExtra,
 } from '@quiz/shared';
 import { and, asc, eq, gt, inArray, isNotNull, notExists, sql } from 'drizzle-orm';
 import { loadAchievementGames, type AchievementGame } from './achievement-games';
@@ -288,10 +291,12 @@ export async function xpTotals(db: Db, userIds: string[]): Promise<Map<string, n
 async function looksOf(db: Db, userIds: string[]): Promise<Map<string, NickLooks>> {
   if (userIds.length === 0) return new Map();
   const rows = await db
-    .select({ userId: profile.userId, color: profile.nickColor, frame: profile.nickFrame, badge: profile.badge, photo: profile.photoFrame, font: profile.nickFont })
+    .select({ userId: profile.userId, color: profile.nickColor, frame: profile.nickFrame, badge: profile.badge, photo: profile.photoFrame, font: profile.nickFont, effect: profile.nickEffect })
     .from(profile)
     .where(inArray(profile.userId, userIds));
-  return new Map(rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null, photo: row.photo ?? null, font: row.font ?? null, effect: null }]));
+  return new Map(
+    rows.map((row) => [row.userId, { color: row.color ?? null, frame: row.frame ?? null, badge: row.badge ?? null, photo: row.photo ?? null, font: row.font ?? null, effect: row.effect ?? null }]),
+  );
 }
 
 const NO_LOOKS: NickLooks = { color: null, frame: null, badge: null, photo: null, font: null, effect: null };
@@ -316,7 +321,8 @@ export async function roomLevels(db: Db, userIds: string[], onError: (e: unknown
   for (const id of ids) {
     const level = levelOf(totals.get(id) ?? 0);
     const shown = looksShown(looks.get(id) ?? NO_LOOKS, level);
-    levels.set(id, { level, color: shown.color, frame: shown.frame, font: shown.font });
+    // Ключ effect — лише коли ефект є (34): старі клієнти й фікстури без нього.
+    levels.set(id, { level, color: shown.color, frame: shown.frame, font: shown.font, ...(shown.effect === null ? {} : { effect: shown.effect }) });
   }
   return levels;
 }
@@ -380,11 +386,92 @@ export async function saveLooks(db: Db, userId: string, looks: LooksInput): Prom
   // Спершу наздогнати: без ретро користувач бачив би рівень 1 і хибне look_locked.
   await synced(db, userId);
   const level = levelOf((await xpTotals(db, [userId])).get(userId) ?? 0);
-  // Відсутні photo/font (старий клієнт) — лишити збережене, але вже після looksShown.
+  // Відсутні photo/font/effect (старий клієнт) — лишити збережене, але вже після looksShown.
   const stored = looksShown((await looksOf(db, [userId])).get(userId) ?? NO_LOOKS, level);
   const full: NickLooks = { color: looks.color, frame: looks.frame, badge: looks.badge, photo: looks.photo === undefined ? stored.photo : looks.photo, font: looks.font === undefined ? stored.font : looks.font, effect: looks.effect === undefined ? stored.effect : looks.effect };
   if (!looksAllowed(full, level)) return { ok: false, error: 'look_locked' };
   await ensureProfile(db, userId);
-  await db.update(profile).set({ nickColor: full.color, nickFrame: full.frame, badge: full.badge, photoFrame: full.photo, nickFont: full.font, updatedAt: new Date() }).where(eq(profile.userId, userId));
+  await db.update(profile).set({ nickColor: full.color, nickFrame: full.frame, badge: full.badge, photoFrame: full.photo, nickFont: full.font, nickEffect: full.effect, updatedAt: new Date() }).where(eq(profile.userId, userId));
   return { ok: true, looks: full };
+}
+
+/** Скільки профілів знімок успадкування стікерів бере за раз. */
+const LEGACY_BATCH = 200;
+
+/**
+ * Стікери (34, рішення власника «м'якше»): на старті кожен наявний акаунт (stickers_settled = false) дістає
+ * stickers_legacy_level = свій рівень у цю мить — усе, що старе правило серій давало на ньому, лишається відкритим.
+ * Нові акаунти створюються вже з true і нічого не успадковують. Без мітки досвіду спершу наздоганяємо (інакше рівень занижено);
+ * збій наздоганяння лишає акаунт на наступний старт, а до того stickerAccess рахує рівень наживо. Ідемпотентно.
+ */
+export async function settleStickerLegacy(db: Db, onError: (e: unknown) => void = (error) => reportError(error, { where: 'sticker-legacy' })): Promise<void> {
+  let after = '';
+  for (;;) {
+    const rows = await db
+      .select({ userId: profile.userId, mark: profile.xpSyncedAt })
+      .from(profile)
+      .where(and(eq(profile.stickersSettled, false), gt(profile.userId, after)))
+      .orderBy(asc(profile.userId))
+      .limit(LEGACY_BATCH);
+    if (rows.length === 0) return;
+    const ready: string[] = [];
+    for (const row of rows) {
+      if (row.mark === null) {
+        try {
+          await syncXp(db, row.userId, onError);
+        } catch (error) {
+          onError(error);
+          continue;
+        }
+      }
+      ready.push(row.userId);
+    }
+    if (ready.length > 0) {
+      const totals = await xpTotals(db, ready);
+      const values = sql.join(
+        ready.map((id) => sql`(${id}, ${levelOf(totals.get(id) ?? 0)}::int)`),
+        sql`, `,
+      );
+      // stickers_settled = false ще раз: інший екземпляр міг тим часом зробити знімок — не переписуємо.
+      await db.execute(sql`
+        update profile set stickers_legacy_level = v.level, stickers_settled = true
+        from (values ${values}) as v(user_id, level)
+        where profile.user_id = v.user_id and profile.stickers_settled = false`);
+    }
+    if (rows.length < LEGACY_BATCH) return;
+    after = rows[rows.length - 1].userId;
+  }
+}
+
+/** Ачівки, що відкривають набори стікерів (34). */
+const PACK_ACHIEVEMENT_IDS: AchievementId[] = Object.values(PACK_ACHIEVEMENTS);
+
+/**
+ * Що відкриває стікери понад рівень (34): набори за здобуті досягнення і рівень успадкування.
+ * Акаунт без знімка (збій на старті) — успадковує свій поточний рівень, як дав би знімок. Лише серверне: у зріз гри не йде.
+ */
+export async function stickerAccess(db: Db, userIds: string[]): Promise<Map<string, StickerExtra>> {
+  const ids = [...new Set(userIds)];
+  const access = new Map<string, StickerExtra>();
+  if (ids.length === 0) return access;
+  const rows = await db
+    .select({ userId: profile.userId, legacy: profile.stickersLegacyLevel, settled: profile.stickersSettled })
+    .from(profile)
+    .where(inArray(profile.userId, ids));
+  const unsettled = rows.filter((row) => !row.settled).map((row) => row.userId);
+  const totals = unsettled.length === 0 ? new Map<string, number>() : await xpTotals(db, unsettled);
+  const earned = await db
+    .select({ userId: userAchievement.userId, id: userAchievement.achievementId })
+    .from(userAchievement)
+    .where(and(inArray(userAchievement.userId, ids), inArray(userAchievement.achievementId, PACK_ACHIEVEMENT_IDS)));
+  for (const id of ids) {
+    const row = rows.find((r) => r.userId === id);
+    const legacyLevel = row === undefined ? null : row.settled ? row.legacy : levelOf(totals.get(id) ?? 0);
+    access.set(id, { packs: packsByAchievements(earned.filter((e) => e.userId === id).map((e) => e.id)), legacyLevel });
+  }
+  return access;
+}
+
+export async function stickerAccessOne(db: Db, userId: string): Promise<StickerExtra> {
+  return (await stickerAccess(db, [userId])).get(userId) ?? {};
 }

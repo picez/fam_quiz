@@ -22,6 +22,7 @@ import type {
   LikeKind,
   LadderOutcomeKind,
   NickColor,
+  NickEffect,
   NickFont,
   NickFrame,
   PhotoFrame,
@@ -371,6 +372,12 @@ export const profile = pgTable('profile', {
   /** Рамка фото й шрифт ніку (24d); закрите рівнем не показується. */
   photoFrame: text('photo_frame').$type<PhotoFrame>(),
   nickFont: text('nick_font').$type<NickFont>(),
+  /** Ефект ніку (34); закритий рівнем не показується. */
+  nickEffect: text('nick_effect').$type<NickEffect>(),
+  /** Рівень успадкування стікерів (34): рівень акаунта в мить переходу на набори — відкрите старим правилом серій на ньому лишається; null — нічого понад загальне. */
+  stickersLegacyLevel: integer('stickers_legacy_level'),
+  /** Знімок успадкування вже зроблено (34): наявні рядки — false до settleKeptStickers, нові акаунти — true (успадковувати нічого). */
+  stickersSettled: boolean('stickers_settled').notNull().default(true),
   /** Стрічку переглянуто до цієї миті (18a): бейдж рахує події з created_at пізніше; null — ще ні (усі події друзів за 90 днів нові). */
   feedSeenAt: at('feed_seen_at'),
   /** Найвищий оголошений у стрічці рівень (18a); null = 1. */

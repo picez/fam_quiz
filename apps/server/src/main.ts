@@ -6,6 +6,7 @@ import { buildApp } from './app';
 import { adminEmails, baseUrl, localOrigins, proxyTrust, pushKeys, secretProblem } from './config';
 import { connectDb } from './db/client';
 import { backfillFeed, settleFeedLevels } from './feed-publish';
+import { settleStickerLegacy } from './xp-store';
 import { diskStorage, type ImageStorage } from './storage/images';
 import { r2Storage } from './storage/r2';
 import { webPushSender } from './web-push-sender';
@@ -111,6 +112,8 @@ const { db, close: closeDb } = await connectDb(databaseUrl);
 // Стрічка (18a): тихо записати наявні рівні до підняття кімнат, щоб кімната, піднята в finished, не оголосила давнього рівня.
 // Одне оновлення на порцію профілів; збій лише журналюється.
 await settleFeedLevels(db).catch((error: unknown) => reportError(error, { where: 'feed-levels' }));
+// Стікери (34, «м'якше»): наявні акаунти один раз запам'ятовують свій рівень — усе, що давало старе правило серій, лишається відкритим.
+await settleStickerLegacy(db).catch((error: unknown) => reportError(error, { where: 'sticker-legacy' }));
 const { app, shutdown } = await buildApp({
   db,
   auth: {
