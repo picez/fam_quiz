@@ -2,7 +2,8 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameView } from '@quiz/shared';
-import { DRAW_SNAPSHOT_WAIT_MS, DRAW_SYNC_RETRY_MS, RETRY_MS, useGame } from './useGame';
+import { NET_PING_EVERY_MS, NET_PING_TIMEOUT_MS, STALE_AFTER_MS } from './net-quality';
+import { ACK_TIMEOUT_MS, DRAW_SNAPSHOT_WAIT_MS, DRAW_SYNC_RETRY_MS, RETRY_MS, useGame } from './useGame';
 
 const { sockets, FakeSocket } = vi.hoisted(() => {
   /** Підставний сокет: тест сам вирішує, які події прийшли із сервера. */
@@ -11,6 +12,23 @@ const { sockets, FakeSocket } = vi.hoisted(() => {
     active = true;
     connect = vi.fn();
     close = vi.fn();
+    disconnect = vi.fn();
+    /** Події з ack через socket.timeout(ms).emit (32): ack(err, result); err — тайм-аут socket.io. */
+    timed: { event: string; args: unknown[]; ms: number; ack: (err: Error | null, result?: unknown) => void; done: boolean }[] = [];
+    timeout(ms: number) {
+      return {
+        emit: (event: string, ...rest: unknown[]) => {
+          const callback = rest.pop() as (err: Error | null, result?: unknown) => void;
+          const entry = { event, args: rest, ms, done: false, ack: (err: Error | null, result?: unknown) => {
+            if (entry.done) return;
+            entry.done = true;
+            callback(err, result);
+          } };
+          this.timed.push(entry);
+          setTimeout(() => entry.ack(new Error('operation has timed out')), ms);
+        },
+      };
+    }
     private handlers = new Map<string, ((...args: unknown[]) => void)[]>();
     on(event: string, handler: (...args: unknown[]) => void) {
       this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
@@ -330,5 +348,171 @@ describe('useGame drawing (28c)', () => {
     expect(syncCalls(socket)).toHaveLength(0);
     act(() => socket.fire('drawing', { kind: 'sync', questionIndex: 2, rev: 7, strokes: [] }));
     expect(result.current.drawing?.rev).toBe(7);
+  });
+});
+
+describe('useGame connection quality (32)', () => {
+  type Fake = (typeof sockets)[number];
+  const pings = (socket: Fake) => socket.timed.filter((entry) => entry.event === 'net:ping');
+  const lastPing = (socket: Fake) => pings(socket).at(-1)!;
+  // Пінги йдуть з інтервалом від першого зрізу: помічники доходять рівно до наступного тіку.
+  let nextTick = 0;
+  const start = (socket: Fake) => {
+    act(() => socket.fire('state', view, meta()));
+    nextTick = Date.now() + NET_PING_EVERY_MS;
+  };
+  const toTick = () => {
+    act(() => vi.advanceTimersByTime(nextTick - Date.now()));
+    nextTick += NET_PING_EVERY_MS;
+  };
+  /** Наступний пінг і відповідь через rtt мс. */
+  const pong = (socket: Fake, rtt: number) => {
+    toTick();
+    const entry = lastPing(socket);
+    act(() => vi.advanceTimersByTime(rtt));
+    act(() => entry.ack(null, { now: Date.now() }));
+  };
+  /** Наступний пінг без відповіді: тайм-аут NET_PING_TIMEOUT_MS. */
+  const miss = (socket: Fake) => {
+    toTick();
+    expect(lastPing(socket).done).toBe(false);
+    act(() => vi.advanceTimersByTime(NET_PING_TIMEOUT_MS));
+  };
+  let visibility: DocumentVisibilityState = 'visible';
+  beforeEach(() => {
+    visibility = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('pings every 5 s after the first view and turns weak on slow answers', () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => vi.advanceTimersByTime(NET_PING_EVERY_MS * 2));
+    expect(pings(socket)).toHaveLength(0);
+    start(socket);
+    pong(socket, 100);
+    expect(pings(socket)).toHaveLength(1);
+    expect(lastPing(socket).ms).toBe(NET_PING_TIMEOUT_MS);
+    expect(result.current.quality).toBe('good');
+    pong(socket, 1000);
+    pong(socket, 1000);
+    pong(socket, 1000);
+    expect(result.current.quality).toBe('weak');
+  });
+
+  it('does not ping in a hidden tab and pings at once when it is visible again', () => {
+    renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', view, meta()));
+    visibility = 'hidden';
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    act(() => vi.advanceTimersByTime(NET_PING_EVERY_MS * 3));
+    expect(pings(socket)).toHaveLength(0);
+    visibility = 'visible';
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(pings(socket)).toHaveLength(1);
+  });
+
+  it('three missed pings after an answered one reconnect once; without any answer they do not', () => {
+    renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    start(socket);
+    miss(socket);
+    miss(socket);
+    miss(socket);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    expect(socket.connect).not.toHaveBeenCalled();
+    pong(socket, 50);
+    miss(socket);
+    miss(socket);
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    miss(socket);
+    expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconnects at once when the device comes back online', () => {
+    renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', view, meta()));
+    socket.connected = false;
+    act(() => socket.fire('disconnect', 'transport close'));
+    act(() => window.dispatchEvent(new Event('online')));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+    // Уже на зв'язку — online нічого не робить.
+    socket.connected = true;
+    act(() => window.dispatchEvent(new Event('online')));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconnects when the tab comes back after a long silence', () => {
+    renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    start(socket);
+    pong(socket, 50);
+    visibility = 'hidden';
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    socket.connected = false;
+    act(() => vi.advanceTimersByTime(STALE_AFTER_MS + 1));
+    visibility = 'visible';
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(socket.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('an ack that never comes is offline after 8 s', async () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', view, meta()));
+    let settled: unknown = null;
+    void result.current.send('player:buzz').then((value) => (settled = value));
+    const entry = socket.timed.find((one) => one.event === 'player:buzz')!;
+    expect(entry.ms).toBe(ACK_TIMEOUT_MS);
+    expect(entry.args).toEqual([]);
+    await act(async () => {
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS);
+    });
+    expect(settled).toEqual({ ok: false, error: 'offline' });
+  });
+
+  it('an ack that comes in time is passed on, with the payload sent', async () => {
+    const { result } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', view, meta()));
+    const pending = result.current.send('player:answer', { type: 'single', optionId: 'a' } as never);
+    const entry = socket.timed.find((one) => one.event === 'player:answer')!;
+    expect(entry.args).toEqual([{ type: 'single', optionId: 'a' }]);
+    entry.ack(null, { ok: false, error: 'already_answered' });
+    expect(await pending).toEqual({ ok: false, error: 'already_answered' });
+  });
+
+  it('stops pinging on a disconnect and starts again with the next view', () => {
+    renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    start(socket);
+    pong(socket, 50);
+    socket.connected = false;
+    act(() => socket.fire('disconnect', 'transport close'));
+    act(() => vi.advanceTimersByTime(NET_PING_EVERY_MS * 3));
+    expect(pings(socket)).toHaveLength(1);
+    socket.connected = true;
+    act(() => socket.fire('state', view, meta()));
+    act(() => vi.advanceTimersByTime(NET_PING_EVERY_MS));
+    expect(pings(socket)).toHaveLength(2);
+  });
+
+  it('unmounting removes its listeners and timers', () => {
+    const removeWindow = vi.spyOn(window, 'removeEventListener');
+    const removeDocument = vi.spyOn(document, 'removeEventListener');
+    const { unmount } = renderHook(() => useGame(auth));
+    const socket = sockets[0];
+    act(() => socket.fire('state', view, meta()));
+    unmount();
+    expect(removeWindow.mock.calls.map(([type]) => type)).toContain('online');
+    expect(removeDocument.mock.calls.map(([type]) => type)).toContain('visibilitychange');
+    act(() => vi.advanceTimersByTime(NET_PING_EVERY_MS * 3));
+    expect(pings(socket)).toHaveLength(0);
+    act(() => window.dispatchEvent(new Event('online')));
+    expect(socket.connect).not.toHaveBeenCalled();
   });
 });

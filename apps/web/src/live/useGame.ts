@@ -4,6 +4,7 @@ import { REACTION_SHOW_MS, type ClientToServerEvents, type CloseReason, type Gam
 import { freshSplash } from '../clock';
 import { dropReaction, upsertReaction } from '../reactions';
 import { emptyDrawing, needsSync, reduceDrawing, type DrawingModel } from './drawing';
+import { initialNet, isStale, NET_PING_EVERY_MS, NET_PING_TIMEOUT_MS, onPong, onReconnect, onTimeout, shouldForceReconnect, type NetState, type Quality } from './net-quality';
 import type { Send, SendResult } from './types';
 
 /** Остання команда звуку від ведучого; seq зростає, тож кожна нова — окрема. */
@@ -17,6 +18,12 @@ export const RETRY_MS = 1500;
 export const DRAW_SNAPSHOT_WAIT_MS = 2000;
 /** Повтор draw:sync після too_soon (вікно сервера — 2 на секунду). */
 export const DRAW_SYNC_RETRY_MS = 600;
+/** Скільки чекати ack будь-якої події (32): обрив після emit більше не лишає проміс висіти назавжди. */
+export const ACK_TIMEOUT_MS = 8000;
+
+const OFFLINE: SendResult = { ok: false, error: 'offline' };
+const tabVisible = (): boolean => typeof document === 'undefined' || document.visibilityState !== 'hidden';
+const deviceOnline = (): boolean => typeof navigator === 'undefined' || navigator.onLine !== false;
 
 /** Ключ тексту для екрана без гри чи смуги над грою. */
 export const statusTextKey = (status: Status): 'offline' | 'restarting' | 'connecting' =>
@@ -43,6 +50,9 @@ export function useGame(auth: SocketAuth | null) {
   const [reactions, setReactions] = useState<Reaction[]>([]);
   // Малюнок поточного запитання (28c): знімок + операції; лише в пам'яті, з розривом зникає.
   const [drawing, setDrawing] = useState<DrawingModel | null>(null);
+  // Якість зв'язку (32): вердикт для плашки «Слабкий зв'язок»; модель живе між перепідключеннями.
+  const [quality, setQuality] = useState<Quality>('good');
+  const netRef = useRef<NetState>(initialNet);
   const socketRef = useRef<GameSocket | null>(null);
   // Запит повного малюнка; живе в ефекті сокета, назовні — requestSync.
   const syncRef = useRef<() => void>(() => {});
@@ -63,6 +73,8 @@ export function useGame(auth: SocketAuth | null) {
     setDrafts(null);
     setReactions([]);
     setDrawing(null);
+    netRef.current = initialNet;
+    setQuality('good');
     if (code === undefined || role === undefined || token === undefined) return;
     const socket: GameSocket = io({ auth: { code, role, token }, transports: ['websocket'] });
     socketRef.current = socket;
@@ -130,6 +142,67 @@ export function useGame(auth: SocketAuth | null) {
       if ((model === null || model.questionIndex !== next.questionIndex) && next.drawing.rev === 0) setModel(emptyDrawing(next.questionIndex));
       if (needsSync(model, next)) requestSync();
     };
+    // Пінг якості зв'язку (32): кожні NET_PING_EVERY_MS, поки вкладка видима; запускається першим зрізом з'єднання.
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let pinging = false;
+    // Ефект прибрано (розмонтування чи нова гра) або сервер відмовив у доступі: більше нічого не перепідключаємо.
+    let closedHere = false;
+    let refused = false;
+    const setNet = (next: NetState) => {
+      netRef.current = next;
+      setQuality(next.quality);
+    };
+    const reconnectNow = () => {
+      if (gone || refused || closedHere) return;
+      if (retry !== null) clearTimeout(retry);
+      retry = null;
+      socket.connect();
+    };
+    const ping = () => {
+      if (!socket.connected || pinging || !tabVisible()) return;
+      pinging = true;
+      const sentAt = Date.now();
+      socket.timeout(NET_PING_TIMEOUT_MS).emit('net:ping', (error: Error | null) => {
+        pinging = false;
+        if (closedHere) return;
+        if (error === null) {
+          setNet(onPong(netRef.current, Date.now() - sentAt, Date.now()));
+          return;
+        }
+        // Обрив сам зупиняє пінги; рахуємо лише тайм-аути живого з'єднання.
+        if (!socket.connected) return;
+        setNet(onTimeout(netRef.current));
+        // Три тайм-аути поспіль на видимій вкладці з мережею: з'єднання зависло, не чекаємо engine.io.
+        if (shouldForceReconnect(netRef.current) && tabVisible() && deviceOnline()) {
+          setNet(onReconnect(netRef.current));
+          socket.disconnect();
+          reconnectNow();
+        }
+      });
+    };
+    const startPings = () => {
+      if (pingTimer === null) pingTimer = setInterval(ping, NET_PING_EVERY_MS);
+    };
+    const stopPings = () => {
+      if (pingTimer !== null) clearInterval(pingTimer);
+      pingTimer = null;
+    };
+    // Пристрій знову в мережі: перепідключаємось одразу, без затримки socket.io.
+    const onOnline = () => {
+      if (!socket.connected) reconnectNow();
+    };
+    // Вкладка знову видима: пінг одразу; після довгої тиші мертве з'єднання перепідключаємо.
+    const onVisibility = () => {
+      if (!tabVisible()) return;
+      if (!socket.connected) {
+        if (isStale(netRef.current, Date.now())) reconnectNow();
+        return;
+      }
+      ping();
+    };
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisibility);
+
     const again = () => {
       if (retry === null)
         retry = setTimeout(() => {
@@ -150,6 +223,7 @@ export function useGame(auth: SocketAuth | null) {
       setOffsetMs(meta.serverNow - Date.now());
       setStatus('live');
       checkDrawing(next);
+      startPings();
     });
     socket.on('drawing', (event) => {
       if (event.kind === 'sync') {
@@ -196,6 +270,8 @@ export function useGame(auth: SocketAuth | null) {
       snapshotDue = false;
       snapshotIn = false;
       syncing = false;
+      stopPings();
+      setNet(onReconnect(netRef.current));
       if (gone) return;
       if (reason === 'io server disconnect') {
         restarting = true;
@@ -205,6 +281,7 @@ export function useGame(auth: SocketAuth | null) {
     });
     socket.on('connect_error', (error) => {
       if (error.message === 'unauthorized') {
+        refused = true;
         setStatus('unauthorized');
         socket.close();
       } else if (error.message === 'restarting') {
@@ -218,6 +295,10 @@ export function useGame(auth: SocketAuth | null) {
     });
 
     return () => {
+      closedHere = true;
+      stopPings();
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisibility);
       if (retry !== null) clearTimeout(retry);
       for (const timer of reactionTimers) clearTimeout(timer);
       stopDrawingTimers();
@@ -231,12 +312,15 @@ export function useGame(auth: SocketAuth | null) {
     return new Promise<SendResult>((resolve) => {
       const socket = socketRef.current;
       if (socket === null || !socket.connected) {
-        resolve({ ok: false, error: 'offline' });
+        resolve(OFFLINE);
         return;
       }
-      const emit = socket.emit.bind(socket) as (event: string, ...args: unknown[]) => void;
-      if (payload === undefined) emit(event, resolve);
-      else emit(event, payload, resolve);
+      // Ack з тайм-аутом (32): тайм-аут чи обрив дають offline, а не вічне очікування.
+      const timed = socket.timeout(ACK_TIMEOUT_MS);
+      const emit = timed.emit.bind(timed) as (event: string, ...args: unknown[]) => void;
+      const done = (error: Error | null, result?: SendResult) => resolve(error !== null || result === undefined ? OFFLINE : result);
+      if (payload === undefined) emit(event, done);
+      else emit(event, payload, done);
     });
   }, []);
 
@@ -249,5 +333,5 @@ export function useGame(auth: SocketAuth | null) {
   /** Просить у сервера повний малюнок (28c), напр. після відмови ack художникові; поки знімок і так іде чи запит у польоті — нічого. */
   const requestSync = useCallback(() => syncRef.current(), []);
 
-  return { view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
+  return { quality, view, status, hostOnline, stageOnline, audioCommand, awardsSeq, reactions, offsetMs, closed, tilts, drafts, forgetLive, send, drawing, requestSync };
 }
