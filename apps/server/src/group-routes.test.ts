@@ -71,6 +71,7 @@ describe('group routes (12k)', () => {
       ['POST', `/api/groups/${groupId}/items`, record],
       ['PUT', `/api/groups/${groupId}/items/${item.id}`, record],
       ['DELETE', `/api/groups/${groupId}/items/${item.id}`],
+      ['POST', `/api/groups/${groupId}/uses`, { quizId: MISSING, itemIds: [item.id] }],
     ];
     const missing = routes(MISSING);
     for (const [index, [method, url, payload]] of routes(id).entries()) {
@@ -251,5 +252,35 @@ describe('group routes (12k)', () => {
     for (let i = 0; i < 21; i++) statuses.push((await call('GET', `/api/groups/join/${code}`, guesser.cookie)).statusCode);
     expect(statuses.slice(0, 20).every((status) => status === 200)).toBe(true);
     expect(statuses[20]).toBe(429);
+  });
+});
+
+describe('group record uses route (12l)', () => {
+  async function quizOf(ownerId: string, title: string): Promise<string> {
+    const { makeQuiz, single } = await import('@quiz/engine/testing');
+    const { quiz } = await import('./db/schema');
+    const source = makeQuiz([single]);
+    const [row] = await db
+      .insert(quiz)
+      .values({ ownerId, title, description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    return row.id;
+  }
+
+  it('marks records used only in my own quiz; the list shows the title', async () => {
+    const { olia, petro, id } = await family();
+    const item = (await call('POST', `/api/groups/${id}/items`, olia.cookie, record)).json() as GroupItem;
+    expect(item.uses).toEqual([]);
+    const quizId = await quizOf(olia.id, 'Родинна розминка');
+
+    const foreign = await call('POST', `/api/groups/${id}/uses`, petro.cookie, { quizId, itemIds: [item.id] });
+    expect([foreign.statusCode, foreign.json()]).toEqual([404, { error: 'quiz_not_found' }]);
+    const empty = await call('POST', `/api/groups/${id}/uses`, olia.cookie, { quizId, itemIds: [] });
+    expect([empty.statusCode, empty.json()]).toEqual([400, { error: 'invalid_payload' }]);
+
+    const marked = await call('POST', `/api/groups/${id}/uses`, olia.cookie, { quizId, itemIds: [item.id] });
+    expect([marked.statusCode, marked.json()]).toEqual([200, { marked: 1 }]);
+    const forPetro = (await call('GET', `/api/groups/${id}/items`, petro.cookie)).json() as GroupItem[];
+    expect(forPetro[0].uses).toMatchObject([{ quizId, title: 'Родинна розминка', mine: false }]);
   });
 });

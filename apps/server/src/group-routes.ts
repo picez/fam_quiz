@@ -4,6 +4,7 @@ import {
   groupItemInputSchema,
   groupOwnerSchema,
   groupReason,
+  groupUsesSchema,
   type GroupRole,
 } from '@quiz/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -11,6 +12,7 @@ import type { z } from 'zod';
 import type { CurrentUser } from './account-routes';
 import type { Db } from './db/client';
 import { createItem, deleteItem, listItems, updateItem } from './group-items';
+import { markUses } from './group-uses';
 import {
   acceptInvite,
   cancelInvite,
@@ -60,6 +62,7 @@ const STATUS: Record<string, number> = {
   invite_not_found: 404,
   group_not_found: 404,
   item_not_found: 404,
+  quiz_not_found: 404,
   not_author: 403,
   // Керування передали, поки йшов запит (перевірка під замком групи): конфлікт, а не заборона.
   not_owner: 409,
@@ -245,6 +248,16 @@ export async function registerGroupRoutes(app: FastifyInstance, deps: GroupDeps)
     const deleted = await deleteItem(db, ok.groupId, request.params.itemId, ok.user.id, ok.role);
     if (!deleted.ok) return fail(reply, deleted.error);
     return reply.code(204).send();
+  });
+
+  app.post<GroupParams>('/api/groups/:id/uses', write, async (request, reply) => {
+    const ok = await member(request, reply);
+    if (ok === null) return reply;
+    const body = groupUsesSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'invalid_payload' });
+    const marked = await markUses(db, ok.groupId, ok.user.id, body.data, now());
+    if (!marked.ok) return fail(reply, marked.error);
+    return { marked: marked.marked };
   });
 
   app.get<{ Params: { code: string } }>('/api/groups/join/:code', join, async (request, reply) => {
