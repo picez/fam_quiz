@@ -2,8 +2,10 @@ import {
   allSpares,
   isUnscored,
   MELODY_STEP_COUNT,
+  PROGRESS_TYPES,
   surveyHitsOf,
   surveyOrder,
+  UNGRADED_TYPES,
   type Answer,
   type HostLive,
   type LiveAside,
@@ -41,12 +43,6 @@ import { puzzleSolution } from './puzzles';
 
 /** Етапи, на яких іде відповідь (до розкриття): ведучий бачить, хто що відповів. */
 const LIVE_PHASES: Phase[] = ['question', 'locked'];
-
-/** Типи з поступом: зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
-const PROGRESS_TYPES: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'sort', 'wall', 'bluff'];
-
-/** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
-const UNGRADABLE: Question['type'][] = ['chain', 'wordladder', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'sort', 'wall', 'survey', 'bluff'];
 
 /** Запасне запитання за id (з правильною відповіддю — лише ведучому); null — основне або немає в пулі. (Переїхало з views.ts.) */
 export function spareOf(state: GameState, id: string | undefined): Question | null {
@@ -273,7 +269,7 @@ function answerRow(state: GameState, play: Play, who: Answerer, unscored: boolea
   if (record !== undefined) {
     const answer = record.answer;
     // Як hostFinal: типи, яких ведучий не оцінює, рішення не чекають (інакше awaiting не знявся б ніколи).
-    const gradable = !UNGRADABLE.includes(play.question.type);
+    const gradable = !UNGRADED_TYPES.includes(play.question.type);
     const pending = manualFinal && gradable && !(play.final?.graded.includes(id) ?? false) && answer !== null;
     return {
       ...base,

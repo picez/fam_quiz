@@ -53,9 +53,10 @@ import {
   ladderPathIssue,
   letterSet,
   questionPrice,
-  PUZZLE_TYPES,
-  PUZZLES_ROUND_TYPES,
   isPuzzle,
+  fitsPuzzlesRound,
+  typesWhere,
+  QUESTION_TYPE_TRAITS,
   jigsawEdgeCount,
   jigsawGrid,
   jigsawPieceRatio,
@@ -90,44 +91,11 @@ import { newId } from './new-id';
 
 export { QUESTION_TYPES, type QuestionType };
 
-/**
- * Типи запитань, доступні в раунді: бліц — без ланцюжка, «Хто я?», точки, стіни, опитування й хмари;
- * поле — без ланцюжка, опитування й хмари; фінал і ставки — без «Хто я?», точки, стіни, «100 до 1», опитування й хмари;
- * сортування — скрізь; класика — усі.
- * Блеф — лише класика (поле, бліц і фінал його не мають).
- * Словесна драбина — лише класика й фінал.
- * «Ва-банк» — лише WIPEOUT_TYPES: один варіант, так/ні, число, текст, повзунок.
- * «Вибування» (основні запитання й питання на виживання) — лише SURVIVAL_TYPES, ті самі п'ять.
- * «Мільйонер» — лише «один варіант» (рівно з чотирма варіантами).
- * «100 до 1» — класика й поле (звичайна клітинка з телефона; решту клітинок перевіряє схема), не бліц і не фінал.
- * «Список на час» — так само: класика й поле, не бліц, не фінал, не ставки й не аукціон.
- * «Слова з літер» і «Більше чи менше» — так само, як «Список на час».
- * «Мелодія за нотами» — лише класика (як «Малюнок»).
- * «Малюнок» — лише класика (на полі, у бліці, фіналі, ставках, аукціоні й решті раундів його немає).
- * «Головоломки» — судоку, кросворд і пазл; судоку й кросворда немає більше ніде, а пазл ще й у класиці.
- */
+/** Меню типів раунду — `rounds` у `QUESTION_TYPE_TRAITS`; правила місця перевіряє схема. */
 export function questionTypesFor(roundType: Round['type']): readonly QuestionType[] {
-  if (roundType === 'puzzles') return PUZZLES_ROUND_TYPES;
-  // «Квест із кодом» (29g): звичайні запитання без медіа-механік.
-  if (roundType === 'quest') return QUEST_TYPES;
-  const types = roundType === 'classic' ? QUESTION_TYPES : questionTypesBeyondClassic(roundType).filter((type) => type !== 'drawing' && type !== 'jigsaw' && type !== 'spotdiff' && type !== 'memory' && type !== 'melody');
-  return types.filter((type) => !(PUZZLE_TYPES as readonly string[]).includes(type));
-}
-
-/** Типи поза класикою (до відсіву «Малюнка»). */
-function questionTypesBeyondClassic(roundType: Round['type']): readonly QuestionType[] {
-  const unscored = (type: QuestionType) => type === 'poll' || type === 'wordcloud';
-  if (roundType === 'blitz') {
-    return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'letterwords' && type !== 'moreless' && type !== 'bluff' && !unscored(type));
-  }
-  if (roundType === 'board') return QUESTION_TYPES.filter((type) => type !== 'chain' && type !== 'wordladder' && type !== 'bluff' && !unscored(type));
-  if (roundType === 'final' || roundType === 'bets' || roundType === 'auction') {
-    return QUESTION_TYPES.filter((type) => type !== 'clues' && type !== 'pin' && type !== 'wall' && type !== 'survey' && type !== 'timedlist' && type !== 'letterwords' && type !== 'moreless' && type !== 'bluff' && !unscored(type));
-  }
   if (roundType === 'wipeout') return WIPEOUT_TYPES;
   if (roundType === 'survival') return SURVIVAL_TYPES;
-  if (roundType === 'ladder') return ['single'];
-  return QUESTION_TYPES;
+  return typesWhere((t) => t.rounds.includes(roundType));
 }
 
 /**
@@ -1228,10 +1196,10 @@ const LADDER_PROBLEMS: Record<LadderPathIssue, TextKey> = {
 };
 const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
-/** Найбільший час запитання: головоломкам — власна межа (типові 180 і 240 с понад загальні 120). */
-export const maxTimeOf = (question: Pick<Question, 'type'>) => (isPuzzle(question) || question.type === 'jigsaw' || question.type === 'spotdiff' || question.type === 'memory' ? LIMITS.maxPuzzleTime : LIMITS.maxTime);
-/** Найменший час запитання: пазлу потрібно не менше LIMITS.minJigsawTime. */
-export const minTimeOf = (question: Pick<Question, 'type'>) => (question.type === 'jigsaw' ? LIMITS.minJigsawTime : question.type === 'spotdiff' ? LIMITS.minSpotdiffTime : question.type === 'memory' ? LIMITS.minMemoryTime : question.type === 'melody' ? LIMITS.minMelodyTime : LIMITS.minTime);
+/** Найбільший час запитання за реєстром типів; невідомий тип (старий черновик) — загальна межа. */
+export const maxTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type]?.time.max ?? 'maxTime'];
+/** Найменший час запитання за реєстром типів; невідомий тип — загальна межа. */
+export const minTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type]?.time.min ?? 'minTime'];
 
 /** Вада збереженого кросворду, яку не впіймали перевірки вище (скажімо, з імпорту) → текст проблеми. */
 const CROSSWORD_PROBLEMS = {
@@ -1251,7 +1219,7 @@ function problemKey(question: Question, place: Place = ANYWHERE): TextKey | null
   if (question.type === 'spotdiff' && !place.spotdiff) return 'problemSpotdiffPlace';
   if (question.type === 'memory' && !place.memory) return 'problemMemoryPlace';
   if (question.type === 'melody' && !place.melody) return 'problemMelodyPlace';
-  if (!isPuzzle(question) && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && place.onlyPuzzles) return 'problemPuzzlesType';
+  if (!fitsPuzzlesRound(question) && place.onlyPuzzles) return 'problemPuzzlesType';
   const { timeLimit, points } = question;
   const inLimits =
     Number.isInteger(timeLimit) &&

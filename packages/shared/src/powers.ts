@@ -1,4 +1,4 @@
-import type { Question } from './quiz';
+import { typesWhere } from './question-types';
 
 /** «Ризик» (12h): у скільки разів множаться бали правильної відповіді. */
 export const RISK_FACTOR = 3;
@@ -7,11 +7,11 @@ export const LETTER_SHARE = 0.75;
 /** «Бінокль» (12h): ширина проміжку повзунка — частка шкали; число — ±частка від правильного, щонайменше ±numericMin; точка — сторона вікна в частках основи. */
 export const SCOPE = { sliderShare: 0.2, numericShare: 0.1, numericMin: 2, pinSize: 0.5 } as const;
 /** «Ризик» (12h): типи з однозначною відповіддю. */
-export const RISK_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'slider', 'clues', 'pin'] as const satisfies readonly Question['type'][];
+export const RISK_TYPES = typesWhere((t) => t.buffs.risk);
 /** «Перша літера» (12h): текст і «Хто я?». */
-export const LETTER_TYPES = ['text', 'clues'] as const satisfies readonly Question['type'][];
+export const LETTER_TYPES = typesWhere((t) => t.buffs.letter);
 /** «Бінокль» (12h): число, повзунок і точка на мапі. */
-export const SCOPE_TYPES = ['numeric', 'slider', 'pin'] as const satisfies readonly Question['type'][];
+export const SCOPE_TYPES = typesWhere((t) => t.buffs.scope);
 
 /** Апострофи: ʼ (U+02BC) і ʻ — у Unicode літери-модифікатори, тож перевіряються раніше за літери. */
 const APOSTROPHE = /[ʼʻ’‘'`ʹ]/u;

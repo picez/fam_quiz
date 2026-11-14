@@ -1,0 +1,499 @@
+import type { LIMITS, RoundType } from './quiz';
+
+/** Типи запитань у порядку редактора; звіряється з questionSchema у тесті. */
+export const QUESTION_TYPES = ['single', 'multi', 'boolean', 'text', 'numeric', 'order', 'match', 'chain', 'wordladder', 'sort', 'slider', 'clues', 'pin', 'wall', 'poll', 'wordcloud', 'survey', 'timedlist', 'letterwords', 'moreless', 'drawing', 'sudoku', 'crossword', 'jigsaw', 'spotdiff', 'memory', 'melody', 'bluff'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+/** Можливості типу запитання (30e): з них виводяться списки типів у shared, рушії й редакторі. */
+export interface QuestionTypeTraits {
+  /** Раунди, у меню редактора яких є тип; для puzzles, wipeout, survival, quest — і білий список схеми. */
+  rounds: readonly RoundType[];
+  /** SIMPLE_TYPES: автоматична перевірка й проста відповідь (запасні, друга спроба, зал). */
+  simple: boolean;
+  /** REVEAL_TYPES: картинка, що проявляється (10b). */
+  reveal: boolean;
+  /** UNSCORED_TYPES: без балів (10d). */
+  unscored: boolean;
+  /** PUZZLE_TYPES: головоломки лише раунду puzzles (28d). */
+  puzzle: boolean;
+  /** proximityPartial: частковий бал за близькість. */
+  proximity: boolean;
+  /** wholeRowQuestion: «правильно» лише за весь ряд. */
+  wholeRow: boolean;
+  /** false — швидкість відповіді не рахується (factLimitMs → null). */
+  speed: boolean;
+  /** PROGRESS_TYPES рушія: зміст рядка ведучого — у progress. */
+  progress: boolean;
+  /** false — ведучий не оцінює вручну (override → wrong_phase). */
+  hostGraded: boolean;
+  /** Діє вся команда (team-act → actor(team)). */
+  teamWide: boolean;
+  /** Бафи 12h: RISK_TYPES, LETTER_TYPES, SCOPE_TYPES. */
+  buffs: { risk: boolean; letter: boolean; scope: boolean };
+  /** Межі timeLimit — ключі LIMITS. */
+  time: { min: keyof typeof LIMITS; max: keyof typeof LIMITS };
+}
+
+/**
+ * Реєстр типів запитань: запис на кожен тип у порядку QUESTION_TYPES (бракує чи зайвий — помилка tsc).
+ * Новий тип: запис тут; далі — місця, що ще розгалужуються за типом напряму (перевірка, бали, views, екрани, поля редактора).
+ */
+export const QUESTION_TYPE_TRAITS = {
+  single: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'ladder', 'quest'],
+    simple: true,
+    reveal: true,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  multi: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'quest'],
+    simple: true,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  boolean: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'quest'],
+    simple: true,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  text: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'quest'],
+    simple: true,
+    reveal: true,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: true, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  numeric: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'quest'],
+    simple: true,
+    reveal: true,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: true },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  order: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'quest'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  match: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'quest'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  chain: {
+    rounds: ['classic', 'final', 'bets', 'auction', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  wordladder: {
+    rounds: ['classic', 'final', 'bets', 'auction', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  sort: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  slider: {
+    rounds: ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'wipeout', 'survival', 'quest'],
+    simple: true,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: true,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: true },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  clues: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: true, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  pin: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: true,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: true, letter: false, scope: true },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  wall: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: true,
+    wholeRow: false,
+    speed: true,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  poll: {
+    rounds: ['classic', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: true,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  wordcloud: {
+    rounds: ['classic', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: true,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  survey: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: true,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  timedlist: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  letterwords: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  moreless: {
+    rounds: ['classic', 'board', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  drawing: {
+    rounds: ['classic'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+  sudoku: {
+    rounds: ['puzzles'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: true,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxPuzzleTime' },
+  },
+  crossword: {
+    rounds: ['puzzles'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: true,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxPuzzleTime' },
+  },
+  jigsaw: {
+    rounds: ['classic', 'puzzles'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minJigsawTime', max: 'maxPuzzleTime' },
+  },
+  spotdiff: {
+    rounds: ['classic', 'puzzles'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minSpotdiffTime', max: 'maxPuzzleTime' },
+  },
+  memory: {
+    rounds: ['classic', 'puzzles'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: true,
+    speed: false,
+    progress: true,
+    hostGraded: false,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minMemoryTime', max: 'maxPuzzleTime' },
+  },
+  melody: {
+    rounds: ['classic'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: false,
+    hostGraded: true,
+    teamWide: true,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minMelodyTime', max: 'maxTime' },
+  },
+  bluff: {
+    rounds: ['classic', 'truth'],
+    simple: false,
+    reveal: false,
+    unscored: false,
+    puzzle: false,
+    proximity: false,
+    wholeRow: false,
+    speed: true,
+    progress: true,
+    hostGraded: false,
+    teamWide: false,
+    buffs: { risk: false, letter: false, scope: false },
+    time: { min: 'minTime', max: 'maxTime' },
+  },
+} as const satisfies Record<QuestionType, QuestionTypeTraits>;
+
+/** Типи, що пройшли test, у порядку QUESTION_TYPES; типи з lead (якщо пройшли) — першими, у порядку lead. Щоразу новий масив. */
+export function typesWhere(test: (traits: QuestionTypeTraits, type: QuestionType) => boolean, lead: readonly QuestionType[] = []): readonly QuestionType[] {
+  const hit = QUESTION_TYPES.filter((type) => test(QUESTION_TYPE_TRAITS[type], type));
+  return [...lead.filter((type) => hit.includes(type)), ...hit.filter((type) => !lead.includes(type))];
+}
+
+/** Типи з автоматичною перевіркою й простою відповіддю: друга спроба, голосування залу, запасні запитання. */
+export const SIMPLE_TYPES = typesWhere((t) => t.simple);
+/** Типи, де діє картинка, що проявляється (10b). */
+export const REVEAL_TYPES = typesWhere((t) => t.reveal);
+/** Типи без балів (10d): не йдуть у таблицю, серії, точність і досягнення. */
+export const UNSCORED_TYPES = typesWhere((t) => t.unscored);
+/** Типи запитань «Головоломок» (28d); живуть лише в раунді puzzles, а він приймає лише їх. */
+export const PUZZLE_TYPES = typesWhere((t) => t.puzzle);
+/** Що приймає раунд «Головоломки»: судоку, кросворд і (29c) пазл і (29d) «Знайди відмінності»; isPuzzle їх не охоплює. */
+export const PUZZLES_ROUND_TYPES = typesWhere((t) => t.rounds.includes('puzzles'));
+/** Історичний порядок меню «Ва-банку» й «Вибування»: число перед текстом. */
+const FIRM_LEAD: readonly QuestionType[] = ['single', 'boolean', 'numeric'];
+/** Типи запитань раунду «Ва-банк»: відповідь однозначно правильна чи ні. */
+export const WIPEOUT_TYPES = typesWhere((t) => t.rounds.includes('wipeout'), FIRM_LEAD);
+/** Типи запитань раунду «Вибування» (основних і питань на виживання): відповідь однозначно правильна чи ні. */
+export const SURVIVAL_TYPES = typesWhere((t) => t.rounds.includes('survival'), FIRM_LEAD);
+/** Типи запитань раунду «Квест із кодом» (29g): звичайні запитання без медіа-механік. */
+export const QUEST_TYPES = typesWhere((t) => t.rounds.includes('quest'));
+/** Бали за близькість відповіді чи кількість знайденого (proximityPartial): повзунок, точка, стіна, «100 до 1». */
+export const PROXIMITY_TYPES = typesWhere((t) => t.proximity);
+/** Ряд чи список: «правильно» лише за весь ряд (wholeRowQuestion). */
+export const WHOLE_ROW_TYPES = typesWhere((t) => t.wholeRow);
+/** Швидкість відповіді не рахується (factLimitMs → null): драбина, список, слова, «Більше чи менше», малюнок і головоломки. */
+export const SPEEDLESS_TYPES = typesWhere((t) => !t.speed);
+/** Типи з поступом (рушій, рядок ведучого): зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
+export const PROGRESS_TYPES = typesWhere((t) => t.progress);
+/** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
+export const UNGRADED_TYPES = typesWhere((t) => !t.hostGraded);
+/** Типи, де відповідає вся команда (team-act → actor(team)): спільний список, малюнок, мелодія, сітка головоломки. */
+export const TEAM_WIDE_TYPES = typesWhere((t) => t.teamWide);
