@@ -204,3 +204,35 @@ describe('group records (12k)', () => {
     expect(await ids(id, olia, 'owner')).toEqual([third.id, second.id, first.id]);
   });
 });
+
+describe('group record uses in the list (12l)', () => {
+  it('each record carries its uses; a surprise about me stays hidden even when marked', async () => {
+    const { makeQuiz, single } = await import('@quiz/engine/testing');
+    const { quiz } = await import('./db/schema');
+    const { markUses } = await import('./group-uses');
+    const { id, olia, petro } = await family();
+    const story = await write(id, olia, { kind: 'story', text: 'Як тато заблукав у лісі по гриби', about: [{ kind: 'name', name: 'тато' }] });
+    const fact = await write(id, olia, { text: 'Бабуся Ніна свистить двома пальцями' });
+    const surprise = await write(id, petro, { text: 'Оля колись спекла торт без борошна', about: [{ kind: 'member', userId: olia }], surprise: true });
+    const source = makeQuiz([single]);
+    const [made] = await db
+      .insert(quiz)
+      .values({ ownerId: petro, title: 'Вікторина: Родина Квіткових', description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    expect(await markUses(db, id, petro, { quizId: made.id, itemIds: [story.id, surprise.id] }, later(30))).toEqual({ ok: true, marked: 2 });
+
+    const forOlia = await listItems(db, id, olia, 'owner');
+    expect(forOlia.map((item) => item.id)).not.toContain(surprise.id);
+    expect(forOlia.find((item) => item.id === story.id)?.uses).toEqual([
+      { quizId: made.id, title: 'Вікторина: Родина Квіткових', mine: false, at: later(30).toISOString() },
+    ]);
+    expect(forOlia.find((item) => item.id === fact.id)?.uses).toEqual([]);
+    const forPetro = await listItems(db, id, petro, 'member');
+    expect(forPetro.find((item) => item.id === surprise.id)?.uses).toMatchObject([{ mine: true }]);
+
+    // Зміна запису віддає його справжні позначки, а не порожній список.
+    const changed = await updateItem(db, id, story.id, olia, { ...base, kind: 'story', text: 'Як тато заблукав у лісі по гриби (і знайшовся)' }, later(40));
+    if (!changed.ok) throw new Error(changed.error);
+    expect(changed.item.uses).toEqual([{ quizId: made.id, title: 'Вікторина: Родина Квіткових', mine: false, at: later(30).toISOString() }]);
+  });
+});

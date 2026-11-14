@@ -1,9 +1,12 @@
-import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
+import { ANSWER_MODES, CELL_KINDS, CELL_PENALTIES, LIMITS, boardCells, cellAnswerMode, questionPrice, type AnswerMode, type BoardCategory, type BoardCell, type BoardRound, type CellKind, type CellMark, type CellPenalty, type Question } from '@quiz/shared';
 import { LikeCount } from './LikeCount';
 import { HelpButton } from '../help/HelpButton';
 import { useEffect, useId, useState } from 'react';
 import { countText, t, type TextKey } from '../i18n';
-import { boardReadiness, cellState, fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
+import { booleanCounts, boardReadiness, cellState, fitCell, moveItem, newBoardCategory, newBoardQuestion, questionTypesFor } from './draft';
+import { GroupPicker } from '../groups/GroupPicker';
+import type { GroupDraft } from '../groups/templates';
+import { useGroupDrafts } from './group-drafts';
 import { newId } from './new-id';
 import { QuestionEditor } from './QuestionEditor';
 import { SparesEditor } from './SparesEditor';
@@ -40,6 +43,16 @@ const toMark = (value: string): CellMark => (value === 'x2' ? 'x2' : value === '
  * а під стовпцем вибраної клітинки ще й «Прибрати запитання» (вимкнена на мінімумі, з підказкою);
  * вибрана клітинка відкривається внизу з позначкою й звичайним редактором запитання.
  */
+/** Вид і спосіб клітинки після зміни запитання: те саме правило для зміни типу вручну й для «Із групи». */
+function cellPatch(question: Question): Partial<BoardCell> {
+  if (question.type === 'sort' || question.type === 'pin' || question.type === 'wall' || question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless') {
+    return { question, kind: 'normal', answerMode: 'phone', penalty: 'none' };
+  }
+  if (question.type === 'survey') return { question: withoutCloud(question), kind: 'normal', answerMode: 'phone', penalty: 'none' };
+  if (question.type === 'clues') return { question, kind: 'normal', penalty: 'none' };
+  return { question };
+}
+
 export function BoardEditor({ round, onChange, focus = null, roomForMore = true, roomForCategory = true, swapOn = false, legacySpares = false, likes }: Props) {
   const { categories } = round;
   const [picked, setPicked] = useState({ category: 0, index: 0 });
@@ -52,10 +65,20 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
   const index = Math.min(picked.index, cells.length - 1);
   const current = cells[index];
   const hintId = useId();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const groupDrafts = useGroupDrafts();
   const sparesTitle = categories[category].title.trim() === '' ? t('boardCategoryPlaceholder', { index: category + 1 }) : categories[category].title.trim();
   const atMin = cells.length <= LIMITS.minCategoryQuestions;
   const readiness = boardReadiness(round);
   const room = roomForMore && categories.reduce((sum, c) => sum + c.cells.length, 0) < LIMITS.maxQuestions;
+
+  /** «Із групи» (12l): замінює запитання клітинки, ціна клітинки лишається. */
+  const fromGroup = (draft: GroupDraft, source: { groupId: string; itemId: string }) => {
+    if (current.question.text.trim() !== '' && !window.confirm(t('groupPickerReplaceConfirm'))) return;
+    const question = { ...draft.question, points: current.question.points } as Question;
+    setCell(cellPatch(question));
+    groupDrafts?.add(question.id, { ...source, notes: draft.notes });
+  };
 
   const setCategories = (next: BoardCategory[]) => onChange({ ...round, categories: next });
   const setCategory = (at: number, patch: Partial<BoardCategory>) =>
@@ -286,17 +309,7 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           types={questionTypesFor('board')}
           showReveal={current.kind === 'normal' && cellAnswerMode(round, current) === 'phone'}
           cluesByHost={cellAnswerMode(round, current) === 'voice'}
-          onChange={(question) =>
-            setCell(
-              question.type === 'sort' || question.type === 'pin' || question.type === 'wall' || question.type === 'timedlist' || question.type === 'letterwords' || question.type === 'moreless'
-                ? { question, kind: 'normal', answerMode: 'phone', penalty: 'none' }
-                : question.type === 'survey'
-                  ? { question: withoutCloud(question), kind: 'normal', answerMode: 'phone', penalty: 'none' }
-                  : question.type === 'clues'
-                    ? { question, kind: 'normal', penalty: 'none' }
-                    : { question },
-            )
-          }
+          onChange={(question) => setCell(cellPatch(question))}
         />
         <div className="toolbar">
           <button type="button" className="btn btn-small" aria-label={t('boardCellUp')} disabled={index === 0} onClick={() => moveCell(index - 1)}>
@@ -311,7 +324,17 @@ export function BoardEditor({ round, onChange, focus = null, roomForMore = true,
           >
             {t('moveDownShort')}
           </button>
+          <button type="button" className="btn btn-small" onClick={() => setPickerOpen(true)}>
+            {t('groupFromButton')}
+          </button>
         </div>
+        {pickerOpen && (
+          <GroupPicker
+            target={{ types: questionTypesFor('board'), booleans: booleanCounts(boardCells(round).map(({ cell }) => cell.question)) }}
+            onPick={fromGroup}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
       </section>
 
       <section className="panel category-spares" aria-label={t('categorySparesTitle', { title: sparesTitle })}>

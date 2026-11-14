@@ -6,7 +6,7 @@ import type { GivenLike, LikesPage, ReceivedLike } from '@quiz/shared';
 import type { HostTokens } from './storage';
 import { loadDeviceId } from './storage';
 import type { Locale } from '@quiz/shared';
-import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage } from '@quiz/shared';
+import type { GroupDetail, GroupInput, GroupInviteCard, GroupItem, GroupItemInput, GroupJoinPreview, GroupsPage, GroupUsesInput } from '@quiz/shared';
 
 export type ApiResult<T> = ({ ok: true } & T) | { ok: false; error: string };
 export type ApiData<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -274,6 +274,8 @@ export const updateGroupItem = (id: string, itemId: string, input: GroupItemInpu
   request<GroupItem>(`${groupUrl(id)}/items/${encodeURIComponent(itemId)}`, { method: 'PUT', body: input });
 export const deleteGroupItem = (id: string, itemId: string) =>
   request<object>(`${groupUrl(id)}/items/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+/** «Використано у «…»» (12l): після збереження вікторини. */
+export const markGroupUses = (id: string, input: GroupUsesInput) => request<{ marked: number }>(`${groupUrl(id)}/uses`, { method: 'POST', body: input });
 export const getGroupJoin = (code: string) => request<GroupJoinPreview>(`/api/groups/join/${encodeURIComponent(code)}`);
 export const joinGroup = (code: string) => request<{ id: string }>(`/api/groups/join/${encodeURIComponent(code)}`, { method: 'POST' });
 export const getGroupInvites = () => fetchData<GroupInviteCard[]>('/api/me/group-invites');

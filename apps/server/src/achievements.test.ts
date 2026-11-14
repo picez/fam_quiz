@@ -22,7 +22,7 @@ const played = (status: PlayedGame['status'] = 'finished'): PlayedGame => ({
   team: null,
 });
 
-const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0, podium: 0, debuffsBought: 0, authorGames: 0, roundTypes: 0, questionTypes: 0, lastPlaces: 0, honestStreak: 0 };
+const zero = { winStreak: 0, blitzWins: 0, finalHits: 0, comebacks: 0, friendsPlayedWith: 0, podium: 0, debuffsBought: 0, authorGames: 0, roundTypes: 0, questionTypes: 0, lastPlaces: 0, honestStreak: 0, groupItems: 0 };
 const table = (roundTypes: GameTable['roundTypes'], players: GameTable['players']): GameTable => ({
   gameId: 'g',
   status: 'finished',
@@ -110,7 +110,17 @@ describe('careerProgress', () => {
     expect(progress).toMatchObject({ games_10: 10, games_50: 37, games_100: 37, veteran: 37, wins_10: 0, all_types: 0 });
     expect('first_game' in progress).toBe(false);
     expect('fast_answer' in progress).toBe(false);
-    expect(Object.keys(progress)).toHaveLength(17);
+    expect(Object.keys(progress)).toHaveLength(18);
+  });
+});
+
+describe('«Літописець» (12l)', () => {
+  const base = { games: 0, wins: 0, hosted: 0, bestStreak: 0, perfectGames: 0, ...zero };
+  it('20 group records earn it, 19 do not; progress counts records', () => {
+    expect(careerEarned({ ...base, groupItems: 20 })).toContain('chronicler');
+    expect(careerEarned({ ...base, groupItems: 19 })).not.toContain('chronicler');
+    expect(careerProgress({ ...base, groupItems: 19 }).chronicler).toBe(19);
+    expect(careerProgress({ ...base, groupItems: 25 }).chronicler).toBe(20);
   });
 });
 

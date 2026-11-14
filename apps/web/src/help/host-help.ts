@@ -10,7 +10,7 @@ export const HELP_TOPICS = ['rounds', 'questions', 'cells', 'buffs', 'debuffs', 
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export const CELL_HELP_KEYS = [...CELL_KINDS, 'voice', 'marks'] as const;
-export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'undo', 'away', 'appeal', 'description', 'speedBonus', 'spares', 'debuffShop', 'levelBonuses', 'duels', 'penalty', 'partial', 'streak', 'blitzSeries', 'multiplier', 'audio', 'reveal', 'autopilot'] as const;
+export const SETTING_HELP_KEYS = ['leaderboard', 'newcomers', 'pacing', 'live', 'scores', 'undo', 'away', 'appeal', 'description', 'speedBonus', 'spares', 'debuffShop', 'levelBonuses', 'duels', 'penalty', 'partial', 'streak', 'blitzSeries', 'multiplier', 'audio', 'reveal', 'autopilot', 'groups'] as const;
 export const TEAM_HELP_KEYS = ['play', ...TEAM_FORMS, 'captain', 'answerer', 'formats'] as const;
 
 interface Topic<P extends string, K extends string> {

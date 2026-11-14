@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, ROUND_TYPES } from './quiz';
 import type { ProfileCard } from './profile';
 
-/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i), потім 22 нові (12j: 14 антидосягнень, далі 8 досягнень механік) у порядку специфікації. */
+/** Усі ачівки: 16 перших (до 12i) у старому порядку, потім 32 нові (12i), потім 22 нові (12j: 14 антидосягнень, далі 8 досягнень механік) у порядку специфікації, потім 1 нова (12l). */
 export const ACHIEVEMENTS = [
   'first_game', 'first_win', 'games_10', 'streak_5', 'perfect_game', 'host', 'games_50', 'wins_10',
   'games_100', 'host_10', 'streak_10', 'win_streak_3', 'blitz_win', 'final_hit', 'comeback', 'friends_5',
@@ -12,6 +12,7 @@ export const ACHIEVEMENTS = [
   'in_debt', 'zero', 'last_place', 'last_place_5', 'black_stripe', 'so_close', 'gullible', 'all_in_lost',
   'burned', 'umbrella', 'same_river', 'slowpoke', 'debuff_magnet', 'who_am_i',
   'lawyer', 'hammer', 'honest', 'wanderer', 'own_pace', 'risky', 'peeker', 'chosen_one',
+  'chronicler',
 ] as const;
 export type AchievementId = (typeof ACHIEVEMENTS)[number];
 
@@ -91,6 +92,7 @@ export const ACHIEVEMENT_INFO: Record<AchievementId, { group: AchievementGroup; 
   risky: { group: 'powers', goal: null },
   peeker: { group: 'powers', goal: null },
   chosen_one: { group: 'company', goal: null },
+  chronicler: { group: 'company', goal: 20 },
 };
 
 /** Антидосягнення (12j): група anti, у порядку ACHIEVEMENTS. */

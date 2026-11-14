@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { acceptGroupInvite, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
+import { acceptGroupInvite, markGroupUses, createGroup, createGroupItem, joinGroup, setHideAnti, deletePushSubscription, fetchQuizLikes, createPrize, deletePrize, gamePrizes, myPrizes, placePrizes, updatePrize, authProviders, claimSlot, continueGame, deleteSavedGame, gameSlots, getFavoriteStickers, saveFavoriteStickers, createAutopilotGame, getAutopilotCheck, deleteQuiz, follow, unfollow, googleSignIn, listQuizzes, me, signIn, signOut, signUp, updateQuiz, uploadAudio, uploadImage } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -289,6 +289,14 @@ describe('groups (12k)', () => {
     expect(await acceptGroupInvite('g1')).toEqual({ ok: true, id: 'g1' });
     expect(sent(fetchMock)[0]).toBe('/api/me/group-invites/g1/accept');
     expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST' });
+  });
+
+  it('marks group records used in a quiz with POST and the body (12l)', async () => {
+    const input = { quizId: 'q1', itemIds: ['i1', 'i2'] };
+    const fetchMock = respond(200, { marked: 2 });
+    expect(await markGroupUses('g/1', input)).toEqual({ ok: true, marked: 2 });
+    expect(sent(fetchMock)[0]).toBe('/api/groups/g%2F1/uses');
+    expect(sent(fetchMock)[1]).toMatchObject({ method: 'POST', body: JSON.stringify(input) });
   });
 
   it('keeps the reason of a bad group', async () => {

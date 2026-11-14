@@ -36,6 +36,7 @@ const item = (id: string, extra: Partial<GroupItem>): GroupItem => ({
   author: { id: 'u2', nickname: 'Петро', avatar: null },
   mine: false,
   canDelete: false,
+  uses: [],
   createdAt: at,
   updatedAt: at,
   ...extra,
@@ -109,5 +110,44 @@ describe('ItemList (12k)', () => {
     const add = await screen.findByRole('button', { name: 'Додати запис' });
     expect((add as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('У групі вже 500 записів — це межа.')).toBeTruthy();
+  });
+});
+
+describe('ItemList: «використано» and «Вікторина з групи» (12l)', () => {
+  const used = { quizId: 'q1', title: 'Вікторина: Родина Квіткових', mine: false, at };
+
+  it('a used record says where; «Ще не використані» keeps the unused ones', async () => {
+    vi.mocked(getGroupItems).mockResolvedValue({ ok: true, data: [{ ...items[0]!, uses: [used] }, items[1]!, items[2]!] });
+    open();
+    await screen.findByText('Як тато заблукав у лісі по гриби');
+    const card = document.querySelector('article.group-item')!;
+    expect(card.querySelector('.group-item-used')?.textContent).toBe('Використано у «Вікторина: Родина Квіткових»');
+    const unused = screen.getByRole('button', { name: 'Ще не використані' });
+    fireEvent.click(unused);
+    expect(unused.getAttribute('aria-pressed')).toBe('true');
+    expect(texts()).toEqual(['„Хто рано встає, тому кава гаряча“ — дідусь Іван', 'Оля колись спекла торт без борошна']);
+  });
+
+  it('«Вікторина з групи» turns the cards into checkboxes; «Скасувати» brings back the usual cards', async () => {
+    open();
+    await screen.findByText('Як тато заблукав у лісі по гриби');
+    fireEvent.click(screen.getByRole('button', { name: 'Вікторина з групи' }));
+    expect(screen.queryByRole('link', { name: 'Змінити' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Видалити' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Скласти вікторину · 0' }) as HTMLButtonElement).disabled).toBe(true);
+    const boxes = screen.getAllByRole('checkbox', { name: 'Узяти у вікторину' });
+    expect(boxes).toHaveLength(3);
+    for (const box of boxes) fireEvent.click(box);
+    expect((screen.getByRole('button', { name: 'Скласти вікторину · 3' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Скасувати' }));
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Змінити' })).toBeTruthy();
+  });
+
+  it('no records — no «Вікторина з групи»', async () => {
+    vi.mocked(getGroupItems).mockResolvedValue({ ok: true, data: [] });
+    open();
+    await screen.findByText(/Тут житимуть ваші історії/);
+    expect(screen.queryByRole('button', { name: 'Вікторина з групи' })).toBeNull();
   });
 });

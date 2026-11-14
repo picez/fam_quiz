@@ -5,6 +5,10 @@ import { LIMITS, quizSchema, roundQuestions, rulesOf, type BoardRound, type Ques
 import { t } from '../i18n';
 import { newBetsRound, newBlitzRound, newBoardRound, newClassicRound, newLadderRound, newQuestion, newQuiz, newSurvivalRound } from './draft';
 import { QuizEditor } from './QuizEditor';
+import { getGroup, getGroupItems, getGroups } from '../api';
+import { GroupDraftsProvider } from './group-drafts';
+
+vi.mock('../api', async (importOriginal) => ({ ...(await importOriginal<typeof import('../api')>()), getGroups: vi.fn(), getGroup: vi.fn(), getGroupItems: vi.fn() }));
 
 afterEach(() => {
   cleanup();
@@ -3274,5 +3278,102 @@ describe('QuizEditor: code quest round (29g)', () => {
     expect(screen.getByLabelText(t('questBonusFirstCount'))).toBeTruthy();
     addRound('Класичний');
     expect(screen.queryByText(t('questBuffLast'))).toBeNull();
+  });
+});
+
+describe('QuizEditor: «Із групи» (12l)', () => {
+  const at = '2026-11-14T10:00:00.000Z';
+  const story = {
+    id: 'i-story',
+    kind: 'story' as const,
+    text: 'Як тато заблукав у лісі по гриби й вийшов до сусіднього села. Шукали всім селом. Знайшовся з повним кошиком.',
+    about: [{ kind: 'name' as const, name: 'тато' }],
+    answer: 'Тато',
+    year: 1998,
+    photo: `/uploads/${'ab'.repeat(16)}.jpg`,
+    surprise: false,
+    author: null,
+    mine: true,
+    canDelete: true,
+    uses: [],
+    createdAt: at,
+    updatedAt: at,
+  };
+  const group = { id: 'g1', name: 'Родина Квіткових', emoji: '🌻' as const, description: '', role: 'owner' as const, people: 3, items: 1, joinedAt: at };
+  const members = ['Оля Квіткова', 'Петро Гай', 'Іра Лис'].map((nickname, i) => ({ id: `u${i}`, nickname, avatar: null, role: i === 0 ? ('owner' as const) : ('member' as const), joinedAt: at, you: i === 0 }));
+
+  function withGroups(initial: Quiz = newQuiz()) {
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [group], invites: [] });
+    vi.mocked(getGroup).mockResolvedValue({ ok: true, ...group, members });
+    vi.mocked(getGroupItems).mockResolvedValue({ ok: true, data: [story] });
+    const onDraft = vi.fn();
+    render(
+      <GroupDraftsProvider initial={null} onChange={vi.fn()}>
+        <QuizEditor initial={initial} heading="Нова вікторина" onSave={vi.fn(async () => null)} onCancel={vi.fn()} onDraft={onDraft} />
+      </GroupDraftsProvider>,
+    );
+    return { onDraft };
+  }
+  const fromGroup = () => screen.getByRole('button', { name: 'Із групи' }) as HTMLButtonElement;
+  const pickWho = async () => {
+    fireEvent.click(fromGroup());
+    fireEvent.click(await screen.findByRole('button', { name: /^Як тато заблукав/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Хто це\?/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Вставити запитання' }));
+  };
+
+  it('classic: the drafted question goes to the end of the list, is picked and has the reminders above it', async () => {
+    withGroups();
+    await pickWho();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const items = document.querySelectorAll('.question-list li');
+    expect(items).toHaveLength(2);
+    const picked = within(items[1] as HTMLElement).getByRole('button');
+    expect(picked.textContent).toContain('Хто це? Як ___ заблукав');
+    expect(picked.getAttribute('aria-current')).toBe('true');
+    expect(screen.getByRole('note').textContent).toContain('Із запису групи');
+    expect(screen.getByRole('note').textContent).toContain('Перевір, чи фото не підказує відповідь.');
+    expect((screen.getByLabelText('Текст запитання') as HTMLTextAreaElement).value.startsWith('Хто це? Як ___ заблукав')).toBe(true);
+  });
+
+  it('«Ва-банк» gets the next price, «Вибування» 100', async () => {
+    const { onDraft } = withGroups();
+    addRound('Ва-банк');
+    await pickWho();
+    expect(Array.from(document.querySelectorAll('.question-item-price')).map((el) => el.textContent).at(-1)).toBe('600');
+
+    addRound('Вибування');
+    await pickWho();
+    const quiz = onDraft.mock.calls.at(-1)![0] as Quiz;
+    const survival = quiz.rounds.at(-1)!;
+    if (survival.type !== 'survival') throw new Error(survival.type);
+    expect(survival.questions.at(-1)).toMatchObject({ type: 'single', points: 100 });
+  });
+
+  it('no button in «Мільйонер» and «Головоломки»', () => {
+    withGroups();
+    expect(fromGroup()).toBeTruthy();
+    addRound('Мільйонер');
+    expect(screen.queryByRole('button', { name: 'Із групи' })).toBeNull();
+    addRound('Головоломки');
+    expect(screen.queryByRole('button', { name: 'Із групи' })).toBeNull();
+  });
+
+  it('blitz: «Хто я?» and «Блеф» are not available there', async () => {
+    withGroups();
+    addRound('Бліц');
+    fireEvent.click(fromGroup());
+    fireEvent.click(await screen.findByRole('button', { name: /^Як тато заблукав/ }));
+    for (const name of [/^Хто я\?/, /^Блеф/]) {
+      const button = screen.getByRole('button', { name }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      expect(button.textContent).toContain('У цьому раунді таких запитань немає');
+    }
+  });
+
+  it('a full list has no room for a question from the group', () => {
+    const round = { ...newClassicRound(), questions: Array.from({ length: LIMITS.maxQuestions }, () => newQuestion('single')) };
+    withGroups({ ...newQuiz(), rounds: [round] });
+    expect(fromGroup().disabled).toBe(true);
   });
 });

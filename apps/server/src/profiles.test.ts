@@ -196,7 +196,7 @@ describe('profile facts', () => {
     // 12i: відповіді в тесті миттєві, тож Олена має й «Швидкі пальці» (правильна швидше ніж за 2 с) — якщо час відповіді
     // не вийшов рівно 0 мс (відкриття й відповідь в одну мілісекунду; «Швидкі пальці» вимагають час > 0).
     expect(earned(olena.achievements).filter((id) => id !== 'fast_answer')).toEqual(['first_game', 'first_win']);
-    expect(olena.achievements).toHaveLength(70);
+    expect(olena.achievements).toHaveLength(71);
     // 12i: дата — ISO-мить отримання (гра записана й нагороджена) чи null для неотриманих.
     expect(olena.achievements.map((a) => a.id)).toEqual([...ACHIEVEMENTS]);
     for (const a of olena.achievements) expect(a.earnedAt === null || !Number.isNaN(Date.parse(a.earnedAt))).toBe(true);

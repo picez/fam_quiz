@@ -56,3 +56,12 @@ describe('styles.css right to left', () => {
     expect(/\.ltr-isolate\s*\{\s*direction:\s*ltr;\s*unicode-bidi:\s*isolate;\s*\}/.test(css)).toBe(true);
   });
 });
+
+describe('styles.css: «Вікторина з групи» bar (12l)', () => {
+  it('has no own bottom offset: only the phone menu rule (≤ 700 px) lifts sticky .actions', () => {
+    const rule = /\.group-quiz-bar \{[^}]*\}/.exec(css)?.[0] ?? '';
+    expect(rule).not.toBe('');
+    expect(rule).not.toMatch(/bottom\s*:/);
+    expect(css).toMatch(/@media \(max-width: 700px\) \{[^@]*\.with-menu \.actions \{\s*bottom: calc\(var\(--menu-h\)/);
+  });
+});

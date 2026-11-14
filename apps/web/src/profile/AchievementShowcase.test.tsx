@@ -21,7 +21,7 @@ afterEach(cleanup);
 describe('AchievementShowcase', () => {
   it('heads with the earned count and links to all', () => {
     open(all(EARNED));
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Ачівки · 7 з 70');
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Ачівки · 7 з 71');
     expect(screen.getByRole('link', { name: /^усі/ }).getAttribute('href')).toBe('/profile/achievements');
     expect(document.querySelectorAll('.achievement-square')).toHaveLength(5);
   });
@@ -48,6 +48,6 @@ describe('AchievementShowcase', () => {
     expect(screen.getByText('Ще жодного досягнення')).toBeTruthy();
     expect(document.querySelector('.cloud-motif')).toBeTruthy();
     expect(document.querySelectorAll('.achievement-square')).toHaveLength(0);
-    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Ачівки · 0 з 70');
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain('Ачівки · 0 з 71');
   });
 });

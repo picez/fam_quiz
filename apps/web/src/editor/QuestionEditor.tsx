@@ -22,6 +22,7 @@ import { SudokuEditor } from './SudokuEditor';
 import { TimedListEditor } from './TimedListEditor';
 import { WallEditor } from './WallEditor';
 import { WordLadderEditor } from './WordLadderEditor';
+import { GroupDraftNotes } from './group-drafts';
 import { changeType, maxTimeOf, moveItem, type QuestionType } from './draft';
 import { newId } from './new-id';
 
@@ -857,6 +858,7 @@ export function QuestionEditor({ question, onChange, types, showPoints = true, s
   const isVote = question.type === 'poll' || question.type === 'wordcloud';
   return (
     <div className="question-edit">
+      <GroupDraftNotes questionId={question.id} />
       <div className="with-help">
         <div className="type-chips" role="group" aria-label={t('questionType')}>
           {types.map((type: QuestionType) => (

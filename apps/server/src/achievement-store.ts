@@ -18,7 +18,7 @@ import { and, asc, count, eq, gt, gte, inArray, isNotNull, isNull, ne, notExists
 import { loadAchievementGames, whoIn, type AchievementGame } from './achievement-games';
 import { AWAY_DATA_SINCE, bestStreak, careerEarned, careerProgress, friendsPlayedWith, hitFinal, honestStreak, isComeback, isPerfect, winStreak, wonBlitzRound, type CareerFacts } from './achievements';
 import type { Db } from './db/client';
-import { ADJUSTMENT_ATTEMPT, answer, follow, game, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
+import { ADJUSTMENT_ATTEMPT, answer, follow, game, groupItem, participant, PENALTY_ATTEMPT, profile, quiz, scoreAdjustment, userAchievement } from './db/schema';
 import { gameAchievements } from './game-achievements';
 import { answeredTypes, answeredTypesAround, gameTables, playerGames, type GameTable } from './history';
 import { ensureProfile } from './profiles';
@@ -86,6 +86,8 @@ interface CareerCounts {
   types: { all: Set<QuestionType>; without: Set<QuestionType> } | null;
   /** Соло-ігри (завершені, з AWAY_DATA_SINCE) і чи був у них свій рядок з away_ms ≥ AWAY_MS.mark (12j). */
   soloAway: { gameId: string; startedAt: Date; away: boolean }[];
+  /** Записів у групах, які людина написала (12l); від ігор не залежить. */
+  groupItems: number;
 }
 
 /** Один набір запитів на лічильники: і «зараз», і «до гри split» (умовні count, а не другий набір запитів). */
@@ -125,6 +127,7 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
     .leftJoin(answer, and(eq(answer.participantId, participant.id), gte(answer.awayMs, AWAY_MS.mark)))
     .where(and(eq(participant.userId, userId), isNull(participant.teamId), eq(participant.isTeam, false), eq(game.status, 'finished'), gte(game.startedAt, AWAY_DATA_SINCE)))
     .groupBy(game.id, game.startedAt);
+  const [written] = await db.select({ n: count() }).from(groupItem).where(eq(groupItem.authorId, userId));
   let types: CareerCounts['types'] = null;
   if (withTypes) {
     if (split === null) {
@@ -141,6 +144,7 @@ async function careerCounts(db: Db, userId: string, split: string | null, withTy
     hostedInGame,
     types,
     soloAway: soloAway.map((row) => ({ gameId: row.gameId, startedAt: row.startedAt, away: row.away > 0 })),
+    groupItems: Number(written?.n ?? 0),
   };
 }
 
@@ -181,6 +185,7 @@ function factsOf(userId: string, inputs: CareerInputs, counts: CareerCounts, wit
     questionTypes: types?.size ?? 0,
     lastPlaces: played.filter(isLastPlace).length,
     honestStreak: honestStreak(without === null ? counts.soloAway : counts.soloAway.filter((g) => g.gameId !== without)),
+    groupItems: counts.groupItems,
   };
 }
 
@@ -281,6 +286,9 @@ async function missedAchievements(
   }
 }
 
+/** Кар'єрні ачівки не з ігор: доповнення історії не пише їх «давно». */
+const NOT_FROM_GAMES: ReadonlySet<AchievementId> = new Set<AchievementId>(['chronicler']);
+
 export interface SyncOptions {
   /** Уже прочитані ігри профілю (усі). */
   prepared?: CareerInputs;
@@ -288,6 +296,8 @@ export interface SyncOptions {
   types?: boolean;
   /** Куди віддати збій наздоганяння пропущених ігор (читання від нього не падає). */
   onError?: (error: unknown) => void;
+  /** Мить для нових кар'єрних ачівок без гри (12l: запис групи); немає — new Date(). */
+  now?: Date;
 }
 
 /**
@@ -323,7 +333,8 @@ export async function syncAchievements(
     for (const [id, gameId] of await historyAchievements(db, userId, at?.gameId ?? null)) want(id, null, gameId);
     // Кар'єра «до» щойно завершеної гри: те, що дала саме вона, отримає її дату нижче.
     const before = split === null ? facts : factsOf(userId, inputs, counts, split);
-    for (const id of careerEarned(before)) want(id, null, null);
+    // «Літописець» (12l) приходить від записів групи, а не з ігор: «давно» він не буває — отримує дату нижче.
+    for (const id of careerEarned(before)) if (!NOT_FROM_GAMES.has(id)) want(id, null, null);
   }
   if (at !== null) {
     const loaded = at.game ?? (await loadAchievementGames(db, [at.gameId]))[0];
@@ -341,9 +352,13 @@ export async function syncAchievements(
     }
     await missedAchievements(db, userId, missed, want, onError);
   }
-  const now = new Date();
+  const now = options.now ?? new Date();
   const careerAt = at ?? missed.at(-1) ?? null;
-  for (const id of careerEarned(facts)) want(id, careerAt?.earnedAt ?? now, careerAt?.gameId ?? null);
+  for (const id of careerEarned(facts)) {
+    // Ачівки не з ігор (12l) — завжди «зараз» і без гри, навіть якщо їх застала гра чи наздоганяння.
+    if (NOT_FROM_GAMES.has(id)) want(id, now, null);
+    else want(id, careerAt?.earnedAt ?? now, careerAt?.gameId ?? null);
+  }
 
   let fresh: AchievementId[] = [];
   if (pending.size > 0) {

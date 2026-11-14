@@ -71,6 +71,7 @@ describe('group routes (12k)', () => {
       ['POST', `/api/groups/${groupId}/items`, record],
       ['PUT', `/api/groups/${groupId}/items/${item.id}`, record],
       ['DELETE', `/api/groups/${groupId}/items/${item.id}`],
+      ['POST', `/api/groups/${groupId}/uses`, { quizId: MISSING, itemIds: [item.id] }],
     ];
     const missing = routes(MISSING);
     for (const [index, [method, url, payload]] of routes(id).entries()) {
@@ -251,5 +252,59 @@ describe('group routes (12k)', () => {
     for (let i = 0; i < 21; i++) statuses.push((await call('GET', `/api/groups/join/${code}`, guesser.cookie)).statusCode);
     expect(statuses.slice(0, 20).every((status) => status === 200)).toBe(true);
     expect(statuses[20]).toBe(429);
+  });
+});
+
+describe('group record uses route (12l)', () => {
+  async function quizOf(ownerId: string, title: string): Promise<string> {
+    const { makeQuiz, single } = await import('@quiz/engine/testing');
+    const { quiz } = await import('./db/schema');
+    const source = makeQuiz([single]);
+    const [row] = await db
+      .insert(quiz)
+      .values({ ownerId, title, description: '', settings: source.settings, rounds: source.rounds })
+      .returning();
+    return row.id;
+  }
+
+  it('marks records used only in my own quiz; the list shows the title', async () => {
+    const { olia, petro, id } = await family();
+    const item = (await call('POST', `/api/groups/${id}/items`, olia.cookie, record)).json() as GroupItem;
+    expect(item.uses).toEqual([]);
+    const quizId = await quizOf(olia.id, 'Родинна розминка');
+
+    const foreign = await call('POST', `/api/groups/${id}/uses`, petro.cookie, { quizId, itemIds: [item.id] });
+    expect([foreign.statusCode, foreign.json()]).toEqual([404, { error: 'quiz_not_found' }]);
+    const empty = await call('POST', `/api/groups/${id}/uses`, olia.cookie, { quizId, itemIds: [] });
+    expect([empty.statusCode, empty.json()]).toEqual([400, { error: 'invalid_payload' }]);
+
+    const marked = await call('POST', `/api/groups/${id}/uses`, olia.cookie, { quizId, itemIds: [item.id] });
+    expect([marked.statusCode, marked.json()]).toEqual([200, { marked: 1 }]);
+    const forPetro = (await call('GET', `/api/groups/${id}/items`, petro.cookie)).json() as GroupItem[];
+    expect(forPetro[0].uses).toMatchObject([{ quizId, title: 'Родинна розминка', mine: false }]);
+  });
+});
+
+describe('«Літописець» right after the 20th record (12l)', () => {
+  it('19 records give nothing; the 20th through the route earns it, dated at the record and not tied to a game', async () => {
+    const { and, eq } = await import('drizzle-orm');
+    const { userAchievement } = await import('./db/schema');
+    const { petro, id } = await family();
+    await db.insert(groupItem).values(Array.from({ length: 18 }, (_, i) => ({ groupId: id, authorId: petro.id, kind: 'fact' as const, text: `Родинна дрібниця №${i + 1}` })));
+    const row = async () =>
+      (await db.select().from(userAchievement).where(and(eq(userAchievement.userId, petro.id), eq(userAchievement.achievementId, 'chronicler'))))[0];
+
+    expect((await call('POST', `/api/groups/${id}/items`, petro.cookie, { ...record, text: 'Родинна дрібниця №19' })).statusCode).toBe(201);
+    expect(await row()).toBeUndefined();
+
+    const before = Date.now();
+    const twentieth = await call('POST', `/api/groups/${id}/items`, petro.cookie, { ...record, text: 'Родинна дрібниця №20' });
+    expect(twentieth.statusCode).toBe(201);
+    const created = new Date((twentieth.json() as GroupItem).createdAt);
+    const earned = await row();
+    expect(earned).toBeDefined();
+    expect(earned.gameId).toBeNull();
+    expect(earned.earnedAt?.getTime()).toBe(created.getTime());
+    expect(created.getTime()).toBeGreaterThanOrEqual(before - 1);
   });
 });

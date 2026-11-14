@@ -137,6 +137,7 @@ Google не приймає адреси на кшталт `http://192.168.0.10:3
 - Групи (12k; лише учасникам, чужий отримує `404 group_not_found`): `GET|POST /api/groups`,
   `GET|PUT|DELETE /api/groups/:id`, `POST /api/groups/:id/code` (нове посилання), `POST /api/groups/:id/owner`,
   `DELETE /api/groups/:id/members/:userId`, `POST /api/groups/:id/leave`, `POST /api/groups/:id/invites`,
-  `DELETE /api/groups/:id/invites/:userId`, `GET|POST /api/groups/:id/items`, `PUT|DELETE /api/groups/:id/items/:itemId`;
+  `DELETE /api/groups/:id/invites/:userId`, `GET|POST /api/groups/:id/items`, `PUT|DELETE /api/groups/:id/items/:itemId`,
+  `POST /api/groups/:id/uses` (12l: «використано у «…»» — лише свої вікторини й видимі записи);
   вступ за посиланням — `GET|POST /api/groups/join/:code`; запрошення до мене — `GET /api/me/group-invites`,
   `POST /api/me/group-invites/:id/accept`, `DELETE /api/me/group-invites/:id`.

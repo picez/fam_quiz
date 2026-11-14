@@ -189,7 +189,7 @@ async function anti12j() {
   // ── 6. Сторінка досягнень Петра: група «Антидосягнення» остання, «У мінусі» отримано в червонуватій рамці. ──
   await petro.goto(`${base}/profile/achievements`);
   const count = (await petro.locator('.achievements-count').textContent({ timeout: 15_000 }))!;
-  expect(count).toMatch(/^Отримано \d+ з 70$/);
+  expect(count).toMatch(/^Отримано \d+ з 71$/);
   const groups = await petro.locator('section.achievement-group h2').allTextContents();
   expect(groups.at(-1)).toBe('Антидосягнення');
   const debtCard = achievementCard(petro, 'У мінусі');
@@ -212,13 +212,13 @@ async function anti12j() {
   await olya.reload();
   const olyaCount = olya.locator('.achievements-count');
   await olyaCount.waitFor();
-  expect(await olyaCount.textContent()).toMatch(/^Отримано \d+ з 54$/);
+  expect(await olyaCount.textContent()).toMatch(/^Отримано \d+ з 55$/);
   expect(await olya.getByRole('heading', { level: 2, name: 'Антидосягнення' }).count()).toBe(0);
   expect(await achievementCard(olya, 'У мінусі').count()).toBe(0);
   const publicProfile = (await (await olya.request.get(`${base}/api/profiles/${petroId}`)).json()) as PublicProfile;
   expect(publicProfile.achievements.map((a) => a.id)).not.toContain('in_debt');
   const publicPage = (await (await olya.request.get(`${base}/api/profiles/${petroId}/achievements`)).json()) as AchievementsPage;
-  expect(publicPage.total).toBe(54);
+  expect(publicPage.total).toBe(55);
   await expectNoSideScroll(olya, 'p12j-public-hidden');
 
   // ── 8. Профіль: свій у Петра й публічний очима Олі — без бічного скролу. ──
@@ -233,7 +233,7 @@ async function anti12j() {
   expect(problems).toEqual([]);
 }
 
-it('part 12j: anti-achievements — Петро risks and ends in debt, his 375 phone shows «У мінусі» with «Ну… теж досягнення», Оля gets the umbrella under her common ones, the guest Іра is asked to sign in, the 1280 × 720 stage ends the awards with «Нові досягнення», the anti group sits last on the achievements page, and once Петро hides it Оля sees «з 54» and no anti-achievements on his public page and profile', async () => {
+it('part 12j: anti-achievements — Петро risks and ends in debt, his 375 phone shows «У мінусі» with «Ну… теж досягнення», Оля gets the umbrella under her common ones, the guest Іра is asked to sign in, the 1280 × 720 stage ends the awards with «Нові досягнення», the anti group sits last on the achievements page, and once Петро hides it Оля sees «з 55» and no anti-achievements on his public page and profile', async () => {
   try {
     await anti12j();
   } catch (error) {

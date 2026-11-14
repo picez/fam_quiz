@@ -51,6 +51,8 @@ import {
   type Round,
 } from '@quiz/shared';
 import { QUESTION_TYPES, blankCrosswordEntry, blankMemoryCard, blankMoreLessPair, randomSudokuSeed } from './draft';
+import type { DraftNote } from '../groups/templates';
+import type { GroupDrafts } from './group-drafts';
 import { newId } from './new-id';
 
 const blanks = (count: number) => Array.from({ length: count }, () => ({ id: newId(), text: '' }));
@@ -592,6 +594,56 @@ export function saveDraft(id: string | undefined, quiz: Quiz): void {
 export function clearDraft(id: string | undefined): void {
   try {
     sessionStorage.removeItem(key(id));
+  } catch {
+    // Нічого прибирати.
+  }
+}
+
+const groupKey = (id: string | undefined) => `quiz:groupdraft:${id ?? 'new'}`;
+
+/** Нагадування із запису групи (12l): лише відомі ключі «groupNote…». */
+function reviveNotes(value: unknown): DraftNote[] | null {
+  if (!Array.isArray(value)) return null;
+  const notes: DraftNote[] = [];
+  for (const note of value) {
+    if (!isObjectLike(note) || typeof note.key !== 'string' || !note.key.startsWith('groupNote')) return null;
+    const vars = isObjectLike(note.vars) ? (note.vars as Record<string, string | number>) : undefined;
+    notes.push({ key: note.key as DraftNote['key'], ...(vars === undefined ? {} : { vars }) });
+  }
+  return notes;
+}
+
+/** Звідки запитання чернетки (12l) — поруч із quiz:draft:…; зіпсоване — null. */
+export function loadGroupDrafts(id: string | undefined): GroupDrafts | null {
+  try {
+    const raw = sessionStorage.getItem(groupKey(id));
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isObjectLike(parsed) || !isObjectLike(parsed.entries)) return null;
+    const entries: GroupDrafts['entries'] = {};
+    for (const [questionId, entry] of Object.entries(parsed.entries)) {
+      if (!isObjectLike(entry) || typeof entry.groupId !== 'string' || typeof entry.itemId !== 'string') return null;
+      const notes = reviveNotes(entry.notes);
+      if (notes === null) return null;
+      entries[questionId] = { groupId: entry.groupId, itemId: entry.itemId, notes };
+    }
+    return parsed.fresh === true ? { entries, fresh: true } : { entries };
+  } catch {
+    return null;
+  }
+}
+
+export function saveGroupDrafts(id: string | undefined, drafts: GroupDrafts): void {
+  try {
+    sessionStorage.setItem(groupKey(id), JSON.stringify(drafts));
+  } catch {
+    // Сховище недоступне: позначки «використано» для цих запитань не поставляться.
+  }
+}
+
+export function clearGroupDrafts(id: string | undefined): void {
+  try {
+    sessionStorage.removeItem(groupKey(id));
   } catch {
     // Нічого прибирати.
   }

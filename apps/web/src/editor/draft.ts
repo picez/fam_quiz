@@ -805,6 +805,23 @@ export function withDefaultMode(round: BoardRound, mode: AnswerMode): BoardRound
   };
 }
 
+/** Де в раунді є «Із групи» у списку запитань (12l): класика, бліц, «Ставки», «Аукціон», «Ва-банк», «Вибування», «Квест»; інакше null. */
+export function groupDraftPlace(round: Round): 'list' | null {
+  return (['classic', 'blitz', 'bets', 'auction', 'wipeout', 'survival', 'quest'] as const).includes(round.type as never) ? 'list' : null;
+}
+
+/** Так/ні серед запитань (для панелі «Запитання з групи»). */
+export function booleanCounts(questions: readonly Question[]): { yes: number; no: number } {
+  let yes = 0;
+  let no = 0;
+  for (const question of questions) {
+    if (question.type !== 'boolean') continue;
+    if (question.correct) yes += 1;
+    else no += 1;
+  }
+  return { yes, no };
+}
+
 export function newQuiz(): Quiz {
   return { title: '', description: '', settings: { ...DEFAULT_SETTINGS }, rounds: [newClassicRound()] };
 }

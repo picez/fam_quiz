@@ -3368,3 +3368,21 @@ describe('quest round (29g)', () => {
     expect((loadDraft('quest-first')!.rounds[0] as QuestRound).bonus).toEqual({ kind: 'buff', buff: 'fifty', first: null });
   });
 });
+
+describe('«Із групи» in the editor (12l)', () => {
+  it('has a list button in rounds with a plain question list only', async () => {
+    const { groupDraftPlace } = await import('./draft');
+    const { newQuestRound } = await import('./draft');
+    const rounds: Round[] = [newClassicRound(), newBlitzRound(), newBetsRound(), newAuctionRound(), newWipeoutRound(), newSurvivalRound(), newQuestRound()];
+    for (const round of rounds) expect(groupDraftPlace(round), round.type).toBe('list');
+    for (const round of [newLadderRound(), newPuzzlesRound(), newFinalRound(), newTruthRound(), newBoardRound()] as Round[]) expect(groupDraftPlace(round), round.type).toBeNull();
+  });
+
+  it('counts «так» and «ні» among the yes/no questions', async () => {
+    const { booleanCounts } = await import('./draft');
+    const yes = { ...newQuestion('boolean'), correct: true } as Question;
+    const no = { ...newQuestion('boolean'), correct: false } as Question;
+    expect(booleanCounts([yes, no, yes, newQuestion('single')])).toEqual({ yes: 2, no: 1 });
+    expect(booleanCounts([])).toEqual({ yes: 0, no: 0 });
+  });
+});

@@ -4,6 +4,7 @@ import {
   type GroupAboutView,
   type GroupItem,
   type GroupItemInput,
+  type GroupItemUse,
   type GroupRole,
   type ProfileCard,
 } from '@quiz/shared';
@@ -11,6 +12,7 @@ import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, groupItem, groupMember, profile } from './db/schema';
 import { notHidden } from './feed-store';
+import { usesOf } from './group-uses';
 import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -59,7 +61,13 @@ async function memberCards(db: Db, groupId: string): Promise<Map<string, Profile
   return cards;
 }
 
-function toView(row: ItemRow, members: Map<string, ProfileCard>, viewerId: string, role: GroupRole): GroupItem {
+function toView(
+  row: ItemRow,
+  members: Map<string, ProfileCard>,
+  viewerId: string,
+  role: GroupRole,
+  uses: GroupItemUse[] = [],
+): GroupItem {
   const about: GroupAboutView[] = row.about.map((entry) => {
     if (entry.kind === 'name') return { kind: 'name', name: entry.name };
     const now = members.get(entry.userId);
@@ -80,6 +88,7 @@ function toView(row: ItemRow, members: Map<string, ProfileCard>, viewerId: strin
     author: row.authorId === null ? null : (members.get(row.authorId) ?? null),
     mine,
     canDelete: mine || role === 'owner',
+    uses,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -93,7 +102,8 @@ export async function listItems(db: Db, groupId: string, viewerId: string, viewe
     .where(and(eq(groupItem.groupId, groupId), visibleItemsWhere(viewerId)))
     .orderBy(desc(groupItem.createdAt), desc(groupItem.id));
   const members = await memberCards(db, groupId);
-  return rows.map((row) => toView(row, members, viewerId, viewerRole));
+  const uses = await usesOf(db, rows.map((row) => row.id), viewerId);
+  return rows.map((row) => toView(row, members, viewerId, viewerRole, uses.get(row.id) ?? []));
 }
 
 /**
@@ -167,6 +177,7 @@ export async function createItem(
     return { ok: true, row, members } as const;
   });
   if (!outcome.ok) return outcome;
+  // Новий запис ще ніде не використано (12l): uses порожній.
   return { ok: true, item: toView(outcome.row, outcome.members, authorId, 'member') };
 }
 
@@ -204,7 +215,9 @@ export async function updateItem(
     return { ok: true, row, members } as const;
   });
   if (!outcome.ok) return outcome;
-  return { ok: true, item: toView(outcome.row, outcome.members, userId, 'member') };
+  // Позначки «використано» лишаються після зміни запису (12l).
+  const uses = await usesOf(db, [itemId], userId);
+  return { ok: true, item: toView(outcome.row, outcome.members, userId, 'member', uses.get(itemId) ?? []) };
 }
 
 export async function deleteItem(

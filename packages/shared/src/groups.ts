@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ProfileCard } from './profile';
-import { IMAGE_URL, answerKey } from './quiz';
+import { IMAGE_URL, LIMITS, answerKey } from './quiz';
 import { UNSTORABLE, isStorable } from './text';
 
 /** Межі груп (12k, розділ 15 специфікації). */
@@ -207,15 +207,41 @@ export interface GroupItem {
   author: ProfileCard | null;
   mine: boolean;
   canDelete: boolean;
+  /** Вікторини, у яких запис використано (12l), від найстарішої. */
+  uses: GroupItemUse[];
   createdAt: string;
   updatedAt: string;
 }
+
+/** Позначка «використано у «…»» (12l): title — поточна назва вікторини. */
+export interface GroupItemUse {
+  quizId: string;
+  title: string;
+  /** вікторина глядача */
+  mine: boolean;
+  at: string;
+}
+
+/** Позначити записи групи використаними у своїй вікторині (12l). */
+export const groupUsesSchema = z
+  .object({
+    quizId: z.string().uuid(),
+    itemIds: z
+      .array(z.string().uuid())
+      .min(1)
+      .max(LIMITS.maxQuizQuestions)
+      .refine((ids) => new Set(ids).size === ids.length),
+  })
+  .strict();
+export type GroupUsesInput = z.infer<typeof groupUsesSchema>;
 
 export interface GroupItemFilter {
   query: string;
   kind: GroupItemKind | null;
   /** userId учасника чи answerKey(імені) */
   about: string | null;
+  /** true — лише записи без позначок «використано» (12l). */
+  unused?: boolean;
 }
 
 /** Пошук (answerKey у тексті й відповіді, підрядок) і фільтри; порядок не змінює. */
@@ -223,6 +249,7 @@ export function filterGroupItems(items: readonly GroupItem[], filter: GroupItemF
   const query = answerKey(filter.query);
   return items.filter((item) => {
     if (filter.kind !== null && item.kind !== filter.kind) return false;
+    if (filter.unused === true && item.uses.length > 0) return false;
     if (
       filter.about !== null &&
       !item.about.some((entry) =>

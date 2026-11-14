@@ -34,7 +34,7 @@ export function isPerfect(game: { played: PlayedGame; marks: AnswerMark[] }): bo
   );
 }
 
-/** Кар'єрні факти (16 перших ачівок + 12i + 12j). */
+/** Кар'єрні факти (16 перших ачівок + 12i + 12j + 12l). */
 export interface CareerFacts {
   games: number;
   wins: number;
@@ -60,6 +60,8 @@ export interface CareerFacts {
   lastPlaces: number;
   /** Найдовша серія завершених соло-ігор без позначки «поза грою» (з AWAY_DATA_SINCE, 12j). */
   honestStreak: number;
+  /** Записів у групах, які людина написала й які ще є (12l). */
+  groupItems: number;
 }
 
 /** Мить злиття 12e: раніше позначок виходу не писали, і стара гра виглядала б «чесною». */
@@ -179,6 +181,7 @@ const COUNTERS = new Map<AchievementId, (facts: CareerFacts) => number>([
   ['all_types', (f) => f.questionTypes],
   ['last_place_5', (f) => f.lastPlaces],
   ['honest', (f) => f.honestStreak],
+  ['chronicler', (f) => f.groupItems],
 ]);
 
 /** 24 кар'єрні ачівки, отримані за фактами, у порядку ACHIEVEMENTS. */
