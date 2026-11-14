@@ -1,4 +1,4 @@
-import { isUnscored, type Answer, type ErrorCode } from '@quiz/shared';
+import { isUnscored, TEAM_WIDE_TYPES, type Answer, type ErrorCode } from '@quiz/shared';
 // game.ts, buffs.ts, votes.ts і answerer.ts імпортують цей файл, а цей файл — їх; звертання лише під час виклику функцій.
 import { answererMode, answererOf } from './answerer';
 import { blitzRulesOf, buzz, isInstant, withPlay } from './blitz';
@@ -59,16 +59,9 @@ export function actorOf(state: GameState, memberId: string, act: TeamAct): Actor
       // Опитування й «хмару слів» кожен проходить сам.
       const play = state.plays[state.questionIndex];
       if (play !== undefined && isUnscored(play.question)) return actor(memberId);
-      // «Список на час» (27c): кожен учасник дописує спільний список команди.
-      if (play !== undefined && play.question.type === 'timedlist') return actor(team);
-      // «Слова з літер» (27d): так само, один спільний список слів команди.
-      if (play !== undefined && play.question.type === 'letterwords') return actor(team);
-      // «Малюнок» (28c): вгадує будь-хто з команди, за команду.
-      if (play !== undefined && play.question.type === 'drawing') return actor(team);
-      // «Мелодія за нотами» (29e): шматки спільні, відповідає будь-хто з команди; фіксується перша відповідь.
-      if (play !== undefined && play.question.type === 'melody') return actor(team);
-      // «Головоломки» (28d): одна спільна сітка команди — вписує й тисне «Готово» будь-хто.
-      if (play !== undefined && (play.question.type === 'sudoku' || play.question.type === 'crossword' || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory')) return actor(team);
+      // Спільна відповідь команди — відповідає будь-хто за команду: «Список на час» (27c) і «Слова з літер» (27d) — один список,
+      // «Малюнок» (28c) — вгадує будь-хто, «Мелодія за нотами» (29e) — шматки спільні, фіксується перша відповідь, «Головоломки» (28d) — одна сітка.
+      if (play !== undefined && TEAM_WIDE_TYPES.includes(play.question.type)) return actor(team);
       const blitz = blitzPlay(state);
       // Миттєвий бліц: відповідає будь-хто, поки команди немає в черзі; повтор відхилить рушій (already_answered).
       if (blitz !== null && blitz.instant) return actor(team);

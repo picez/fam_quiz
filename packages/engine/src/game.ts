@@ -46,6 +46,7 @@ import {
   auctionPrice,
   letterSet,
   isPuzzle,
+  UNGRADED_TYPES,
   shuffle,
   type Rng,
 } from '@quiz/shared';
@@ -2748,7 +2749,7 @@ function overrideGrade(state: GameState, playerId: string, grade: Grade, now?: n
   const target = active?.board?.chooserId ?? playerId;
   const type = active === undefined ? undefined : questionFor(state, active, target).type;
   // Драбина (26c) так само: кожне слово перевірено, бали залежать від найкращого фінішера. Список (27c) — від знахідок усіх.
-  if (type === 'chain' || type === 'wordladder' || type === 'timedlist' || type === 'letterwords' || type === 'moreless' || type === 'drawing' || type === 'sudoku' || type === 'crossword' || type === 'jigsaw' || type === 'spotdiff' || type === 'memory' || type === 'sort' || type === 'wall' || type === 'survey' || type === 'bluff') return fail('wrong_phase');
+  if (type !== undefined && UNGRADED_TYPES.includes(type)) return fail('wrong_phase');
   if (type !== undefined && isUnscored({ type })) return fail('wrong_phase');
   // «Правда про гравця» (28b): бали автора рахує гра з оцінок вгадувачів.
   if (truthPlayOf(state)?.truth.actorId === playerId) return fail('not_allowed');

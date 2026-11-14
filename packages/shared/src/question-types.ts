@@ -491,3 +491,9 @@ export const PROXIMITY_TYPES = typesWhere((t) => t.proximity);
 export const WHOLE_ROW_TYPES = typesWhere((t) => t.wholeRow);
 /** Швидкість відповіді не рахується (factLimitMs → null): драбина, список, слова, «Більше чи менше», малюнок і головоломки. */
 export const SPEEDLESS_TYPES = typesWhere((t) => !t.speed);
+/** Типи з поступом (рушій, рядок ведучого): зміст рядка — у progress, а не в answer; вердикту наживо немає (бали — при закритті), у блефі — за вибором. */
+export const PROGRESS_TYPES = typesWhere((t) => t.progress);
+/** Типи, яких ведучий не оцінює вручну (override відмовляє): ручний фінал на них не чекає рішення. */
+export const UNGRADED_TYPES = typesWhere((t) => !t.hostGraded);
+/** Типи, де відповідає вся команда (team-act → actor(team)): спільний список, малюнок, мелодія, сітка головоломки. */
+export const TEAM_WIDE_TYPES = typesWhere((t) => t.teamWide);
