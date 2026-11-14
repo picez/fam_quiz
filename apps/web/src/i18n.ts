@@ -1848,7 +1848,7 @@ const uk = {
   stageNewAchievementsMore: '+{count}',
   stageNewAchievementsPeople: 'Ще людей: {count}',
   hideAntiLabel: 'Ховати антидосягнення від інших',
-  hideAntiHint: 'Тобі вони видні завжди. Інші не побачать їх ні на сторінці досягнень, ні в профілі, ні на сцені.',
+  hideAntiHint: 'Ти бачиш їх завжди. Інші не побачать їх ні на сторінці досягнень, ні в профілі, ні на сцені.',
   hideAntiSaved: 'Збережено',
   avatarOf: 'Аватар {nickname}',
   addFriend: 'Додати в друзі',

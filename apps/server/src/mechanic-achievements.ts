@@ -35,7 +35,8 @@ export function mechanicAchievements(game: AchievementGame, who: AchievementWho)
     if (
       accepted.some((r) => {
         const q = questions.get(r.questionIndex);
-        return q !== undefined && !q.blitz && !TEAM_WIDE_TYPES.includes(q.question.type);
+        // «Правда про гравця»: відповідає капітан, нікого не вибирали.
+        return q !== undefined && !q.blitz && q.roundType !== 'truth' && !TEAM_WIDE_TYPES.includes(q.question.type);
       })
     )
       got.add('chosen_one');

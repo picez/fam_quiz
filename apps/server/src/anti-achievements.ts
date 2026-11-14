@@ -60,11 +60,11 @@ export function antiAchievements(game: AchievementGame, who: AchievementWho): Se
     got.add('gullible');
   }
 
-  // Ва-банк (фінал, «Ставки»): ставку робить учасник рушія, тож рахуються його рядки.
+  // Ва-банк (фінал, «Ставки»): ставку робить учасник рушія, тож рахуються його рядки. Повернена ставка (банк без переможців) — не втрата.
   for (const q of game.questions) {
     if (!(q.ref.final?.allIn.includes(who.participantId) ?? false)) continue;
     const tried = mine.filter((r) => r.questionIndex === q.index && (r.attempt === 0 || r.attempt === PENALTY_ATTEMPT));
-    if (!tried.some((r) => r.accepted)) {
+    if (!tried.some((r) => r.accepted) && tried.reduce((sum, r) => sum + r.points, 0) < 0) {
       got.add('all_in_lost');
       break;
     }

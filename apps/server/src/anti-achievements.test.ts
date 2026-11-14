@@ -122,6 +122,8 @@ describe('antiAchievements: all-in and «Ва-банк»', () => {
     expect(has(fakeGame({ questions: allIn, rows: [miss(0, { wager: 500, points: -500 })] }), 'all_in_lost')).toBe(true);
     expect(has(fakeGame({ questions: allIn, rows: [row(0, { wager: 500, points: 500 })] }), 'all_in_lost')).toBe(false);
     expect(has(fakeGame({ questions: allIn, rows: [row(0, { attempt: PENALTY_ATTEMPT, accepted: false, points: -500 })] }), 'all_in_lost')).toBe(true);
+    // Банк без переможців повертає ставки: нічого не втрачено.
+    expect(has(fakeGame({ questions: allIn, rows: [miss(0, { wager: 500, points: 0 })] }), 'all_in_lost')).toBe(false);
     const old = [q(0, { roundType: 'final' })];
     expect(has(fakeGame({ questions: old, rows: [miss(0, { wager: 500, points: -500 })] }), 'all_in_lost')).toBe(false);
   });
