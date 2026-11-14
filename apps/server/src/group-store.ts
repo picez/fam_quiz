@@ -16,6 +16,7 @@ import {
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, follow, groupInvite, groupMember, profile } from './db/schema';
+import { countVisibleItems } from './group-items';
 import { ensureProfile } from './profiles';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -121,11 +122,6 @@ async function groupsOf(db: Db | Tx, userId: string): Promise<number> {
   return Number(row?.n ?? 0);
 }
 
-/** Скільки записів кожної групи бачить глядач (поки 0; видимі рахує задача 4). */
-async function countItems(_db: Db, _groupIds: readonly string[], _viewerId: string): Promise<Map<string, number>> {
-  return new Map();
-}
-
 /** Мої групи — від найновішого вступу — і запрошення до мене. */
 export async function listGroups(db: Db, userId: string): Promise<GroupsPage> {
   const mine = await db
@@ -148,7 +144,7 @@ export async function listGroups(db: Db, userId: string): Promise<GroupsPage> {
     .innerJoin(familyGroup, eq(familyGroup.id, groupMember.groupId))
     .where(eq(groupMember.userId, userId))
     .orderBy(desc(groupMember.joinedAt), asc(familyGroup.id));
-  const items = await countItems(db, rows.map((r) => r.id), userId);
+  const items = await countVisibleItems(db, rows.map((r) => r.id), userId);
   const groups: GroupCard[] = rows.map((row) => ({
     ...row,
     people: Number(row.people),
@@ -176,7 +172,7 @@ export async function groupDetail(db: Db, groupId: string, viewerId: string): Pr
     members.push({ ...card, role: row.role, joinedAt: row.joinedAt.toISOString(), you: row.userId === viewerId });
   }
   const own = rows.find((r) => r.userId === viewerId);
-  const items = await countItems(db, [groupId], viewerId);
+  const items = await countVisibleItems(db, [groupId], viewerId);
   const detail: GroupDetail = {
     id: group.id,
     name: group.name,

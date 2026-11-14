@@ -266,6 +266,21 @@ describe('group store (12k)', () => {
     expect(await db.select().from(familyGroup).where(eq(familyGroup.id, id))).toEqual([]);
   });
 
+  it('counts only the records the viewer can see', async () => {
+    const olia = await person('Оля');
+    const petro = await person('Петро');
+    const id = await newGroup(olia);
+    await joinByCode(db, await codeOf(id), petro, later(1));
+    await db.insert(groupItem).values([
+      { groupId: id, authorId: petro, kind: 'fact', text: 'Бабуся Ніна свистить двома пальцями' },
+      { groupId: id, authorId: petro, kind: 'fact', text: 'Оля колись пекла торт без борошна', about: [{ kind: 'member', userId: olia, name: 'Оля' }], surprise: true },
+    ]);
+    expect((await listGroups(db, olia)).groups.find((g) => g.id === id)?.items).toBe(1);
+    expect((await groupDetail(db, id, olia))?.items).toBe(1);
+    expect((await listGroups(db, petro)).groups.find((g) => g.id === id)?.items).toBe(2);
+    expect((await groupDetail(db, id, petro))?.items).toBe(2);
+  });
+
   it('deleting a group takes members, invites and records', async () => {
     const olia = await person('Оля');
     const ira = await person('Іра');
