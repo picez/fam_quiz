@@ -4,6 +4,7 @@ import type { AchievementGame, AchievementQuestion, AchievementRow } from './ach
 import { answerRow, groupRounds, ownRows, silentRisk } from './achievement-rows';
 import { antiAchievements } from './anti-achievements';
 import { mechanicAchievements } from './mechanic-achievements';
+import { typeAchievements } from './type-achievements';
 
 /** Пороги ігрових ачівок (12i). */
 export const ACHIEVEMENT_LIMITS = {
@@ -48,7 +49,7 @@ export function kyivHour(date: Date): number {
   return Number(kyivFormat.format(date)) % 24;
 }
 
-/** Ачівки однієї завершеної гри (26 ігрових 12i + 15 антидосягнень і 5 механік 12j, «Рішення плану»); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
+/** Ачівки однієї завершеної гри (26 ігрових 12i + 15 антидосягнень і 5 механік 12j, «Рішення плану» + 33: типи запитань і раунди); незавершена гра — []. Порядок — як у ACHIEVEMENTS. */
 export function gameAchievements(game: AchievementGame, who: AchievementWho): AchievementId[] {
   if (game.status !== 'finished') return [];
   const L = ACHIEVEMENT_LIMITS;
@@ -197,6 +198,8 @@ export function gameAchievements(game: AchievementGame, who: AchievementWho): Ac
   // Антидосягнення й досягнення механік (12j).
   for (const id of antiAchievements(game, who)) got.add(id);
   for (const id of mechanicAchievements(game, who)) got.add(id);
+  // Досягнення за типи запитань (план 33).
+  for (const id of typeAchievements(game, who)) got.add(id);
 
   return ACHIEVEMENTS.filter((id) => got.has(id));
 }
