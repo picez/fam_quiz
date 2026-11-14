@@ -1,4 +1,4 @@
-import { shownDecor } from '@quiz/shared';
+import { clamp, shownDecor } from '@quiz/shared';
 import type { DecorPhoto, TrophyDecor, TrophyKind, TrophyMaterial, TrophyPhotoPlace } from '@quiz/shared';
 import type { Circle, Spot, Vec3 } from './anchors';
 import { layoutDecor } from './decor-places';
@@ -40,10 +40,9 @@ export function coverCrop(
   const fill = Math.min(image.width / box.width, image.height / box.height);
   const sw = (box.width * fill) / crop.scale;
   const sh = (box.height * fill) / crop.scale;
-  const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), max);
   return {
-    sx: clamp(crop.x * image.width - sw / 2, image.width - sw),
-    sy: clamp(crop.y * image.height - sh / 2, image.height - sh),
+    sx: clamp(crop.x * image.width - sw / 2, 0, image.width - sw),
+    sy: clamp(crop.y * image.height - sh / 2, 0, image.height - sh),
     sw,
     sh,
   };

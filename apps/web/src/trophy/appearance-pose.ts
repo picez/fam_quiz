@@ -1,3 +1,4 @@
+import { clamp01 } from '@quiz/shared';
 import type { TrophyAppearance } from '@quiz/shared';
 
 export interface AppearancePose {
@@ -24,7 +25,6 @@ export const NEUTRAL_POSE: AppearancePose = { lift: 0, turn: 0, scale: 1, squash
 /** Тривалість кожної анімації, с. Усі коротші за CEREMONY_MS.step. */
 export const APPEAR_SECONDS: Record<TrophyAppearance, number> = { spin: 1.4, rise: 1.6, drop: 1.3, flash: 1.5 };
 
-const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 /** Ease-out cubic. */
 const ease = (x: number) => 1 - (1 - x) ** 3;
 const tent = (t: number, center: number, half: number) => Math.max(0, 1 - Math.abs(t - center) / half);

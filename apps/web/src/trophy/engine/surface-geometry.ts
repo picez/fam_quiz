@@ -1,4 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, LatheGeometry, Vector2, Vector3 } from 'three';
+import { clamp01 } from '@quiz/shared';
 import { profileRadius, type Profile, type Spot } from '../anchors';
 
 /** Підйом декалі над поверхнею по нормалі вершини. */
@@ -22,8 +23,6 @@ export const DECAL_DEPTH = 0.05;
 const FACING = 0.25;
 /** Нормаль вершини, що відхиляється від грані більше за це (cos), — з сусідньої грані на гострому ребрі; береться нормаль грані. */
 const SMOOTH = 0.5;
-
-const unitClamp = (value: number) => Math.min(1, Math.max(0, value));
 
 /** Вершина в системі проєктора: p — (right, up, normal) відносно центру плями, n — нормаль вершини у світі. */
 interface Point {
@@ -110,7 +109,7 @@ export function projectDecal(surface: BufferGeometry, spot: Spot, lift: number =
         positions.push(world.x, world.y, world.z);
         outNormals.push(n.x, n.y, n.z);
         // Обрізання кладе вершини рівно на межу; округлення не виводить uv за [0, 1].
-        uvs.push(unitClamp(point.p.x / spot.size + 0.5), unitClamp(point.p.y / spot.size + 0.5));
+        uvs.push(clamp01(point.p.x / spot.size + 0.5), clamp01(point.p.y / spot.size + 0.5));
       }
     }
   }
