@@ -22497,3 +22497,160 @@ input.sudoku-editor-cell:focus-visible {
   margin: 0 0 8px;
   padding-inline-start: 1.2em;
 }
+
+/* Панель «Запитання з групи» (12l): картка до 640 px по центру, на телефоні — на весь екран. */
+.group-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.75);
+}
+.group-picker {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(40rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stage);
+}
+.group-picker-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-block-end: 1px solid var(--line);
+}
+.group-picker-head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+.group-picker-head h2:focus {
+  outline: none;
+}
+.group-picker-body {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  min-width: 0;
+  padding: 0.75rem 1rem 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.group-picker > .actions {
+  padding: 0.75rem 1rem;
+  background: var(--stage);
+  border-block-start: 1px solid var(--line);
+}
+.group-picker-step {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+.group-picker-list,
+.group-template-list {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.group-picker-item,
+.group-template {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.group-picker-item:hover,
+.group-template:not(:disabled):hover {
+  border-color: var(--dim);
+}
+.group-template.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.group-template:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.group-template-why {
+  color: var(--bank);
+  font-size: 0.875rem;
+}
+.group-picker-item-text,
+.group-picker-record {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.group-picker-record {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--line);
+  color: var(--dim);
+}
+.group-item-used {
+  color: var(--correct);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.group-truth {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.group-truth textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.group-preview {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.group-preview-text {
+  margin: 0;
+  font-weight: 600;
+}
+.group-preview-options {
+  margin: 0;
+  padding-inline-start: 1.4em;
+}
+.group-preview-options .is-correct {
+  color: var(--correct);
+}
+@media (max-width: 700px) {
+  .group-picker-backdrop {
+    padding: 0;
+  }
+  .group-picker {
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
+}

@@ -3,12 +3,18 @@ import { Link } from 'react-router-dom';
 import type { GroupItem } from '@quiz/shared';
 import { deleteGroupItem } from '../api';
 import { errorText, t } from '../i18n';
+import { namesText } from '../locales/grammar';
 import { nickText } from '../nick';
 import { QuestionImage } from '../screens/QuestionImage';
 
 /** Ім'я позиції «про кого»: учасник — нік (порожній — «Гравець»), вільне ім'я — як записане. */
 export function aboutName(entry: GroupItem['about'][number]): string {
   return entry.kind === 'member' ? nickText(entry.name === '' ? null : entry.name) : entry.name;
+}
+
+/** «Використано у «A» і «B»» (12l): поточні назви вікторин, порожня — «без тексту». */
+export function usedText(uses: GroupItem['uses']): string {
+  return t('groupItemUsed', { titles: namesText(uses.map((use) => `«${use.title.trim() === '' ? t('untitled') : use.title}»`)) });
 }
 
 /** Картка запису групи (12k): вид, текст, «про кого», відповідь, рік, фото, автор, позначка сюрпризу; «Змінити» і «Видалити». */
