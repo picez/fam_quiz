@@ -13,7 +13,7 @@ function tone(id: string): number {
 export function Avatar({ profile, size }: { profile: ProfileCard; size: 'large' | 'medium' | 'small' }) {
   const label = t('avatarOf', { nickname: nickText(profile.nickname) });
   if (profile.avatar !== null) {
-    return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} />;
+    return <img className={`avatar avatar-${size}`} src={profile.avatar} alt={label} loading="lazy" decoding="async" />;
   }
   const letter = (Array.from(nickText(profile.nickname))[0] ?? '').toUpperCase();
   return (

@@ -56,7 +56,7 @@ function Award({ award, pin }: { award: AwardCard; pin: ReactNode }): JSX.Elemen
         <div className="podium-real">
           {content.real.photoUrl !== null && (
             <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing('prize')}>
-              <img src={content.real.photoUrl} alt="" loading="lazy" />
+              <img src={content.real.photoUrl} alt="" loading="lazy" decoding="async" />
             </button>
           )}
           <span>{`🎁 ${content.real.text}`}</span>

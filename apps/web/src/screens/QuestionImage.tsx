@@ -12,7 +12,7 @@ export function QuestionImage({ url, alt = '', zoomable = true }: { url: string 
   const [failed, setFailed] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   if (url === null || failed === url) return null;
-  const image = <img className="question-image" src={url} alt={alt} onError={() => setFailed(url)} />;
+  const image = <img className="question-image" src={url} alt={alt} decoding="async" fetchPriority="high" onError={() => setFailed(url)} />;
   if (!zoomable) return image;
   return (
     <>

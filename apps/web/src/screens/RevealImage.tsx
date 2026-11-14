@@ -116,7 +116,7 @@ export function RevealImage({ url, mode, stage, alt = '', zoomable = true }: Pro
   const [failed, setFailed] = useState<string | null>(null);
   if (url === null || failed === url) return null;
   if (mode === null) return <QuestionImage url={url} alt={alt} zoomable={zoomable} />;
-  if (stage >= REVEAL_STAGES) return <img className="question-image" src={url} alt={alt} data-stage={stage} onError={() => setFailed(url)} />;
+  if (stage >= REVEAL_STAGES) return <img className="question-image" src={url} alt={alt} decoding="async" fetchPriority="high" data-stage={stage} onError={() => setFailed(url)} />;
   if (mode === 'pixels') return <PixelCanvas url={url} stage={stage} alt={alt} onFail={() => setFailed(url)} />;
   return <BlurCanvas url={url} stage={stage} alt={alt} onFail={() => setFailed(url)} />;
 }

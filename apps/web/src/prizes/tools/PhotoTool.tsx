@@ -126,7 +126,7 @@ export function PhotoTool({ draft, dispatch, photoBusy: busy, setPhotoBusy: setB
             <ol className="studio-photos">
               {shown.map((item, index) => (
                 <li key={`${index}:${item.url}`} className="studio-photo">
-                  <img className="studio-photo-thumb" src={item.url} alt={t('studioPhotoN', { n: index + 1 })} />
+                  <img className="studio-photo-thumb" src={item.url} alt={t('studioPhotoN', { n: index + 1 })} loading="lazy" decoding="async" />
                   <div className="studio-photo-actions">
                     <button
                       type="button"

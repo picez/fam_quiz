@@ -58,7 +58,7 @@ export function ChoiceFace({ choice, letter, zoom = false }: { choice: Choice; l
         (failed === url ? (
           <span className="choice-text">{label}</span>
         ) : (
-          <img className="choice-image" src={url} alt={choice.text || label} onError={() => setFailed(url)} />
+          <img className="choice-image" src={url} alt={choice.text || label} decoding="async" onError={() => setFailed(url)} />
         ))}
       {zoom && url !== undefined && failed !== url && <ChoiceZoom choice={choice} letter={letter} />}
       {choice.text !== '' && (

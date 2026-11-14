@@ -2529,6 +2529,17 @@ describe('PlayerScreen: splashes', () => {
   };
   afterEach(() => vi.useRealTimers());
 
+  it('the question picture is already in the page under the pre-question splash (32)', () => {
+    timed();
+    const imageUrl = '/uploads/0123456789abcdef0123456789abcdef.webp';
+    show(onQuestion({ round: classic, question: { ...publicQuestion, imageUrl }, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200) }));
+    expect(document.querySelector('.splash.is-question')).not.toBeNull();
+    const image = document.querySelector('img.question-image');
+    expect(image?.getAttribute('src')).toBe(imageUrl);
+    expect(image?.getAttribute('fetchpriority')).toBe('high');
+    expect(image?.getAttribute('loading')).toBeNull();
+  });
+
   it('the phone shows a smaller splash over a question that is already in place', () => {
     timed();
     show(onQuestion({ round: classic, endsAt: T + 21_200, limitMs: 20_000, splash: at('question', 1200) }));

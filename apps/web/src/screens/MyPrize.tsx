@@ -43,7 +43,7 @@ export function MyPrize({ prizes, nickname, quizTitle }: { prizes: PrizesView; n
         <div className="podium-real">
           {content.real.photoUrl !== null && (
             <button type="button" className="prize-photo-open" aria-label={t('prizeViewPhoto', { name: prizeViewLabel(content) })} onClick={() => setViewing(true)}>
-              <img src={content.real.photoUrl} alt="" />
+              <img src={content.real.photoUrl} alt="" loading="lazy" decoding="async" />
             </button>
           )}
           <span>{`🎁 ${content.real.text}`}</span>
