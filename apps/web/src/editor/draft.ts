@@ -1196,10 +1196,10 @@ const LADDER_PROBLEMS: Record<LadderPathIssue, TextKey> = {
 };
 const validClueInterval = (interval: number) => Number.isInteger(interval) && interval >= LIMITS.minClueSeconds && interval <= LIMITS.maxClueSeconds;
 
-/** Найбільший час запитання: головоломкам — власна межа (типові 180 і 240 с понад загальні 120). */
-export const maxTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type].time.max];
-/** Найменший час запитання: пазлу потрібно не менше LIMITS.minJigsawTime. */
-export const minTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type].time.min];
+/** Найбільший час запитання за реєстром типів; невідомий тип (старий черновик) — загальна межа. */
+export const maxTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type]?.time.max ?? 'maxTime'];
+/** Найменший час запитання за реєстром типів; невідомий тип — загальна межа. */
+export const minTimeOf = (question: Pick<Question, 'type'>) => LIMITS[QUESTION_TYPE_TRAITS[question.type]?.time.min ?? 'minTime'];
 
 /** Вада збереженого кросворду, яку не впіймали перевірки вище (скажімо, з імпорту) → текст проблеми. */
 const CROSSWORD_PROBLEMS = {

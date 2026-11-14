@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, ROUND_TYPES } from '@quiz/shared';
+import { LIMITS, ROUND_TYPES, type Question } from '@quiz/shared';
 import { QUESTION_TYPES, maxTimeOf, minTimeOf, questionTypesFor } from './draft';
 
 describe('editor type menu before the registry (30e)', () => {
@@ -102,5 +102,10 @@ describe('editor type menu before the registry (30e)', () => {
       melody: [LIMITS.minMelodyTime, LIMITS.maxTime],
       bluff: plain,
     });
+  });
+
+  it('falls back to the general bounds for an unknown type from an old draft', () => {
+    const unknown = { type: 'gone' } as unknown as Pick<Question, 'type'>;
+    expect([minTimeOf(unknown), maxTimeOf(unknown)]).toEqual([LIMITS.minTime, LIMITS.maxTime]);
   });
 });
