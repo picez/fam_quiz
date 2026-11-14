@@ -72,6 +72,7 @@ import { StageNewAchievements } from './StageNewAchievements';
 import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
+import { StageSpeech } from './StageSpeech';
 
 interface Props {
   view: StageView;
@@ -1042,6 +1043,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
         {(phase === 'question' || phase === 'locked' || phase === 'reveal') && <StageBuffs buffs={view.buffs} board={view.board !== null} autopilot={view.autopilot} />}
         <StageDebuffs debuffs={view.debuffs} />
       </div>
+      {/* «Читати вголос» (31): кут сцени, inline-start знизу; на фініші там меню. */}
+      {phase !== 'finished' && <StageSpeech view={view} splashing={splashNow !== null} />}
       {view.paused && (
         <p className="banner" role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}

@@ -91,6 +91,11 @@ export const loadEasy = (): 'on' | 'off' | null => {
 };
 export const saveEasy = (on: boolean): void => write(EASY, on ? 'on' : 'off');
 
+const STAGE_SPEECH = 'quiz:stage-speech';
+/** «Читати вголос» на сцені (31): чи вмикали на цьому пристрої. */
+export const loadStageSpeech = (): boolean => read(STAGE_SPEECH) === 'on';
+export const saveStageSpeech = (on: boolean): void => write(STAGE_SPEECH, on ? 'on' : null);
+
 const LAST_GAME = 'quiz:last-game';
 
 /** Код гри, яку ведучий запустив останньою з цього пристрою. */

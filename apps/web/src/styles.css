@@ -4972,6 +4972,45 @@ body:has(.banner.is-offline) .host .live-notices {
   display: none;
 }
 
+/* «Читати вголос» (31): кут сцени навпроти значків, над смугою реакцій; порожній статус місця не займає. */
+.stage-speech {
+  position: fixed;
+  bottom: var(--banner-base);
+  inset-inline-start: 0.75rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  max-width: min(40vw, 32rem);
+}
+
+.app.has-reactions .stage-speech {
+  bottom: calc(var(--banner-base) + var(--reaction-strip-h));
+}
+
+.stage-speech-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stage-speech .btn {
+  background: var(--notice-bg);
+}
+
+.stage-speech .btn[aria-pressed='true'] {
+  border-color: var(--amber);
+}
+
+.stage-speech p {
+  margin: 0;
+}
+
+.stage-speech p:empty {
+  display: none;
+}
+
 .stage-debuffs,
 .stage-buffs {
   display: flex;

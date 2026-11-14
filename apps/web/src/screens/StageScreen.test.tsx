@@ -3248,3 +3248,13 @@ describe('StageScreen: family game (31)', () => {
     expect(screen.queryByText(/Увімкніть «Читати вголос»/)).toBeNull();
   });
 });
+
+describe('StageScreen: «Читати вголос» (31)', () => {
+  it('the stage has the read-aloud button in the lobby and on a question, not on the finish', () => {
+    show(view({ phase: 'lobby' }));
+    expect(screen.getByRole('button', { name: '🔊 Читати вголос' }).getAttribute('aria-pressed')).toBe('false');
+    cleanup();
+    show(view({ phase: 'finished' }));
+    expect(screen.queryByRole('button', { name: '🔊 Читати вголос' })).toBeNull();
+  });
+});
