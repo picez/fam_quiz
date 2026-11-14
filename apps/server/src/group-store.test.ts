@@ -350,6 +350,8 @@ describe('group store (12k)', () => {
     expect(await transferOwner(db, id, olia, ira)).toEqual({ ok: false, error: 'not_owner' });
     expect(await membership(db, id, petro)).toBe('owner');
     expect(await membership(db, id, ira)).toBe('member');
+    expect(await removeMember(db, id, olia, ira)).toEqual({ ok: false, error: 'not_owner' });
+    expect(await membership(db, id, ira)).toBe('member');
   });
 
   it('deleting a group takes members, invites and records', async () => {

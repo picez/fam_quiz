@@ -22462,7 +22462,7 @@ input.sudoku-editor-cell:focus-visible {
 .group-form input:focus-visible,
 .group-form textarea:focus-visible,
 .item-form textarea:focus-visible,
-.item-form input:focus-visible,
+.item-form input:not([type='checkbox']):not([type='file']):focus-visible,
 .group-items-filters input:focus-visible,
 .group-items-filters select:focus-visible {
   border-color: var(--amber);

@@ -88,6 +88,16 @@ describe('Groups (12k)', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Можна бути щонайбільше в 10 групах. Вийди з якоїсь, щоб приєднатися до нової.');
   });
 
+  it('a failed accept re-reads the list, so a gone invite disappears and the error stays', async () => {
+    vi.mocked(acceptGroupInvite).mockResolvedValue({ ok: false, error: 'invite_not_found' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: 'Приєднатися' }));
+    vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [card('g1')], invites: [] });
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Тебе запрошують' })).toBeNull());
+    expect(screen.getByRole('alert').textContent).toBe('Запрошення вже не діє.');
+    expect(getGroups).toHaveBeenCalledTimes(2);
+  });
+
   it('an empty list has a friendly text and the create form makes a group', async () => {
     vi.mocked(getGroups).mockResolvedValue({ ok: true, groups: [], invites: [] });
     vi.mocked(createGroup).mockResolvedValue({ ok: true, ...card('g5'), members: [] });

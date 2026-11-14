@@ -147,6 +147,19 @@ describe('GroupPage (12k)', () => {
     expect(await screen.findByText('на /profile/groups')).toBeTruthy();
   });
 
+  it('«Видалити групу» is busy while deleting and says why it failed', async () => {
+    let finish: (value: { ok: false; error: string }) => void = () => undefined;
+    vi.mocked(deleteGroup).mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    open('/profile/groups/g1?tab=settings');
+    const remove = (await screen.findByRole('button', { name: 'Видалити групу' })) as HTMLButtonElement;
+    fireEvent.click(remove);
+    expect(remove.disabled).toBe(true);
+    finish({ ok: false, error: 'offline' });
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(remove.disabled).toBe(false);
+    expect(screen.queryByText('на /profile/groups')).toBeNull();
+  });
+
   it('a missing group says so with a link to the list', async () => {
     vi.mocked(getGroup).mockResolvedValue({ ok: false, error: 'group_not_found' });
     open();

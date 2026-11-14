@@ -324,10 +324,12 @@ export async function removeMember(
   groupId: string,
   ownerId: string,
   userId: string,
-): Promise<{ ok: true } | Fail<'member_not_found' | 'owner_must_transfer'>> {
+): Promise<{ ok: true } | Fail<'member_not_found' | 'owner_must_transfer' | 'not_owner'>> {
   if (userId === ownerId) return { ok: false, error: 'owner_must_transfer' };
   return db.transaction(async (tx) => {
     await lockGroup(tx, groupId);
+    // Під замком: керування могли щойно передати іншому.
+    if ((await roleIn(tx, groupId, ownerId)) !== 'owner') return { ok: false, error: 'not_owner' } as const;
     const removed = await tx
       .delete(groupMember)
       .where(and(eq(groupMember.groupId, groupId), eq(groupMember.userId, userId), eq(groupMember.role, 'member')))

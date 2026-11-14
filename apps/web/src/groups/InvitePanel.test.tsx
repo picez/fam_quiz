@@ -83,8 +83,17 @@ describe('InvitePanel (12k)', () => {
     expect(await screen.findByText('Усі твої друзі вже тут або запрошені.')).toBeTruthy();
   });
 
-  it('a member does not see the panel', () => {
+  it('a member does not see the panel and does not ask for friends', () => {
     const { container } = render(<InvitePanel group={{ ...group, role: 'member', inviteCode: undefined, pending: undefined }} onChanged={vi.fn()} />);
     expect(container.innerHTML).toBe('');
+    expect(getMyFriends).not.toHaveBeenCalled();
+  });
+
+  it('a failed copy says so', async () => {
+    writeText.mockRejectedValueOnce(new Error('denied'));
+    render(<InvitePanel group={group} onChanged={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Копіювати посилання' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Не вдалося скопіювати. Виділи посилання й скопіюй вручну.');
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

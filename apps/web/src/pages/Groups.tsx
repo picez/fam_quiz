@@ -19,7 +19,8 @@ async function loadGroups() {
 export function Groups() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = usePrivateData<GroupsPage>(loadGroups);
+  const [version, setVersion] = useState(0);
+  const state = usePrivateData<GroupsPage>(loadGroups, String(version));
   const [declined, setDeclined] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -30,6 +31,9 @@ export function Groups() {
     const result = await acceptGroupInvite(invite.group.id);
     if (!result.ok) {
       setError(errorText(result.error));
+      // Запрошення могло зникнути (група видалена, скасоване): перечитуємо список, помилка лишається.
+      setVersion((v) => v + 1);
+      announceGroupInvitesChanged();
       return;
     }
     announceGroupInvitesChanged();

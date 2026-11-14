@@ -22,7 +22,10 @@ export function InvitePanel({ group, onChanged }: { group: GroupDetail; onChange
   const [friends, setFriends] = useState<FriendCard[] | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   useEffect(() => setCode(group.inviteCode ?? ''), [group.inviteCode]);
+  const owner = group.role === 'owner';
+  // Друзів просить лише власник: учасник панелі не бачить.
   useEffect(() => {
+    if (!owner) return;
     let current = true;
     void getMyFriends().then((result) => {
       if (current) setFriends(result.ok ? result.data : []);
@@ -30,7 +33,7 @@ export function InvitePanel({ group, onChanged }: { group: GroupDetail; onChange
     return () => {
       current = false;
     };
-  }, []);
+  }, [owner]);
 
   if (group.role !== 'owner' || group.inviteCode === undefined) return null;
   const url = groupJoinUrl(code);
@@ -41,9 +44,11 @@ export function InvitePanel({ group, onChanged }: { group: GroupDetail; onChange
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
+      setError(null);
       setStatus(t('groupInviteCopied'));
     } catch {
       setStatus(null);
+      setError(t('groupInviteCopyFailed'));
     }
   };
   const refresh = async () => {

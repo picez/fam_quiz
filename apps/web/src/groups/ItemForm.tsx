@@ -6,6 +6,15 @@ import { AboutChips, type AboutPick } from './AboutChips';
 
 const YEAR = /^\d{4}$/;
 
+/** Рік порожній або ціле в межах GROUP_LIMITS (як перевіряє сервер). */
+export function yearOk(year: string): boolean {
+  const clean = year.trim();
+  if (clean === '') return true;
+  if (!YEAR.test(clean)) return false;
+  const value = Number(clean);
+  return value >= GROUP_LIMITS.yearMin && value <= GROUP_LIMITS.yearMax;
+}
+
 /** Тіло запиту з полів форми: порожня відповідь — null, рік — число. */
 export function itemInput(fields: { kind: GroupItemKind; text: string; about: AboutPick[]; answer: string; year: string; photo: string | null; surprise: boolean }): GroupItemInput {
   const hasMember = fields.about.some((entry) => entry.kind === 'member');
@@ -48,7 +57,7 @@ export function ItemForm({
   const [error, setError] = useState<string | null>(null);
   const upload = useImageUpload(setPhoto);
   const hasMember = about.some((entry) => entry.kind === 'member');
-  const yearBad = year.trim() !== '' && !YEAR.test(year.trim());
+  const yearBad = !yearOk(year);
   const blocked = text.trim() === '' || upload.busy || busy || yearBad;
 
   const send = async (event: FormEvent) => {
@@ -62,9 +71,9 @@ export function ItemForm({
 
   return (
     <form className="item-form" onSubmit={(event) => void send(event)}>
-      <div role="tablist" className="item-kind-tabs" aria-label={t('itemKindsLabel')}>
+      <div role="radiogroup" className="item-kind-tabs" aria-label={t('itemKindsLabel')}>
         {GROUP_ITEM_KINDS.map((each) => (
-          <button key={each} type="button" role="tab" aria-selected={kind === each} className={kind === each ? 'chip is-on' : 'chip'} onClick={() => setKind(each)}>
+          <button key={each} type="button" role="radio" aria-checked={kind === each} className={kind === each ? 'chip is-on' : 'chip'} onClick={() => setKind(each)}>
             {t(`itemKind_${each}`)}
           </button>
         ))}
@@ -92,16 +101,29 @@ export function ItemForm({
         </label>
         <label className="item-year">
           <span>{t('itemYearLabel')}</span>
-          <input value={year} inputMode="numeric" maxLength={4} placeholder="1998" aria-invalid={yearBad} onChange={(event) => setYear(event.target.value.replace(/\D/g, ''))} />
+          <input
+            value={year}
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="1998"
+            aria-invalid={yearBad}
+            aria-describedby={yearBad ? `${id}-year-hint` : undefined}
+            onChange={(event) => setYear(event.target.value.replace(/\D/g, ''))}
+          />
         </label>
       </div>
       <p className="meta item-hint" id={`${id}-answer-hint`}>
         {t('itemAnswerHint')}
       </p>
+      {yearBad && (
+        <p className="error item-hint" id={`${id}-year-hint`}>
+          {t('itemYearHint', { min: GROUP_LIMITS.yearMin, max: GROUP_LIMITS.yearMax })}
+        </p>
+      )}
       <div className="item-form-row">
         {photo === null ? (
           <label className={upload.busy ? 'btn btn-small file-pick is-busy' : 'btn btn-small file-pick'}>
-            {t('itemPhotoAdd')}
+            {t(upload.busy ? 'uploading' : 'itemPhotoAdd')}
             <input type="file" accept={ACCEPT} disabled={upload.busy} onChange={(event) => void upload.pick(event)} />
           </label>
         ) : (

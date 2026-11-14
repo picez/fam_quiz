@@ -82,7 +82,7 @@ describe('GroupItemPage (12k)', () => {
     expect(await screen.findByRole('heading', { name: 'Змінити запис' })).toBeTruthy();
     expect(((await screen.findByLabelText('Текст')) as HTMLTextAreaElement).value).toBe('Як тато заблукав у лісі по гриби');
     expect((screen.getByLabelText('Рік') as HTMLInputElement).value).toBe('1998');
-    expect(screen.getByRole('tab', { name: 'Історія' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Історія' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Зберегти запис' }));
     expect(await screen.findByText('на /profile/groups/g1')).toBeTruthy();
     expect(updateGroupItem).toHaveBeenCalledWith('g1', 'i1', expect.objectContaining({ answer: 'Тато', year: 1998 }));

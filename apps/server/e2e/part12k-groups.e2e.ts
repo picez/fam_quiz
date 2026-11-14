@@ -113,7 +113,7 @@ async function groups12k() {
   await petro.getByLabel('Текст', exact).waitFor();
   await expectOneScreen(petro, 'p12k-item-form');
   await expectNoSideScroll(petro, 'p12k-item-form');
-  await tab(petro, 'Історія');
+  await petro.getByRole('radio', { name: 'Історія', ...exact }).click();
   await petro.getByLabel('Текст', exact).fill(STORY);
   const aboutName = petro.getByRole('textbox', { name: 'бабуся Ніна', ...exact });
   await aboutName.fill('тато');

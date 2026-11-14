@@ -6,7 +6,7 @@ import { GroupForm } from '../groups/GroupForm';
 import { InvitePanel } from '../groups/InvitePanel';
 import { ItemList } from '../groups/ItemList';
 import { MemberList } from '../groups/MemberList';
-import { countText, t, type TextKey } from '../i18n';
+import { countText, errorText, t, type TextKey } from '../i18n';
 import { loginFor, ProfileSubpage } from '../profile/ProfileSubpage';
 import { usePrivateData } from '../usePrivateData';
 
@@ -24,6 +24,8 @@ export function GroupPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [version, setVersion] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const state = usePrivateData(async () => {
     const result = await getGroup(id);
     if (!result.ok) return result;
@@ -117,15 +119,29 @@ export function GroupPage() {
               <button
                 type="button"
                 className="btn btn-danger"
+                disabled={deleting}
+                aria-busy={deleting}
                 onClick={() => {
                   if (!window.confirm(t('groupDeleteConfirm', { name: group.name }))) return;
+                  setDeleting(true);
+                  setDeleteError(null);
                   void deleteGroup(group.id).then((result) => {
-                    if (result.ok) navigate('/profile/groups');
+                    if (result.ok) {
+                      navigate('/profile/groups');
+                      return;
+                    }
+                    setDeleting(false);
+                    setDeleteError(errorText(result.error));
                   });
                 }}
               >
                 {t('groupDelete')}
               </button>
+              {deleteError !== null && (
+                <p className="error" role="alert">
+                  {deleteError}
+                </p>
+              )}
             </section>
           </>
         )}
