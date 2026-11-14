@@ -1,11 +1,10 @@
-import { JIGSAW_ASPECTS, JIGSAW_MAX_PIECES, JIGSAW_MIN_PIECES, LIMITS, aspectRatio, jigsawCrop, jigsawGrid, jigsawSides, jigsawTabs, type JigsawAspect } from '@quiz/shared';
+import { JIGSAW_ASPECTS, JIGSAW_MAX_PIECES, JIGSAW_MIN_PIECES, LIMITS, aspectRatio, clamp01, jigsawCrop, jigsawGrid, jigsawSides, jigsawTabs, type JigsawAspect } from '@quiz/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { t } from '../i18n';
 import { piecePath } from '../live/jigsaw-shape';
 import { ImageField } from './ImageField';
 import type { JigsawQuestion } from './draft';
 
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 /** Крок рамки за стрілкою (частка запасу фото). */
 const KEY_STEP = 0.05;
 const SEED_MAX = 2 ** 32;

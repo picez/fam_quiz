@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AWAY_MS, AWAY_REPORT_MAX_MS, type GameView } from '@quiz/shared';
+import { AWAY_MS, AWAY_REPORT_MAX_MS, clamp, type GameView } from '@quiz/shared';
 import type { Send, SendResult } from './types';
 import type { Status } from './useGame';
 
@@ -21,7 +21,7 @@ export function blurIsAway(hasFocus: boolean): boolean {
   return !hasFocus;
 }
 
-const cap = (ms: number) => Math.min(AWAY_REPORT_MAX_MS, Math.max(0, Math.round(ms)));
+const cap = (ms: number) => clamp(Math.round(ms), 0, AWAY_REPORT_MAX_MS);
 
 /** Надсилання з межею часу: без підтвердження за AWAY_ACK_MS — offline (звіт піде на наступному 'live'). */
 function sendWithin(send: Send, payload: unknown): Promise<SendResult> {

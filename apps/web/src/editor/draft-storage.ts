@@ -1,5 +1,7 @@
 import {
   ANSWER_MODES,
+  clamp,
+  clamp01,
   AUDIO_URL,
   BUFF_KINDS,
   questDefaultOrder,
@@ -237,7 +239,7 @@ function reviveJigsaw(base: Extract<Question, { type: 'jigsaw' }>): Question {
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
   const aspect = (JIGSAW_ASPECTS as readonly unknown[]).includes(base.aspect) ? base.aspect : '4:3';
   const seed = typeof base.seed === 'number' && Number.isInteger(base.seed) && base.seed >= 0 && base.seed <= 2 ** 32 - 1 ? base.seed : 0;
-  const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
+  const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? clamp01(value) : 0.5);
   const focus: unknown = base.focus;
   const kept = isRecord(focus) ? { x: share(focus.x), y: share(focus.y) } : { x: 0.5, y: 0.5 };
   const fallback = jigsawGrid(LIMITS.defaultJigsawPieces, aspect);
@@ -256,7 +258,6 @@ function reviveSpotdiff(base: Extract<Question, { type: 'spotdiff' }>): Question
   const { hint: _hint, audio: _audio, reveal: _reveal, ...rest } = base;
   const url = (value: unknown) => (typeof value === 'string' ? value : '');
   const aspect = typeof base.aspect === 'number' && Number.isFinite(base.aspect) && base.aspect >= SPOT_MIN_ASPECT && base.aspect <= SPOT_MAX_ASPECT ? base.aspect : 4 / 3;
-  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const raw: unknown[] = Array.isArray(base.spots) ? base.spots : [];
   const spots = raw
     .filter(isRecord)
@@ -353,7 +354,7 @@ function revive(stored: Question): Question {
     };
   }
   if (base.type === 'pin') {
-    const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5);
+    const share = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? clamp01(value) : 0.5);
     const known = (PIN_MAPS as readonly unknown[]).includes(base.map);
     const target: { x?: unknown; y?: unknown } = isRecord(base.target) ? base.target : {};
     // Невідома мапа (чернетка з майбутнього чи зіпсована) стає світом: основа без картинки не буває порожньою.

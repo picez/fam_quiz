@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Phase, PublicQuestion } from '@quiz/shared';
+import { clamp01, type Phase, type PublicQuestion } from '@quiz/shared';
 
 /** Стадій проявлення; на REVEAL_STAGES картинка повна. */
 export const REVEAL_STAGES = 10;
@@ -35,7 +35,7 @@ export function revealProgress(view: Clock, question: Windowed, serverNow: numbe
   if (window <= 0) return 1;
   const left = view.remainingMs !== null ? view.remainingMs : view.endsAt !== null ? view.endsAt - serverNow : null;
   if (left === null) return 0;
-  return Math.min(1, Math.max(0, (view.limitMs - left) / window));
+  return clamp01((view.limitMs - left) / window);
 }
 
 /** Скільки мс минуло від старту таймера запитання (з урахуванням паузи); 0 до старту, поза етапом question чи без таймера. */

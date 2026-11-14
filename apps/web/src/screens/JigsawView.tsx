@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type Ref, type RefObject } from 'react';
-import { aspectRatio, jigsawCrop, jigsawSides, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
+import { aspectRatio, clamp, jigsawCrop, jigsawSides, type JigsawBoardView, type JigsawInfo, type PlayerJigsaw, type PublicJigsaw, type PublicQuestion } from '@quiz/shared';
 import { secondsText, signed } from '../format';
 import { t } from '../i18n';
 import { piecePad, piecePath } from '../live/jigsaw-shape';
@@ -43,8 +43,7 @@ export function jigsawDropAt(rect: { left: number; top: number; width: number; h
   const cy = coreTop + cellH / 2;
   if (cx < rect.left || cx > rect.left + rect.width || cy < rect.top || cy > rect.top + rect.height) return null;
   const round = (value: number) => Math.round(value * 1000) / 1000;
-  const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
-  return { x: clamp(round((coreLeft - rect.left) / cellW), cols - 1), y: clamp(round((coreTop - rect.top) / cellH), rows - 1) };
+  return { x: clamp(round((coreLeft - rect.left) / cellW), 0, cols - 1), y: clamp(round((coreTop - rect.top) / cellH), 0, rows - 1) };
 }
 
 interface Layout {
