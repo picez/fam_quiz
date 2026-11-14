@@ -207,7 +207,7 @@ export async function buildApp(options: AppOptions) {
       !request.url.startsWith('/api/') &&
       !request.url.startsWith('/socket.io/');
     // Відсутній файл збірки (старий чанк після деплою) — це 404, а не сторінка: HTML під іменем JS ламає браузер і кеш воркера.
-    if (isPage && isMissingFile(request.url)) return reply.code(404).send({ error: 'not_found' });
+    if (isPage && isMissingFile(request.url)) return reply.code(404).header('cache-control', 'no-store').send({ error: 'not_found' });
     // Маршрути сторінок обробляє клієнт, тому на них віддається та сама сторінка.
     if (isPage) return reply.header('cache-control', 'no-cache').sendFile('index.html');
     return reply.code(404).send({ error: 'not_found' });

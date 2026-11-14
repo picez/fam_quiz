@@ -11,11 +11,14 @@ function fakeDeps(options: {
   size?: { width: number; height: number } | null;
   encode?: (type: string, quality: number) => Blob | null;
   alpha?: boolean;
+  /** Розміри прочитано, а розкодувати не вдалося. */
+  undecodable?: boolean;
 }): ShrinkDeps & { close: ReturnType<typeof vi.fn> } {
   const close = vi.fn();
   return {
     close,
-    decode: vi.fn(async () => (options.size === null ? null : { ...(options.size ?? { width: 4000, height: 3000 }), close })),
+    measure: vi.fn(async () => (options.size === null ? null : (options.size ?? { width: 4000, height: 3000 }))),
+    decode: vi.fn(async (_file: Blob, width: number, height: number) => (options.undecodable ? null : { width, height, close })),
     encode: vi.fn(async (_bitmap: unknown, _w: number, _h: number, type: string, quality: number) => (options.encode ?? ((t) => blobOf(300 * KB, t)))(type, quality)),
     hasAlpha: vi.fn(() => options.alpha ?? false),
   };
@@ -38,13 +41,16 @@ describe('shrinkImage', () => {
     expect(result).toEqual({ ok: true, file });
     if (result.ok) expect(result.file).toBe(file);
     expect(deps.encode).not.toHaveBeenCalled();
-    expect(deps.close).toHaveBeenCalled();
+    // Малий файл навіть не розкодовується.
+    expect(deps.decode).not.toHaveBeenCalled();
   });
 
   it('shrinks a phone photo to 1600 px WebP', async () => {
     const deps = fakeDeps({});
     const result = await shrinkImage(fileOf(4 * MB, 'image/jpeg', 'IMG_0001.JPG'), 1600, deps);
     expect(deps.encode).toHaveBeenCalledWith(expect.anything(), 1600, 1200, 'image/webp', 0.82);
+    // Повний кадр 4000×3000 не розкодовується: одразу в цільовий розмір.
+    expect(deps.decode).toHaveBeenCalledWith(expect.anything(), 1600, 1200);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.file.type).toBe('image/webp');
@@ -78,15 +84,18 @@ describe('shrinkImage', () => {
     expect(result.ok && result.file).toBe(file);
   });
 
-  it('sends a picture it cannot read as it is, if the server would take it', async () => {
+  it('sends a picture it cannot read as it is if the server would take it, otherwise says it is too large', async () => {
     const small = fileOf(1 * MB, 'image/jpeg');
     expect(await shrinkImage(small, 1600, fakeDeps({ size: null }))).toEqual({ ok: true, file: small });
-    expect(await shrinkImage(fileOf(3 * MB, 'image/jpeg'), 1600, fakeDeps({ size: null }))).toEqual({ ok: false, error: 'bad_image' });
+    expect(await shrinkImage(small, 1600, fakeDeps({ undecodable: true }))).toEqual({ ok: true, file: small });
+    expect(await shrinkImage(fileOf(3 * MB, 'image/jpeg'), 1600, fakeDeps({ size: null }))).toEqual({ ok: false, error: 'too_large' });
+    expect(await shrinkImage(fileOf(3 * MB, 'image/jpeg'), 1600, fakeDeps({ undecodable: true }))).toEqual({ ok: false, error: 'too_large' });
   });
 
   it('refuses a file over 20 MB without reading it', async () => {
     const deps = fakeDeps({});
     expect(await shrinkImage(fileOf(RAW_IMAGE_MAX_BYTES + 1, 'image/jpeg'), 1600, deps)).toEqual({ ok: false, error: 'image_raw_too_large' });
+    expect(deps.measure).not.toHaveBeenCalled();
     expect(deps.decode).not.toHaveBeenCalled();
   });
 

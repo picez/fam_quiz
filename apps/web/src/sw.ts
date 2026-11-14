@@ -33,8 +33,9 @@ function listen<E>(type: string, handler: (event: E) => void): void {
   scope.addEventListener(type, handler as (event: never) => void);
 }
 
-// Кеш оболонки (32): версія — хеш списку файлів, його вписує збірка (vite.config.ts, serviceWorker()).
-const SHELL_FILES = ['/index.html', ...__SHELL__, '/manifest.webmanifest', '/icon-192.png'];
+// Кеш оболонки (32): версія — хеш списку файлів, його вписує збірка (vite.config.ts, serviceWorker()). Лише сторінка й
+// хешовані файли: маніфест та іконки воркер не обслуговує (їх тримає HTTP-кеш), тож у кеші вони були б мертвим вантажем.
+const SHELL_FILES = ['/index.html', ...__SHELL__];
 const deps: CacheDeps = {
   caches: scope.caches,
   fetch: (request) => scope.fetch(request),

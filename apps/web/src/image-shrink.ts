@@ -11,6 +11,8 @@ export const RAW_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 export const SKIP_BELOW_BYTES = 300 * 1024;
 
 const WEBP_QUALITY = 0.82;
+/** Скільки чекати, поки браузер прочитає розміри фото. */
+const MEASURE_TIMEOUT_MS = 10_000;
 const JPEG_QUALITY = 0.85;
 
 interface Bitmap {
@@ -20,7 +22,10 @@ interface Bitmap {
 }
 
 export interface ShrinkDeps {
-  decode(file: Blob): Promise<Bitmap | null>;
+  /** Розміри зображення (з урахуванням EXIF-орієнтації) без розкодування в повному розмірі; null — не вдалося прочитати. */
+  measure(file: Blob): Promise<{ width: number; height: number } | null>;
+  /** Розкодування одразу в розмір width×height. */
+  decode(file: Blob, width: number, height: number): Promise<Bitmap | null>;
   encode(bitmap: unknown, width: number, height: number, type: string, quality: number): Promise<Blob | null>;
   hasAlpha(bitmap: unknown, width: number, height: number): boolean;
 }
@@ -56,17 +61,26 @@ export async function shrinkImage(file: File, maxSide: number, deps: ShrinkDeps 
   const fits = file.size <= IMAGE_LIMITS.maxBytes;
   const original = (error: 'bad_image' | 'too_large'): ShrinkResult => (fits ? { ok: true, file } : { ok: false, error });
 
+  // Спершу лише розміри (без розкодування всього фото): 48-мегапіксельний знімок у повному розмірі — сотні МБ пам'яті.
+  let size: { width: number; height: number } | null = null;
+  try {
+    size = await deps.measure(file);
+  } catch {
+    size = null;
+  }
+  // HEIC поза Safari чи битий файл: віддаємо як є, якщо сервер його прийме; інакше — що він завеликий.
+  if (size === null || size.width < 1 || size.height < 1) return original('too_large');
+  if (file.size <= SKIP_BELOW_BYTES && Math.max(size.width, size.height) <= maxSide) return { ok: true, file };
+  const { width, height } = targetSize(size.width, size.height, maxSide);
   let bitmap: Bitmap | null = null;
   try {
-    bitmap = await deps.decode(file);
+    // Розкодування одразу в цільовий розмір (createImageBitmap з resizeWidth/resizeHeight).
+    bitmap = await deps.decode(file, width, height);
   } catch {
     bitmap = null;
   }
-  // HEIC поза Safari чи битий файл: віддаємо як є, якщо сервер його прийме.
-  if (bitmap === null) return original('bad_image');
+  if (bitmap === null) return original('too_large');
   try {
-    if (file.size <= SKIP_BELOW_BYTES && Math.max(bitmap.width, bitmap.height) <= maxSide) return { ok: true, file };
-    const { width, height } = targetSize(bitmap.width, bitmap.height, maxSide);
     const transparent = file.type !== 'image/jpeg' && safeAlpha(deps, bitmap, width, height);
 
     let result: Blob | null = null;
@@ -118,10 +132,30 @@ function canvasOf(width: number, height: number): { context: Canvas2D | null; to
 
 /** Справжній браузер: createImageBitmap (орієнтацію з EXIF враховує сам) і canvas. Будь-яка помилка дає null. */
 export const browserShrinkDeps: ShrinkDeps = {
-  async decode(file) {
+  measure(file) {
+    if (typeof createImageBitmap !== 'function' || typeof URL.createObjectURL !== 'function') return Promise.resolve(null);
+    // <img> читає розміри із заголовка файла (з EXIF-орієнтацією) і не тримає повний розкодований кадр.
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      const done = (value: { width: number; height: number } | null) => {
+        window.clearTimeout(timer);
+        image.onload = null;
+        image.onerror = null;
+        image.src = '';
+        URL.revokeObjectURL(url);
+        resolve(value);
+      };
+      const timer = window.setTimeout(() => done(null), MEASURE_TIMEOUT_MS);
+      image.onload = () => done(image.naturalWidth > 0 && image.naturalHeight > 0 ? { width: image.naturalWidth, height: image.naturalHeight } : null);
+      image.onerror = () => done(null);
+      image.src = url;
+    });
+  },
+  async decode(file, width, height) {
     if (typeof createImageBitmap !== 'function') return null;
     try {
-      return await createImageBitmap(file);
+      return await createImageBitmap(file, { resizeWidth: width, resizeHeight: height, resizeQuality: 'high' });
     } catch {
       return null;
     }

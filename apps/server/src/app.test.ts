@@ -296,6 +296,8 @@ describe('serving the web client', () => {
       expect(missing.statusCode).toBe(404);
       expect(missing.headers['content-type']).toContain('application/json');
       expect(missing.json()).toEqual({ error: 'not_found' });
+      // Відсутній файл не кешується ніде: після деплою він може з'явитися.
+      expect(missing.headers['cache-control']).toBe('no-store');
     }
     await served.app.close();
   });
