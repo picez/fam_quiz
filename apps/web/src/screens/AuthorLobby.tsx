@@ -20,6 +20,7 @@ export function AuthorLobby({
   resume = null,
   continued,
   levelBonuses,
+  family,
 }: {
   code: string;
   /** null — токена сцени на цьому пристрої немає: посилання не показано. */
@@ -33,6 +34,8 @@ export function AuthorLobby({
   continued?: ContinuedView;
   /** view.levelBonuses: без значення — діють; 'off' — ведучий вимкнув; 'none' — не діють тут узагалі, рядка немає. */
   levelBonuses?: 'off' | 'none';
+  /** Сімейна гра (31): рядок у лобі. */
+  family?: true;
 }) {
   const guard = useGuardedSend(send, onError);
   const [copied, setCopied] = useState(false);
@@ -91,6 +94,7 @@ export function AuthorLobby({
       {continued === undefined && resume !== null && resume.rounds.length > 0 && <ResumePanel code={code} info={resume} draft={resumeDraft} onChange={setResumeDraft} />}
       {continued !== undefined && continued.carryRound !== null && <p className="meta">{restartNoteText(continued.carryRound, resume)}</p>}
       {levelBonuses !== 'none' && <p className="meta">{t(levelBonuses === 'off' ? 'levelBonusesOff' : 'levelBonusesOn')}</p>}
+      {family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
       <p className="lead">{t('authorStartHint')}</p>
       <button
         type="button"

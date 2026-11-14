@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { allowedBuffs, allowedDebuffs, BUFF_KINDS, DEBUFF_KINDS, LIMITS, READY_BUFFS, type BuffKind, type DebuffKind, type Question, type QuizSettings } from '@quiz/shared';
+import { useId, useState } from 'react';
+import { allowedBuffs, BUFF_KINDS, chosenDebuffs, DEBUFF_KINDS, FAMILY_OFF_DEBUFFS, LIMITS, READY_BUFFS, type BuffKind, type DebuffKind, type Question, type QuizSettings } from '@quiz/shared';
 import { BUFF_ICONS, buffName } from '../buff-meta';
 import { DEBUFF_ICONS, debuffName } from '../debuff-meta';
 import { HelpButton } from '../help/HelpButton';
@@ -25,6 +25,8 @@ interface Props {
   /** Де заміна не матиме запасного (попередження, не блокують). */
   gaps?: SwapGaps;
   onChange: (powers: Powers) => void;
+  /** Сімейна гра (31): FAMILY_OFF_DEBUFFS неактивні й незняті, а збережений вибір автора лишається як є. */
+  family?: boolean;
 }
 
 const toggled = <K extends string>(all: readonly K[], list: K[], kind: K, on: boolean) =>
@@ -37,8 +39,11 @@ const pricesFor = (prices: Prices | undefined, allowed: DebuffKind[]): Prices | 
 };
 
 /** Розділ «Бафи й дебафи»: прапорці, ціни дебафів і «Усі / Жодного»; onChange завжди дає всі поля у порядку списків. */
-export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
-  const debuffs = allowedDebuffs({ settings });
+export function PowersEditor({ settings, spares, gaps, onChange, family = false }: Props) {
+  // Сирий вибір автора (31): у сімейній грі заборонені дебафи в ньому лишаються — вимкнув сімейну гру, і вони повернулися.
+  const debuffs = chosenDebuffs({ settings });
+  const familyOffId = useId();
+  const familyOff = (kind: DebuffKind) => family && (FAMILY_OFF_DEBUFFS as readonly DebuffKind[]).includes(kind);
   const buffs = allowedBuffs({ settings });
   const prices = settings.debuffPrices;
   const shopOn = settings.debuffShop !== false;
@@ -91,7 +96,8 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
         </div>
         <div className="powers-list">
           {DEBUFF_KINDS.map((kind) => {
-            const on = debuffs.includes(kind);
+            const off = familyOff(kind);
+            const on = debuffs.includes(kind) && !off;
             const price = prices?.[kind];
             const bad =
               price !== undefined && (!Number.isInteger(price) || price < LIMITS.minDebuffPrice || price > LIMITS.maxDebuffPrice);
@@ -101,11 +107,18 @@ export function PowersEditor({ settings, spares, gaps, onChange }: Props) {
                   <input
                     type="checkbox"
                     checked={on}
+                    disabled={off}
+                    aria-describedby={off ? `${familyOffId}-${kind}` : undefined}
                     onChange={(event) => emit({ debuffs: toggled(DEBUFF_KINDS, debuffs, kind, event.target.checked) })}
                   />
                   <span aria-hidden="true">{DEBUFF_ICONS[kind]}</span>
                   <span>{debuffName(kind)}</span>
                 </label>
+                {off && (
+                  <span className="meta powers-family-off" id={`${familyOffId}-${kind}`}>
+                    {t('familyDebuffOff')}
+                  </span>
+                )}
                 <HelpButton id={`debuff.${kind}`} />
                 {on && (
                   <label className="powers-price">

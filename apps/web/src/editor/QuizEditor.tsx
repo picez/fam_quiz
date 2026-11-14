@@ -133,6 +133,10 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
     const { newcomers: _off, ...rest } = settings;
     update({ ...quiz, settings: on ? { ...rest, newcomers: true } : rest });
   };
+  const setFamily = (on: boolean) => {
+    const { family: _off, ...rest } = settings;
+    update({ ...quiz, settings: on ? { ...rest, family: true } : rest });
+  };
   const setTeams = (teams: Quiz['settings']['teams']) => {
     const { teams: _off, ...rest } = settings;
     update({ ...quiz, settings: teams === undefined ? rest : { ...rest, teams } });
@@ -320,6 +324,14 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
           <p className="meta">{t('newcomersHint')}</p>
           <div className="with-help">
             <label className="field field-check">
+              <input type="checkbox" checked={settings.family === true} onChange={(event) => setFamily(event.target.checked)} />
+              <span>{t('familyLabel')}</span>
+            </label>
+            <HelpButton id="setting.family" />
+          </div>
+          <p className="meta">{t('familyHint')}</p>
+          <div className="with-help">
+            <label className="field field-check">
               <input type="checkbox" checked={settings.awayPenalty === true} onChange={(event) => setAwayPenalty(event.target.checked)} />
               <span>{t('awayPenaltyLabel')}</span>
             </label>
@@ -335,7 +347,7 @@ export function QuizEditor({ initial, heading, notice = null, onDraft, onSave, o
 
         <details className="rules powers">
           <summary>{t('powersTitle')}</summary>
-          <PowersEditor settings={settings} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
+          <PowersEditor settings={settings} family={settings.family === true} spares={quiz.spares} gaps={gaps} onChange={(powers) => setSettings(powers)} />
         </details>
 
         <details className="rules spares" open={sparesOpen} onToggle={(event) => setSparesOpen(event.currentTarget.open)}>

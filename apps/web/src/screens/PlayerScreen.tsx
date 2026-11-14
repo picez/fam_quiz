@@ -955,9 +955,10 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'lobby' && view.author === null && <p className="lead">{t('inLobby')}</p>}
       {phase === 'lobby' && view.author !== null && (
-        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} />
+        <AuthorLobby code={code} stageUrl={stageUrl} joinUrl={`${window.location.origin}/play/${code}`} send={send} onError={setError} resume={view.author.resume} continued={view.author.continued} levelBonuses={view.levelBonuses} family={view.family} />
       )}
       {phase === 'lobby' && view.author === null && view.levelBonuses === 'off' && <p className="meta">{t('levelBonusesOffByHost')}</p>}
+      {phase === 'lobby' && view.author === null && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
       {/* «Легкий режим» (31): лише в лобі — посеред запитання випадковий дотик не перебудовує екран. */}
       {phase === 'lobby' && <EasyModeSwitch />}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}

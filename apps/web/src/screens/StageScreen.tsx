@@ -114,6 +114,12 @@ function Lobby({ view, code, joinUrl }: Pick<Props, 'view' | 'code' | 'joinUrl'>
         <p className="address">{hostOf(joinUrl)}</p>
         <p className="meta">{t('joinCode')}</p>
         <p className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</p>
+        {view.family === true && (
+          <>
+            <p className="meta family-lobby">{t('familyLobby')}</p>
+            <p className="meta">{t('familySpeechTip')}</p>
+          </>
+        )}
       </div>
       <div className="qr">
         <QRCodeSVG value={joinUrl} size={256} bgColor="#F3EAEA" fgColor="#060505" marginSize={2} />
