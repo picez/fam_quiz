@@ -2,7 +2,7 @@ import { GROUP_CODE, type GroupInput } from '@quiz/shared';
 import { and, eq } from 'drizzle-orm';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from './db/client';
-import { familyGroup, follow, groupInvite, groupItem, groupMember, user } from './db/schema';
+import { familyGroup, follow, groupInvite, groupItem, groupMember, user, userBan } from './db/schema';
 import {
   acceptInvite,
   cancelInvite,
@@ -188,6 +188,19 @@ describe('group store (12k)', () => {
     expect(await membership(db, id, ira)).toBe('member');
     expect(await invitesFor(db, ira)).toEqual([]);
     expect(await acceptInvite(db, id, ira, later(4))).toEqual({ ok: false, error: 'invite_not_found' });
+  });
+
+  it('skips a banned friend, like the friends list does', async () => {
+    const olia = await person('Оля');
+    const ira = await person('Іра');
+    const banned = await person('Марко');
+    const id = await newGroup(olia);
+    await befriend(olia, ira);
+    await befriend(olia, banned);
+    await db.insert(userBan).values({ userId: banned, bannedAt: T });
+    const sent = await inviteFriends(db, id, olia, [ira, banned], later(1));
+    expect(sent.ok && sent.invited.map((p) => p.id)).toEqual([ira]);
+    expect(await invitesFor(db, banned)).toEqual([]);
   });
 
   it('a declined invite is gone; joining by link also clears the invite; cancel works; 31 waiting invites are refused', async () => {

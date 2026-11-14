@@ -16,6 +16,7 @@ import {
 import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from './db/client';
 import { familyGroup, follow, groupInvite, groupMember, profile } from './db/schema';
+import { notHidden } from './feed-store';
 import { countVisibleItems } from './group-items';
 import { ensureProfile } from './profiles';
 
@@ -297,7 +298,7 @@ export async function leaveGroup(db: Db, groupId: string, userId: string): Promi
   return { ok: true };
 }
 
-/** Лише друзі власника (follow), не учасники, без власного id; повертає справді запрошених. */
+/** Лише друзі власника (follow), не заблоковані (як у списку друзів), не учасники, без власного id; повертає справді запрошених. */
 export async function inviteFriends(
   db: Db,
   groupId: string,
@@ -314,7 +315,7 @@ export async function inviteFriends(
         await tx
           .select({ id: follow.followeeId })
           .from(follow)
-          .where(and(eq(follow.followerId, ownerId), inArray(follow.followeeId, wanted)))
+          .where(and(eq(follow.followerId, ownerId), inArray(follow.followeeId, wanted), notHidden(follow.followeeId)))
       ).map((r) => r.id),
     );
     const members = new Set(
