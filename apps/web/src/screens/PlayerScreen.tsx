@@ -4,6 +4,7 @@ import { answerText, correctText, markText, pickedText, pinDistanceText, sliderV
 import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
 import { EasyModeSwitch } from '../EasyModeSwitch';
+import { ThemeSwitch } from '../ThemeSwitch';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, PeekedToast } from '../live/LiveNotices';
@@ -986,6 +987,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'lobby' && view.author === null && view.family === true && <p className="meta family-lobby">{t('familyLobby')}</p>}
       {/* «Легкий режим» (31): лише в лобі — посеред запитання випадковий дотик не перебудовує екран. */}
       {phase === 'lobby' && <EasyModeSwitch />}
+      {phase === 'lobby' && <ThemeSwitch />}
       {phase === 'lobby' && <TeamLobby view={view} send={send} onError={setError} />}
       {/* Хто вже в лобі (беклог 5); у командній грі склад видно в командах. */}
       {phase === 'lobby' && view.team === null && view.lobby !== undefined && (

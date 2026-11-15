@@ -146,6 +146,8 @@ describe('uk golden (22a)', () => {
     'frame_glacier', 'frame_aurora', 'photo_sunflowers', 'photo_waves', 'photo_constellation', 'lookEffect', 'lookNoEffect', 'levelAllOpen',
     'stickerPackLocked', 'stickerPackLockedOr', 'stickerPackMore', 'achievementStickers',
   ];
+  /** Світла тема: перемикач теми на пристрої. */
+  const ADDED_THEME = ['themeLabel', 'themeDark', 'themeLight', 'themeSystem', 'themeHint'];
   const ADDED_31 = ['easyModeLabel', 'easyModeHint', 'easyModeHintAccount', 'easyModeSaveFailed', 'familyLabel', 'familyHint', 'familyLobby', 'familyDebuffOff', 'familySpeechTip', 'speechToggle', 'speechResume', 'speechRepeat', 'speechUnsupported', 'speechNoVoice', 'speechMedia', 'speechOptions', 'speechBlank'];
   /** План 33: назви, жарти й умови 31 нового досягнення (93 ключі). */
   const ADDED_33 = ['classic_clean', 'cold_bets', 'sold', 'mind_reader', 'code_breaker', 'single_ten', 'all_at_once', 'not_a_coin', 'word_for_word', 'in_order', 'pair_to_pair', 'short_path', 'full_list', 'longest_word', 'number_sense', 'masterpiece', 'sudoku_first', 'crossword_full', 'jigsaw_first', 'spotdiff_all', 'elephant_memory', 'first_note', 'buffet', 'host_marathon', 'team_soul', 'quick_sketch', 'dark_horse', 'holiday', 'modern_art', 'mirror_logic', 'last_piece'].flatMap((id) => [`achievement_${id}`, `achievementJoke_${id}`, `achievementHint_${id}`]);
@@ -235,6 +237,8 @@ describe('uk golden (22a)', () => {
     const locales: Record<string, Record<string, string>> = { en, pl, de, es, it: it_, ar };
     for (const key of ADDED_31) expect(ukMessages, key).toHaveProperty(key);
     for (const [lang, dict] of Object.entries(locales)) expect(ADDED_31.filter((key) => !(key in dict)), lang).toEqual([]);
+    for (const key of ADDED_THEME) expect(ukMessages, key).toHaveProperty(key);
+    for (const [lang, dict] of Object.entries(locales)) expect(ADDED_THEME.filter((key) => !(key in dict)), lang).toEqual([]);
   });
 
   it('30a keys are in every language', () => {
@@ -317,7 +321,7 @@ describe('uk golden (22a)', () => {
 
   it('adds no uk keys beyond the agreed list', () => {
     const fresh = Object.keys(ukMessages).filter((key) => !(key in golden));
-    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key))).toEqual([]);
+    expect(fresh.filter((key) => !ADDED.includes(key) && !ADDED_LATER.includes(key) && !ADDED_23A.includes(key) && !ADDED_24A.includes(key) && !ADDED_24B.includes(key) && !ADDED_24C.includes(key) && !ADDED_24D.includes(key) && !ADDED_GRAIL.includes(key) && !ADDED_25C.includes(key) && !ADDED_25D.includes(key) && !ADDED_25E.includes(key) && !ADDED_26A.includes(key) && !ADDED_26B.includes(key) && !ADDED_26C.includes(key) && !ADDED_27A.includes(key) && !ADDED_27B.includes(key) && !ADDED_27C.includes(key) && !ADDED_27D.includes(key) && !ADDED_28A.includes(key) && !ADDED_28B.includes(key) && !ADDED_28C.includes(key) && !ADDED_28D.includes(key) && !ADDED_28D_PLURALS.includes(key) && !ADDED_29C.includes(key) && !ADDED_29C_PLURALS.includes(key) && !ADDED_29D.includes(key) && !ADDED_29D_PLURALS.includes(key) && !ADDED_29F.includes(key) && !ADDED_29F_PLURALS.includes(key) && !ADDED_29E.includes(key) && !ADDED_29E_PLURALS.includes(key) && !ADDED_29I.includes(key) && !ADDED_29H.includes(key) && !ADDED_29G.includes(key) && !ADDED_29G_PLURALS.includes(key) && !ADDED_30A.includes(key) && !ADDED_12J.includes(key) && !ADDED_12K.includes(key) && !ADDED_12K_PLURALS.includes(key) && !ADDED_12L.includes(key) && !ADDED_31.includes(key) && !ADDED_32.includes(key) && !ADDED_33.includes(key) && !ADDED_34.includes(key) && !ADDED_THEME.includes(key))).toEqual([]);
   });
 });
 

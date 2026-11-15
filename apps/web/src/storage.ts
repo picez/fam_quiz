@@ -91,6 +91,14 @@ export const loadEasy = (): 'on' | 'off' | null => {
 };
 export const saveEasy = (on: boolean): void => write(EASY, on ? 'on' : 'off');
 
+const THEME = 'quiz:theme';
+/** Тема оформлення на цьому пристрої: 'light' | 'system'; null — темна (типова, ключа немає). */
+export const loadTheme = (): 'light' | 'system' | null => {
+  const value = read(THEME);
+  return value === 'light' || value === 'system' ? value : null;
+};
+export const saveTheme = (theme: 'dark' | 'light' | 'system'): void => write(THEME, theme === 'dark' ? null : theme);
+
 const STAGE_SPEECH = 'quiz:stage-speech';
 /** «Читати вголос» на сцені (31): чи вмикали на цьому пристрої. */
 export const loadStageSpeech = (): boolean => read(STAGE_SPEECH) === 'on';

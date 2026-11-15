@@ -8,6 +8,8 @@ import { AppRoutes } from './AppRoutes';
 import { applyEasyClass } from './easy-mode';
 import { EasyModeRoot } from './EasyModeRoot';
 import { ErrorBoundary } from './ErrorBoundary';
+import { applyThemeClass } from './theme-mode';
+import { ThemeRoot } from './ThemeRoot';
 import { initLocale } from './locales/choose';
 import { LocaleRoot } from './locales/LocaleRoot';
 import { installStaleChunkReload } from './stale-chunk';
@@ -23,6 +25,8 @@ installStaleChunkReload();
 
 // «Легкий режим» (31): клас на <html> ще до першого рендеру — сторінка не блимає звичайним розміром.
 applyEasyClass(window.location.pathname);
+// Тема: перший клас ставить скрипт в index.html ще до стилів; тут — те саме з модуля (і колір рядка стану).
+applyThemeClass();
 
 // Мова з localStorage чи браузера вантажиться до першого рендеру: сторінка не блимає українською.
 void initLocale().then(() =>
@@ -32,6 +36,7 @@ void initLocale().then(() =>
         <LocaleRoot>
           <BrowserRouter>
             <EasyModeRoot />
+            <ThemeRoot />
             <AppRoutes />
           </BrowserRouter>
         </LocaleRoot>

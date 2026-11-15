@@ -5,6 +5,8 @@
   --track: #221616; /* незаповнена доріжка шкал (progress): темна, видно й на --surface */
   --spot: rgb(224 37 49 / 0.12);
   --paper: #f3eaea;
+  /* Темний текст на яскравих заливках зі сталими кольорами (стіна, групи): однаковий в обох темах. */
+  --ink: #060505;
   --dim: rgb(243 234 234 / 0.7);
   --accent: #e02531;
   --accent-text: #ff4651;
@@ -95,6 +97,67 @@
   --paper: #ffffff;
   --dim: rgb(255 255 255 / 0.88);
   --line: #6b4a4a;
+}
+
+/* Світла тема (вибір пристрою, theme-mode.ts): ті самі ролі змінних, світле тло й темний текст. Яскраві кольори
+   (червоний, бірюза, помаранч, команди) темніші, щоб текстом читалися на світлому (WCAG AA), а заливкою — тримали
+   світлий текст --stage. Правила елементів, де темна тема має власні числа, — у кінці файлу. */
+:root.is-light {
+  --stage: #f7f2f1;
+  --surface: #ffffff;
+  --track: #e8dcdb;
+  --spot: rgb(224 37 49 / 0.1);
+  --paper: #1f1515;
+  --dim: rgb(31 21 21 / 0.72);
+  --accent: #c81e2a;
+  --accent-text: #b3121e;
+  --link: #a10f1a;
+  --correct: #087263;
+  --signal: #c0121e;
+  --wrong: #b3234a;
+  --notice-bg: rgb(255 255 255 / 0.97);
+  --voice: #5b48d9;
+  --cell-voice: rgb(91 72 217 / 0.16);
+  --allin: #c2185b;
+  --bank: #8a5a00;
+  --pending: #a84d08;
+  --pending-soft: rgb(168 77 8 / 0.14);
+  --line: #e0cfce;
+  --sort-zone: rgb(91 72 217 / 0.1);
+  --sort-zone-hot: rgb(91 72 217 / 0.22);
+  --sort-landed: rgb(8 114 99 / 0.16);
+  --sort-lock: rgb(58 10 22 / 0.22);
+  --duel-accent: #c2410c;
+  --duel-accent-soft: rgb(194 65 12 / 0.12);
+  --duel-challenger: #0369a1;
+  --duel-opponent: #be185d;
+  --buff-accent: #0e7490;
+  --buff-used: rgb(31 21 21 / 0.32);
+  --buff-active: #46720d;
+  --spare-accent: #946005;
+  --vote-bar: rgb(14 116 144 / 0.16);
+  --removed-tag: #be123c;
+  --surprise: #946005;
+  --team-0: #c62f35;
+  --team-1: #1d66c4;
+  --team-2: #18794a;
+  --team-3: #866300;
+  --team-4: #7046d1;
+  --team-5: #b0560b;
+  --guide-accent: #137a3a;
+  --guide-accent-soft: rgb(19 122 58 / 0.1);
+  --appeal-accent: #946005;
+  --splash-bg: rgb(247 242 241);
+  --final-gold: #8a5d00;
+  --final-ray: rgb(200 140 20 / 0.16);
+  color-scheme: light;
+}
+
+/* Світла тема разом із легким режимом: текст ще темніший, рамки видніші (а не білий текст легкого режиму). */
+:root.is-light.is-easy {
+  --paper: #000000;
+  --dim: rgb(0 0 0 / 0.8);
+  --line: #a08585;
 }
 
 /* Значки-стрілки інтерфейсу (назад, далі) дзеркаляться справа наліво. */
@@ -9593,7 +9656,7 @@ button.wall-tile:disabled {
 
 .wall-tile.is-found {
   border-color: transparent;
-  color: var(--stage);
+  color: var(--ink);
 }
 
 .wall-color-0 {
@@ -9641,7 +9704,7 @@ button.wall-tile:disabled {
   flex-direction: column;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
-  color: var(--stage);
+  color: var(--ink);
   overflow-wrap: anywhere;
 }
 
@@ -23280,4 +23343,193 @@ input.sudoku-editor-cell:focus-visible {
 .answer-pending {
   color: var(--bank);
   font-weight: 600;
+}
+
+/* ---------- Світла тема ----------
+   Змінні — у :root.is-light на початку файлу; тут лише місця, де темна тема має власні числа (білі вуалі, чорні тіні,
+   пастельний текст). Як і легкий режим: у кінці файлу й через :where() — специфічність та сама, що в звичайних правил,
+   тож стани з точнішими селекторами лишаються як є. Накладки над фото й відео (лупа, сітки картинок, цілі на мапі,
+   плями «Знайди відмінності», темрява ліхтарика) свідомо темні в обох темах. */
+
+/* Тло-рамка навколо картинки, відео, аудіо й мапи: легка сіра підкладка замість чорної вуалі. */
+:where(:root.is-light) .question-image,
+:where(:root.is-light) .question-video,
+:where(:root.is-light) .audio-card,
+:where(:root.is-light) .pin-frame,
+:where(:root.is-light) .pin-board {
+  background: rgb(31 21 21 / 0.06);
+}
+
+/* Заповнення кнопки, що чекає на темп: темна смуга, бо біла на світлій кнопці зникає. */
+:where(:root.is-light) .btn.is-pacing {
+  background-image: linear-gradient(90deg, rgb(31 21 21 / 0.12) calc(var(--pace, 0) * 100%), transparent 0);
+}
+
+:where(:root.is-light) [dir='rtl'] .btn.is-pacing {
+  background-image: linear-gradient(270deg, rgb(31 21 21 / 0.12) calc(var(--pace, 0) * 100%), transparent 0);
+}
+
+:where(:root.is-light) .mark:hover,
+:where(:root.is-light) .row-button:not(:disabled):hover {
+  background: rgb(31 21 21 / 0.08);
+}
+
+:where(:root.is-light) .award-emoji:hover {
+  background: rgb(31 21 21 / 0.06);
+}
+
+/* Шапка профілю й заголовок героя над місяцем: світлий ореол замість темної тіні. */
+:where(:root.is-light) .profile-head h1 .nick-name {
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.95)) drop-shadow(0 1px 3px rgb(255 255 255 / 0.9));
+}
+
+:where(:root.is-light) .profile-edit {
+  text-shadow: 0 1px 3px rgb(247 242 241 / 0.95), 0 0 0.75rem rgb(247 242 241 / 0.8);
+}
+
+:where(:root.is-light) .motif-hero .brand {
+  text-shadow: 0 1px 3px rgb(247 242 241 / 0.9), 0 0 1.25rem rgb(247 242 241 / 0.7);
+}
+
+/* Тіні карток і шторок: м'які теплі замість чорних. */
+:where(:root.is-light) .shelf-stand::after {
+  box-shadow: 0 0.375rem 0.875rem rgb(60 30 30 / 0.22);
+}
+
+:where(:root.is-light) .sort-card,
+:where(:root.is-light) .sort-live-card {
+  box-shadow: 0 0.5rem 1.5rem rgb(60 30 30 / 0.16);
+}
+
+:where(:root.is-light) .help-pop,
+:where(:root.is-light) .appeal-card.is-stage,
+:where(:root.is-light) .level-tip {
+  box-shadow: 0 0.5rem 2rem rgb(60 30 30 / 0.18);
+}
+
+:where(:root.is-light) .peek-sheet,
+:where(:root.is-light) .vote-sheet,
+:where(:root.is-light) .appeal-sheet,
+:where(:root.is-light) .reaction-sheet {
+  box-shadow: 0 -0.5rem 1.5rem rgb(60 30 30 / 0.18);
+}
+
+/* Заставки: напис без темного ореолу на світлому тлі. */
+:where(:root.is-light) .splash-surprise,
+:where(:root.is-light) .splash-blitz-title {
+  text-shadow: none;
+}
+
+:where(:root.is-light) .splash.is-final .splash-title {
+  text-shadow: 0 0 0.35em rgb(200 140 20 / 0.35);
+}
+
+/* Підказка гіда й таблиця рахунку. */
+:root.is-light {
+  --tip-bg: rgb(19 122 58 / 0.08);
+}
+
+:where(:root.is-light) .score-table-wrap.is-history {
+  --score-bg: color-mix(in srgb, #000 3%, var(--stage));
+}
+
+/* Шкала «повзунка»: правильна відповідь і близькі позначки — темні, бо біле на світлій доріжці не видно. */
+:where(:root.is-light) .scale-correct,
+:where(:root.is-light) .scale-dot.is-near,
+:where(:root.is-light) .scale-mark.is-near .scale-pin {
+  background: var(--paper);
+}
+
+/* Хмара слів: темніші відтінки тих самих п'яти кольорів. */
+:where(:root.is-light) .word-color-0 {
+  color: #8a5a00;
+}
+
+:where(:root.is-light) .word-color-1 {
+  color: #0e6f8a;
+}
+
+:where(:root.is-light) .word-color-2 {
+  color: #3f6b0b;
+}
+
+:where(:root.is-light) .word-color-3 {
+  color: #b3264b;
+}
+
+:where(:root.is-light) .word-color-4 {
+  color: #6b3fc4;
+}
+
+/* Хмаринка-мотив: темний контур, бо білий на світлому тлі губиться. */
+:where(:root.is-light) .cloud-motif path {
+  stroke: var(--paper);
+}
+
+/* Пазли, судоку, кросворд: чорнило відповіді й кольори гравців — темніші, щоб текст читався на світлих клітинках. */
+:where(:root.is-light) .puzzle-play,
+:where(:root.is-light) .puzzle-reveal,
+:where(:root.is-light) .puzzle-solution {
+  --puzzle-ink: #0369a1;
+}
+
+:where(:root.is-light) .by-1 { --by: #0369a1; }
+:where(:root.is-light) .by-2 { --by: #946005; }
+:where(:root.is-light) .by-3 { --by: #3f6b0b; }
+:where(:root.is-light) .by-4 { --by: #be185d; }
+:where(:root.is-light) .by-5 { --by: #5b48d9; }
+:where(:root.is-light) .by-6 { --by: #087263; }
+:where(:root.is-light) .by-7 { --by: #b0560b; }
+:where(:root.is-light) .by-8 { --by: #57534e; }
+:where(:root.is-light) .by-9 { --by: #7e3fc4; }
+:where(:root.is-light) .by-x { --by: #6b6262; }
+
+:where(:root.is-light) .jigsaw-preview {
+  border-color: rgb(31 21 21 / 0.3);
+}
+
+:where(:root.is-light) .jigsaw-frame {
+  background-color: rgb(31 21 21 / 0.03);
+  background-image: linear-gradient(to right, rgb(31 21 21 / 0.12) 1px, transparent 1px), linear-gradient(to bottom, rgb(31 21 21 / 0.12) 1px, transparent 1px);
+  outline-color: rgb(31 21 21 / 0.3);
+}
+
+:where(:root.is-light) .jigsaw-pile {
+  background: rgb(31 21 21 / 0.04);
+}
+
+:where(:root.is-light) .quest-settings .quest-order-char {
+  border-color: var(--line);
+}
+
+/* Кольори ніку (24d): темніші відтінки, що читаються на світлому (WCAG AA на --surface). */
+:where(:root.is-light) .nick-c-sky { color: #0369a1; }
+:where(:root.is-light) .nick-c-mint { color: #047857; }
+:where(:root.is-light) .nick-c-sun { color: #b45309; }
+:where(:root.is-light) .nick-c-coral { color: #be123c; }
+:where(:root.is-light) .nick-c-violet { color: #6d28d9; }
+:where(:root.is-light) .nick-c-gold { color: #a16207; }
+:where(:root.is-light) .nick-c-rainbow { background-image: linear-gradient(90deg, #b91c1c, #b45309, #047857, #0369a1, #6d28d9); }
+:where(:root.is-light) .nick-c-blood { background-image: linear-gradient(90deg, #b91c1c, #be123c); }
+:where(:root.is-light) .nick-c-flame { background-image: linear-gradient(90deg, #c2410c, #b45309); }
+:where(:root.is-light) .nick-c-ice { background-image: linear-gradient(90deg, #0369a1, #0e7490); }
+:where(:root.is-light) .nick-c-venom { background-image: linear-gradient(90deg, #15803d, #4d7c0f); }
+:where(:root.is-light) .nick-c-amethyst { background-image: linear-gradient(90deg, #7e22ce, #a21caf); }
+:where(:root.is-light) .nick-c-moonsilver { background-image: linear-gradient(90deg, #475569, #64748b); }
+
+/* Рамки ніку, надто бліді на світлому. */
+:where(:root.is-light) .nick-f-silver { outline-color: #94a3b8; }
+:where(:root.is-light) .nick-f-glacier { outline-color: #38bdf8; }
+
+/* Ефекти ніку (34): сніжинки й сріблястий нік — темніші, решта сяйв лишається. */
+:where(:root.is-light) .nick-x-frost::before,
+:where(:root.is-light) .nick-x-frost::after,
+:where(:root.is-light) .nick-x-frost > .nick-name::after {
+  color: #0284c7;
+  -webkit-text-fill-color: #0284c7;
+  text-shadow: none;
+}
+
+:where(:root.is-light) .nick-x-shimmer > .nick-name:not([class*='nick-c-']) {
+  color: #64748b;
 }
