@@ -107,6 +107,33 @@ describe('light theme rules', () => {
     }
   });
 
+  it.each([
+    '.nick-x-sparks::before',
+    '.nick-x-sparks::after',
+    '.nick-x-sparks > .nick-name::after',
+    '.nick-x-stardust::before',
+    '.nick-x-stardust::after',
+    '.nick-x-stardust > .nick-name::after',
+  ])('light %s draws coloured stars (no white or pastel ones) with a dark outline', (selector) => {
+    const body = lightRule(selector);
+    expect(body).toContain('radial-gradient');
+    expect(body).not.toMatch(/#ffffff|#f5f3ff|#ede9fe|#fff7d6/i);
+    expect(body).toMatch(/filter: drop-shadow/);
+  });
+
+  it('light shimmer and bolt are coloured, not the white overlay sweep and the near-white bolt of the dark theme', () => {
+    expect(lightRule('.nick-x-shimmer::after')).toMatch(/content: none/);
+    const sweep = lightRule('.nick-x-shimmer > .nick-name[data-fx-text]::after');
+    expect(sweep).toMatch(/background-clip: text/);
+    expect(sweep).toMatch(/linear-gradient\(100deg, transparent [^)]*#9333ea/);
+    expect(lightRule('.nick-x-bolt::after')).toContain("stroke='%230e7490'");
+  });
+
+  it('dark nick effects stay as they were: white stars, white overlay sweep', () => {
+    expect(/\n\.nick-x-stardust::before \{[^}]*#ffffff/.test(css)).toBe(true);
+    expect(/\n\.nick-x-shimmer::after \{[^}]*mix-blend-mode: overlay;/.test(css)).toBe(true);
+  });
+
   it('the light overrides come after the rules they override, so equal specificity wins', () => {
     const at = (needle: string) => css.indexOf(needle);
     expect(at(':where(:root.is-light) .nick-c-sky')).toBeGreaterThan(at('.nick-c-sky {'));

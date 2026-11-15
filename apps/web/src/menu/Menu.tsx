@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { feedBadgeLabel, feedBadgeTotal } from '@quiz/shared';
 import { t, type TextKey } from '../i18n';
+import { ThemeToggle } from '../ThemeToggle';
 import { useAccount } from '../useAccount';
 import { useFeedBadge } from '../useFeedBadge';
 import { useGroupInvites } from '../useGroupInvites';
@@ -60,6 +61,8 @@ export function Menu() {
           )}
         </Link>
       ))}
+      {/* Швидкий перемикач теми: на кожній сторінці з меню; повний вибір (з «Як у системі») — у налаштуваннях профілю. */}
+      <ThemeToggle className="menu-theme" />
     </nav>
   );
 }

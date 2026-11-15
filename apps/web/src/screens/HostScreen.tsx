@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { clueShare, melodyRevealClip, reactionAllowed, revealShare, type Answer, type Reaction, type ClientToServerEvents, type Grade, type HostBoard, type HostDrafts, type HostView, type SortTilt } from '@quiz/shared';
 import { secondsLeft } from '../clock';
+import { ThemeToggle } from '../ThemeToggle';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
@@ -616,6 +617,7 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
           </button>
         )}
         {view.undo !== null && <UndoButton undo={view.undo} teams={view.teams !== null} send={send} />}
+        <ThemeToggle className="bar-theme" />
         <ReactionButton shown={reactionAllowed(phase)} level={Infinity} event="host:react" send={send} />
         <strong className="code" dir="ltr">{`${code.slice(0, 3)} ${code.slice(3)}`}</strong>
       </header>

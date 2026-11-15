@@ -147,7 +147,7 @@ describe('uk golden (22a)', () => {
     'stickerPackLocked', 'stickerPackLockedOr', 'stickerPackMore', 'achievementStickers',
   ];
   /** Світла тема: перемикач теми на пристрої. */
-  const ADDED_THEME = ['themeLabel', 'themeDark', 'themeLight', 'themeSystem', 'themeHint'];
+  const ADDED_THEME = ['themeLabel', 'themeDark', 'themeLight', 'themeSystem', 'themeHint', 'themeQuick', 'themeQuickToLight', 'themeQuickToDark'];
   /** Судоку: «Стерти все» з перепитуванням. */
   const ADDED_35 = ['sudokuWipe', 'sudokuWipeConfirm'];
   const ADDED_31 = ['easyModeLabel', 'easyModeHint', 'easyModeHintAccount', 'easyModeSaveFailed', 'familyLabel', 'familyHint', 'familyLobby', 'familyDebuffOff', 'familySpeechTip', 'speechToggle', 'speechResume', 'speechRepeat', 'speechUnsupported', 'speechNoVoice', 'speechMedia', 'speechOptions', 'speechBlank'];
