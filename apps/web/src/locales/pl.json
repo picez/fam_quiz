@@ -3528,6 +3528,8 @@
   "sudokuNone": "Nie ma rozwiązania — sprawdź cyfry.",
   "sudokuPencil": "Ołówek",
   "sudokuPencilMarks": "notatki: {digits}",
+  "sudokuWipe": "Wyczyść wszystko",
+  "sudokuWipeConfirm": "Na pewno wyczyścić?",
   "sudokuSourceCustom": "Wpisz własne",
   "sudokuSourceGenerate": "Wygeneruj",
   "sudokuSourceLabel": "Skąd cyfry",

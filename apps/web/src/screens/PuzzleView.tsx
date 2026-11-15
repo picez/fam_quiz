@@ -8,6 +8,8 @@ import { sudokuPeers, usePencil } from '../live/sudoku-pencil';
 
 /** Після «Готово» кнопка підтвердження на мить глуха: другий дотик подвійного натиску не фіксує сітку. */
 export const PUZZLE_TAP_GAP_MS = 350;
+/** «Стерти все» чекає другого дотику стільки, потім знову звичайна кнопка. */
+export const WIPE_CONFIRM_MS = 3000;
 
 /** У прихованому полі кросворду завжди стоїть цей символ: Backspace на Android (без keydown) стирає його — так його й видно. */
 const SENTINEL = '​';
@@ -146,13 +148,21 @@ function filledCount(info: PlayerPuzzle, cells: string[]): { filled: number; tot
 
 /**
  * Судоку на телефоні: сітка 6×6 на всю ширину з товстими межами блоків 2×3, задані цифри напівжирні й не вибираються.
- * Тап вибирає клітинку й підсвічує її рядок, стовпець і блок; цифри — власна клавіатура 1–6 і «Стерти» (системна не відкривається),
+ * Тап вибирає клітинку й підсвічує її рядок, стовпець і блок; цифри — власна клавіатура 1–6, «Стерти» й «Стерти все» з підтвердженням (системна не відкривається),
  * фізична клавіатура теж (1–6, Backspace/Delete, стрілки). Пауза, кінець часу чи «Готово» — сітка й клавіатура вимкнені.
  */
 export function SudokuPlay({ info, question, questionIndex, paused, timeUp, closed = false, send, deadline = null, pencil: pencilKey }: PuzzlePlayProps) {
   const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<number | null>(null);
   const [pencilOn, setPencilOn] = useState(false);
+  /** «Стерти все» натиснуто раз: кнопка питає «Точно?», другий дотик (не раніше PUZZLE_TAP_GAP_MS) стирає. */
+  const [wiping, setWiping] = useState(false);
+  const wipeAt = useRef(0);
+  useEffect(() => {
+    if (!wiping) return;
+    const timer = setTimeout(() => setWiping(false), WIPE_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [wiping]);
   const givens = question.puzzle?.kind === 'sudoku' ? question.puzzle.givens : '0'.repeat(SUDOKU_SIDE * SUDOKU_SIDE);
   const pencil = usePencil(pencilKey?.room, `${pencilKey?.round ?? 0}:${questionIndex}:${givens}`, board.cells);
   const off = paused || timeUp || board.status === 'time_over' || closed || !info.canEdit || info.done;
@@ -170,6 +180,19 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
       return;
     }
     board.set(sel, v);
+  };
+  /** Усі вписані цифри (не задані) і всі позначки олівця — геть. */
+  const wipe = () => {
+    if (off) return;
+    if (!wiping) {
+      wipeAt.current = Date.now();
+      setWiping(true);
+      return;
+    }
+    if (Date.now() - wipeAt.current < PUZZLE_TAP_GAP_MS) return;
+    setWiping(false);
+    for (let i = 0; i < SUDOKU_SIDE * SUDOKU_SIDE; i += 1) if (!given(i) && (board.cells[i] ?? '') !== '') board.set(i, '');
+    pencil.clearAll();
   };
   const move = (dr: number, dc: number) => {
     if (off) return;
@@ -276,6 +299,9 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
           </button>
           <button type="button" className="btn puzzle-key puzzle-pencil" aria-pressed={pencilOn} aria-disabled={off} onClick={() => !off && setPencilOn(!pencilOn)}>
             {t('sudokuPencil')}
+          </button>
+          <button type="button" className={wiping ? 'btn puzzle-key puzzle-wipe is-asking' : 'btn puzzle-key puzzle-wipe'} aria-disabled={off} onClick={wipe}>
+            {t(wiping ? 'sudokuWipeConfirm' : 'sudokuWipe')}
           </button>
         </div>
       )}

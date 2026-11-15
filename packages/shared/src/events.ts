@@ -132,7 +132,7 @@ export const spotdiffTapSchema = z
  * Непара показується MEMORY_SHOW_MS, у команді хід без другої картки спливає за MEMORY_TURN_MS.
  */
 export const MEMORY_FLIPS_PER_SECOND = 4;
-export const MEMORY_SHOW_MS = 1000;
+export const MEMORY_SHOW_MS = 2000;
 export const MEMORY_TURN_MS = 5000;
 export const memoryFlipSchema = z.object({ questionIndex: z.number().int().nonnegative(), cell: z.number().int().min(0).max(MEMORY_MAX_CELLS - 1) }).strict();
 /** «Мелодія за нотами» (29e): відкрити шматок step (1…5). questionIndex — номер запитання в поточному раунді, як у зрізі; без верхньої межі, застаріле відсікає melody_stale. */

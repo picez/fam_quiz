@@ -19669,9 +19669,19 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .puzzle-key.puzzle-erase,
-.puzzle-key.puzzle-pencil {
-  grid-column: span 3;
-  font-size: 1rem;
+.puzzle-key.puzzle-pencil,
+.puzzle-key.puzzle-wipe {
+  grid-column: span 2;
+  padding-inline: 0.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.1;
+}
+
+/* «Стерти все» перепитує: другий дотик стирає усе вписане. */
+.puzzle-wipe.is-asking {
+  border: 2px solid var(--signal);
+  color: var(--signal);
+  font-weight: 800;
 }
 
 /* Перемикач олівця: ввімкнений — акцентна рамка й заливка, видно здалеку. */
@@ -21234,30 +21244,48 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .memory-text-l {
-  font-size: min(16px, 22cqw);
+  font-size: min(16px, 22cqw, calc(var(--memory-card) * 0.23));
 }
 
 .memory-text-m {
-  font-size: min(13px, 20cqw);
+  font-size: min(13px, 20cqw, calc(var(--memory-card) * 0.23));
 }
 
 .memory-text-s {
-  font-size: 11px;
-  line-height: 1.15;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
-}
-
-/* До 40 символів: 5 рядків по 11 px уміщаються в картку 4×5 на 320 px (~65 px), тож картка з таким текстом має менше поле. */
-.memory-text-xs {
-  font-size: 10px;
-  line-height: 1.1;
+  font-size: min(12px, calc(var(--memory-card) * 0.14));
+  line-height: 1.12;
   -webkit-line-clamp: 5;
   line-clamp: 5;
 }
 
+/* До 40 символів: шрифт росте й меншає з розміром картки (частка --memory-card), тож 6 рядків уміщаються й у найменшій картці
+   низького телефона, а не обрізаються; повністю фразу однаково видно дотиком (картка на весь екран). */
+.memory-text-xs {
+  font-size: min(11px, calc(var(--memory-card) * 0.125));
+  line-height: 1.08;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
 .memory-card:has(> .memory-text-xs) {
   padding: 2px;
+}
+
+.memory-card:not(.is-closed) {
+  cursor: zoom-in;
+}
+
+/* Текстова картка на весь екран: велике слово по центру. */
+.memory-zoom-text {
+  max-width: 90vw;
+  margin: 0;
+  color: #f3eaea;
+  font-family: var(--display);
+  font-size: clamp(1.5rem, 9vw, 4rem);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .memory-img {
@@ -21488,6 +21516,16 @@ input.sudoku-editor-cell:focus-visible {
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: 700;
+}
+
+.memory-reveal-zoom {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
 }
 
 .memory-reveal-img {

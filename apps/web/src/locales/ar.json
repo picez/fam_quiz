@@ -3650,6 +3650,8 @@
   "sudokuNone": "لا يوجد حل — راجع الأرقام.",
   "sudokuPencil": "قلم رصاص",
   "sudokuPencilMarks": "ملاحظات: {digits}",
+  "sudokuWipe": "امسح الكل",
+  "sudokuWipeConfirm": "هل تمسح الكل؟",
   "sudokuSourceCustom": "إدخال أرقامي",
   "sudokuSourceGenerate": "توليد",
   "sudokuSourceLabel": "مصدر الأرقام",

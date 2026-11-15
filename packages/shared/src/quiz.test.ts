@@ -3230,7 +3230,7 @@ describe('memory question (29f)', () => {
 
   it('the memory event is limited', () => {
     expect(MEMORY_FLIPS_PER_SECOND).toBe(4);
-    expect(MEMORY_SHOW_MS).toBe(1000);
+    expect(MEMORY_SHOW_MS).toBe(2000);
     expect(MEMORY_TURN_MS).toBe(5000);
     expect(valid(memoryFlipSchema, { questionIndex: 7, cell: 19 })).toBe(true);
     expect(valid(memoryFlipSchema, { questionIndex: 5000, cell: 0 })).toBe(true);

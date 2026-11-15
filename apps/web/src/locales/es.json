@@ -3527,6 +3527,8 @@
   "sudokuNone": "No hay solución: revisa los dígitos.",
   "sudokuPencil": "Lápiz",
   "sudokuPencilMarks": "notas: {digits}",
+  "sudokuWipe": "Borrar todo",
+  "sudokuWipeConfirm": "¿Borrar todo?",
   "sudokuSourceCustom": "Poner los míos",
   "sudokuSourceGenerate": "Generar",
   "sudokuSourceLabel": "De dónde salen los dígitos",

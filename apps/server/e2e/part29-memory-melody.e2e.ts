@@ -1,10 +1,11 @@
 import { classicRound, makeRoundsQuiz, puzzlesRound, single, withId } from '@quiz/engine/testing';
 import { memoryCardAt, memoryLayout } from '@quiz/shared';
+import { resolve } from 'node:path';
 import { type Page } from 'playwright-core';
 import { io as connectSocket, type Socket } from 'socket.io-client';
 import { expect, it } from 'vitest';
 import { open, click, field, questionText, seconds, join, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, silentMp3, NL, pickTeamOn, stageTeam, sleep, frame, stateViews, step27a, next27a, phoneScore27a, select27b, toWinners27c, reveal28a, done28d, png29d } from './helpers/common';
-import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
+import { ARTIFACTS, exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
  * Наскрізні тести: частина 29f і 29e: мемо й мелодія.
@@ -328,7 +329,7 @@ async function memoryGame29f() {
   expect(petroBefore, 'a layout seed in Petro’s frames').not.toContain('"seed"');
   expect(petroBefore, 'the pairs in Petro’s frames').not.toMatch(/"pairs":\[/);
 
-  // Непара: відкрито картку пари 1 (a) і пари 2 (a) — обидві видно, червона рамка; тап по третій у цей час нічого не відкриває; за ~1 с обидві закриті.
+  // Непара: відкрито картку пари 1 (a) і пари 2 (a) — обидві видно, червона рамка; тап по третій у цей час нічого не відкриває; за ~2 с (MEMORY_SHOW_MS) обидві закриті.
   const [p0a] = cellsOf29f(q2, 0);
   const [p1a] = cellsOf29f(q2, 1);
   const [p2a] = cellsOf29f(q2, 2);
@@ -340,17 +341,19 @@ async function memoryGame29f() {
   const wrongAt = Date.now();
   await seeCard29f(petro, q2, p0a, 'shown');
   expect(await petro.locator('.memory-card.is-shown').count(), 'a wrong pair shows two red cards').toBe(2);
-  await shot(petro, 'memory29f-phone-wrong-pair');
-  if (Date.now() - wrongAt < 700) {
+  if (Date.now() - wrongAt < 1500) {
     await petro.getByRole('button', { name: `Картка ${p2a + 1}, закрита`, ...exact }).click({ force: true });
     await sleep(100);
     expect(await petro.getByRole('button', { name: `Картка ${p2a + 1}, закрита`, ...exact }).count(), 'a tap while a wrong pair is shown opens nothing').toBe(1);
   }
-  await expect.poll(() => petro.locator('.memory-card.is-shown').count(), { timeout: 3000 }).toBe(0);
+  // Кадр екрана, не всієї сторінки: повносторінковий знімок тимчасово міняє висоту вікна, і сітка, що міряє екран, у Chromium лишається
+  // нерозкладеною (0×0) — далі тести її не бачать.
+  if (process.env.E2E_SHOTS === '1') await petro.screenshot({ path: resolve(ARTIFACTS, 'shots', 'memory29f-phone-wrong-pair.png') });
+  await expect.poll(() => petro.locator('.memory-card.is-shown').count(), { timeout: 4000 }).toBe(0);
   const closedAfter = Date.now() - wrongAt;
   console.log(`memory 29f: a wrong pair stayed ${closedAfter} ms after it showed on the phone`);
-  expect(closedAfter, 'a wrong pair closes about a second after it shows').toBeGreaterThan(400);
-  expect(closedAfter, 'a wrong pair does not hang open').toBeLessThan(2500);
+  expect(closedAfter, 'a wrong pair stays about two seconds after it shows').toBeGreaterThan(1400);
+  expect(closedAfter, 'a wrong pair does not hang open').toBeLessThan(3500);
   expect(await closedCount29f(petro), 'both cards are backs again').toBe(12);
   expect(await petro.getByRole('button', { name: `Картка ${p0a + 1}, закрита`, ...exact }).count()).toBe(1);
   // Петро знаходить дві пари й відкриває ще одну картку — і більше не грає: не встигає.
@@ -388,7 +391,7 @@ async function memoryGame29f() {
   await seeCard29f(taras, q2, cellsOf29f(q2, 3)[0], 'open');
   await flip29f(taras, cellsOf29f(q2, 4)[1]);
   await expect.poll(() => taras.locator('.memory-card.is-shown').count(), POLL).toBe(2);
-  await expect.poll(() => taras.locator('.memory-card.is-shown').count(), { timeout: 3000 }).toBe(0);
+  await expect.poll(() => taras.locator('.memory-card.is-shown').count(), { timeout: 4000 }).toBe(0);
   for (let pair = 0; pair < 6; pair++) await match29f(taras, q2, pair);
   await taras.getByText(/^Усі пари знайдено за [\d,]+ с\. Чекаємо інших$/).first().waitFor();
   await expect.poll(() => memCount29f(stage, '.memory-stage', 'Тарас'), POLL).toMatch(/^6 з 6 ✓ [\d,]+ с$/);

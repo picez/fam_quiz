@@ -5,6 +5,7 @@ import { t } from '../i18n';
 import type { Send } from '../live/types';
 import { memoryCardSize } from '../live/memorySize';
 import { memoryTextSize, useMemory } from '../live/useMemory';
+import { ImageZoom } from './ImageZoom';
 import { jigsawTablePageSize } from './JigsawView';
 import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
@@ -45,11 +46,13 @@ function CardFace({ cell }: { cell: MemoryCellView }) {
 /**
  * Сітка «Пам'яті» (29f): cols квадратних карток у ряд, розмір — з CSS (--memory-card: за шириною поля й висотою екрана). Закрита
  * картка — сорочка без вмісту (номер лише в aria-label); 'pending' — «перевертання» без вмісту; відкрита, показана (непара — червона
- * рамка) чи знайдена (зелена, у командах колір tone, притлумлена) — вміст зі зрізу.
+ * рамка) чи знайдена (зелена, у командах колір tone, притлумлена) — вміст зі зрізу; дотик до відкритої — вона на весь екран (ImageZoom).
  */
 export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waiting = false, reveal = false }: MemoryGridProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<number | null>(null);
+  /** Відкрита картка на весь екран: дрібну картинку чи обрізаний текст на телефоні інакше не роздивишся. */
+  const [zoom, setZoom] = useState<MemoryCellView | null>(null);
   // Міряємо фактичне місце: від верху сітки до низу вікна (мінус рядок стану під нею й нижній відступ екрана), а не гадаємо
   // висоту обв'язки — назва запитання може займати кілька рядків.
   useLayoutEffect(() => {
@@ -105,12 +108,31 @@ export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waitin
             />
           );
         }
+        // Відкрита картка не перевертається, але дотик показує її на весь екран.
         return (
-          <button key={i} type="button" className={`memory-card is-${cell.state}${cell.tone === null ? '' : ` by-${cell.tone}`}`} aria-disabled="true" aria-label={cardLabel(cell, n, reveal)} data-cell={i}>
+          <button
+            key={i}
+            type="button"
+            className={`memory-card is-${cell.state}${cell.tone === null ? '' : ` by-${cell.tone}`}`}
+            aria-haspopup="dialog"
+            aria-label={cardLabel(cell, n, reveal)}
+            data-cell={i}
+            onClick={() => setZoom(cell)}
+          >
             <CardFace cell={cell} />
           </button>
         );
       })}
+      {zoom !== null &&
+        (zoom.imageUrl !== null ? (
+          <ImageZoom url={zoom.imageUrl} alt={t('memoryHalfImage')} onClose={() => setZoom(null)} />
+        ) : (
+          <ImageZoom url="" alt={zoom.text} onClose={() => setZoom(null)}>
+            <p className="memory-zoom-text" dir="auto">
+              {zoom.text}
+            </p>
+          </ImageZoom>
+        ))}
     </div>
   );
 }
@@ -217,7 +239,18 @@ export function MemoryBoards({ boards, cols, rows, reveal = false, host = false 
 }
 
 function PairHalf({ card }: { card: MemoryCard }) {
-  if (card.imageUrl !== undefined) return <img className="memory-reveal-img" src={card.imageUrl} alt={t('memoryHalfImage')} draggable={false} />;
+  const [open, setOpen] = useState(false);
+  if (card.imageUrl !== undefined) {
+    const url = card.imageUrl;
+    return (
+      <>
+        <button type="button" className="memory-reveal-zoom" aria-label={t('imageZoomOpen')} onClick={() => setOpen(true)}>
+          <img className="memory-reveal-img" src={url} alt={t('memoryHalfImage')} draggable={false} />
+        </button>
+        {open && <ImageZoom url={url} alt={t('memoryHalfImage')} onClose={() => setOpen(false)} />}
+      </>
+    );
+  }
   return (
     <span className="memory-reveal-text" dir="auto">
       {card.text}

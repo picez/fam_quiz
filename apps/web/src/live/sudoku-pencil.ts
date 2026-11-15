@@ -72,7 +72,7 @@ export function savePencil(room: string, tag: string, marks: PencilMarks): void 
  * Цифра, що з'явилась чи змінилась у клітинці (своя чи товариша), прибирає позначки клітинки й цю цифру з її рядка, стовпця й блоку;
  * стерта цифра позначок не повертає.
  */
-export function usePencil(room: string | undefined, tag: string, cells: readonly string[]): { marks: PencilMarks; toggle(cell: number, digit: string): void; clear(cell: number): void } {
+export function usePencil(room: string | undefined, tag: string, cells: readonly string[]): { marks: PencilMarks; toggle(cell: number, digit: string): void; clear(cell: number): void; clearAll(): void } {
   const [marks, setMarks] = useState<PencilMarks>(() => (room === undefined ? {} : loadPencil(room, tag)));
   const latest = useRef(marks);
   const seen = useRef<readonly string[]>([]);
@@ -101,5 +101,6 @@ export function usePencil(room: string | undefined, tag: string, cells: readonly
 
   const toggle = useCallback((cell: number, digit: string) => apply((from) => togglePencil(from, cell, digit)), [apply]);
   const clear = useCallback((cell: number) => apply((from) => (from[cell] === undefined ? from : withDigits(from, cell, ''))), [apply]);
-  return { marks, toggle, clear };
+  const clearAll = useCallback(() => apply((from) => (Object.keys(from).length === 0 ? from : {})), [apply]);
+  return { marks, toggle, clear, clearAll };
 }
