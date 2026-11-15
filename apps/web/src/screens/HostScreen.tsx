@@ -17,7 +17,7 @@ import { LetterTiles, LetterWordsBest, LetterWordsBoard } from './LetterWordsVie
 import { MoreLessBoard, MoreLessReveal } from './MoreLessView';
 import { PuzzleBoards, PuzzleSolution } from './PuzzleView';
 import { JigsawBoards, JigsawResults } from './JigsawView';
-import { MemoryStage } from './MemoryView';
+import { MemoryPeek, MemoryStage } from './MemoryView';
 import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import { DrawingBoard, DrawingGuessers, DrawingLive, strokesOf } from './DrawingView';
@@ -1223,6 +1223,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
       {view.memory !== undefined && view.question?.memory !== undefined && (
         <section className="panel host-memory">
           <h2>{t('type_memory')}</h2>
+          {/* Під картки — лише на прохання ведучого; на розкритті всі пари й так видно списком. */}
+          {phase !== 'reveal' && view.memory.cards.length > 0 && <MemoryPeek key={view.question.memory.id} cards={view.memory.cards} cols={view.question.memory.cols} rows={view.question.memory.rows} />}
           <MemoryStage info={view.memory} memory={view.question.memory} reveal={phase === 'reveal'} host />
         </section>
       )}

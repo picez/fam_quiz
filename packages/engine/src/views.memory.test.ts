@@ -67,7 +67,7 @@ describe('memory views', () => {
     const s = flip(s0, 'p1', cell, t + 1000);
     const text = LAYOUT_6[cell] % 2 === 0 ? memory.pairs[0].a.text : memory.pairs[0].b.text;
     const secret = [...TEXTS.filter((x) => x !== text), IMAGE, '"seed":42'];
-    for (const json of [JSON.stringify(stageView(s)), JSON.stringify(hostView(s)), JSON.stringify(playerView(s, 'p2', t + 1000)), JSON.stringify(playerView(s, 'p3', t + 1000))]) {
+    for (const json of [JSON.stringify(stageView(s)), JSON.stringify(playerView(s, 'p2', t + 1000)), JSON.stringify(playerView(s, 'p3', t + 1000))]) {
       for (const word of secret) expect(json).not.toContain(word);
       expect(json).not.toContain(text);
     }
@@ -103,6 +103,35 @@ describe('memory views', () => {
     expect(at1000.cells.every((c) => c === null)).toBe(true);
     expect(at1000.closesInMs).toBeNull();
     expect(at1000.canFlip).toBe(true);
+  });
+
+  it('only the host gets what lies under every card (the layout), and no seed', () => {
+    const s0 = fresh();
+    const t = T(s0);
+    const s = flip(s0, 'p1', cellsOf(0)[0], t + 1000);
+    for (const state of [s0, s, must(lock(s, t + 5000))]) {
+      const cards = hostView(state).memory!.cards;
+      expect(cards).toHaveLength(12);
+      LAYOUT_6.forEach((card, cell) => {
+        const pair = memory.pairs[Math.floor(card / 2)];
+        expect(cards[cell]).toEqual(card % 2 === 0 ? pair.a : pair.b);
+      });
+      expect(cards.filter((c) => c.imageUrl === IMAGE)).toHaveLength(1);
+      expect(JSON.stringify(hostView(state))).not.toContain('"seed":42');
+      // сцена й телефони — без cards і без вмісту закритих карток
+      expect(Object.keys(stageView(state).memory!)).not.toContain('cards');
+      expect(Object.keys(playerView(state, 'p2')!.memory!)).not.toContain('cards');
+      for (const json of [JSON.stringify(stageView(state)), JSON.stringify(playerView(state, 'p2', t + 1000))]) for (const word of [...TEXTS, IMAGE]) expect(json).not.toContain(word);
+    }
+  });
+
+  it('team boards: the host gets the cards, teams and the stage do not', () => {
+    const s0 = teamStart();
+    const cards = hostView(s0).memory!.cards;
+    expect(cards).toHaveLength(12);
+    const phones = ['m1', 'm2', 'm3', 'm4'].map((id) => playerView(s0, id));
+    for (const phone of phones) expect(phone?.me.memory?.cells).toHaveLength(12);
+    for (const json of [JSON.stringify(stageView(s0)), ...phones.map((phone) => JSON.stringify(phone))]) for (const word of [...TEXTS, IMAGE]) expect(json).not.toContain(word);
   });
 
   it('the stage and host get counts only', () => {

@@ -391,6 +391,37 @@ describe('CrosswordPlay', () => {
     expect(crosswordCell(1).textContent).not.toContain('и');
   });
 
+  it('«Стерти все» asks once, then clears every letter through the usual queue; a double tap does not clear', () => {
+    vi.useFakeTimers();
+    const send = vi.fn<Send>(() => Promise.resolve({ ok: true } as SendResult));
+    // Клітинки 0–2 — «лис»; 3 вписав товариш (у зрізі); блоки — порожні.
+    const cells = ['л', 'и', 'с', 'и', '', '', '', '', '', '', '', ''];
+    render(<CrosswordPlay info={mineOf(12, { cells })} question={crossword} questionIndex={2} paused={false} timeUp={false} send={send} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти все' }));
+    expect(crosswordCell(0).textContent).toContain('л');
+    fireEvent.click(screen.getByRole('button', { name: 'Точно стерти?' }));
+    expect(crosswordCell(0).textContent).toContain('л');
+    act(() => vi.advanceTimersByTime(PUZZLE_TAP_GAP_MS));
+    fireEvent.click(screen.getByRole('button', { name: 'Точно стерти?' }));
+    for (const i of [0, 1, 2, 3]) expect(crosswordCell(i).querySelector('.crossword-letter')?.textContent).toBe('');
+    expect(screen.getByRole('button', { name: 'Стерти все' })).toBeTruthy();
+    wait(PUZZLE_FLUSH_MS);
+    expect(send).toHaveBeenCalledWith('player:puzzle', { questionIndex: 2, cells: [{ i: 0, v: '' }, { i: 1, v: '' }, { i: 2, v: '' }, { i: 3, v: '' }] });
+  });
+
+  it('«Стерти все» is off with the grid and gone once done', () => {
+    const send = vi.fn<Send>();
+    const cells = ['л', '', '', '', '', '', '', '', '', '', '', ''];
+    const view = render(<CrosswordPlay info={mineOf(12, { cells })} question={crossword} questionIndex={0} paused timeUp={false} send={send} />);
+    const wipe = screen.getByRole('button', { name: 'Стерти все' });
+    expect(wipe.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(wipe);
+    expect(screen.queryByRole('button', { name: 'Точно стерти?' })).toBeNull();
+    view.rerender(<CrosswordPlay info={mineOf(12, { cells, done: true, canEdit: false })} question={crossword} questionIndex={0} paused={false} timeUp={false} send={send} />);
+    expect(screen.queryByRole('button', { name: 'Стерти все' })).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('a keyboard composition writes each letter once, at its end; a replaced placeholder writes, not erases', () => {
     vi.useFakeTimers();
     const { send } = deferred();

@@ -76,6 +76,7 @@ import {
   type PublicMemory,
   type MemoryBoardView,
   type MemoryInfo,
+  type HostMemoryInfo,
   type MemoryCellView,
   type PlayerMemory,
   type PublicMelody,
@@ -1965,6 +1966,21 @@ function memoryInfo(state: GameState): MemoryInfo | undefined {
 }
 
 /**
+ * «Пам'ять» для пульта: memoryInfo і вміст кожної клітинки за розкладом (він однаковий для всіх дошок). Лише в hostView: сцена й
+ * телефони вмісту закритих карток не отримують ніколи; пульт показує його лише на прохання ведучого.
+ */
+function hostMemoryInfo(state: GameState): HostMemoryInfo | undefined {
+  const info = memoryInfo(state);
+  const open = currentMemory(state);
+  if (info === undefined || open === null) return undefined;
+  const { question } = open;
+  const { cols, rows } = memoryGridSize(question.grid);
+  const layout = memoryLayout(question.pairs.length, question.seed);
+  const cards = Array.from({ length: cols * rows }, (_, cell) => ({ ...memoryCardAt(question, layout, cell) }));
+  return { ...info, cards };
+}
+
+/**
  * Власна (командна) сітка гравця: картку бачить лише той, чия дошка, і лише поки вона відкрита, показана як непара чи знайдена
  * (на reveal - усі). Зріз від now: прострочена непара й хід закриті без зміни стану; без now таймери не враховуються.
  */
@@ -3806,10 +3822,11 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, ...shared } = base(state, true);
   return {
     ...shared,
     ...optional('spotdiff', spotdiffHostInfo(state)),
+    ...optional('memory', hostMemoryInfo(state)),
     // Обереги (15a): 🛡 біля гравця на пульті; без оберегів ключа немає.
     ...(wards === undefined ? {} : { wards }),
     role: 'host',

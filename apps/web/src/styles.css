@@ -19721,7 +19721,9 @@ input.sudoku-editor-cell:focus-visible {
 
 .puzzle-tools {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 0.5rem;
 }
 
 /* Кросворд: --cols — ширина сітки; клітинка — частка ширини, на великих екранах не більша за 2.75rem. */
@@ -21545,6 +21547,59 @@ input.sudoku-editor-cell:focus-visible {
 
 .host-memory .jigsaw-table.memory-table {
   margin-top: 1rem;
+}
+
+/* Пульт: «👁 Показати картки» — сітка під сорочками, притлумлена, пунктирна рамка й 👁 у куті: не сплутати з відкритою карткою. */
+.memory-peek {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-bottom: 1rem;
+  container-type: inline-size;
+}
+
+.memory-peek-toggle {
+  justify-self: start;
+}
+
+.memory-peek-note {
+  margin: 0;
+  justify-self: stretch;
+}
+
+.memory-grid.is-peek {
+  --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), 7.5rem);
+}
+
+.memory-grid.is-peek .memory-card {
+  border: 2px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.memory-grid.is-peek .memory-card > * {
+  opacity: 0.7;
+}
+
+/* --memory-card тут рахується від 100cqi, а всередині картки (свій контейнер) це вже її ширина: шрифт — від самої картки (cqw). */
+.memory-grid.is-peek .memory-text {
+  font-size: min(15px, 14cqw);
+}
+
+.memory-grid.is-peek .memory-text-xs,
+.memory-grid.is-peek .memory-text-s {
+  font-size: min(12px, 11cqw);
+}
+
+.memory-grid.is-peek .memory-card::after {
+  content: '👁';
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-end: 2px;
+  font-size: 0.7rem;
+  line-height: 1;
+  opacity: 0.85;
+  pointer-events: none;
 }
 /* «Пам'ять»: кінець сцени й пульта */
 

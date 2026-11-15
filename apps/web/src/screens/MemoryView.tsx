@@ -23,6 +23,8 @@ export interface MemoryGridProps {
   waiting?: boolean;
   /** Розкриття: невідкриті картки (state 'shown') — не помилка, без червоної рамки. */
   reveal?: boolean;
+  /** Пульт підглядає під картки: усі притлумлені з позначкою 👁, розмір — з CSS (не міряємо вікно). */
+  peek?: boolean;
 }
 
 const STATE_LABEL = { open: 'memoryCardOpen', shown: 'memoryCardMiss', matched: 'memoryCardMatched' } as const;
@@ -48,7 +50,7 @@ function CardFace({ cell }: { cell: MemoryCellView }) {
  * картка — сорочка без вмісту (номер лише в aria-label); 'pending' — «перевертання» без вмісту; відкрита, показана (непара — червона
  * рамка) чи знайдена (зелена, у командах колір tone, притлумлена) — вміст зі зрізу; дотик до відкритої — вона на весь екран (ImageZoom).
  */
-export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waiting = false, reveal = false }: MemoryGridProps) {
+export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waiting = false, reveal = false, peek = false }: MemoryGridProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<number | null>(null);
   /** Відкрита картка на весь екран: дрібну картинку чи обрізаний текст на телефоні інакше не роздивишся. */
@@ -58,7 +60,8 @@ export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waitin
   useLayoutEffect(() => {
     const el = ref.current;
     const parent = el?.parentElement;
-    if (el === null || el === undefined || parent === null || parent === undefined) return;
+    // На пульті сітка стоїть посеред довгої сторінки: міряти до низу вікна там нема чого.
+    if (peek || el === null || el === undefined || parent === null || parent === undefined) return;
     const measure = () => {
       const width = parent.clientWidth;
       if (width <= 0) return; // без розмітки (тести) лишається CSS
@@ -83,11 +86,11 @@ export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waitin
       window.removeEventListener('resize', measure);
       window.visualViewport?.removeEventListener('resize', measure);
     };
-  }, [cols, rows]);
+  }, [cols, rows, peek]);
   return (
     <div
       ref={ref}
-      className={reveal ? 'memory-grid is-reveal' : 'memory-grid'}
+      className={peek ? 'memory-grid is-peek' : reveal ? 'memory-grid is-reveal' : 'memory-grid'}
       style={{ '--cols': cols, '--rows': rows, ...(fit === null ? {} : { '--memory-card': `${fit}px` }) } as CSSProperties}
       dir="ltr"
     >
@@ -115,7 +118,7 @@ export function MemoryGrid({ cols, rows, cells, onFlip, disabled = false, waitin
             type="button"
             className={`memory-card is-${cell.state}${cell.tone === null ? '' : ` by-${cell.tone}`}`}
             aria-haspopup="dialog"
-            aria-label={cardLabel(cell, n, reveal)}
+            aria-label={cardLabel(cell, n, reveal || peek)}
             data-cell={i}
             onClick={() => setZoom(cell)}
           >
@@ -234,6 +237,29 @@ export function MemoryBoards({ boards, cols, rows, reveal = false, host = false 
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Пульт (29f): «👁 Показати картки» — сітка з тим, що лежить під кожною карткою (розклад однаковий для всіх дошок), притлумлена й з
+ * позначкою 👁, щоб ведучий стежив за грою. Типово сховано: ведучий може й сам грати, а пульт часто видно залі. Вміст (cards) є лише
+ * в зрізі ведучого.
+ */
+export function MemoryPeek({ cards, cols, rows }: { cards: readonly MemoryCard[]; cols: number; rows: number }) {
+  const [shown, setShown] = useState(false);
+  const cells = cards.map((card): MemoryCellView => ({ text: card.text, imageUrl: card.imageUrl ?? null, state: 'shown', tone: null }));
+  return (
+    <div className="memory-peek">
+      <button type="button" className="btn btn-small memory-peek-toggle" aria-pressed={shown} onClick={() => setShown(!shown)}>
+        {t(shown ? 'memoryPeekHide' : 'memoryPeekShow')}
+      </button>
+      {shown && (
+        <>
+          <p className="meta memory-peek-note">{t('memoryPeekNote')}</p>
+          <MemoryGrid cols={cols} rows={rows} cells={cells} peek />
+        </>
+      )}
     </div>
   );
 }
