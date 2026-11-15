@@ -21578,7 +21578,17 @@ input.sudoku-editor-cell:focus-visible {
 }
 
 .memory-grid.is-peek .memory-card > * {
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+/* --memory-card тут рахується від 100cqi, а всередині картки (свій контейнер) це вже її ширина: шрифт — від самої картки (cqw). */
+.memory-grid.is-peek .memory-text {
+  font-size: min(15px, 14cqw);
+}
+
+.memory-grid.is-peek .memory-text-xs,
+.memory-grid.is-peek .memory-text-s {
+  font-size: min(12px, 11cqw);
 }
 
 .memory-grid.is-peek .memory-card::after {
