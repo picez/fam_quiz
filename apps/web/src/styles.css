@@ -23383,6 +23383,11 @@ input.sudoku-editor-cell:focus-visible {
   filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.95)) drop-shadow(0 1px 3px rgb(255 255 255 / 0.9));
 }
 
+/* Контурна плашка «🏆 N перемог» може лягти на місяць: світла підкладка тримає червоний текст читким. */
+:where(:root.is-light) .profile-pill {
+  background: var(--surface);
+}
+
 :where(:root.is-light) .profile-edit {
   text-shadow: 0 1px 3px rgb(247 242 241 / 0.95), 0 0 0.75rem rgb(247 242 241 / 0.8);
 }
