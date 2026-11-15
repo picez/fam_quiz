@@ -3522,6 +3522,8 @@
   "sudokuNone": "Non c’è soluzione: controlla le cifre.",
   "sudokuPencil": "Matita",
   "sudokuPencilMarks": "note: {digits}",
+  "sudokuWipe": "Cancella tutto",
+  "sudokuWipeConfirm": "Cancellare davvero?",
   "sudokuSourceCustom": "Inserisci le tue",
   "sudokuSourceGenerate": "Genera",
   "sudokuSourceLabel": "Da dove vengono le cifre",

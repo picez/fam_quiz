@@ -3002,6 +3002,8 @@ const uk = {
   drawingGuessTitleAnon: 'Малюнок — вгадайте, що малюють',
   sudokuPencil: 'Олівець',
   sudokuPencilMarks: 'позначки: {digits}',
+  sudokuWipe: 'Стерти все',
+  sudokuWipeConfirm: 'Точно стерти?',
   drawingMiss: 'Ні',
   drawingGuessPlaceholder: 'Що це?',
   drawingGuessButton: 'Вгадати',

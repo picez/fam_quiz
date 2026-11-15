@@ -3481,6 +3481,8 @@
   "sudokuNone": "Es gibt keine Lösung — prüfe die Ziffern.",
   "sudokuPencil": "Bleistift",
   "sudokuPencilMarks": "Notizen: {digits}",
+  "sudokuWipe": "Alles löschen",
+  "sudokuWipeConfirm": "Wirklich löschen?",
   "sudokuSourceCustom": "Eigene eingeben",
   "sudokuSourceGenerate": "Erzeugen",
   "sudokuSourceLabel": "Woher die Ziffern kommen",

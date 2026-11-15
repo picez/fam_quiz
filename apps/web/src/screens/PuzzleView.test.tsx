@@ -236,6 +236,42 @@ describe('sudoku pencil', () => {
     expect(notes(a)).toBe('1');
   });
 
+  it('«Стерти все» asks once, then clears every written digit and every mark, givens stay', () => {
+    vi.useFakeTimers();
+    const send = vi.fn<Send>(() => Promise.resolve({ ok: true } as SendResult));
+    mount({}, send);
+    fireEvent.click(sudokuCell(a));
+    key('2');
+    fireEvent.click(sudokuCell(b));
+    fireEvent.click(pencilButton());
+    key('4');
+    fireEvent.click(pencilButton());
+    expect(sudokuCell(a).textContent).toBe('2');
+    expect(notes(b)).toBe('4');
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти все' }));
+    // Перший дотик лише перепитує.
+    expect(sudokuCell(a).textContent).toBe('2');
+    const sure = screen.getByRole('button', { name: 'Точно стерти?' });
+    // Подвійний тап підряд не стирає: другий дотик — не раніше PUZZLE_TAP_GAP_MS.
+    fireEvent.click(sure);
+    expect(sudokuCell(a).textContent).toBe('2');
+    act(() => vi.advanceTimersByTime(PUZZLE_TAP_GAP_MS));
+    fireEvent.click(screen.getByRole('button', { name: 'Точно стерти?' }));
+    expect(sudokuCell(a).textContent).toBe('');
+    expect(sudokuCell(b).querySelector('.sudoku-pencil')).toBeNull();
+    expect([...document.querySelectorAll('.sudoku-cell.is-given')].map((el) => el.textContent).join('')).toBe(givens.replace(/0/g, ''));
+    expect(screen.getByRole('button', { name: 'Стерти все' })).toBeTruthy();
+  });
+
+  it('«Стерти все» forgets the question after a few seconds', () => {
+    vi.useFakeTimers();
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Стерти все' }));
+    expect(screen.queryByRole('button', { name: 'Точно стерти?' })).not.toBeNull();
+    act(() => vi.advanceTimersByTime(3000));
+    expect(screen.queryByRole('button', { name: 'Точно стерти?' })).toBeNull();
+  });
+
   it('29i: erase in the pencil mode removes the digit of a filled cell, as without the pencil', () => {
     vi.useFakeTimers();
     mount();

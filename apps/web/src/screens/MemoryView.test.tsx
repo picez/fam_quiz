@@ -7,6 +7,7 @@ import type { MemoryCellView, PlayerMemory, PublicMemory, PublicQuestion } from 
 import { t } from '../i18n';
 import type { Send, SendResult } from '../live/types';
 import { MemoryPlay, MemoryReveal, memoryTextSize } from './MemoryView';
+import { MEMORY_MIN_CARD } from '../live/memorySize';
 
 const MEMORY: PublicMemory = { id: 'q-mem', grid: '3x4', cols: 3, rows: 4, total: 6, pairs: null };
 const questionOf = (memory: Partial<PublicMemory> = {}) => ({ type: 'memory', text: 'Знайдіть пари', memory: { ...MEMORY, ...memory } }) as unknown as PublicQuestion;
@@ -85,27 +86,22 @@ describe('MemoryPlay', () => {
     mount({ question: questionOf({ grid: '4x5', cols: 4, rows: 5, total: 10 }), info: infoOf({ cells, total: 10 }) });
     expect(cardsEls()[0].querySelector('.memory-text-xs')!.textContent).toBe(long);
     const css = cssSection();
-    const xs = /\.memory-text-xs \{([^}]*)\}/.exec(css)![1];
-    const font = Number(/font-size:\s*([\d.]+)px/.exec(xs)![1]);
-    const lineHeight = Number(/line-height:\s*([\d.]+)/.exec(xs)![1]);
-    const lines = Number(/(?:^|[^-])line-clamp:\s*(\d+)/.exec(xs)![1]);
-    const pad = Number(/\.memory-card:has\(> \.memory-text-xs\) \{[^}]*padding:\s*([\d.]+)px/.exec(css)![1]);
-    const border = Number(/\.memory-card \{[^}]*border:\s*([\d.]+)px/.exec(css)![1]);
-    // Поле телефона 320 − 2·20 (.app), картка 4×5 — (280 − 3·6) / 4; 40 символів по ~10 у рядку — 4–5 рядків.
-    const size = Math.min((280 - 3 * 6) / 4, (568 - 190) / 5);
-    const inner = size - 2 * border - 2 * pad;
-    expect(lines).toBeGreaterThanOrEqual(5);
-    expect(lines * font * lineHeight).toBeLessThanOrEqual(inner);
-    // 19–28 символів (s): 4 рядки по 11 px з інтерліньяжем 1.15 у картці зі стандартним полем.
-    const s = /\.memory-text-s \{([^}]*)}/.exec(css)![1];
-    const sFont = Number(/font-size:\s*([\d.]+)px/.exec(s)![1]);
-    const sLine = Number(/line-height:\s*([\d.]+)/.exec(s)![1]);
-    const sLines = Number(/(?:^|[^-])line-clamp:\s*(\d+)/.exec(s)![1]);
-    const padS = Number(/\.memory-card \{[^}]*padding:\s*([\d.]+)px/.exec(css)![1]);
-    expect(sLines).toBeGreaterThanOrEqual(4);
-    expect(sLines * sFont * sLine).toBeLessThanOrEqual(size - 2 * border - 2 * padS);
-    // ~0.55 em на кириличну літеру: 40 літер на 5 рядках уміщаються в ширину.
-    expect(Math.floor(inner / (font * 0.55)) * lines).toBeGreaterThanOrEqual(40);
+    // Розмір шрифту — min(px, частка --memory-card): px — стеля, частка — від сторони картки. Поле картки — сторона мінус рамка й
+    // відступ (у найменшій, MEMORY_MIN_CARD на низькому телефоні, ~85%); рядки × інтерліньяж × частка уміщаються в поле — текст не обрізається.
+    const fits = (rule: string) => {
+      const body = new RegExp(`\\.${rule} \\{([^}]*)\\}`).exec(css)![1];
+      const share = Number(/font-size:\s*min\([^;]*?var\(--memory-card\) \* ([\d.]+)\)\)/.exec(body)![1]);
+      const lineHeight = Number(/line-height:\s*([\d.]+)/.exec(body)?.[1] ?? '1.15');
+      const lines = Number(/(?:^|[^-])line-clamp:\s*(\d+)/.exec(body)?.[1] ?? '3');
+      return { lines, used: lines * lineHeight * share };
+    };
+    for (const rule of ['memory-text-l', 'memory-text-m', 'memory-text-s', 'memory-text-xs']) expect(fits(rule).used, rule).toBeLessThanOrEqual((MEMORY_MIN_CARD - 8) / MEMORY_MIN_CARD);
+    expect(fits('memory-text-xs').lines).toBeGreaterThanOrEqual(5);
+    expect(fits('memory-text-s').lines).toBeGreaterThanOrEqual(4);
+    // У картці 4×5 на 320 px 40 символів (~0.55 em на кириличну літеру) уміщаються в рядки.
+    const side = (280 - 3 * 6) / 4;
+    const font = Math.min(11, side * 0.125);
+    expect(Math.floor((side - 8) / (font * 0.55)) * fits('memory-text-xs').lines).toBeGreaterThanOrEqual(40);
   });
 
   it('a tall picture stays inside its card', () => {
@@ -143,6 +139,20 @@ describe('MemoryPlay', () => {
     expect(backs.every((el) => el.getAttribute('aria-disabled') === null)).toBe(true);
     fireEvent.click(backs[0]);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('a tap on an open card shows it full screen (picture or whole text) and sends nothing', () => {
+    const cells = closed();
+    cells[0] = card('Найдовша назва картки, що на телефоні не влазить', 'matched');
+    cells[2] = card('', 'open', null, '/uploads/0123456789abcdef0001.png');
+    const { send } = mount({ info: infoOf({ cells, pairs: 1 }) });
+    fireEvent.click(cardsEls()[2]);
+    expect(document.querySelector('.image-zoom .image-zoom-img')?.getAttribute('src')).toBe('/uploads/0123456789abcdef0001.png');
+    fireEvent.click(document.querySelector('.image-zoom')!);
+    expect(document.querySelector('.image-zoom')).toBeNull();
+    fireEvent.click(cardsEls()[0]);
+    expect(document.querySelector('.image-zoom .memory-zoom-text')?.textContent).toBe('Найдовша назва картки, що на телефоні не влазить');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('a picture half shows as an image', () => {

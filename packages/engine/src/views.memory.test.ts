@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memoryLayout } from '@quiz/shared';
+import { MEMORY_SHOW_MS, memoryLayout } from '@quiz/shared';
 import { lock, next, pause, removePlayer, type GameState } from './game';
 import { memoryFlip, type MemoryFlip } from './memory';
 import { hostView, playerView, stageView } from './views';
@@ -95,11 +95,11 @@ describe('memory views', () => {
     const s = miss(s0, 'p1', t);
     const [c1, c2] = [cellsOf(0)[0], cellsOf(1)[0]];
     const at500 = mine(s, 'p1', t + 500);
-    expect(at500.closesInMs).toBe(500);
+    expect(at500.closesInMs).toBe(MEMORY_SHOW_MS - 500);
     expect(at500.cells.flatMap((c, i) => (c === null ? [] : [[i, c.state]]))).toEqual([c1, c2].sort((a, b) => a - b).map((i) => [i, 'shown']));
     expect(at500.canFlip).toBe(false);
     expect(at500.moves).toBe(1);
-    const at1000 = mine(s, 'p1', t + 1000);
+    const at1000 = mine(s, 'p1', t + MEMORY_SHOW_MS);
     expect(at1000.cells.every((c) => c === null)).toBe(true);
     expect(at1000.closesInMs).toBeNull();
     expect(at1000.canFlip).toBe(true);

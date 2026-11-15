@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, memoryLayout } from '@quiz/shared';
+import { DEFAULT_RULES, MEMORY_SHOW_MS, memoryLayout } from '@quiz/shared';
 import { buffBlock, takeBuff } from './buffs';
 import { setDebuff } from './debuffs';
 import { lock, next, override, pause, recordOf, removePlayer, roundQuestionNumber, submitAnswer, tick, type GameState } from './game';
@@ -77,25 +77,25 @@ describe('memory: the engine', () => {
     expect(memoryOf(sure(two), 'p1')).toEqual({ matched: [a, b], open: null, shown: null, moves: 1, doneMs: null, seq: 2 });
   });
 
-  it('a wrong pair closes after a second', () => {
+  it('a wrong pair closes after MEMORY_SHOW_MS', () => {
     const s = fresh();
     const t = T(s) + 5000;
     const [a, b] = wrongPair();
     const missed = flip(sure(flip(s, 'p3', a, t - 100)), 'p3', b, t);
     expect(missed.ok && missed.outcome).toBe('miss');
     const shown = sure(missed);
-    expect(memoryOf(shown, 'p3')).toMatchObject({ open: null, shown: { cells: [a, b], until: t + 1000 }, moves: 1 });
+    expect(memoryOf(shown, 'p3')).toMatchObject({ open: null, shown: { cells: [a, b], until: t + MEMORY_SHOW_MS }, moves: 1 });
     const before = JSON.stringify(memoryOf(shown, 'p3'));
-    const early = flip(shown, 'p3', cellsOf(2)[0], t + 999);
+    const early = flip(shown, 'p3', cellsOf(2)[0], t + MEMORY_SHOW_MS - 1);
     expect(early).toEqual({ ok: false, error: 'memory_wait' });
     expect(JSON.stringify(memoryOf(shown, 'p3'))).toBe(before);
-    expect(memoryTimersEnd(shown, t)).toBe(t + 1000);
-    expect(memoryTimersEnd(shown, t + 1000)).toBeNull();
-    const after = flip(shown, 'p3', cellsOf(2)[0], t + 1000);
+    expect(memoryTimersEnd(shown, t)).toBe(t + MEMORY_SHOW_MS);
+    expect(memoryTimersEnd(shown, t + MEMORY_SHOW_MS)).toBeNull();
+    const after = flip(shown, 'p3', cellsOf(2)[0], t + MEMORY_SHOW_MS);
     expect(after.ok && after.outcome).toBe('open');
     expect(memoryOf(sure(after), 'p3')).toMatchObject({ shown: null, open: cellsOf(2)[0], moves: 1 });
-    // самі показані картки після секунди знову можна відкривати
-    expect(flip(shown, 'p3', a, t + 1000).ok).toBe(true);
+    // самі показані картки після показу знову можна відкривати
+    expect(flip(shown, 'p3', a, t + MEMORY_SHOW_MS).ok).toBe(true);
   });
 
   it('settleMemory closes expired cards and keeps the same object otherwise', () => {
@@ -214,10 +214,10 @@ describe('memory: the engine', () => {
     // Тарас одразу може ходити
     const t2 = t + 300;
     const missed = sure(flip(sure(flip(paired, 't1', cellsOf(1)[0], t2, 'm2')), 't1', cellsOf(2)[0], t2, 'm2'));
-    expect(memoryOf(missed, 't1')).toMatchObject({ shown: { cells: [cellsOf(1)[0], cellsOf(2)[0]], until: t2 + 1000 }, turn: null, moves: 2 });
+    expect(memoryOf(missed, 't1')).toMatchObject({ shown: { cells: [cellsOf(1)[0], cellsOf(2)[0]], until: t2 + MEMORY_SHOW_MS }, turn: null, moves: 2 });
     expect(flip(missed, 't1', cellsOf(3)[0], t2 + 500, 'm1')).toEqual({ ok: false, error: 'memory_wait' });
     // Оля відкриває одну картку й більше нічого: за 5 с сітка вільна, перша картка закрита
-    const t3 = t2 + 1000;
+    const t3 = t2 + MEMORY_SHOW_MS;
     const left = sure(flip(missed, 't1', cellsOf(3)[0], t3, 'm1'));
     expect(flip(left, 't1', cellsOf(4)[0], t3 + 4999, 'm2')).toEqual({ ok: false, error: 'memory_busy' });
     expect(settleMemory(memoryOf(left, 't1')!, t3 + 5000)).toMatchObject({ open: null, turn: null });

@@ -3481,6 +3481,8 @@
   "sudokuNone": "There is no solution — check the digits.",
   "sudokuPencil": "Pencil",
   "sudokuPencilMarks": "notes: {digits}",
+  "sudokuWipe": "Clear all",
+  "sudokuWipeConfirm": "Clear for sure?",
   "sudokuSourceCustom": "Enter my own",
   "sudokuSourceGenerate": "Generate",
   "sudokuSourceLabel": "Where the digits come from",
