@@ -134,6 +134,36 @@ function StatusLine({ board, info, timeUp, closed }: { board: PuzzleBoardModel; 
   );
 }
 
+/**
+ * «Стерти все» з перепитуванням (судоку й кросворд): перший дотик — «Точно стерти?» на WIPE_CONFIRM_MS, другий (не раніше
+ * PUZZLE_TAP_GAP_MS, тож подвійний тап не стирає) — onWipe. Вимкнено (off) — нічого.
+ */
+function WipeButton({ className, off, onWipe }: { className: string; off: boolean; onWipe: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const askedAt = useRef(0);
+  useEffect(() => {
+    if (!asking) return;
+    const timer = setTimeout(() => setAsking(false), WIPE_CONFIRM_MS);
+    return () => clearTimeout(timer);
+  }, [asking]);
+  const tap = () => {
+    if (off) return;
+    if (!asking) {
+      askedAt.current = Date.now();
+      setAsking(true);
+      return;
+    }
+    if (Date.now() - askedAt.current < PUZZLE_TAP_GAP_MS) return;
+    setAsking(false);
+    onWipe();
+  };
+  return (
+    <button type="button" className={asking ? `${className} is-asking` : className} aria-disabled={off} onClick={tap}>
+      {t(asking ? 'sudokuWipeConfirm' : 'sudokuWipe')}
+    </button>
+  );
+}
+
 function filledCount(info: PlayerPuzzle, cells: string[]): { filled: number; total: number } {
   let filled = 0;
   let total = 0;
@@ -155,14 +185,6 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
   const board = usePuzzleBoard(info, questionIndex, send, deadline);
   const [sel, setSel] = useState<number | null>(null);
   const [pencilOn, setPencilOn] = useState(false);
-  /** «Стерти все» натиснуто раз: кнопка питає «Точно?», другий дотик (не раніше PUZZLE_TAP_GAP_MS) стирає. */
-  const [wiping, setWiping] = useState(false);
-  const wipeAt = useRef(0);
-  useEffect(() => {
-    if (!wiping) return;
-    const timer = setTimeout(() => setWiping(false), WIPE_CONFIRM_MS);
-    return () => clearTimeout(timer);
-  }, [wiping]);
   const givens = question.puzzle?.kind === 'sudoku' ? question.puzzle.givens : '0'.repeat(SUDOKU_SIDE * SUDOKU_SIDE);
   const pencil = usePencil(pencilKey?.room, `${pencilKey?.round ?? 0}:${questionIndex}:${givens}`, board.cells);
   const off = paused || timeUp || board.status === 'time_over' || closed || !info.canEdit || info.done;
@@ -183,14 +205,6 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
   };
   /** Усі вписані цифри (не задані) і всі позначки олівця — геть. */
   const wipe = () => {
-    if (off) return;
-    if (!wiping) {
-      wipeAt.current = Date.now();
-      setWiping(true);
-      return;
-    }
-    if (Date.now() - wipeAt.current < PUZZLE_TAP_GAP_MS) return;
-    setWiping(false);
     for (let i = 0; i < SUDOKU_SIDE * SUDOKU_SIDE; i += 1) if (!given(i) && (board.cells[i] ?? '') !== '') board.set(i, '');
     pencil.clearAll();
   };
@@ -300,9 +314,7 @@ export function SudokuPlay({ info, question, questionIndex, paused, timeUp, clos
           <button type="button" className="btn puzzle-key puzzle-pencil" aria-pressed={pencilOn} aria-disabled={off} onClick={() => !off && setPencilOn(!pencilOn)}>
             {t('sudokuPencil')}
           </button>
-          <button type="button" className={wiping ? 'btn puzzle-key puzzle-wipe is-asking' : 'btn puzzle-key puzzle-wipe'} aria-disabled={off} onClick={wipe}>
-            {t(wiping ? 'sudokuWipeConfirm' : 'sudokuWipe')}
-          </button>
+          <WipeButton className="btn puzzle-key puzzle-wipe" off={off} onWipe={wipe} />
         </div>
       )}
       <StatusLine board={board} info={info} timeUp={timeUp} closed={closed} />
@@ -427,6 +439,14 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
     const back = word.cells[j - 1];
     board.set(back, '');
     setSel({ cell: back, dir: sel.dir });
+  };
+
+  /** «Стерти все»: усі вписані літери (власні й товаришів — як звичайне «Стерти», через ту саму чергу) геть; блоки й задані не чіпаємо. */
+  const wipe = () => {
+    for (let i = 0; i < width * puzzle.height; i += 1) {
+      const m = info.mask[i] ?? '0';
+      if (puzzle.mask[i] === '1' && m !== 'g' && m !== '#' && (board.cells[i] ?? '') !== '') board.set(i, '');
+    }
   };
 
   /** Поле знову містить лише заглушку: наступний символ і Backspace знову видно як зміну. */
@@ -576,6 +596,7 @@ export function CrosswordPlay({ info, question, questionIndex, paused, timeUp, c
           >
             {t('puzzleErase')}
           </button>
+          <WipeButton className="btn puzzle-wipe" off={off} onWipe={wipe} />
         </div>
       )}
       <details className="crossword-clues">

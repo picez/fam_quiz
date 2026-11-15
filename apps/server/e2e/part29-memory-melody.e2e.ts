@@ -405,8 +405,10 @@ async function memoryGame29f() {
   expect(await memBoard29f(stage, '.memory-stage', 'Петро').locator('.memory-mini-cell.is-lit').count(), 'lit cells for 2 pairs').toBe(4);
   for (const [who, frames, from] of [['stage', stageFrames, framesFrom.stage], ['host', hostFrames, framesFrom.host]] as const) {
     const text = frames.slice(from).join(NL);
-    for (const word of words2) expect(text, `a card “${word}” in the ${who} frames before reveal`).not.toContain(word);
-    expect(text, `a flag picture in the ${who} frames`).not.toContain(q2.pairs[5]!.a.imageUrl!);
+    // Пульту — вміст карток (memory.cards, для «Показати картки»); сцені — ніколи.
+    if (who === 'stage') for (const word of words2) expect(text, `a card “${word}” in the ${who} frames before reveal`).not.toContain(word);
+    if (who === 'stage') expect(text, `a flag picture in the ${who} frames`).not.toContain(q2.pairs[5]!.a.imageUrl!);
+    if (who === 'host') for (const word of words2) expect(text, `the host frames carry the card “${word}”`).toContain(word);
     // Ключ запитання пульта несе лише занулений seed ("seed":0) і порожні пари; справжній розклад не йде нікуди.
     expect(text, `the layout seed in the ${who} frames`).not.toContain(`"seed":${q2.seed}`);
     expect(text, `a non-zero seed in the ${who} frames`).not.toMatch(/"seed":[1-9]/);
@@ -418,6 +420,28 @@ async function memoryGame29f() {
   await expect.poll(() => host.locator('.host-memory .memory-board').count(), POLL).toBe(3);
   await expect.poll(() => memBoard29f(host, '.host-memory', 'Оля').locator('.memory-board-moves').textContent(), POLL).toBe('ходи: 6');
   await shot(host, 'memory29f-host');
+  // «👁 Показати картки»: типово сховано, на прохання — усі 12 карток притлумлено з 👁, «Сховати» — знову нічого.
+  const hostPanelText = await host.locator('.host-memory').innerText();
+  for (const word of words2) expect(hostPanelText, `a card “${word}” on the host before the peek`).not.toContain(word);
+  await host.locator('.host-memory').getByRole('button', { name: '👁 Показати картки', ...exact }).click();
+  await expect.poll(() => host.locator('.host-memory .memory-grid.is-peek .memory-card').count(), POLL).toBe(12);
+  expect(await host.locator('.host-memory .memory-grid.is-peek img').count(), 'the flag under its card').toBe(1);
+  const peekText = await host.locator('.host-memory .memory-grid.is-peek').innerText();
+  for (const word of words2) expect(peekText, `the host peeks the card “${word}”`).toContain(word);
+  expect(await stage.locator('.memory-card').count(), 'the peek stays on the host').toBe(0);
+  if (process.env.E2E_SHOTS === '1') {
+    await host.locator('.host-memory').scrollIntoViewIfNeeded();
+    await shot(host, 'memory29f-host-peek');
+    await host.setViewportSize({ width: 320, height: 568 });
+    await sleep(300);
+    await host.locator('.host-memory .memory-peek').scrollIntoViewIfNeeded();
+    const overflow = await host.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    expect(overflow, 'the host peek fits 320 px').toBeLessThanOrEqual(0);
+    await host.locator('.host-memory .memory-peek').screenshot({ path: resolve(ARTIFACTS, 'shots', 'memory29f-host-peek-320.png') });
+    await host.setViewportSize({ width: 1280, height: 900 });
+  }
+  await host.locator('.host-memory').getByRole('button', { name: 'Сховати картки', ...exact }).click();
+  await expect.poll(() => host.locator('.host-memory .memory-grid').count(), POLL).toBe(0);
 
   // Петро не встигає: ведучий закриває запитання.
   await reveal28a(host);

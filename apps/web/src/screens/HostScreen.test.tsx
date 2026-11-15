@@ -1696,9 +1696,31 @@ describe('HostScreen memory (29f)', () => {
   const full = { id: 'm1', type: 'memory', text: 'Знайдіть пари', imageUrl: null, video: null, timeLimit: 90, points: 300, grid: '3x4', pairs: [], seed: 0 } as unknown as Question;
   const publicQ = { ...publicOf(single), type: 'memory' as const, text: 'Знайдіть пари', choices: [], memory: { id: 'm1', grid: '3x4' as const, cols: 3, rows: 4, total: 6, pairs: null } };
   const b = (playerId: string, nickname: string, pairs: number, moves: number, over: Record<string, unknown> = {}) => ({ playerId, nickname, pairs, total: 6, moves, done: false, timeMs: null, points: null, ...over });
+  /** Що під кожною з 12 клітинок (лише в зрізі ведучого); остання — картинка. */
+  const CARDS = [...['Україна', 'Київ', 'Польща', 'Варшава', 'Італія', 'Рим', 'Іспанія', 'Мадрид', 'Франція', 'Париж', 'Німеччина'].map((text) => ({ text })), { text: '', imageUrl: '/uploads/berlin.png' }];
+
+  it('the host can peek under the cards: hidden by default, dimmed with an eye, hidden again', () => {
+    const info = { boards: [b('p1', 'Оля', 2, 5)], cards: CARDS };
+    show(view({ phase: 'question', questionIndex: 0, playerCount: 1, answeredCount: 0, question: publicQ, correct: full, endsAt: Date.now() + 60_000, memory: info }));
+    const panel = document.querySelector<HTMLElement>('.host-memory')!;
+    expect(panel.textContent).not.toContain('Варшава');
+    expect(panel.querySelector('.memory-grid')).toBeNull();
+    const toggle = within(panel).getByRole('button', { name: '👁 Показати картки' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(toggle);
+    const grid = panel.querySelector<HTMLElement>('.memory-grid.is-peek')!;
+    expect(grid.querySelectorAll('.memory-card')).toHaveLength(12);
+    expect(grid.querySelectorAll('.memory-card.is-closed')).toHaveLength(0);
+    expect(grid.querySelector('[data-cell="3"]')?.textContent).toBe('Варшава');
+    expect(grid.querySelector<HTMLImageElement>('[data-cell="11"] img')?.getAttribute('src')).toBe('/uploads/berlin.png');
+    expect(within(panel).getByText(/Бачите лише ви/)).toBeTruthy();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сховати картки' }));
+    expect(panel.querySelector('.memory-grid')).toBeNull();
+    expect(panel.textContent).not.toContain('Варшава');
+  });
 
   it('the host sees moves', () => {
-    const info = { boards: [b('p1', 'Оля', 2, 5), b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200 })] };
+    const info = { boards: [b('p1', 'Оля', 2, 5), b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200 })], cards: CARDS };
     show(view({ phase: 'question', questionIndex: 0, playerCount: 2, answeredCount: 0, question: publicQ, correct: full, endsAt: Date.now() + 60_000, memory: info }));
     const panel = document.querySelector<HTMLElement>('.host-memory')!;
     const olya = [...panel.querySelectorAll('.memory-board')][0] as HTMLElement;
@@ -1712,10 +1734,12 @@ describe('HostScreen memory (29f)', () => {
 
   it('on reveal the host sees the pairs and a table with moves', () => {
     const q = { ...publicQ, memory: { ...publicQ.memory, pairs: [{ a: { text: 'Україна' }, b: { text: 'Київ' } }] } };
-    const info = { boards: [b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200, points: 300 }), b('p1', 'Оля', 2, 5, { points: 0 })] };
+    const info = { boards: [b('p2', 'Тарас', 6, 9, { done: true, timeMs: 41_200, points: 300 }), b('p1', 'Оля', 2, 5, { points: 0 })], cards: CARDS };
     show(view({ phase: 'reveal', questionIndex: 0, playerCount: 2, answeredCount: 2, question: q, correct: full, memory: info }));
     const panel = document.querySelector<HTMLElement>('.host-memory')!;
     expect(panel.querySelectorAll('.memory-reveal-pair')).toHaveLength(1);
+    // на розкритті пари й так видно — підглядати нема чого
+    expect(within(panel).queryByRole('button', { name: '👁 Показати картки' })).toBeNull();
     const rows = [...panel.querySelectorAll('.memory-table tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
     expect(rows).toEqual([
       ['1', 'Тарас', '41,2 с', '9', '+300'],

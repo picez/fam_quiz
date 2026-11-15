@@ -492,6 +492,21 @@ async function puzzlesGame28d() {
   await typeCrossword28d(petro, cross, letters3);
   await expect.poll(() => hostGrid('Петро'), POLL).toBe(letters3.map((letter) => letter || '0').join(''));
   await expectNoSideScroll(petro, 'puzzles28d-crossword-phone-320');
+  // «Стерти все» (як у судоку): перепитує, стирає всі літери тією самою чергою, що й «Стерти», — пульт бачить порожню сітку; Петро вписує знову.
+  const wipe28d = petro.locator('.crossword-play .puzzle-wipe');
+  await wipe28d.scrollIntoViewIfNeeded();
+  const wipeBox = (await wipe28d.boundingBox())!;
+  expect(wipeBox.x, '«Стерти все» starts on screen').toBeGreaterThanOrEqual(0);
+  expect(wipeBox.x + wipeBox.width, '«Стерти все» ends on screen').toBeLessThanOrEqual(320);
+  await shot(petro, 'puzzles28d-crossword-wipe-320');
+  await wipe28d.click();
+  await petro.getByRole('button', { name: 'Точно стерти?', ...exact }).waitFor();
+  await shot(petro, 'puzzles28d-crossword-wipe-ask-320');
+  await sleep(400);
+  await petro.getByRole('button', { name: 'Точно стерти?', ...exact }).click();
+  await expect.poll(() => hostGrid('Петро'), POLL).toBe(letters3.map(() => '0').join(''));
+  await typeCrossword28d(petro, cross, letters3);
+  await expect.poll(() => hostGrid('Петро'), POLL).toBe(letters3.map((letter) => letter || '0').join(''));
   await petro.locator('.crossword-clues summary').click();
   await expectNoSideScroll(petro, 'puzzles28d-crossword-phone-320-clues');
   // Оля — лише перше слово.

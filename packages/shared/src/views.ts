@@ -468,6 +468,15 @@ export interface MemoryInfo {
   boards: MemoryBoardView[];
 }
 
+/**
+ * «Пам'ять» для пульта: те саме, що MemoryInfo, і ще cards — що лежить під кожною клітинкою (розклад однаковий для всіх дошок), у
+ * порядку читання, довжина cols·rows. Лише ведучому: ні сцена (її бачать усі), ні телефони цього не отримують; показує пульт
+ * лише на прохання ведучого («Показати картки»).
+ */
+export interface HostMemoryInfo extends MemoryInfo {
+  cards: MemoryCard[];
+}
+
 /** Картка власної (командної) дошки гравця (29f), видима лише коли відкрита, показана як непара або знайдена. tone — '1'…'9' у командах, інакше null. */
 export interface MemoryCellView {
   text: string;
@@ -2361,8 +2370,8 @@ export interface HostView extends BaseView {
   jigsaw?: JigsawInfo;
   /** Як у BaseView, але ведучому завжди ще й кола (місця) та номери знайдених кіл кожної дошки. */
   spotdiff?: SpotdiffHostInfo;
-  /** Як у BaseView, але з ходами в рядку дошки (без вмісту й місць). */
-  memory?: MemoryInfo;
+  /** Як у BaseView (ходи в рядку дошки, без місць знайдених пар), але ще й cards — вміст усіх клітинок, лише ведучому. */
+  memory?: HostMemoryInfo;
   /** Як у BaseView (29e). */
   melody?: MelodyInfo;
   /** Як у BaseView, але ведучому завжди ще й слово та імена вгадавших. */
