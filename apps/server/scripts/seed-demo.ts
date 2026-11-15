@@ -1,6 +1,6 @@
 /**
  * Додає демо-вікторину користувачу за email або оновлює вже наявну вікторину за її id.
- * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest]
+ * Запуск: DATABASE_URL=... pnpm --filter @quiz/server seed:demo you@example.com [demo|party|party-media|movies|erudite|school|mosaic|compass|horizon|teams|showcase|grand|family|family2|evening|classroom|movies90|logic|world|fun|halloween|mix|quick|mix2|mega|fest|detective]
  * Оновлення: DATABASE_URL=... pnpm --filter @quiz/server seed:demo --update <quizId> <seedName>
  * — замінює назву, опис, налаштування й раунди рядка новим вмістом сіда (як збереження в редакторі,
  * з новим updatedAt); власник лишається той самий, вікторина зберігає своє посилання й історію ігор.
@@ -8,6 +8,7 @@
  * через тимчасовий акаунт, який потім видаляється. showcase з SITE_URL так само завантажує дві картинки,
  * що проявляються; без SITE_URL ці два запитання лишаються звичайними, текстовими. grand і family так само завантажують по три картинки.
  * logic потребує SITE_URL: завантажує намальовані PNG з scripts/logic/img і фото з Вікіпедії.
+ * detective потребує SITE_URL: завантажує дві намальовані PNG «Знайди відмінності» з scripts/detective/img.
  */
 import { join } from 'node:path';
 import { quizSchema, type Quiz } from '@quiz/shared';
@@ -44,6 +45,7 @@ import { quickQuiz } from './quick-quiz';
 import { MEGA_FILES, MEGA_IMAGES, megaQuiz } from './mega-quiz';
 import { FEST_FILES, FEST_IMAGES, festQuiz } from './fest-quiz';
 import { MIX2_PHOTOS, mix2Quiz } from './mix2-quiz';
+import { DETECTIVE_FILES, detectiveQuiz } from './detective-quiz';
 
 /** Ключ картинки → стаття англійської Вікіпедії, чия головна ілюстрація підходить до запитання. */
 const ARTICLES: Record<string, string> = {
@@ -127,7 +129,7 @@ const uploadImages = (
   sources: () => Promise<Record<string, string>> = () => thumbnails(keys),
 ): Promise<Record<string, string>> => uploadSiteImages(site, db, keys, sources);
 
-const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest'] as const;
+const SEEDS = ['demo', 'party', 'party-media', 'movies', 'erudite', 'school', 'mosaic', 'compass', 'horizon', 'teams', 'showcase', 'grand', 'family', 'family2', 'evening', 'classroom', 'movies90', 'logic', 'world', 'fun', 'halloween', 'mix', 'quick', 'mix2', 'mega', 'fest', 'detective'] as const;
 type SeedName = (typeof SEEDS)[number];
 const isSeed = (arg: string | undefined): arg is SeedName => (SEEDS as readonly string[]).includes(arg ?? '');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -227,6 +229,16 @@ async function seedQuiz(name: SeedName, db: Db, site: string | undefined): Promi
       const keys = [...FEST_FILES, ...Object.keys(FEST_IMAGES)];
       const urls = await uploadImages(site, db, keys, async () => ({ ...files, ...(await wideSources(FEST_IMAGES)) }));
       return festQuiz((key) => {
+        const url = urls[key];
+        if (!url) throw new Error(`Picture ${key} was not uploaded`);
+        return url;
+      });
+    }
+    case 'detective': {
+      if (!site) throw new Error('The detective quiz needs SITE_URL: its spot-the-difference pictures are required');
+      const files = Object.fromEntries(DETECTIVE_FILES.map((key) => [key, `file:${join(import.meta.dirname, 'detective', 'img', `${key}.png`)}`]));
+      const urls = await uploadImages(site, db, [...DETECTIVE_FILES], async () => files);
+      return detectiveQuiz((key) => {
         const url = urls[key];
         if (!url) throw new Error(`Picture ${key} was not uploaded`);
         return url;
