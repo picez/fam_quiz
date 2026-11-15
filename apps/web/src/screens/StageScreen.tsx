@@ -73,6 +73,7 @@ import { Ceremony, useCeremony } from '../trophy/Ceremony';
 import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
 import { StageSpeech } from './StageSpeech';
+import { ThemeToggle } from '../ThemeToggle';
 
 interface Props {
   view: StageView;
@@ -1044,7 +1045,16 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
         <StageDebuffs debuffs={view.debuffs} />
       </div>
       {/* «Читати вголос» (31): кут сцени, inline-start знизу; на фініші там меню. */}
-      {phase !== 'finished' && <StageSpeech view={view} splashing={splashNow !== null} />}
+      {phase !== 'finished' ? (
+        <StageSpeech view={view} splashing={splashNow !== null} />
+      ) : (
+        // На фініші «Читати вголос» немає, а перемикач теми лишається в тому самому куті.
+        <div className="stage-speech">
+          <div className="stage-speech-buttons">
+            <ThemeToggle className="stage-theme" />
+          </div>
+        </div>
+      )}
       {view.paused && (
         <p className="banner" role="status">
           {t(hostOnline ? 'paused' : 'waitingHost')}

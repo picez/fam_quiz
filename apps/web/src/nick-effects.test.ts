@@ -63,7 +63,9 @@ describe('nick effects css (34)', () => {
     expect(keyframes.length).toBeGreaterThanOrEqual(NICK_EFFECTS.length);
     for (const { name, body } of keyframes) {
       const props = [...body.matchAll(/([\w-]+)\s*:/g)].map((m) => m[1]);
-      expect(props.filter((p) => p !== 'transform' && p !== 'opacity'), name).toEqual([]);
+      // Виняток — перелив світлої теми: смуга біжить усередині літер (background-clip: text), а transform зсунув би самі літери.
+      const allowed = name === 'nick-fx-shimmer-text' ? ['transform', 'opacity', 'background-position'] : ['transform', 'opacity'];
+      expect(props.filter((p) => !allowed.includes(p!)), name).toEqual([]);
     }
   });
 

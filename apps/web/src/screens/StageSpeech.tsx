@@ -4,6 +4,7 @@ import { t } from '../i18n';
 import { speechSupported, useStageSpeech } from '../live/speech';
 import { LOCALE_NAMES } from '../locales/locales';
 import { loadStageSpeech, saveStageSpeech } from '../storage';
+import { ThemeToggle } from '../ThemeToggle';
 
 /** Чи вже був дотик на сторінці: без нього браузер не дасть говорити. Немає navigator.userActivation (старий Safari) — не знаємо, тож просимо торкнутися. */
 const touched = () => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true;
@@ -45,6 +46,8 @@ export function StageSpeech({ view, splashing }: { view: StageView; splashing: b
   return (
     <div className="stage-speech">
       <div className="stage-speech-buttons">
+        {/* Швидкий перемикач теми сцени: малий значок у тому ж куті, приглушений, поки на нього не наведуть чи не сфокусують. */}
+        <ThemeToggle className="stage-theme" />
         <button
           type="button"
           className="btn btn-small"

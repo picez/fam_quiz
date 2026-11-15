@@ -5,6 +5,7 @@ import { roundGains } from '../score-table';
 import { countText, errorText, t } from '../i18n';
 import { EasyModeSwitch } from '../EasyModeSwitch';
 import { ThemeSwitch } from '../ThemeSwitch';
+import { ThemeToggle } from '../ThemeToggle';
 import { typeHow } from '../guide-text';
 import { RoundBriefing, RoundFacts } from './RoundBriefing';
 import { AdjustmentToast, BuffToast, DebuffToast, LiveNotices, PeekedToast } from '../live/LiveNotices';
@@ -958,6 +959,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {/* Лайк (17a): пігулка тієї ж висоти, що «Таблиця»; ключа немає без акаунта чи поки не прочитано. */}
         {phase === 'reveal' && <LikeButton liked={view.likes?.question} busy={likeGuard.busy} onToggle={(liked) => void likeGuard.run('player:like', { target: 'question', liked })} />}
         {/* Реакція (13a): та сама пігулка, що й «Таблиця», — не вища за рядок шапки; немає, поки телефон чекає відповіді випробування. */}
+        {/* Швидкий перемикач теми (☀/☾): сам значок без пігулки, дотикова зона ширша за нього й шапку не розсуває. */}
+        <ThemeToggle className="bar-theme" />
         <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
         <strong className="score" dir="ltr">{num(me.score)}</strong>
       </header>

@@ -23384,6 +23384,92 @@ input.sudoku-editor-cell:focus-visible {
   font-weight: 600;
 }
 
+/* ---------- Швидкий перемикач теми (☀/☾) ----------
+   Сам значок без пігулки: у меню, у шапці телефона й пульта, у куті сцени. Сонце (натиснуто) — світла тема, місяць — темна. */
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  color: var(--paper);
+}
+
+/* Сонце видно лише у світлій темі: темне золото, що читається на світлому тлі. */
+.theme-toggle[aria-pressed='true'] {
+  color: #b45309;
+}
+
+.theme-toggle svg {
+  display: block;
+}
+
+/* Меню: зверху — ще один пункт праворуч від посилань; унизу на телефоні — вузька клітинка без підпису. */
+.menu-theme {
+  padding: 0.75rem 0.9rem;
+}
+
+@media (max-width: 700px) {
+  .menu .menu-theme {
+    flex: 0 0 2.75rem;
+    min-height: calc(var(--menu-h) - 1px);
+    padding: 0;
+    font-size: 1.35rem;
+  }
+}
+
+/* Шапка гри: значок по центру рядка (не по базовій лінії), шапка не вища. Дотикова зона — невидимий ::after: вгору й униз
+   ширша (44 px), убік лише в межах проміжку, щоб не перехоплювати дотики сусідньої пігулки. */
+.bar > .bar-theme {
+  align-self: center;
+}
+
+.bar > .bar-theme::after {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.2rem;
+}
+
+/* Вузький телефон з крамницею «😈» чи пігулкою квесту: шапка й так повна, і значок теми забрав би в ніка останні літери.
+   Тут його немає — тема лишається в лобі (повний вибір) і в меню поза грою. */
+@media (max-width: 400px) {
+  .bar:has(.shop-button, .quest-button) > .bar-theme {
+    display: none;
+  }
+}
+
+/* Сцена: малий круглий значок у куті «Читати вголос», приглушений, доки на нього не наведуть чи не сфокусують. */
+.stage-theme {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--notice-bg);
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+
+.stage-theme:hover,
+.stage-theme:focus-visible {
+  opacity: 1;
+}
+
+/* Гостьова головна: повний вибір теми під посиланням для ведучого. */
+.home-theme {
+  margin-top: 1.5rem;
+}
+
 /* ---------- Світла тема ----------
    Змінні — у :root.is-light на початку файлу; тут лише місця, де темна тема має власні числа (білі вуалі, чорні тіні,
    пастельний текст). Як і легкий режим: у кінці файлу й через :where() — специфічність та сама, що в звичайних правил,
@@ -23577,3 +23663,132 @@ input.sudoku-editor-cell:focus-visible {
 :where(:root.is-light) .nick-x-shimmer > .nick-name:not([class*='nick-c-']) {
   color: #64748b;
 }
+
+/* Виразні ефекти ніку на світлому тлі: білі й пастельні шари (зірки, іскри, блискавка, біла смуга переливу) на світлому
+   майже зникають. Тут ті самі місця й рух, лише кольори насиченіші й темніші, з тонким темним контуром; темна тема — без змін. */
+:where(:root.is-light) .nick-x-light > .nick-name[data-fx-text]::before {
+  color: #f59e0b;
+  -webkit-text-fill-color: #f59e0b;
+}
+:where(:root.is-light) .nick-x-light::before {
+  background: radial-gradient(closest-side, rgb(251 191 36 / 0.6), rgb(245 158 11 / 0.25) 65%, transparent);
+}
+
+/* Іскри: золоті зірочки зі світлішою серединкою й бурштиновим обідком, тонкий темно-золотий контур. */
+:where(:root.is-light) .nick-x-sparks::before,
+:where(:root.is-light) .nick-x-sparks::after,
+:where(:root.is-light) .nick-x-sparks > .nick-name::after {
+  filter: drop-shadow(0 0 0.02em #92400e);
+}
+:where(:root.is-light) .nick-x-sparks::before {
+  background:
+    radial-gradient(circle at 4% 22%, #fcd34d 0 0.04em, #f59e0b 0.07em, rgb(217 119 6 / 0.85) 0.11em, transparent 0.2em),
+    radial-gradient(circle at 46% 88%, #fcd34d 0 0.035em, #f59e0b 0.065em, rgb(217 119 6 / 0.85) 0.1em, transparent 0.19em),
+    radial-gradient(circle at 83% 10%, #fcd34d 0 0.04em, #f59e0b 0.07em, rgb(217 119 6 / 0.85) 0.11em, transparent 0.2em);
+}
+:where(:root.is-light) .nick-x-sparks::after {
+  background:
+    radial-gradient(circle at 22% 9%, #fcd34d 0 0.045em, #f59e0b 0.08em, rgb(217 119 6 / 0.85) 0.12em, transparent 0.22em),
+    radial-gradient(circle at 63% 92%, #fcd34d 0 0.035em, #f59e0b 0.065em, rgb(217 119 6 / 0.85) 0.1em, transparent 0.19em),
+    radial-gradient(circle at 97% 72%, #fcd34d 0 0.03em, #f59e0b 0.05em, rgb(217 119 6 / 0.85) 0.08em, transparent 0.16em);
+}
+:where(:root.is-light) .nick-x-sparks > .nick-name::after {
+  background:
+    radial-gradient(circle at 12% 88%, #fcd34d 0 0.035em, #f59e0b 0.065em, rgb(217 119 6 / 0.85) 0.1em, transparent 0.19em),
+    radial-gradient(circle at 37% 8%, #fcd34d 0 0.035em, #f59e0b 0.065em, rgb(217 119 6 / 0.85) 0.1em, transparent 0.19em),
+    radial-gradient(circle at 74% 6%, #fcd34d 0 0.04em, #f59e0b 0.075em, rgb(217 119 6 / 0.85) 0.11em, transparent 0.2em);
+}
+
+/* Полум'я: білі кінчики язиків на світлому губилися — тонкий червоно-помаранчевий контур і насиченіший вогонь. */
+:where(:root.is-light) .nick-x-flame::before,
+:where(:root.is-light) .nick-x-flame::after {
+  filter: saturate(1.5) drop-shadow(0 0 0.025em #c2410c);
+}
+:where(:root.is-light) .nick-x-flame > .nick-name[data-fx-text]::before {
+  color: #f97316;
+  -webkit-text-fill-color: #f97316;
+}
+
+/* Іній: насиченіше крижане сяйво літер. */
+:where(:root.is-light) .nick-x-frost > .nick-name[data-fx-text]::before {
+  color: #0ea5e9;
+  -webkit-text-fill-color: #0ea5e9;
+}
+
+/* Зоряний пил: золоті зірочки з фіолетовим ореолом і темним контуром замість білих. */
+:where(:root.is-light) .nick-x-stardust > .nick-name[data-fx-text]::before {
+  color: #7c3aed;
+  -webkit-text-fill-color: #7c3aed;
+}
+:where(:root.is-light) .nick-x-stardust::before,
+:where(:root.is-light) .nick-x-stardust::after,
+:where(:root.is-light) .nick-x-stardust > .nick-name::after {
+  filter: drop-shadow(0 0 0.02em #4c1d95);
+}
+:where(:root.is-light) .nick-x-stardust::before {
+  background:
+    radial-gradient(circle at 6% 70%, #fbbf24 0 0.045em, rgb(124 58 237 / 0.85) 0.075em, transparent 0.15em),
+    radial-gradient(circle at 24% 92%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 43% 64%, #fbbf24 0 0.05em, rgb(124 58 237 / 0.85) 0.08em, transparent 0.16em),
+    radial-gradient(circle at 61% 88%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 79% 72%, #fbbf24 0 0.045em, rgb(124 58 237 / 0.85) 0.075em, transparent 0.15em),
+    radial-gradient(circle at 95% 90%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em);
+}
+:where(:root.is-light) .nick-x-stardust::after {
+  background:
+    radial-gradient(circle at 14% 84%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 33% 76%, #fbbf24 0 0.045em, rgb(124 58 237 / 0.85) 0.075em, transparent 0.15em),
+    radial-gradient(circle at 52% 94%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 70% 80%, #fbbf24 0 0.05em, rgb(124 58 237 / 0.85) 0.08em, transparent 0.16em),
+    radial-gradient(circle at 88% 66%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em);
+}
+:where(:root.is-light) .nick-x-stardust > .nick-name::after {
+  background:
+    radial-gradient(circle at 9% 90%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 29% 70%, #fbbf24 0 0.045em, rgb(124 58 237 / 0.85) 0.075em, transparent 0.15em),
+    radial-gradient(circle at 48% 86%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em),
+    radial-gradient(circle at 67% 74%, #fbbf24 0 0.045em, rgb(124 58 237 / 0.85) 0.075em, transparent 0.15em),
+    radial-gradient(circle at 86% 92%, #f59e0b 0 0.04em, rgb(139 92 246 / 0.85) 0.07em, transparent 0.14em);
+}
+
+/* Розряд: темно-бірюзова блискавка з блакитним сяйвом замість майже білої; сяйво літер видніше. */
+:where(:root.is-light) .nick-x-bolt > .nick-name[data-fx-text]::before {
+  color: #06b6d4;
+  -webkit-text-fill-color: #06b6d4;
+}
+:where(:root.is-light) .nick-x-bolt::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpolyline points='0,7 12,2 20,8 31,1 40,9 52,2 61,8 72,1 80,7 91,2 100,6' fill='none' stroke='%230e7490' stroke-width='2.2' stroke-linejoin='bevel' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  filter: drop-shadow(0 0 0.05em #22d3ee) drop-shadow(0 0 0.1em #0891b2);
+}
+
+/* Перелив: біла смуга з overlay на світлому тлі лягала блідим прямокутником, а на літерах її не було видно. Тут смуги поверх
+   ніку немає: кольорова смуга (фіолет — блакить — золото) біжить самими літерами — копією імені, залитою градієнтом через
+   background-clip: text. Тло не зачіпає ніде, і в напівпрозорій закритій плитці теж. Рух — background-position (єдиний виняток
+   з «лише transform і opacity»: transform зсунув би самі літери); перемальовує лише один нік. */
+:where(:root.is-light) .nick-x-shimmer::after {
+  content: none;
+}
+:where(:root.is-light) .nick-x-shimmer > .nick-name[data-fx-text]::after {
+  content: attr(data-fx-text) / '';
+  padding: 0.3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: linear-gradient(100deg, transparent 38%, #9333ea 44%, #0284c7 50%, #d97706 56%, transparent 62%) 70% 0 / 300% 100% no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+@keyframes nick-fx-shimmer-text {
+  0% { background-position: 100% 0; }
+  55%, 100% { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :where(:root:not(.is-easy)):where(.is-light) .nick-x-shimmer > .nick-name[data-fx-text]::after { animation: nick-fx-shimmer-text 3.5s ease-in-out infinite; }
+  :where(:root:not(.is-easy)):where(.is-light) .look-option.is-locked .nick-x-shimmer > .nick-name[data-fx-text]::after { animation: none; }
+}
+
+/* Рамки з білим сяйвом (іній) і неон: сяйво насиченіше, щоб не зливалося зі світлим тлом. */
+:where(:root.is-light) .nick-f-glacier { box-shadow: inset 0 0 6px #7dd3fc, 0 0 6px #38bdf8; }
+:where(:root.is-light) .nick-f-neon { box-shadow: 0 0 8px 2px #06b6d4; }

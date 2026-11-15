@@ -5,6 +5,7 @@ import { checkCode } from '../api';
 import { RunningGameBanner } from '../host-game';
 import { errorText, t, type TextKey } from '../i18n';
 import { MotifHero } from '../motifs/Motifs';
+import { ThemeSwitch } from '../ThemeSwitch';
 import { loadPlayer } from '../storage';
 import { LobbyList } from './LobbyList';
 import { useAccount } from '../useAccount';
@@ -180,6 +181,8 @@ export function Home() {
           {t('hostEntry')}
         </Link>
       )}
+      {/* Гість обирає тему просто тут (повний вибір, з «Як у системі»); швидкий ☀/☾ — ще й у меню. */}
+      {known && <ThemeSwitch className="home-theme" />}
     </main>
   );
 }
