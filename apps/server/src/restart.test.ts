@@ -526,6 +526,15 @@ describe('a server restart', () => {
     expect(restored.plays[0].truth).toEqual(before.plays[0].truth);
     expect(restored.plays[0].answers).toEqual(before.plays[0].answers);
     expect(share(restored)).toBe(300);
+    // після відновлення розкриття так само під замком до підсумку раунду: телефони — locked без автора й балів, пульт — reveal
+    expect(await send(host, 'host:resume')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const sealed = await until(guesser, (view) => view.truth?.sealed === true);
+    expect(sealed.phase).toBe('locked');
+    expect(sealed.role === 'player' ? sealed.me.score : null).toBe(0);
+    expect(sealed.truth?.reveal).toBeNull();
+    const panel = await until(host, (view) => view.role === 'host' && view.phase === 'reveal');
+    expect(panel.truth?.reveal?.author.id).toBe(play.truth?.authorId);
   }, 30_000);
 
   it('answers restarting while another instance owns the room, and unauthorized for an unknown code', async () => {

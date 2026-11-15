@@ -49,7 +49,7 @@ import { MemoryPlay, MemoryReveal } from './MemoryView';
 import { MelodyPlay } from './MelodyView';
 import { DrawingClosed, DrawingPhone, DrawingReveal, drawingTitle, strokesOf } from './DrawingView';
 import type { DrawingModel } from '../live/drawing';
-import { TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped } from './TruthView';
+import { TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, type TruthRecapMine } from './TruthView';
 import { SortPlay, SortReveal, SortWatch } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -906,6 +906,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const lockedTitle = question === null ? '' : drawingTitle(question, view.drawing?.drawerName ?? null);
   // Розкриття: факт моєї команди (у соло — мій) — вердикту «вгадав» у автора немає, лише його частка в розкритті.
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
+  // Підсумок раунду: вибори — за учасником рушія (у командах — команда), свій факт — мій чи моєї команди.
+  const myTeam = team === null ? null : (teamOf(view) ?? null);
+  const truthMine: TruthRecapMine = { id: myTeam?.id ?? me.id, own: (authorId) => authorId === me.id || (myTeam?.members.some((member) => member.id === authorId) ?? false) };
   // Факти збираються в лобі (повна форма). Після старту — лише між запитаннями, поки раунд не роздано, і лише без факту
   // (чи зі схованим ведучим): компактна кнопка розгортає форму; розгорнута лишається до кінця цих етапів. Факт є — нічого.
   const between = phase === 'intro' || phase === 'leaderboard' || phase === 'round_end' || phase === 'guide';
@@ -1263,7 +1266,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
               <TeamWatch view={view} tilts={tilts} offsetMs={offsetMs} />
             ) : truthQ && me.answer === null ? (
               // Пауза, заставка чи сплив час — імена на місці, лише вимкнені.
-              <TruthPick key={view.questionIndex} question={question} disabled={locked || buffTimeOver} send={send} />
+              <TruthPick key={view.questionIndex} question={question} disabled={locked || buffTimeOver} send={send} held={view.truth?.held === true} />
             ) : wipeoutWatching ? (
               <p className="lead wipeout-state">{t('wipeoutOut')}</p>
             ) : isBluff ? (
@@ -1407,8 +1410,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {truthOwn ? (
             <section className="sent">
               <TruthOwn team={team !== null} />
-              <p className="lead">{t('waitReveal')}</p>
+              <p className="lead">{t(view.truth?.held === true ? 'truthHeldNote' : 'waitReveal')}</p>
             </section>
+          ) : truthQ && question !== null && view.truth?.held === true ? (
+            // «Правда про гравця»: підсумок раунду попереду — свій вибір без вердикту (і на «розкритті», яке телефон бачить як locked).
+            <TruthHeldPick question={question} answer={me.answer} />
           ) : question?.type === 'drawing' ? (
             <DrawingClosed mine={me.drawing} info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} />
           ) : isSort ? (
@@ -1533,7 +1539,8 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
 
       {phase === 'reveal' && (
         <>
-          <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>
+          {/* Підсумок «Правди про гравця» показує й останній факт: заголовок його лише повторив би. */}
+          {!(truthQ && view.truth?.recap !== undefined) && <h1 className={questionClass(question?.text ?? '')} dir="auto" title={question?.text}>{question?.text}</h1>}
           <AwayNote away={view.away} />
           {view.final !== null ? (
             <FinalResult view={view} />
@@ -1547,6 +1554,9 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
                 <p>{t('correctAnswer', { answer: correctText(view.reveal, question?.choices) })}</p>
               )}
             </>
+          ) : truthQ && view.truth?.recap !== undefined ? (
+            // Останній факт раунду — підсумок усіх: свій вибір на кожній картці.
+            <TruthRecapView recap={view.truth.recap} mine={truthMine} />
           ) : truthQ && view.truth !== undefined ? (
             <>
               <TruthReveal truth={view.truth} />
@@ -1699,11 +1709,14 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
       {phase === 'leaderboard' && !questBoard && view.wipeout === null && view.survival === null && view.ladder === null && view.standings !== null && (
         <>
           {place}
+          {view.truth?.held === true && <p className="meta truth-held-scores">{t('truthHeldScores')}</p>}
           <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />
         </>
       )}
 
       {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
+      {/* Підсумок «Правди про гравця»: раунд скінчено раніше (останнього розкриття не було) — розгорнутий угорі; інакше — ще раз, згорнутий унизу. */}
+      {(phase === 'round_end' || phase === 'finished') && view.truth?.recap?.early === true && <TruthRecapFold recap={view.truth.recap} mine={truthMine} open />}
 
       {phase === 'round_end' && view.standings !== null && (
         <>
@@ -1715,6 +1728,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} gains={view.round !== null ? roundGains(view.standings, view.round.index) : undefined} />
           {view.own?.round != null && <RoundCardView card={view.own.round} team={view.team !== null} />}
           {view.facts?.round != null && <FactCards cards={view.facts.round} withRound={false} title={t('roundFactsTitle')} />}
+          {view.truth?.recap?.early === false && <TruthRecapFold recap={view.truth.recap} mine={truthMine} open={false} />}
         </>
       )}
 
@@ -1738,6 +1752,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
           {view.standings !== null && <Standings standings={view.standings} highlightId={me.id} titles={view.titles} levels={view.levels} />}
           {/* Лайки (17a): у потоці, лише після церемонії 14a. */}
           {ceremony === null && <LikePanel likes={view.likes} busy={likeGuard.busy} onLike={(payload) => void likeGuard.run('player:like', payload)} />}
+          {view.truth?.recap?.early === false && <TruthRecapFold recap={view.truth.recap} mine={truthMine} open={false} />}
           <MenuLinks role="player" />
         </>
       )}

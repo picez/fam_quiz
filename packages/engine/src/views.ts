@@ -21,6 +21,8 @@ import {
   questSlots,
   questShare,
   type TruthInfo,
+  type TruthCard,
+  type TruthRecap,
   betMinimum,
   betsTeaser,
   type BetsInfo,
@@ -182,12 +184,12 @@ import {
   roundBrief,
   rulesOf,
 } from '@quiz/shared';
-import { currentRound, finalOutcome, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay } from './game';
+import { currentRound, finalOutcome, type AnswerRecord, type TruthPlay, type TeamMember, finalShown, finalVisiblePoints, needsSplit, recordOf, roundQuestionNumber, streakCounts, type BlitzPlay, type BoardPlay, type FinalState, type GameState, type LadderPlay, type Play, type PlayerState, type PuzzlePlay } from './game';
 import { lastNotice } from './adjust';
 import { BETS_OPEN_PHASES, betLimit, betsIndex, betsPlaying, stakedPlay, wagerLimitOf, wagerRound } from './bets';
 import { auctionLeader, auctionNextNow, auctionRoundOf } from './auction';
 import { questAfter, questOpened, questRoundOf, questSolved, questWindowOpen, type QuestTry } from './quest';
-import { inTruthDeck, truthCount, truthGuessers, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
+import { inTruthDeck, nextTruthQuestion, truthCount, truthGuessers, truthHeld, truthOpen, truthPlayOf, truthRoundOf, truthSkipped } from './truth';
 import { presentPlayers } from './present';
 import { appealView, playerAppeal } from './appeal';
 import { undoPanel } from './undo';
@@ -1232,37 +1234,105 @@ function truthIndex(state: GameState): number | null {
   return state.plays.filter((p, i) => p.roundIndex === state.roundIndex && i <= state.questionIndex).length - 1;
 }
 
-/** Розкриття: чий факт і хто кого вибрав; лише коли запитання розкрито. */
-function truthReveal(state: GameState): TruthInfo['reveal'] {
-  const open = truthPlayOf(state);
-  if (open === null || state.phase !== 'reveal' || !isRevealed(state) || spoilerHeld(state)) return null;
-  const options = open.question.type === 'single' ? open.question.options : [];
+/** Розкриття запитання truth з журналу (index): чий факт, бали автора, хто кого вибрав. */
+function truthCard(state: GameState, index: number, play: Play & { truth: TruthPlay }): TruthCard {
+  const options = play.question.type === 'single' ? play.question.options : [];
   const nameOf = (id: string) => options.find((o) => o.id === id)?.text ?? '';
   return {
-    author: { id: open.truth.authorId, nickname: nameOf(open.truth.authorId) },
-    points: recordOf(state, state.questionIndex, open.truth.actorId)?.points ?? 0,
-    picks: truthGuessers(state).map((id) => {
-      const record = recordOf(state, state.questionIndex, id);
+    author: { id: play.truth.authorId, nickname: nameOf(play.truth.authorId) },
+    points: recordOf(state, index, play.truth.actorId)?.points ?? 0,
+    picks: truthGuessers(state, play).map((id) => {
+      const record = recordOf(state, index, id);
       const pickedId = record?.answer?.type === 'single' ? record.answer.optionId : null;
       return { id, nickname: state.players.find((p) => p.id === id)?.nickname ?? '', pickedId, picked: pickedId === null ? null : nameOf(pickedId), correct: record?.grade === 'correct' };
     }),
   };
 }
 
-/** Для всіх ролей: лише число фактів до роздачі, номер запитання й розкриття; автора до reveal тут немає. */
-function truthInfo(state: GameState): TruthInfo | undefined {
+/** Розкриття: чий факт і хто кого вибрав; лише коли запитання розкрито. */
+function truthReveal(state: GameState): TruthInfo['reveal'] {
+  const open = truthPlayOf(state);
+  if (open === null || state.phase !== 'reveal' || !isRevealed(state) || spoilerHeld(state)) return null;
+  return truthCard(state, state.questionIndex, open);
+}
+
+/** Етапи, на яких підсумок раунду truth видно (на reveal — лише коли колоду вичерпано, тобто не held). */
+const RECAP_PHASES: Phase[] = ['reveal', 'round_end', 'finished'];
+
+/** Підсумок раунду truth: усі зіграні запитання раунду з розкриттям; undefined — не раунд truth, підсумок ще попереду чи не на тому етапі. */
+function truthRecap(state: GameState): TruthRecap | undefined {
+  if (truthRoundOf(state) === null || truthHeld(state) || !RECAP_PHASES.includes(state.phase)) return undefined;
+  if (state.phase === 'reveal' && truthPlayOf(state) === null) return undefined;
+  const facts = state.plays.flatMap((play, index) =>
+    play.truth === undefined || play.roundIndex !== state.roundIndex ? [] : [{ text: play.question.text, ...truthCard(state, index, { ...play, truth: play.truth }) }],
+  );
+  // Раунд з одного факту: його розкриття вже повне (усі вибори) — підсумок на reveal нічого б не додав.
+  if (facts.length === 0 || (state.phase === 'reveal' && facts.length < 2)) return undefined;
+  // Дострокове завершення: у колоді ще є факти, що зігралися б.
+  return { facts, early: state.phase !== 'reveal' && state.truth?.deck !== undefined && nextTruthQuestion(state) !== undefined };
+}
+
+/**
+ * Для всіх ролей: лише число фактів до роздачі, номер запитання й розкриття; автора до reveal тут немає.
+ * forPublic — сцена й телефони: поки підсумок попереду (held), розкриття запитання їм не видно.
+ */
+function truthInfo(state: GameState, forPublic = false): TruthInfo | undefined {
   const truth = state.truth;
   if (truth === undefined) return undefined;
   const round = truthRoundOf(state);
+  const held = truthHeld(state);
+  const recap = truthRecap(state);
   return {
     open: truthOpen(state),
     count: truthCount(state),
     index: truthIndex(state),
-    reveal: truthReveal(state),
+    reveal: forPublic && held ? null : truthReveal(state),
     // Пропуск — колоду роздано, а запитань з неї немає. Останній такий раунд закінчує гру одразу (finished без round_end) —
     // повідомлення тоді на підсумках; дострокове завершення до роздачі (колоди ще немає) чи з фактами в колоді пропуском не є.
     skipped: (state.phase === 'round_end' || state.phase === 'finished') && round !== null && truthSkipped(state),
+    ...(held ? { held: true as const } : {}),
+    ...(held && state.phase === 'reveal' ? { sealed: true as const } : {}),
+    ...optional('recap', recap),
   };
+}
+
+/**
+ * Стан для сцени й телефонів, поки підсумок раунду truth попереду (truthHeld): записи запитань раунду без балів і правильності
+ * (крім відкритого запитання на етапі question — його записи ще ніде не показуються, а бафи читають справжні), без частки автора;
+ * рахунок без балів цих запитань і без серії раунду; reveal показується як locked. Ведучий бачить справжній стан.
+ * Позначка heldStates — для publicStandings (без «+N за запитання»).
+ */
+const heldCache = new WeakMap<GameState, GameState>();
+const heldStates = new WeakSet<GameState>();
+
+function publicState(state: GameState): GameState {
+  if (!truthHeld(state)) return state;
+  const found = heldCache.get(state);
+  if (found !== undefined) return found;
+  const closedCount = state.phase === 'question' ? state.plays.length - 1 : state.plays.length;
+  const lost = new Map<string, number>();
+  const plays = state.plays.map((play, index) => {
+    const truth = play.truth;
+    if (truth === undefined || play.roundIndex !== state.roundIndex || index >= closedCount) return play;
+    const answers: Record<string, AnswerRecord> = {};
+    for (const [id, record] of Object.entries(play.answers)) {
+      lost.set(id, (lost.get(id) ?? 0) + record.points);
+      if (id !== truth.actorId) answers[id] = { ...record, accepted: false, accuracy: 0, grade: 'wrong', basePoints: 0, streakBonus: 0, points: 0 };
+    }
+    const { right: _right, ...open } = truth;
+    return { ...play, answers, truth: open };
+  });
+  const players = state.players.map((p) => ({ ...p, score: p.score - (lost.get(p.id) ?? 0), streak: 0 }));
+  const masked: GameState = { ...state, plays, players, phase: state.phase === 'reveal' ? 'locked' : state.phase };
+  heldCache.set(state, masked);
+  heldStates.add(masked);
+  return masked;
+}
+
+/** Зріз сцени чи телефона з publicState: truth — зі справжнього стану (held, sealed), без розкриття. */
+function withPublicTruth<V extends { truth?: TruthInfo }>(state: GameState, view: V): V {
+  if (view.truth === undefined || !truthHeld(state)) return view;
+  return { ...view, truth: truthInfo(state, true) };
 }
 
 /** Ведучому: ще й усі факти тих, хто в грі, і автор запитання, що йде (question, locked). */
@@ -3309,9 +3379,9 @@ function isRevealed(state: GameState): boolean {
   return state.questionIndex >= 0 && inQuestion(state) && REVEALED.includes(state.phase);
 }
 
-/** Цікавинки (12d) для всіх ролей: рядок розкриття — лише коли правду блефу й дошку «100 до 1» відкрито і не в «Мільйонері». */
+/** Цікавинки (12d) для всіх ролей: рядок розкриття — лише коли правду блефу й дошку «100 до 1» відкрито, не в «Мільйонері» і не на підсумку «Правди про гравця» (рядок був би лише про останній факт). */
 function sharedFacts(state: GameState): GameFacts | null {
-  const revealOpen = state.phase === 'reveal' && isRevealed(state) && !spoilerHeld(state) && currentRound(state)?.type !== 'ladder';
+  const revealOpen = state.phase === 'reveal' && isRevealed(state) && !spoilerHeld(state) && currentRound(state)?.type !== 'ladder' && truthRecap(state) === undefined;
   return gameFacts(state, revealOpen);
 }
 
@@ -3325,7 +3395,7 @@ function publicStandings(state: GameState): Standing[] | null {
   const hidden = state.phase === 'leaderboard' && (currentRound(state)?.type === 'wipeout' || currentRound(state)?.type === 'ladder' || inSurvivalRound(state));
   const rows = !hidden && WITH_STANDINGS.includes(state.phase) ? withRounds(rankPlayers(state.players), scoreLinesByPlayer(state), roundCount(state)) : null;
   // Між запитаннями — ще й бали кожного за щойно закрите запитання (беклог 13).
-  const standings = rows !== null && state.phase === 'leaderboard' ? rows.map((row) => ({ ...row, question: questionPoints(scoreLinesByPlayer(state), row.participantId, state.questionIndex) })) : rows;
+  const standings = rows !== null && state.phase === 'leaderboard' && !heldStates.has(state) ? rows.map((row) => ({ ...row, question: questionPoints(scoreLinesByPlayer(state), row.participantId, state.questionIndex) })) : rows;
   standingsCache.set(state, standings);
   return standings;
 }
@@ -3408,7 +3478,23 @@ function revealStats(state: GameState, question: Question): RevealStats {
   return { answered: records.length, accepted: hidden ? null : records.filter((r) => r.accepted).length, counts };
 }
 
+/**
+ * Сцена. «Правда про гравця» (28b): поки підсумок раунду попереду (truthHeld), зріз будується з publicState — без автора,
+ * правильності, лічильників розкриття й балів раунду; на leaderboard (REVEALED) розкриття попереднього запитання теж немає.
+ */
 export function stageView(state: GameState): StageView {
+  const view = stageViewOf(publicState(state));
+  return truthHeld(state) ? { ...withPublicTruth(state, view), reveal: null, stats: null } : view;
+}
+
+/** Телефон; truthHeld — як stageView: без розкриття й вердикту свого вибору. */
+export function playerView(state: GameState, playerId: string, now?: number): PlayerView | null {
+  const view = playerViewOf(publicState(state), playerId, now);
+  if (view === null || !truthHeld(state)) return view;
+  return { ...withPublicTruth(state, view), reveal: null, me: { ...view.me, result: null } };
+}
+
+function stageViewOf(state: GameState): StageView {
   const shown = isRevealed(state) ? shownQuestion(state) : null;
   const revealed = shown === null ? null : withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question)));
   return {
@@ -3441,7 +3527,7 @@ function blitzAnswer(state: GameState, playerId: string): Answer | null | undefi
   return entry === undefined ? undefined : entry.answer;
 }
 
-export function playerView(state: GameState, playerId: string, now?: number): PlayerView | null {
+function playerViewOf(state: GameState, playerId: string, now?: number): PlayerView | null {
   if (!teamsOn(state)) {
     const own = ownView(state, playerId);
     const view = own === null ? null : withDrawerText(state, playerId, own);

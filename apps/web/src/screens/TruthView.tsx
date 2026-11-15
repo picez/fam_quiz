@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react';
-import { LIMITS, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo } from '@quiz/shared';
+import { LIMITS, truthText, type Answer, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
 import { questionClass, signed } from '../format';
 import { errorText, t } from '../i18n';
 import { Timer, timerStatus } from '../live/Timer';
@@ -153,8 +153,11 @@ export function TruthNames({ question, draft, mark }: { question: PublicQuestion
   );
 }
 
-/** Телефон на question: «Хто це написав?» і імена кнопками в одну колонку; один вибір → player:answer. Факт — у заголовку екрана. */
-export function TruthPick({ question, disabled, send }: { question: PublicQuestion; disabled: boolean; send: Send }) {
+/**
+ * Телефон на question: «Хто це написав?» і імена кнопками в одну колонку; один вибір → player:answer. Факт — у заголовку екрана.
+ * held — підсумок раунду попереду: під іменами нагадування, що автора назвуть наприкінці раунду.
+ */
+export function TruthPick({ question, disabled, send, held = false }: { question: PublicQuestion; disabled: boolean; send: Send; held?: boolean }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
@@ -194,6 +197,7 @@ export function TruthPick({ question, disabled, send }: { question: PublicQuesti
           </li>
         ))}
       </ul>
+      {held && <p className="meta truth-held-hint">{t('truthHeldNote')}</p>}
       <p className="meta truth-error" role="status">
         {error}
       </p>
@@ -217,6 +221,16 @@ export function TruthOwn({ team }: { team: boolean }) {
 export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: number }) {
   const { question, truth } = view;
   if (question === null || truth === undefined || truth.index === null) return null;
+  // Розкриття останнього факту — підсумок усього раунду.
+  if (view.phase === 'reveal' && truth.recap !== undefined) {
+    return (
+      <div className="stage-question truth-stage is-recap">
+        <TruthRecapView recap={truth.recap} big />
+      </div>
+    );
+  }
+  // Підсумок попереду: після закриття (і на «розкритті», яке сцена бачить як locked) — замість автора печатка.
+  const sealed = truth.held === true && view.phase !== 'question';
   return (
     <div className="stage-question truth-stage">
       <header className="bar">
@@ -237,6 +251,18 @@ export function TruthStage({ view, offsetMs }: { view: StageView; offsetMs: numb
           </div>
         )}
       </div>
+      {sealed && (
+        <p className="truth-seal" role="status">
+          <svg className="truth-seal-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4.5" y="10.5" width="15" height="10" rx="2" />
+            <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+          </svg>
+          <span>
+            <strong>{t(truth.sealed === true ? 'truthSealed' : 'truthClosed')}</strong>
+            <span className="truth-seal-note">{t('truthHeldNote')}</span>
+          </span>
+        </p>
+      )}
       {view.phase === 'reveal' ? (
         <TruthReveal truth={truth} big />
       ) : (
@@ -271,6 +297,91 @@ export function TruthReveal({ truth, big = false }: { truth: TruthInfo; big?: bo
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** Понад стільки фактів сцена ставить підсумок у чотири колонки дрібніше. */
+const MANY_RECAP_FACTS = 9;
+/** Понад стільки вгадувачів картка підсумку пише «Вгадали N з M» замість імен. */
+const MANY_RECAP_NAMES = 6;
+
+/** Свій учасник на телефоні: id у виборах (соло — гравець, команда — команда) і чи факт свій (мій чи моєї команди). */
+export interface TruthRecapMine {
+  id: string;
+  own: (authorId: string) => boolean;
+}
+
+/**
+ * Підсумок раунду (сцена, пульт, телефон): картки «факт → автор», хто вгадав і бали автора, у порядку гри.
+ * big — сцена (сітка карток); mine — телефон: на кожній картці свій вибір (✓/✗) чи «Ваш факт», угорі — скільки вгадано.
+ */
+export function TruthRecapView({ recap, big = false, mine, title = true }: { recap: TruthRecap; big?: boolean; mine?: TruthRecapMine; title?: boolean }) {
+  const many = recap.facts.length > MANY_RECAP_FACTS;
+  const cols = recap.facts.length <= 4 ? 2 : many ? 4 : 3;
+  const guessed = mine === undefined ? [] : recap.facts.flatMap((fact) => fact.picks.filter((pick) => pick.id === mine.id));
+  return (
+    <section className={['truth-recap', big ? `is-big cols-${cols}` : '', big && many ? 'is-many' : ''].filter(Boolean).join(' ')}>
+      {title && <h2 className="truth-recap-title">{t('truthRecapTitle')}</h2>}
+      {recap.early && <p className="meta truth-recap-early">{t('truthRecapEarly')}</p>}
+      {guessed.length > 0 && <p className="lead truth-recap-score">{t('truthRecapMine', { count: guessed.filter((pick) => pick.correct).length, total: guessed.length })}</p>}
+      <ol className="truth-recap-list">
+        {recap.facts.map((fact, index) => {
+          const right = fact.picks.filter((pick) => pick.correct);
+          const own = mine?.own(fact.author.id) === true;
+          const pick = mine === undefined ? undefined : fact.picks.find((p) => p.id === mine.id);
+          return (
+            <li key={index} className={own ? 'truth-recap-card is-own' : 'truth-recap-card'}>
+              <p className="truth-recap-fact" dir="auto">
+                {fact.text}
+              </p>
+              <p className="truth-recap-author" dir="auto">
+                {fact.author.nickname}
+              </p>
+              <p className="meta truth-recap-right" dir="auto">
+                {right.length === 0
+                  ? t('truthRecapNobody')
+                  : right.length > MANY_RECAP_NAMES
+                    ? t('truthRecapRightCount', { count: right.length, total: fact.picks.length })
+                    : t('truthRecapRight', { names: right.map((p) => p.nickname).join(', ') })}
+                {fact.points > 0 && <span className="truth-recap-points">{t('truthAuthorPoints', { points: signed(fact.points) })}</span>}
+              </p>
+              {own ? (
+                <p className="truth-recap-mine is-own">{t('truthRecapOwn')}</p>
+              ) : (
+                pick !== undefined && (
+                  <p className={pick.picked === null ? 'truth-recap-mine' : pick.correct ? 'truth-recap-mine is-correct' : 'truth-recap-mine is-wrong'} dir="auto">
+                    {pick.picked === null ? t('truthYouSkipped') : `${t('truthYourPick', { nickname: pick.picked })} ${pick.correct ? '✓' : '✗'}`}
+                  </p>
+                )
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/** Телефон і пульт на round_end / finished: підсумок у «Хто що написав», що розгортається. */
+export function TruthRecapFold({ recap, mine, open }: { recap: TruthRecap; mine?: TruthRecapMine; open: boolean }) {
+  return (
+    <details className="panel truth-recap-fold" open={open}>
+      <summary>
+        {t('truthRecapTitle')} <span className="meta">({recap.facts.length})</span>
+      </summary>
+      <TruthRecapView recap={recap} mine={mine} title={false} />
+    </details>
+  );
+}
+
+/** Телефон на locked раунду, чий підсумок попереду: свій вибір (без вердикту) і «автора назвемо наприкінці раунду». */
+export function TruthHeldPick({ question, answer }: { question: PublicQuestion; answer: Answer | null }) {
+  const picked = answer?.type === 'single' ? (question.choices.find((choice) => choice.id === answer.optionId)?.text ?? null) : null;
+  return (
+    <section className="sent truth-held">
+      <h2 dir="auto">{picked === null ? t('truthYouSkipped') : t('truthYourPick', { nickname: picked })}</h2>
+      <p className="lead">{t('truthHeldNote')}</p>
     </section>
   );
 }

@@ -4,6 +4,7 @@ import { seededRng } from './bluff';
 import { endRound, lock, next, removePlayer, start, submitAnswer, type GameState } from './game';
 import { hideTruth, submitTruth } from './truth';
 import { assignTeam } from './teams';
+import { actAnswer } from './team-act';
 import { hostView, playerView, stageView } from './views';
 import { auctionRound, betsRound, classicRound, makeRoundsQuiz, single, truthRound } from './testing/fixtures';
 import { lobbyWith, must } from './testing/helpers';
@@ -303,5 +304,142 @@ describe('player truth views (28b)', () => {
       expect('truth' in (hostView(s) as object)).toBe(false);
       expect('truth' in (playerView(s, 'p1')?.me ?? {})).toBe(false);
     }
+  });
+});
+
+describe('the truth round holds every author until its recap', () => {
+  /** Усі, крім автора, вгадують правильно — бали є в кожного; розкриття. */
+  const answered = (s: GameState, at: number) => {
+    const author = authorOf(s);
+    for (const id of IDS.filter((id) => id !== author)) s = must(submitAnswer(s, id, pick(author), at));
+    // відповіли всі — запитання закрилося саме
+    return must(next(s.phase === 'question' ? must(lock(s)) : s, at + 500, rng0));
+  };
+
+  it('a mid-round reveal reaches the stage and the phones as a sealed lock without a verdict or points', () => {
+    const s = answered(opened(), t0 + 1000);
+    const author = authorOf(s);
+    expect(s.phase).toBe('reveal');
+    expect(s.players.some((p) => p.score > 0)).toBe(true);
+    const stage = stageView(s);
+    expect(stage.phase).toBe('locked');
+    expect(stage.truth).toMatchObject({ held: true, sealed: true, reveal: null, index: 0, count: 3 });
+    expect(stage.truth?.recap).toBeUndefined();
+    expect(stage.reveal).toBeNull();
+    expect(stage.stats).toBeNull();
+    expect(json(stage)).not.toContain('correctId');
+    for (const id of IDS) {
+      const phone = playerView(s, id);
+      expect(phone?.phase).toBe('locked');
+      expect(phone?.reveal).toBeNull();
+      expect(phone?.me.result).toBeNull();
+      expect(phone?.me.score).toBe(0);
+      expect(phone?.truth?.reveal).toBeNull();
+      expect(json(phone)).not.toContain('correctId');
+    }
+    // автор і далі знає лише свій факт; пульт бачить усе
+    expect(playerView(s, author)?.me.truth?.own).toBe(true);
+    const host = hostView(s);
+    expect(host.phase).toBe('reveal');
+    expect(host.truth).toMatchObject({ held: true, sealed: true, reveal: { author: { id: author } } });
+  });
+
+  it('between truth questions the table keeps the scores from before the round, without per-question gains or streaks', () => {
+    let s = answered(opened(), t0 + 1000);
+    s = must(next(s, t0 + 2000, rng0));
+    expect(s.phase).toBe('leaderboard');
+    const stage = stageView(s);
+    expect(stage.truth?.held).toBe(true);
+    expect(stage.truth?.sealed).toBeUndefined();
+    expect(stage.reveal).toBeNull();
+    expect(stage.standings?.every((row) => row.score === 0 && row.question === undefined)).toBe(true);
+    expect(stage.players.every((p) => p.streak === 0)).toBe(true);
+    expect(playerView(s, 'p2')?.standings?.every((row) => row.score === 0)).toBe(true);
+    expect(playerView(s, 'p2')?.myBreakdown?.plus ?? 0).toBe(0);
+    // пульт — справжні бали
+    expect(hostView(s).standings?.some((row) => row.score > 0)).toBe(true);
+    // наступне запитання: бали першого так само сховані
+    s = must(next(s, t0 + 3000, rng0));
+    expect(s.phase).toBe('question');
+    expect(playerView(s, 'p2')?.me.score).toBe(0);
+    expect(stageView(s).truth?.held).toBe(true);
+  });
+
+  it('the last reveal is the recap: every fact with its author, points and picks, in play order', () => {
+    let s = opened();
+    const authors: string[] = [];
+    for (let k = 0; k < 3; k++) {
+      authors.push(authorOf(s));
+      s = answered(s, t0 + 10_000 * (k + 1));
+      if (k < 2) {
+        expect(stageView(s).truth?.sealed).toBe(true);
+        s = must(next(must(next(s, t0 + 10_000 * (k + 1) + 2000, rng0)), t0 + 10_000 * (k + 1) + 3000, rng0));
+      }
+    }
+    expect(s.phase).toBe('reveal');
+    const stage = stageView(s);
+    expect(stage.phase).toBe('reveal');
+    expect(stage.truth?.held).toBeUndefined();
+    expect(stage.truth?.reveal?.author.id).toBe(authors[2]);
+    const recap = stage.truth?.recap;
+    expect(recap?.early).toBe(false);
+    expect(recap?.facts.map((f) => f.author.id)).toEqual(authors);
+    expect(recap?.facts.map((f) => f.text)).toEqual(authors.map((id) => FACTS[id]));
+    expect(recap?.facts.every((f) => f.picks.length === 3 && f.picks.every((p) => p.correct))).toBe(true);
+    // бали раунду — тепер видно всім
+    expect(playerView(s, 'p4')?.me.score).toBe(s.players.find((p) => p.id === 'p4')?.score);
+    expect(playerView(s, 'p4')?.me.score).toBeGreaterThan(0);
+    expect(hostView(s).truth?.recap?.facts).toHaveLength(3);
+    // і на кінці раунду
+    s = must(next(s, t0 + 50_000, rng0));
+    expect(s.phase).toBe('round_end');
+    expect(stageView(s).truth?.recap).toMatchObject({ early: false });
+    expect(playerView(s, 'p1')?.truth?.recap?.facts).toHaveLength(3);
+    // наступний раунд — без підсумку
+    s = must(next(s, t0 + 60_000, rng0));
+    expect(stageView(s).truth?.recap).toBeUndefined();
+  });
+
+  it('a round ended early shows the recap of the facts played, marked early', () => {
+    let s = answered(opened(), t0 + 1000);
+    const first = authorOf(s);
+    s = must(endRound(s, t0 + 2000));
+    expect(s.phase).toBe('round_end');
+    const recap = stageView(s).truth?.recap;
+    expect(recap).toMatchObject({ early: true });
+    expect(recap?.facts.map((f) => f.author.id)).toEqual([first]);
+    expect(stageView(s).truth?.held).toBeUndefined();
+    expect(playerView(s, first === 'p2' ? 'p3' : 'p2')?.me.score).toBeGreaterThan(0);
+  });
+
+  it('removing the author of the remaining fact unseals the reveal: one fact played, its own reveal is the whole story', () => {
+    let s = answered(opened(lobby({ p1: FACTS.p1, p2: FACTS.p2 })), t0 + 1000);
+    expect(stageView(s).truth?.sealed).toBe(true);
+    const other = s.truth?.deck?.find((id) => id !== authorOf(s)) ?? '';
+    s = must(removePlayer(s, other));
+    expect(stageView(s).truth?.sealed).toBeUndefined();
+    expect(stageView(s).truth?.reveal?.author.id).toBe(authorOf(s));
+    expect(stageView(s).truth?.recap).toBeUndefined();
+    expect(must(endRound(s, t0 + 5000)).phase).toBe('round_end');
+    expect(stageView(must(endRound(s, t0 + 5000))).truth?.recap?.facts).toHaveLength(1);
+  });
+
+  it('team phones are held the same way', () => {
+    const quiz = teamQuiz([truthRound('r1'), classicRound('r2', [single])], 2);
+    let s = teamLobby(quiz, 'Оля', 'Петро', 'Марко', 'Ната');
+    for (const [m, t] of [['m1', 't1'], ['m2', 't1'], ['m3', 't2'], ['m4', 't2']]) s = must(assignTeam(s, m, t));
+    for (const m of ['m1', 'm2', 'm3']) s = must(submitTruth(s, m, `Факт ${m}`, 0));
+    s = must(next(must(start(s)), t0, deal()));
+    const play = s.plays[s.questionIndex];
+    const member = play.truth?.actorId === 't1' ? 'm3' : 'm1';
+    s = must(actAnswer(s, member, pick(play.truth?.authorId ?? ''), t0 + 1000));
+    s = must(next(s.phase === 'question' ? must(lock(s)) : s, t0 + 2000, rng0));
+    expect(s.phase).toBe('reveal');
+    expect(s.players.some((p) => p.score > 0)).toBe(true);
+    const phone = playerView(s, member);
+    expect(phone?.phase).toBe('locked');
+    expect(phone?.me.result).toBeNull();
+    expect(phone?.me.score).toBe(0);
+    expect(phone?.truth?.sealed).toBe(true);
   });
 });

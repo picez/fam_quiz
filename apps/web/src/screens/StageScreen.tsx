@@ -57,7 +57,7 @@ import { MemoryStage } from './MemoryView';
 import { MelodyStage } from './MelodyView';
 import { SpotdiffStage } from './SpotdiffView';
 import type { DrawingModel } from '../live/drawing';
-import { TruthSkipped, TruthStage } from './TruthView';
+import { TruthRecapView, TruthSkipped, TruthStage } from './TruthView';
 import { SortBoard, SortReveal, SortStage, SortWords } from './SortView';
 import { WallGrid } from './WallGrid';
 import { WallReveal } from './WallReveal';
@@ -1028,6 +1028,8 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
   const appeal = phase === 'reveal' ? view.appeal : null;
   // «Правда про гравця» (28b): своя сцена запитання — факт, імена дрібно, без варіантів A–F і без позначок «відповів».
   const truthStage = view.truth !== undefined && view.truth.index !== null && view.question?.type === 'single';
+  // Раунд truth скінчено раніше (останнього розкриття-підсумку не було): на round_end сцена показує підсумок; фініш — подіум, як завжди.
+  const truthEarly = phase === 'round_end' && view.truth?.recap?.early === true;
   return (
     // Реакції (13a): бейджі біля ніків і смуга внизу — лише в REACTION_PHASES (.has-reactions тримає запас під смугою).
     <ReactionMain className={['app stage game-bg', appeal !== null ? 'has-appeal' : '', suspense ? 'is-suspense' : ''].filter(Boolean).join(' ')} phase={phase} reactions={reactions} size="stage">
@@ -1080,7 +1082,14 @@ export function StageScreen({ view: live, code, joinUrl, offsetMs, hostOnline, a
       {phase === 'leaderboard' && view.quest !== undefined && view.quest.stage === 'play' && <QuestStrip info={view.quest} />}
       {phase === 'round_end' && view.quest !== undefined && view.quest.stage === 'shown' && <QuestStage info={view.quest} phase="round_end" offsetMs={offsetMs} />}
       {(phase === 'round_end' || phase === 'finished') && view.truth?.skipped === true && <TruthSkipped />}
-      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !(phase === 'leaderboard' && view.ladder !== null) && !(phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play') && (
+      {/* «Правда про гравця»: між фактами бали раунду під замком; раунд скінчено раніше — підсумок замість таблиці раунду. */}
+      {phase === 'leaderboard' && view.truth?.held === true && <p className="lead truth-held-scores">{t('truthHeldScores')}</p>}
+      {truthEarly && view.truth?.recap !== undefined && (
+        <div className="stage-question truth-stage is-recap">
+          <TruthRecapView recap={view.truth.recap} big />
+        </div>
+      )}
+      {(phase === 'leaderboard' || phase === 'round_end' || phase === 'finished') && standings !== null && !truthEarly && !(phase === 'leaderboard' && view.ladder !== null) && !(phase === 'leaderboard' && view.quest !== undefined && view.quest.stage !== 'play') && (
         <StandingsBoard view={view} standings={standings} awardsSeq={awardsSeq} splashing={splashNow !== null} ceremony={ceremony} />
       )}
       {/* Не під заставкою «Підсумки»: шар однаково перехоплює дотики. */}
