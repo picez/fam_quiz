@@ -57,6 +57,9 @@ describe('light theme tokens', () => {
     ['--spare-accent', '--stage'],
     ['--final-gold', '--stage'],
     ['--removed-tag', '--stage'],
+    // Смуга «Помилка! Підвисання» в сортуванні й сповіщення: темний текст на світлій підкладці.
+    ['--paper', '--sort-lock-strip'],
+    ['--paper', '--notice-bg'],
     // Заливки зі світлим текстом --stage (банер офлайн, правильна відповідь, бейджі).
     ['--stage', '--signal'],
     ['--stage', '--correct'],

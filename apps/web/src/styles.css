@@ -127,6 +127,7 @@
   --sort-zone-hot: rgb(91 72 217 / 0.22);
   --sort-landed: rgb(8 114 99 / 0.16);
   --sort-lock: rgb(58 10 22 / 0.22);
+  --sort-lock-strip: rgb(255 226 231 / 0.96);
   --duel-accent: #c2410c;
   --duel-accent-soft: rgb(194 65 12 / 0.12);
   --duel-challenger: #0369a1;
