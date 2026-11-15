@@ -119,7 +119,7 @@ describe('detective puzzles are solved by brute force', () => {
     });
     expect(aabb).toEqual([numberOf(q('Свідок запам’ятав номер машини'))]);
     const mirror = range(1000, 9999).filter((n) => n * 4 === Number(String(n).split('').reverse().join('')));
-    expect(mirror.map(String)).toEqual([correctText(q('Логіка: агентка множить'))]);
+    expect(mirror).toEqual([numberOf(q('Логіка: агентка множить'))]);
     expect(numberOf(q('Логіка: будинки на вулиці'))).toBe(range(1, 1000).filter((n) => String(n).includes('7')).length);
     // Голуб: час до зустрічі × швидкість.
     expect(numberOf(q('Логіка: два детективи'))).toBe((90 / (40 + 50)) * 100);
@@ -131,13 +131,16 @@ describe('detective puzzles are solved by brute force', () => {
     expect(numberOf(q('Агент іде від штабу'))).toBe(12 + 24);
     expect(numberOf(q('Трьом братам'))).toBe(range(1, 36).find((y) => y + (y + 2) + (y + 4) === 36)! + 4);
     expect(numberOf(q('Детектив прочитав першого дня'))).toBe(10 + 15 + 20 + 25);
-    expect(correctText(q('Яке число зайве: 16'))).toBe(String([16, 25, 36, 48, 64].find((n) => !Number.isInteger(Math.sqrt(n)))));
+    expect(correctText(q('Яке число зайве: 8'))).toBe([8, 27, 64, 100, 125].filter((n) => Math.round(Math.cbrt(n)) ** 3 !== n).join());
+    // Свічка на 4 години, лишилася чверть: горіла 4 · 3/4 = 3 години.
+    expect(4 * (1 - 1 / 4)).toBe(3);
+    expect(correctText(q('Щойно за гостем'))).toBe('Близько трьох годин');
   });
 
   it('day-of-week puzzles', () => {
     // Десяте чергування: день 1 + 9 · 3 = 28; 1-ше — понеділок.
     expect(correctText(q('Інспектор чергує'))).toBe(DAYS[(28 - 1) % 7]);
-    // Післязавтра після понеділка — середа (індекс 2); через три дні після неї — сьогодні.
+    // Через два дні після понеділка — середа (індекс 2); через три дні після неї — сьогодні.
     expect(correctText(q('Три дні тому'))).toBe(DAYS[(0 + 2 + 3) % 7]);
   });
 
@@ -208,7 +211,7 @@ describe('detective puzzles are solved by brute force', () => {
 
   it('true/false statements about numbers are right', () => {
     expect(boolOf(q('Число 144'))).toBe(14 * 14 === 144);
-    expect(boolOf(q('Якщо помножити будь-яке ціле'))).toBe(range(1, 5000).every((n) => digits(9 * n).reduce((a, b) => a + b, 0) % 9 === 0));
+    expect(boolOf(q('Якщо помножити будь-яке натуральне'))).toBe(range(1, 5000).every((n) => digits(9 * n).reduce((a, b) => a + b, 0) === 9));
     const coins = ['ГГ', 'ГР', 'РГ', 'РР'];
     expect(boolOf(q('Якщо підкинути дві монети'))).toBe(coins.filter((c) => c.includes('Г') && c.includes('Р')).length / coins.length === 1 / 3);
     expect(boolOf(q('Добуток будь-яких чотирьох'))).toBe(range(1, 2000).every((n) => Number.isInteger(Math.sqrt(n * (n + 1) * (n + 2) * (n + 3) + 1))));
