@@ -9,6 +9,16 @@
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Вікторина</title>
+    <!-- Тема (quiz:theme) — ще до першого малювання, щоб світла тема не блимала темною; логіка та сама, що в theme-mode.ts. -->
+    <script>
+      try {
+        var theme = localStorage.getItem('quiz:theme');
+        if (theme === 'light' || (theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches)) {
+          document.documentElement.classList.add('is-light');
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f7f2f1');
+        }
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

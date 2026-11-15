@@ -15,6 +15,9 @@ export async function open(
 ): Promise<Page> {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'uk-UA', ...options });
   contexts.push(context);
+  // E2E_THEME=light (чи system): знімки E2E_SHOTS=1 у світлій темі — тема пристрою ставиться до першого завантаження.
+  const theme = process.env.E2E_THEME;
+  if (theme === 'light' || theme === 'system') await context.addInitScript((value) => localStorage.setItem('quiz:theme', value), theme);
   // YouTube не вантажиться з мережі: сторінка вбудовування підміняється заглушкою.
   await context.route(/youtube(-nocookie)?\.com|youtu\.be|ytimg\.com/, (route) =>
     route.fulfill({ contentType: 'text/html', body: youtubeStub(route.request().url()) }),

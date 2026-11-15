@@ -4,6 +4,7 @@ import { authProviders, googleSignIn, signIn, signUp } from '../api';
 import { forgetAccount } from '../useAccount';
 import { errorText, t } from '../i18n';
 import { LanguageSwitcher } from '../locales/LanguageSwitcher';
+import { ThemeSwitch } from '../ThemeSwitch';
 import { MotifHero } from '../motifs/Motifs';
 import { leaveTo } from '../navigation';
 
@@ -131,6 +132,7 @@ export function Login() {
         {t(registering ? 'haveAccount' : 'createAccount')}
       </button>
       <LanguageSwitcher signedIn={false} />
+      <ThemeSwitch />
       <Link className="quiet-link" to="/">
         {t('backHome')}
       </Link>
