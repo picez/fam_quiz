@@ -1,4 +1,4 @@
-import { isStorable, LIMITS, TRUTH_QUESTION_PREFIX, truthText, type Question, type TruthRound } from '@quiz/shared';
+import { isStorable, LIMITS, TRUTH_QUESTION_PREFIX, truthText, type Phase, type Question, type TruthRound } from '@quiz/shared';
 // game.ts викликає цей файл, а цей файл — game.ts; обидва звертаються одне до одного лише під час виклику.
 import { currentRound, fail, ok, shuffle, type AnswerRecord, type GameState, type Play, type Result, type Rng, type TruthPlay } from './game';
 import { presentPlayers } from './present';
@@ -123,6 +123,21 @@ export function nextTruthQuestion(state: GameState): Question | undefined {
     if (question !== null) return question;
   }
   return undefined;
+}
+
+/** Етапи раунду, на яких підсумок truth може бути ще попереду. */
+const HELD_PHASES: readonly Phase[] = ['intro', 'question', 'locked', 'reveal', 'leaderboard', 'duel'];
+
+/**
+ * Підсумок раунду truth ще попереду: раунд іде, у ньому вже є запитання, а колоду не вичерпано (чи останнє ще відкрите).
+ * Тоді сцена й телефони не бачать автора, правильності й балів раунду — інакше під кінець автори вгадувались би методом виключення.
+ * Розкриття останнього запитання (і все після нього) — уже підсумок.
+ */
+export function truthHeld(state: GameState): boolean {
+  if (truthRoundOf(state) === null || !HELD_PHASES.includes(state.phase)) return false;
+  if (!state.plays.some((p) => p.truth !== undefined && p.roundIndex === state.roundIndex)) return false;
+  const exhausted = state.truth?.deck !== undefined && nextTruthQuestion(state) === undefined;
+  return !exhausted || state.phase === 'question' || state.phase === 'locked';
 }
 
 /**

@@ -571,7 +571,7 @@ async function expectTruthStageFits28b(stage: Page, name: string) {
   expect(height, `${name}: the stage scrolls down (${height} > ${clientH})`).toBeLessThanOrEqual(clientH!);
   expect(width, `${name}: the stage scrolls sideways (${width} > ${clientW})`).toBeLessThanOrEqual(clientW!);
   const out = await stage
-    .locator('.truth-stage h1, .truth-stage-names li, .truth-reveal p, .truth-pick-row')
+    .locator('.truth-stage h1, .truth-stage-names li, .truth-reveal p, .truth-pick-row, .truth-seal, .truth-recap-card')
     .evaluateAll((all) => all.filter((el) => { const box = el.getBoundingClientRect(); return box.bottom > innerHeight + 1 || box.right > innerWidth + 1 || box.left < -1; }).map((el) => el.textContent));
   expect(out, `${name}: texts outside the stage`).toEqual([]);
 }
@@ -786,26 +786,60 @@ async function truthGame28b() {
     for (const page of others) expect(lastView28b(frames.get(page)!).truth?.reveal ?? null, `a reveal for ${nameOf(page)} before the reveal`).toBeNull();
 
     await reveal28a(host);
-    await stage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
-    const rows = async () => (await stage.locator('.truth-pick-row').allTextContents()).sort();
-    if (author === 'Оля') {
-      await stage.locator('.truth-author-points').getByText('Автор: +200', exact).waitFor();
-      expect(await rows()).toEqual(['Іра → Хосе ✗', 'Тарас → Оля ✓', 'Хосе — без вибору'].sort());
-    } else {
-      await stage.locator('.truth-author-points').getByText('Автор: +300', exact).waitFor();
-      expect(await rows()).toEqual(['Іра → Оля ✗', 'Оля → Іра ✗', 'Хосе → Оля ✗'].sort());
-    }
-    await authorPage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
-    await jose.locator('.truth-reveal').getByText(es28b.truthAuthorIs!.replace('{nickname}', author), exact).waitFor();
-    // Пульт: правильна відповідь — ім'я без літери варіанта; телефон автора не повторює «Це написав(ла) …» рядком відповіді.
+    // Пульт: правильна відповідь — ім'я без літери варіанта; ні на якому телефоні рядка правильної відповіді немає.
     await host.getByText(`Правильна відповідь: ${author}`, exact).waitFor();
-    for (const page of phones) expect(await bodyText(page), `the right answer line on ${nameOf(page)}’s phone`).not.toContain('Правильна відповідь');
-    if (author === 'Оля') {
+    if (k === 0) {
+      // Підсумок раунду попереду: сцена — печатка, телефони — свій вибір без вердикту; ні автора, ні ✓/✗, ні балів раунду.
+      // Інакше під кінець раунду авторів останніх фактів усі знали б методом виключення.
+      await stage.locator('.truth-seal').getByText('Відповіді прийнято', exact).waitFor();
+      await host.locator('.truth-host-held').getByText(ukMessages.truthHostHeld, exact).waitFor();
+      const sealedStage = await stage.content();
+      for (const hidden of ['Це написав', 'Автор:', 'truth-reveal', 'is-correct', '✓', '✗']) expect(sealedStage, `«${hidden}» on the sealed stage`).not.toContain(hidden);
+      await authorPage.locator('.truth-own').waitFor();
+      for (const page of others) {
+        await page.locator('.truth-held').waitFor();
+        const html = await page.content();
+        for (const hidden of ['Це написав', 'truth-reveal', 'is-correct', '✓', '✗', 'Правильна відповідь']) expect(html, `«${hidden}» on ${nameOf(page)}’s sealed phone`).not.toContain(hidden);
+      }
+      if (author === 'Оля') {
+        await taras.locator('.truth-held h2').getByText('Ваш вибір: Оля', exact).waitFor();
+        await jose.locator('.truth-held h2').getByText(es28b.truthYouSkipped!, exact).waitFor();
+      } else {
+        await olya.locator('.truth-held h2').getByText('Ваш вибір: Іра', exact).waitFor();
+        await jose.locator('.truth-held h2').getByText(es28b.truthYourPick!.replace('{nickname}', 'Оля'), exact).waitFor();
+      }
+      // Бали раунду ще під замком: рахунки — як після класики (у пульта — справжні).
+      await scores(['100', '100', '0', '0']);
+      expectNoAuthorIn28b(stageFrames, from.get(stage)!, 'the stage after the sealed reveal');
+      for (const page of others) expectNoAuthorIn28b(frames.get(page)!, from.get(page)!, `${nameOf(page)} after the sealed reveal`);
       if (process.env.E2E_SHOTS === '1') await sleep(800);
-      await shot(stage, 'truth28b-stage-reveal');
-      await expectTruthStageFits28b(stage, 'reveal');
-      await shot(taras, 'truth28b-phone-reveal');
-      await expectNoSideScroll(jose, 'truth28b-phone-reveal-es-320');
+      await shot(stage, 'truth28b-stage-sealed');
+      await expectTruthStageFits28b(stage, 'sealed');
+      await shot(ira, 'truth28b-phone-sealed');
+      await shot(authorPage, 'truth28b-phone-sealed-own');
+      await shot(host, 'truth28b-host-sealed');
+      await expectNoSideScroll(jose, 'truth28b-phone-sealed-es-320');
+    } else {
+      // Останній факт — підсумок усього раунду: кожен факт, автор, хто вгадав, частка автора; у порядку гри.
+      await expect.poll(() => stage.locator('.truth-recap-card').count(), POLL).toBe(2);
+      const card = (name: string) => (name === 'Оля' ? `${FACTS28B.olya}ОляВгадали: ТарасАвтор: +200` : `${FACTS28B.tarasNew}ТарасНіхто не вгадавАвтор: +300`);
+      expect(await stage.locator('.truth-recap-card').allTextContents()).toEqual(seenAuthors.map(card));
+      await stage.locator('.truth-recap-title').getByText('Хто що написав', exact).waitFor();
+      await expect.poll(() => host.locator('.truth-recap-card').count(), POLL).toBe(2);
+      // Телефони: свій вибір на кожній картці, свій факт позначено.
+      await taras.locator('.truth-recap-mine.is-correct').getByText('Ваш вибір: Оля ✓', exact).waitFor();
+      await taras.locator('.truth-recap-mine.is-own').getByText('Ваш факт', exact).waitFor();
+      await olya.locator('.truth-recap-mine.is-wrong').getByText('Ваш вибір: Іра ✗', exact).waitFor();
+      await olya.locator('.truth-recap-score').getByText('Ви вгадали 0 з 1', exact).waitFor();
+      await ira.locator('.truth-recap-score').getByText('Ви вгадали 0 з 2', exact).waitFor();
+      await jose.locator('.truth-recap-score').getByText(es28b.truthRecapMine!.replace('{count}', '0').replace('{total}', '2'), exact).waitFor();
+      for (const page of phones) expect(await bodyText(page), `the right answer line on ${nameOf(page)}’s phone`).not.toContain('Правильна відповідь');
+      if (process.env.E2E_SHOTS === '1') await sleep(800);
+      await shot(stage, 'truth28b-stage-recap');
+      await expectTruthStageFits28b(stage, 'recap');
+      await shot(taras, 'truth28b-phone-recap');
+      await shot(host, 'truth28b-host-recap');
+      await expectNoSideScroll(jose, 'truth28b-phone-recap-es-320');
     }
   }
   // Рахунки: Оля 100 + 200 (частка), Тарас 100 + 300 (вгадав) + 300 (частка), Іра й Хосе — 0.
@@ -869,7 +903,7 @@ async function truthTeams28b() {
   const host = await open('host28bt', 1280, 900);
   await register(host, 'host', 'Марта Ведуча', 'host28bt@example.com');
   const round = { id: 'tr28b', type: 'truth', title: 'Хто з нас?', points: 300, timeLimit: 30 };
-  const data = { ...makeRoundsQuiz([round as never], { leaderboard: 'end', teams: { count: 2, names: ['Червоні', 'Сині'], answerer: 'chosen' } }), title: 'Правда команд 28b' };
+  const data = { ...makeRoundsQuiz([round as never], { leaderboard: 'each', teams: { count: 2, names: ['Червоні', 'Сині'], answerer: 'chosen' } }), title: 'Правда команд 28b' };
   const saved = await host.request.post(`${base}/api/quizzes`, { data });
   expect(saved.ok(), await saved.text()).toBe(true);
 
@@ -917,8 +951,11 @@ async function truthTeams28b() {
   let blueQuestions = 0;
   let shotOwn = false;
   let shotReveal = false;
+  const cards: string[] = [];
+  let onBoard = false;
   for (let k = 0; k < 4; k++) {
-    if (k > 0) await next27a(host);
+    if (k > 0) await (onBoard ? step27a(host, 'Наступне запитання') : next27a(host));
+    onBoard = false;
     await afterSplash(host, stage, ...phones);
     await stage.locator('.truth-stage .truth-who').waitFor();
     const author = await hostAuthor28b(host);
@@ -964,15 +1001,40 @@ async function truthTeams28b() {
       await pickName28b(olya, right ? author : 'Петро');
     }
     score[right ? otherTeam : teamName]! += 300;
+    cards.push(`${fact}${author}${right ? `Вгадали: ${otherTeam}` : 'Ніхто не вгадав'}${right ? '' : 'Автор: +300'}`);
     await reveal28a(host);
-    await stage.locator('.truth-reveal').getByText(`Це написав(ла) ${author}`, exact).waitFor();
-    await stage.locator('.truth-author-points').getByText(`Автор: ${right ? '0' : '+300'}`, exact).waitFor();
-    for (const [page, , teamName2] of people) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(String(score[teamName2]));
-    if (teamName === 'Червоні' && !shotReveal) {
-      shotReveal = true;
+    if (k < 3) {
+      // Підсумок попереду: печатка на сцені, у командах так само — рахунки команд до кінця раунду не рухаються.
+      await stage.locator('.truth-seal').getByText('Відповіді прийнято', exact).waitFor();
+      expect(await stage.content(), 'the author on the sealed team stage').not.toContain('Це написав');
+      for (const [page] of people) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe('0');
+      if (!shotReveal) {
+        shotReveal = true;
+        if (process.env.E2E_SHOTS === '1') await sleep(800);
+        await shot(stage, 'truth28b-team-stage-sealed');
+        await shot(mate, 'truth28b-team-phone-sealed');
+        await expectTruthStageFits28b(stage, 'team sealed');
+        // Таблиця між фактами: рахунки до раунду, без «+N за запитання», з поясненням.
+        await step27a(host, 'Далі');
+        onBoard = true;
+        await stage.locator('.truth-held-scores').getByText(ukMessages.truthHeldScores, exact).waitFor();
+        await petro.locator('.truth-held-scores').waitFor();
+        expect(await stage.locator('.standings .round-gain').count(), 'per-question gains on the held table').toBe(0);
+        expect(await stage.locator('.standings .score').allTextContents()).toEqual(['0', '0']);
+        if (process.env.E2E_SHOTS === '1') await sleep(800);
+        await shot(stage, 'truth28b-team-stage-board');
+        await shot(petro, 'truth28b-team-phone-board');
+      }
+    } else {
+      // Останній факт: підсумок усіх чотирьох, рахунки команд — справжні.
+      await expect.poll(() => stage.locator('.truth-recap-card').allTextContents(), POLL).toEqual(cards);
+      for (const [page, , teamName2] of people) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(String(score[teamName2]));
+      // Учасник команди бачить вибори своєї команди і факти своєї команди як свої.
+      expect(await petro.locator('.truth-recap-mine.is-own').count(), 'own facts on a Red phone').toBe(2);
       if (process.env.E2E_SHOTS === '1') await sleep(800);
-      await shot(stage, 'truth28b-team-stage-reveal');
-      await expectTruthStageFits28b(stage, 'team reveal');
+      await shot(stage, 'truth28b-team-stage-recap');
+      await shot(marko, 'truth28b-team-phone-recap');
+      await expectTruthStageFits28b(stage, 'team recap');
     }
   }
   // Два факти Червоних без вгадування — 600 Червоним; факти Синіх: один вгадали Червоні (+300), другий ні (+300 Синім).

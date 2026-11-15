@@ -18901,6 +18901,254 @@ button.letterwords-tile:focus-visible {
   text-align: center;
 }
 
+/* Підсумок раунду попереду: печатка замість автора (сцена), нагадування під іменами й над таблицею (телефон, сцена). */
+.truth-seal {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-radius: var(--radius);
+  background: var(--spot);
+  min-width: 0;
+}
+
+.truth-seal > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.truth-seal-mark {
+  flex: 0 0 auto;
+  width: 1.75em;
+  height: 1.75em;
+  fill: none;
+  stroke: var(--accent-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.truth-seal-note {
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.truth-stage .truth-seal {
+  align-self: center;
+  max-width: 56rem;
+  font-size: clamp(1.05rem, 1.7vw, 1.625rem);
+}
+
+.truth-held-hint {
+  margin: 0;
+  text-align: center;
+}
+
+.truth-held-scores {
+  margin: 0;
+  color: var(--dim);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.truth-held h2 {
+  overflow-wrap: anywhere;
+}
+
+/* Підсумок раунду: картки «факт → автор». Телефон і пульт — одна колонка; сцена — сітка у 2–4 колонки на 1600×900. */
+.truth-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.truth-recap-title {
+  margin: 0;
+  font-family: var(--display);
+}
+
+.truth-recap-early,
+.truth-recap-score {
+  margin: 0;
+}
+
+.truth-recap-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.truth-recap-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.75rem 0.875rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.truth-recap-card.is-own {
+  border-color: var(--amber);
+}
+
+.truth-recap-fact {
+  margin: 0;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+}
+
+.truth-recap-fact::before {
+  content: '«';
+}
+
+.truth-recap-fact::after {
+  content: '»';
+}
+
+.truth-recap-author {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.truth-recap-right {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.truth-recap-points {
+  color: var(--correct);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.truth-recap-mine {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.truth-recap-mine.is-correct {
+  color: var(--correct);
+}
+
+.truth-recap-mine.is-wrong {
+  color: var(--wrong);
+}
+
+.truth-recap-mine.is-own {
+  color: var(--amber);
+}
+
+.truth-recap-fold > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.truth-recap-fold[open] > summary {
+  margin-bottom: 0.75rem;
+}
+
+/* Сцена: підсумок посередині екрана, а не притиснутий догори. */
+.truth-stage.is-recap {
+  width: 100%;
+  justify-content: center;
+}
+
+/* До чотирьох фактів — великі картки: їх видно з другого кінця кімнати. */
+.truth-recap.is-big.cols-2 .truth-recap-fact {
+  font-size: clamp(1.125rem, 1.9vw, 1.875rem);
+}
+
+.truth-recap.is-big.cols-2 .truth-recap-author {
+  font-size: clamp(1.75rem, 3.4vw, 3.25rem);
+}
+
+.truth-recap.is-big.cols-2 .truth-recap-right {
+  font-size: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.truth-recap.is-big {
+  width: 100%;
+  max-width: 96rem;
+  margin-inline: auto;
+  gap: clamp(0.625rem, 1.6vh, 1.25rem);
+}
+
+.truth-recap.is-big .truth-recap-title {
+  text-align: center;
+  font-size: clamp(2rem, 3.6vw, 3.5rem);
+}
+
+.truth-recap.is-big .truth-recap-early {
+  text-align: center;
+  font-size: clamp(1rem, 1.4vw, 1.375rem);
+}
+
+.truth-recap.is-big .truth-recap-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.5rem, 1.1vw, 1rem);
+}
+
+.truth-recap.is-big.cols-3 .truth-recap-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.truth-recap.is-big.cols-4 .truth-recap-list {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.truth-recap.is-big .truth-recap-card {
+  padding: clamp(0.625rem, 1.1vw, 1.125rem) clamp(0.75rem, 1.3vw, 1.375rem);
+}
+
+.truth-recap.is-big .truth-recap-fact {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: clamp(1rem, 1.45vw, 1.5rem);
+}
+
+.truth-recap.is-big .truth-recap-author {
+  color: var(--accent-text);
+  font-size: clamp(1.375rem, 2.5vw, 2.5rem);
+}
+
+.truth-recap.is-big .truth-recap-right {
+  font-size: clamp(0.875rem, 1.15vw, 1.25rem);
+}
+
+/* 10+ фактів: чотири колонки, факт у два рядки, дрібніше — до 20 карток уміщаються на 1600×900. */
+.truth-recap.is-big.is-many .truth-recap-fact {
+  -webkit-line-clamp: 2;
+  font-size: clamp(0.875rem, 1.1vw, 1.125rem);
+}
+
+.truth-recap.is-big.is-many .truth-recap-author {
+  font-size: clamp(1.125rem, 1.7vw, 1.625rem);
+}
+
+.truth-recap.is-big.is-many .truth-recap-right {
+  font-size: clamp(0.75rem, 0.95vw, 1rem);
+}
+
 /* «Малюнок» (28c). Полотно — завжди 4:3 і зліва направо (dir="ltr"), інструменти — за напрямком мови. */
 .drawing-frame {
   width: 100%;

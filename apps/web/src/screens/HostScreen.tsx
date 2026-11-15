@@ -7,7 +7,7 @@ import { AwayLabel } from './AwayLabel';
 import { HostBetsPanel } from './BetsView';
 import { HostAuctionPanel } from './AuctionView';
 import { HostQuestPanel } from './QuestView';
-import { HostTruthFacts } from './TruthView';
+import { HostTruthFacts, TruthRecapFold, TruthRecapView } from './TruthView';
 import { paceAttrs, usePace } from '../pace';
 import { ClueOpens } from './ClueOpens';
 import { ChainBoard } from './ChainView';
@@ -769,6 +769,8 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
               {t('truthHostAuthor', { nickname: view.truth.author.nickname })}
             </p>
           )}
+          {/* «Правда про гравця»: пульт бачить автора й вибори, а зал — ні, до підсумку раунду. */}
+          {view.truth?.held === true && <p className="meta truth-host-held">{t('truthHostHeld')}</p>}
           {board !== null && board.cell !== null && (
             <p className="meta">
               {t('cellTitle', { category: board.cell.category, price: board.cell.price })}
@@ -1489,6 +1491,13 @@ export function HostScreen({ view, code, stageUrl, joinUrl, send, offsetMs = 0, 
         </section>
       )}
 
+      {/* Підсумок раунду truth — те саме, що бачить сцена (на round_end — згорнутий, якщо його вже показано на останньому факті). */}
+      {phase === 'reveal' && view.truth?.recap !== undefined && (
+        <section className="panel">
+          <TruthRecapView recap={view.truth.recap} />
+        </section>
+      )}
+      {(phase === 'round_end' || phase === 'finished') && view.truth?.recap !== undefined && <TruthRecapFold recap={view.truth.recap} open={view.truth.recap.early} />}
       {truthFacts && view.truth !== undefined && <HostTruthFacts truth={view.truth} send={send} onError={setError} />}
 
       {phase !== 'lobby' && view.standings.length > 0 && <HostScores view={view} />}

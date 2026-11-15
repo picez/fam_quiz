@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { emptyBrief, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo } from '@quiz/shared';
+import { emptyBrief, type HostTruth, type PlayerTruth, type PublicQuestion, type StageView, type TruthInfo, type TruthRecap } from '@quiz/shared';
 import type { Send } from '../live/types';
 import { t } from '../i18n';
-import { HostTruthFacts, TruthFactForm, TruthOwn, TruthPick, TruthReveal, TruthSkipped, TruthStage } from './TruthView';
+import { HostTruthFacts, TruthFactForm, TruthHeldPick, TruthOwn, TruthPick, TruthRecapFold, TruthRecapView, TruthReveal, TruthSkipped, TruthStage } from './TruthView';
 
 afterEach(cleanup);
 
@@ -270,6 +270,98 @@ describe('TruthReveal', () => {
   it('nothing before the reveal', () => {
     const { container } = render(<TruthReveal truth={info({ index: 0 })} />);
     expect(container.textContent).toBe('');
+  });
+});
+
+const recap: TruthRecap = {
+  early: false,
+  facts: [
+    {
+      text: 'Я стрибала з парашутом',
+      author: { id: 'p1', nickname: 'Олена' },
+      points: 100,
+      picks: [
+        { id: 'p2', nickname: 'Тарас', pickedId: 'p1', picked: 'Олена', correct: true },
+        { id: 'p3', nickname: 'Хосе', pickedId: 'p2', picked: 'Тарас', correct: false },
+      ],
+    },
+    {
+      text: 'Маю трьох котів',
+      author: { id: 'p2', nickname: 'Тарас' },
+      points: 200,
+      picks: [
+        { id: 'p1', nickname: 'Олена', pickedId: 'p3', picked: 'Хосе', correct: false },
+        { id: 'p3', nickname: 'Хосе', pickedId: null, picked: null, correct: false },
+      ],
+    },
+  ],
+};
+
+describe('the truth round recap', () => {
+  it('while the round is held the stage shows a seal instead of the author, and the phone pick has no verdict', () => {
+    const { container, rerender } = render(<TruthStage view={stage({ phase: 'locked', truth: info({ open: false, count: 3, index: 0, held: true, sealed: true }) })} offsetMs={0} />);
+    expect(screen.getByText(t('truthSealed'))).toBeTruthy();
+    expect(screen.getByText(t('truthHeldNote'))).toBeTruthy();
+    expect(container.textContent).not.toMatch(/[✓✗]/);
+    // закрито, але ведучий ще не розкрив — «Час вийшов»
+    rerender(<TruthStage view={stage({ phase: 'locked', truth: info({ open: false, count: 3, index: 0, held: true }) })} offsetMs={0} />);
+    expect(screen.getByText(t('truthClosed'))).toBeTruthy();
+    // на запитанні печатки немає
+    rerender(<TruthStage view={stage({ truth: info({ open: false, count: 3, index: 0, held: true }) })} offsetMs={0} />);
+    expect(screen.queryByText(t('truthHeldNote'))).toBeNull();
+    cleanup();
+    render(<TruthHeldPick question={question} answer={{ type: 'single', optionId: 'p2' }} />);
+    expect(screen.getByText('Ваш вибір: Тарас')).toBeTruthy();
+    expect(screen.getByText(t('truthHeldNote'))).toBeTruthy();
+    cleanup();
+    render(<TruthHeldPick question={question} answer={null} />);
+    expect(screen.getByText(t('truthYouSkipped'))).toBeTruthy();
+  });
+
+  it('the phone pick reminds that the author comes at the end of the round', () => {
+    const send = vi.fn<Send>(async () => ({ ok: true }));
+    const { rerender } = render(<TruthPick question={question} disabled={false} send={send} held />);
+    expect(screen.getByText(t('truthHeldNote'))).toBeTruthy();
+    rerender(<TruthPick question={question} disabled={false} send={send} />);
+    expect(screen.queryByText(t('truthHeldNote'))).toBeNull();
+  });
+
+  it('the last reveal on the stage is the recap: every fact with its author, who guessed and the author points', () => {
+    const { container } = render(<TruthStage view={stage({ phase: 'reveal', truth: info({ open: false, count: 2, index: 1, recap }) })} offsetMs={0} />);
+    expect(screen.getByText(t('truthRecapTitle'))).toBeTruthy();
+    expect(screen.queryByText(t('truthWho'))).toBeNull();
+    const cards = [...container.querySelectorAll('.truth-recap-card')].map((card) => card.textContent);
+    expect(cards).toEqual(['Я стрибала з парашутомОленаВгадали: ТарасАвтор: +100', 'Маю трьох котівТарасНіхто не вгадавАвтор: +200']);
+    expect(container.querySelector('.truth-recap')?.className).toBe('truth-recap is-big cols-2');
+  });
+
+  it('the phone recap marks the own pick on every fact and counts the right ones', () => {
+    const { container } = render(<TruthRecapView recap={recap} mine={{ id: 'p3', own: (id) => id === 'p3' }} />);
+    expect(screen.getByText('Ви вгадали 0 з 2')).toBeTruthy();
+    expect(screen.getByText('Ваш вибір: Тарас ✗')).toBeTruthy();
+    expect(screen.getByText(t('truthYouSkipped'))).toBeTruthy();
+    cleanup();
+    render(<TruthRecapView recap={recap} mine={{ id: 'p2', own: (id) => id === 'p2' }} />);
+    expect(screen.getByText('Ви вгадали 1 з 1')).toBeTruthy();
+    expect(screen.getByText('Ваш вибір: Олена ✓')).toBeTruthy();
+    expect(screen.getByText(t('truthRecapOwn'))).toBeTruthy();
+    expect(container.querySelector('.is-big')).toBeNull();
+  });
+
+  it('many guessers become a count, many facts a denser grid; an early end says so', () => {
+    const crowd = Array.from({ length: 8 }, (_, i) => ({ id: `g${i}`, nickname: `Гравець ${i}`, pickedId: 'p1', picked: 'Олена', correct: i < 7 }));
+    const facts = Array.from({ length: 12 }, (_, i) => ({ ...recap.facts[0], text: `Факт ${i}`, picks: crowd }));
+    const { container } = render(<TruthRecapView recap={{ early: true, facts }} big />);
+    expect(container.querySelector('.truth-recap')?.className).toBe('truth-recap is-big cols-4 is-many');
+    expect(screen.getAllByText(/Вгадали: 7 з 8/)).toHaveLength(12);
+    expect(screen.getByText(t('truthRecapEarly'))).toBeTruthy();
+  });
+
+  it('round end folds the recap away', () => {
+    const { container } = render(<TruthRecapFold recap={recap} open={false} />);
+    expect(container.querySelector('details')?.open).toBe(false);
+    expect(container.querySelector('summary')?.textContent).toBe(`${t('truthRecapTitle')} (2)`);
+    expect(container.querySelector('.truth-recap-title')).toBeNull();
   });
 });
 

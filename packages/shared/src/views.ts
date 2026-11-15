@@ -1255,15 +1255,39 @@ export interface TruthInfo {
   count: number;
   /** question…reveal раунду truth: номер запитання (від 0); інакше null. */
   index: number | null;
-  /** Лише reveal: чий факт і хто кого вибрав; інакше null. Ім'я вибору — текст варіанта. */
-  reveal: {
-    author: { id: string; nickname: string };
-    /** Бали автора (запис actorId); 0 — нікого не обдурив. */
-    points: number;
-    picks: { id: string; nickname: string; pickedId: string | null; picked: string | null; correct: boolean }[];
-  } | null;
+  /**
+   * Лише reveal: чий факт і хто кого вибрав; інакше null. Ім'я вибору — текст варіанта.
+   * Сцені й телефонам — лише без held: до підсумку раунду автор кожного факту під замком (ведучий бачить завжди).
+   */
+  reveal: TruthCard | null;
   /** Лише round_end (чи finished) раунду truth, коли колоду роздано, а запитань з неї немає й не буде. */
   skipped: boolean;
+  /**
+   * Раунд truth іде, а його підсумок ще попереду: сцена й телефони не бачать ні автора, ні правильності, ні балів раунду
+   * (рахунок — як до раунду, з коригуваннями ведучого). Ключ лише тоді; ведучому — те саме, щоб пульт знав, що зал не бачить.
+   */
+  held?: true;
+  /** Ведучий розкрив запитання, а зал — ні (held на reveal): сцена й телефони отримують етап locked. Ключ лише тоді. */
+  sealed?: true;
+  /**
+   * Підсумок раунду: усі зіграні факти з авторами й виборами, у порядку гри. Розкриття останнього запитання (колоду вичерпано),
+   * а також round_end і finished раунду truth; early — раунд скінчено раніше, ніж зіграно всі факти колоди. Інакше ключа немає.
+   */
+  recap?: TruthRecap;
+}
+
+/** Розкриття одного факту «Правди про гравця». */
+export interface TruthCard {
+  author: { id: string; nickname: string };
+  /** Бали автора (запис actorId); 0 — нікого не обдурив. */
+  points: number;
+  picks: { id: string; nickname: string; pickedId: string | null; picked: string | null; correct: boolean }[];
+}
+
+/** Підсумок раунду truth: факт (текст) і його розкриття. */
+export interface TruthRecap {
+  facts: (TruthCard & { text: string })[];
+  early: boolean;
 }
 
 /** Як TruthInfo, але ведучому ще й усі факти й автор поточного запитання. */
