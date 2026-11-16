@@ -3083,6 +3083,11 @@ const uk = {
   truthRecapRightCount: 'Вгадали: {count} з {total}',
   truthRecapNobody: 'Ніхто не вгадав',
   truthRecapOwn: 'Ваш факт',
+  // Підсумок у командній грі: вибирає команда (капітан), а не гравець
+  truthTeamPick: 'Вибір команди: {nickname}',
+  truthTeamSkipped: 'Команда нікого не вибрала',
+  truthRecapTeamMine: 'Команда вгадала {count} з {total}',
+  truthRecapOwnTeam: 'Факт вашої команди',
   truthHostHeld: 'Сцена й телефони не бачать авторів, правильності й балів цього раунду — усе покажемо разом на останньому факті.',
   problemTruthNumbers: 'ціна запитання — ціле число від 0 до {max}, час — від {min} до {maxTime} с.',
   quizTruthNote: '+ факти гравців',

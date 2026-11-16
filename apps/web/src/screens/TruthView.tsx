@@ -310,6 +310,8 @@ const MANY_RECAP_NAMES = 6;
 export interface TruthRecapMine {
   id: string;
   own: (authorId: string) => boolean;
+  /** Командна гра: вибір робить команда (капітан), тож «Вибір команди» / «Команда вгадала», а не «Ваш вибір» / «Ви вгадали». */
+  team?: boolean;
 }
 
 /**
@@ -320,11 +322,12 @@ export function TruthRecapView({ recap, big = false, mine, title = true }: { rec
   const many = recap.facts.length > MANY_RECAP_FACTS;
   const cols = recap.facts.length <= 4 ? 2 : many ? 4 : 3;
   const guessed = mine === undefined ? [] : recap.facts.flatMap((fact) => fact.picks.filter((pick) => pick.id === mine.id));
+  const team = mine?.team === true;
   return (
     <section className={['truth-recap', big ? `is-big cols-${cols}` : '', big && many ? 'is-many' : ''].filter(Boolean).join(' ')}>
       {title && <h2 className="truth-recap-title">{t('truthRecapTitle')}</h2>}
       {recap.early && <p className="meta truth-recap-early">{t('truthRecapEarly')}</p>}
-      {guessed.length > 0 && <p className="lead truth-recap-score">{t('truthRecapMine', { count: guessed.filter((pick) => pick.correct).length, total: guessed.length })}</p>}
+      {guessed.length > 0 && <p className="lead truth-recap-score">{t(team ? 'truthRecapTeamMine' : 'truthRecapMine', { count: guessed.filter((pick) => pick.correct).length, total: guessed.length })}</p>}
       <ol className="truth-recap-list">
         {recap.facts.map((fact, index) => {
           const right = fact.picks.filter((pick) => pick.correct);
@@ -347,11 +350,11 @@ export function TruthRecapView({ recap, big = false, mine, title = true }: { rec
                 {fact.points > 0 && <span className="truth-recap-points">{t('truthAuthorPoints', { points: signed(fact.points) })}</span>}
               </p>
               {own ? (
-                <p className="truth-recap-mine is-own">{t('truthRecapOwn')}</p>
+                <p className="truth-recap-mine is-own">{t(team ? 'truthRecapOwnTeam' : 'truthRecapOwn')}</p>
               ) : (
                 pick !== undefined && (
                   <p className={pick.picked === null ? 'truth-recap-mine' : pick.correct ? 'truth-recap-mine is-correct' : 'truth-recap-mine is-wrong'} dir="auto">
-                    {pick.picked === null ? t('truthYouSkipped') : `${t('truthYourPick', { nickname: pick.picked })} ${pick.correct ? '✓' : '✗'}`}
+                    {pick.picked === null ? t(team ? 'truthTeamSkipped' : 'truthYouSkipped') : `${t(team ? 'truthTeamPick' : 'truthYourPick', { nickname: pick.picked })} ${pick.correct ? '✓' : '✗'}`}
                   </p>
                 )
               )}
@@ -375,12 +378,12 @@ export function TruthRecapFold({ recap, mine, open }: { recap: TruthRecap; mine?
   );
 }
 
-/** Телефон на locked раунду, чий підсумок попереду: свій вибір (без вердикту) і «автора назвемо наприкінці раунду». */
-export function TruthHeldPick({ question, answer }: { question: PublicQuestion; answer: Answer | null }) {
+/** Телефон на locked раунду, чий підсумок попереду: свій вибір (у командах — вибір команди; без вердикту) і «автора назвемо наприкінці раунду». */
+export function TruthHeldPick({ question, answer, team = false }: { question: PublicQuestion; answer: Answer | null; team?: boolean }) {
   const picked = answer?.type === 'single' ? (question.choices.find((choice) => choice.id === answer.optionId)?.text ?? null) : null;
   return (
     <section className="sent truth-held">
-      <h2 dir="auto">{picked === null ? t('truthYouSkipped') : t('truthYourPick', { nickname: picked })}</h2>
+      <h2 dir="auto">{picked === null ? t(team ? 'truthTeamSkipped' : 'truthYouSkipped') : t(team ? 'truthTeamPick' : 'truthYourPick', { nickname: picked })}</h2>
       <p className="lead">{t('truthHeldNote')}</p>
     </section>
   );

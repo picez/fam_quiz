@@ -224,8 +224,11 @@ describe('MemoryPlay', () => {
       expect(Number(value) * (unit === 'rem' ? 16 : 1)).toBeLessThanOrEqual(320);
     }
     const gap = Number(/--memory-gap:\s*([\d.]+)px/.exec(css)![1]);
-    expect(css).toMatch(/\.memory-play \{[^}]*container-type:\s*inline-size/);
-    expect(css).toMatch(/--memory-card:\s*min\(calc\(\(100cqi - \(var\(--cols\) - 1\) \* var\(--memory-gap\)\) \/ var\(--cols\)\), calc\(\(100dvh - 190px\) \/ var\(--rows\)\)\);/);
+    // Поле гравця — не контейнер: Chromium після знімка всієї сторінки губив розмітку дітей контейнера (сітка 0×0). До виміру
+    // MemoryView ширина поля — вікно мінус відступи екрана (не менше за 2·12 px).
+    expect(css).not.toMatch(/\.memory-play \{[^}]*container-type/);
+    expect(css).toMatch(/\.memory-grid \{[^}]*--memory-field:\s*calc\(100vw - 2\.5rem\)/);
+    expect(css).toMatch(/--memory-card:\s*min\(calc\(\(var\(--memory-field\) - \(var\(--cols\) - 1\) \* var\(--memory-gap\)\) \/ var\(--cols\)\), calc\(\(100dvh - 190px\) \/ var\(--rows\)\)\);/);
     expect(css).toMatch(/\.memory-grid \{[^}]*grid-template-columns:\s*repeat\(var\(--cols\), var\(--memory-card\)\)/);
     expect(css).toMatch(/\.memory-card \{[^}]*aspect-ratio:\s*1/);
     // Те саме, що рахує браузер: поле телефона не ширше за 320 − 2·12, висота 568.

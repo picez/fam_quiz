@@ -21364,7 +21364,8 @@ input.sudoku-editor-cell:focus-visible {
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
-  container-type: inline-size;
+  /* Не контейнер (container queries): Chromium після знімка всієї сторінки (captureBeyondViewport) губив розмітку дітей цього контейнера — сітка
+   * лишалася 0×0 і вже не поверталася. Ширину поля й так міряє MemoryView (--memory-card); до виміру — --memory-field. */
 }
 
 .memory-progress,
@@ -21379,7 +21380,9 @@ input.sudoku-editor-cell:focus-visible {
 
 .memory-grid {
   --memory-gap: 6px;
-  --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 190px) / var(--rows)));
+  /* Ширина поля до виміру: вікно мінус бічні відступи екрана гравця. */
+  --memory-field: calc(100vw - 2.5rem);
+  --memory-card: min(calc((var(--memory-field) - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 190px) / var(--rows)));
   display: grid;
   grid-template-columns: repeat(var(--cols), var(--memory-card));
   gap: var(--memory-gap);
@@ -22081,7 +22084,7 @@ input.sudoku-editor-cell:focus-visible {
   /* Над сіткою — щонайбільше ~200 px обв'язки (шапка, команда, підпис, заголовок, лічильник), тож картка — менша з «ширина / cols» і
    * «(екран − 205 px − проміжки) / rows»: 4×5 на 320 × 568 — ~64 px, текст до 40 символів у ній уміщається. */
   .app.player .memory-grid {
-    --memory-card: min(calc((100cqi - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 205px - (var(--rows) - 1) * var(--memory-gap)) / var(--rows)));
+    --memory-card: min(calc((var(--memory-field) - (var(--cols) - 1) * var(--memory-gap)) / var(--cols)), calc((100dvh - 205px - (var(--rows) - 1) * var(--memory-gap)) / var(--rows)));
   }
 
   /* 29k: справжній розмір картки міряє MemoryView (від верху сітки до низу вікна, не менше 52 px). Щоб довга назва не з'їдала місце,
@@ -22285,6 +22288,15 @@ input.sudoku-editor-cell:focus-visible {
 .bar .score {
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* Рахунок гравця в шапці — з ⭐, щоб не плутати з кодом гри на пульті; зірка декоративна й дрібніша за число: читач екрана замість
+ * неї чує підпис «Рахунок:» (alt-текст із data-label). */
+.bar .player-score::before {
+  content: '⭐' / attr(data-label) ' ';
+  margin-inline-end: 0.05em;
+  font-size: 0.6em;
+  vertical-align: 0.2em;
 }
 
 @media (max-width: 400px) {

@@ -348,6 +348,23 @@ describe('the truth round recap', () => {
     expect(container.querySelector('.is-big')).toBeNull();
   });
 
+  it('in a team game the phone recap and the held pick speak of the team, not of «you»', () => {
+    render(<TruthRecapView recap={recap} mine={{ id: 'p3', own: (id) => id === 'p3', team: true }} />);
+    expect(screen.getByText('Команда вгадала 0 з 2')).toBeTruthy();
+    expect(screen.getByText('Вибір команди: Тарас ✗')).toBeTruthy();
+    expect(screen.getByText(t('truthTeamSkipped'))).toBeTruthy();
+    expect(screen.queryByText(/Ви вгадали|Ваш вибір/)).toBeNull();
+    cleanup();
+    render(<TruthRecapView recap={recap} mine={{ id: 'p2', own: (id) => id === 'p2', team: true }} />);
+    expect(screen.getByText(t('truthRecapOwnTeam'))).toBeTruthy();
+    cleanup();
+    render(<TruthHeldPick question={question} answer={{ type: 'single', optionId: 'p2' }} team />);
+    expect(screen.getByText(/^Вибір команди: /)).toBeTruthy();
+    cleanup();
+    render(<TruthHeldPick question={question} answer={null} team />);
+    expect(screen.getByText(t('truthTeamSkipped'))).toBeTruthy();
+  });
+
   it('many guessers become a count, many facts a denser grid; an early end says so', () => {
     const crowd = Array.from({ length: 8 }, (_, i) => ({ id: `g${i}`, nickname: `Гравець ${i}`, pickedId: 'p1', picked: 'Олена', correct: i < 7 }));
     const facts = Array.from({ length: 12 }, (_, i) => ({ ...recap.facts[0], text: `Факт ${i}`, picks: crowd }));

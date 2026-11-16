@@ -908,7 +908,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
   const truthAuthor = view.truth?.reveal != null && (view.truth.reveal.author.id === me.id || (team !== null && (teamOf(view)?.members.some((member) => member.id === view.truth?.reveal?.author.id) ?? false)));
   // Підсумок раунду: вибори — за учасником рушія (у командах — команда), свій факт — мій чи моєї команди.
   const myTeam = team === null ? null : (teamOf(view) ?? null);
-  const truthMine: TruthRecapMine = { id: myTeam?.id ?? me.id, own: (authorId) => authorId === me.id || (myTeam?.members.some((member) => member.id === authorId) ?? false) };
+  const truthMine: TruthRecapMine = { id: myTeam?.id ?? me.id, own: (authorId) => authorId === me.id || (myTeam?.members.some((member) => member.id === authorId) ?? false), team: myTeam !== undefined && myTeam !== null };
   // Факти збираються в лобі (повна форма). Після старту — лише між запитаннями, поки раунд не роздано, і лише без факту
   // (чи зі схованим ведучим): компактна кнопка розгортає форму; розгорнута лишається до кінця цих етапів. Факт є — нічого.
   const between = phase === 'intro' || phase === 'leaderboard' || phase === 'round_end' || phase === 'guide';
@@ -965,7 +965,11 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
         {/* Швидкий перемикач теми (☀/☾): сам значок без пігулки, дотикова зона ширша за нього й шапку не розсуває. */}
         <ThemeToggle className="bar-theme" />
         <ReactionButton shown={canReact(view)} level={view.levels?.[me.nickname]?.level ?? null} event="player:react" send={send} />
-        <strong className="score" dir="ltr">{num(me.score)}</strong>
+        {/* ⭐ перед числом (CSS ::before): у тому самому куті пульт показує код гри — рахунок із ним не сплутати. Читач екрана замість
+            зірки чує data-label («Рахунок:»); textContent лишається самим числом, а шапка не має зайвих дітей. */}
+        <strong className="score player-score" dir="ltr" data-label={t('finalNewScore', { score: '' }).trim()}>
+          {num(me.score)}
+        </strong>
       </header>
       {/* «Прихований напад» (29h): бачить лише власник, уся команда; на finished (shop null) — ні. */}
       {me.stealth === 'armed' && me.shop !== null && <p className="stealth-mark">{t('stealthArmed')}</p>}
@@ -1414,7 +1418,7 @@ export function PlayerScreen({ view: live, hostOnline, offsetMs, send, tilts = N
             </section>
           ) : truthQ && question !== null && view.truth?.held === true ? (
             // «Правда про гравця»: підсумок раунду попереду — свій вибір без вердикту (і на «розкритті», яке телефон бачить як locked).
-            <TruthHeldPick question={question} answer={me.answer} />
+            <TruthHeldPick question={question} answer={me.answer} team={truthMine.team} />
           ) : question?.type === 'drawing' ? (
             <DrawingClosed mine={me.drawing} info={view.drawing} strokes={strokesOf(drawing, view.questionIndex)} />
           ) : isSort ? (

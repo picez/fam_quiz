@@ -175,12 +175,27 @@ async function advance29h(host: Page, names: string[]) {
   throw new Error(`no ${names.join(' / ')} on the host`);
 }
 
-/** Дія, після якої за секунду жоден із цих екранів не отримує кадру. */
+/** Службові кадри зв'язку, які нічого не кажуть про гру: перевірка зв'язку (32). */
+const NET_EVENTS_29H = new Set(['net:ping']);
+
+/**
+ * Кадри подій socket.io («42[…]», бінарні «45…»), крім службових. Серцебиття engine.io («2»/«3») і відповіді
+ * на власні запити клієнта («43…», зокрема на net:ping) нічого не розкривають — їх відкидаємо.
+ */
+function gameEvents29h(frames: string[]): string[] {
+  return frames.filter((frame) => {
+    const match = /^4[25](?:\d+-)?(?:\/[^,]*,)?(?:\d+)?\["([^"]+)"/.exec(frame);
+    if (match) return !NET_EVENTS_29H.has(match[1]!);
+    return /^4[25]/.test(frame);
+  });
+}
+
+/** Дія, після якої за секунду жоден із цих екранів не отримує жодної події гри (лише службові кадри зв'язку). */
 async function quiet29h(pages: [string, string[]][], act: () => Promise<void>) {
   const before = pages.map(([, frames]) => frames.length);
   await act();
   await sleep(1000);
-  pages.forEach(([who, frames], i) => expect(frames.slice(before[i]), `${who}: frames after the toggle`).toEqual([]));
+  pages.forEach(([who, frames], i) => expect(gameEvents29h(frames.slice(before[i])), `${who}: game events after the toggle`).toEqual([]));
 }
 
 /** Позначка власника: один рядок, у межах екрана, без горизонтальної прокрутки. */

@@ -2301,6 +2301,9 @@ describe('PlayerScreen: sort', () => {
     expect(screen.getByText('Олена 0 : 0 Петро')).toBeTruthy();
     expect(screen.getByLabelText('Ваша відповідь')).toBeTruthy();
     expect(document.querySelector('header.bar .score')?.textContent).toBe('700');
+    // ⭐ (CSS) і підпис для читача екрана — не плутати з кодом гри на пульті; textContent лишається числом.
+    expect(document.querySelector('header.bar .score')?.classList.contains('player-score')).toBe(true);
+    expect(document.querySelector('header.bar .score')?.getAttribute('data-label')).toBe('Рахунок:');
     expect(document.querySelector('.live-notice')).not.toBeNull();
   });
 
