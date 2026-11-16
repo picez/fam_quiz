@@ -1587,9 +1587,9 @@ export function openQuestion(state: GameState, question: Question, now: number, 
   return fireDebuffs(startAnswerers(opened), at);
 }
 
-/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою; у «Головоломках» (28d) варіантів немає. */
+/** Чи перемішує раунд варіанти; «Правда про гравця» (28b) варіантів не перемішує — імена за абеткою; у «Головоломках» (28d) і «Думай інакше» (35) варіантів немає. */
 export function shuffles(round: Round): boolean {
-  return round.type === 'truth' || round.type === 'puzzles' ? false : round.shuffleOptions;
+  return round.type === 'truth' || round.type === 'puzzles' || round.type === 'think' ? false : round.shuffleOptions;
 }
 
 /** Новий LadderPlay для запитання «Мільйонера», що відкривається. */
