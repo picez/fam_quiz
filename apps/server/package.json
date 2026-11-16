@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "start": "tsx --env-file-if-exists=../../.env src/main.ts",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "db:backup": "tsx --env-file-if-exists=../../.env scripts/db-backup.ts",
+    "db:restore": "tsx --env-file-if-exists=../../.env scripts/db-restore.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.7",
