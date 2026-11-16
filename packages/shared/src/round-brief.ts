@@ -41,6 +41,8 @@ export interface RoundBrief {
   auction: { mode: AuctionBidMode; step: number; loss: AuctionLoss; count: number } | null;
   /** «Правда про гравця»: ціна й таймер; null поза ним. */
   truth: { points: number; time: number } | null;
+  /** «Думай інакше» (35): життя на старті, сума за 1-ше місце, запитань; null поза ним. */
+  think: { lives: number; points: number; count: number } | null;
   /** «Головоломки» (28d): скільки судоку, кросвордів і пазлів і сумарний час; null поза ним. */
   puzzles: { sudoku: number; crossword: number; jigsaw: number; spotdiff: number; memory: number; time: number } | null;
   /** «Квест із кодом» (29g): довжина коду, спроби, запитань, бонус; null поза ним. Без коду, порядку й глобального запитання. */
@@ -49,7 +51,7 @@ export interface RoundBrief {
   melodies?: number;
 }
 
-/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction truth і puzzles null, answerModes []. */
+/** Зведення без жодної опції: усі прапорці (і instant) false, streak null, multiplier 1, attempts, answerWindow, series, wagerMode, survival, ladder, bets, auction, truth, think і puzzles null, answerModes []. */
 export function emptyBrief(type: Round['type']): RoundBrief {
   return {
     type,
@@ -71,6 +73,7 @@ export function emptyBrief(type: Round['type']): RoundBrief {
     bets: null,
     auction: null,
     truth: null,
+    think: null,
     puzzles: null,
     quest: null,
   };
@@ -103,6 +106,7 @@ export function roundBrief(round: Round, family = false): RoundBrief {
     };
   }
   if (round.type === 'wipeout') return base;
+  if (round.type === 'think') return { ...base, think: { lives: round.lives, points: round.points, count: round.questions.length } };
   if (round.type === 'ladder') return { ...base, ladder: { pick: round.pick, lifelines: [...round.lifelines], top: round.levels.at(-1) ?? 0, timer: round.timer } };
   const rules = rulesOf(round);
   const withRules = { ...base, penalty: rules.penalty === 'minus', streak: rules.streak, multiplier: rules.multiplier };

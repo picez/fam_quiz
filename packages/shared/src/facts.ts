@@ -193,7 +193,7 @@ export function factLimitMs(question: Question, round: Round | undefined, voice:
   // їхній час не дає ні «Блискавки», ні «найшвидшої», ні швидкісних ачівок.
   if (SPEEDLESS_TYPES.includes(question.type)) return null;
   // Ставки (27a) і «Аукціон» (27b): швидкості немає, тож час відповіді не дає ні «Блискавки», ні швидкісних ачівок.
-  if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth' || round?.type === 'puzzles') return null;
+  if (round?.type === 'bets' || round?.type === 'auction' || round?.type === 'truth' || round?.type === 'puzzles' || round?.type === 'think') return null;
   if (question.type === 'bluff') return question.choiceTime * 1000;
   return answerWindowMs(question);
 }

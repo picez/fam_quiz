@@ -2,7 +2,7 @@ import type { AdjustmentSource } from './game';
 import type { Round } from './quiz';
 
 /** Джерела балів у порядку розбивки (11f). */
-export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest'] as const;
+export const SCORE_SOURCES = ['carry', 'answers', 'final', 'duel', 'debuff', 'host', 'undo', 'away', 'appeal', 'wipeout', 'survival', 'ladder', 'bets', 'auction', 'truth', 'quest', 'think'] as const;
 export type ScoreSource = (typeof SCORE_SOURCES)[number];
 
 /** Один рядок балів (11f): відповідь, спроба бліцу, штраф чи коригування. */
@@ -26,12 +26,13 @@ export interface ScoreBreakdown {
   minus: number;
 }
 
-/** Джерело рядка відповіді за типом раунду: фінал — 'final', «Ставки» — 'bets', «Аукціон» — 'auction', «Правда про гравця» — 'truth', «Ва-банк» — 'wipeout', «Квест із кодом» (запитання як у класиці), решта й невідомий — 'answers'. */
+/** Джерело рядка відповіді за типом раунду: фінал — 'final', «Ставки» — 'bets', «Аукціон» — 'auction', «Правда про гравця» — 'truth', «Думай інакше» — 'think' (записи з 0 балів; бали дають коригування місць), «Ва-банк» — 'wipeout', «Квест із кодом» (запитання як у класиці), решта й невідомий — 'answers'. */
 export function answerSource(type: Round['type'] | undefined): ScoreSource {
   if (type === 'final') return 'final';
   if (type === 'bets') return 'bets';
   if (type === 'auction') return 'auction';
   if (type === 'truth') return 'truth';
+  if (type === 'think') return 'think';
   if (type === 'wipeout') return 'wipeout';
   return 'answers';
 }
@@ -47,6 +48,7 @@ const ADJUSTMENT_SOURCES: Record<AdjustmentSource, ScoreSource> = {
   survival: 'survival',
   ladder: 'ladder',
   quest: 'quest',
+  think: 'think',
 };
 
 /** Джерело коригування; Record<AdjustmentSource, ScoreSource> — нове джерело без запису не пройде typecheck. */

@@ -13,6 +13,7 @@ import { MELODY_STEP_COUNT } from './melody';
 import { questKey } from './quest';
 import { clamp01 } from './numbers';
 import { MEMORY_GRIDS, MEMORY_TEXT_MAX, memoryCardKey, memoryGridSize } from './memory';
+import { thinkWordsIssue } from './think';
 import { SPOT_MAX_ASPECT, SPOT_MAX_COUNT, SPOT_MAX_R, SPOT_MIN_ASPECT, SPOT_MIN_COUNT, SPOT_MIN_R } from './spotdiff';
 
 export * from './question-types';
@@ -262,6 +263,17 @@ export const LIMITS = {
   minMelodyTime: 25,
   /** Типовий час «Мелодії за нотами», с. */
   defaultMelodyTime: 60,
+  /** «Думай інакше» (35): життя учасника (найменше, найбільше, типово), сума за місця (найбільша = maxAdjust, типова), запитань у раунді, слів ведучого й синонімів у слові, символів у слові, синонімі й відповіді гравця. */
+  minThinkLives: 1,
+  maxThinkLives: 10,
+  defaultThinkLives: 3,
+  maxThinkPoints: 10_000,
+  defaultThinkPoints: 5000,
+  minThinkQuestions: 3,
+  maxThinkQuestions: 30,
+  maxThinkWords: 3,
+  maxThinkSynonyms: 5,
+  thinkWord: 40,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -352,6 +364,13 @@ const base = {
 
 /** Слово ланцюжка: літери, між ними по одному пробілу, дефісу чи апострофу. */
 export const CHAIN_WORD = /^\p{L}+(?:[ '’ʼ-]\p{L}+)*$/u;
+
+/** «Думай інакше» (35): слово ведучого з необов'язковими синонімами; збіг з будь-яким забирає життя. */
+export const thinkWordSchema = z.object({
+  word: z.string().trim().min(1).max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE),
+  synonyms: z.array(z.string().trim().min(1).max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE)).max(LIMITS.maxThinkSynonyms),
+});
+export type ThinkWord = z.infer<typeof thinkWordSchema>;
 
 /** Варіант single/multi: текст, картинка або обидва; пари й порядок картинок не мають. */
 const option = z
@@ -741,6 +760,12 @@ export const questionSchema = z
       /** Час фази вибору, с. */
       choiceTime: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
     }),
+    z.object({
+      ...base,
+      type: z.literal('think'),
+      /** «Думай інакше» (35): тема в text, гравець пише одне слово; слова ведучого — 0–3 (0 — ведучий впише їх у грі). points не важить (редактор ставить 0). */
+      words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords),
+    }),
   ])
   .superRefine((q, ctx) => {
     const ids =
@@ -908,6 +933,11 @@ export const questionSchema = z
       const truthKeys = q.accepted.map(answerKey);
       if (spareKeys.some((k) => truthKeys.includes(k))) ctx.addIssue({ code: 'custom', message: 'bluff_spare_truth' });
       if (q.video !== null) ctx.addIssue({ code: 'custom', message: 'bluff_video' });
+    }
+    if (q.type === 'think') {
+      // Одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
+      const issue = thinkWordsIssue(q.words);
+      if (issue !== null) ctx.addIssue({ code: 'custom', message: issue });
     }
     if ((q.type === 'poll' || q.type === 'wordcloud') && q.points !== 0) ctx.addIssue({ code: 'custom', message: 'vote_points' });
     if (q.audio !== undefined && q.video !== null) ctx.addIssue({ code: 'custom', message: 'audio_video' });
@@ -1352,6 +1382,22 @@ export const survivalRoundSchema = z.object({
 });
 
 export type SurvivalRound = z.infer<typeof survivalRoundSchema>;
+
+/** «Думай інакше» (35): N життів, сума P за місця, лише запитання think; таймер — timeLimit кожного запитання. Правил, швидкості й перемішування немає. */
+export const thinkRoundSchema = z.object({
+  id: z.string().min(1).refine(isStorable, UNSTORABLE),
+  type: z.literal('think'),
+  title: z.string().trim().max(LIMITS.roundTitle).refine(isStorable, UNSTORABLE),
+  /** Опис раунду від автора для заставки. */
+  description: z.string().trim().max(LIMITS.roundDescription).refine(isStorable, UNSTORABLE).optional(),
+  /** Життя кожного учасника на старті раунду. */
+  lives: z.number().int().min(LIMITS.minThinkLives).max(LIMITS.maxThinkLives),
+  /** Сума за 1-ше місце; останнє — 0, між ними рівними кроками. */
+  points: z.number().int().min(0).max(LIMITS.maxThinkPoints),
+  questions: z.array(questionSchema).min(LIMITS.minThinkQuestions).max(LIMITS.maxThinkQuestions),
+});
+
+export type ThinkRound = z.infer<typeof thinkRoundSchema>;
 export type TrialKind = (typeof TRIAL_KINDS)[number];
 
 /** Як вибирається учасник драбини: ведучий сам, жереб, найменші бали на початку раунду. */
@@ -1420,7 +1466,7 @@ export const questRoundSchema = z.object({
 export type QuestRound = z.infer<typeof questRoundSchema>;
 
 /** Типи раундів у порядку редактора; звіряється з roundSchema у тесті. */
-export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'puzzles', 'wipeout', 'survival', 'ladder', 'quest'] as const;
+export const ROUND_TYPES = ['classic', 'blitz', 'board', 'final', 'bets', 'auction', 'truth', 'puzzles', 'wipeout', 'survival', 'think', 'ladder', 'quest'] as const;
 export type RoundType = (typeof ROUND_TYPES)[number];
 
 export const roundSchema = z.discriminatedUnion('type', [
@@ -1434,6 +1480,7 @@ export const roundSchema = z.discriminatedUnion('type', [
   puzzlesRoundSchema,
   wipeoutRoundSchema,
   survivalRoundSchema,
+  thinkRoundSchema,
   ladderRoundSchema,
   questRoundSchema,
 ]);
@@ -1445,9 +1492,9 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 export const ROUND_TYPES_MATCH_SCHEMA: Same<RoundType, Round['type']> = true;
 export const QUESTION_TYPES_MATCH_SCHEMA: Same<QuestionType, Question['type']> = true;
 
-/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Головоломках», «Ва-банк» і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» і «Квест із кодом» (29g) — як класика. */
+/** Правила балів раунду; у фіналі, «Ставках», «Аукціоні», «Правді про гравця», «Головоломках», «Ва-банк», «Думай інакше» (35) і «Мільйонері» правил немає — DEFAULT_RULES (без серій, штрафу, частково, множник 1); «Вибування» і «Квест із кодом» (29g) — як класика. */
 export function rulesOf(round: Round): RoundRules {
-  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
+  return round.type === 'final' || round.type === 'bets' || round.type === 'auction' || round.type === 'truth' || round.type === 'puzzles' || round.type === 'wipeout' || round.type === 'think' || round.type === 'ladder' ? DEFAULT_RULES : round.rules;
 }
 
 /** Запитання дуелі: текстова відповідь, як у типі text; без картинки й відео. */
@@ -1696,6 +1743,12 @@ export const quizSchema = z
           ctx.addIssue({ code: 'custom', message: 'quest_buff' });
         }
       }
+      // «Думай інакше» (35): раунд think приймає лише запитання think, а think живе лише там (жодної клітинки, питання на виживання чи запасного).
+      if (round.type === 'think') {
+        if (round.questions.some((q) => q.type !== 'think')) ctx.addIssue({ code: 'custom', message: 'think_type' });
+      } else if ([...roundQuestions(round), ...roundTrials(round), ...(round.type === 'board' ? round.categories.flatMap((c) => c.spares ?? []) : [])].some((q) => q.type === 'think')) {
+        ctx.addIssue({ code: 'custom', message: 'think_round' });
+      }
       // Дошка з хмари — лише в класиці.
       if (round.type === 'board' && boardCells(round).some(({ cell }) => cell.question.type === 'survey' && cell.question.cloudId !== undefined)) {
         ctx.addIssue({ code: 'custom', message: 'survey_cloud_place' });
@@ -1721,6 +1774,7 @@ export const quizSchema = z
     }
     if (buffs?.some((kind) => !READY_BUFFS.includes(kind))) ctx.addIssue({ code: 'custom', message: 'buff_unavailable' });
     const pools = [...(quiz.spares ?? []), ...categorySparesOf(quiz)];
+    if ((quiz.spares ?? []).some((s) => s.type === 'think')) ctx.addIssue({ code: 'custom', message: 'think_round' });
     if (pools.some((s) => s.betsCut !== undefined)) ctx.addIssue({ code: 'custom', message: 'bets_cut_place' });
     if (pools.length > 0) {
       const types: readonly string[] = SIMPLE_TYPES;

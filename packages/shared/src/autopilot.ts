@@ -53,8 +53,8 @@ export const AUTOPILOT_MAX_RETRIES = 12;
  */
 export const AUTOPILOT_CHANGES = ['voice', 'manual', 'ladder_pick', 'hint', 'untimed'] as const;
 export type AutopilotChange = (typeof AUTOPILOT_CHANGES)[number];
-/** Чого автопілот не може провести: у наявних форматах нічого; майбутній формат додає своє слово сюди. */
-export const AUTOPILOT_BLOCKS = [] as const;
+/** Чого автопілот не може провести: think_words — запитання «Думай інакше» (35) без заготовлених слів (вписати їх нікому). */
+export const AUTOPILOT_BLOCKS = ['think_words'] as const;
 export type AutopilotBlock = (typeof AUTOPILOT_BLOCKS)[number];
 
 /** Одна зміна чи блокування: 0-базові раунди за зростанням, без повторів, непорожні. */
@@ -96,7 +96,14 @@ function roundChanges(quiz: Quiz, round: Round, hintBuff: boolean): Set<Autopilo
   return found;
 }
 
-/** Перевірка сумісності (11g): блокування (зараз завжди []) і зміни за таблицею плану 11g. */
+/** Раунди, які автопілот не проведе: think_words — у раунді think хоч одне запитання без слів. */
+function roundBlocks(round: Round): Set<AutopilotBlock> {
+  const found = new Set<AutopilotBlock>();
+  if (round.type === 'think' && round.questions.some((q) => q.type === 'think' && q.words.length === 0)) found.add('think_words');
+  return found;
+}
+
+/** Перевірка сумісності (11g): блокування (35: think_words) і зміни за таблицею плану 11g. */
 export function autopilotCheck(quiz: Quiz): AutopilotCheck {
   const hintBuff = allowedBuffs(quiz).includes('hint');
   const perRound = quiz.rounds.map((round) => roundChanges(quiz, round, hintBuff));
@@ -104,7 +111,12 @@ export function autopilotCheck(quiz: Quiz): AutopilotCheck {
     const rounds = perRound.flatMap((found, index) => (found.has(code) ? [index] : []));
     return rounds.length === 0 ? [] : [{ code, rounds }];
   });
-  return { blocked: [], changed };
+  const blocks = quiz.rounds.map(roundBlocks);
+  const blocked = AUTOPILOT_BLOCKS.flatMap((code) => {
+    const rounds = blocks.flatMap((found, index) => (found.has(code) ? [index] : []));
+    return rounds.length === 0 ? [] : [{ code, rounds }];
+  });
+  return { blocked, changed };
 }
 
 function convert(round: Round): Round {
@@ -125,6 +137,9 @@ function convert(round: Round): Round {
       return round.check === 'manual' ? { ...round, check: 'auto' } : round;
     case 'ladder':
       return round.pick === 'host' ? { ...round, pick: 'random' } : round;
+    // «Думай інакше» (35): без змін; без слів раунд блокує autopilotCheck, а автора-глядача вирішує рушій.
+    case 'think':
+      return round;
     default:
       return round;
   }

@@ -5,7 +5,7 @@ import { APPEAL_REASONS } from './appeal';
 import { AWAY_REPORT_MAX_MS } from './away';
 import { BUFF_KINDS, DEBUFF_KINDS, type ErrorCode } from './game';
 import { DRAWING_ERASER, DRAWING_SCALE, DRAWING_WIDTHS, type DrawOp, type DrawingEvent } from './drawing';
-import { LIFELINES, LIMITS, MORELESS_SIDES } from './quiz';
+import { LIFELINES, LIMITS, MORELESS_SIDES, thinkWordSchema } from './quiz';
 import { DOOR_COUNT } from './survival';
 import { MELODY_STEP_COUNT } from './melody';
 import { MEMORY_MAX_CELLS } from './memory';
@@ -243,6 +243,8 @@ export const duelAnswerSchema = z.object({
 export const truthFactSchema = z.object({ text: z.string().max(LIMITS.truthText * 2).refine(isStorable, UNSTORABLE) });
 /** «Квест із кодом» (29g): спроба коду — сирий рядок, нормалізує й перевіряє рушій. */
 export const questCodeSchema = z.object({ code: z.string().max(LIMITS.maxQuestInput) }).strict();
+/** «Думай інакше» (35): ведучий замінює весь список слів запитання (0–3); зводить і перевіряє рушій. */
+export const thinkWordsEventSchema = z.object({ words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords) });
 /** Ведучий ховає чи повертає факт гравця (28b). */
 export const truthHideSchema = z.object({ playerId, hidden: z.boolean() });
 /** Командна гра (10j): учасник вибирає команду в лобі. */
@@ -433,6 +435,8 @@ export interface ClientToServerEvents {
   'host:team-form': (payload: z.infer<typeof teamFormSchema>, ack: Ack) => void;
   /** «Правда про гравця»: сховати чи повернути факт гравця. */
   'host:truth-hide': (payload: z.infer<typeof truthHideSchema>, ack: Ack) => void;
+  /** «Думай інакше» (35): замінити слова ведучого поточного запитання; ack ok — прийнято, інакше помилка (think_word, think_words_closed, wrong_phase). Слова йдуть лише в зріз ведучого. */
+  'host:think-words': (payload: z.infer<typeof thinkWordsEventSchema>, ack: Ack) => void;
   /** Командна гра: перемістити учасника в команду або без команди. */
   'host:team-assign': (payload: z.infer<typeof teamAssignSchema>, ack: Ack) => void;
   /** Командна гра: розподілити випадково. */

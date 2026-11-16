@@ -69,6 +69,8 @@ describe('question type lists before the registry (30e)', () => {
       'jigsaw',
       'spotdiff',
       'memory',
+      // 35: бали «Думай інакше» дають місця, не швидкість.
+      'think',
     ]);
     expect(factLimitMs(question('bluff'), round, false)).toBe(20 * 1000);
   });
