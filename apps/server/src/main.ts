@@ -8,7 +8,8 @@ import { connectDb } from './db/client';
 import { backfillFeed, settleFeedLevels } from './feed-publish';
 import { settleStickerLegacy } from './xp-store';
 import { diskStorage, type ImageStorage } from './storage/images';
-import { r2Storage } from './storage/r2';
+import { r2Storage, type R2Settings } from './storage/r2';
+import { backupsEnabled, dbBackups, r2BackupStore } from './db-backup';
 import { webPushSender } from './web-push-sender';
 import { log, reportError } from './log';
 
@@ -35,22 +36,27 @@ const built = resolve(import.meta.dirname, '../../web/dist');
 const local = process.env.NODE_ENV === 'production' ? { lan: [], all: [] } : localOrigins(networkInterfaces(), port);
 const configured = (process.env.TRUSTED_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
 
-/** Зображення: Cloudflare R2, якщо задано всі чотири змінні R2_*, інакше тека на диску. */
-function imageStorage(): ImageStorage {
+/** Ключі Cloudflare R2, якщо задано всі чотири змінні R2_*; частково задані — вихід із причиною. */
+function r2Settings(): R2Settings | null {
   const { R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY } = process.env;
   const r2 = [R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY];
   if (r2.every((value) => value !== undefined && value !== '')) {
-    log.info('Зображення зберігаються в Cloudflare R2.');
-    return r2Storage({
-      accountId: R2_ACCOUNT_ID!,
-      bucket: R2_BUCKET!,
-      accessKeyId: R2_ACCESS_KEY_ID!,
-      secretAccessKey: R2_SECRET_ACCESS_KEY!,
-    });
+    return { accountId: R2_ACCOUNT_ID!, bucket: R2_BUCKET!, accessKeyId: R2_ACCESS_KEY_ID!, secretAccessKey: R2_SECRET_ACCESS_KEY! };
   }
   if (r2.some((value) => value !== undefined && value !== '')) {
     log.error('Задано не всі змінні R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.');
     process.exit(1);
+  }
+  return null;
+}
+
+const r2 = r2Settings();
+
+/** Зображення: Cloudflare R2, якщо задано всі чотири змінні R2_*, інакше тека на диску. */
+function imageStorage(): ImageStorage {
+  if (r2 !== null) {
+    log.info('Зображення зберігаються в Cloudflare R2.');
+    return r2Storage(r2);
   }
   const dir = resolve(process.env.UPLOAD_DIR ?? resolve(import.meta.dirname, '../uploads'));
   if (process.env.NODE_ENV === 'production') {
@@ -61,9 +67,7 @@ function imageStorage(): ImageStorage {
 
 const storage = imageStorage();
 /** Без R2 файлів стікерів на диску немає: локально віддається мала картинка-фікстура. */
-const stickerFixtures = ![process.env.R2_ACCOUNT_ID, process.env.R2_BUCKET, process.env.R2_ACCESS_KEY_ID, process.env.R2_SECRET_ACCESS_KEY].every(
-  (value) => value !== undefined && value !== '',
-);
+const stickerFixtures = r2 === null;
 /** Вхід через Google вмикається, коли задано обидва ключі. */
 function googleKeys() {
   const { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret } = process.env;
@@ -142,6 +146,13 @@ await app.listen({ port, host: '0.0.0.0' });
 // Стрічка (18a): події завершених ігор за 90 днів дописуються у фоні, старт їх не чекає. Ідемпотентно (ключі), тож іде на кожному
 // старті, і обірване зупинкою дописування продовжить наступний; бейджа не запалює (created_at = at). Збій лише журналюється.
 void backfillFeed(db, new Date()).catch((error: unknown) => reportError(error, { where: 'feed-backfill' }));
+// Резервні копії бази (35): щотижня в той самий кошик R2 під backups/db/; перша перевірка через 5 хвилин після старту, далі щогодини.
+// Лише в продакшені (локальна база з ключами R2 у .env не має підміняти копії продакшену); DB_BACKUP=off вимикає, DB_BACKUP=on вмикає й поза ним.
+// Збій копії лише журналюється (reportError) і на ігри не впливає.
+const backups = r2 !== null && backupsEnabled(process.env) ? dbBackups({ db, store: r2BackupStore(r2), commit: process.env.RENDER_GIT_COMMIT ?? null }) : null;
+backups?.start();
+if (backups !== null) log.info('Резервні копії бази: щотижня в R2 (backups/db/).');
+else if (process.env.NODE_ENV === 'production') log.warn(r2 === null ? 'Резервні копії бази вимкнені: немає R2.' : 'Резервні копії бази вимкнені (DB_BACKUP=off).');
 log.info(`Quiz server is listening on port ${port}`);
 for (const origin of local.lan) log.info(`У локальній мережі: ${origin}`);
 
@@ -155,6 +166,7 @@ async function stop(signal: string, code = 0) {
   log.info(`Отримано ${signal}, зупиняюся.`);
   // Якщо щось зависло, процес усе одно має завершитися.
   setTimeout(() => process.exit(1), 10_000).unref();
+  backups?.stop();
   try {
     // Заморозити кімнати, сказати клієнтам restarting, записати кімнати з owner = null, закрити застосунок
     // і дочекатися записів результатів.
