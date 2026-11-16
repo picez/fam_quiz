@@ -346,9 +346,9 @@ async function memoryGame29f() {
     await sleep(100);
     expect(await petro.getByRole('button', { name: `Картка ${p2a + 1}, закрита`, ...exact }).count(), 'a tap while a wrong pair is shown opens nothing').toBe(1);
   }
-  // Кадр екрана, не всієї сторінки: повносторінковий знімок тимчасово міняє висоту вікна, і сітка, що міряє екран, у Chromium лишається
-  // нерозкладеною (0×0) — далі тести її не бачать.
-  if (process.env.E2E_SHOTS === '1') await petro.screenshot({ path: resolve(ARTIFACTS, 'shots', 'memory29f-phone-wrong-pair.png') });
+  // Знімок усієї сторінки (captureBeyondViewport) раніше лишав сітку 0×0: Chromium губив розмітку дітей .memory-play, поки той був
+  // контейнером запитів. Тепер поле не контейнер — звичайний shot, а expectMemoryFit29f нижче (теж після shot) це перевіряє.
+  await shot(petro, 'memory29f-phone-wrong-pair');
   await expect.poll(() => petro.locator('.memory-card.is-shown').count(), { timeout: 4000 }).toBe(0);
   const closedAfter = Date.now() - wrongAt;
   console.log(`memory 29f: a wrong pair stayed ${closedAfter} ms after it showed on the phone`);

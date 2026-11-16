@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { boardRound, classicRound, makeRoundsQuiz, single, withId, withPoints } from '@quiz/engine/testing';
 import { LIMITS, quizSchema } from '@quiz/shared';
 import { type Locator, type Page } from 'playwright-core';
@@ -7,7 +8,7 @@ import ar from '../../web/src/locales/ar.json';
 import es from '../../web/src/locales/es.json';
 import { ukMessages } from '../../web/src/i18n';
 import { open, click, liveRow, field, questionText, join, openRoundSettings, bodyText, expectNoSideScroll, register, POLL, socketFrames, RESTARTING_TEXT, NL, pickTeamOn, stageTeam, sleep, pilotPlayer, frame, emitOk, stateViews, type Dict22a, label, ownDir, join22a, step27a, next27a, phoneScore27a, select27b, toWinners27c, type Pair28a, PAIRS28A_TEAM, moreLess28a, morelessCounter28a, morelessRun28a, reveal28a, writeFact28b, hostAuthor28b, pickName28b } from './helpers/common';
-import { exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
+import { ARTIFACTS, exact, base, problems, snapshot, afterSplash, shot, restart, flags, useE2eServer } from './helpers/setup';
 
 /**
  * Наскрізні тести: частина 28a–28c: більше чи менше, правда про гравця, малюнок.
@@ -1031,6 +1032,18 @@ async function truthTeams28b() {
       for (const [page, , teamName2] of people) await expect.poll(() => phoneScore27a(page).textContent(), POLL).toBe(String(score[teamName2]));
       // Учасник команди бачить вибори своєї команди і факти своєї команди як свої.
       expect(await petro.locator('.truth-recap-mine.is-own').count(), 'own facts on a Red phone').toBe(2);
+      // Вибирав капітан за команду: підсумок каже «Вибір команди» / «Команда вгадала», а не «Ваш вибір» / «Ви вгадали».
+      expect(await petro.locator('.truth-recap-mine.is-own').allTextContents()).toEqual(['Факт вашої команди', 'Факт вашої команди']);
+      expect(await petro.locator('.truth-recap-score').textContent()).toBe('Команда вгадала 1 з 2');
+      expect(await marko.locator('.truth-recap-score').textContent()).toBe('Команда вгадала 0 з 2');
+      expect(await marko.locator('.truth-recap-mine.is-wrong').allTextContents()).toEqual(['Вибір команди: Марко ✗', 'Вибір команди: Марко ✗']);
+      for (const page of phones) expect(await page.locator('.truth-recap').textContent(), 'a «you» line in a team recap').not.toMatch(/Ваш вибір|Ви вгадали|Ви нікого/);
+      await expectNoSideScroll(marko, 'truth28b-team-recap-320');
+      // ⭐ перед рахунком у шапці (не плутати з кодом гри); читач екрана чує «Рахунок:» замість зірки, textContent — саме число.
+      const star = await phoneScore27a(marko).evaluate((el) => getComputedStyle(el, '::before').content);
+      expect(star, 'the star before the score').toContain('⭐');
+      expect(await marko.locator('header.bar').ariaSnapshot(), 'the score has a spoken label').toContain(`Рахунок: ${score['Сині']}`);
+      if (process.env.E2E_SHOTS === '1') await marko.locator('header.bar').screenshot({ path: resolve(ARTIFACTS, 'shots', 'truth28b-team-header-320.png') });
       if (process.env.E2E_SHOTS === '1') await sleep(800);
       await shot(stage, 'truth28b-team-stage-recap');
       await shot(marko, 'truth28b-team-phone-recap');

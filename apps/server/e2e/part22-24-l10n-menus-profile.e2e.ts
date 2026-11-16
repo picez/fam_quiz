@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { bool as boolQ, classicRound, makeQuiz, makeRoundsQuiz, order, single } from '@quiz/engine/testing';
-import { LOCALES, xpForLevel, type PrizeContent } from '@quiz/shared';
+import { LEVEL_REWARDS_TOP, LOCALES, NICK_FONTS, PHOTO_FRAMES, xpForLevel, type PrizeContent } from '@quiz/shared';
 import { type Page } from 'playwright-core';
 import { expect, it } from 'vitest';
 import { prizeAward, userAchievement, userLike, xpEntry } from '../src/db/schema';
@@ -1150,12 +1150,13 @@ async function profileLooks24d() {
 
   const calm = await open('calm24d', 375, 812, { reducedMotion: 'reduce' });
   await register(calm, 'menu', 'Ігор 24d', 'igor24d@example.com');
-  await pour(await myId(calm), xpForLevel(30));
+  // Найвищий рівень нагород: усе відкрито (рамки й шрифти додаються — без сталих чисел).
+  await pour(await myId(calm), xpForLevel(LEVEL_REWARDS_TOP));
   await calm.goto(`${base}/profile/looks`);
   await calm.locator('section.level-card').waitFor();
-  // Усі 12 рамок фото й 8 шрифтів поруч у сітках — 375 і 1280 px.
-  expect(await calm.getByRole('radiogroup', { name: 'Рамка фото', exact: true }).locator('label.look-option').count()).toBe(13);
-  expect(await calm.getByRole('radiogroup', { name: 'Шрифт ніку', exact: true }).locator('label.look-option').count()).toBe(9);
+  // Усі рамки фото й шрифти (+ «без») поруч у сітках — 375 і 1280 px.
+  expect(await calm.getByRole('radiogroup', { name: 'Рамка фото', exact: true }).locator('label.look-option').count()).toBe(PHOTO_FRAMES.length + 1);
+  expect(await calm.getByRole('radiogroup', { name: 'Шрифт ніку', exact: true }).locator('label.look-option').count()).toBe(NICK_FONTS.length + 1);
   expect(await calm.locator('label.look-option.is-locked').count()).toBe(0);
   await shot(calm, 'p24d-all-frames-fonts-375');
   await calm.setViewportSize({ width: 1280, height: 900 });
