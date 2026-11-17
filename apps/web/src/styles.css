@@ -21894,6 +21894,13 @@ input.sudoku-editor-cell:focus-visible {
   min-width: 4.5rem;
   min-height: 2.75rem;
 }
+
+/* Вибраний перемикач («Файл / YouTube», «Без звуку / Зі звуком») і шматок, що грає, видно з першого погляду (36). */
+.melody-source .btn[aria-pressed='true'],
+.melody-previews .btn[aria-pressed='true'] {
+  border-color: var(--amber);
+  box-shadow: inset 0 0 0 1px var(--amber);
+}
 /* «Мелодія за нотами»: кінець редактора */
 
 /* «Відео за фрагментами» (36): видима рамка 16:9. Затулка закриває її скрізь, крім шматка, що грає; поки грає — маски назви зверху
