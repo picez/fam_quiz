@@ -35,7 +35,6 @@ import { sortOf, sortSeq } from './sort';
 import { survivalAlive, survivalPlayOf, trialOpen } from './survival';
 import { wallOf } from './wall';
 import { truthGuessers } from './truth';
-import { thinkHit } from './think';
 import { wipeoutIn } from './wipeout';
 import { voterList } from './team-act';
 import { duelistOf, memberOf, teamsOn } from './teams';
@@ -454,15 +453,16 @@ export function hostLive(state: GameState): HostLive | null {
   } else if (play.board !== undefined) {
     who = answerersOf(state, [play.board.chooserId]);
   } else if (play.think !== undefined) {
-    // «Думай інакше» (35): лише живі на відкритті; вердикт — збіг з поточними словами наживо ('wrong' — збіг, 'correct' — в безпеці).
+    // «Думай інакше» (35): лише живі на відкритті, без глядачів (watch); вердикт — grade запису: до розкриття його перераховують
+    // поточні слова (withThinkGrades), після — заморожено ('wrong' — збіг, 'correct' — в безпеці).
     const lives = play.think.lives;
-    const words = play.think.words;
-    const alive = state.players.filter((p) => Object.hasOwn(lives, p.id) && lives[p.id] > 0).map((p) => p.id);
+    const watch = play.think.watch ?? [];
+    const alive = state.players.filter((p) => Object.hasOwn(lives, p.id) && lives[p.id] > 0 && !watch.includes(p.id)).map((p) => p.id);
     const rows = answerersOf(state, alive).map((w) => {
       const row = withAway(state, answerRow(state, play, w, false));
       const record = recordOf(state, state.questionIndex, w.id);
       if (record === undefined || record.overridden || record.answer?.type !== 'think') return row;
-      return { ...row, verdict: thinkHit(words, record.answer.value) !== null ? ('wrong' as const) : ('correct' as const) };
+      return { ...row, verdict: record.grade === 'wrong' ? ('wrong' as const) : ('correct' as const) };
     });
     return liveOf('answers', rows, null);
   } else if (play.truth !== undefined) {

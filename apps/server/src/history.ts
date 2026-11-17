@@ -425,8 +425,9 @@ function thinkResult(
   for (const { participantId, nickname } of standings) {
     if (!Object.hasOwn(think.lives, participantId)) continue;
     const before = think.lives[participantId];
-    if (before === 0) {
-      lives[nickname] = 0;
+    // Вибулий раніше чи глядач (watch) — без рядка, життя ті самі.
+    if (before === 0 || (think.watch ?? []).includes(participantId)) {
+      lives[nickname] = before;
       continue;
     }
     const payload = given.find((a) => a.participantId === participantId)?.payload;

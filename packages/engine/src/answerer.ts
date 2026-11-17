@@ -79,7 +79,8 @@ function thinkStandIn(state: GameState, teamId: string, id: string | null): stri
   const from = members.findIndex((m) => m.id === authorId);
   for (let k = 1; k < members.length; k++) {
     const member = members[(from + k) % members.length];
-    if (member.connected && member.id !== authorId) return member.id;
+    // Присутній — як presentPlayers: на зв'язку або щойно відновлений (awaiting).
+    if ((member.connected || state.awaiting.includes(member.id)) && member.id !== authorId) return member.id;
   }
   return null;
 }

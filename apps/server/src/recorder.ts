@@ -221,7 +221,13 @@ function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef
  */
 function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullable<PlayRef['think']> {
   const verdicts = thinkVerdicts(state, index);
-  return { words: think.words, lives: think.lives, revealed: think.revealed, hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit') };
+  return {
+    words: think.words,
+    lives: think.lives,
+    revealed: think.revealed,
+    hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit'),
+    ...(think.watch === undefined || think.watch.length === 0 ? {} : { watch: think.watch }),
+  };
 }
 
 /** «Вибування» для PlayRef: лише закрите випробування; відповіді привидів — лише лічильники. */

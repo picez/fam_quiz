@@ -79,26 +79,39 @@ export function thinkWatches(state: GameState, actorId: string): boolean {
  * ThinkPlay нового запитання: words — копія question.words; lives — знімок на мить відкриття.
  * Перше запитання раунду — кожен учасник (крім автора-глядача автопілота) отримує round.lives; далі — життя після попереднього;
  * новенький (пізній гравець чи нова команда) — найменше з життів живих (≥ 1). Вилучені зникають (фільтр за state.players).
+ * Учасник, що став глядачем посеред раунду (у команді лишився сам автор), лишається з тими самими життями в watch.
  */
 export function openThink(state: GameState, question: Extract<Question, { type: 'think' }>): ThinkPlay {
   const round = thinkRoundOf(state);
   const start = round?.lives ?? LIMITS.defaultThinkLives;
   const previous = thinkRoundPlays(state, state.roundIndex).at(-1);
-  const ids = state.players.map((p) => p.id).filter((id) => !thinkWatches(state, id));
-  if (previous === undefined) return { words: question.words, lives: Object.fromEntries(ids.map((id) => [id, start])), revealed: false };
-  const known = ids.flatMap((id) => {
+  const all = state.players.map((p) => p.id);
+  if (previous === undefined) {
+    const ids = all.filter((id) => !thinkWatches(state, id));
+    return { words: question.words, lives: Object.fromEntries(ids.map((id) => [id, start])), revealed: false };
+  }
+  const known = all.flatMap((id) => {
     const after = thinkLivesAfter(state, previous, id);
     return after === null ? [] : [[id, after] as const];
   });
   const living = known.map(([, lives]) => lives).filter((lives) => lives > 0);
   const weakest = Math.max(1, Math.min(...living, start));
   const lives: Record<string, number> = {};
-  for (const id of ids) {
+  const watch: string[] = [];
+  for (const id of all) {
     const found = known.find(([k]) => k === id);
-    // Якщо живих немає, раунд уже скінчився (thinkOver): новенький сюди не потрапить.
+    const watching = thinkWatches(state, id);
+    // Глядач-новенький не грає; Якщо живих немає, раунд уже скінчився (thinkOver): новенький сюди не потрапить.
+    if (found === undefined && watching) continue;
     lives[id] = found !== undefined ? found[1] : weakest;
+    if (watching && lives[id] > 0) watch.push(id);
   }
-  return { words: question.words, lives, revealed: false };
+  return { words: question.words, lives, revealed: false, ...(watch.length === 0 ? {} : { watch }) };
+}
+
+/** Учасник на запитанні лише дивиться (ThinkPlay.watch). */
+function watching(think: ThinkPlay, id: string): boolean {
+  return think.watch?.includes(id) ?? false;
 }
 
 /** Слова ведучого, зведені: обрізано, пробіли зведено, порожні синоніми відкинуто. null — слово порожнє, задовге, забагато слів чи синонімів, повтор. */
@@ -134,7 +147,7 @@ export function submitThinkAnswer(state: GameState, playerId: string, answer: An
   const play = thinkPlayOf(state);
   if (play === null) return fail('wrong_phase');
   const lives = Object.hasOwn(play.think.lives, playerId) ? play.think.lives[playerId] : undefined;
-  if (lives === undefined) return fail('think_spectator');
+  if (lives === undefined || watching(play.think, playerId)) return fail('think_spectator');
   if (lives === 0) return fail('think_out');
   if (recordOf(state, state.questionIndex, playerId) !== undefined) return fail('already_answered');
   if (state.startedAt === null || timeOverFor(state, play, playerId, now)) return fail('time_over');
@@ -157,9 +170,13 @@ export function submitThinkAnswer(state: GameState, playerId: string, answer: An
   return ok(autoLock(withRecord(state, playerId, record), now));
 }
 
-/** Вердикт запису: ручна оцінка — за grade; інакше thinkHit з поточних слів. */
-function recordVerdict(words: readonly ThinkWord[], record: AnswerRecord): 'safe' | 'hit' {
-  if (record.overridden) return record.grade === 'wrong' ? 'hit' : 'safe';
+/**
+ * Вердикт запису: ручна оцінка чи розкрите запитання — за grade (після розкриття вердикт заморожено: інше порівняння після деплою
+ * не перевертає зіграного); інакше thinkHit з поточних слів.
+ */
+function recordVerdict(think: ThinkPlay, record: AnswerRecord): 'safe' | 'hit' {
+  const words = think.words;
+  if (record.overridden || think.revealed) return record.grade === 'wrong' ? 'hit' : 'safe';
   const value = record.answer?.type === 'think' ? record.answer.value : '';
   return thinkHit(words, value) !== null ? 'hit' : 'safe';
 }
@@ -170,9 +187,9 @@ export function thinkVerdicts(state: GameState, index: number): Record<string, T
   if (play === null) return {};
   const verdicts: Record<string, ThinkVerdict> = {};
   for (const { id } of state.players) {
-    if (!Object.hasOwn(play.think.lives, id) || play.think.lives[id] === 0) continue;
+    if (!Object.hasOwn(play.think.lives, id) || play.think.lives[id] === 0 || watching(play.think, id)) continue;
     const record = recordOf(state, index, id);
-    verdicts[id] = record === undefined ? 'empty' : recordVerdict(play.think.words, record);
+    verdicts[id] = record === undefined ? 'empty' : recordVerdict(play.think, record);
   }
   return verdicts;
 }
@@ -182,11 +199,12 @@ export function withThinkGrades(state: GameState): GameState {
   let changed = false;
   const plays = state.plays.map((play) => {
     const think = play.think;
-    if (think === undefined) return play;
+    // Розкрите запитання не перераховується: вердикти заморожено.
+    if (think === undefined || think.revealed) return play;
     let answers: Record<string, AnswerRecord> | null = null;
     for (const [id, record] of Object.entries(play.answers)) {
       if (record.overridden) continue;
-      const grade = recordVerdict(think.words, record) === 'hit' ? 'wrong' : 'correct';
+      const grade = recordVerdict(think, record) === 'hit' ? 'wrong' : 'correct';
       if (record.grade === grade) continue;
       answers ??= { ...play.answers };
       answers[id] = { ...record, grade };
@@ -203,9 +221,9 @@ export function thinkLivesAfter(state: GameState, index: number, actorId: string
   const think = state.plays[index]?.think;
   if (think === undefined || !Object.hasOwn(think.lives, actorId)) return null;
   const lives = think.lives[actorId];
-  if (!think.revealed || lives === 0) return lives;
+  if (!think.revealed || lives === 0 || watching(think, actorId)) return lives;
   const record = recordOf(state, index, actorId);
-  const lost = record === undefined || recordVerdict(think.words, record) === 'hit';
+  const lost = record === undefined || recordVerdict(think, record) === 'hit';
   return lost ? lives - 1 : lives;
 }
 
@@ -225,16 +243,20 @@ export function thinkOver(state: GameState): boolean {
   if (thinkRoundOf(state) === null) return false;
   const indices = thinkRoundPlays(state, state.roundIndex);
   const first = indices[0];
-  if (first === undefined) return false;
+  // Ще не почали: раунду немає з ким грати (в автопілоті лише автор) — кінець одразу, без порожнього запитання.
+  if (first === undefined) return state.players.every((p) => thinkWatches(state, p.id));
   const alive = thinkAlive(state).length;
   if (alive === 0) return true;
   const started = Object.keys(state.plays[first].think?.lives ?? {}).length;
   return started >= 2 && alive <= 1;
 }
 
-/** Очки місця: один учасник — P, якщо дожив, інакше 0; інакше round(P × (n − place) / (n − 1)). */
-export function thinkPoints(total: number, n: number, place: number, alive: boolean): number {
-  if (n <= 1) return alive ? total : 0;
+/**
+ * Очки місця: один учасник — P, якщо дожив і пройшов увесь шлях (complete: розкрито кожне запитання раунду), інакше 0;
+ * інакше round(P × (n − place) / (n − 1)).
+ */
+export function thinkPoints(total: number, n: number, place: number, alive: boolean, complete = true): number {
+  if (n <= 1) return alive && complete ? total : 0;
   return Math.round((total * (n - place)) / (n - 1));
 }
 
@@ -263,9 +285,11 @@ export function thinkPlaces(state: GameState, roundIndex: number = state.roundIn
   const rank = (s: { lives: number; outAt: number | null }): [number, number] => (s.lives > 0 ? [1, s.lives] : [0, s.outAt ?? 0]);
   const better = (a: [number, number], b: [number, number]) => a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]);
   const n = stats.length;
+  // Соло «має пройти весь шлях»: кожне запитання раунду зіграно й розкрито (ведучий не завершив раунд раніше).
+  const complete = indices.length === round.questions.length && indices.every((i) => state.plays[i].think?.revealed === true);
   const rows = stats.map((s) => {
     const place = 1 + stats.filter((o) => better(rank(o), rank(s))).length;
-    return { ...s, outAt: s.lives > 0 ? null : s.outAt, place, points: thinkPoints(round.points, n, place, s.lives > 0) };
+    return { ...s, outAt: s.lives > 0 ? null : s.outAt, place, points: thinkPoints(round.points, n, place, s.lives > 0, complete) };
   });
   return rows.map((row, order) => ({ row, order })).sort((a, b) => a.row.place - b.row.place || a.order - b.order).map(({ row }) => row);
 }
@@ -284,5 +308,5 @@ export function thinkPresent(state: GameState): string[] | null {
   const lives = play.think.lives;
   return presentPlayers(state)
     .map((p) => p.id)
-    .filter((id) => Object.hasOwn(lives, id) && lives[id] > 0);
+    .filter((id) => Object.hasOwn(lives, id) && lives[id] > 0 && !watching(play.think, id));
 }
