@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { breakdownOf, DEFAULT_RULES, memoryLayout, defaultTeams, packStrokes, SPLASH_MS, type Answer, type GameDetail, type Question } from '@quiz/shared';
-import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz } from '@quiz/engine/testing';
+import { LADDER_RIGHT, LADDER_WRONG, auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, finalRound, poll, wall, makeQuiz, makeRoundsQuiz, match, pin, single, slider, sortQ, survey, surveyCloud, text, letterwords, moreless, drawing, timedlist, withId, withReveal, withVideo, survivalQuestions, survivalRound, survivalTrials, wipeoutLadder, wipeoutRound, ladderRound, truthRound, think, thinkRound, puzzlesRound, sudoku, crosswordKey, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { rankPlayers, scoreLines, sortOf } from '@quiz/engine';
 import { answeredTypes, gameQuestionCount, gameTables, hostGame, hostGameWithFacts, hostGames, playerGames } from './history';
@@ -1008,6 +1008,27 @@ describe('host history: answers', () => {
     ]);
     const records = game.room.state.plays[1].answers;
     expect([records[olena]?.points, records[taras]?.points]).toEqual([800, 0]);
+  });
+
+  it('history reads a thinkalike answer', async () => {
+    const game = await start(alikeQuiz());
+    const olena = await game.enter('Олена');
+    const taras = await game.enter('Тарас');
+    const manager = game.local.manager;
+    const step = (type: 'start' | 'lock' | 'next') => expect(manager.host(game.room, { type })).toEqual({ ok: true });
+    step('start');
+    step('next');
+    expect(manager.answer(game.room, olena, { type: 'thinkalike', value: 'яблуко' })).toEqual({ ok: true });
+    expect(manager.answer(game.room, taras, { type: 'thinkalike', value: 'яблуко' })).toEqual({ ok: true });
+    if (game.room.state.phase === 'question') step('lock');
+    step('next');
+    const result = (await game.detail()) as Awaited<ReturnType<typeof game.detail>> & { questions: { responses: object[] }[] };
+    expect(result.questions[0]?.responses).toMatchObject([
+      { nickname: 'Олена', answer: { type: 'thinkalike', value: 'яблуко' } },
+      { nickname: 'Тарас', answer: { type: 'thinkalike', value: 'яблуко' } },
+    ]);
+    const records = game.room.state.plays[0].answers;
+    expect([records[olena]?.points, records[taras]?.points]).toEqual([1000, 1000]);
   });
 
   it('history shows a solved puzzle', async () => {

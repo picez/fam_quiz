@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, questQuiz } from '@quiz/engine/testing';
+import { auctionRound, betsRound, bluff, blitzRound, boardRound, bool, chain, classicRound, clues, cloud, duels, finalRound, makeQuiz, multi, makeRoundsQuiz, single, sortQ, survey, survivalQuestions, survivalRound, survivalTrials, text, wall, withAudio, withId, wipeoutLadder, wipeoutRound, ladderRound, letterwords, moreless, drawing, timedlist, truthRound, think, thinkRound, wordladder, puzzlesQuiz, sudoku, jigsaw, jigsawQuiz, spotdiff, spotdiffQuiz, memoryQuiz, melodyQuiz, videoclipQuiz, alikeQuiz, questQuiz } from '@quiz/engine/testing';
 import { DEFAULT_RULES, defaultTeams, memoryLayout, STICKERS, SPLASH_MS, type AckResult, type ClientToServerEvents, type DrawingEvent, type GameView, type HostDrafts, type Reaction, type ServerToClientEvents, type SocketAuth, type SortTilt } from '@quiz/shared';
 import { eq, inArray } from 'drizzle-orm';
 import { buildApp } from './app';
@@ -1131,6 +1131,27 @@ describe('host presence', () => {
       expect(JSON.stringify(view)).not.toContain('багряний');
     }
     if (mine.role === 'player') expect(mine.me.result).toBeNull();
+  });
+
+  it('host:alike-split and host:alike-join edit the groups on reveal; players cannot', async () => {
+    const { host, stage, olena, taras, olenaJoin, tarasJoin } = await lobby((await startGame(ctx.app, alikeQuiz())).game);
+    expect(await send(host, 'host:start')).toEqual({ ok: true });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    await until(olena, inPhase('question'));
+    expect(await send(olena, 'player:answer', { type: 'thinkalike', value: 'яблуко' })).toEqual({ ok: true });
+    expect(await send(taras, 'player:answer', { type: 'thinkalike', value: 'яблуко' })).toEqual({ ok: true });
+    expect(await send(olena, 'host:alike-split', { playerId: tarasJoin.playerId })).toEqual({ ok: false, error: 'forbidden' });
+    expect(await send(host, 'host:alike-split', { playerId: tarasJoin.playerId })).toEqual({ ok: false, error: 'wrong_phase' });
+    for (const payload of [undefined, { playerId: '' }, { player: 'x' }]) expect(await send(host, 'host:alike-split', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    for (const payload of [undefined, { from: 'a' }, { from: '', to: 'b' }]) expect(await send(host, 'host:alike-join', payload)).toEqual({ ok: false, error: 'invalid_payload' });
+    expect(await send(host, 'host:next')).toEqual({ ok: true });
+    const before = await until(stage, (view) => view.phase === 'reveal' && view.alike !== undefined);
+    expect(before.alike?.groups).toHaveLength(1);
+    expect(await send(host, 'host:alike-split', { playerId: tarasJoin.playerId })).toEqual({ ok: true });
+    const split = await until(stage, (view) => view.alike?.groups.length === 2);
+    expect(split.alike?.groups.every((g) => !g.top)).toBe(true);
+    expect(await send(host, 'host:alike-join', { from: `solo:${tarasJoin.playerId}`, to: olenaJoin.playerId })).toEqual({ ok: true });
+    await until(stage, (view) => view.alike?.groups.length === 1 && view.alike.groups[0]!.top);
   });
 
   it('player:sort is player-only and validated', async () => {
