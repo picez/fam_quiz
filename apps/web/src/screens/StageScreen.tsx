@@ -76,6 +76,8 @@ import { AppealCard } from './AppealCard';
 import { ReactionMain } from '../live/Reactions';
 import { StageSpeech } from './StageSpeech';
 import { ThemeToggle } from '../ThemeToggle';
+import { AlikeGroups } from './AlikeView';
+import { OvershootRows } from './OvershootRows';
 
 interface Props {
   view: StageView;
@@ -625,9 +627,18 @@ function Question({ view, offsetMs, blink, blinking, audioCommand, tilts, drawin
         </div>
       )}
       {reveal !== null && view.survival !== null && <SurvivalReveal info={view.survival} />}
-      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'melody' && question.type !== 'videoclip' && (
+      {reveal !== null && scale === null && question.type !== 'pin' && question.type !== 'match' && question.type !== 'chain' && question.type !== 'wordladder' && question.type !== 'timedlist' && question.type !== 'letterwords' && question.type !== 'moreless' && question.type !== 'sort' && question.type !== 'wall' && question.type !== 'poll' && question.type !== 'wordcloud' && question.type !== 'survey' && question.type !== 'bluff' && question.type !== 'drawing' && question.type !== 'sudoku' && question.type !== 'crossword' && question.type !== 'jigsaw' && question.type !== 'spotdiff' && question.type !== 'memory' && question.type !== 'melody' && question.type !== 'videoclip' && question.type !== 'thinkalike' && (
         <>
           <p className="lead answer">{t('correctAnswer', { answer: correctText(reveal, question.choices) })}</p>
+          {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
+        </>
+      )}
+      {/* «Не перебільш» (37d): хто ближче знизу й хто перебільшив — під правильною відповіддю. */}
+      {reveal?.type === 'numeric' && view.overshoot !== undefined && <OvershootRows rows={view.overshoot} correct={reveal.correct} />}
+      {/* «Думай як усі» (37e): групи слів замість рядка правильної відповіді; до розкриття view.alike немає. */}
+      {reveal !== null && view.alike !== undefined && (
+        <>
+          <AlikeGroups info={view.alike} />
           {view.facts?.reveal != null && <RevealFactsLine facts={view.facts.reveal} big />}
         </>
       )}

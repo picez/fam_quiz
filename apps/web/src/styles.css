@@ -24486,6 +24486,195 @@ input.sudoku-editor-cell:focus-visible {
   color: var(--dim);
 }
 
+/* «Думай як усі» (37e): картки груп слів на розкритті — телефон, сцена, пульт. Одна колонка на телефоні (320 px), ширше — сітка.
+   Кольори — лише змінні теми, тож світла тема без окремих правил. */
+.alike-reveal {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.alike-title {
+  margin: 0;
+}
+
+.alike-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 40rem) {
+  .alike-groups {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  }
+}
+
+.alike-group {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.alike-top {
+  border-color: var(--correct);
+}
+
+.alike-group.is-me {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.alike-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+}
+
+.alike-head:empty {
+  display: none;
+}
+
+.alike-top-tag {
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.alike-points {
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.alike-words {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.alike-members,
+.alike-silent-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dim);
+}
+
+.alike-member {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.alike-member .name,
+.alike-silent-names li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.alike-member.is-me,
+.alike-silent-names .is-me {
+  color: var(--paper);
+  font-weight: 700;
+}
+
+.alike-join {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.alike-silent h3 {
+  margin: 0 0 0.25rem;
+}
+
+/* Сцена: слова більші. */
+.stage-board .alike-words {
+  font-size: 1.75rem;
+}
+/* «Думай як усі»: кінець */
+
+/* «Не перебільш» (37d): хто ближче знизу, межа й ті, хто перебільшив. */
+.overshoot {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.overshoot-title {
+  margin: 0;
+}
+
+.overshoot-rows {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overshoot-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border-inline-start: 4px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.overshoot-row .name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.overshoot-row.is-best {
+  border-inline-start-color: var(--correct);
+}
+
+.overshoot-row.is-best .overshoot-points {
+  color: var(--correct);
+  font-weight: 700;
+}
+
+.overshoot-over {
+  border-inline-start-color: var(--wrong);
+  background: var(--spot);
+}
+
+.overshoot-over .overshoot-points {
+  color: var(--wrong);
+  font-weight: 700;
+}
+
+.overshoot-row.is-me {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.overshoot-limit {
+  padding: 0.125rem 0.5rem;
+  border-top: 2px dashed var(--wrong);
+  color: var(--dim);
+  font-size: 0.875rem;
+}
+
 /* ---------- Світла тема ----------
    Змінні — у :root.is-light на початку файлу; тут лише місця, де темна тема має власні числа (білі вуалі, чорні тіні,
    пастельний текст). Як і легкий режим: у кінці файлу й через :where() — специфічність та сама, що в звичайних правил,

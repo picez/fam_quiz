@@ -5300,3 +5300,43 @@ describe('PlayerScreen: think round (35)', () => {
     expect(screen.getByText(t('thinkSent', { word: 'Синій' }))).toBeTruthy();
   });
 });
+
+describe('PlayerScreen: thinkalike and no overshoot (37)', () => {
+  const alikeQuestion = { ...publicQuestion, type: 'thinkalike' as const, text: 'Назвіть фрукт', choices: [] };
+  const alikeFull = { id: 'q1', type: 'thinkalike' as const, text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as Question;
+
+  it('thinkalike phone', () => {
+    show(onQuestion({ question: alikeQuestion as never }));
+    const field = screen.getByPlaceholderText(t('alikePhoneHint')) as HTMLInputElement;
+    expect(field.maxLength).toBe(40);
+  });
+
+  it('the reveal highlights the own group', () => {
+    const alike = {
+      groups: [
+        { key: 'p2', words: ['яблуко'], members: [{ id: 'p2', nickname: 'Оля' }, { id: 'p3', nickname: 'Тарас' }], top: true, points: 1000 },
+        { key: 'p1', words: ['груша'], members: [{ id: 'p1', nickname: 'Олена' }], top: false, points: 0 },
+      ],
+      silent: [],
+    };
+    show(view({ phase: 'reveal', questionIndex: 0, question: alikeQuestion as never, reveal: alikeFull, alike, me: { ...me, answer: { type: 'thinkalike', value: 'груша' }, result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 } } as never }));
+    const own = [...document.querySelectorAll<HTMLElement>('.alike-group')].find((li) => li.querySelector('.alike-words')?.textContent === 'груша')!;
+    expect(own.className).toContain('is-me');
+    expect(document.querySelector('.alike-top')!.className).not.toContain('is-me');
+  });
+
+  it('own overshoot', () => {
+    const numericQuestion = { ...publicQuestion, type: 'numeric' as const, text: 'Скільки клавіш у піаніно?', choices: [] };
+    const numericFull = { id: 'q1', type: 'numeric' as const, text: 'Скільки клавіш у піаніно?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0, noOvershoot: true } as Question;
+    const overshoot = [
+      { playerId: 'p2', nickname: 'Оля', value: 85, over: false, points: 1000 },
+      { playerId: 'p1', nickname: 'Олена', value: 90, over: true, points: 0 },
+    ];
+    show(view({ phase: 'reveal', questionIndex: 0, question: numericQuestion as never, reveal: numericFull, overshoot, me: { ...me, answer: { type: 'numeric', value: 90 }, result: { accepted: false, accuracy: 0, grade: 'wrong', streakBonus: 0, points: 0 } } as never }));
+    const own = document.querySelector('.overshoot-row.is-me') as HTMLElement;
+    expect(own.className).toContain('overshoot-over');
+    expect(within(own).getByText(t('overshootOver'))).toBeTruthy();
+    // Чужих рядків телефон не показує — лише власний.
+    expect(document.querySelectorAll('.overshoot-row')).toHaveLength(1);
+  });
+});

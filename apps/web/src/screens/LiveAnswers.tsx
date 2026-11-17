@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
+import { overshootOn, snippetSeconds, type HostLive, type HostView, type LiveDraft, type LiveRow, type Question, type SortTilt } from '@quiz/shared';
 import { awayRowTexts } from '../away-text';
 import { AwayLabel } from './AwayLabel';
 import { answerText, num, secondsText, sliderNumber } from '../format';
@@ -247,9 +247,19 @@ interface RowContext {
   now: number;
 }
 
+/**
+ * «Думай як усі» (37e) і «Не перебільш» (37d): до закриття запис тимчасовий (0, «неправильно») — справжні бали ставить рушій
+ * при закритті, тож вердикт до розкриття збрехав би. Відповідь видно як текст.
+ */
+function provisional(view: HostView): boolean {
+  if (view.phase === 'reveal' || view.correct === null) return false;
+  return view.correct.type === 'thinkalike' || overshootOn(view.correct);
+}
+
 function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
   const choices = view.question?.choices;
   const draft = draftOf(row, drafts);
+  const verdict = provisional(view) ? null : row.verdict;
   return (
     <li className="live-row">
       <span className="name" dir="auto">{row.nickname}</span>
@@ -263,7 +273,7 @@ function Row({ row, view, tilts, drafts, now }: { row: LiveRow } & RowContext) {
       {row.clue !== null && <span className="meta">{t('clueAt', { n: row.clue })}</span>}
       {row.timeMs !== null && <span className="meta live-time">{t('blitzRowTime', { time: secondsText(row.timeMs) })}</span>}
       <AwayMarks row={row} view={view} />
-      {row.verdict !== null && <span className={`tag is-${row.verdict}`}>{t(`liveVerdict_${row.verdict}` as TextKey)}</span>}
+      {verdict !== null && <span className={`tag is-${verdict}`}>{t(`liveVerdict_${verdict}` as TextKey)}</span>}
       {row.awaiting && <span className="tag is-pending">{t('liveAwaiting')}</span>}
     </li>
   );

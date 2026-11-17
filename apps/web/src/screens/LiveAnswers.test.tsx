@@ -692,3 +692,21 @@ describe('LiveAnswers: videoclip (36)', () => {
     expect(screen.getByText('Відповіли 1 з 3')).toBeTruthy();
   });
 });
+
+describe('LiveAnswers: thinkalike and no overshoot (37)', () => {
+  const alike = { id: 'q4', type: 'thinkalike', text: 'Назвіть фрукт', imageUrl: null, video: null, timeLimit: 30, points: 1000 } as Question;
+  const numeric = { id: 'q5', type: 'numeric', text: 'Скільки клавіш?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0, noOvershoot: true } as Question;
+
+  it('the word shows as text, without the provisional verdict until the reveal', () => {
+    const rows = [row({ answered: true, answer: { type: 'thinkalike', value: 'яблуко' }, verdict: 'wrong' })];
+    show(rows, base({ correct: alike }));
+    expect(screen.getByText('яблуко')).toBeTruthy();
+    expect(screen.queryByText(t('liveVerdict_wrong'))).toBeNull();
+    cleanup();
+    show([row({ answered: true, answer: { type: 'numeric', value: 85 }, verdict: 'wrong' })], base({ correct: numeric, phase: 'locked' }));
+    expect(screen.queryByText(t('liveVerdict_wrong'))).toBeNull();
+    cleanup();
+    show([row({ answered: true, answer: { type: 'thinkalike', value: 'яблуко' }, verdict: 'correct' })], base({ correct: alike, phase: 'reveal' }));
+    expect(screen.getByText(t('liveVerdict_correct'))).toBeTruthy();
+  });
+});
