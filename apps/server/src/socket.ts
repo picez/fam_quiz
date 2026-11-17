@@ -7,6 +7,7 @@ import {
   debuffSchema,
   declareSchema,
   duelAnswerSchema,
+  duelBetSchema,
   duelPickSchema,
   guessSchema,
   judgeSchema,
@@ -814,6 +815,12 @@ export function attachSockets(
       if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
       const payload = duelPickSchema.safeParse(payloadOf(args));
       return payload.success ? manager.duelCategory(room, identity.playerId, payload.data.categoryId) : INVALID;
+    });
+
+    on('player:duel-bet', (args) => {
+      if (identity.role !== 'player' || identity.playerId === null) return FORBIDDEN;
+      const payload = duelBetSchema.safeParse(payloadOf(args));
+      return payload.success ? manager.duelBet(room, identity.playerId, payload.data.side) : INVALID;
     });
 
     on('player:duel-answer', (args) => {

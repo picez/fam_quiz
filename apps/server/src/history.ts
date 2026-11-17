@@ -773,6 +773,7 @@ export async function hostGameWithFacts(db: Db, hostId: string, id: string): Pro
       points,
       source,
       ...(source === 'debuff' ? { debuff: debuff ?? undefined, target: targetNickname } : {}),
+      ...(source === 'duelbet' ? { target: targetNickname } : {}),
       ...(source === 'undo' && undoesQuestion !== null ? { undoes: { question: undoesQuestion } } : {}),
       ...(source === 'undo' && undoesQuestion === null && undoesSeq !== null ? { undoes: { seq: undoesSeq } } : {}),
     })),

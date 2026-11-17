@@ -171,6 +171,7 @@ describe('gameAchievements: special rounds', () => {
   it('duelist: a won duel', () => {
     expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: 200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).toContain('duelist');
     expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duel', points: -200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).not.toContain('duelist');
+    expect(earned(fakeGame({ adjustments: [{ participantId: P, source: 'duelbet', points: 100, seq: 1, roundIndex: 0, undoesSeq: null }] }))).not.toContain('duelist');
     expect(earned(fakeGame({ adjustments: [{ participantId: PETRO, source: 'duel', points: 200, seq: 1, roundIndex: 0, undoesSeq: null }] }))).not.toContain('duelist');
   });
 });

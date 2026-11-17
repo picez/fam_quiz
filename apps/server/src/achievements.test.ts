@@ -252,6 +252,18 @@ describe('new achievements', () => {
     expect(isComeback(back, 'b')).toBe(true);
   });
 
+  it('a duel bet that lands in a blitz round does not win it', () => {
+    const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
+    const bet = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'duelbet' as const });
+    const p = (id: string, rank: number, score: number, rows: TableRow[]) => ({ participantId: id, userId: id, memberUserIds: [], rank, score, rows });
+    // a ставкою обійшов b (120 проти 20), але за бліцем вони нарівні
+    const level = table(['blitz'], [p('a', 1, 120, [row(0, 20), bet(0, 100)]), p('b', 2, 20, [row(0, 20)])]);
+    expect(wonBlitzRound(level, 'a')).toBe(false);
+    // а програна ставка не забирає чесно виграного бліцу
+    const lost = table(['blitz'], [p('a', 2, 10, [row(0, 30), bet(0, -100), row(0, 80)]), p('b', 1, 20, [row(0, 20)])]);
+    expect(wonBlitzRound(lost, 'a')).toBe(true);
+  });
+
   it('carried points (12r) never win a blitz round but count for a comeback', () => {
     const row = (roundIndex: number, points: number) => ({ roundIndex, attempt: 0, accepted: points > 0, points, wager: null });
     const carry = (roundIndex: number, points: number) => ({ roundIndex, attempt: ADJUSTMENT_ATTEMPT, accepted: false, points, wager: null, source: 'carry' as const });
