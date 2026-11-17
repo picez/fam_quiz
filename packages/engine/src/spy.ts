@@ -48,7 +48,8 @@ function spectator(state: GameState, playerId: string): boolean {
 export function openSpy(state: GameState, rng: Rng): SpyPlay {
   const cast = spyCast(state);
   const index = Math.min(cast.length - 1, Math.floor(rng() * cast.length));
-  return { stage: 'words', spyId: cast[index]?.id ?? '', words: {}, votes: {}, guess: null };
+  const spy = cast[index];
+  return { stage: 'words', spyId: spy?.id ?? '', ...(spy === undefined ? {} : { spyName: spy.nickname }), words: {}, votes: {}, guess: null };
 }
 
 /** Слово, яке бачить гравець: шпигун — spyWord, решта — accepted[0]. */
@@ -179,10 +180,13 @@ export function spyAuto(state: GameState, now: number | null): GameState {
   return expired || spyGone || play.spy.guess !== null ? lockNow(state) : state;
 }
 
-/** Чи викрито шпигуна запитання index: він ще в грі й має строго найбільше голосів (> 0). */
+/**
+ * Чи викрито шпигуна запитання index: строго найбільше голосів (> 0) за нього. Вилучення на відкритому запитанні знімає голоси за нього,
+ * тож вилучений до закриття не викритий; вилучений після закриття лишається викритим, як і було при підрахунку балів.
+ */
 export function spyCaught(state: GameState, index: number): boolean {
   const spy = state.plays[index]?.spy;
-  if (spy === undefined || !state.players.some((p) => p.id === spy.spyId)) return false;
+  if (spy === undefined) return false;
   const counts = new Map<string, number>();
   for (const { target } of Object.values(spy.votes)) counts.set(target, (counts.get(target) ?? 0) + 1);
   const against = counts.get(spy.spyId) ?? 0;
@@ -273,7 +277,8 @@ function fullInfo(state: GameState, play: Play & { spy: SpyPlay; question: SpyQu
     spyId: spy.spyId,
     playersWord: question.accepted[0],
     spyWord: question.spyWord,
-    spyName: state.players.find((p) => p.id === spy.spyId)?.nickname ?? null,
+    // Вилучений після закриття — нікнейм з відкриття; до закриття вилучення прибирає spyName.
+    spyName: state.players.find((p) => p.id === spy.spyId)?.nickname ?? spy.spyName ?? null,
     caught: spyCaught(state, state.questionIndex),
     guess: spy.guess?.text ?? null,
     guessed: guessedOf(state, play),

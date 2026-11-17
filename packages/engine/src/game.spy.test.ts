@@ -84,7 +84,7 @@ function voteAll(s: GameState, targets: string[], t = T + 5000): GameState {
 describe('spy (38): the spy', () => {
   it('the program picks the spy with the game rng', () => {
     const s = open();
-    expect(spyPlayOf(s)?.spy).toEqual({ stage: 'words', spyId: 'p3', words: {}, votes: {}, guess: null });
+    expect(spyPlayOf(s)?.spy).toEqual({ stage: 'words', spyId: 'p3', spyName: 'Петро', words: {}, votes: {}, guess: null });
     expect(spyPlayOf(open(spyQuiz(), NAMES, rngPicking(2)))?.spy.spyId).toBe('p3');
     expect(spyPlayOf(open(spyQuiz(), NAMES, rngPicking(0)))?.spy.spyId).toBe('p1');
     expect(spyPlayOf(open(spyQuiz(), NAMES, rngPicking(3)))?.spy.spyId).toBe('p4');
@@ -445,6 +445,28 @@ describe('spy (38): views', () => {
   });
 });
 
+describe('spy (38): the answered counter', () => {
+  it('counts what is public, so a silent spy looks like any silent player', () => {
+    // Ганна мовчить усе запитання; шпигун — то вона (rngPicking(3)), то Петро (rngPicking(2)).
+    const played = (rng: Rng) => {
+      let s = word(word(word(open(spyQuiz(), NAMES, rng), 'p1', 'аромат'), 'p2', 'ранок'), 'p3', 'зелений');
+      const counts = [stageView(s).answeredCount];
+      s = must(lock(s, T + 2000));
+      counts.push(stageView(s).answeredCount);
+      s = vote(vote(vote(s, 'p1', 'p2', T + 3000), 'p2', 'p1', T + 3000), 'p3', 'p1', T + 3000);
+      counts.push(stageView(s).answeredCount);
+      s = must(lock(s, T + 4000));
+      expect(s.phase).toBe('locked');
+      counts.push(stageView(s).answeredCount, phone(s, 'p1').answeredCount);
+      counts.push(stageView(must(next(s, T + 5000))).answeredCount);
+      return counts;
+    };
+    expect(played(rngPicking(3))).toEqual([3, 0, 3, 3, 3, 3]);
+    expect(played(rngPicking(2))).toEqual(played(rngPicking(3)));
+    expect(spyPlayOf(open(spyQuiz(), NAMES, rngPicking(3)))?.spy.spyId).toBe('p4');
+  });
+});
+
 describe('spy (38): removals and late joiners', () => {
   it('a removed spy', () => {
     // words: Петра вилучено — решта пише, голосує, закриття без балів.
@@ -475,6 +497,20 @@ describe('spy (38): removals and late joiners', () => {
     const closed = must(removePlayer(g, 'p3'));
     expect(closed.phase).toBe('locked');
     expect(scores(closed)).toEqual({ Оля: 0, Тарас: 0, Ганна: 0 });
+  });
+
+  it('a spy removed after the close is still named and caught', () => {
+    const closed = guess(voteAll(toVote(), ['p3', 'p3', 'p1', 'p3']), 'p3', 'кава', T + 6000);
+    expect(closed.phase).toBe('locked');
+    const reveal = must(next(closed, T + 7000));
+    for (const s of [must(removePlayer(closed, 'p3', T + 6500)), must(removePlayer(reveal, 'p3', T + 7500))]) {
+      const shown = s.phase === 'reveal' ? s : must(next(s, T + 7000));
+      expect(shown.phase).toBe('reveal');
+      expect(stageSpy(shown)).toMatchObject({ stage: 'reveal', spyName: 'Петро', caught: true, guess: 'кава', guessed: true });
+      expect(hostSpyOf(shown)).toMatchObject({ spyId: 'p3', spyName: 'Петро', caught: true });
+      expect(stageSpy(shown)?.rows?.map((r) => [r.nickname, r.points])).toEqual([['Оля', 1000], ['Тарас', 1000], ['Ганна', 1000]]);
+      expect(scores(shown)).toEqual({ Оля: 1000, Тарас: 1000, Ганна: 1000 });
+    }
   });
 
   it('a removed suspect', () => {

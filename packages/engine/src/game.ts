@@ -487,6 +487,11 @@ export interface SpyPlay {
   /** words — асоціації, vote — голосування, guess — останній шанс викритого шпигуна; після закриття лишається останній. */
   stage: 'words' | 'vote' | 'guess';
   spyId: string;
+  /**
+   * Нікнейм шпигуна на мить відкриття: розкриття називає його й тоді, коли його вилучили вже після закриття.
+   * Вилучення до закриття ключ прибирає (балів немає — «Шпигун вийшов з гри»). Знімки до цього поля його не мають.
+   */
+  spyName?: string;
   /** Асоціації за id гравця: текст після чистки й мить надсилання. */
   words: Record<string, { text: string; at: number }>;
   /** Голоси за id гравця: ціль і час від старту голосування, мс. */
@@ -1290,7 +1295,8 @@ function removeFromGame(state: GameState, playerId: string, now?: number): Resul
     if (play.spy !== undefined && index === state.questionIndex && state.phase === 'question') {
       const { [playerId]: _word, ...words } = play.spy.words;
       const votes = Object.fromEntries(Object.entries(play.spy.votes).filter(([id, v]) => id !== playerId && v.target !== playerId));
-      kept.spy = { ...play.spy, words, votes };
+      const { spyName: _spyName, ...open } = play.spy;
+      kept.spy = { ...(playerId === play.spy.spyId ? open : play.spy), words, votes };
     }
     if (play.wipeout !== undefined) {
       const without = (ids: string[]) => ids.filter((id) => id !== playerId);

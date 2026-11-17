@@ -247,7 +247,7 @@ import { wallOf, wallsHere } from './wall';
 import { isAuthor } from './autopilot';
 import { cloudTally, cloudVoters } from './votes';
 import { bluffOrder, bluffPlayOf, bluffShown, bluffShownText } from './bluff';
-import { hostSpy, playerSpy, spyInfo } from './spy';
+import { hostSpy, playerSpy, spyInfo, spyPlayOf } from './spy';
 import { skippedSurveys, surveyShown } from './survey';
 import { duelCategoriesLeft, duelEnds, duelQuestionOf, duelWindowOpen } from './duel';
 import { BOARD_AWAY_MS, cellPlayed, chooserOf, turnSchedule } from './board-turns';
@@ -3498,6 +3498,13 @@ function answeredCount(state: GameState): number {
   const bluff = currentBluff(state)?.play.bluff;
   if (bluff !== undefined && state.phase === 'question') {
     const own = bluff.stage === 'lies' ? bluff.lies : bluff.picks;
+    return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
+  }
+  // «Шпигун» (38): лише те, що й так видно — хто написав (words), хто проголосував (vote, guess і далі). Записи не годяться:
+  // при закритті шпигун отримує запис і мовчки, тож лічильник видав би, що він серед мовчазних.
+  const spy = spyPlayOf(state);
+  if (spy !== null) {
+    const own = spy.spy.stage === 'words' ? spy.spy.words : spy.spy.votes;
     return state.players.filter((p) => Object.hasOwn(own, p.id)).length;
   }
   // Мовчання з «Ризиком» (12h) — штраф, а не відповідь.
