@@ -166,7 +166,13 @@ export interface GameQuestionResult {
    * хто був живий на відкритті, за турнірною таблицею: слово ('' — мовчав), вердикт і чи втратив життя (лише розкрите забирає).
    * Бали — коригування 'think' на кінці раунду (adjustments).
    */
-  think?: { words: string[]; lives: Record<string, number>; rows: { nickname: string; answer: string; verdict: ThinkVerdict; lost: boolean }[] };
+  think?: {
+    words: string[];
+    lives: Record<string, number>;
+    rows: { nickname: string; answer: string; verdict: ThinkVerdict; lost: boolean }[];
+    /** Лише на останньому зіграному запитанні раунду: місця раунду (і з 0 балів) — місце, життя, номер запитання вибування, бали. */
+    places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
+  };
   /** Запитання фіналу: ставки й результати учасників за турнірною таблицею; null поза фіналом. */
   final: {
     /** Тип ставок фіналу зі знімка. */

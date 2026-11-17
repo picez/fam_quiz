@@ -1,4 +1,4 @@
-import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
+import { answeredByOf, appealTally, cluesAnswered, debuffOn, isSilentRisk, memberOf, packedStrokes, rankPlayers, recordOf, teamMembers, teamsOn, thinkPlaces, thinkVerdicts, voteTally, type DrawingPlay, type GameState, type LadderPlay, type SurvivalPlay, type ThinkPlay, type TruthPlay } from '@quiz/engine';
 import { AWAY_MS, isUnscored, type Answer, type BuffKind, type DebuffKind, type Question } from '@quiz/shared';
 import { and, eq, gt, gte, inArray, max, notInArray, sql } from 'drizzle-orm';
 import { antiHidden, awardedIn, awardGame } from './achievement-store';
@@ -130,7 +130,8 @@ function answerRows(state: GameState, seen: DebuffsSeen, index: number, playerId
   const rows = answerRowsOf(state, index, playerId, engineParticipant, team);
   const awayMs = awayMsOf(state, index, playerId);
   if (rows.length > 0) return rows.map((row) => ({ ...row, awayMs, debuff }));
-  if (!engineParticipant || awayMs === null || isUnscored(state.plays[index].question)) return [];
+  // Опитування, хмара й «Думай інакше» (35): рядка «відволікався» без відповіді немає — цікавинки його теж не рахують (awayFacts).
+  if (!engineParticipant || awayMs === null || isUnscored(state.plays[index].question) || state.plays[index].think !== undefined) return [];
   return [
     { attempt: AWAY_ATTEMPT, payload: null, timeMs: 0, accepted: false, points: 0, streakBonus: 0, overridden: false, wager: null, buff: null, spareId: null, awayMs, debuff, clue: null, answeredBy: null },
   ];
@@ -221,12 +222,19 @@ function drawingRef(state: GameState, drawing: DrawingPlay): NonNullable<PlayRef
  */
 function thinkRef(state: GameState, index: number, think: ThinkPlay): NonNullable<PlayRef['think']> {
   const verdicts = thinkVerdicts(state, index);
+  // Місця раунду (огляд M-1) — на останньому зіграному запитанні раунду, щойно раунд скінчився: історія показує таблицю й місця з 0 балів.
+  const { roundIndex } = state.plays[index];
+  const lastOfRound = !state.plays.some((play, other) => other > index && play.roundIndex === roundIndex);
+  const over = state.roundIndex > roundIndex || state.phase === 'round_end' || state.phase === 'finished';
+  const nickname = (id: string) => state.players.find((p) => p.id === id)?.nickname ?? '';
+  const places = lastOfRound && over ? thinkPlaces(state, roundIndex).map(({ id, place, lives, outAt, points }) => ({ nickname: nickname(id), place, lives, outAt, points })) : [];
   return {
     words: think.words,
     lives: think.lives,
     revealed: think.revealed,
     hit: Object.keys(verdicts).filter((id) => verdicts[id] === 'hit'),
     ...(think.watch === undefined || think.watch.length === 0 ? {} : { watch: think.watch }),
+    ...(places.length === 0 ? {} : { places }),
   };
 }
 

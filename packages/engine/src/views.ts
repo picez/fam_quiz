@@ -322,6 +322,14 @@ function withoutBluffSecrets(question: Question): Question {
 }
 
 /**
+ * «Думай інакше» (35): розкриття для сцени й телефонів без заготовлених слів — у грі ведучий міг їх змінити (чинні слова — у think.words),
+ * а запитання, закрите «Завершити раунд» без розкриття, не мусить видавати жодного слова.
+ */
+function withoutThinkWords(question: Question): Question {
+  return question.type === 'think' ? { ...question, words: [] } : question;
+}
+
+/**
  * Відповідь для сцени й телефонів: збіги «100 до 1» (rows) видали б дошку до розкриття, тож без revealed лишаються лише values.
  * Підсумок блефу (вибір, правда) до відкриття правди — null. Інші відповіді без змін.
  */
@@ -3624,7 +3632,7 @@ export function playerView(state: GameState, playerId: string, now?: number): Pl
 
 function stageViewOf(state: GameState): StageView {
   const shown = isRevealed(state) ? shownQuestion(state) : null;
-  const revealed = shown === null ? null : withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question)));
+  const revealed = shown === null ? null : withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(shown.question))));
   return {
     ...base(state, false),
     role: 'stage',
@@ -3906,7 +3914,7 @@ function buildOwnView(state: GameState, playerId: string): Omit<PlayerView, 'tea
       // Командна гра: зріз спільний для команди, а апеляція людини (свій голос) — у playerView поверх нього.
       appeal: teamsOn(state) ? null : playerAppeal(state, playerId, playerId),
     },
-    reveal: revealed && seen !== null ? withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question))) : null,
+    reveal: revealed && seen !== null ? withoutThinkWords(withoutBluffSecrets(withoutSurveyRows(withoutHint(seen.question)))) : null,
     standings,
     table: liveTable(state, playerId),
     // Свій банк у вікні «Ва-банк» видно собі, як і в liveTable.

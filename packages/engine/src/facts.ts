@@ -116,7 +116,8 @@ function appealFacts(state: GameState): FactInput['appeals'] {
 function awayFacts(state: GameState, closedCount: number): FactInput['away'] {
   const away: FactInput['away'] = [];
   for (let index = 0; index < closedCount; index++) {
-    if (isUnscored(state.plays[index].question)) continue;
+    // «Думай інакше» (35) — так само: рядків «відволікався» історія для нього не пише (recorder).
+    if (isUnscored(state.plays[index].question) || state.plays[index].think !== undefined) continue;
     const seen = new Set<string>();
     for (const [personId, entry] of Object.entries(state.plays[index].away ?? {})) {
       if (entry.ms < AWAY_MS.mark) continue;

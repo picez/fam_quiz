@@ -226,6 +226,26 @@ export function ThinkHistory({ think }: { think: NonNullable<GameQuestionResult[
           </li>
         ))}
       </ul>
+      {/* Останнє зігране запитання раунду несе місця раунду — і з 0 балів, яких немає серед коригувань. */}
+      {think.places !== undefined && think.places.length > 0 && (
+        <table className="think-places-table think-history-places">
+          <caption className="meta">{t('thinkPlacesTitle')}</caption>
+          <tbody>
+            {think.places.map((row) => (
+              <tr key={row.nickname}>
+                <td className="think-place">{t('thinkPlace', { place: row.place })}</td>
+                <th scope="row" className="name" dir="auto">
+                  {row.nickname}
+                </th>
+                <td className="think-place-state">{row.outAt === null ? `❤️ ${row.lives}` : t('thinkOutAt', { index: row.outAt })}</td>
+                <td className="think-place-points" dir="ltr">
+                  {signed(row.points)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

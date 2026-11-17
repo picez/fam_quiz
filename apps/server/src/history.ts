@@ -201,7 +201,8 @@ function factInputOf(
       number,
       text: question.text,
       limitMs: factLimitMs(question, round, voice),
-      scored: !isUnscored(question),
+      // «Думай інакше» (35): записи з 0 балів — не «відповіді» для цікавинок, як і наживо (facts.ts).
+      scored: !isUnscored(question) && question.type !== 'think',
       board: ref?.cell !== undefined,
       blitz: round?.type === 'blitz' || cell?.cell.kind === 'blitz',
       bluff: question.type === 'bluff',
@@ -437,7 +438,7 @@ function thinkResult(
     lives[nickname] = lost ? before - 1 : before;
     rows.push({ nickname, answer, verdict, lost });
   }
-  return { words: think.words.map((w) => w.word), lives, rows };
+  return { words: think.words.map((w) => w.word), lives, rows, ...(think.places === undefined ? {} : { places: think.places }) };
 }
 
 /**

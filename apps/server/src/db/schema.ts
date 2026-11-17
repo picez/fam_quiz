@@ -165,7 +165,15 @@ export interface PlayRef {
    * чи запитання розкрито (лише розкрите забирає життя), хто збігся зі словом (з ручною оцінкою ведучого) і хто лише дивився
    * (команда, де лишився сам автор автопілота; немає — нікого).
    */
-  think?: { words: ThinkWord[]; lives: Record<string, number>; revealed: boolean; hit: string[]; watch?: string[] };
+  think?: {
+    words: ThinkWord[];
+    lives: Record<string, number>;
+    revealed: boolean;
+    hit: string[];
+    watch?: string[];
+    /** Лише на останньому зіграному запитанні раунду, коли раунд скінчився: місця раунду (усі, і з 0 балів), за нікнеймами. */
+    places?: { nickname: string; place: number; lives: number; outAt: number | null; points: number }[];
+  };
   /** «Вибування»: хто був на межі, випробування, привиди й кінець раунду (id учасників). */
   survival?: {
     /** Хто був на межі; немає — раунд чи гра скінчились на розкритті, до вердикту. */

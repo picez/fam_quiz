@@ -2679,6 +2679,11 @@ describe('history: think (35)', () => {
         { nickname: 'Олена', answer: 'ксилофон', verdict: 'safe', lost: false },
         { nickname: 'Тарас', answer: 'Синя', verdict: 'hit', lost: true },
       ],
+      // Останнє зігране запитання раунду несе таблицю місць — і місце з 0 балів (огляд M-1).
+      places: [
+        { nickname: 'Олена', place: 1, lives: 1, outAt: null, points: 1000 },
+        { nickname: 'Тарас', place: 2, lives: 0, outAt: 1, points: 0 },
+      ],
     });
     expect(detail.questions[0]).toMatchObject({ answered: 2, accepted: 0 });
     expect(detail.adjustments.filter((a) => a.source === 'think').map((a) => [a.nickname, a.points])).toEqual([['Олена', 1000]]);

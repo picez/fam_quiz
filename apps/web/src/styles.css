@@ -23854,6 +23854,14 @@ input.sudoku-editor-cell:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.think-history-places {
+  margin-top: 0.5rem;
+}
+
+.think-history-places caption {
+  text-align: start;
+}
+
 .think-history-rows li.is-wrong {
   border-inline-start-color: var(--wrong);
 }

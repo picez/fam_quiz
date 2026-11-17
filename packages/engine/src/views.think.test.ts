@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Answer, ThinkRound, ThinkWord } from '@quiz/shared';
-import { next, start, submitAnswer, tick, type GameState } from './game';
+import { end, endRound, next, start, submitAnswer, tick, type GameState } from './game';
 import { addLatePlayer } from './saved';
 import { actAnswer } from './team-act';
 import { setThinkWords } from './think';
@@ -193,6 +193,24 @@ describe('think views (35)', () => {
         expect(hostView(s)).not.toHaveProperty('think');
         expect(playerView(s, 'p1')?.me).not.toHaveProperty('think');
       }
+    }
+  });
+
+  it('the public reveal carries the words the host set, not the prepared ones (review I-1)', () => {
+    const changed = must(setThinkWords(opened(intro([red])), [blue], t0 + 100));
+    const shown = revealOf(answer(changed, { p1: 'зелений' }));
+    expect(shown.phase).toBe('reveal');
+    for (const json of publicJson(shown)) {
+      expect(json).not.toContain('червоний');
+      expect(json).not.toContain('багряний');
+      expect(json).toContain('синій');
+    }
+  });
+
+  it('a question closed without a reveal shows no words at all (review I-1)', () => {
+    const asked = answer(opened(intro([red, blue])), { p1: 'зелений' });
+    for (const closed of [must(endRound(asked, at(asked, 5000))), must(end(asked, at(asked, 5000)))]) {
+      expectHidden(closed, ['червоний', 'багряний', 'синій']);
     }
   });
 });

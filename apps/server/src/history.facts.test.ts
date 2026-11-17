@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { defaultTeams, factTable, gameAwards, revealFacts } from '@quiz/shared';
 import { factInput } from '@quiz/engine';
-import { auctionRound, betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, withId, withVideo } from '@quiz/engine/testing';
+import { auctionRound, betsRound, blitzRound, bluff, boardRound, classicRound, finalRound, makeQuiz, makeRoundsQuiz, poll, single, text, think, thinkRound, withId, withVideo } from '@quiz/engine/testing';
 import { buildApp } from './app';
 import { hostGame, hostGameWithFacts } from './history';
 import type { Db } from './db/client';
@@ -416,6 +416,63 @@ describe('history facts (12d)', () => {
       expect(q.responses.map((r) => r.nickname)).not.toContain('Оля');
       expect(q.answered).toBe(1);
     }
+    await local.app.close();
+  });
+
+  it('think gives the same facts live and in the history: no scored answers, no away marks (35, review I-2)', async () => {
+    const scheduler = new FakeScheduler();
+    const localDb = await createTestDb();
+    const local = await buildApp({ db: localDb, auth: TEST_AUTH, scheduler });
+    const send = (url: string, payload: object, cookie?: string) =>
+      local.app.inject({ method: 'POST', url, payload, headers: cookie === undefined ? {} : { cookie } });
+    const host = await signUp(local.app, 'Ведуча');
+    const [account] = await localDb.select().from(user).where(eq(user.email, host.email));
+    const words = [{ word: 'червоний', synonyms: [] }];
+    const quiz = makeRoundsQuiz([classicRound('r1', [single], { speedBonus: false }), thinkRound('t', [think('t1', words), think('t2', words), think('t3', words)])]);
+    const quizId = ((await send('/api/quizzes', quiz, host.cookie)).json() as { id: string }).id;
+    const created = (await send('/api/games', { quizId }, host.cookie)).json() as { gameId: string; code: string };
+    const room = local.manager.get(created.code);
+    if (room === undefined) throw new Error('room missing');
+    const ids: Record<string, string> = {};
+    for (const name of ['Оля', 'Петро']) {
+      ids[name] = ((await send(`/api/games/by-code/${created.code}/join`, { nickname: name })).json() as { playerId: string }).playerId;
+      local.manager.connect(room, { role: 'player', playerId: ids[name] });
+    }
+    const { Оля: olya, Петро: petro } = ids;
+    expect(local.manager.host(room, { type: 'start' })).toEqual({ ok: true });
+    const done = new Set<number>();
+    for (let guard = 0; guard < 40 && room.state.phase !== 'finished'; guard++) {
+      const { phase, questionIndex } = room.state;
+      const play = room.state.plays[questionIndex];
+      if (phase === 'question' && !done.has(questionIndex)) {
+        done.add(questionIndex);
+        if (play.think !== undefined) {
+          // Оля поза грою й мовчить; Петро пише слово (безпечне й швидке — у класиці це була б «найшвидша»).
+          const plays = [...room.state.plays];
+          plays[questionIndex] = { ...play, away: { [olya]: { ms: 3500, count: 1, since: null } } };
+          room.state = { ...room.state, plays };
+          expect(local.manager.answer(room, petro, { type: 'think', value: 'зелений' })).toEqual({ ok: true });
+        } else {
+          expect(local.manager.answer(room, petro, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+          expect(local.manager.answer(room, olya, { type: 'single', optionId: 'a' })).toEqual({ ok: true });
+        }
+        if (room.state.phase === 'question') local.manager.host(room, { type: 'lock' });
+      } else local.manager.host(room, { type: 'next' });
+    }
+    expect(room.state.phase).toBe('finished');
+    await local.recorder.idle();
+
+    const live = factInput(room.state);
+    const found = await hostGameWithFacts(localDb, account.id, created.gameId);
+    expect(found?.factInput.questions).toEqual(live.questions);
+    expect(live.questions.filter((q) => q.roundIndex === 1).every((q) => !q.scored)).toBe(true);
+    expect(live.away).toEqual([]);
+    expect(found?.factInput.away).toEqual(live.away);
+    expect(found?.detail.facts.awards).toEqual(gameAwards(live));
+    expect(found?.detail.facts.table).toEqual(factTable(live));
+    // Рядка «відволікався» без відповіді для think немає.
+    const stored = await localDb.select().from(answer).where(eq(answer.participantId, olya));
+    expect(stored.filter((a) => a.attempt === AWAY_ATTEMPT)).toEqual([]);
     await local.app.close();
   });
 
