@@ -280,6 +280,8 @@ export const appealSchema = z.object({ reason: z.enum(APPEAL_REASONS) });
 export const appealVoteSchema = z.object({ appealId: z.number().int().min(1).max(1_000_000), yes: z.boolean() });
 /** Пульт: увімкнути чи вимкнути живі вибори (12b). */
 export const liveWatchSchema = z.object({ on: z.boolean() });
+/** Пульт: увімкнути чи вимкнути звуки сцени для кімнати (40). */
+export const soundsSchema = z.object({ on: z.boolean() });
 /** Ведучий: спосіб формування. */
 export const teamFormSchema = z.object({ form: z.enum(TEAM_FORMS) });
 /** Ведучий: перемістити учасника (teamId null — без команди). */
@@ -410,6 +412,8 @@ export interface ClientToServerEvents {
   'host:undo': (payload: z.infer<typeof undoSchema>, ack: Ack) => void;
   /** Пульт: увімкнути чи вимкнути живі вибори (12b); лише роль host. */
   'host:live-watch': (payload: z.infer<typeof liveWatchSchema>, ack: Ack) => void;
+  /** Звуки сцени для кімнати (40); лише роль host. */
+  'host:sounds': (payload: z.infer<typeof soundsSchema>, ack: Ack) => void;
   /** Наслати дебаф: спрацює в наступному запитанні, у якому гравець відповідає з телефона. */
   'host:debuff': (payload: z.infer<typeof debuffSchema>, ack: Ack) => void;
   /** Скасувати дебаф, що ще чекає. */
