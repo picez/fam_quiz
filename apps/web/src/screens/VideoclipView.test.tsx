@@ -179,10 +179,6 @@ describe('VideoclipPlay', () => {
     for (const [, value, unit] of css.matchAll(/(?:^|[\s;{])(?:min-|max-)?width:\s*([\d.]+)(px|rem)/g)) {
       expect(Number(value) * (unit === 'rem' ? 16 : 1)).toBeLessThanOrEqual(320);
     }
-    // Рамка на всю ширину поля телефона 320 − 2·12: 296 × 166,5 px.
-    const width = 320 - 2 * 12;
-    expect(width).toBeLessThanOrEqual(296);
-    expect((width * 9) / 16).toBe(166.5);
     // П'ять комірок в один ряд — спільна з «Мелодією» драбинка.
     const ladder = cssSection('/* «Мелодія за нотами»: телефон (29e)', '/* «Мелодія за нотами»: кінець телефона */');
     expect(ladder).toMatch(/\.melody-steps \{[^}]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);

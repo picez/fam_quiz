@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { SNIPPET_REVEAL_SECONDS, SNIPPET_STEPS, snippetSeconds, snippetShare, type PlayerSnippets, type PublicQuestion, type PublicVideoclip, type SnippetInfo, type SubmittedAnswer } from '@quiz/shared';
-import { errorText, t } from '../i18n';
+import { useEffect, useRef } from 'react';
+import { SNIPPET_REVEAL_SECONDS, type PlayerSnippets, type PublicQuestion, type PublicVideoclip, type SnippetInfo, type SubmittedAnswer } from '@quiz/shared';
+import { t } from '../i18n';
 import type { AudioCommand } from '../live/useGame';
 import type { Send } from '../live/types';
 import { useVideoClip } from '../live/useVideoClip';
-import { AnswerInput } from './AnswerInput';
-import { SnippetBoards, SnippetSteps, SnippetTable, percent, withTimeout, type SnippetTexts } from './SnippetView';
+import { SnippetAnswer, SnippetBoards, SnippetSteps, SnippetTable, useSnippetLadder, type SnippetTexts } from './SnippetView';
 
 /** Тексти «Відео за фрагментами» (36) для спільних драбинки, плиток і таблиці. */
 export const VIDEOCLIP_TEXTS: SnippetTexts = {
@@ -46,75 +45,16 @@ export function VideoclipPlay(props: VideoclipPlayProps) {
 function VideoclipBoard({ info, question, questionIndex, paused, live, send, onSubmit, onDraft, answer }: VideoclipPlayProps) {
   const { videoclip } = question;
   const clip = useVideoClip(videoclip.clip, { muted: videoclip.muted, paused, live });
-  const [pendingStep, setPendingStep] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const alive = useRef(true);
-  const sendNow = useRef(send);
-  sendNow.current = send;
-  const stopNow = useRef(clip.stop);
-  stopNow.current = clip.stop;
-  // Відео гасимо за запізнілою відмовою лише тоді, коли грає саме той шматок: інший, переглянутий пізніше, не чіпаємо.
-  const playingNow = useRef(clip.playing);
-  playingNow.current = clip.playing;
-
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
-
-  // Шматок, який зріз уже відкрив, більше не «чекає».
-  const pending = pendingStep !== null && pendingStep > info.heard ? pendingStep : null;
-  const heard = Math.max(info.heard, pending ?? 0);
-  const answered = answer != null;
-  const canOpen = info.canOpen && !answered && !paused && live && heard < SNIPPET_STEPS.length;
-  const playingStep = clip.playing === null ? null : SNIPPET_STEPS.indexOf(clip.playing as (typeof SNIPPET_STEPS)[number]) + 1 || null;
-
-  const onPlay = (step: number) => {
-    if (step <= heard) {
-      clip.play(SNIPPET_STEPS[step - 1]);
-      return;
-    }
-    // Поки попередній шматок чекає ack, наступний не йде (кнопку не притлумлюємо — без блимання).
-    if (!canOpen || pending !== null || step !== heard + 1) return;
-    // iOS: відео — синхронно в обробнику дотику, подія — після.
-    clip.play(SNIPPET_STEPS[step - 1]);
-    setPendingStep(step);
-    setError(null);
-    void withTimeout(sendNow.current('player:melody', { questionIndex, step })).then((result) => {
-      if (!alive.current || result.ok) return;
-      if (playingNow.current === SNIPPET_STEPS[step - 1]) stopNow.current();
-      setPendingStep((now) => (now === step ? null : now));
-      // «Спершу послухайте…» тут не до речі: у відео — власний текст.
-      setError(result.error === 'melody_step' ? t('videoclipStepFirst') : errorText(result.error));
-    });
-  };
-
-  const shareLine = answered ? t('melodyAnswered', { seconds: snippetSeconds(info.heard) }) : heard >= 1 ? t('melodyShareNow', { share: percent(snippetShare(heard)) }) : t('videoclipWatchFirst');
-  const status = error ?? (clip.state === 'blocked' ? t('videoclipBlocked') : clip.state === 'failed' ? t('videoclipFailed') : '');
+  // «Спершу послухайте…» тут не до речі: у відео — власний текст.
+  const ladder = useSnippetLadder(clip, { info, answer, paused, live, send, questionIndex, stepError: () => t('videoclipStepFirst') });
+  const status = ladder.error ?? (clip.state === 'blocked' ? t('videoclipBlocked') : clip.state === 'failed' ? t('videoclipFailed') : '');
 
   return (
     <div className="melody-play videoclip-play">
       {clip.element}
       {videoclip.muted && <p className="meta videoclip-muted">{t('videoclipMutedNote')}</p>}
-      <SnippetSteps heard={heard} canOpen={canOpen} playing={playingStep} onPlay={onPlay} texts={VIDEOCLIP_TEXTS} />
-      <p className="meta melody-share">{shareLine}</p>
-      {info.openedBy !== null && info.heard >= 1 && (
-        <p className="meta melody-by" dir="auto">
-          {t('melodyOpenedBy', { name: info.openedBy, seconds: snippetSeconds(info.heard) })}
-        </p>
-      )}
-      <p className="puzzle-status melody-status" role="status" aria-live="polite">
-        {status}
-      </p>
-      {answered ? (
-        <p className="melody-mine" dir="auto">
-          {answer}
-        </p>
-      ) : (
-        <AnswerInput question={question} onSubmit={(value) => onSubmit(value as SubmittedAnswer)} onDraft={onDraft} autoFocus={false} disabled={!info.canAnswer && pending === null} />
-      )}
+      <SnippetSteps heard={ladder.heard} canOpen={ladder.canOpen} playing={ladder.playingStep} onPlay={ladder.onPlay} texts={VIDEOCLIP_TEXTS} />
+      <SnippetAnswer info={info} ladder={ladder} answer={answer} firstLine={t('videoclipWatchFirst')} status={status} question={question} onSubmit={onSubmit} onDraft={onDraft} />
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import type { CSSProperties } from 'react';
-import { SNIPPET_SHARES, SNIPPET_STEPS, pageSlice, snippetSeconds, type SnippetRow } from '@quiz/shared';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { SNIPPET_SHARES, SNIPPET_STEPS, pageSlice, snippetSeconds, snippetShare, type PlayerSnippets, type PublicQuestion, type SnippetRow, type SubmittedAnswer } from '@quiz/shared';
 import { signed } from '../format';
-import { t } from '../i18n';
-import type { SendResult } from '../live/types';
+import { errorText, t } from '../i18n';
+import type { Send, SendResult } from '../live/types';
+import { AnswerInput } from './AnswerInput';
 import { jigsawTablePageSize } from './JigsawView';
 import { puzzleGrid, puzzlePageSize, usePage } from './PuzzleView';
 
@@ -19,6 +20,127 @@ export function withTimeout(promise: Promise<SendResult>): Promise<SendResult> {
   return Promise.race([promise.catch((): SendResult => ({ ok: false, error: 'offline' })), late]).finally(() => {
     if (timer !== null) clearTimeout(timer);
   });
+}
+
+/** Програвач шматків: звук «Мелодії» (useMelodyClip) чи відео (useVideoClip). playing — секунди шматка, що грає. */
+export interface SnippetClip {
+  play(seconds: number): void;
+  stop(): void;
+  playing: number | null;
+}
+
+export interface SnippetLadderOptions {
+  info: PlayerSnippets;
+  /** Власна (командна) відповідь, якщо вже є. */
+  answer: string | null | undefined;
+  paused: boolean;
+  live: boolean;
+  send: Send;
+  /** Номер запитання в раунді — його чекає сервер у player:melody. */
+  questionIndex: number;
+  /** Текст відмови melody_step, якщо тип має власний (відео: «Спершу перегляньте…»). */
+  stepError?: () => string;
+}
+
+/**
+ * Стан драбинки шматків на телефоні (29e → 36): відкритий локально шматок до ack, що можна відкрити, що грає, і дотик.
+ * Дотик до наступної комірки: clip.play — синхронно в обробнику (iOS), потім player:melody; відмова гасить саме той шматок і закриває комірку.
+ */
+export function useSnippetLadder(clip: SnippetClip, { info, answer, paused, live, send, questionIndex, stepError }: SnippetLadderOptions) {
+  const [pendingStep, setPendingStep] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+  const sendNow = useRef(send);
+  sendNow.current = send;
+  const stopNow = useRef(clip.stop);
+  stopNow.current = clip.stop;
+  const stepErrorNow = useRef(stepError);
+  stepErrorNow.current = stepError;
+  // Програвач гасимо за запізнілою відмовою лише тоді, коли грає саме той шматок: інший, відкритий пізніше, не чіпаємо.
+  const playingNow = useRef(clip.playing);
+  playingNow.current = clip.playing;
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  // Шматок, який зріз уже відкрив, більше не «чекає».
+  const pending = pendingStep !== null && pendingStep > info.heard ? pendingStep : null;
+  const heard = Math.max(info.heard, pending ?? 0);
+  const answered = answer != null;
+  const canOpen = info.canOpen && !answered && !paused && live && heard < SNIPPET_STEPS.length;
+  const playingStep = clip.playing === null ? null : SNIPPET_STEPS.indexOf(clip.playing as (typeof SNIPPET_STEPS)[number]) + 1 || null;
+
+  const onPlay = (step: number) => {
+    if (step <= heard) {
+      clip.play(SNIPPET_STEPS[step - 1]);
+      return;
+    }
+    // Поки попередній шматок чекає ack, наступний не йде (кнопку не притлумлюємо — без блимання).
+    if (!canOpen || pending !== null || step !== heard + 1) return;
+    // iOS: програвач — синхронно в обробнику дотику, подія — після.
+    clip.play(SNIPPET_STEPS[step - 1]);
+    setPendingStep(step);
+    setError(null);
+    void withTimeout(sendNow.current('player:melody', { questionIndex, step })).then((result) => {
+      if (!alive.current || result.ok) return;
+      if (playingNow.current === SNIPPET_STEPS[step - 1]) stopNow.current();
+      setPendingStep((now) => (now === step ? null : now));
+      const own = result.error === 'melody_step' ? stepErrorNow.current : undefined;
+      setError(own !== undefined ? own() : errorText(result.error));
+    });
+  };
+
+  return { heard, pending, answered, canOpen, playingStep, onPlay, error };
+}
+
+/**
+ * Низ телефона під драбинкою (29e → 36): частка ціни (до першого шматка — firstLine), хто з команди відкрив, рядок стану й поле
+ * відповіді (після відповіді — сама відповідь).
+ */
+export function SnippetAnswer({
+  info,
+  ladder,
+  answer,
+  firstLine,
+  status,
+  question,
+  onSubmit,
+  onDraft,
+}: {
+  info: PlayerSnippets;
+  ladder: Pick<ReturnType<typeof useSnippetLadder>, 'heard' | 'pending' | 'answered'>;
+  answer: string | null | undefined;
+  firstLine: string;
+  status: string;
+  question: PublicQuestion;
+  onSubmit: (answer: SubmittedAnswer) => void;
+  onDraft?: (answer: SubmittedAnswer | null) => void;
+}) {
+  const shareLine = ladder.answered ? t('melodyAnswered', { seconds: snippetSeconds(info.heard) }) : ladder.heard >= 1 ? t('melodyShareNow', { share: percent(snippetShare(ladder.heard)) }) : firstLine;
+  return (
+    <>
+      <p className="meta melody-share">{shareLine}</p>
+      {info.openedBy !== null && info.heard >= 1 && (
+        <p className="meta melody-by" dir="auto">
+          {t('melodyOpenedBy', { name: info.openedBy, seconds: snippetSeconds(info.heard) })}
+        </p>
+      )}
+      <p className="puzzle-status melody-status" role="status" aria-live="polite">
+        {status}
+      </p>
+      {ladder.answered ? (
+        <p className="melody-mine" dir="auto">
+          {answer}
+        </p>
+      ) : (
+        <AnswerInput question={question} onSubmit={(value) => onSubmit(value as SubmittedAnswer)} onDraft={onDraft} autoFocus={false} disabled={!info.canAnswer && ladder.pending === null} />
+      )}
+    </>
+  );
 }
 
 /** Тексти, якими «Мелодія» (29e) і «Відео за фрагментами» (36) відрізняються в драбинці, плитках і таблиці. */
