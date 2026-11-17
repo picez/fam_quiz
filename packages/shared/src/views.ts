@@ -2379,9 +2379,9 @@ export interface PlayerView extends BaseView {
      * truth і fooled — лише коли правду відкрито. null поза блефом.
      */
     bluff: { lie: string | null; own: string[]; pick: string | null; truth: boolean | null; fooled: number | null } | null;
-    /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
     /** «Шпигун» (38): власне слово, асоціація, голос; поза запитанням spy ключа немає. */
     spy?: PlayerSpy;
+    /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
     debuff: { kind: DebuffKind; since: number; by: string | null; anon?: true } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
     shop: PlayerShop | null;

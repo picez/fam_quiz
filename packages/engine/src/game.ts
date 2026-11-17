@@ -104,6 +104,7 @@ import { advanceDuel, beginDuel, dropDuel, duelDue, tickDuel } from './duel';
 import { checkAnswer, gradeOf, paceFactor, paysForTime, verdictOf } from './check';
 import { scoreSurvey, stepSurvey, surveyBoard, surveyPlayOf } from './survey';
 import { bluffAuto, bluffOrder, bluffPlayOf, scoreBluff, startChoice, stepBluff } from './bluff';
+import { closeVote, openSpy, scoreSpy, spyAuto, spyCast, spyPlayOf, startVote } from './spy';
 import { cluesPaid, openDueClues } from './clues';
 import { clockOf, holdAt, pendingOf, releaseStaleHold, shiftQueue, thaw } from './hold';
 import { normalizeText } from './normalize';
@@ -258,6 +259,8 @@ export interface Play {
   survey?: SurveyPlay;
   /** Блеф: фаза, зерно, вигадки, варіанти, вибори й скільки варіантів відкрито на розкритті (10f). */
   bluff?: BluffPlay;
+  /** Лише в запитанні spy (38): етап, шпигун, асоціації, голоси, здогадка. */
+  spy?: SpyPlay;
   /** «Ва-банк»: рішення після цього запитання й позначка кінця раунду (10g). */
   wipeout?: WipeoutPlay;
   /** «Вибування»: відповіді привидів, хто «на межі», випробування й позначка кінця раунду (10h). */
@@ -477,6 +480,19 @@ export interface BluffPlay {
   picks: Record<string, BluffPick>;
   /** Скільки варіантів відкрито на розкритті (за bluffOrder). */
   shown: number;
+}
+
+/** «Шпигун» (38) у грі; шпигуна вибирає openQuestion через rng гри. */
+export interface SpyPlay {
+  /** words — асоціації, vote — голосування, guess — останній шанс викритого шпигуна; після закриття лишається останній. */
+  stage: 'words' | 'vote' | 'guess';
+  spyId: string;
+  /** Асоціації за id гравця: текст після чистки й мить надсилання. */
+  words: Record<string, { text: string; at: number }>;
+  /** Голоси за id гравця: ціль і час від старту голосування, мс. */
+  votes: Record<string, { target: string; timeMs: number }>;
+  /** Здогадка шпигуна про слово гравців; null — ще немає. */
+  guess: { text: string; at: number } | null;
 }
 
 /** Вигадка гравця: текст після чистки й мить надсилання. */
@@ -1463,8 +1479,12 @@ export function present(question: Question, shuffleOptions: boolean, rng: Rng): 
   return [];
 }
 
-/** Чи можна відкрити запитання: «100 до 1» без дошки (хмара порожня, запасних рядків немає) пропускається. */
+/**
+ * Чи можна відкрити запитання: «100 до 1» без дошки (хмара порожня, запасних рядків немає) пропускається;
+ * «Шпигун» (38) — у командній грі чи з учасниками менше LIMITS.minSpyPlayers.
+ */
 function playable(state: GameState, question: Question): boolean {
+  if (question.type === 'spy') return !teamsOn(state) && spyCast(state).length >= LIMITS.minSpyPlayers;
   return question.type !== 'survey' || surveyBoard(state, question) !== null;
 }
 
@@ -1585,6 +1605,8 @@ export function openQuestion(state: GameState, question: Question, now: number, 
     ...(question.type === 'bluff'
       ? { bluff: { stage: 'lies' as const, seed: Math.floor(rng() * 2 ** 32), lies: {}, options: [], picks: {}, shown: 0 } }
       : {}),
+    // «Шпигун» (38): шпигун вибирається тут одним викликом rng і лежить у стані — tick і відновлення його не перевибирають.
+    ...(question.type === 'spy' ? { spy: openSpy(state, rng) } : {}),
     ...(round.type === 'wipeout' ? { wipeout: { took: [], stay: [], end: false } } : {}),
     ...(round.type === 'survival' ? { survival: { ghosts: {}, edge: null, trial: null, end: false } } : {}),
     // «Мільйонер»: сходинка = кількість уже зіграних запитань раунду; рівень і таймер — знімки раунду.
@@ -1964,7 +1986,7 @@ export function lockNow(state: GameState): GameState {
   // Незакінчене сортування отримує записи за відсортовані слова.
   // Незавершена друга спроба зараховує першу відповідь.
   // Незакінчена стіна отримує записи за знайдені групи.
-  // Блеф отримує записи лише тут: бали залежать від виборів усіх.
+  // Блеф отримує записи лише тут: бали залежать від виборів усіх. «Шпигун» (38) — так само від голосів усіх і здогадки.
   // Голосування залу «Мільйонера» закривається з відповідями залу на цю мить.
   // Хто взяв «Ризик» і змовчав, отримує мінус повної ціни (12h).
   // Бали за драбину залежать від найкращого фінішера, тож теж рахуються лише тут (26c).
@@ -1975,7 +1997,7 @@ export function lockNow(state: GameState): GameState {
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -1998,6 +2020,8 @@ export function autoLock(state: GameState, now: number | null = null): GameState
   if (state.plays[state.questionIndex]?.blitz !== undefined) return blitzDone(state, null) ? lockNow(state) : state;
   // Блеф: у фазі вигадок час чи «усі написали» перемикають на вибір, у фазі вибору — закривають.
   if (state.plays[state.questionIndex]?.question.type === 'bluff') return bluffAuto(state, now);
+  // «Шпигун» (38): words → vote → guess за часом чи «усі зробили»; останній етап закриває.
+  if (state.plays[state.questionIndex]?.question.type === 'spy') return spyAuto(state, now);
   // Час сплив для всіх, хто ще не відповів (зокрема щойно відповів останній з додатковим часом).
   // Строго «>», як у timeOver: рівно на кінці відповісти ще можна.
   const closes = closesAt(state);
@@ -2142,6 +2166,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   if (answer.type === 'wall' || play.question.type === 'wall') return fail('type_mismatch');
   // Блеф — лише writeLie і pickBluff.
   if (answer.type === 'bluff' || play.question.type === 'bluff') return fail('type_mismatch');
+  // «Шпигун» (38) — лише writeSpyWord, voteSpy і guessSpy.
+  if (answer.type === 'spy' || play.question.type === 'spy') return fail('type_mismatch');
   // «100 до 1»: рушій чистить відповідь і додає збіги до будь-якої гілки — і клітинка поля чекає вже перевірену.
   const asked0 = questionFor(state, play, playerId);
   if (asked0.type === 'survey') {
@@ -2382,10 +2408,16 @@ export function judge(state: GameState, playerId: string, correct: boolean, now:
   return closeIfDone(applyVerdict(state, playerId, correct, now), now);
 }
 
-/** «Закрити»; у фазі вигадок блефу — «До вибору» з now (без now — wrong_phase: таймер вибору не стартує в минулому). */
+/**
+ * «Закрити»; у фазі вигадок блефу — «До вибору» з now (без now — wrong_phase: таймер вибору не стартує в минулому).
+ * «Шпигун» (38): words — до голосування, vote — кінець голосування (викрито — останній шанс), обидва лише з now; guess — закрити.
+ */
 export function lock(state: GameState, now?: number): Result {
   if (state.phase !== 'question') return fail('wrong_phase');
   if (bluffPlayOf(state)?.bluff.stage === 'lies') return now === undefined ? fail('wrong_phase') : ok(startChoice(state, now));
+  const spyStage = spyPlayOf(state)?.spy.stage;
+  if (spyStage === 'words') return now === undefined ? fail('wrong_phase') : ok(startVote(state, now));
+  if (spyStage === 'vote') return now === undefined ? fail('wrong_phase') : ok(closeVote(state, now));
   return ok(lockNow(state));
 }
 
@@ -2421,6 +2453,8 @@ export function tick(state: GameState, now: number, rng: Rng = Math.random): Gam
     const due = closesAt(opened);
     return due !== null && now > due ? startChoice(opened, now) : opened;
   }
+  // «Шпигун» (38): кожен етап, що сплив (строго «>»), перемикається чи закривається в spyAuto.
+  if (spyPlayOf(opened) !== null) return spyAuto(opened, now);
   // Ланцюжок закривається, коли кожен пройшов або вичерпав свій час зі штрафом.
   if (opened.plays[opened.questionIndex]?.question.type === 'chain' && chainDone(opened, now)) return lockNow(opened);
   // Звичайна клітинка без таймера закривається, коли гравець, чий хід, відсутній 30 секунд.
@@ -2901,7 +2935,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))))))))))));
+  const scored = withoutDuelists(dropQueue(scoreSpy(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

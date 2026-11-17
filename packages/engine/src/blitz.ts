@@ -268,7 +268,8 @@ export function nextDeadline(state: GameState, now: number): number | null {
   const closes = closesAt(state);
   const times = [
     // Фаза вигадок блефу перемикається строго після кінця (рівно на кінці ще можна писати): тік — на мілісекунду пізніше.
-    closes !== null && play?.bluff?.stage === 'lies' ? closes + 1 : closes,
+    // «Шпигун» (38): так само кожен етап.
+    closes !== null && (play?.bluff?.stage === 'lies' || play?.spy !== undefined) ? closes + 1 : closes,
     away === null ? null : away + BOARD_AWAY_MS,
     ...(play?.blitz?.queue.map((e) => e.deadline) ?? []),
     ...chainers.map((id) => chainDeadline(state, id)),
