@@ -39,6 +39,7 @@ export * from './drawing';
 export * from './puzzles';
 export * from './truth';
 export * from './think';
+export * from './alike';
 export * from './wordladder';
 export * from './sort';
 export * from './wall';

@@ -235,6 +235,7 @@ import { chainDeadline, chainOf, hintMsOf, letterCount, maskWord } from './chain
 import { drawingCould, drawingOf } from './drawing';
 import { moreLessOf, moreLessRight, rightOf } from './moreless';
 import { overshootRows } from './overshoot';
+import { alikeInfo, hostAlike } from './alike';
 import { jigsawOf, jigsawTotal, liveHolds } from './jigsaw';
 import { spotdiffOf } from './spotdiff';
 import { memoryOf, settleMemory } from './memory';
@@ -3227,6 +3228,8 @@ function base(state: GameState, forHost: boolean) {
     survival: survivalInfo(state, forHost),
     ...optional('think', thinkInfo(state)),
     ...optional('overshoot', overshootRows(state)),
+    // «Думай як усі» (37e): групи слів лише з reveal; пульт отримує свої з locked (hostAlike).
+    ...optional('alike', alikeInfo(state)),
     ladder: ladderInfo(state, forHost),
     ...optional('wordladder', !forHost && inFinalRound(state) ? undefined : wordLadderInfo(state, forHost)),
     ...optional('timedlist', timedListInfo(state, forHost)),
@@ -4046,7 +4049,7 @@ export function hostView(state: GameState): HostView {
   });
   const wards = wardsView(state);
   // Зріз «Ставок» для сцени й телефонів ведучому замінює повний (hostBets).
-  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, ...shared } = base(state, true);
+  const { bets: _publicBets, auction: _publicAuction, truth: _publicTruth, quest: _publicQuest, drawing: _publicDrawing, spotdiff: _publicSpotdiff, memory: _publicMemory, think: _publicThink, alike: _publicAlike, ...shared } = base(state, true);
   return {
     ...shared,
     ...optional('spotdiff', spotdiffHostInfo(state)),
@@ -4074,6 +4077,7 @@ export function hostView(state: GameState): HostView {
     ...optional('quest', hostQuest(state)),
     ...optional('drawing', hostDrawing(state)),
     ...optional('think', hostThink(state)),
+    ...optional('alike', hostAlike(state)),
     chain: chainInfo(state),
     sort: sortInfo(state),
     duel: hostDuel(state),

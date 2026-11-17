@@ -167,6 +167,9 @@ export function wrongAnswer(question: Question): Answer | null {
   }
 }
 
+/** «Думай як усі» (37e): слова ботів за порядком гравців. */
+const ALIKE_WORDS = ['яблуко', 'груша', 'яблуко', 'слива'];
+
 /** Дія людини: вдалася — новий стан; не вдалася — помилка (strict, люди, що відповідають) чи той самий стан. */
 type Act = (state: GameState, result: Result, what: string) => GameState;
 
@@ -324,6 +327,11 @@ function answerQuestion(state: GameState, playerId: string, wrong: boolean, now:
         s = act(s, guessWall(s, playerId, group.tiles.map((t) => current.presented.indexOf(t.id)), now), what);
       }
       return s;
+    }
+    // «Думай як усі» (37e): боти пишуть по черзі зі списку — перший і третій збігаються.
+    case 'thinkalike': {
+      const word = ALIKE_WORDS[state.players.findIndex((p) => p.id === playerId) % ALIKE_WORDS.length];
+      return act(state, submitAnswer(state, playerId, { type: 'thinkalike', value: word }, now), what);
     }
     case 'bluff': {
       const bluff = bluffPlayOf(state);

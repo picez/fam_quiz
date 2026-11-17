@@ -86,6 +86,7 @@ import { scoreTimedList } from './timedlist';
 import { scoreLetterWords } from './letterwords';
 import { scoreMoreLess } from './moreless';
 import { scoreOvershoot } from './overshoot';
+import { dropFromAlike, scoreAlike, submitAlikeAnswer } from './alike';
 import { dropFromDrawing, drawingDone, openDrawing, packDrawings, scoreDrawing } from './drawing';
 import { packJigsaws, scoreJigsaw } from './jigsaw';
 import { packSpotdiffs, scoreSpotdiff } from './spotdiff';
@@ -225,6 +226,8 @@ export interface Play {
   truth?: TruthPlay;
   /** Лише в запитанні раунду «Думай інакше» (35). */
   think?: ThinkPlay;
+  /** Лише в запитанні thinkalike (37e) після першої правки ведучого. */
+  alike?: AlikePlay;
   /** Лише в запитанні «Малюнок» (28c). */
   drawing?: DrawingPlay;
   /** Лише на судоку й кросворді раунду «Головоломки» (28d). */
@@ -268,6 +271,12 @@ export interface Play {
   buzzers?: Record<string, string>;
   /** Антигугл (12e): виходи людей (соло — гравець, командна гра — людина) на цьому запитанні; немає ключа — не виходив. */
   away?: Record<string, AwayEntry>;
+}
+
+/** «Думай як усі» (37e): ручні групи ведучого. */
+export interface AlikePlay {
+  /** Мітка групи кожного відповідача після першої правки ведучого. */
+  labels: Record<string, string>;
 }
 
 /** Лише в запитанні раунду think (35). */
@@ -1167,7 +1176,8 @@ export function removePlayer(state: GameState, playerId: string, now?: number): 
   const result = removeAnyone(state, playerId, now);
   // Апеляція (12f): вилучена людина зникає з голосів; апеляція вилученого учасника скасовується.
   // «Малюнок» (28c): вилучений художник лишає малюнок нікому; вилучена сторона зникає з тих, хто вгадав.
-  return result.ok ? ok(dropFromDrawing(dropFromAppeals(result.state, playerId, now))) : result;
+  // «Думай як усі» (37e): мітки вилученого зникають з ручних груп.
+  return result.ok ? ok(dropFromAlike(dropFromDrawing(dropFromAppeals(result.state, playerId, now)))) : result;
 }
 
 function removeAnyone(state: GameState, playerId: string, now?: number): Result {
@@ -1960,12 +1970,12 @@ export function lockNow(state: GameState): GameState {
   // Бали за драбину залежать від найкращого фінішера, тож теж рахуються лише тут (26c).
   // Бали за список залежать від того, скільки гравців знайшли кожен пункт (27c).
   // «Слова з літер» отримують записи лише тут: слова можна додавати до кінця часу (27d).
-  // «Не перебільш» (37d): бали ставляться тут, коли відомі відповіді всіх.
+  // «Не перебільш» (37d) і «Думай як усі» (37e): бали ставляться тут, коли відомі відповіді всіх.
   // «Більше чи менше»: неповні ряди отримують записи тут, а лічильники правильних заморожуються (28a).
   // «Малюнок»: художник отримує частку, решта — записи з 0, лічильники заморожуються (28c).
   // «Головоломки»: дошки без «Готово» отримують записи за сіткою на цю мить (28d).
   const closed = spendDebuffs(
-    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state))))))))))))))))))),
+    withCellPenalty(withRiskMisses(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(closeAudience(settleRetries(state)))))))))))))))))))),
   );
   return withTotals({ ...closed, phase: 'locked', startedAt: null, endsAt: null, remainingMs: null, heldAt: null, board: clearAway(closed.board) });
 }
@@ -2104,6 +2114,8 @@ export function submitAnswer(state: GameState, playerId: string, answer: Answer,
   const play = state.plays[state.questionIndex];
   // Опитування й «хмара слів» — голос без балів.
   if (isUnscored(play.question)) return submitVote(state, playerId, answer, now);
+  // «Думай як усі» (37e): одне слово, бали — при закритті за групами.
+  if (play.question.type === 'thinkalike') return submitAlikeAnswer(state, playerId, answer, now);
   // Ланцюжок проходять лише guessWord і takeHint: підсумок з телефона не приймається.
   if (answer.type === 'chain' || play.question.type === 'chain') return fail('type_mismatch');
   // Драбину проходять лише ladderWord і ladderBack (26c).
@@ -2889,7 +2901,7 @@ function endNow(state: GameState, now?: number): Result {
     decisionOpen(state) ? closeDecision(state) : trialOpen(state) ? closeTrial(state) : dropUnstarted(state, now),
     now ?? 0,
   );
-  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided)))))))))))))))));
+  const scored = withoutDuelists(dropQueue(scoreBluff(scoreWall(scoreSort(scoreMemory(scoreSpotdiff(scoreJigsaw(scorePuzzle(scoreDrawing(scoreMoreLess(scoreAlike(scoreOvershoot(scoreLetterWords(scoreTimedList(scoreWordLadder(scoreChain(markWipeoutEnd(decided))))))))))))))))));
   // «Ставки» й «Аукціон»: відкрите запитання закривається, поки фаза ще його (на finished воно вже стале).
   const stoppedType = currentRound(scored)?.type;
   const stopped: GameState = {

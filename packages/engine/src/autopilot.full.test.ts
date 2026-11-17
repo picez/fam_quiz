@@ -44,6 +44,7 @@ import {
   memoryQuiz,
   melodyQuiz,
   videoclipQuiz,
+  alikeQuiz,
   questQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
@@ -179,6 +180,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['a memory in a classic round and in puzzles', memoryQuiz({ leaderboard: 'end' })],
   ['a file and a YouTube melody in a classic round', melodyQuiz({ leaderboard: 'end' })],
   ['a muted and a loud videoclip in a classic round', videoclipQuiz({ leaderboard: 'end' })],
+  ['two thinkalike questions in a classic round', alikeQuiz({ leaderboard: 'end' })],
   ['a quest round after a classic one', questQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
@@ -389,6 +391,23 @@ describe('autopilot: scores and defaults', () => {
       for (const id of ['a', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points, p.answers[id]?.answer]).toMatchObject([p.question.id, id, 'correct', 1000, { heard: 1 }]);
       expect([p.question.id, p.answers.p2?.grade, p.answers.p2?.points, p.answers.p2?.answer]).toMatchObject([p.question.id, 'wrong', 0, { heard: 4 }]);
     }
+  });
+
+  it('thinkalike: the two «яблуко» bots take the price, «груша» gets nothing (37e)', () => {
+    const { state } = play(alikeQuiz(), answering);
+    expect(state.phase).toBe('finished');
+    expect(state.plays.map((p) => p.question.id)).toEqual(['ta1', 'ta2']);
+    for (const p of state.plays) {
+      expect([p.question.id, p.answers.a?.answer, p.answers.a?.points, p.answers.p3?.points, p.answers.p2?.answer, p.answers.p2?.points]).toEqual([
+        p.question.id,
+        { type: 'thinkalike', value: 'яблуко' },
+        p.question.points,
+        p.question.points,
+        { type: 'thinkalike', value: 'груша' },
+        0,
+      ]);
+    }
+    expect(state.plays[0].answers.a?.points).toBe(1000);
   });
 
   it('videoclip: right bots on the first chunk get the full price, wrong bots after four chunks get zero, every record keeps heard (36)', () => {
