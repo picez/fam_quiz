@@ -1655,6 +1655,62 @@ export interface HostAlike extends AlikeInfo {
   editable: boolean;
 }
 
+/** «Шпигун» (38): етап. reveal — фаза reveal і пізніше. */
+export type SpyStage = 'words' | 'vote' | 'guess' | 'reveal';
+
+/** Рядок учасника «Шпигуна»: асоціація, хто за нього голосував, чи він шпигун, бали. */
+export interface SpyRow {
+  id: string;
+  nickname: string;
+  /** Асоціація; сцена й телефони — з етапу vote. */
+  word: string | null;
+  /** Нікнейми тих, хто голосував за цього гравця; сцена й телефони — лише reveal. */
+  voters: string[] | null;
+  /** Сцена й телефони — лише reveal. */
+  spy: boolean | null;
+  /** Лише reveal. */
+  points: number | null;
+}
+
+/** «Шпигун» (38): зріз сцени й телефонів. Слів гравців і шпигуна, позначки шпигуна й голосів до reveal немає. */
+export interface SpyInfo {
+  stage: SpyStage;
+  written: number;
+  voted: number;
+  /** Учасники (без автора автопілота). */
+  total: number;
+  /** words — null (сцена й телефони); порядок state.players. */
+  rows: SpyRow[] | null;
+  /** Лише reveal. */
+  playersWord: string | null;
+  spyWord: string | null;
+  spyName: string | null;
+  caught: boolean | null;
+  guess: string | null;
+  guessed: boolean | null;
+}
+
+/** Зріз ведучого: усе з відкриття запитання. */
+export interface HostSpy extends SpyInfo {
+  spyId: string;
+  playersWord: string;
+  spyWord: string;
+  rows: SpyRow[];
+}
+
+/** «Шпигун» (38): власний бік гравця. word — слово, яке він бачить (шпигун — слово шпигуна, не знаючи цього). */
+export interface PlayerSpy {
+  word: string;
+  wrote: string | null;
+  vote: string | null;
+  spectator: boolean;
+  /** Лише шпигунові на етапі guess. */
+  guessing: boolean;
+  guess: string | null;
+  /** Лише reveal. */
+  spy: boolean | null;
+}
+
 /** «Думай інакше» (35): вердикт відповіді учасника на розкритті — не збігся, збігся зі словом ведучого, нічого не написав. */
 export type ThinkVerdict = 'safe' | 'hit' | 'empty';
 
@@ -1991,6 +2047,8 @@ interface BaseView {
   overshoot?: OvershootRow[];
   /** Лише reveal запитання thinkalike (37e): групи слів. До reveal чужих слів тут немає. */
   alike?: AlikeInfo;
+  /** «Шпигун» (38): лише на запитанні spy (question, locked, reveal). */
+  spy?: SpyInfo;
   /** «Мільйонер»: від intro до round_end свого раунду (і finished, якщо він останній); інакше null. */
   ladder: LadderInfo | null;
   /** Поступ ланцюжка; null поза запитанням-ланцюжком, а для сцени й гравців і у фіналі. */
@@ -2322,6 +2380,8 @@ export interface PlayerView extends BaseView {
      */
     bluff: { lie: string | null; own: string[]; pick: string | null; truth: boolean | null; fooled: number | null } | null;
     /** Власний дебаф, лише поки діє в поточному запитанні. since — мить відкриття запитання (час сервера); by — нікнейм покупця (null — ведучий або покупця вилучено). */
+    /** «Шпигун» (38): власне слово, асоціація, голос; поза запитанням spy ключа немає. */
+    spy?: PlayerSpy;
     debuff: { kind: DebuffKind; since: number; by: string | null; anon?: true } | null;
     /** null — у вікторині немає дебафів чи купівлю вимкнено, немає суперників або етап lobby/guide/finished. */
     shop: PlayerShop | null;
@@ -2529,6 +2589,8 @@ export interface HostView extends BaseView {
   drawing?: HostDrawing;
   /** «Думай як усі» (37e): як у BaseView, але ще й на locked, з editable (reveal і не автопілот). */
   alike?: HostAlike;
+  /** «Шпигун» (38): як у BaseView, але ще й усе з відкриття (шпигун, обидва слова, асоціації й голоси наживо). */
+  spy?: HostSpy;
   /** Як у BaseView, але ще й слова ведучого до reveal, відповіді наживо зі збігом і чи можна міняти слова й розкривати. */
   think?: HostThink;
   /** Як у BaseView, але і у фіналі. */

@@ -278,6 +278,9 @@ export const LIMITS = {
   maxThinkWords: 3,
   maxThinkSynonyms: 5,
   thinkWord: 40,
+  /** «Шпигун» (38): час останнього шансу викритого шпигуна (с); найменше гравців, щоб запитання відкрилося. */
+  spyGuessTime: 30,
+  minSpyPlayers: 3,
 } as const;
 
 /** Вбудовані мапи для точки (10c); SVG у apps/web/public/maps. */
@@ -786,6 +789,14 @@ export const questionSchema = z
     }),
     z.object({
       ...base,
+      /** «Шпигун» (38): accepted[0] — слово гравців (решта — інші написання для останнього шансу шпигуна), spyWord — близьке слово шпигуна; text — спільне завдання на сцені. timeLimit — час асоціацій, voteTime — голосування. */
+      type: z.literal('spy'),
+      accepted: spellings,
+      spyWord: z.string().trim().min(1).max(LIMITS.thinkWord).refine(isStorable, UNSTORABLE),
+      voteTime: z.number().int().min(LIMITS.minTime).max(LIMITS.maxTime),
+    }),
+    z.object({
+      ...base,
       type: z.literal('think'),
       /** «Думай інакше» (35): тема в text, гравець пише одне слово; слова ведучого — 0–3 (0 — ведучий впише їх у грі). points — 0 (think_points), відео немає (think_video). */
       words: z.array(thinkWordSchema).max(LIMITS.maxThinkWords),
@@ -967,6 +978,23 @@ export const questionSchema = z
       // Картинка, що проявляється, платила б за час, а підказка недосяжна: бафи вимкнено (off_thinkalike).
       if (q.reveal !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_reveal' });
       if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'thinkalike_hint' });
+    }
+    if (q.type === 'spy') {
+      const playersWord = q.accepted[0] ?? '';
+      if (playersWord.length > LIMITS.thinkWord) ctx.addIssue({ code: 'custom', message: 'spy_word_long' });
+      if (q.accepted.map(answerKey).includes(answerKey(q.spyWord))) ctx.addIssue({ code: 'custom', message: 'spy_same' });
+      // Текст видно всім: жодного з двох слів цілим словом.
+      const wordsOf = (value: string) => answerKey(value).split(/[^\p{L}\p{N}']+/u).filter(Boolean).join(' ');
+      const textKey = ' ' + wordsOf(q.text) + ' ';
+      const leaks = (word: string) => {
+        const key = wordsOf(word);
+        return key !== '' && textKey.includes(' ' + key + ' ');
+      };
+      if (leaks(playersWord) || leaks(q.spyWord)) ctx.addIssue({ code: 'custom', message: 'spy_leak' });
+      // Підсказка й картинка, що проявляється, платили б за час, а бафи вимкнено (off_spy); звук і відео ускладнили б таймер етапів.
+      if (q.reveal !== undefined) ctx.addIssue({ code: 'custom', message: 'spy_reveal' });
+      if (q.hint !== undefined) ctx.addIssue({ code: 'custom', message: 'spy_hint' });
+      if (q.video !== null || q.audio !== undefined) ctx.addIssue({ code: 'custom', message: 'spy_media' });
     }
     if (q.type === 'think') {
       // Слово має хоч одну літеру чи цифру; одна відповідь не веде у два слова: стебла слів і синонімів запитання не повторюються.
@@ -1744,6 +1772,12 @@ export const quizSchema = z
           ? boardCells(round).some(({ cell }) => cell.question.type === 'thinkalike')
           : round.type !== 'classic' && round.type !== 'think' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'thinkalike');
       if (thinkalikePlace) ctx.addIssue({ code: 'custom', message: 'thinkalike_place' });
+      // «Шпигун» (38): лише класичні раунди; на клітинці поля відповідає один, у бліці — черга.
+      const spyPlace =
+        round.type === 'board'
+          ? boardCells(round).some(({ cell }) => cell.question.type === 'spy')
+          : round.type !== 'classic' && [...roundQuestions(round), ...roundTrials(round)].some((q) => q.type === 'spy');
+      if (spyPlace) ctx.addIssue({ code: 'custom', message: 'spy_place' });
       // Блеф: лише класика.
       const bluffPlace =
         round.type === 'board'
@@ -1849,6 +1883,8 @@ export const quizSchema = z
     if (teams && (teams.names.length !== teams.count || hasDuplicates(teams.names.map(answerKey)))) {
       ctx.addIssue({ code: 'custom', message: 'team_names' });
     }
+    // «Шпигун» (38): у командній грі запитання не відкриється, тож вікторину з командами й spy не зберігають.
+    if (teams && questions.some((q) => q.type === 'spy')) ctx.addIssue({ code: 'custom', message: 'spy_teams' });
     if (quiz.duels) {
       const { categories, questionsPerDuel } = quiz.duels;
       if (categories.some((c) => c.questions.length < questionsPerDuel)) {

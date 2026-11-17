@@ -89,6 +89,22 @@ export interface BluffAnswer {
   fooled: number;
 }
 
+/** Підсумок «Шпигуна» (38) для гравця; складає рушій при закритті, з телефона не приходить. */
+export interface SpyAnswer {
+  type: 'spy';
+  /** Асоціація гравця; null — не писав. */
+  word: string | null;
+  /** Нікнейм того, за кого гравець голосував; null — не голосував. */
+  vote: string | null;
+  /** Гравець — шпигун. */
+  spy: boolean;
+  /** Шпигуна викрито. */
+  caught: boolean;
+  /** Здогадка шпигуна про слово гравців; null — не було. */
+  guess: string | null;
+  guessed: boolean;
+}
+
 /** Підсумок драбини гравця; складає рушій, з телефона не приходить. words — ключі після стартового. */
 export interface WordLadderAnswer {
   type: 'wordladder';
@@ -183,7 +199,7 @@ export interface VideoclipAnswer {
   heard: number;
 }
 
-export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer | VideoclipAnswer;
+export type Answer = SubmittedAnswer | ChainAnswer | SortAnswer | WallAnswer | SurveyAnswer | BluffAnswer | WordLadderAnswer | TimedListAnswer | LetterWordsAnswer | MoreLessAnswer | DrawingAnswer | PuzzleAnswer | JigsawAnswer | SpotdiffAnswer | MemoryAnswer | MelodyAnswer | VideoclipAnswer | SpyAnswer;
 
 /** Скільки шматків було відкрито в мить відповіді «Мелодії»; null — не melody або без heard. */
 export function melodyHeardOf(answer: Answer | null): number | null {

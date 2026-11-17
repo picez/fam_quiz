@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alikeJoinSchema, alikeSplitSchema } from './events';
+import { alikeJoinSchema, alikeSplitSchema, spyTextSchema, spyVoteSchema } from './events';
 import {
   DEFAULT_ANSWER_WINDOW,
   DEFAULT_RULES,
@@ -3626,6 +3626,7 @@ describe('quest round (29g)', () => {
       videoclip: { ...b, type: 'videoclip', text: 'Що це за відео?', timeLimit: 60, clip: { id: 'E2Evideo001', start: 12 }, muted: true, accepted: ['Take On Me'] },
       bluff: { ...b, type: 'bluff', text: 'Ейфелеву вежу спершу пропонували поставити в …', timeLimit: 60, choiceTime: 30, accepted: ['Барселона'], lies: ['Мадрид', 'Лондон', 'Брюссель'] },
       thinkalike: { ...b, type: 'thinkalike', text: 'Назвіть фрукт, який першим спадає на думку', timeLimit: 30 },
+      spy: { ...b, type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', timeLimit: 40, voteTime: 30, accepted: ['кава'], spyWord: 'чай' },
       think: { ...b, points: 0, type: 'think', text: 'Напишіть колір веселки', timeLimit: 30, words: [{ word: 'червоний', synonyms: [] }] },
     };
     const others = ALL_QUESTION_TYPES.filter((type) => !(QUEST_TYPES as readonly string[]).includes(type));
@@ -3971,5 +3972,98 @@ describe('plan 37e: thinkalike question', () => {
     expect(alikeJoinSchema.safeParse({ from: '', to: 'p2' }).success).toBe(false);
     expect(alikeSplitSchema.safeParse({ playerId: 'p2' }).success).toBe(true);
     expect(alikeSplitSchema.safeParse({ playerId: '' }).success).toBe(false);
+  });
+});
+
+describe('plan 38: spy question', () => {
+  const quizOf = (rounds: object[], patch: object = {}) => ({ title: 'T', description: '', settings: DEFAULT_SETTINGS, rounds, ...patch });
+  const issues = (value: unknown) => {
+    const parsed = quizSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const qIssues = (value: unknown) => {
+    const parsed = questionSchema.safeParse(value);
+    return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+  };
+  const spyQ = (patch: object = {}) => ({ id: 'sp', type: 'spy', text: 'Напишіть одне слово-асоціацію до свого слова', imageUrl: null, video: null,
+    accepted: ['кава'], spyWord: 'чай', timeLimit: 40, voteTime: 30, points: 1000, ...patch });
+  const IMG = '/uploads/' + 'c'.repeat(32) + '.jpg';
+
+  it('accepts a spy', () => {
+    expect(questionSchema.parse(spyQ())).toMatchObject({ type: 'spy', spyWord: 'чай', voteTime: 30 });
+    expect(valid(questionSchema, spyQ({ imageUrl: IMG }))).toBe(true);
+    expect(valid(questionSchema, spyQ({ accepted: ['кава', 'кофе'] }))).toBe(true);
+  });
+
+  it('refuses a broken spy', () => {
+    expect(qIssues(spyQ({ spyWord: 'Кава' }))).toContain('spy_same');
+    expect(qIssues(spyQ({ accepted: ['кава', 'кофе'], spyWord: 'КОФЕ' }))).toContain('spy_same');
+    expect(qIssues(spyQ({ text: "Що ви п'єте: кава?" }))).toContain('spy_leak');
+    expect(qIssues(spyQ({ text: 'Що ви п\'єте: чай?' }))).toContain('spy_leak');
+    expect(qIssues(spyQ({ text: 'Кавалер і дама: напишіть слово' }))).not.toContain('spy_leak');
+    expect(qIssues(spyQ({ imageUrl: IMG, reveal: 'blur' }))).toContain('spy_reveal');
+    expect(qIssues(spyQ({ hint: 'Подумайте' }))).toContain('spy_hint');
+    expect(qIssues(spyQ({ video: { id: 'E2Evideo001', start: 0, end: 10 } }))).toContain('spy_media');
+    expect(qIssues(spyQ({ audio: { source: 'youtube', id: 'dQw4w9WgXcQ', start: 0, duration: 15 } }))).toContain('spy_media');
+    expect(qIssues(spyQ({ accepted: ['я'.repeat(LIMITS.thinkWord + 1)] }))).toContain('spy_word_long');
+    expect(valid(questionSchema, spyQ({ voteTime: 4 }))).toBe(false);
+  });
+
+  it('a spy plays only in classic rounds', () => {
+    const blitz = { id: 'bl', type: 'blitz', title: '', shuffleOptions: false, answerWindow: 15, attempts: 1, check: 'auto',
+      rules: { ...DEFAULT_RULES, partial: null }, questions: [spyQ({ id: 'a1' })] };
+    const final = { id: 'f', type: 'final', title: '', shuffleOptions: false, check: 'auto', questions: [spyQ({ id: 'a2' })] };
+    const bets = { id: 'bt', type: 'bets', title: '', shuffleOptions: false, check: 'auto', betStart: 200, betStep: 100, betMax: 600,
+      questions: [{ ...spyQ({ id: 'a3' }), betsCut: 2 }] };
+    const auction = { id: 'au', type: 'auction', title: '', shuffleOptions: false, check: 'auto', bidMode: 'step', bidStep: 50, loss: 'bid',
+      questions: [{ ...spyQ({ id: 'a4' }), betsCut: 2 }] };
+    const wipeout = { id: 'rw', type: 'wipeout', title: '', shuffleOptions: false,
+      questions: [spyQ({ id: 'a5' }), ...[1, 2, 3, 4].map((n) => ({ ...single, id: `w${n}` }))] };
+    const survival = { id: 'rs', type: 'survival', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      questions: [spyQ({ id: 'a6' }), { ...single, id: 's2' }, { ...single, id: 's3' }], trials: [], trial: 'luck', survivors: 1, bonus: 500 };
+    const four = (id: string) => ({ ...single, id, options: ['a', 'b', 'c', 'd'].map((o) => ({ id: o, text: o.toUpperCase() })), correctId: 'b' });
+    const ladder = { id: 'rl', type: 'ladder', title: '', shuffleOptions: false, questions: [spyQ({ id: 'a7' }), ...[2, 3, 4, 5].map((n) => four(`l${n}`))],
+      levels: [100, 300, 1000, 3000, 10000], safe: [2], pick: 'host', lifelines: ['fifty'], timer: false };
+    const puzzles = { id: 'pz', type: 'puzzles', title: 'Головоломки', questions: [spyQ({ id: 'a8' })] };
+    const q30 = (id: string) => ({ ...single, id, timeLimit: 30 });
+    const quest = { id: 'rq', type: 'quest', title: '', speedBonus: false, shuffleOptions: false, rules: DEFAULT_RULES,
+      prompt: 'Нічний птах — символ мудрості (4 літери)', code: 'СОВА', order: [0, 1, 2, 3], tries: 3, bonus: { kind: 'points', points: 1200 },
+      questions: [q30('q-1'), q30('q-2'), q30('q-3'), spyQ({ id: 'a9' })] };
+    const thinkQ = (id: string) => ({ id, type: 'think', text: 'Напишіть колір веселки', imageUrl: null, video: null, timeLimit: 30, points: 0, words: [] });
+    const think = { id: 'th', type: 'think', title: '', lives: 3, points: 10000, questions: [thinkQ('t1'), thinkQ('t2'), spyQ({ id: 'a12' })] };
+    for (const bad of [blitz, final, bets, auction, wipeout, survival, ladder, puzzles, quest, think]) {
+      expect(issues(quizOf([round('r', [single]), bad])), bad.type).toContain('spy_place');
+    }
+    const board = { id: 'b', type: 'board', title: '', shuffleOptions: false, answerMode: 'phone', check: 'auto', rules: DEFAULT_RULES,
+      categories: [1, 2, 3].map((n) => ({ id: `c${n}`, title: `К${n}`, cells: [1, 2, 3].map((m) => ({ mark: 'none',
+        question: n === 1 && m === 1 ? spyQ({ id: 'a10' }) : { ...single, id: `q${n}${m}` } })) })) };
+    expect(issues(quizOf([board]))).toContain('spy_place');
+    const trial = { ...survival, questions: [single, { ...single, id: 's2' }, { ...single, id: 's3' }], trial: 'question', trials: [spyQ({ id: 'a11' })] };
+    expect(issues(quizOf([round('r', [single]), trial]))).toContain('spy_place');
+    expect(issues(quizOf([round('r', [single])], { spares: [spyQ({ id: 'sp2' })] }))).toContain('spare_type');
+    expect(issues(quizOf([round('c', [spyQ({ id: 'a13' })])]))).toEqual([]);
+  });
+
+  it('a spy is not for team games', () => {
+    const teams = { count: 2, names: ['Ліс', 'Море'] };
+    const withSpy = quizOf([round('c', [spyQ({ id: 'a14' })])], { settings: { ...DEFAULT_SETTINGS, teams } });
+    expect(issues(withSpy)).toContain('spy_teams');
+    expect(issues(quizOf([round('c', [single])], { settings: { ...DEFAULT_SETTINGS, teams } }))).not.toContain('spy_teams');
+    expect(issues(quizOf([round('c', [spyQ({ id: 'a15' })])]))).not.toContain('spy_teams');
+  });
+
+  it('keeps the type order and counts spies in the classic brief', () => {
+    expect(QUESTION_TYPES.indexOf('spy')).toBe(QUESTION_TYPES.indexOf('thinkalike') + 1);
+    const plain = quizSchema.parse(quizOf([round('r1', [single])]));
+    expect(roundBrief(plain.rounds[0]!)).not.toHaveProperty('spies');
+    const mixed = quizSchema.parse(quizOf([round('r1', [single, spyQ({ id: 'x1' }), spyQ({ id: 'x2' })])]));
+    expect(roundBrief(mixed.rounds[0]!).spies).toBe(2);
+  });
+
+  it('the phone events carry a short word and a non-empty target', () => {
+    expect(spyTextSchema.safeParse({ text: 'аромат' }).success).toBe(true);
+    expect(spyTextSchema.safeParse({ text: 'я'.repeat(LIMITS.thinkWord + 1) }).success).toBe(false);
+    expect(spyVoteSchema.safeParse({ playerId: 'p2' }).success).toBe(true);
+    expect(spyVoteSchema.safeParse({ playerId: '' }).success).toBe(false);
   });
 });

@@ -625,6 +625,14 @@ describe('thinkalike facts (37e)', () => {
   });
 });
 
+describe('spy facts (38)', () => {
+  it('a spy has no speed window', () => {
+    const q = { id: 'sp', type: 'spy', text: 'Слово', imageUrl: null, video: null, timeLimit: 40, voteTime: 30, points: 1000 } as unknown as Question;
+    expect(factLimitMs(q, { type: 'classic' } as Round, false)).toBeNull();
+    expect(wholeRowQuestion(q)).toBe(false);
+  });
+});
+
 describe('no-overshoot facts (37d)', () => {
   it('a no-overshoot numeric has no speed window; a plain numeric keeps it', () => {
     const num = { id: 'ov', type: 'numeric', text: 'Скільки?', imageUrl: null, video: null, timeLimit: 30, points: 1000, correct: 88, tolerance: 0 };
