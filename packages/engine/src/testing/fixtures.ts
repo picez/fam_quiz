@@ -597,6 +597,40 @@ export function melodyQuiz(settings: Partial<QuizSettings> = {}): Quiz {
   return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [melody, melodyYoutube])], settings);
 }
 
+/** «Відео за фрагментами» (36): без звуку, фрагмент з 12-ї секунди, два написання, 60 с, 1000 балів. */
+export const videoclip = {
+  ...base,
+  id: 'vc1',
+  type: 'videoclip',
+  text: 'Що це за кліп?',
+  timeLimit: 60,
+  points: 1000,
+  clip: { id: 'E2Evideo001', start: 12 },
+  muted: true,
+  accepted: ['Take On Me', 'Тейк он мі'],
+} satisfies Question;
+
+/** «Відео за фрагментами» (36): зі звуком, з початку відео, три написання, 45 с, 1000 балів. */
+export const videoclipLoud = {
+  ...base,
+  id: 'vc2',
+  type: 'videoclip',
+  text: 'Хто на відео?',
+  timeLimit: 45,
+  points: 1000,
+  clip: { id: 'E2Evideo002', start: 0 },
+  muted: false,
+  accepted: ['Ярослава Магучіх', 'Магучіх', 'Mahuchikh'],
+} satisfies Question;
+
+/**
+ * Вікторина «Відео за фрагментами» (36): класика з одним запитанням (30 с) → класика з videoclip і videoclipLoud.
+ * Номер запитання в раунді й індекс у plays різні.
+ */
+export function videoclipQuiz(settings: Partial<QuizSettings> = {}): Quiz {
+  return makeRoundsQuiz([classicRound('c1', [{ ...single, timeLimit: 30 }]), classicRound('c2', [videoclip, videoclipLoud])], settings);
+}
+
 /** Адреса картинки для запитань, що проявляються. */
 export const IMG = `/uploads/${'b'.repeat(32)}.png`;
 

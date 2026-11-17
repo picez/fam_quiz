@@ -87,6 +87,7 @@ export const GAME_STATE_VERSION = 22;
  * 29g без нової версії: раунд quest, необов'язкові GameState.quest і GameState.questBuffs, значення AdjustmentSource 'quest' (його можна скасувати), необов'язковий QuestTry.n.
  * 31 без нової версії: необов'язкове QuizSettings.family (сімейна гра); старий знімок поля не має — гра як до 31.
  * 35 без нової версії: раунд і тип think, необов'язкове Play.think (і в ньому необов'язкове watch), AdjustmentSource 'think'; старий знімок не містить нічого з цього.
+ * 36 без нової версії: тип videoclip; його шматки — у наявному необов'язковому Play.melody.
  */
 export const READABLE_STATE_VERSIONS: readonly number[] = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, GAME_STATE_VERSION];
 

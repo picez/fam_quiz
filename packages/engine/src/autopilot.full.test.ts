@@ -43,6 +43,7 @@ import {
   spotdiffQuiz,
   memoryQuiz,
   melodyQuiz,
+  videoclipQuiz,
   questQuiz,
 } from './testing/fixtures';
 import { must } from './testing/helpers';
@@ -177,6 +178,7 @@ const QUIZZES: [string, Quiz, ((lobby: GameState) => GameState)?][] = [
   ['a spotdiff in a classic round and in puzzles', spotdiffQuiz({ leaderboard: 'end' })],
   ['a memory in a classic round and in puzzles', memoryQuiz({ leaderboard: 'end' })],
   ['a file and a YouTube melody in a classic round', melodyQuiz({ leaderboard: 'end' })],
+  ['a muted and a loud videoclip in a classic round', videoclipQuiz({ leaderboard: 'end' })],
   ['a quest round after a classic one', questQuiz({ leaderboard: 'end' })],
   ['puzzles in a team game', teamQuiz(puzzlesQuiz().rounds), (s) => must(authorTeamForm(s, 'random'))],
   ['a voice board in a team game', teamBoardQuiz, (s) => must(authorTeamForm(s, 'random'))],
@@ -386,6 +388,16 @@ describe('autopilot: scores and defaults', () => {
     for (const p of state.plays.filter((p) => p.question.type === 'melody')) {
       for (const id of ['a', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points, p.answers[id]?.answer]).toMatchObject([p.question.id, id, 'correct', 1000, { heard: 1 }]);
       expect([p.question.id, p.answers.p2?.grade, p.answers.p2?.points, p.answers.p2?.answer]).toMatchObject([p.question.id, 'wrong', 0, { heard: 4 }]);
+    }
+  });
+
+  it('videoclip: right bots on the first chunk get the full price, wrong bots after four chunks get zero, every record keeps heard (36)', () => {
+    const { state } = play(videoclipQuiz(), answerAs({ wrong: ['p2'] }));
+    expect(state.phase).toBe('finished');
+    expect(state.plays.map((p) => p.question.id)).toEqual(['q1', 'vc1', 'vc2']);
+    for (const p of state.plays.filter((p) => p.question.type === 'videoclip')) {
+      for (const id of ['a', 'p3']) expect([p.question.id, id, p.answers[id]?.grade, p.answers[id]?.points, p.answers[id]?.answer]).toMatchObject([p.question.id, id, 'correct', 1000, { type: 'videoclip', heard: 1 }]);
+      expect([p.question.id, p.answers.p2?.grade, p.answers.p2?.points, p.answers.p2?.answer]).toMatchObject([p.question.id, 'wrong', 0, { value: 'Bohemian Rhapsody', heard: 4 }]);
     }
   });
 

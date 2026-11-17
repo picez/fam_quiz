@@ -4,6 +4,7 @@ import { answererMode, answererOf } from './answerer';
 import { blitzRulesOf, buzz, isInstant, withPlay } from './blitz';
 import { buffOf, canVote } from './buffs';
 import { fail, ok, recordOf, submitAnswer, type GameState, type Play, type Result } from './game';
+import { isSnippetQuestion } from './snippets';
 import { captainOf, duelistOf, memberOf, teamsOn } from './teams';
 
 /**
@@ -93,10 +94,11 @@ export function actAnswer(state: GameState, memberId: string, answer: Answer, no
   const result = submitAnswer(state, who.id, answer, now);
   if (!result.ok || !teamsOn(state) || who.id === memberId) return result;
   // Миттєвий бліц: відповідь стала натиском команди — відповідав той, хто її подав.
-  // «Мелодія за нотами» (29e): відповідає будь-хто з команди — так само пишемо, хто подав (для запису, answeredByOf).
+  // «Мелодія за нотами» (29e) і «Відео за фрагментами» (36): відповідає будь-хто з команди — так само пишемо, хто подав (для запису, answeredByOf).
   const blitz = blitzPlay(state);
-  const melody = state.plays[state.questionIndex]?.question.type === 'melody';
-  return (blitz !== null && blitz.instant) || melody ? ok(withBuzzer(result.state, who.id, memberId)) : result;
+  const current = state.plays[state.questionIndex];
+  const snippets = current !== undefined && isSnippetQuestion(current.question);
+  return (blitz !== null && blitz.instant) || snippets ? ok(withBuzzer(result.state, who.id, memberId)) : result;
 }
 
 /** Натиск людини: соло — buzz; командна — buzz(команда) і buzzers[команда] = людина. */

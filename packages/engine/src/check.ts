@@ -2,12 +2,12 @@ import {
   answerWindowMs,
   clueShare,
   cluesAt,
-  melodyShare,
   pinShare,
   PROXIMITY_CORRECT_SHARE,
   proximityPartial,
   revealShare,
   sliderShare,
+  snippetShare,
   surveyShare,
   type Answer,
   type Grade,
@@ -130,6 +130,11 @@ export function checkAnswer(question: Question, answer: Answer): CheckResult {
     return full(textAccepts(question.accepted, answer.value));
   }
 
+  // «Відео за фрагментами» (36): так само, як у типі text.
+  if (question.type === 'videoclip' && answer.type === 'videoclip') {
+    return full(textAccepts(question.accepted, answer.value));
+  }
+
   if (question.type === 'numeric' && answer.type === 'numeric') {
     const distance = Math.abs(answer.value - question.correct);
     if (!Number.isFinite(distance) || distance > question.tolerance + EPSILON) return REJECTED;
@@ -192,20 +197,20 @@ export function gradeOf(accuracy: number): Grade {
   return accuracy >= 1 ? 'correct' : accuracy <= 0 ? 'wrong' : 'partial';
 }
 
-/** Чи тип платить за час часткою ціни (без бонусу швидкості): картинка, що проявляється, «Хто я?» і «Мелодія за нотами» (29e, за шматком). */
+/** Чи тип платить за час часткою ціни (без бонусу швидкості): картинка, що проявляється, «Хто я?», «Мелодія за нотами» (29e) і «Відео за фрагментами» (36) — за шматком. */
 export function paysForTime(question: Question): boolean {
   // Старі запитання (сирий JSON) поля reveal не мають.
-  return question.type === 'clues' || question.type === 'melody' || question.reveal != null;
+  return question.type === 'clues' || question.type === 'melody' || question.type === 'videoclip' || question.reveal != null;
 }
 
 /**
  * Множник ціни за темп: картинка, що проявляється, — revealShare від повного вікна;
  * «Хто я?» — clueShare(n, opened ?? cluesAt(question, timeMs)) (opened — підказки, відкриті ведучим на усній клітинці);
- * «Мелодія за нотами» (29e) — melodyShare(opened ?? 1) (opened — відкриті шматки); інакше 1.
+ * «Мелодія за нотами» (29e) і «Відео за фрагментами» (36) — snippetShare(opened ?? 1) (opened — відкриті шматки); інакше 1.
  */
 export function paceFactor(question: Question, timeMs: number, opened?: number): number {
   if (question.type === 'clues') return clueShare(question.clues.length, opened ?? cluesAt(question, timeMs));
-  if (question.type === 'melody') return melodyShare(opened ?? 1);
+  if (question.type === 'melody' || question.type === 'videoclip') return snippetShare(opened ?? 1);
   return question.reveal == null ? 1 : revealShare(timeMs, answerWindowMs(question));
 }
 

@@ -148,6 +148,8 @@ import {
   memory,
   melodyQuiz,
   melody,
+  videoclip,
+  videoclipQuiz,
   questQuestions,
   questRound,
 } from './testing/fixtures';
@@ -1985,6 +1987,24 @@ describe('the saved state', () => {
     // старий знімок без поля читається
     const old = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(melodyQuiz(), 'Оля'))), T0))), T0 + 100));
     expect(old.plays[0].melody).toBeUndefined();
+  });
+
+  it('a restored room keeps the video chunks (36)', () => {
+    expect(GAME_STATE_VERSION).toBe(22);
+    let s = must(next(teamGame(teamQuiz([classicRound('r1', [single]), classicRound('r2', [videoclip])]), [['Оля', 'Петро'], ['Віра']]), T0));
+    s = must(lock(s, T0 + 1000));
+    for (let i = 0; i < 12 && !(s.phase === 'question' && s.plays[s.questionIndex].question.type === 'videoclip'); i++) s = must(next(s, T0 + 2000));
+    expect(s.questionIndex).toBe(1);
+    const at = s.startedAt! + 1000;
+    s = must(melodyOpen(s, 't1', 'm1', 0, 1, at));
+    s = must(melodyOpen(s, 't1', 'm2', 0, 2, at + 10));
+    s = must(melodyOpen(s, 't2', 'm3', 0, 1, at + 20));
+    const back = roundTrip(suspend(roundTrip(s), at + 100));
+    expect(back.plays[1].question).toMatchObject({ type: 'videoclip', clip: { id: 'E2Evideo001', start: 12 }, muted: true });
+    expect(back.plays[1].melody).toEqual({ heard: { t1: 2, t2: 1 }, by: { t1: 'm2', t2: 'm3' } });
+    // соло-знімок до запитання: поле порожнє
+    const solo = roundTrip(suspend(roundTrip(must(next(must(start(lobbyWith(videoclipQuiz(), 'Оля'))), T0))), T0 + 100));
+    expect(solo.plays[0].melody).toBeUndefined();
   });
 
   it('an auction snapshot keeps the leader, the bid and the clock without a new version (27b)', () => {

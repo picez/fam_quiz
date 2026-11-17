@@ -1,6 +1,7 @@
 import { answererModeOf, isPuzzle, isUnscored, type AnswererMode, type AnswererScope, type Phase } from '@quiz/shared';
 // game.ts (openQuestion) імпортуватиме цей файл, а цей файл — його; звертання лише під час виклику функцій.
 import { comingQuestion, comingRound, currentRound, fail, ok, questionsLeft, type AnswererNow, type AnswererPick, type AnswererTurn, type GameState, type Play, type Result } from './game';
+import { isSnippetQuestion } from './snippets';
 import { trialOpen } from './survival';
 import { actorOf } from './team-act';
 import { captainOf, memberOf, teamMembers, teamsOn, withTeams } from './teams';
@@ -57,7 +58,7 @@ export function queueNext(state: GameState, teamId: string): string | null {
  * «Правда про гравця» (28b): вгадує капітан; команда автора не позначена окремо — інакше сцена видала б автора.
  */
 /** Відповідача немає: бліц, опитування й «хмара», «Правда про гравця» (28b) і головоломки (28d: спільна сітка всієї команди). «Думай інакше» (35) — ні: слово пише відповідач 12g. */
-const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || play.question.type === 'melody';
+const freeForAll = (play: Play): boolean => play.blitz !== undefined || isUnscored(play.question) || play.truth !== undefined || isPuzzle(play.question) || play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory' || isSnippetQuestion(play.question);
 
 /**
  * Хто відповідає на поточному запитанні: вибір, чинний на мить відкриття (current), інакше вибір, черга, капітан;
@@ -114,14 +115,14 @@ function boardFinisher(play: Play, teamId: string): string | null {
 
 /**
  * Людина команди teamId, що відповідала на запитання index (12i, для запису): бліц — хто натиснув (play.buzzers);
- * «Мелодія за нотами» (29e) — хто надіслав відповідь (play.buzzers, пише actAnswer); «Пам'ять», «Пазл», «Знайди відмінності» —
+ * «Мелодія за нотами» (29e) і «Відео за фрагментами» (36) — хто надіслав відповідь (play.buzzers, пише actAnswer); «Пам'ять», «Пазл», «Знайди відмінності» —
  * хто завершив дошку (boardFinisher); поточне запитання — answererOf; давніше — null (рекордер уже записав його раніше).
  * Старий знімок мелодії без buzzers — null, як і до цього.
  */
 export function answeredByOf(state: GameState, index: number, teamId: string): string | null {
   const play = state.plays[index];
   if (play === undefined) return null;
-  if (play.blitz !== undefined || play.question.type === 'melody') return play.buzzers?.[teamId] ?? null;
+  if (play.blitz !== undefined || isSnippetQuestion(play.question)) return play.buzzers?.[teamId] ?? null;
   if (play.question.type === 'jigsaw' || play.question.type === 'spotdiff' || play.question.type === 'memory') return boardFinisher(play, teamId);
   // Головоломку (28d) вписує вся команда: номінального відповідача не приписуємо.
   if (isPuzzle(play.question)) return null;
@@ -135,7 +136,7 @@ export function answeredByOf(state: GameState, index: number, teamId: string): s
 export function freeForAllNext(state: GameState): boolean {
   if (comingRound(state)?.type === 'truth') return true;
   const coming = comingQuestion(state);
-  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question) || isPuzzle(coming.question) || coming.question.type === 'jigsaw' || coming.question.type === 'spotdiff' || coming.question.type === 'memory' || coming.question.type === 'melody');
+  return coming !== null && (coming.blitz || coming.truth || isUnscored(coming.question) || isPuzzle(coming.question) || coming.question.type === 'jigsaw' || coming.question.type === 'spotdiff' || coming.question.type === 'memory' || isSnippetQuestion(coming.question));
 }
 
 /**
